@@ -4,8 +4,8 @@
  * opens, one tab stop), each poster its last pictured step (run_thumbs through Thumb.tsx, the app's one image source),
  * its title, its state as a shape AND a word (board-words.ts) and its length; a search and a sort; New scenario (the
  * Record screen). Nothing is selected at first: the inspector shows the project (facts, README, recent runs, Lately); a
- * selected production shows its facts (length, content, last take, render, review, location), Open and Render (the
- * timeline, where Render acts today) and its Lately; a location shows its pages, display URLs, flags and personas.
+ * selected production shows its facts (length, content, last take, render, review, location), Open and Render (L5.11a:
+ * the status bar's Render on it — it is the scenario in context) and its Lately; a location shows its pages, display URLs, flags and personas.
  * Reads: the shared project entries (project-data.ts: one project_get, one project_board per open project); a take
  * running is followed by `run_status` (never the whole board at each step). Every value from data is text.
  * L5.10a fixes: a location route shows the location (it clears the selection; selecting a production afterwards shows
@@ -24,6 +24,7 @@ import { useEvents, useProjectEvents } from './events.js';
 import { useBoard, useProjectView } from './project-data.js';
 import { hrefTo } from './route.js';
 import type { ProductionGroup, Route } from './route.js';
+import { runShellCommand } from './shell/command-bus.js';
 import { rememberScenario } from './shell/modes.js';
 import { ShellSlot } from './shell/slots.js';
 import { NoThumb, Thumb, ThumbsProvider } from './Thumb.js';
@@ -167,7 +168,7 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
         <StatusMark state={st.state} word={st.word} />
         {running && (
           <>
-            <Progress label={running.mode === 'dry' ? 'Dry run' : 'Capture'} value={running.steps_done} max={Math.max(1, running.steps_total)} valueText={`${running.steps_done} of ${running.steps_total} steps`} />
+            <Progress label={running.mode === 'dry' ? 'Rehearsal' : 'Capture'} value={running.steps_done} max={Math.max(1, running.steps_total)} valueText={`${running.steps_done} of ${running.steps_total} steps`} />
             <div>
               <LinkButton to={{ name: 'run', slug: p.slug, scenario: s.name, run: running.id }} size="sm">
                 Watch live
@@ -209,7 +210,10 @@ function ProductionInspector({ s, p, live }: { s: BoardScenario; p: ProjectView;
             Open
           </LinkButton>
           {s.capture ? (
-            <LinkButton to={{ name: 'timeline', slug: p.slug, scenario: s.name }}>Render</LinkButton>
+            // L5.11a (BL-128): Render acts — the status bar's own action on this production (the scenario in context).
+            <Button data-testid="production-render" onClick={() => runShellCommand('render')}>
+              Render
+            </Button>
           ) : (
             <Button disabled why="No capture yet: a capture films the take a render edits.">
               Render

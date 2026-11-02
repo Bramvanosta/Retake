@@ -12,7 +12,7 @@ export function seconds(ms: number | undefined): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
 }
 
-export const MODE = (m: string) => (m === 'dry' ? 'dry run' : 'capture');
+export const MODE = (m: string) => (m === 'dry' ? 'rehearsal' : 'capture');
 
 /**
  * A step as the screen numbers it: "step 3 of proposal" — 1-based like the rows and the inspector, never the run's
@@ -81,9 +81,14 @@ export const RUN_STATUS_WORDS: Record<string, string> = {
   running: 'running',
   succeeded: 'succeeded',
   failed: 'failed',
-  cancelled: 'cancelled',
+  cancelled: 'stopped',
   interrupted: 'interrupted',
 };
+
+/** run.json's `partial` in the Studio's words: a stopped run says "stopped" (the engine's "cancelled", review B-L2 of L5.11a). */
+export function partialWords(p: string): string {
+  return p === 'cancelled' ? 'stopped' : p;
+}
 
 /** The words of a step's state in the source run, for its row and its accessible name. */
 export function bindingWords(b: StepBinding | undefined, hasSource: boolean): string {

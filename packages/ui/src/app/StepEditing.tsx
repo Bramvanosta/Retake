@@ -66,7 +66,7 @@ export interface StepEditor {
 
 /** After a form's change (L5.5's rule): what the browser does is filmed again; an edit change is a render away. */
 export const CHANGE_WORDS = {
-  filmed: 'What the browser does changed: a dry run shows it, a capture films it.',
+  filmed: 'What the browser does changed: a rehearsal shows it, a capture films it.',
   edit: 'Only the edit changed: a render of the last capture shows it, no new capture needed.',
 } as const;
 

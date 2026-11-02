@@ -244,3 +244,85 @@
   display: grid;
   gap: var(--ui-space-6);
 }
+
+/* L5.11a: the status bar's scenario — its state (truncates first), then its actions (the blocker's words next) */
+.sh-scenario {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ui-text-2);
+}
+.sh-scenario > .k-mark {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.sh-scenario .k-mark-word {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-scenario > time,
+.sh-scenario > .k-btn {
+  flex: none;
+}
+.sh-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.sh-actions > .k-blocker.is-compact {
+  min-width: 0;
+  flex-shrink: 1;
+}
+.sh-actions > .k-btn {
+  flex: none;
+}
+.sh-sheet-list {
+  margin: var(--ui-space-3) 0;
+  padding-left: var(--ui-space-7);
+}
+/* L5.11a fixes (review A-L1): the blocker's words are never cut — the state word beside its mark is what makes the
+   mark more than a colour; the segments of the scenario's state give way instead, whole. */
+.sh-actions > .k-blocker.is-compact {
+  flex: none;
+}
+.sh-actions .k-blocker.is-compact > .k-mark,
+.sh-actions .k-blocker.is-compact .k-mark-word,
+.sh-actions .k-blocker.is-compact .k-blocker-text {
+  overflow: visible;
+  text-overflow: clip;
+}
+.sh-seg {
+  white-space: nowrap;
+}
+/* Narrow windows drop whole segments, by priority: the key caps (the menu still names the keys), the live-updates
+   word and the last take's time; then the scenario's name and the last take; the blocker's Command… keeps its icon
+   (its name stays for assistive technology). */
+@media (max-width: 1100px) {
+  .sh-actions .k-kbd-group,
+  .sh-seg[data-drop='when'],
+  .sh-seg[data-drop='updates'] {
+    display: none;
+  }
+}
+@media (max-width: 1000px) {
+  .sh-seg[data-drop='name'],
+  .sh-seg[data-drop='last'] {
+    display: none;
+  }
+  .sh-actions .k-blocker-command .k-btn-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

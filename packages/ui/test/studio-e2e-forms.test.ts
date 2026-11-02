@@ -129,7 +129,7 @@ describe("the step's form", () => {
     await expect.poll(() => page.getByTestId('form-save').innerText(), POLL).toBe('Save type text');
     const t = Date.now();
     await page.getByTestId('form-save').click();
-    await expect.poll(() => live(), POLL).toBe('Changed type text of step 2 of a. Saved. What the browser does changed: a dry run shows it, a capture films it.');
+    await expect.poll(() => live(), POLL).toBe('Changed type text of step 2 of a. Saved. What the browser does changed: a rehearsal shows it, a capture films it.');
     const t1 = await settled('forms');
     expect(changed(t0, t1)).toEqual(['      - type: {into: {label: Message}, text: "Dark roast, please", cps: 18}']);
     const want = value(t0);

@@ -3345,14 +3345,14 @@ the same engine and the same tools Claude uses over MCP, through the engine's lo
 running: the MCP server keeps working without it.
 
 - **The window (L5.9).** A fixed window of panes: the title bar (the open project › scenario, and the pipeline
-  *Script · Shoot · Edit · Review* as the way between a scenario's screens — its blocks, its Run screen, its timeline,
+  *Script · Shoot · Edit · Review* as the way between a scenario's screens — its blocks, Prepare and its runs, its timeline,
   its frame comments), the browser on the left (the projects, or the open project's productions, library, locations,
   cast and README; the workspace, the version and the worker at its foot), the screen in the centre (it scrolls; the bars stay), an inspector on the right where a
   screen has one, and the status bar (the connection, *live updates*, the worker, what a command answered). **Dark by
   default, following your system's appearance** (System Settings › Appearance: Light gives the light one, at once).
   **⌘K** opens the command palette (on a Mac; Ctrl+K elsewhere, outside a text field — on a Mac Ctrl+K stays a field's
   "delete to the end of the line"): go to a project, a page, a smart group, a location, a scenario ("Open quote"), a
-  mode, the UI gallery. The *UI gallery* (the
+  mode, the UI gallery — and, L5.11a, the scenario in context's **Rehearse**, **Capture**, **Render** and **Stop**. The *UI gallery* (the
   browser's foot, or ⌘K) shows every component of the Studio's design system in both appearances
   ([docs/reference/studio-ui.md](docs/reference/studio-ui.md)). The screens move onto that design one by one
   (L5.10 – L5.12); until then each keeps its content inside the new window.
@@ -3406,12 +3406,12 @@ running: the MCP server keeps working without it.
   README.md says that saving creates it.
 - **The Scenario screen (L5.10b).** A storyboard: the browser lists the scenario's entries (the video, *Before
   filming*, each scene with its length and a bar, the cards, *After filming*: a click selects one and brings it into
-  view); the title bar holds *View* (Board · YAML) and *Location* (pick another environment for Dry run and Capture in
-  this tab — the take strip says so, and that the Run screen keeps the file's own; a reload goes back to it, and a
-  location project.yaml no longer has is dropped, said once). A run of the scenario in progress shows above the board
-  and the YAML view alike (its progress, *Watch live*, *Cancel*). Above the board, the take strip: *Pictures from*, the
-  source run, the open comments, Dry run · Capture (what stops each is said before any click, its reasons and command
-  folded under the line), Open timeline. The board says how many steps and scenes the file has; each scene shows its
+  view); the title bar holds *View* (Board · YAML) and *Location* (pick another environment for Rehearse and Capture in
+  this tab — Prepare and the status bar use the same choice, the take strip and the status bar say so; a reload goes
+  back to the file's own, and a location project.yaml no longer has is dropped, said once). A run of the scenario in
+  progress shows above the board and the YAML view alike (its progress, *Watch live*; Pause and Stop are the status
+  bar's). Above the board, the take strip: *Pictures from*, the source run, the open comments, the location the runs
+  use, what the last start came to. The board says how many steps and scenes the file has; each scene shows its
   frames three a row — two or one when the board is narrow (a small window, the inspector open) — the step's picture,
   its number, its verb and target ("Wait for …", "Wait 1.6 s"), how long it took and its state in words; a scene
   filmed only by a dry run says *no capture yet* beside its number. The cards sit between scenes as one-line cards.
@@ -3421,7 +3421,7 @@ running: the MCP server keeps working without it.
   step (its picture, its title, its form — the fields named in words, the target's *Other ways to find it*, the
   modifiers as switches —, what it does, Move up / Move down / Duplicate / Delete — the button keeps the focus, so Enter
   again moves it again —, *In this run*, its lines, *Show in the file*), a scene's facts, a card, the hooks, the video
-  (its location: the file's own, and the one Dry run and Capture use when you picked another). A selected step that
+  (its location: the file's own, and the one Rehearse and Capture use when you picked another). A selected step that
   disappears from the file (an outside edit) leaves its scene selected — never another step. *View › YAML* shows the
   file's numbered lines with each issue under its line, *Edit* opens the editor, and the inspector says whether the
   file is valid. The renders sit in a closed *Renders and review* section at the board's end (until L5.12). The points
@@ -3515,21 +3515,33 @@ running: the MCP server keeps working without it.
   (its hook's name), duplicates and deletes like any step; the named hooks (`hooks:`) are listed in the hooks strip,
   by name, read-only — like setup and teardown they never change from the Studio. A scene with `offscreen: true`
   shows "off camera: played, not in the video"; scene options (that one included) are edited in the YAML tab.
-- **Dry run and Capture from the scenario screen.** *Runs from the Studio* has a **Dry run** button (no hooks, a
-  screenshot per step) and a **Capture** button (the setup and teardown hooks, the video), on the environment the
-  screen shows, and says before any click what would stop each one. One that cannot start from the Studio — a hook
-  that needs a person (shell, destructive, a destructive rollback), a scenario naming a secret or a file outside the
-  project — is disabled with the reason and the exact `studio run …` command to type in a terminal (and the same command
-  as `node <repository>/packages/cli/dist/bin.js …` where `studio` is not on your `PATH`); a scenario with errors says
-  to fix the file first (the terminal refuses it too). The server checks again when you click — the file as the screen
-  showed it: if it changed meanwhile, nothing starts and the screen reads it again — and words any refusal for the
-  Studio; a second click while a run of the scenario waits or runs (another tab) is refused. The Studio never resets a sandbox, never stops at a step
-  (`--until`) and never runs the hooks of a dry run: those stay `studio run` options. A run that starts shows a banner
-  with its progress (*3/7 steps · current step 4 of coffees*) and **Cancel this run** (a running capture stops at its
-  next step, then its teardown and rollbacks run); when it ends, *Runs from the Studio* says how it ended — and, for a
-  run that failed (the site not reachable, a step not found), the first line of its error — and its pictures replace
-  the old ones (the newest run that went to the end is the default). If the worker dies mid-run, the banner goes and
-  the run shows as interrupted. While a run of the scenario is queued or running, both buttons wait.
+- **Rehearse, Capture and Render: the status bar (L5.11a).** On every screen with a scenario in context (its own, or
+  the one last opened or selected in the project), the status bar says its state — *Rehearsing · step 3 of 7 · Watch*,
+  *Capture paused*, *Last take succeeded · 2 h ago*, *Idle*; its name first off its own screens; *on staging* when the
+  tab chose another location — and holds **Rehearse** (no hooks, a screenshot per step), **Capture** (the setup and
+  teardown hooks, the video) and **Render** (the newest finished capture — the timeline's own on the Edit screen —
+  with the file as shown), with **Pause** and **Stop** while a run of it is queued or running. *Rehearse* is the
+  Studio's word for a **dry run** (`studio run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
+  run". What would stop each is said before any click: one line in the status bar names the gate in a few words — *1
+  hook to approve*, *protected location*, *uses a secret or an outside file*, *read-only location refuses its hooks*,
+  *the file has errors* (Open the YAML) — with **Command…**, a small popover that shows the exact `studio run …`
+  command to type in a terminal, in full, beside its **Copy command** ("Copied" shows; Prepare also shows it as
+  `node <repository>/packages/cli/dist/bin.js …` where `studio` is not on your `PATH`); the full reason is each button's
+  description. In a narrow window the status bar drops whole pieces (the last take, the scenario's name) rather than
+  cutting a word; its answers line goes after a few seconds and when you change screens. The server checks again when you start — the file as the
+  screen showed it: if it changed meanwhile, nothing starts — and refuses a second run of a scenario while one waits or
+  runs; a held key, a click and a menu command in the same instant start one run. The Studio never resets a sandbox,
+  never stops at a step (`--until`) and never runs the hooks of a rehearsal: those stay `studio run` options. A start
+  from the status bar stays where you are (the status bar follows the run; the scenario screen's take strip says how
+  it ended, with the first line of a failed run's error); one from Prepare, or from a run's live screen (its outcome's
+  **Rehearse again** / **Start capture**), opens the new run live. **Stop** runs the teardown and rollbacks (a run
+  started in a terminal: press Ctrl-C there; with a Studio run of the same scenario going too, Stop acts on the Studio
+  run). A stopped run says *stopped* everywhere. In the desktop app the **Scenario** menu
+  binds **⌘R** Rehearse, **⇧⌘R** Capture, **⌘B** Render and **⌘.** Stop (a live screen's Stop, a live recording's, or
+  the status bar's — one Stop at a time); in a browser tab those keys stay the browser's and **⌘K** offers the four.
+  On the Project screen, a production's **Render** acts the same way. A capture whose sessions must be confirmed asks
+  first in a sheet: **Sign in … first…** (the default: it opens Prepare at that persona's Sign in), **Capture anyway**
+  (once), Cancel.
 - **Watching and pausing a run** (L4.4).
   Every run the worker executes — the Studio's or Claude's — can be watched live: the worker serves a small picture of
   the page the run acts on (at most 960 px wide and 10 frames a second) on a loopback port of its own, kept in memory
@@ -3553,7 +3565,7 @@ running: the MCP server keeps working without it.
   started in a terminal too, without its picture — and relays the picture only while a tab shows it: a hidden tab or
   the picture switched off closes it, and **during a capture the picture is off unless you ask for it** (it costs
   Chromium CPU during the take — about 15 % more on the fixture's 32-second two-page `live-quote` take, the
-  recording itself unaffected; a dry run shows it by default). A capture filmed while someone watched says so: run.json
+  recording itself unaffected; a rehearsal shows it by default). A capture filmed while someone watched says so: run.json
   `perf.live_preview` (the seconds the picture ran, the frames sent) and a run warning. At most two tabs follow runs at
   once. Starting a **capture** whose scenario needs a persona whose saved session is invalid (expired, failed, never
   signed in) and that no run signs in by itself asks you to confirm first: sign in, or capture anyway. A run signs a
@@ -3563,28 +3575,34 @@ running: the MCP server keeps working without it.
   signed in) is checked before filming and the run stops there if it is still invalid; one without a `check` cannot be
   — its saved session is used as it is, and the run fails only when a page lands on the sign-in page, after its setup
   hooks ran.
-- **The Run screen.** *Run screen* (the link under *Runs from the Studio*, or `#/p/<project>/s/<scenario>/run`) opens
-  on the **preflight**: the sessions the scenario's run signs in — each persona's last known state, in words, with
-  **Sign in** — and what would stop a run, then **Start dry run** and **Start capture**. A started run opens its own
-  screen (also **Watch live** on the scenario screen's banner and after a Dry run / Capture click), for any run of the
-  scenario, the Studio's or Claude's (a run started in a terminal: steps and log, no picture). It shows the mode, the
-  environment, the run's state, the time since it started and the steps done; the **live picture** of the page (a dry
-  run's on by default, a capture's behind **Show live picture**; *Not recorded*; it stops while the tab is hidden); the
-  **steps** as the run lists them, with their status in words — first *Before filming*: each persona's sign-in check
-  (*signed in*, *signed in automatically, off camera*, *not signed in: the run stops before filming*) and the setup
-  hooks, then the scenes (a `hook:` step's entries on its row; *skipped (dry run)* when the run skips its hooks), then
-  the teardown, the rollbacks and the encoding; the **log** (plain text, the last 1,000 lines in time order, warnings
-  only on request; the worker's notes say *job*, never the run's outcome); **Pause** / **Resume** (before the next
-  step; a capture says that the video will not show the pause; the pause's limit as the worker has it) and **Stop**
-  (*stopping now: the step in progress is interrupted; its teardown hooks and pending rollbacks still run* — only that
-  step says *stopped here*), then the outcome: how it ended, the steps done (a failed step is not done), where it
-  failed — a step's error, which may quote the page, in a box saying so; an error of the tool (a missing variable, the
-  app not reachable) said plainly —, how the teardown and rollbacks went, and a link back to the scenario's pictures.
-  A run whose worker was killed shows its running step as *interrupted* and its clock stopped at its last event. A third tab on a run screen (two at most follow runs) reads the run's
-  status every few seconds instead. Everything works with the keyboard; one status line tells a screen reader when
-  the run starts, pauses, stops or ends — the steps and the log are lists, not announcements.
-- **The timeline** (L4.5). **Open timeline** on the scenario screen (under *Runs from the Studio*; disabled, with why,
-  until a capture has finished), **Open its timeline** after a capture on the Run screen, or **Show in timeline** on a
+- **Shoot: Prepare a take and a run live (L5.11a).** *Shoot* (⌘2, or `#/p/<project>/s/<scenario>/run`) opens
+  **Prepare a take**: four checks before the browser opens, nothing run — the **Location** (its flags, its pages and
+  what the video shows instead; changed in the title bar, shared with the scenario screen), the **Sessions this run
+  signs in with** (each persona's last known state as a shape and a word, its last check, what a run does with it, and
+  **Sign in…**: a browser window where *you* sign in — none for a sandbox account or a persona its login steps sign in;
+  *A capture asks first* when one must be confirmed), **What would
+  stop a run** (each refusal in full, with its command to copy; *A rehearsal skips the hooks, so it is not affected*),
+  and the **Live picture during a capture** (off by default) — then **Start rehearsal** and **Start capture**, each
+  with what stops it beside a disabled one, at the foot of the window while the checks scroll. The browser lists the scenario's runs (each opens its screen); the
+  inspector the last take (its picture, outcome, length, steps, run; **Open in Edit**, **Open its run**). A started run
+  opens **its live screen**, for any run of the scenario, the Studio's or Claude's (a run started in a terminal: steps
+  and log, no picture): *Rehearsal of quote* / *Capture of quote*, the current step, when it started and where; the
+  **live picture** of the page (a rehearsal's on by default, a capture's behind **Show live picture**; *Not recorded*;
+  it stops while the tab is hidden); the steps done and the time elapsed; in the inspector the **steps** as the run
+  lists them with their status in words — *Before filming* (each persona's sign-in check, the setup hooks), the scenes
+  (a `hook:` step's entries on its row), the teardown, the rollbacks, the encoding; *Follow current step* — and the
+  **log** (the last 1,000 lines, warnings only on request). The status bar holds **Pause** / **Resume** (before the
+  next step; a capture does not film the pause) and **Stop** (*the step in progress is interrupted; its teardown hooks
+  and pending rollbacks still run*). Once it ended: how, the steps done (a failed step is not done), where it failed —
+  a step's error, which may quote the page, in a box saying so; an error of the tool said plainly —, how the teardown
+  and rollbacks went, then **Open in Edit** (a capture), **Start capture** (a rehearsal that passed) or **Rehearse
+  again**, and **Back to the board**. A run whose worker was killed shows its running step as *interrupted*. A third
+  live screen (two at most follow runs) reads the run's status every few seconds instead. Everything works
+  with the keyboard; one status line tells a screen reader when the run starts, pauses, stops or ends. The **Cast**
+  (the browser's *Sessions*) lists every persona by location with the same rows and **Sign in…**. A start from
+  Prepare puts the keyboard focus on the live screen's title; a refusal shows its words and takes the focus.
+- **The timeline** (L4.5). The **Edit** mode (⌘3: the newest finished capture), **Open in Edit** after a capture on
+  its live screen or on Prepare's last take, or **Show in timeline** on a
   step bound to a capture (`#/p/<project>/s/<scenario>/timeline[/<run>[/<step>]]`) shows one capture as the edit plans
   it — the edit of today's file on that take, or the take as captured when what the browser does changed since (it then
   says so). On top: the capture (a picker when there are several), the theme, the length, the frames, and the take's
@@ -3765,8 +3783,8 @@ running: the MCP server keeps working without it.
   minutes, `DEMO_STUDIO_SIGNIN_MAX_MIN`); the row follows it (*waiting for the queue* while a run — a paused one too —
   holds the worker, *a browser window is open…*, then the result) with **Cancel** (*Stopped*: the saved session is not
   updated; on a persona's existing browser profile, what the window changed stays there). No password ever goes
-  through the Studio. The Run screen's confirmation closes before it goes: Escape returns to **Start capture**, *Sign in
-  first* to that persona's **Sign in**.
+  through the Studio. The capture's confirmation (a sheet) gives the focus back as it closes: Escape returns to the
+  Capture that opened it, *Sign in … first…* to that persona's **Sign in…** on Prepare.
 - **The jobs worker.** A run from the Studio is a job, like one Claude starts: the Studio starts the workspace's
   worker when you click (if none is running) and the worker exits after a minute without work. It gets a clean
   environment: your terminal's, without the folders a package manager adds to `PATH` (`pnpm studio ui` puts

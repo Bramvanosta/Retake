@@ -168,7 +168,7 @@ describe('the Studio in Chromium', () => {
     // Each flagged environment with its flag words exactly (review B-M3: its name alone must not satisfy the check).
     expect(text).toContain('production: production · read-only');
     expect(text).toContain('sandbox: sandbox');
-    expect(text).toMatch(/Last dry run failed\s*·\s*quote/);
+    expect(text).toMatch(/Last rehearsal failed\s*·\s*quote/);
     const broken = cards.filter({ hasText: 'Broken project' });
     expect(await broken.innerText()).toContain('This project does not load');
     // The sidebar lists them too, the current screen marked.
@@ -184,7 +184,7 @@ describe('the Studio in Chromium', () => {
     const disk = await readFile(readmeFile(), 'utf8');
     expect(await page.getByTestId('readme-preview').textContent()).toBe(disk.split('\n').slice(0, 40).join('\n'));
     await page.getByRole('heading', { name: 'Recent runs' }).waitFor();
-    await page.getByText('20261017').or(page.getByText('dry run ·').first()).first().waitFor();
+    await page.getByText('20261017').or(page.getByText('rehearsal ·').first()).first().waitFor();
     await shot('02-project');
     // L5.10a: a location's pages, display URLs and flags are in the inspector (the browser's Locations row).
     await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: /^local/ }).click();

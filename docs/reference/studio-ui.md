@@ -209,9 +209,10 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | PosterGrid | ONE listbox (L5.10a): options with `aria-selected`, the selected one the active descendant (no `aria-activedescendant` while none is), select fill + 2 px ring; as many columns as fit, 200 px at least | arrows (↑ ↓ move by the row the layout shows: three at 1440, one at 900), Home / End, Enter opens, Space selects, Escape clears; a click selects, a double-click opens; nothing selected at first |
 | InspectorSection | titled; collapsible (`<details>`) | |
 | FrameCard, PosterCard | selected (select fill + 2 px ring) or not; a button that selects or a link that goes | the picture comes from Thumb.tsx (the one image source) |
-| Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied"); L5.10a: without a word, no mark (a command to copy nothing waits on) | one line; the explanation on demand |
+| Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied", or a link); L5.10a: without a word, no mark (a command to copy nothing waits on); L5.11a: `compact` — the status bar's form: the mark and a few words (never cut), a ghost action — for a command, "Command…", a popover that shows the whole command wrapped beside its Copy (L5.11a fixes: what is copied is what is shown). The command is never cut (it wraps); "Copied" (or "Not copied: select the command instead") is visible | one line; the explanation on demand |
+| Checklist, ChecklistItem | an `<ol>` of checks (L5.11a): a 28 px state column (the shape), a title (h3) with its state word beside it (a visible word: the colour-only rule), its body, its actions; a hairline between items | Prepare's four checks; a short list of facts each with one state |
 | EmptyState | title, text, actions | |
-| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
+| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
 | CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
 
@@ -229,25 +230,41 @@ Studio keeps `APP_NAME` (L5.13 renames).
   Deviations: R4's three columns become two inside the shell (the browser is R4's third); no project poster (they span
   projects: BL-128), no "This Mac is ready" panel (no doctor op: BL-128), no Open a folder (no write path: BL-128), the
   projects listed by name, not by recency.
+- **The status bar's actions** — built in L5.11a (B32-Projet / B32-Scenario footers): on every screen with a scenario
+  in context, its state in a non-live span (*Rehearsing · step 12 of 25 · Watch*, *Capture paused*, *Last take
+  succeeded · 2 h ago*, *Idle*; its name first off its own screens; *on staging* when the tab chose another location),
+  then Rehearse, ● Capture (the record variant), Render — and Pause / Stop while a run of it is unfinished. One blocker
+  line at a time (Capture's first, else Rehearse's), in the gate's own words (*1 hook to approve*, *protected
+  location*, *uses a secret or an outside file*, *read-only location refuses its hooks*, *the file has errors*; an
+  unknown gate: *needs the terminal*) with Command… (a popover showing the whole command beside its Copy) or Open the
+  YAML; each disabled action's full reason is its description. Key caps only in the desktop app, hidden under 1100 px;
+  in a narrow window whole segments give way — "live updates" and the last take's time under 1100 px, the scenario's
+  name and the last take under 1000 px, Command… down to its icon —, the blocker's words are never cut; nothing scrolls
+  sideways at 900 px. Stop and Pause act on the scenario's run with a job first (a terminal's run beside it: Ctrl-C
+  there). A screen may claim the slot (Prepare, the live screen while its run goes, a live recording): the buttons hide,
+  the commands stay. The polite line says command answers and a run's start, stop or refusal — never a step's progress;
+  it is text, one line at a time, gone after 6 s and when the screen changes. ⌘. always answers (with the palette open
+  it closes it first). "Rehearse" is the Studio's word for a dry run (`studio run … --dry`, MCP `run_dry`); Prepare
+  shows that mapping once. A stopped run is "stopped" everywhere.
 - **Project** (B32-Projet) — built in L5.10a: h1 "Productions" (or the smart group) and its count; search, Sort (Last
   activity · Name · Length), New scenario (the Record screen); the poster grid (one listbox; each poster its capture's
   last pictured step, its title, its state as a shape and a word, its length); a project.yaml warning line with a
   Disclosure. The inspector: nothing selected → the project (facts, README preview and Edit / Write / Open, recent
   runs, Lately); a production → its poster, title and file, state, facts (length, content, last take, capture, render,
-  review, location), Open and Render (opens the timeline, where Render acts until L5.11), Lately; a Location
+  review, location), Open and Render (L5.11a: the status bar's Render on that production), Lately; a Location
   (`#/p/<slug>/loc/<env>`) → its flags, pages (URL, shown as) and personas — a location route clears the selection. The
   inspector hidden: its content under the grid, under a heading. The posters reflow (auto-fill, 200 px at least); the
-  search's label is visually hidden behind a search icon (B32). The Cast (`#/p/<slug>/cast`) hosts the Sessions panel
-  until L5.11; the browser's Cast rows put a persona's location on a second line that wraps. Deviations: the canvas's
+  search's label is visually hidden behind a search icon (B32). The Cast (`#/p/<slug>/cast`; L5.11a: on the kit — one
+  section per location, the personas as Prepare's session rows, Sign in… / Cancel / Sign in again); the browser's Cast rows put a persona's location on a second line that wraps. Deviations: the canvas's
   Location select on this screen is cut (BL-128).
 - **Scenario** (B32-Scenario) — built in L5.10b: the title bar's context holds View (Board · YAML) and Location (the
-  environments with their flags in words; a choice holds in this tab only and changes what Dry run and Capture use —
-  said beside them —, never what Shoot uses; one project.yaml no longer has is dropped and said once); the scenario's
+  environments with their flags in words; a choice holds in this tab only and changes what Rehearse and Capture use —
+  L5.11a: Prepare and the status bar share it —; one project.yaml no longer has is dropped and said once); the scenario's
   name is a visually hidden h1 (the title bar keeps it readable at 900 px, its full text in a tooltip). Above the board
-  and the YAML view alike: the running take (progress, Watch live, Cancel). The take strip (minimal until
-  L5.11 moves the run actions to the status bar): Pictures from, the source run as a shape and words, the open comments,
-  Dry run · Capture with what stops each (the reasons and commands folded under the line), Open
-  timeline, the location, what the last click came to, what the pictures may not show. The file's notices, the edit
+  and the YAML view alike: the running take (progress, Watch live; L5.11a: Pause and Stop are the status bar's). The
+  take strip (L5.11a: the run actions moved to the status bar, Open timeline went — the Edit mode opens the same
+  capture): Pictures from, the source run as a shape and words, the open comments, the location, what the last start
+  came to (whoever started it), what the pictures may not show. The file's notices, the edit
   bar (Undo / Redo naming the edit, Add a step…), the palette. The storyboard: the step count and the file, Before
   filming, the scenes (title = the caption's kicker, its caption, flags in words, "Scene 1 · shop, / · 9.3 s" — "no
   capture yet" under a dry run's pictures — and Add step, then its frames, three a row while the board is wider than
@@ -260,24 +277,51 @@ Studio keeps `APP_NAME` (L5.13 renames).
   ways to find it (n)", the modifiers as switches, all on the first screen at 1440 × 900 —, what it does, Move up /
   Move down / Duplicate / Delete — the button keeps the focus —, In this run, As written, Show in the file · line n), a
   scene's facts, a card's, the hooks, the video's (its location: the file's own, the tab's choice beside it). Deviations: the canvas's
-  action Type select and Rest field, the Zoom modifier and verified alternative targets are cut (BL-129); "Rehearse" is
-  still "Dry run" (L5.11).
+  action Type select and Rest field, the Zoom modifier and verified alternative targets are cut (BL-129).
 - **Scenario source** (R4-Source) — built in L5.10b: View › YAML: a toolbar line (the file, "Comments and layout are
   kept when you edit the board.", Edit / Save / Discard changes / Close the editor), the numbered lines with each issue
   under its line, the focus lines outlined; the editor is the kit's text area (same drafts, conflicts, live checks); the
   File inspector (valid or n errors in words, warnings, unsaved, hidden characters, the size against the cap). Deviations:
   no syntax colours, no Ln / Col, the scenes browser in place of the Outline, no Show in Finder (BL-129).
-- **Shoot — prepare a take** — the checklist; a blocking hook in one line with Copy command. L5.11.
-- **Shoot — a live rehearsal / capture** — the live picture, the steps, Stop. L5.11.
-- **Shoot — record a scenario** — the Record screen in the shell. L5.11.
+- **Shoot — prepare a take** (R4-ShootPrep) — built in L5.11a: the title bar's Location (shared with the Scenario
+  screen); the browser: Prepare, the scenario's Runs (kind, when, outcome as a shape and words; the running one first;
+  each opens its live route), Record a scenario; the centre: h1 "Prepare a take of <name>", "Nothing here runs
+  anything.", a Checklist — Location (flags, pages, shown as), Sessions this run signs in with (a table without a
+  Location column: persona, state, last check, Sign in… — none for a sandbox account or a persona its login steps sign
+  in —, what a run does with it on its own line under the row; the rows stack below 520 px of pane; "None needed on
+  <env>"; "A capture asks first"), What would stop a run (one Blocker per refusal with its message and its command in
+  full with Copy command, the node form in a disclosure; "A rehearsal skips the hooks, so it is not affected"), Live
+  picture during a capture (a switch, off) — then a run already going (Watch it; a terminal's: "press Ctrl-C there"), a
+  refusal with its command (it takes the focus), the mapping line, and Start rehearsal / ● Start capture with what
+  stops each beside it, in a footer that stays at the foot of the centre pane (one short row under 1100 px); a project
+  or scenario that does not load says so in the checks, beside the buttons and in the status bar; the inspector: the
+  Last take (its poster, facts, Open in Edit, Open its run); the status bar: its state and the scenes and steps, Pause /
+  Stop while a run goes (disabled ones say why). Deviations: no "Pages that answer" (no page is probed from Prepare: BL-130), no estimates, no
+  hooks / rollbacks facts or Watch replay in the Last take, no Recordings group (L5.11b) — BL-130.
+- **Shoot — a live rehearsal / capture** (R4-ShootLive) — built in L5.11a: "Rehearsal of <name>" / "Capture of
+  <name>" (no run id in the title), the current step, when it started and where; the live picture (a video-toned frame,
+  a "Live" mark, the toggle); the steps done and the time elapsed (a kit Progress); the mode's note and what Pause and
+  Stop do; once it ended the outcome with what comes next (Open in Edit, Start capture, Rehearse again, Back to the
+  board). The inspector "Steps and log": Steps (Follow current step; the current row in the select fill, weight 600,
+  `aria-current="step"`), Log (Show, Follow, the dropped count). The status bar: the run's state in the status bar's
+  words (Rehearsing, Capture paused…), Pause / Resume, Stop while it goes (⌘. stops this run — once the stream says
+  whose run it is; a stop or pause on its way is said), then the defaults. Opened by a start, its title takes the focus;
+  the outcome's Start capture / Rehearse again open the new run.
+- **Shoot — record a scenario** — the Record screen in the shell. L5.11b (the legacy screen claims the status bar's
+  slot while its recording is live — "Recording", ⌘. stops it — and shows its one Stop in the screen).
 - **Edit** — the timeline and its live preview. L5.12.
 - **Review — frame comments** — the frame, the thread, Claude's proposal. L5.12.
 - **Review — report and exports** — the review report, the raw package. L5.12.
 - **Library** — the components (the browser's word "Components" until L5.12). L5.12.
 - **Theme editor** — tokens and their preview. L5.12.
-- **Confirmation sheet** — the kit's Sheet. Built in L5.9; screens adopt it in L5.10 – L5.12.
+- **Confirmation sheet** — the kit's Sheet. Built in L5.9; screens adopt it in L5.10 – L5.12. L5.11a: the capture's
+  sessions confirmation (R4-Confirm) — Cancel (Escape) · "Sign in <persona> first…" (the default and the focus: the
+  canvas's Return on Capture anyway is not taken — a session known to be bad would run the hooks) · Capture anyway (the
+  record variant); the personas with their states and what the capture does with each; one sheet in the shell for the
+  status bar's Capture, ⇧⌘R and Prepare's Start capture.
 - **⌘K palette** — the kit's CommandPalette with the shell's commands (places, modes, the inspector). Built in L5.9;
-  its content grows in L5.12.
+  L5.11a: a Scenario group (Rehearse, Capture, Render, Stop — the browser tab's way to them: ⌘R / ⇧⌘R / ⌘B / ⌘. stay the
+  browser's there); its content grows in L5.12.
 - **Light appearance** — the same layout, the mapped palette. Built in L5.9 (tokens).
 
 Until a screen is rebuilt it keeps its L4 content inside the shell's centre pane, in both appearances (the legacy

@@ -172,12 +172,18 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     r = await station(t, 'run-failed', () => go(page, at(`/p/${N}/s/quote/run/20261017-120000-quote`), '[data-testid="run-outcome"]'));
     expect(r.findings, r.report).toEqual([]);
+    // L5.11a: Prepare with nothing blocking (its Start buttons enabled), the status bar's actions with a blocker line —
+    // at 900 too (the overflow rule: nothing scrolls sideways), and in the light appearance.
+    r = await station(t, 'run-preflight-ready', () => go(page, at('/p/demo/s/bits/run'), '[data-testid="start-dry"]'));
+    expect(r.findings, r.report).toEqual([]);
+    r = await station(t, 'status-actions', () => go(page, at(`/p/${N}/s/quote`), '[data-testid="blockers-capture"]'), { schemes: [{ scheme: 'dark', widths: [900, 1280, 1440] }, { scheme: 'light', widths: [900, 1280] }] });
+    expect(r.findings, r.report).toEqual([]);
     r = await station(
       t,
       'confirm-sessions',
       async () => {
         await go(page, at('/p/board/s/members/run'), '[data-testid="preflight-sessions"]');
-        await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), POLL).toContain('never signed in');
+        await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), POLL).toContain('Missing session');
         await page.getByTestId('start-capture').click();
         await page.getByTestId('confirm-sessions').waitFor(POLL);
       },
@@ -185,7 +191,8 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBeGreaterThanOrEqual(2);
     await page.keyboard.press('Escape');
-    await page.getByTestId('confirm-sessions').waitFor({ state: 'detached' });
+    // L5.11a: the shell's one sheet stays in the document, closed.
+    await page.getByTestId('confirm-sessions').waitFor({ state: 'hidden' });
     expect(await dialogCheck(page, page.getByTestId('start-capture'), () => page.keyboard.press('Enter'))).toEqual([]);
   }, 180_000);
 

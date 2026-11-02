@@ -321,7 +321,7 @@ describe('review fixes (L4.2)', () => {
     const v = await engine.scenarios.view(P, 'broken');
     expect(v.ok).toBe(false);
     for (const mode of ['dry', 'capture'] as const) {
-      expect(v.run_blockers[mode]).toEqual([{ code: 'invalid', message: expect.stringMatching(/^the file has 1 error \(listed with the blocks\): fix the file first/), fix_file: true }]);
+      expect(v.run_blockers[mode]).toEqual([{ code: 'invalid', kind: 'invalid', message: expect.stringMatching(/^the file has 1 error \(listed with the blocks\): fix the file first/), fix_file: true }]);
     }
     const views = new ScenarioViews({
       ws: engine.workspace,

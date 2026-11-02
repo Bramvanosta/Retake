@@ -159,7 +159,7 @@ describe.skipIf(!canRun)('timeline_view', () => {
     }
     const none = await call('timeline_view', { project: 'demo', name: 'nocap' });
     expect(none.status).toBe(404);
-    expect(none.json<{ error: { message: string } }>().error.message).toBe('nocap has no capture yet: a capture films the take its timeline shows (Capture on the scenario screen)');
+    expect(none.json<{ error: { message: string } }>().error.message).toBe('nocap has no capture yet: a capture films the take its timeline shows (Capture from the status bar or Shoot)');
     const out = await call('timeline_view', { project: 'demo', name: 'out' });
     expect(out.status).toBe(200);
     const d = out.json<{ data: Record<string, unknown> }>().data;

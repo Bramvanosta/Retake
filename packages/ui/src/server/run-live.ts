@@ -718,7 +718,7 @@ export class RunLive {
    */
   async open(res: ServerResponse, body: Record<string, unknown>, fail: (status: number, code: string, message: string) => void): Promise<void> {
     if (this.closed || this.streams.size + this.reserved >= RUN_LIVE_STREAMS_MAX) {
-      fail(503, 'too_many_streams', `this Studio serves at most ${RUN_LIVE_STREAMS_MAX} run streams: close the Run screen in another tab (this one follows the run without its picture)`);
+      fail(503, 'too_many_streams', `this Studio serves at most ${RUN_LIVE_STREAMS_MAX} run streams: close the live screen in another tab (this one follows the run without its picture)`);
       return;
     }
     const parsed = RunLiveInput.safeParse(body);

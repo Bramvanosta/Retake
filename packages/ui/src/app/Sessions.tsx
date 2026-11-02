@@ -1,42 +1,32 @@
 /**
- * Sessions (L4.4, R-AUTH-10): the personas' saved sign-ins — on the project page (every persona of every environment,
- * `auth_status`) and on the Run screen (the personas the scenario's run signs in, `scenario_sessions`) — each with its
- * stored state in words (no browser is opened to read it) and "Sign in": a headed `auth_login` job, a browser window on
- * this computer where the PERSON signs in and then closes it. No field here ever takes a credential. The job is
- * followed until it ends ("waiting for the queue", "window open", the result), with Cancel (`sign_in_cancel`) and the
- * window's time limit said.
+ * Sessions (L4.4, R-AUTH-10; L5.11a: on the kit — the Cast and Prepare's "Sessions this run signs in with"): the
+ * personas' saved sign-ins, each with its stored state as a shape and a word (no browser is opened to read it), its last
+ * check (the page's own text in a "From the page" box), what a run does with it (signs it in by itself, no check, a
+ * sandbox account, in use) and "Sign in": a headed `auth_login` job, a browser window on this computer where the PERSON
+ * signs in and then closes it. No field here ever takes a credential. The job is followed until it ends ("waiting for
+ * the queue", "window open", the result), with Cancel (`sign_in_cancel`) and the window's time limit said.
  *
- * `ConfirmSessions` is the capture's confirmation for a persona whose stored session is invalid and that no run signs
- * in by itself (critique B10): it says what really happens — a persona with a `check` (or never signed in) is checked
- * first and the run stops before filming if it is still invalid; one without a `check` cannot be (review A M2): its
- * saved session is used as it is and the run fails only when a page lands on the sign-in page, after its setup hooks —
- * with "Sign in first" as the first, focused button. It guards against a wasted take, not for a person's presence: the
- * server takes the persona names (`sessions_ack`). It closes before it unmounts (review B L4): focus goes back to the
- * button that opened it, or to that persona's Sign in button ("Sign in first").
+ * The capture's confirmation for personas whose session is invalid lives in the shell (StatusActions.tsx
+ * `SessionsSheet`, the kit's sheet): one sheet for the status bar's Capture, ⇧⌘R and Prepare's Start capture.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AuthStatusItem } from '@demo-studio/engine';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import type { AuthStatusItem, EnvironmentView } from '@demo-studio/engine';
 import { call, errorText } from './api.js';
-import { Badge, Loading, Notice, Txt, visibleControls, When } from './bits.js';
-import type { BadgeTone } from './bits.js';
+import { Txt, When, plural, shown, visibleControls } from './bits.js';
+import { castState, envFlagWords } from './board-words.js';
 import { useEvents } from './events.js';
-import { reloadProject, useCast } from './project-data.js';
+import { reloadProject, useCast, useProjectView } from './project-data.js';
+import { STORED_WORDS } from './shoot-words.js';
+import { Button, Callout, StatusMark } from './ui-kit/index.js';
 
-/** A persona's stored state, in words. */
-export const STORED_WORDS: Record<string, [string, BadgeTone]> = {
-  valid: ['valid', 'success'],
-  expired: ['expired', 'danger'],
-  error: ['last check failed', 'danger'],
-  never: ['never signed in', 'warning'],
-  unchecked: ['saved, never checked', 'neutral'],
-};
+export { STORED_WORDS };
 
 const BY_WORDS: Record<string, string> = { preflight: 'a run’s preflight', login: 'a sign-in', 'auth-status': 'a status check', run: 'a run' };
 
+/** A persona's stored state as a shape and a word (a sandbox account never signed in: ready, a take signs it in). */
 export function StoredState({ p }: { p: Pick<AuthStatusItem, 'status' | 'sandbox'> & { auto?: boolean } }) {
-  if (p.sandbox && p.status === 'never') return <Badge tone="info">sandbox account</Badge>;
-  const [word, tone] = STORED_WORDS[p.status] ?? ['unknown', 'neutral'];
-  return <Badge tone={tone}>{word}</Badge>;
+  const c = castState(p);
+  return <StatusMark state={c.state} word={c.word} />;
 }
 
 /** A job of the queue, as job_list shows it (the fields the panel reads). */
@@ -120,14 +110,14 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
   };
   const label = `Sign in ${persona}`;
   return (
-    <div className="sign-in" data-testid="sign-in">
+    <div className="sp-sign-in" data-testid="sign-in">
       {!open && (
-        <button type="button" className="button small" aria-label={visibleControls(`${label} (${env})`)} disabled={sending} onClick={start} data-testid="sign-in-button">
-          {sending ? 'Opening…' : job ? 'Sign in again' : 'Sign in'}
-        </button>
+        <Button size="sm" aria-label={visibleControls(`${label} (${env})`)} busy={sending} onClick={start} data-testid="sign-in-button">
+          {sending ? 'Opening…' : job ? 'Sign in again' : 'Sign in…'}
+        </Button>
       )}
       {job && (
-        <div className="sign-in-state small" data-testid="sign-in-state" data-state={job.state}>
+        <div className="sp-sign-in-state" data-testid="sign-in-state" data-state={job.state}>
           {job.state === 'queued' && <p>Waiting for the queue: the window opens when the job ahead of it ends (a run — a paused one too — or another sign-in).</p>}
           {job.state === 'running' && (
             <p>
@@ -137,14 +127,14 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
               {job.started_at && (
                 <>
                   {' '}
-                  <span className="muted">
+                  <span className="sc-quiet">
                     Opened <When iso={job.started_at} />.
                   </span>
                 </>
               )}
             </p>
           )}
-          {job.state === 'succeeded' && <p>{job.result?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[job.result?.status ?? '']?.[0] ?? 'not valid'}.`}</p>}
+          {job.state === 'succeeded' && <p>{shown(job.result?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[job.result?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>}
           {job.state === 'cancelled' && (
             <p>
               {job.result?.profile_kept
@@ -165,14 +155,14 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
             </p>
           )}
           {open && !job.cancel_requested_at && (
-            <button type="button" className="button small" onClick={cancel} data-testid="sign-in-cancel" aria-label={visibleControls(`Cancel the sign-in of ${persona}`)}>
+            <Button size="sm" variant="ghost" onClick={cancel} data-testid="sign-in-cancel" aria-label={visibleControls(`Cancel the sign-in of ${persona}`)}>
               Cancel
-            </button>
+            </Button>
           )}
         </div>
       )}
       {error && (
-        <p className="small warn-text" role="alert">
+        <p className="sp-error" role="alert">
           <Txt text={error} />
         </p>
       )}
@@ -183,183 +173,166 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
 /** A persona's row: what auth_status says, and for a scenario's run (scenario_sessions) what that run does with it. */
 export type SessionRowData = AuthStatusItem & { auto?: boolean; has_check?: boolean; login_env_missing?: string[]; login_keychain?: number };
 
-/** One table of personas: name, environment, stored state, last check, what a run does with it, Sign in. */
-export function SessionsTable({ slug, rows, onChanged, caption }: { slug: string; rows: SessionRowData[]; onChanged: () => void; caption: string }) {
+/**
+ * What a run does with a persona's session, in words (empty: nothing to say). `issues`: the callouts shown beside the
+ * table (Prepare) — a note one of them already says is left out (review B-H1 of L5.11a).
+ */
+function runNotes(p: SessionRowData, issues: readonly string[]): string[] {
+  const out: string[] = [];
+  if (p.auto && p.login_keychain) out.push('its keychain items are not looked up here: they must exist on this computer');
+  if (p.login_env_missing && p.login_env_missing.length > 0 && !issues.some((i) => i.startsWith(`persona ${p.persona}:`))) out.push(`its login steps need ${p.login_env_missing.join(', ')}, not set for the worker: no run signs it in by itself`);
+  if (p.has_check === false) out.push('no check: a run uses its saved session as it is, unverified');
+  if (p.in_use) out.push('in use by a browser window');
+  return out;
+}
+
+/** Who signs a persona in when nobody does it by hand: a sandbox account (each take) or login steps (each run). */
+function signedInBy(p: SessionRowData): string | null {
+  if (p.sandbox) return 'A take signs it in';
+  if (p.auto) return 'Each run signs it in, off camera';
+  return null;
+}
+
+/**
+ * One table of personas (a `<table>` of kit cells): name (and location), stored state, last check, Sign in — what a run
+ * does with it on its own full-width line under the row (review B-H1 of L5.11a: the Session column takes the free width,
+ * no cell squeezed to a letter; below 520 px of pane the rows stack). A sandbox account or a persona its login steps sign
+ * in offers no "Sign in…": the run does it (review B-L1). Test ids kept from L4.4: sessions-table, session-row
+ * (data-persona, data-status).
+ */
+export function SessionRows({ slug, rows, onChanged, caption, showEnv = true, issues = [] }: { slug: string; rows: SessionRowData[]; onChanged: () => void; caption: string; showEnv?: boolean; issues?: readonly string[] }) {
+  const cols = showEnv ? 5 : 4;
   return (
-    <table className="sessions" data-testid="sessions-table">
-      <caption className="sr-only">{caption}</caption>
-      <thead>
-        <tr>
-          <th scope="col">Persona</th>
-          <th scope="col">Environment</th>
-          <th scope="col">Session</th>
-          <th scope="col">Last check</th>
-          <th scope="col">Sign in</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((p) => (
-          <tr key={`${p.env}/${p.persona}`} data-testid="session-row" data-persona={p.persona} data-status={p.status}>
-            <th scope="row">
-              <Txt text={p.persona} />
+    <div className="sp-sessions-box">
+      <table className="sp-sessions" data-testid="sessions-table">
+        <caption className="k-sr">{shown(caption)}</caption>
+        <thead>
+          <tr>
+            <th scope="col" className="sp-col-persona">
+              Persona
             </th>
-            <td>
-              <Txt text={p.env} />
-            </td>
-            <td>
-              <StoredState p={p} />
-              {p.auto && (
-                <span className="muted small">
-                  {' '}
-                  · every run signs it in by itself, off camera{p.login_keychain ? ' (its keychain items are not looked up here: they must exist on this computer)' : ''}
-                </span>
-              )}
-              {p.login_env_missing && p.login_env_missing.length > 0 && (
-                <span className="warn-text small">
-                  {' '}
-                  · its login steps need <Txt className="mono" text={p.login_env_missing.join(', ')} />, not set for the worker: no run signs it in by itself
-                </span>
-              )}
-              {p.has_check === false && <span className="muted small"> · no check: a run uses its saved session as it is, unverified</span>}
-              {p.sandbox && <span className="muted small"> · a take signs it in automatically</span>}
-              {p.in_use && <span className="muted small"> · in use by a browser window</span>}
-            </td>
-            <td className="small">
-              {p.checked_at ? (
-                <>
-                  <When iso={p.checked_at} />
-                  {p.by && <span className="muted"> by {BY_WORDS[p.by] ?? p.by}</span>}
-                </>
-              ) : (
-                <span className="muted">—</span>
-              )}
-              {p.untrusted?.detail && (
-                <p className="from-page small">
-                  <span className="from-page-title">From the page: </span>
-                  <Txt text={p.untrusted.detail} />
-                </p>
-              )}
-            </td>
-            <td>
-              {p.legacy ? (
-                <span className="muted small">{p.fix ? <Txt text={p.fix} /> : 'a single-account file: export it again'}</span>
-              ) : (
-                <SignIn slug={slug} persona={p.persona} env={p.env} onDone={onChanged} />
-              )}
-            </td>
+            {showEnv && <th scope="col">Location</th>}
+            <th scope="col" className="sp-col-session">
+              Session
+            </th>
+            <th scope="col" className="sp-col-check">
+              Last check
+            </th>
+            <th scope="col" className="sp-col-act">
+              <span className="k-sr">Sign in</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((p) => {
+            const notes = runNotes(p, issues);
+            const by = signedInBy(p);
+            return (
+              <Fragment key={`${p.env}/${p.persona}`}>
+                <tr className={notes.length > 0 ? 'has-notes' : undefined} data-testid="session-row" data-persona={p.persona} data-status={p.status}>
+                  <th scope="row">
+                    <Txt text={p.persona} />
+                  </th>
+                  {showEnv && (
+                    <td data-label="Location">
+                      <Txt text={p.env} />
+                    </td>
+                  )}
+                  <td data-label="Session">
+                    <StoredState p={p} />
+                  </td>
+                  <td data-label="Last check">
+                    {p.checked_at ? (
+                      <span className="sc-quiet">
+                        <When iso={p.checked_at} />
+                        {p.by && <Txt text={` by ${BY_WORDS[p.by] ?? p.by}`} />}
+                      </span>
+                    ) : (
+                      <span className="sc-quiet">never</span>
+                    )}
+                    {p.untrusted?.detail && (
+                      <div className="sb-from-page">
+                        <p className="sb-from-page-title">From the page</p>
+                        <p className="sb-pre">
+                          <Txt text={p.untrusted.detail} />
+                        </p>
+                      </div>
+                    )}
+                  </td>
+                  <td className="sp-col-act">
+                    {p.legacy ? (
+                      <span className="sc-quiet">{p.fix ? <Txt text={p.fix} /> : 'a single-account file: export it again'}</span>
+                    ) : by ? (
+                      <span className="sc-quiet" data-testid="signed-in-by">
+                        {shown(by)}
+                      </span>
+                    ) : (
+                      <SignIn slug={slug} persona={p.persona} env={p.env} onDone={onChanged} />
+                    )}
+                  </td>
+                </tr>
+                {notes.length > 0 && (
+                  <tr className="sp-notes-row" data-testid="session-notes" data-persona={p.persona}>
+                    <td colSpan={cols}>
+                      <Txt className="sp-note" text={notes.map((n) => n.charAt(0).toUpperCase() + n.slice(1)).join('. ') + '.'} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
 /**
- * The Cast's Sessions panel: every persona × environment of the project. L5.10a fixes: it reads the open project's
- * shared `auth_status` entry (project-data.ts: re-read on the events that concern it) — its own call re-read at every
- * event of the project, a step of a take included.
+ * The Cast's Sessions: every persona of the project, one section per location (its name and flags in words). It reads
+ * the open project's shared `auth_status` entry (project-data.ts: re-read on the events that concern it).
  */
 export function SessionsPanel({ slug }: { slug: string }) {
   const s = useCast(slug);
+  const project = useProjectView(slug);
   const reload = () => reloadProject('auth_status', slug);
+  const envs: EnvironmentView[] = project.state === 'ready' ? project.data.environments : [];
+  const defaultEnv = project.state === 'ready' ? project.data.default_env : undefined;
+  const personas = s.state === 'ready' ? s.data.personas : [];
+  const byEnv = new Map<string, SessionRowData[]>();
+  for (const p of personas) byEnv.set(p.env, [...(byEnv.get(p.env) ?? []), p]);
   return (
-    <section className="card" aria-labelledby="sessions-h" data-testid="sessions-panel">
-      <h2 id="sessions-h" className="card-title">
-        Sessions
-      </h2>
-      {s.state === 'loading' && <Loading what="the sessions" />}
-      {s.state === 'error' && (
-        <p className="muted">
-          <Txt text={s.error} />
+    <section className="sp-cast" aria-label="Sessions" data-testid="sessions-panel">
+      {s.state === 'loading' && (
+        <p className="sc-quiet" role="status">
+          Loading the sessions…
         </p>
       )}
-      {s.state === 'ready' && s.data.personas.length === 0 && <p className="muted">No persona: this project signs in nowhere.</p>}
-      {s.state === 'ready' && s.data.personas.length > 0 && (
-        <>
-          <p className="muted small">The last known state of each saved sign-in (no browser is opened to read it). A run checks again before it films.</p>
-          <SessionsTable slug={slug} rows={s.data.personas} onChanged={reload} caption="Sessions of the project's personas" />
-        </>
+      {s.state === 'error' && (
+        <Callout state="fail" role="alert" title="The sessions cannot be read">
+          <Txt text={s.error} />
+        </Callout>
       )}
+      {s.state === 'ready' && personas.length === 0 && <p className="sc-quiet">No persona: this project signs in nowhere.</p>}
+      {s.state === 'ready' &&
+        [...byEnv].map(([env, rows], i) => {
+          const e = envs.find((x) => x.name === env);
+          const flags = e ? envFlagWords(e, env === defaultEnv, env) : '';
+          const id = `cast-env-${i}`;
+          return (
+            <section key={env} className="sp-cast-env" aria-labelledby={id}>
+              <div className="sp-cast-head">
+                <h2 id={id} className="sc-h2">
+                  <Txt text={env} />
+                </h2>
+                <span className="sc-quiet">
+                  <Txt text={`${plural(rows.length, 'persona')}${flags ? ` · ${flags}` : ''}`} />
+                </span>
+              </div>
+              <SessionRows slug={slug} rows={rows} onChanged={reload} caption={`Sessions on ${env}`} showEnv={false} />
+            </section>
+          );
+        })}
+      {s.state === 'ready' && personas.length > 0 && <p className="sc-quiet">The last known state of each saved sign-in (no browser is opened to read it). A run checks again before it films.</p>}
     </section>
-  );
-}
-
-export interface SessionToConfirm {
-  persona: string;
-  status: string;
-  /** The run checks it before filming (a `check`, or never signed in); false: it cannot (scenario_sessions `confirm`). */
-  checked_first?: boolean;
-}
-
-/**
- * The capture's confirmation (B10): the personas named with their state, what the run will do, "Sign in first" first
- * (and focused), "Capture anyway" second. Escape or "Sign in first" closes it and sends nothing.
- */
-export function ConfirmSessions({ sessions, onConfirm, onClose }: { sessions: SessionToConfirm[]; onConfirm: () => void; onClose: (why: 'sign-in' | 'escape') => void }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (d && !d.open) d.showModal();
-    return () => d?.close();
-  }, []);
-  // Closed first, then unmounted: the dialog gives focus back to the button that opened it (the caller may move it on).
-  const close = (then: () => void) => {
-    ref.current?.close();
-    then();
-  };
-  const one = sessions.length === 1;
-  const unchecked = sessions.filter((x) => x.checked_first === false).map((x) => x.persona);
-  const checked = sessions.length - unchecked.length;
-  return (
-    <dialog
-      ref={ref}
-      className="confirm-dialog"
-      aria-labelledby="confirm-h"
-      aria-describedby="confirm-what confirm-then"
-      data-testid="confirm-sessions"
-      onCancel={(e) => {
-        e.preventDefault();
-        close(() => onClose('escape'));
-      }}
-    >
-      <h2 id="confirm-h" className="card-title">
-        Capture with {one ? 'a session' : 'sessions'} that may not work?
-      </h2>
-      <div id="confirm-what">
-        <p>{one ? 'This persona has' : 'These personas have'} no valid saved session, and no run signs {one ? 'it' : 'them'} in by itself:</p>
-        <ul>
-          {sessions.map((s) => (
-            <li key={s.persona}>
-              <Txt text={s.persona} /> — {STORED_WORDS[s.status]?.[0] ?? s.status}
-              {s.checked_first === false ? ' (no check)' : ''}
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div id="confirm-then">
-        {checked > 0 && (
-          <p>
-            The capture checks {unchecked.length ? (checked === 1 ? 'the other session' : 'the other sessions') : one ? 'the session' : 'each session'} first and stops before
-            filming if it is still not valid: nothing is filmed then.
-          </p>
-        )}
-        {unchecked.length > 0 && (
-          <p data-testid="confirm-unchecked">
-            <Txt text={unchecked.join(', ')} /> cannot be checked first ({unchecked.length === 1 ? 'it has' : 'they have'} no check): the capture uses{' '}
-            {unchecked.length === 1 ? 'its saved session as it is' : 'their saved sessions as they are'} and fails only when a page lands on the sign-in page — after its
-            setup hooks ran.
-          </p>
-        )}
-        <p>Capture anyway only if you know the session works now (you signed in since its last check, for example).</p>
-      </div>
-      <div className="actions">
-        <button type="button" className="button primary" onClick={() => close(() => onClose('sign-in'))} data-testid="confirm-sign-in-first">
-          Sign in first
-        </button>
-        <button type="button" className="button" onClick={() => close(onConfirm)} data-testid="confirm-capture-anyway">
-          Capture anyway
-        </button>
-      </div>
-    </dialog>
   );
 }

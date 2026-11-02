@@ -9,7 +9,11 @@
  * Commands: the palette (⌘K), the modes (⌘1 – 4) and the inspector (⌥⌘I) come from the desktop app's menu as
  * `studio:command` events (ids of MENU_COMMANDS only); in a browser tab the page binds ⌘K itself on a Mac (Ctrl+K
  * elsewhere, outside a text field: review B-L3) and nothing else (the browser keeps its own keys). While a modal dialog
- * is open the shell's commands wait (critique M5).
+ * is open the shell's commands wait (critique M5) — but Stop (⌘.), which closes the palette and acts (L5.11a fixes).
+ * L5.11a: the status bar's actions for the scenario in context (StatusActions.tsx: its state, Rehearse, Capture, Render,
+ * Pause / Stop, the confirmation sheet) — the default owner of the Scenario menu's commands (Rehearse ⌘R, Capture ⇧⌘R,
+ * Render ⌘B, Stop ⌘. from the app's menu; the palette's Scenario group in a browser tab, which binds none of the four),
+ * routed through the command bus (command-bus.ts: a screen or a live recording outranks the defaults by priority).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -27,10 +31,14 @@ import { Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks
 import type { Command, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
+import { isShellCommand, runShellCommand } from './command-bus.js';
+import type { ShellCommand } from './command-bus.js';
 import { MODES, contextWatch, modeOf, modeTarget, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode } from './modes.js';
 import { SlotContext } from './slots.js';
 import type { SlotHost, SlotName } from './slots.js';
+import { setSay } from './say.js';
+import { useStatusActions } from './StatusActions.js';
 
 export interface ProjectList {
   root: string;
@@ -51,14 +59,33 @@ const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
   ended: { word: 'Session ended', state: 'idle' },
 };
 const UPDATES: Record<EventMode, string> = { connecting: '', stream: 'live updates', relay: 'live updates', polling: 'updates every 3 s', off: '' };
+/** How long a polite line stays (ms). */
+const SAID_MS = 6000;
 const MODE_COMMAND: Record<Mode, MenuCommand> = { script: 'mode-script', shoot: 'mode-shoot', edit: 'mode-edit', review: 'mode-review' };
+/** The Scenario menu's commands in the palette (a browser tab binds none of their keys: critique M3). */
+const SCENARIO_COMMANDS: Array<{ id: ShellCommand; label: string; kbd: string[] }> = [
+  { id: 'rehearse', label: 'Rehearse', kbd: ['⌘', 'R'] },
+  { id: 'capture', label: 'Capture', kbd: ['⇧', '⌘', 'R'] },
+  { id: 'render', label: 'Render', kbd: ['⌘', 'B'] },
+  { id: 'stop', label: 'Stop', kbd: ['⌘', '.'] },
+];
 
-/** Worker state and version: `engine_info` now, at every job change and every 15 s (an idle worker exits quietly). */
+/**
+ * Worker state and version: `engine_info` now, when a job the page never saw appears (a new job may start a worker), on a
+ * reconnection and every 15 s (an idle worker exits quietly). A job rewritten at each step of its run is not a worker
+ * change: no re-read (L5.11a fixes, review A: 17 reads in 30 s of a run before).
+ */
 function useEngineInfo(): EngineInfoData | null {
   const [v, set] = useState<EngineInfoData | null>(null);
   const [tick, setTick] = useState(0);
+  const seen = useRef(new Set<string>());
   useEvents((e) => {
-    if (e.type === 'jobs' || e.type === 'resync') setTick((t) => t + 1);
+    if (e.type === 'resync') setTick((t) => t + 1);
+    else if (e.type === 'jobs') {
+      const fresh = e.changed.filter((id) => !seen.current.has(id));
+      for (const id of fresh) seen.current.add(id);
+      if (fresh.length > 0) setTick((t) => t + 1);
+    }
   });
   useEffect(() => {
     let live = true;
@@ -201,6 +228,11 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
 
   // The centre pane scrolls back to the top when the screen changes, not when a screen moves inside itself (M2).
   const key = screenKey(route);
+  // The screen a polite line was said on (read by `say`: a screen's own mount effect runs after this render) — a run's
+  // live screen is another screen than Prepare (the same screenKey).
+  const saidKey = `${key}|${route.name === 'run' ? (route.run ?? '') : ''}`;
+  const keyNow = useRef(saidKey);
+  keyNow.current = saidKey;
   const firstScreen = useRef(true);
   useEffect(() => {
     main.current?.scrollTo?.(0, 0);
@@ -236,27 +268,59 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     setInspectorOff((v) => !v);
   }, []);
 
-  // What a command answers when it cannot act (a polite line in the status bar).
+  // What a command answers (a polite line in the status bar): one line at a time — a new one replaces it —, gone after
+  // SAID_MS (announced once anyway) and when the screen changes (L5.11a fixes, review B-M1 / A-L5: "queued" never stays
+  // beside the run's own state). Said as text (Txt: engine and project words, review A-M4).
   const [said, setSaid] = useState('');
+  const saidFor = useRef<string | null>(null);
+  const saidTimer = useRef<number | null>(null);
   const say = useCallback((s: string) => {
+    if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
     setSaid('');
-    window.setTimeout(() => setSaid(s), 30);
+    saidFor.current = keyNow.current;
+    saidTimer.current = window.setTimeout(() => {
+      setSaid(s);
+      saidTimer.current = window.setTimeout(() => {
+        saidTimer.current = null;
+        setSaid('');
+      }, SAID_MS);
+    }, 30);
   }, []);
+  useEffect(() => setSay(say), [say]);
+  useEffect(() => {
+    if (saidFor.current === null || saidFor.current === saidKey) return;
+    if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
+    saidTimer.current = null;
+    saidFor.current = null;
+    setSaid('');
+  }, [saidKey]);
+  useEffect(
+    () => () => {
+      if (saidTimer.current !== null) window.clearTimeout(saidTimer.current);
+    },
+    [],
+  );
   const [palette, setPalette] = useState(false);
 
   const run = useCallback(
     (id: MenuCommand) => {
       if (modalOpen()) {
-        // A modal waits for its answer; the palette's own ⌘K closes it.
+        // A modal waits for its answer; the palette's own ⌘K closes it. ⌘. always answers (review A-L3: a capture may be
+        // running behind the sheet or the palette): the palette closes, then Stop's owner acts — it changes no page.
         if (id === 'palette' && palette) setPalette(false);
-        return;
+        if (id !== 'stop') return;
+        if (palette) setPalette(false);
       }
       if (id === 'palette') setPalette(true);
-      else if (id === 'inspector') {
+      else if (isShellCommand(id)) {
+        // L5.11a: whoever owns it acts (the status bar's defaults are always there; they say why when they cannot).
+        if (!runShellCommand(id)) say('Open a scenario first');
+      } else if (id === 'inspector') {
         if (hasInspector) toggleInspector();
         else say('This screen has no inspector');
       } else {
-        const m = (Object.keys(MODE_COMMAND) as Mode[]).find((k) => MODE_COMMAND[k] === id)!;
+        const m = (Object.keys(MODE_COMMAND) as Mode[]).find((k) => MODE_COMMAND[k] === id);
+        if (!m) return;
         if (ctx) location.hash = hrefTo(modeTarget(m, ctx));
         else say('Open a scenario first');
       }
@@ -295,6 +359,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const out: Command[] = [{ id: 'go-projects', label: 'All projects', hint: 'the Welcome screen', group: 'Go to', run: go({ name: 'projects' }) }];
     if (ctx) {
       for (const m of MODES) out.push({ id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, group: 'Go to', ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
+      // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
+      for (const c of SCENARIO_COMMANDS) out.push({ id: c.id, label: c.label, hint: ctx.scenario, group: 'Scenario', ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
     }
     if (project) {
       const slug = project.slug;
@@ -315,7 +381,10 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     out.push({ id: 'go-ui', label: 'UI gallery', hint: 'every component of the design system', group: 'Go to', run: go({ name: 'ui' }) });
     if (hasInspector) out.push({ id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', group: 'Commands', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
     return out;
-  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view]);
+  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say]);
+
+  // L5.11a: the scenario in context's state and actions (the buttons hide while a screen claims the slot).
+  const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });
 
   const conn = CONNECTION[connection];
   return (
@@ -399,17 +468,31 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
               <span className="sh-connection" data-testid="connection" data-updates={updates}>
                 <StatusMark state={conn.state} word={conn.word} />
                 {info && <span>{info.worker ? ' · worker running' : ' · worker idle'}</span>}
-                {connection === 'online' && UPDATES[updates] && <span> · {UPDATES[updates]}</span>}
+                {connection === 'online' && UPDATES[updates] && (
+                  <span className="sh-seg" data-drop="updates">
+                    {' · '}
+                    {UPDATES[updates]}
+                  </span>
+                )}
               </span>
             }
             info={
-              <span role="status" className="sh-said">
-                {said}
-              </span>
+              <>
+                {shoot.info}
+                <span role="status" className="sh-said" data-testid="said">
+                  {said && <Txt text={said} />}
+                </span>
+              </>
             }
-            actions={<div className="sh-slot-actions" ref={slotRefs.actions} />}
+            actions={
+              <>
+                <div className="sh-slot-actions" ref={slotRefs.actions} />
+                {shoot.actions}
+              </>
+            }
           />
         </div>
+        {shoot.overlay}
         <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} />
       </div>
     </SlotContext.Provider>

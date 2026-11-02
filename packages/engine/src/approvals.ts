@@ -199,7 +199,7 @@ export function refusedError(p: Preflight, fix: string): EngineError {
   const list = p.refused.map((r) => `${r.phase} hook ${r.index + 1}${r.name ? ` "${r.name}"` : ''}: ${r.error}`).join('; ');
   return new EngineError('refused', `refused before anything runs on environment ${p.env.name}${p.env.production ? ' (production)' : ''}: ${list}`, {
     fix,
-    details: { refused: p.refused },
+    details: { refused: p.refused, env: p.env },
   });
 }
 

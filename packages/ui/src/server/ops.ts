@@ -14,6 +14,10 @@
  *   (without agent trust), run blockers worded for the Studio, scene URLs, the runs (picker), the source run and every
  *   step's binding to it; page text under `untrusted`. Memoised by the engine (file hash, runs' files). Plus `hints`:
  *   the scenario language's description of each action the file uses (the inspector's edit hints).
+ * - `scenario_actions` (L5.11a): the status bar's read for the scenario in context — engine scenarios.actions: the
+ *   file's hash and validity, the run blockers on the chosen location (each with its gate's `kind`), the runs with the
+ *   unfinished one's job, the capture a render edits, a render queued or running. Memoised apart from scenario_blocks
+ *   (critique H2: it never evicts the open scenario's view). Path-free but the blockers' commands (`fix`, `fix_node`).
  * - `scenario_forms` (L4.3): the step forms (core stepForms: each action's fields derived from its schema, the
  *   modifiers, the palette) — static, read once by the scenario screen.
  * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
@@ -94,6 +98,12 @@ const BlocksInput = z.strictObject({
   project,
   name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
   run: run.optional().describe('The run whose pictures to show (default: the newest complete run with pictures).'),
+  env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
+});
+
+const ActionsInput = z.strictObject({
+  project,
+  name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),
   env: env.optional().describe("The environment (default: the scenario's env, else the project's default)."),
 });
 
@@ -336,6 +346,18 @@ export function scenarioOps(): ToolDef[] {
       return { summary: `${a.name}: ${plural(v.blocks.step_count, 'step')}, ${plural(v.issues.length, 'issue')}, ${src}`, data: { ...v, hints } as unknown as Record<string, unknown> };
     },
   };
+  const actions: ToolDef<typeof ActionsInput> = {
+    name: 'scenario_actions',
+    title: 'Scenario actions',
+    description: "What the Studio's status bar acts on for a scenario: its hash, what would stop a rehearsal or a capture on the location, its runs, the capture a render edits, a render running.",
+    input: ActionsInput,
+    annotations: READ,
+    async run(a, { engine }) {
+      const v = await engine.scenarios.actions(a.project, a.name, { ...(a.env ? { env: a.env } : {}) });
+      const blocked = v.run_blockers.dry.length + v.run_blockers.capture.length;
+      return { summary: `${a.name}: ${v.running ? `a run ${v.running.status}` : 'no run going'}, ${plural(blocked, 'blocker')}`, data: v as unknown as Record<string, unknown> };
+    },
+  };
   const thumbs: ToolDef<typeof ThumbsInput> = {
     name: 'run_thumbs',
     title: 'Thumbnails of run steps',
@@ -358,7 +380,7 @@ export function scenarioOps(): ToolDef[] {
       return { summary: `${plural(f.actions.length, 'action')}, ${plural(f.palette.length, 'palette action')}`, data: f as unknown as Record<string, unknown> };
     },
   };
-  return [blocks, thumbs, forms] as unknown as ToolDef[];
+  return [blocks, actions, thumbs, forms] as unknown as ToolDef[];
 }
 
 /** What scenario_run answers: the run reserved and its job (the screen follows it with run_status and the events). */
@@ -388,7 +410,7 @@ export function runOps(): ToolDef[] {
         const open = await engine.jobs.list({ project: a.project, kinds: ['run'], states: ['queued', 'running'] });
         const busy = open.find((j) => j.input.kind === 'run' && j.input.scenario === a.name);
         if (busy && busy.input.kind === 'run') {
-          throw new EngineError('conflict', `a ${busy.input.mode === 'dry' ? 'dry run' : 'capture'} of ${a.name} is ${busy.state} (${busy.input.run_id}): wait for it to end, or cancel it`, {
+          throw new EngineError('conflict', `a ${busy.input.mode === 'dry' ? 'rehearsal' : 'capture'} of ${a.name} is ${busy.state} (${busy.input.run_id}): wait for it to end, or stop it`, {
             details: { run_id: busy.input.run_id, job: busy.id },
           });
         }
@@ -405,7 +427,7 @@ export function runOps(): ToolDef[] {
         return engine.runs.submit({ project: a.project, scenario: a.name, mode: a.mode, ...(a.env ? { env: a.env } : {}), ...(a.hash ? { expect_sha256: a.hash } : {}) });
       });
       const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker: sub.worker } : {}) };
-      return { summary: `${a.mode === 'dry' ? 'dry run' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${a.mode === 'dry' ? 'rehearsal' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
     },
   };
   return [run] as unknown as ToolDef[];
@@ -657,7 +679,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
     async run(a, { engine }) {
       // No capture yet: said plainly (the planner's own error names the runs folder).
       if (!a.run && (await engine.runs.list(a.project, { scenario: a.name, mode: 'capture', limit: 1 })).length === 0) {
-        throw new EngineError('not_found', `${a.name} has no capture yet: a capture films the take its timeline shows (Capture on the scenario screen)`);
+        throw new EngineError('not_found', `${a.name} has no capture yet: a capture films the take its timeline shows (Capture from the status bar or Shoot)`);
       }
       const r = await engine.timeline.view({ project: a.project, scenario: a.name, ...(a.run ? { run_id: a.run } : {}), ...(a.proposal ? { proposal: a.proposal } : {}) });
       if (!('view' in r)) {
@@ -915,7 +937,7 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
 export const TIMELINE_OPS = ['timeline_view', 'timeline_leave', 'preview_allow'] as const;
 export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image'] as const;
 export const INDEX_OPS = ['activity_list', 'search'] as const;
-export const SCENARIO_OPS = ['scenario_blocks', 'run_thumbs', 'scenario_forms'] as const;
+export const SCENARIO_OPS = ['scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms'] as const;
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;

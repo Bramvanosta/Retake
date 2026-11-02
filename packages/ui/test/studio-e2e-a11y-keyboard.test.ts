@@ -255,8 +255,8 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT);
 
-    // Open timeline (above the steps: Shift+Tab), `]` selects the next segment.
-    await tabTo(page, 'a[data-testid="open-timeline"]', 80, 'Shift+Tab');
+    // The Edit mode (the title bar, above the steps: Shift+Tab; L5.11a: the strip's Open timeline went), `]` selects the next segment.
+    await tabTo(page, 'a[href$="/s/bits/timeline"]', 120, 'Shift+Tab');
     await page.keyboard.press('Enter');
     await page.getByTestId('tracks').waitFor(POLL);
     // The playhead starts in scene a: `]` selects the next segment (the card), `[` the one before (scene a).

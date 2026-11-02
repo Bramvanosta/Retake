@@ -55,6 +55,16 @@ const MEMO_MAX = 16;
 /** A run's status as the picker shows it: run.json's when it is one the runner writes, else `unknown` (review A #4). */
 export type ViewRunStatus = RunSummary['status'] | 'interrupted' | 'unknown';
 
+/**
+ * The run a scenario's Pause and Stop act on (L5.11a fixes, review A-L4 / B-M5): the newest queued or running run with a
+ * job (the Studio's or Claude's: Stop reaches it), else the newest without one (a terminal's: Ctrl-C there). A terminal's
+ * run and a Studio job can be unfinished together (the one-run-per-scenario check sees jobs only).
+ */
+export function runningOf<T extends { status: string; job?: string | null }>(runs: readonly T[]): T | null {
+  const going = runs.filter((r) => r.status === 'queued' || r.status === 'running');
+  return going.find((r) => typeof r.job === 'string') ?? going[0] ?? null;
+}
+
 const KNOWN_STATUSES: ReadonlySet<string> = new Set(['queued', 'running', 'succeeded', 'failed', 'cancelled', 'interrupted']);
 
 /** A run of the scenario as the picker shows it. */
@@ -75,6 +85,34 @@ export interface ScenarioRunChoice {
   snapshot: boolean;
   /** Why it is partial, steps 1-based as the screen numbers them: "until step 4 of request", "failed at step 3 of proposal", "cancelled", "interrupted". */
   partial?: string;
+  /**
+   * L5.11a (critique M4): a queued or running run's job — null: a run started in a terminal (no job: Pause and Stop
+   * cannot reach it; Ctrl-C there does). Absent on a finished run.
+   */
+  job?: string | null;
+}
+
+/**
+ * L5.11a: what the Studio's status bar acts on for one scenario (`engine.scenarios.actions`, op `scenario_actions`) — the
+ * file's hash and validity, what would stop a rehearsal (dry run) and a capture on the chosen location, the runs (with
+ * the one queued or running and its job), the capture a render edits and a render queued or running. Path-free but the
+ * blockers' `fix` / `fix_node` commands. Its memo is its own (critique H2): it never fills the scenario screen's
+ * 16-entry text layer cache, it only reads a fresh entry of it.
+ */
+export interface ScenarioActions {
+  project: string;
+  name: string;
+  hash: string;
+  ok: boolean;
+  environment: ScenarioEnvironmentFacts | null;
+  run_blockers: { dry: RunBlocker[]; capture: RunBlocker[] };
+  /** The file's scenes and steps (the Prepare screen's status line). */
+  content: { scenes: number; steps: number };
+  runs: ScenarioRunChoice[];
+  running: ScenarioRunChoice | null;
+  /** The newest succeeded capture with its video: the take a render edits (the timeline's rule). */
+  capture?: { id: string; finished_at?: string };
+  render_job?: { job: string; state: 'queued' | 'running'; fraction?: number };
 }
 
 export interface ScenarioSource {
@@ -191,6 +229,10 @@ export interface ScenarioViewContext {
   blockers(req: { project: string; scenario: string; env?: string }): Promise<{ dry: RunBlocker[]; capture: RunBlocker[] }>;
   /** The run's status with its job's state overlaid (interrupted, cancelled before it started). */
   overlay(slug: string, run: RunSummary): Promise<ViewRunStatus>;
+  /** L5.11a: the job of a queued or running run (null: none — a terminal's run). */
+  runJob?(slug: string, run: string): Promise<string | null>;
+  /** L5.11a: a render of the scenario queued or running. */
+  renderJob?(slug: string, name: string): Promise<ScenarioActions['render_job']>;
   runs: RunDataCache;
 }
 
@@ -206,6 +248,15 @@ interface TextLayer {
   scenes: Record<string, SceneFacts>;
   identity: ScenarioIdentity;
   edit: ScenarioView['edit'];
+}
+
+/** What the status bar's read needs of the text layer (critique H2: memoised apart, never in `texts`). */
+interface ActionsLayer {
+  at: number;
+  ok: boolean;
+  run_blockers: { dry: RunBlocker[]; capture: RunBlocker[] };
+  environment: ScenarioEnvironmentFacts | null;
+  content: ScenarioActions['content'];
 }
 
 interface BindLayer {
@@ -253,11 +304,16 @@ function stepKeyParts(key: string): { scene: string; step: number } {
 /** The memoised scenario views of one engine. */
 export class ScenarioViews {
   private readonly texts = new Map<string, TextLayer>();
+  /** Text layers being computed (critique H2: two reads of the same file at once compute it once). */
+  private readonly textsPending = new Map<string, Promise<TextLayer>>();
+  /** L5.11a: the status bar's layers — their own memo (64 entries), never `texts`. */
+  private readonly acts = new Map<string, ActionsLayer>();
+  private readonly actsPending = new Map<string, Promise<ActionsLayer>>();
   private readonly binds = new Map<string, BindLayer>();
   private readonly lists = new Map<string, RunListMemo>();
   private readonly facts = new Map<string, RunFacts>();
-  /** Counters for tests: text layers and bindings computed, run lists read. */
-  readonly stats = { text: 0, bind: 0, list: 0 };
+  /** Counters for tests: text layers, actions layers and bindings computed, run lists read. */
+  readonly stats = { text: 0, actions: 0, bind: 0, list: 0 };
 
   constructor(private readonly ctx: ScenarioViewContext) {}
 
@@ -267,7 +323,7 @@ export class ScenarioViews {
     const file = await getScenario(p, name);
     const text = await this.textLayer(p, slug, name, file, o.env);
     const runs = await this.runChoices(p, slug, name);
-    const running = runs.find((r) => r.status === 'queued' || r.status === 'running') ?? null;
+    const running = runningOf(runs);
     let source: ScenarioSource | null = null;
     let bind: BindLayer | null = null;
     let data: RunData | null = null;
@@ -338,6 +394,61 @@ export class ScenarioViews {
     };
   }
 
+  /**
+   * L5.11a: the status bar's read (critique H2) — the text layer's blockers when a fresh one is cached (a hit, never an
+   * insert), else its own lighter layer (validation, blockers, environment; no binding, no URLs) in its own memo; the
+   * runs as the view lists them; a render queued or running.
+   */
+  async actions(slug: string, name: string, o: { env?: string } = {}): Promise<ScenarioActions> {
+    const p = await this.ctx.project(slug);
+    const file = await getScenario(p, name);
+    const layer = await this.actionsLayer(p, slug, name, file, o.env);
+    const runs = await this.runChoices(p, slug, name);
+    const running = runningOf(runs);
+    const cap = runs.find((r) => r.mode === 'capture' && r.status === 'succeeded' && r.pictures === 'video');
+    const render_job = this.ctx.renderJob ? await this.ctx.renderJob(slug, name) : undefined;
+    return {
+      project: slug,
+      name,
+      hash: file.hash,
+      ok: layer.ok,
+      environment: layer.environment,
+      run_blockers: layer.run_blockers,
+      content: layer.content,
+      runs,
+      running,
+      ...(cap ? { capture: { id: cap.id, ...(cap.finished_at ? { finished_at: cap.finished_at } : {}) } } : {}),
+      ...(render_job ? { render_job } : {}),
+    };
+  }
+
+  private async actionsLayer(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined): Promise<ActionsLayer> {
+    const key = [p.dir, name, file.hash, env ?? '', await this.projectSig(p)].join('\0');
+    const fresh = <T extends { at: number }>(x: T | undefined) => (x && Date.now() - x.at < TEXT_TTL_MS ? x : undefined);
+    const fromText = (t: TextLayer): ActionsLayer => ({ at: t.at, ok: t.ok, run_blockers: t.run_blockers, environment: t.environment, content: contentOf(t.blocks) });
+    const text = fresh(this.texts.get(key));
+    if (text) return fromText(text);
+    const own = fresh(this.acts.get(key));
+    if (own) return own;
+    const textPending = this.textsPending.get(key);
+    if (textPending) return fromText(await textPending);
+    const pending = this.actsPending.get(key);
+    if (pending) return pending;
+    const job = (async () => {
+      this.stats.actions++;
+      const { ok, issues } = await validateScenarioText(p, file.yaml, { name, ...(env !== undefined ? { env } : {}) });
+      const blocks = scenarioBlocks(file.yaml, { issues, hookFiles: { projectDir: p.dir } });
+      const run_blockers = studioBlockers(await this.ctx.blockers({ project: slug, scenario: name, ...(env !== undefined ? { env } : {}) }), blocks, ok, issues);
+      return remember(this.acts, key, { at: Date.now(), ok, run_blockers, environment: environmentFacts(p, env ?? blocks.video.env), content: contentOf(blocks) }, 64);
+    })();
+    this.actsPending.set(key, job);
+    try {
+      return await job;
+    } finally {
+      this.actsPending.delete(key);
+    }
+  }
+
   // ── Text layer ──────────────────────────────────────────────────────────
 
   private async projectSig(p: LoadedProject): Promise<string> {
@@ -346,10 +457,23 @@ export class ScenarioViews {
   }
 
   private async textLayer(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined): Promise<TextLayer> {
-    const { yaml, hash } = file;
-    const key = [p.dir, name, hash, env ?? '', await this.projectSig(p)].join('\0');
+    const key = [p.dir, name, file.hash, env ?? '', await this.projectSig(p)].join('\0');
     const hit = this.texts.get(key);
     if (hit && Date.now() - hit.at < TEXT_TTL_MS) return hit;
+    // Single flight (critique H2): a second read of the same file while the first computes waits for it.
+    const pending = this.textsPending.get(key);
+    if (pending) return pending;
+    const job = this.computeText(p, slug, name, file, env, key);
+    this.textsPending.set(key, job);
+    try {
+      return await job;
+    } finally {
+      this.textsPending.delete(key);
+    }
+  }
+
+  private async computeText(p: LoadedProject, slug: string, name: string, file: ScenarioText, env: string | undefined, key: string): Promise<TextLayer> {
+    const { yaml } = file;
     this.stats.text++;
     const { ok, issues } = await validateScenarioText(p, yaml, { name, ...(env !== undefined ? { env } : {}) });
     const blocks = scenarioBlocks(yaml, { issues, hookFiles: { projectDir: p.dir } });
@@ -436,8 +560,11 @@ export class ScenarioViews {
     }
     return Promise.all(
       list.map(async (r) => {
-        const status: ViewRunStatus = r.status === 'queued' || r.status === 'running' ? await this.ctx.overlay(slug, r) : r.status;
-        return this.choice(p.dir, r, status);
+        if (r.status !== 'queued' && r.status !== 'running') return this.choice(p.dir, r, r.status);
+        const status: ViewRunStatus = await this.ctx.overlay(slug, r);
+        const c = await this.choice(p.dir, r, status);
+        // An unfinished run's job (critique M4): null for a terminal's run, which Pause and Stop cannot reach.
+        return status === 'queued' || status === 'running' ? { ...c, job: this.ctx.runJob ? await this.ctx.runJob(slug, r.id) : null } : c;
       }),
     );
   }
@@ -584,13 +711,28 @@ function studioBlockers(b: { dry: RunBlocker[]; capture: RunBlocker[] }, blocks:
   const errors = issues.filter((i) => i.severity === 'error').length;
   const one = (x: RunBlocker): RunBlocker => {
     if (!ok && x.code === 'invalid') {
-      return { code: 'invalid', message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`, fix_file: true };
+      return { code: 'invalid', kind: 'invalid', message: `the file has ${errors} error${errors === 1 ? '' : 's'} (listed with the blocks): fix the file first — a run from the terminal refuses it too`, fix_file: true };
     }
     const fixNode = x.fix ? nodeCommand(x.fix) : undefined;
     return { ...x, message: humanPaths(x.message, blocks), ...(fixNode ? { fix_node: fixNode } : {}) };
   };
   const list = (l: RunBlocker[]) => l.map(one).filter((x, i, all) => all.findIndex((y) => y.message === x.message) === i);
   return { dry: list(b.dry), capture: list(b.capture) };
+}
+
+/** A file's scenes and steps (the counts of the whole file). */
+function contentOf(blocks: ScenarioBlocks): ScenarioActions['content'] {
+  return { scenes: blocks.entries.filter((e) => e.type === 'scene').length, steps: blocks.step_count };
+}
+
+/** An environment's flags (null: the project has none by that name — an issue of the file says so). */
+function environmentFacts(p: LoadedProject, env: string | undefined): ScenarioEnvironmentFacts | null {
+  try {
+    const e = resolveEnvironment(p, env);
+    return { name: e.name, production: e.production === true, access: environmentAccess(e), sandbox: e.sandbox !== undefined };
+  } catch {
+    return null;
+  }
 }
 
 /** Why a step cannot be matched to a run's (review B M3: it said the run's timeline could not be read). */

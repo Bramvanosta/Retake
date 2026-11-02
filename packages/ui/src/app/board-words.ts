@@ -8,7 +8,7 @@
 import type { AuthStatusItem, BoardRun, BoardScenario, RenderReviewSummary } from '@demo-studio/engine';
 import type { MarkState } from './ui-kit/index.js';
 import { sameVersion } from './render-words.js';
-import { STORED_WORDS } from './Sessions.js';
+import { STORED_WORDS } from './shoot-words.js';
 
 export type BoardGroup = 'ready' | 'shoot' | 'failed';
 export const BOARD_GROUPS: BoardGroup[] = ['ready', 'shoot', 'failed'];
@@ -22,7 +22,7 @@ export interface ProductionState {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const MODE: Record<BoardRun['mode'], string> = { dry: 'Dry run', capture: 'Capture' };
+const MODE: Record<BoardRun['mode'], string> = { dry: 'Rehearsal', capture: 'Capture' };
 
 /** A render's review as a state and its words ("clean", "2 warnings", "not reviewed"…). */
 export function reviewState(r: RenderReviewSummary): { state: MarkState; words: string } {
@@ -86,8 +86,8 @@ export function productionState(s: BoardScenario): ProductionState {
     if (s.render) return { state: 'warn', word: 'Render outdated', group: 'ready' };
     return { state: 'waiting', word: 'Shot · ready to render', group: 'ready' };
   }
-  if (last?.status === 'cancelled') return { state: 'idle', word: 'Last take cancelled · not shot', group: 'shoot' };
-  if (s.dry) return { state: 'idle', word: 'Dry run passed · not shot', group: 'shoot' };
+  if (last?.status === 'cancelled') return { state: 'idle', word: 'Last take stopped · not shot', group: 'shoot' };
+  if (s.dry) return { state: 'idle', word: 'Rehearsal passed · not shot', group: 'shoot' };
   return { state: 'idle', word: 'Draft · not shot yet', group: 'shoot' };
 }
 
@@ -124,7 +124,8 @@ export function lastTakeWords(r: BoardRun): { state: MarkState; words: string } 
     case 'failed':
       return { state: 'fail', words: `${what} ${r.partial ?? 'failed'}` };
     case 'cancelled':
-      return { state: 'idle', words: `${what} cancelled` };
+      // One word for a stopped run across the Studio (review B-L2 of L5.11a): "stopped".
+      return { state: 'idle', words: `${what} stopped` };
     case 'interrupted':
       return { state: 'fail', words: `${what} interrupted` };
     case 'queued':

@@ -54,7 +54,7 @@ function LastRun({ extras }: { extras: Extras | undefined }) {
   const [state, word] = RUN_STATE[r.status] ?? ['attention', 'status unknown'];
   return (
     <span className="wl-run">
-      <StatusMark state={state} word={`Last ${r.mode === 'dry' ? 'dry run' : 'capture'} ${word}`} />
+      <StatusMark state={state} word={`Last ${r.mode === 'dry' ? 'rehearsal' : 'capture'} ${word}`} />
       <span className="sc-quiet">
         {' · '}
         <Txt text={r.scenario} /> · <When iso={r.finished_at ?? r.started_at} />

@@ -111,7 +111,9 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     expect(r.status).toBe(403);
     const e = r.json<Fail>().error;
     expect(e.code).toBe('needs_approval');
-    const { fix_node, ...shown } = view.run_blockers.capture[0];
+    // L5.11a: the blocker also says which gate refused (`kind`, `count`: the status bar's words) — the refusal does not.
+    const { fix_node, kind, count, ...shown } = view.run_blockers.capture[0] as typeof view.run_blockers.capture[0] & { kind?: string; count?: number };
+    expect([kind, count]).toEqual(['needs_approval', 1]);
     expect({ code: e.code, message: e.message, fix: e.fix }).toEqual(shown);
     // The same command for a person without `studio` on their PATH (review B L6).
     expect(fix_node).toBe(`${process.execPath} ${join(fileURLToPath(new URL('../../..', import.meta.url)), 'packages/cli/dist/bin.js')} -C ${ws} run ${P} quote`);
@@ -161,7 +163,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     expect(both.map((r) => r.status).sort()).toEqual([200, 409]);
     const first = both.find((r) => r.status === 200)!.json<Queued>().data;
     const refused = both.find((r) => r.status === 409)!.json<Fail>().error;
-    expect(refused.message).toContain(`is queued (${first.run_id}): wait for it to end, or cancel it`);
+    expect(refused.message).toContain(`is queued (${first.run_id}): wait for it to end, or stop it`);
     const later = await call('scenario_run', { project: P, name: 'highlights', mode: 'dry' });
     expect(later.status).toBe(409);
     // Another scenario is not held; once cancelled, the scenario runs again.

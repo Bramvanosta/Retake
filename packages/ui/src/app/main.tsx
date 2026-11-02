@@ -1,7 +1,7 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
  * event stream per browser) and the screens inside the shell — Welcome (L5.10a: the projects, search and recent activity), a project's productions (L5.10a: the poster grid, its smart groups and locations; the Cast),
- * its README editor, a scenario as blocks with its run's pictures (L4.2), its Run screen (L4.4), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
+ * its README editor, a scenario as blocks with its run's pictures (L4.2), its Shoot screens (L4.4; L5.11a: Prepare a take and one run live), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line. L5.9: the screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode
  * switch, browser, centre pane, inspector, status bar), the `#/ui` gallery shows every component of the kit (ui-kit/);
@@ -23,8 +23,9 @@ import { ProductionsScreen } from './ProductionsScreen.js';
 import { WelcomeScreen } from './WelcomeScreen.js';
 import { ReadmeEditor } from './ReadmeEditor.js';
 import { RecordScreen } from './RecordScreen.js';
-import { RunScreen } from './RunScreen.js';
 import { ScenarioScreen } from './ScenarioScreen.js';
+import { ShootLive } from './ShootLive.js';
+import { ShootPrepare } from './ShootPrepare.js';
 import { ThemesScreen } from './ThemesScreen.js';
 import { TimelineScreen } from './TimelineScreen.js';
 import { hrefTo, parseRoute } from './route.js';
@@ -50,7 +51,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Run', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -82,7 +83,8 @@ function Studio() {
       {route.name === 'cast' && <CastScreen key={route.slug} slug={route.slug} />}
       {route.name === 'readme' && <ReadmeEditor key={route.slug} slug={route.slug} />}
       {route.name === 'scenario' && <ScenarioScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} tab={route.tab} />}
-      {route.name === 'run' && <RunScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.run ? { run: route.run } : {})} />}
+      {route.name === 'run' && !route.run && <ShootPrepare key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} />}
+      {route.name === 'run' && route.run && <ShootLive key={`${route.slug}/${route.scenario}/${route.run}`} slug={route.slug} name={route.scenario} runId={route.run} />}
       {route.name === 'timeline' && (
         <TimelineScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.run ? { run: route.run } : {})} {...(route.step ? { step: route.step } : {})} />
       )}

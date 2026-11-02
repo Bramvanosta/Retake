@@ -199,7 +199,7 @@ export function checkWords(c: RecordCheckView): { title: string; tone: 'info' | 
         ? { title: 'Check passed up to the first write', tone: 'info', detail: `${steps} replayed on a fresh page, without your picks and inserts; it stopped before the step that writes, so nothing was written twice.` }
         : { title: 'Check passed', tone: 'info', detail: `${steps} replayed on a fresh page, without your picks and inserts.` };
     case 'failed':
-      return { title: 'Check failed', tone: 'warning', detail: `${steps} replayed (without your picks and inserts) before one failed: look at that step’s target — another one you pick is replayed by the dry run after Save.` };
+      return { title: 'Check failed', tone: 'warning', detail: `${steps} replayed (without your picks and inserts) before one failed: look at that step’s target — another one you pick is replayed by a rehearsal after Save.` };
     case 'skipped':
       return { title: 'Check skipped', tone: 'warning', detail: `Not replayed: ${CHECK_SKIPPED[c.reason ?? ''] ?? 'it could not run'}.` };
     case 'cancelled':
@@ -209,7 +209,7 @@ export function checkWords(c: RecordCheckView): { title: string; tone: 'info' | 
 
 /** What the check covers, said under it (B7; review B-M4). */
 export const CHECK_SCOPE_NOTE =
-  'The check replays the draft as it was recorded, without your picks and inserts — none of them is checked, whenever you made it. Targets you pick were verified when you pressed them; save, then dry-run the scenario to replay everything.';
+  'The check replays the draft as it was recorded, without your picks and inserts — none of them is checked, whenever you made it. Targets you pick were verified when you pressed them; save, then rehearse the scenario to replay everything.';
 
 /**
  * Where the check failed, for the screen: the row on screen (`failed_row`, mapped by the engine through the steps'

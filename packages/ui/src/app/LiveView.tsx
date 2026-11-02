@@ -13,14 +13,17 @@
  * `nextLayout`, `placeFrame`). Nothing is ever resized. Latest-only: while one frame decodes, a newer one replaces
  * the one waiting.
  *
- * The picture is ON by default for a dry run and OFF for a capture (it costs Chromium CPU during the take); the toggle
- * says so. It is a picture for the eye only: the canvas has a label, its state is said in words next to it, and it is
- * not a live region (a frame is not news).
+ * The picture is ON by default for a rehearsal and OFF for a capture (it costs Chromium CPU during the take; Prepare's
+ * "Live picture during a capture" turns it on from the start); the toggle says so. It is a picture for the eye only:
+ * the canvas has a label, its state is said in words next to it, and it is not a live region (a frame is not news).
+ * L5.11a: on the kit (R4-ShootLive: the picture in a video-toned frame, a "Live" mark over it, the toggle a kit button);
+ * the letterbox colour is the kit's `--ui-video`.
  */
 import { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
 import { LIVE_BOX, nextLayout, placeFrame } from './run-live.js';
 import type { LiveFrame, PictureState, Size } from './run-live.js';
-import { Txt } from './bits.js';
+import { Txt, shown } from './bits.js';
+import { Button, StatusMark } from './ui-kit/index.js';
 
 /** The canvas's drawing size: a 16:9 box. */
 const { w: W, h: H } = LIVE_BOX;
@@ -94,7 +97,7 @@ interface Props {
   note?: string;
 }
 
-export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ picture, shown, capture, onToggle, note }, ref) {
+export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ picture, shown: on, capture, onToggle, note }, ref) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const decoding = useRef(false);
   const waiting = useRef<LiveFrame | null>(null);
@@ -102,7 +105,7 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
   /** The frame size the picture is laid out for, and the streak of frames of a new height. */
   const layout = useRef<Size | null>(null);
   const pending = useRef<Size & { n: number }>({ w: 0, h: 0, n: 0 });
-  /** The letterbox colour: the palette's --ink (app.css), read once (the app holds no colour literal). */
+  /** The letterbox colour: the kit's --ui-video (tokens.css), read once (the app holds no colour literal). */
   const ink = useRef<string | null>(null);
 
   const paint = useCallback((image: CanvasImageSource, f: LiveFrame) => {
@@ -112,7 +115,7 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
     layout.current = nextLayout(layout.current, pending.current, f);
     const { x, y, dw, dh } = placeFrame(layout.current, f);
     // Cached only once readable (an empty value, before the stylesheet applies, is read again next frame).
-    if (!ink.current) ink.current = getComputedStyle(c).getPropertyValue('--ink').trim() || null;
+    if (!ink.current) ink.current = getComputedStyle(c).getPropertyValue('--ui-video').trim() || null;
     if (ink.current) g.fillStyle = ink.current;
     g.fillRect(0, 0, W, H);
     g.drawImage(image, x, y, dw, dh);
@@ -165,25 +168,30 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
 
   // A picture that cannot come (a terminal's run, an ended run, refused) says so whatever the toggle.
   const fixed = picture?.state === 'none' || picture?.state === 'ended' || picture?.state === 'busy';
-  const state: PictureState = !shown && !fixed ? 'off' : (picture?.state ?? 'waiting');
-  const live = shown && state === 'live';
+  const state: PictureState = !on && !fixed ? 'off' : (picture?.state ?? 'waiting');
+  const live = on && state === 'live';
   return (
-    <section className="card live-card" aria-labelledby="live-h">
-      <div className="card-head">
-        <h2 id="live-h" className="card-title">
+    <section className="sp-live" aria-labelledby="live-h">
+      <div className="sp-live-head">
+        <h2 id="live-h" className="k-sr">
           Live picture
         </h2>
         {onToggle && (
-          <button type="button" className="button small" aria-pressed={shown} data-testid="picture-toggle" onClick={onToggle}>
-            {shown ? 'Hide live picture' : 'Show live picture'}
-          </button>
+          <Button size="sm" variant="ghost" aria-pressed={on} data-testid="picture-toggle" onClick={onToggle}>
+            {on ? 'Hide live picture' : 'Show live picture'}
+          </Button>
         )}
       </div>
-      <div className={`live-box${live ? ' is-live' : ''}`} data-state={state}>
-        <canvas ref={canvas} width={W} height={H} className="live-canvas" role="img" aria-label="Live picture of the page the run is acting on (not recorded)" data-testid="live-canvas" hidden={!shown} />
+      <div className="sp-live-box" data-state={state}>
+        <canvas ref={canvas} width={W} height={H} className="sp-live-canvas" role="img" aria-label="Live picture of the page the run is acting on (not recorded)" data-testid="live-canvas" hidden={!on} />
+        {live && (
+          <span className="sp-live-mark">
+            <StatusMark state="recording" word="Live" />
+          </span>
+        )}
         {!live && (
-          <p className="live-empty" data-testid="picture-state">
-            {note ? <Txt text={note} /> : state === 'ended' && (!shown || drawn.current === 0) ? 'The run ended.' : STATE_WORDS[state]}
+          <p className="sp-live-empty" data-testid="picture-state">
+            {note ? <Txt text={note} /> : shown(state === 'ended' && (!on || drawn.current === 0) ? 'The run ended.' : STATE_WORDS[state])}
             {!note && picture?.why && state !== 'live' && state !== 'ended' && (
               <>
                 {' — '}
@@ -193,12 +201,8 @@ export const LiveView = forwardRef<LiveViewHandle, Props>(function LiveView({ pi
           </p>
         )}
       </div>
-      <p className="muted small" data-testid="picture-help">
-        {live
-          ? STATE_WORDS.live
-          : capture
-            ? 'A capture shows its live picture only when asked: drawing it costs Chromium CPU during the take.'
-            : 'A dry run shows its live picture by default; hiding it stops the picture, not the run.'}{' '}
+      <p className="sc-quiet" data-testid="picture-help">
+        {shown(live ? STATE_WORDS.live : capture ? 'A capture shows its live picture only when asked: drawing it costs Chromium CPU during the take.' : 'A rehearsal shows its live picture by default; hiding it stops the picture, not the run.')}{' '}
         The picture stops while this tab is hidden.
       </p>
     </section>

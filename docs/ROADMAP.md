@@ -81,7 +81,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.8 | Field feedback: sandboxes found, off-camera hook steps, page pre-flight, compact MCP outputs | M | **done** (2026-10-26) |
 | L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **done** — L5.10a (project side) and L5.10b (scenario side) (live checks: MACOS-CHECKLIST 14c) |
-| L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M | **next** (when the user asks) |
+| L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M → L, split | **in progress** — L5.11a (prepare, live, actions, Cast) done; L5.11b (the Record screen) next (live checks: MACOS-CHECKLIST 14d) |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L | todo |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
@@ -906,6 +906,14 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   inspectors, a minimal take strip, Board · YAML and Location in the title bar, the YAML source with its File inspector;
   the verified write path and the 1,200-step budget unchanged. Two independent reviews fixed with mutation-checked
   tests. Cuts: BL-129.
+
+### L5.11a — Studio « Épure » 3a: Shoot without the Record screen (split from L5.11)
+- **Goal:** prepare a take, follow it live, and start / stop it from anywhere, from R4-ShootPrep / ShootLive / Confirm.
+- **Done (2026-11-02, in a worktree):** Prepare's checklist with each blocker in one line and its Copy command, the live
+  rehearsal or capture with Pause / Stop and its outcome, the status bar's Rehearse · Capture · Render · Stop on every
+  screen through a command bus with priorities, the desktop Scenario menu, the Cast on the kit with the Sessions panel,
+  the confirmation sheet, a smaller take strip; a fast read `scenario_actions` with blocker kinds; "Rehearse" in the UI.
+  Two independent reviews fixed with mutation-checked tests. Cuts: BL-130. L5.11b: the Record screen in the shell.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

@@ -100,7 +100,7 @@ function StepActions({ disabled, locked, moves }: { disabled: boolean; locked: s
 
 /** The image's alt: the step from the scenario's own words (never page text) and the run. */
 export function altOf(step: StepBlock, scene: string, run: string, mode: string): string {
-  return `${step.label}${step.target ? ` ${step.target}` : ''} — step ${step.index + 1} of scene ${scene}, at the end of the step in ${mode === 'dry' ? 'dry run' : 'capture'} ${run}`;
+  return `${step.label}${step.target ? ` ${step.target}` : ''} — step ${step.index + 1} of scene ${scene}, at the end of the step in ${mode === 'dry' ? 'rehearsal' : 'capture'} ${run}`;
 }
 
 /** A step's picture from the source run, or why there is none — in words, in the same box. */
@@ -123,7 +123,7 @@ function StepInspector({ v, slug, name, scene, step, sceneNo, ed, forms, moves, 
   const editing = ed.enabled;
   const form = editing && forms && step.form && step.locked === undefined;
   // Review B L8: the run's own words — a dry run is not "the last take".
-  const inRun = v.source ? `in this ${v.source.mode === 'dry' ? 'dry run' : 'capture'}` : '';
+  const inRun = v.source ? `in this ${v.source.mode === 'dry' ? 'rehearsal' : 'capture'}` : '';
   const length = bound?.ms !== undefined ? `took ${seconds(bound.ms)} ${inRun}` : v.source ? 'no length in this run' : 'not shot yet';
   // B32's order (review B L4): the picture, the title and its line, then the form (Action, Modifiers) — the rest after it.
   return (
@@ -404,7 +404,7 @@ function HooksInspector({ v, phase }: { v: View; phase: 'before' | 'after' }) {
     <div data-testid="hooks">
       <InspectorSection title={phase === 'before' ? 'Before filming' : 'After filming'}>
         <p className="sc-quiet">
-          {shown(phase === 'before' ? 'The setup hooks, run before the take (not by a dry run).' : 'The teardown hooks, run after the take (not by a dry run).')}
+          {shown(phase === 'before' ? 'The setup hooks, run before the take (not by a rehearsal).' : 'The teardown hooks, run after the take (not by a rehearsal).')}
           {outcome && shown(` In this run: ${phase === 'before' ? outcome.setup : outcome.teardown}.`)}
         </p>
         {list.length === 0 ? (
@@ -452,7 +452,7 @@ function VideoInspector({ v, comments, location }: { v: View; comments: ReactNod
   const rows: Array<{ key: string; label: ReactNode; value: ReactNode }> = [
     ...(b.name !== undefined ? [{ key: 'name', label: 'Name', value: <Txt text={b.name} /> }] : []),
     ...(b.title ? [{ key: 'title', label: 'Title', value: <Txt text={[b.title.kicker, b.title.text].filter(Boolean).join(' — ')} /> }] : []),
-    { key: 'env', label: 'Location', value: <Txt text={`${own}${location.chosen !== undefined ? ` (Dry run and Capture: ${location.chosen})` : ''}`} /> },
+    { key: 'env', label: 'Location', value: <Txt text={`${own}${location.chosen !== undefined ? ` (Rehearse and Capture: ${location.chosen})` : ''}`} /> },
     ...(b.template !== undefined ? [{ key: 'template', label: 'Template', value: <Txt text={b.template} /> }] : []),
     ...(b.frame !== undefined ? [{ key: 'frame', label: 'Frame', value: <Txt text={b.frame} /> }] : []),
     { key: 'intro', label: 'Intro', value: <Txt text={endCard(b.intro)} /> },

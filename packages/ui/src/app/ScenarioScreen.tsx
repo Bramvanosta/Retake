@@ -5,12 +5,13 @@
  * "Pictures from" picker), the source run and every step's binding to it.
  *
  * The screen in the shell: the scenario's name is the page's (visually hidden) h1 — the title bar names it; the title
- * bar's context holds the View (Board · YAML) and the Location (critique M1: the environment Dry run and Capture use,
- * remembered per scenario in this tab only, sent as `env` only when it is not the file's own — Shoot keeps the file's,
- * said beside the buttons); the browser shows the scenario's entries (ScenesBrowser.tsx); the inspector what is selected
- * (ScenarioInspector.tsx — the File in the YAML view). Above both views: a run of this scenario queued or running
- * (TakeStrip.tsx `Running`: review B M1) and, once, a remembered location project.yaml no longer has (dropped: review A
- * M1). One resolved selection drives the board, the browser and the inspector (`resolveSelection`: review B M2). The
+ * bar's context holds the View (Board · YAML) and the Location (critique M1: the environment Rehearse and Capture use,
+ * remembered per scenario in this tab only, sent as `env` only when it is not the file's own; L5.11a: one choice shared
+ * with Prepare and the status bar — run-location.ts); the browser shows the scenario's entries (ScenesBrowser.tsx); the
+ * inspector what is selected (ScenarioInspector.tsx — the File in the YAML view). Above both views: a run of this
+ * scenario queued or running (TakeStrip.tsx `Running`: review B M1) and, once, a remembered location project.yaml no
+ * longer has (dropped: review A M1). L5.11a: Rehearse, Capture and Render are the status bar's; this screen feeds it
+ * what it read (its view, its run_status, its renders: no second read — critique H2) and the hash it shows. One resolved selection drives the board, the browser and the inspector (`resolveSelection`: review B M2). The
  * centre: the take strip (TakeStrip.tsx), the file's notices
  * (not valid YAML, its issues, the steps limit, a YAML draft open), the edit bar (StepEditing.tsx), the palette, the
  * storyboard (Storyboard.tsx) and, closed at its end, the renders and their review (Renders.tsx, until L5.12).
@@ -28,7 +29,10 @@ import { envFlagWords } from './board-words.js';
 import { useScenarioEvents } from './events.js';
 import { useProjectView } from './project-data.js';
 import { RenderBar, RendersPanel, useRenders } from './Renders.js';
-import type { RenderTarget } from './Renders.js';
+import type { RenderTarget, RendersState } from './Renders.js';
+import { chooseLocation, useRunLocation } from './run-location.js';
+import { useFeedActions, useRunChanged, useRunProgress, useShownFile } from './shoot-data.js';
+import type { FedActions } from './shoot-data.js';
 import { hrefTo } from './route.js';
 import type { ScenarioTab } from './route.js';
 import { ShellSlot } from './shell/slots.js';
@@ -46,7 +50,7 @@ import { ScenesBrowser } from './ScenesBrowser.js';
 import { Storyboard } from './Storyboard.js';
 import type { BoardMoves, Subject } from './Storyboard.js';
 import { CommentsCount, Running, TakeStrip } from './TakeStrip.js';
-import type { LiveRun, RunLocation } from './TakeStrip.js';
+import type { RunLocation } from './TakeStrip.js';
 import { timelineRun } from './scenario-words.js';
 import type { View } from './scenario-words.js';
 import { Button, Callout, Disclosure, LinkButton, Select, SegmentedLinks } from './ui-kit/index.js';
@@ -68,8 +72,7 @@ export function allIssues(v: View) {
  * Renders (L4.5 part E, Renders.tsx): Render the newest finished capture on the file as shown, the queue, the renders
  * with their review's verdict and a render's review (its contact sheets) — the timeline screen shows the same.
  */
-function RendersCard({ v, slug, name, reload }: { v: View; slug: string; name: string; reload: () => void }) {
-  const r = useRenders(slug, name, reload);
+function RendersCard({ v, slug, r }: { v: View; slug: string; r: RendersState }) {
   const run = timelineRun(v);
   const shown = { ...(run ? { run } : {}), hash: v.hash };
   const target: RenderTarget = run ? { run, hash: v.hash } : { why: 'no finished capture yet: a capture films the take a render edits' };
@@ -79,62 +82,6 @@ function RendersCard({ v, slug, name, reload }: { v: View; slug: string; name: s
       <RendersPanel r={r} slug={slug} shown={shown} />
     </section>
   );
-}
-
-/**
- * At most one `run_status` read at a time; one more after it when progress came meanwhile. When the run the view shows
- * running is finished — interrupted included: a worker that died writes nothing more (review B M4) — `onEnded` reads
- * the view again (once per run).
- */
-function useLiveRun(slug: string, runningId: string | null, onEnded: () => void): [LiveRun | null, (runs: string[]) => void] {
-  const [live, setLive] = useState<LiveRun | null>(null);
-  const busy = useRef(false);
-  const again = useRef<string | null>(null);
-  const endedFor = useRef<string | null>(null);
-  const runningRef = useRef(runningId);
-  runningRef.current = runningId;
-  const endedRef = useRef(onEnded);
-  endedRef.current = onEnded;
-  const read = useCallback(
-    (id: string) => {
-      if (busy.current) {
-        again.current = id;
-        return;
-      }
-      busy.current = true;
-      call<LiveRun>('run_status', { project: slug, run_id: id })
-        .then(
-          (d) => {
-            setLive({ id: d.id, mode: d.mode, status: d.status, steps_done: d.steps_done, steps_total: d.steps_total, ...(d.current ? { current: d.current } : {}), finished: d.finished });
-            if (d.finished && d.id === runningRef.current && endedFor.current !== d.id) {
-              endedFor.current = d.id;
-              endedRef.current();
-            }
-          },
-          () => undefined,
-        )
-        .finally(() => {
-          busy.current = false;
-          const next = again.current;
-          again.current = null;
-          if (next) read(next);
-        });
-    },
-    [slug],
-  );
-  useEffect(() => {
-    if (runningId) read(runningId);
-    else setLive(null);
-  }, [runningId, read]);
-  const progress = useCallback(
-    (runs: string[]) => {
-      // [] (a jobs event): the running run, if any — its job may have ended without a word from its run.json.
-      const id = runningId && (runs.length === 0 || runs.includes(runningId)) ? runningId : runs[0];
-      if (id) read(id);
-    },
-    [runningId, read],
-  );
-  return [live, progress];
 }
 
 /** The step forms (scenario_forms): static, read once per page; null until they are here (forms and palette hidden). */
@@ -158,12 +105,6 @@ function useStepForms(): StepForms | null {
   }, []);
   return forms;
 }
-
-/**
- * The location chosen per scenario in this tab (critique M1): never stored — a reload goes back to the file's own; the
- * Run screen (Shoot) always uses the file's own.
- */
-const chosenEnv = new Map<string, string>();
 
 /**
  * What the board's selection is, resolved against the view — ONE value drives the board's marks, the browser's row and
@@ -224,21 +165,14 @@ function rangeOf(v: View, s: Subject): { line: number; end_line: number } | null
 export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string; tab: ScenarioTab }) {
   const key = `${slug}/${name}`;
   const [pick, setPick] = useState<string | undefined>(undefined);
-  const [env, setEnvState] = useState<string | undefined>(() => chosenEnv.get(key));
   const project = useProjectView(slug);
   const envs = project.state === 'ready' ? project.data.environments : null;
-  // Review A M1: a location remembered in this tab that project.yaml no longer has is never sent (it would blame the file).
-  const staleEnv = env !== undefined && envs !== null && !envs.some((e) => e.name === env);
-  const sentEnv = staleEnv ? undefined : env;
+  // Review A M1: a location remembered in this tab that project.yaml no longer has is never sent (it would blame the
+  // file); it is dropped once the project is read and said once, above the take strip (run-location.ts).
+  const loc = useRunLocation(slug, name, envs);
+  const sentEnv = loc.sent;
+  const droppedEnv = loc.dropped ?? null;
   const [view, reload] = useCall<View>('scenario_blocks', { project: slug, name, ...(pick ? { run: pick } : {}), ...(sentEnv ? { env: sentEnv } : {}) }, key);
-  // …and dropped once the project is read, from the map and the state — said once, above the take strip.
-  const [droppedEnv, setDroppedEnv] = useState<string | null>(null);
-  useEffect(() => {
-    if (!staleEnv || env === undefined) return;
-    chosenEnv.delete(key);
-    setDroppedEnv(env);
-    setEnvState(undefined);
-  }, [staleEnv, env, key]);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -248,8 +182,34 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     reload();
   }, [pick, sentEnv, reload]);
   const runningId = view.state === 'ready' ? (view.data.running?.id ?? null) : null;
-  const [live, progress] = useLiveRun(slug, runningId, reload);
+  const [live, progress] = useRunProgress(slug, runningId, reload);
   useScenarioEvents(slug, name, { reread: reload, progress, jobs: () => progress([]) });
+  // L5.11a: a run of this scenario this tab started or stopped (the status bar, ⌘R, ⌘.): read the view again now.
+  useRunChanged(slug, name, reload);
+  // L5.11a: the renders (lifted from the Renders card: the status bar's Render reads its queue) and what the status bar
+  // acts on, fed from this screen's own reads (critique H2: the status bar reads nothing here).
+  const renders = useRenders(slug, name, reload);
+  const vNow = view.state === 'ready' ? view.data : null;
+  const renderJob = renders.loaded.state === 'ready' ? renders.loaded.data.jobs[0] : undefined;
+  const fedData = useMemo<FedActions | null>(() => {
+    if (!vNow) return null;
+    const cap = timelineRun(vNow);
+    const capRun = cap ? vNow.runs.find((r) => r.id === cap) : undefined;
+    return {
+      hash: vNow.hash,
+      ok: vNow.ok,
+      environment: vNow.environment,
+      run_blockers: vNow.run_blockers,
+      runs: vNow.runs,
+      running: vNow.running,
+      ...(cap ? { capture: { id: cap, ...(capRun?.finished_at ? { finished_at: capRun.finished_at } : {}) } } : {}),
+      ...(renderJob ? { render_job: { job: renderJob.id, state: renderJob.state, ...(renderJob.fraction !== undefined ? { fraction: renderJob.fraction } : {}) } } : {}),
+      env: sentEnv,
+      live,
+    };
+  }, [vNow, renderJob, sentEnv, live]);
+  useFeedActions(slug, name, fedData);
+  useShownFile(slug, name, vNow?.hash ?? null);
   const [focus, setFocus] = useState<{ line: number; end_line: number } | null>(null);
   // The selection (a step by its key, a scene, a card, the hooks, the video): kept while the YAML view is open and across re-reads.
   const [subject, setSubject] = useState<Subject | null>(null);
@@ -355,7 +315,8 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   // The location (critique M1): the file's own, else the project's default; a choice is sent only when it differs. Only a
   // location project.yaml has is ever shown or sent (review A M1): the select and the strip say the same one.
   const p = project.state === 'ready' ? project.data : null;
-  const fileDefault = v.blocks.video.env ?? p?.default_env ?? undefined;
+  // A project without default_env runs on its first environment (core resolveEnvironment): that is the file's own then.
+  const fileDefault = v.blocks.video.env ?? p?.default_env ?? p?.environments[0]?.name;
   const envList = envs ?? [];
   const known = (n: string | undefined): n is string => n !== undefined && (envList.length === 0 || envList.some((e) => e.name === n));
   const current = [sentEnv, v.environment?.name, fileDefault].find(known);
@@ -366,13 +327,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const fileEnv = fileDefault ?? (sentEnv === undefined ? v.environment?.name : undefined);
   const fileEnvFlags = envList.find((e) => e.name === fileEnv);
   const videoLocation = { file: fileEnv, fileFlags: fileEnvFlags ? envFlagWords(fileEnvFlags, false, fileEnv) : '', ...(chosen && current ? { chosen: current } : {}) };
-  const setEnv = (next: string) => {
-    const pickEnv = next === fileDefault ? undefined : next;
-    if (pickEnv) chosenEnv.set(key, pickEnv);
-    else chosenEnv.delete(key);
-    setDroppedEnv(null);
-    setEnvState(pickEnv);
-  };
+  const setEnv = (next: string) => chooseLocation(slug, name, next === fileDefault ? undefined : next);
   const onBrowse = (s: Subject, at: string) => {
     setSubject(s);
     if (tab === 'yaml') {
@@ -418,18 +373,18 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
       {/* Around both views: the pictures already loaded stay while the YAML view is open. */}
       {droppedEnv !== null && (
         <Callout state="warn" role="status" title="A location chosen earlier is gone" testId="location-dropped">
-          <Txt text={`The location ${droppedEnv} chosen earlier is no longer in project.yaml: Dry run and Capture use the file's own${fileDefault ? `, ${fileDefault}` : ''}.`} />
+          <Txt text={`The location ${droppedEnv} chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own${fileDefault ? `, ${fileDefault}` : ''}.`} />
         </Callout>
       )}
-      {/* Review B M1: a run of this scenario queued or running (progress, Watch live, Cancel) shows on both views. */}
-      <Running run={v.running} live={live} slug={slug} name={name} onCancelled={reload} />
+      {/* Review B M1: a run of this scenario queued or running (progress, Watch live) shows on both views; Stop is the status bar's. */}
+      <Running run={v.running} live={live} slug={slug} name={name} />
       <ThumbsProvider fetch={fetchThumbs}>
         {tab === 'blocks' ? (
           <>
             <ShellSlot name="inspector" inline="Inspector">
               <ScenarioInspector v={v} slug={slug} name={name} sel={sel} ed={ed} forms={forms} moves={stepMoves} onShowYaml={onShowYaml} comments={comments} location={videoLocation} />
             </ShellSlot>
-            <TakeStrip v={v} slug={slug} name={name} pick={pick} onPick={setPick} live={live} location={runLocation} onSubmitted={reload} />
+            <TakeStrip v={v} slug={slug} name={name} pick={pick} onPick={setPick} location={runLocation} />
             {yamlDraft && (
               <Callout state="warn" role="note" title="Unsaved YAML changes">
                 <p data-testid="yaml-draft-open">
@@ -469,7 +424,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
             )}
             <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
             <Disclosure summary="Renders and review" testId="renders-section">
-              <RendersCard v={v} slug={slug} name={name} reload={reload} />
+              <RendersCard v={v} slug={slug} r={renders} />
             </Disclosure>
             <p className="sc-quiet">
               <LinkButton size="sm" variant="ghost" to={{ name: 'record', slug }} testId="record-link">

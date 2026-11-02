@@ -20,6 +20,8 @@ import { REPO } from '../../engine/test/helpers.js';
 import {
   Blocker,
   Button,
+  Checklist,
+  ChecklistItem,
   CommandPalette,
   Disclosure,
   EmptyState,
@@ -164,6 +166,27 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(b).toContain('role="status"');
   });
 
+  it('L5.11a: a compact blocker — the status bar\'s one line: its words in the mark, its command SHOWN in full in a popover beside its Copy (fixes A-M3: never copied unseen), "Copied" visible; a link form; a checklist of headed items, each with its state word', () => {
+    const c = html(createElement(Blocker, { compact: true, word: '1 hook to approve', fix: { copy: 'studio run p quote' }, testId: 'sb' }));
+    expect(c).toMatch(/^<span class="k-blocker is-compact" data-testid="sb">/);
+    expect(c).toContain('1 hook to approve');
+    // The trigger opens a popover (a dialog in the top layer) that shows the command as text, with its Copy.
+    expect(c).toMatch(/<button type="button" class="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)" popover[tT]arget="\1" data-testid="sb-action">.*Command….*<div id="\1" popover="auto" role="dialog" aria-label="The command to run in a terminal" class="k-popover" data-testid="sb-popover">/);
+    expect(c).toContain('<bdi class="k-blocker-code k-mono">studio run p quote</bdi>');
+    expect(c).toMatch(/data-testid="sb-copy"[^>]*>.*Copy command/);
+    expect(c).not.toContain('k-sr');
+    expect(c).toContain('<span class="k-copied" role="status"></span>');
+    // The full form: "Copied" in a visible span too (fixes B-L8), never a screen-reader-only word.
+    expect(html(createElement(Blocker, { word: 'Blocked', children: 'x', fix: { copy: 'y' } }))).toContain('<span class="k-copied" role="status"></span>');
+    const l = html(createElement(Blocker, { compact: true, word: 'the file has errors', fix: { label: 'Open the YAML', to: { name: 'scenario', slug: 'p', scenario: 'quote', tab: 'yaml' } } }));
+    expect(l).toContain('<a href="#/p/p/s/quote/yaml" class="k-btn k-btn-ghost k-btn-sm">');
+    const list = html(createElement(Checklist, { label: 'Checks', children: createElement(ChecklistItem, { state: 'attention', word: 'Needs you', title: 'Sessions', actions: createElement(Button, { size: 'sm', children: 'Sign in…' }), children: 'buyer — expired' }) }));
+    expect(list).toMatch(/^<ol class="k-checklist" aria-label="Checks"><li class="k-check" data-state="attention" aria-labelledby="([^"]+)">/);
+    expect(list).toMatch(/<h3 id="([^"]+)" class="k-check-title">Sessions<\/h3><span class="k-check-word">Needs you<\/span>/);
+    expect(list).toContain('<div class="k-check-body">buyer — expired</div>');
+    expect(list).toContain('<div class="k-check-actions">');
+  });
+
   it('cards: one control — a pressed button that selects or a link that goes; the picture inside it', () => {
     const sel = html(createElement(FrameCard, { picture: createElement('span', null, 'pic'), number: 3, title: 'Checkout', meta: '4 steps', selected: true, onSelect: noop }));
     expect(sel).toMatch(/^<button type="button" class="k-card k-card-frame is-selected" aria-pressed="true">/);
@@ -283,6 +306,11 @@ describe('the overlays (L5.9 part C)', () => {
     expect(s.match(/data-default="yes"/g)).toHaveLength(1);
     // A safe default stays the default ("Capture anyway" loses nothing).
     expect(defaultAction([{ id: 'c', label: 'Cancel', isCancel: true }, { id: 'go', label: 'Capture anyway', variant: 'primary', isDefault: true }])?.id).toBe('go');
+    // L5.11a (critique L4): an alert sheet that is not destructive; test ids on the dialog and its actions.
+    const a = html(createElement(Sheet, { open: false, alert: true, testId: 'confirm', title: 'Capture with an expired session?', actions: [{ id: 'c', label: 'Cancel', isCancel: true, testId: 'confirm-cancel' }, { id: 's', label: 'Sign in first…', variant: 'primary', isDefault: true, testId: 'confirm-sign-in' }], onAction: noop }));
+    expect(a).toMatch(/^<dialog class="k-sheet" role="alertdialog" data-testid="confirm"/);
+    expect(a).toContain('data-default="yes" data-testid="confirm-sign-in"');
+    expect(a).toContain('data-testid="confirm-cancel"');
   });
 
   it('palette: a dialog with a combobox (aria-controls, aria-activedescendant) and a listbox of grouped options; the filter', () => {
@@ -307,9 +335,10 @@ describe('the overlays (L5.9 part C)', () => {
   });
 
   it('the menu commands: an allow-list of ids (the desktop menu sends nothing else)', () => {
-    expect([...MENU_COMMANDS]).toEqual(['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector']);
+    // L5.11a: the Scenario menu's four (Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘.) now act.
+    expect([...MENU_COMMANDS]).toEqual(['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop']);
     for (const id of MENU_COMMANDS) expect(isMenuCommand(id)).toBe(true);
-    for (const id of ['rehearse', 'capture', 'render', '', 'PALETTE', null, 1, { id: 'palette' }]) expect(isMenuCommand(id)).toBe(false);
+    for (const id of ['reload', 'record', 'pause', '', 'PALETTE', 'Rehearse', null, 1, { id: 'palette' }]) expect(isMenuCommand(id)).toBe(false);
   });
 });
 

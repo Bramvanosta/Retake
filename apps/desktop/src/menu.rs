@@ -6,8 +6,9 @@
 //!   Command Palette ⌘K, the modes Script · Shoot · Edit · Review ⌘1 – ⌘4, the inspector ⌥⌘I), sent to the page as a
 //!   `studio:command` event by `page_command_js` — its id one of the page's MENU_COMMANDS (ui-kit/commands.ts; a static
 //!   test compares the two lists), always enabled (a command the page cannot run says so in its status bar); a `Std` is
-//!   a macOS standard item (Edit's undo / copy / paste…, which reach the page's fields). ⌘R, ⇧⌘R, ⌘B (Rehearse, Capture,
-//!   Render: L5.11), ⌘., ⌘S and ⌘Enter stay the page's (desktop-config.test.ts pins it).
+//!   a macOS standard item (Edit's undo / copy / paste…, which reach the page's fields). L5.11a: the Scenario menu's
+//!   Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B and Stop ⌘. are page commands too (the page's command bus gives them to their
+//!   owner: the status bar, a screen, a live recording); ⌘S and ⌘Enter stay the page's (desktop-config.test.ts pins it).
 //! - `TITLE_BAR`: the standard macOS title bar (L5.9 shipped it: the overlay's drag band is BL-126); `Overlay` lets the
 //!   page draw under a transparent title bar with the window buttons inset. `SHELL_FLAG_JS`, a constant main-frame init
 //!   script, tells the page which one it is under (`window.__studioShell`): the page then keeps the buttons' room (80 px
@@ -70,6 +71,17 @@ pub const MENUS: &[(&str, &[Item])] = &[
             Item::Page { id: "inspector", label: "Show or Hide Inspector", accelerator: Some("Alt+CmdOrCtrl+I") },
             Item::Separator,
             Item::Std(Std::FullScreen),
+        ],
+    ),
+    // L5.11a: the scenario in context (the page says in its status bar why a command cannot act; menu state is BL-126).
+    (
+        "Scenario",
+        &[
+            Item::Page { id: "rehearse", label: "Rehearse", accelerator: Some("CmdOrCtrl+R") },
+            Item::Page { id: "capture", label: "Capture", accelerator: Some("Shift+CmdOrCtrl+R") },
+            Item::Page { id: "render", label: "Render", accelerator: Some("CmdOrCtrl+B") },
+            Item::Separator,
+            Item::Page { id: "stop", label: "Stop", accelerator: Some("CmdOrCtrl+.") },
         ],
     ),
     // ⌘0 brings back a window closed with ⌘W (review B M3: the Dock icon is the only other way; ⌘Tab shows no window).

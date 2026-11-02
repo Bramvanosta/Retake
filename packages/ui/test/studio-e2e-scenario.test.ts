@@ -234,14 +234,18 @@ describe('the scenario screen in Chromium', () => {
     await page.getByTestId('before-filming').click();
     expect(await page.getByTestId('hook').count()).toBeGreaterThan(1);
     expect(await page.getByTestId('hooks').innerText()).toMatch(/destructive|rollback/i);
-    expect(await page.getByTestId('blockers-dry-run').innerText()).toContain('nothing stops it');
-    // L5.10b: the reasons fold under the strip's one line (critique H2): opened, they read as before.
-    await page.getByTestId('blockers-capture').locator('summary').click();
+    // L5.11a: what would stop a run is the status bar's — Rehearse free, Capture's one blocker line in the gate's words
+    // (critique H3), the full message in the button's description, the command in the blocker's popover.
+    expect(await page.locator('#sh-why-dry').textContent()).toContain('no hooks, a screenshot per step');
     const cap = await page.getByTestId('blockers-capture').innerText();
-    expect(cap).toContain('needs the terminal');
-    expect(cap).toContain('The Studio cannot approve hooks yet');
+    expect(cap).toContain('1 hook to approve');
+    expect(await page.locator('#sh-why-capture').textContent()).toContain('The Studio cannot approve hooks yet');
     expect(cap).not.toMatch(/MCP/);
-    expect(await page.getByTestId('blocker-fix').first().innerText()).toMatch(new RegExp(`run ${P} quote$`));
+    // The command: shown in full in the blocker's popover (review A-M3 of L5.11a).
+    await page.getByTestId('blockers-capture-action').click();
+    await page.getByTestId('blockers-capture-popover').waitFor(POLL);
+    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toMatch(new RegExp(`^studio -C .* run ${P} quote$`));
+    await page.keyboard.press('Escape');
     // The fixture's quote run kept no copy of the scenario: matched by position, said in words.
     expect(await page.getByText('Cannot tell whether the scenario changed since this run').count()).toBe(1);
     expect(await page.getByRole('listbox').count()).toBe(4);
@@ -263,8 +267,8 @@ describe('the scenario screen in Chromium', () => {
     expect(named).toMatch(/request[\s\S]*queue/);
     expect(named).toContain('Needs a person');
     expect(await page.locator('[data-scene="to-the-list"]').innerText()).toContain('off camera: played, not in the video');
-    await page.getByTestId('blockers-capture').locator('summary').click();
-    expect(await page.getByTestId('blockers-capture').innerText()).toContain('The Studio cannot approve hooks yet');
+    expect(await page.getByTestId('blockers-capture').innerText()).toContain('hook to approve');
+    expect(await page.locator('#sh-why-capture').textContent()).toContain('The Studio cannot approve hooks yet');
     await shot('10b-scenario-off-camera');
   });
 
@@ -528,18 +532,26 @@ describe('the scenario screen in Chromium', () => {
     const capture = page.getByTestId('run-capture');
     await capture.waitFor();
     expect(await capture.isDisabled()).toBe(true);
-    expect(await capture.innerText()).toBe('Capture — needs the terminal');
+    // L5.11a: the status bar's Capture — its words, its full reason as its description.
+    expect(await capture.innerText()).toBe('Capture');
     const described = await capture.getAttribute('aria-describedby');
-    expect(await page.locator(`#${described}`).innerText()).toBe('why, and the command to type, below');
-    // Said once (review B L6), with the command and its node form for a person without `studio` on their PATH.
-    await page.getByTestId('blockers-capture').locator('summary').click();
-    expect((await page.getByTestId('blockers-capture').innerText()).match(/needs the terminal/g)).toHaveLength(1);
-    expect(await page.getByTestId('blockers-capture').getByTestId('blocker-fix').innerText()).toBe(`studio -C ${ws} run ${P} quote`);
-    expect(await page.getByTestId('blockers-capture').getByTestId('blocker-fix-node').innerText()).toMatch(new RegExp(`/packages/cli/dist/bin\\.js -C ${ws.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} run ${P} quote$`));
+    expect(await page.locator(`#${described}`).textContent()).toContain('has hooks a human must approve before they run');
+    // Said once (review B L6), with the command copied — and its node form for a person without `studio` on their PATH
+    // on Prepare, where every refusal is said in full.
+    expect((await page.getByTestId('blockers-capture').innerText()).match(/hook to approve/g)).toHaveLength(1);
+    await page.getByTestId('blockers-capture-action').click();
+    await page.getByTestId('blockers-capture-popover').waitFor(POLL);
+    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toBe(`studio -C ${ws} run ${P} quote`);
+    await page.keyboard.press('Escape');
+    await page.goto(`${studio.url}#/p/${P}/s/quote/run`);
+    await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').waitFor({ state: 'attached', ...POLL });
+    expect(await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').textContent()).toMatch(new RegExp(`/packages/cli/dist/bin\\.js -C ${ws.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} run ${P} quote$`));
+    await page.goto(`${studio.url}#/p/${P}/s/quote`);
+    await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
     expect(await page.getByTestId('blockers-capture').innerText()).not.toMatch(/MCP/);
     const dry = page.getByTestId('run-dry');
-    expect(await dry.isDisabled()).toBe(false);
-    expect(await dry.innerText()).toBe('Dry run');
+    await expect.poll(() => dry.isDisabled(), POLL).toBe(false);
+    expect(await dry.innerText()).toBe('Rehearse');
     // A click on the disabled button sends nothing.
     await capture.click({ force: true });
     await sleep(300);
@@ -562,11 +574,12 @@ describe('the scenario screen in Chromium', () => {
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(1);
     expect(await page.getByTestId('running').innerText()).toContain(runId!);
     expect(await page.getByTestId('run-dry').isDisabled()).toBe(true);
-    expect(await page.getByTestId('blockers-dry-run').innerText()).toContain('waits for the run of this scenario to finish');
+    expect(await page.locator('#sh-why-dry').textContent()).toContain('waits for the rehearsal to end');
     await page.evaluate(() => document.getElementById('main')?.scrollTo(0, 0));
     await shot('21-scenario-run-queued');
     const t1 = Date.now();
-    await page.getByTestId('run-cancel').click();
+    // L5.11a: Stop is the status bar's (one Stop: the Running callout has none).
+    await page.getByTestId('run-stop').click();
     await expect.poll(() => ops('run_cancel', t1).length, POLL).toBe(1);
     expect(ops('run_cancel', t1)[0].body).toEqual({ project: P, run_id: runId });
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
@@ -574,9 +587,9 @@ describe('the scenario screen in Chromium', () => {
     expect(await page.getByTestId('run-submitted').count(), 'the queued note goes once its run is over').toBe(0);
     // Its outcome instead (review B H1).
     await expect.poll(() => page.getByTestId('run-outcome').count(), POLL).toBe(1);
-    expect(await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText()).toMatch(new RegExp(`The dry run ${runId} cancelled[\\s\\S]*It left no picture\\.`));
+    expect(await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText()).toMatch(new RegExp(`The rehearsal ${runId} stopped[\\s\\S]*It left no picture\\.`));
     // The cancelled run is one of the picker's runs (it has no pictures: the source stays the capture).
-    await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Dry run ${runId} · cancelled · no pictures`);
+    await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Rehearsal ${runId} · stopped · no pictures`);
     expect(await page.getByTestId('source-line').innerText()).toContain(CAPTURE);
     expect(ops('scenario_run', t0)).toHaveLength(1);
     expect(consoleErrors).toEqual([]);
@@ -616,15 +629,16 @@ describe('the scenario screen in Chromium', () => {
     expect(options).toContain('local · default');
     // Review A L7: a flag word that repeats the name is left out.
     expect(options).toContain('production · read-only');
-    expect(await page.getByTestId('run-location').innerText()).toContain('Dry run and Capture use the location local.');
-    // Another location: the view is read there, the take strip says so and that Shoot keeps the file's own.
+    expect(await page.getByTestId('run-location').innerText()).toContain('Rehearse and Capture use the location local.');
+    // Another location: the view is read there, the take strip and the status bar say so (L5.11a: Shoot uses it too).
     const t0 = Date.now();
     await select.selectOption('signed-in');
     await expect.poll(() => ops('scenario_blocks', t0).map((r) => r.body.env), POLL).toEqual(['signed-in']);
-    await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain("Dry run and Capture use the location signed-in. Shoot (the Run screen) uses the file's own location, local.");
+    await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain('Rehearse and Capture use the location signed-in, chosen in this tab.');
+    await expect.poll(() => page.getByTestId('status-scenario').innerText(), POLL).toContain('on signed-in');
     // Review A L6: the Video inspector's Location is the file's own, the tab's choice beside it.
     await page.getByTestId('scenes-video').click();
-    await expect.poll(() => page.getByTestId('video-block').innerText(), POLL).toContain("local (the project's default) (Dry run and Capture: signed-in)");
+    await expect.poll(() => page.getByTestId('video-block').innerText(), POLL).toContain("local (the project's default) (Rehearse and Capture: signed-in)");
     // A dry run there carries `env` (a run of the file's own location never does: the run-actions test pins its body).
     const dry = page.getByTestId('run-dry');
     await expect.poll(() => dry.isDisabled(), POLL).toBe(false);
@@ -632,7 +646,7 @@ describe('the scenario screen in Chromium', () => {
     await dry.click();
     await expect.poll(() => ops('scenario_run', t1).length, POLL).toBe(1);
     expect(ops('scenario_run', t1)[0].body).toMatchObject({ project: P, name: 'blocks', mode: 'dry', env: 'signed-in' });
-    await page.getByTestId('run-cancel').click();
+    await page.getByTestId('run-stop').click();
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     // Critique M2: no project board read behind a scenario screen (its browser shows the scenes), runs and all.
     expect(ops('project_board', t0)).toEqual([]);
@@ -641,8 +655,11 @@ describe('the scenario screen in Chromium', () => {
     await select.selectOption('local');
     await expect.poll(() => ops('scenario_blocks', t2).length, POLL).toBeGreaterThan(0);
     expect(ops('scenario_blocks', t2).every((r) => r.body.env === undefined)).toBe(true);
+    const tSel = Date.now();
     await select.selectOption('signed-in');
     await expect.poll(() => select.inputValue(), POLL).toBe('signed-in');
+    // Its read sent before the reload (else it could land after t3: a flake seen in L5.11a fixes).
+    await expect.poll(() => ops('scenario_blocks', tSel).some((r) => r.body.env === 'signed-in'), POLL).toBe(true);
     const t3 = Date.now();
     await page.reload();
     await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
@@ -662,7 +679,7 @@ describe('the scenario screen in Chromium', () => {
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     await expect.poll(() => page.getByTestId('run-outcome-error').count(), POLL).toBe(1);
     const notice = await page.locator('.k-callout', { has: page.getByTestId('run-outcome') }).innerText();
-    expect(notice).toContain(`The dry run ${runId} failed at step 1 of one`);
+    expect(notice).toContain(`The rehearsal ${runId} failed at step 1 of one`);
     expect(notice).toContain('It left no picture.');
     // The runner's 0-based prefix in the screen's words (review B M2), its first line only.
     expect(await page.getByTestId('run-outcome-error').innerText()).toContain('step 1 of one (click “First”): page.goto: net::ERR_CONNECTION_REFUSED at http://localhost:4401/');
@@ -695,7 +712,7 @@ describe('the scenario screen in Chromium', () => {
       await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
       expect(ops('run_status', t0).length).toBeGreaterThanOrEqual(1);
       expect(ops('scenario_blocks', t0).length).toBeGreaterThanOrEqual(1);
-      await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Dry run ${runId} · interrupted · no pictures`);
+      await expect.poll(() => page.getByTestId('run-picker').locator('option').allInnerTexts(), POLL).toContain(`Rehearsal ${runId} · interrupted · no pictures`);
       expect(await page.getByTestId('run-dry').isDisabled()).toBe(false);
     } finally {
       worker.kill('SIGKILL');
@@ -767,24 +784,53 @@ describe('the scenario screen in Chromium', () => {
       await select.waitFor(POLL);
       await select.selectOption('signed-in');
       await expect.poll(() => page.getByTestId('run-location').innerText(), POLL).toContain('use the location signed-in');
-      // Renamed in project.yaml (its personas' section too), then the scenario opened again in the same tab.
-      await writeFile(yamlPath, before.replace(/\n {2}signed-in:/g, '\n  signed-in-renamed:'));
-      await page.goto(`${studio.url}#/p/${P}`);
-      await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
-      await expect.poll(() => page.locator('body').innerText(), POLL).toContain('signed-in-renamed');
+      // Renamed in project.yaml (its personas' section too) while the scenario is open: dropped once the project is read.
       const t0 = Date.now();
-      await page.goto(`${studio.url}#/p/${P}/s/blocks`);
-      await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+      await writeFile(yamlPath, before.replace(/\n {2}signed-in:/g, '\n  signed-in-renamed:'));
       await page.getByTestId('location-dropped').waitFor(POLL);
-      expect(await page.getByTestId('location-dropped').innerText()).toContain("The location signed-in chosen earlier is no longer in project.yaml: Dry run and Capture use the file's own, local.");
-      expect(ops('scenario_blocks', t0).every((r) => r.body.env === undefined)).toBe(true);
+      expect(await page.getByTestId('location-dropped').innerText()).toContain("The location signed-in chosen earlier is no longer in project.yaml: Rehearse and Capture use the file's own, local.");
       await expect.poll(() => select.inputValue(), POLL).toBe('local');
-      expect(await page.getByTestId('run-location').innerText()).toContain('Dry run and Capture use the location local.');
+      // Review B-M4 of L5.11a: from the drop on, no read sends the stale location — one more read forced (the file
+      // touched), every read since the drop without `env`.
+      const t1 = Date.now();
+      const blocksPath = join(project(), 'scenarios', 'blocks.yaml');
+      const blocksText = await readFile(blocksPath, 'utf8');
+      await writeFile(blocksPath, `${blocksText}# touched by the test\n`);
+      try {
+        await expect.poll(() => ops('scenario_blocks', t1).length, POLL).toBeGreaterThanOrEqual(1);
+      } finally {
+        await writeFile(blocksPath, blocksText);
+      }
+      expect(ops('scenario_blocks', t1).map((r) => r.body.env)).toEqual(ops('scenario_blocks', t1).map(() => undefined));
+      expect(ops('scenario_blocks', t0).filter((r) => r.body.env === 'signed-in-renamed')).toEqual([]);
+      expect(await page.getByTestId('run-location').innerText()).toContain('Rehearse and Capture use the location local.');
       expect(await page.getByTestId('issues').count()).toBe(0);
-      expect(await page.getByTestId('run-dry').innerText()).toBe('Dry run');
+      expect(await page.getByTestId('run-dry').innerText()).toBe('Rehearse');
       // Said once: picking a location clears it.
       await select.selectOption('production');
       await expect.poll(() => page.getByTestId('location-dropped').count(), POLL).toBe(0);
+      // L5.11a (critique M2): dropped on a route whose screen does not say it (the Project screen) — the status bar says it.
+      await writeFile(yamlPath, before);
+      await page.goto(`${studio.url}#/p/${P}`);
+      await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
+      await expect.poll(() => page.locator('body').innerText(), POLL).toContain('signed-in');
+      await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+      await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+      await select.selectOption('signed-in');
+      await page.goto(`${studio.url}#/p/${P}`);
+      await page.getByRole('heading', { level: 1, name: 'Productions' }).waitFor();
+      await writeFile(yamlPath, before.replace(/\n {2}signed-in:/g, '\n  signed-in-renamed:'));
+      await expect.poll(() => page.locator('.sh-said').innerText(), POLL).toContain('The location signed-in chosen earlier for blocks is gone from project.yaml');
+      // The scenario opened again in the same tab (the reopen path, review B-M4): every read sends no `env`, the select
+      // and the strip say the file's own location.
+      const t2 = Date.now();
+      await page.goto(`${studio.url}#/p/${P}/s/blocks`);
+      await page.getByRole('heading', { level: 1, name: 'blocks' }).waitFor();
+      await expect.poll(() => select.inputValue(), POLL).toBe('local');
+      await expect.poll(() => ops('scenario_blocks', t2).length, POLL).toBeGreaterThanOrEqual(1);
+      expect(ops('scenario_blocks', t2).map((r) => r.body.env)).toEqual(ops('scenario_blocks', t2).map(() => undefined));
+      expect(await page.getByTestId('run-location').innerText()).toContain('Rehearse and Capture use the location local.');
+      expect(await page.getByTestId('issues').count()).toBe(0);
     } finally {
       await writeFile(yamlPath, before);
     }

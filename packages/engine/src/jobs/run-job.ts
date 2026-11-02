@@ -178,9 +178,23 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
   ];
 }
 
+/**
+ * Which gate refused (L5.11a, critique H3): the generic `code` cannot tell agent trust from a protected host or a refused
+ * hook (all `refused`), so the Studio's short words key on this. `agent_trust` — the scenario names a secret or a file
+ * outside the project; `protected_host` — the location reaches another project's production / read-only host;
+ * `hook_refused` — a hook a safety rule refuses; `read_only` — the same on a read-only location (its writing hooks);
+ * `needs_approval` — hooks a person approves first (`count`); `invalid` — the file or the request does not check;
+ * `prepare` — anything else that stops the run being prepared.
+ */
+export type RunBlockerKind = 'agent_trust' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'invalid' | 'prepare';
+
 /** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
 export interface RunBlocker {
   code: EngineErrorCode;
+  /** The gate that refused (runBlockers sets it; the CLI and MCP ignore it). */
+  kind?: RunBlockerKind;
+  /** How many: hooks to approve (`needs_approval`), hooks refused (`hook_refused`, `read_only`). */
+  count?: number;
   message: string;
   /** The `studio` command a human runs instead, when there is one. */
   fix?: string;
@@ -197,31 +211,58 @@ export interface RunBlocker {
  * queue. The submit stays the authority: it checks again.
  */
 export async function runBlockers(ctx: SubmitContext, req: { project: string; scenario: string; env?: string }): Promise<{ dry: RunBlocker[]; capture: RunBlocker[] }> {
-  const blocker = (e: unknown): RunBlocker => {
+  const blocker = (e: unknown, gate: number | null): RunBlocker => {
     const err = toEngineError(e);
-    return { code: err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
+    const k = blockerKind(err, gate);
+    return { code: err.code, kind: k.kind, ...(k.count !== undefined ? { count: k.count } : {}), message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
   };
   const base: RunSubmitRequest = { project: req.project, scenario: req.scenario, mode: 'dry', ...(req.env !== undefined ? { env: req.env } : {}) };
   let s: PreparedSubmit;
   try {
     s = await prepareSubmit(ctx, base);
   } catch (e) {
-    const b = blocker(e);
+    const b = blocker(e, null);
     return { dry: [b], capture: [b] };
   }
   const out: { dry: RunBlocker[]; capture: RunBlocker[] } = { dry: [], capture: [] };
   for (const mode of ['dry', 'capture'] as const) {
-    for (const gate of runGates(ctx, s, { ...base, mode }, undefined)) {
+    const gates = runGates(ctx, s, { ...base, mode }, undefined);
+    for (const [i, gate] of gates.entries()) {
       try {
         await gate();
       } catch (e) {
-        const b = blocker(e);
+        const b = blocker(e, i);
         // A preflight that failed fails both hook gates with the same error: said once.
         if (!out[mode].some((x) => x.message === b.message)) out[mode].push(b);
       }
     }
   }
   return out;
+}
+
+/**
+ * The gate that threw, as runGates orders them (0 agent trust, 1 protected hosts, 2 refused hooks, 3 approvals; null:
+ * preparing the run): its kind, and how many hooks for the hook gates. An error a gate did not word as its own refusal
+ * (a hooks preflight that failed) is `prepare` — never a safety reason it was not (critique H3).
+ */
+export function blockerKind(err: EngineError, gate: number | null): { kind: RunBlockerKind; count?: number } {
+  const list = (k: string) => {
+    const v = err.details?.[k];
+    return Array.isArray(v) ? v.length : undefined;
+  };
+  if (gate === null) return { kind: err.code === 'invalid' || err.code === 'not_found' ? 'invalid' : 'prepare' };
+  if (gate === 0 && err.code === 'refused' && Array.isArray(err.details?.problems)) return { kind: 'agent_trust' };
+  if (gate === 1 && err.code === 'refused') return { kind: 'protected_host' };
+  if (gate === 2 && err.code === 'refused' && Array.isArray(err.details?.refused)) {
+    const env = err.details?.env as { access?: string } | undefined;
+    const count = list('refused');
+    return { kind: env?.access === 'read-only' ? 'read_only' : 'hook_refused', ...(count !== undefined ? { count } : {}) };
+  }
+  if (gate === 3 && err.code === 'needs_approval') {
+    const count = list('hooks');
+    return { kind: 'needs_approval', ...(count !== undefined ? { count } : {}) };
+  }
+  return { kind: err.code === 'invalid' ? 'invalid' : 'prepare' };
 }
 
 /** Check, reserve the run id and queue a `run` job. */

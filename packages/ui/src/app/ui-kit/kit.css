@@ -617,7 +617,15 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-3);
+  min-width: 0;
   margin-left: auto;
+}
+/* L5.11a: a compact blocker among the actions gives way first (its words truncate), never the buttons. */
+.k-statusbar-actions > .k-blocker.is-compact {
+  flex-shrink: 1;
+}
+.k-statusbar-actions > .k-btn {
+  flex: none;
 }
 
 /* Source list (the browser) */
@@ -874,15 +882,54 @@ summary.k-section-title {
   flex: 1 1 180px;
   min-width: 0;
 }
+/* L5.11a fixes (review B-M3): the command in full — it wraps, never cut: what Copy copies is what is shown */
 .k-blocker-code {
+  min-width: 0;
   max-width: 100%;
   padding: var(--ui-space-1) var(--ui-space-3);
   border-radius: var(--ui-radius-kbd);
   background: var(--ui-kbd);
   color: var(--ui-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* "Copied" (or why not), visible beside the button */
+.k-copied {
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-copied:empty {
+  display: none;
+}
+/* L5.11a fixes (review A-M3): the status bar blocker's command, shown in full in a popover (the top layer) */
+.k-popover {
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 16px));
+  margin: 0;
+  padding: var(--ui-space-5);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  box-shadow: 0 12px 32px var(--ui-shadow);
+}
+.k-popover:popover-open {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.k-popover-title {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.k-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
 }
 
 /* Cards */
@@ -1396,4 +1443,95 @@ summary.k-section-title {
   background: var(--ui-kbd);
   color: var(--ui-text);
   user-select: all;
+}
+
+/* L5.11a: Checklist (R4-ShootPrep: a state column, a title, its body, its actions; a hairline between items) */
+.k-checklist {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.k-check {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-6) 0;
+  border-top: 1px solid var(--ui-hairline);
+}
+.k-check:first-child {
+  border-top: 0;
+  padding-top: var(--ui-space-2);
+}
+.k-check-mark {
+  justify-content: center;
+  align-self: start;
+  padding-top: var(--ui-space-2);
+}
+.k-check-main {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.k-check-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+}
+.k-check-title {
+  margin: 0;
+  color: var(--ui-text-strong);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.k-check-word {
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-check-body {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-check-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+
+/* L5.11a: the status bar's blocker — one line, no well; the words truncate before the action does */
+.k-blocker.is-compact {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: var(--ui-space-3);
+  padding: 0;
+  background: none;
+  color: var(--ui-text-2);
+}
+.k-blocker.is-compact .k-blocker-text {
+  flex: 0 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-blocker.is-compact > .k-mark {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.k-blocker.is-compact .k-mark-word {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.k-blocker.is-compact > .k-btn {
+  flex: none;
 }

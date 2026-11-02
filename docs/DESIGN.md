@@ -4490,6 +4490,85 @@ selected, the YAML view read and editing, a file that does not parse on the boar
 every test title, assertion count and test id (the scratch guard); listed renames: `comments-tab` → `comments-count`
 on the scenario screen.
 
+## 4m. Shoot: prepare, live, the status bar's actions, the Scenario menu (L5.11a)
+
+R-UI-40 – R-UI-43. « Épure » 3a. Reference: R4-ShootPrep, R4-ShootLive, R4-Confirm (layout and drawing), the status
+bars of B32-Projet / B32-Scenario. Built from the lot's plan corrected by its critique (H1 command priorities, H2 the
+status bar's read and its memo, H3 blocker words by gate, M1 no page probe, M2 the shared location said, M3 the palette,
+M4 a terminal's run, M7 one Stop). A rebuild, not a cut: every capability of L4.4's Run screen, LiveView and Sessions is
+kept (pause on L5.7's clock, stop with its teardown words, pause too late, the live preview channel, two streams then the
+run_status fallback, steps / hooks / log, sign-in limits, the headed sign-in, the check-less personas' paragraph,
+protected hosts as blockers); the quit guard and the notifications of L5.2b are untouched (the notification word for a
+dry run is now "Rehearsal": desktop core words.rs). Cuts: BL-130. The Record screen is L5.11b.
+
+**Words.** *Rehearse* (the action), *Rehearsal* (a run of that mode), *Rehearsing* (its state) everywhere the page and the
+desktop shell write; `mode: 'dry'`, the CLI's `--dry`, MCP `run_dry`, job kinds and the engine's messages are unchanged
+(Prepare shows one mapping line). A source lint (app-source.test.ts) fails on "dry run" in a string the page shows
+(comments, test ids, the mapping line and the ops' descriptions excepted).
+
+**The engine.** `RunBlocker.kind` (`agent_trust`, `protected_host`, `hook_refused`, `read_only`, `needs_approval` with
+`count`, `invalid`, `prepare`) — set by `runBlockers` from the gate that threw (`blockerKind`; a preflight that failed is
+`prepare`, never a safety reason); `ScenarioRunChoice.job` on an unfinished run (null: a terminal's run); `running` is
+the newest unfinished run WITH a job, else the terminal's (`runningOf`: a terminal's run and a Studio job can be
+unfinished together — the one-run check sees jobs only — and Stop must reach the one it can).
+`engine.scenarios.actions` (op `scenario_actions`, a Studio read in the `ui` allow-list, strict input: project, name,
+env): hash, validity, the blockers on the location, the scenes and steps, the runs with the unfinished one, the capture
+a render edits, a render queued or running. Its layer has its own memo (64 entries) — it reads a fresh text layer of the
+scenario screen's cache, never inserts into it — and both layers are single-flight (two reads at once compute once).
+
+**The status bar** (`shell/StatusActions.tsx`). On every screen with a scenario in context: its state in a non-live span,
+then Rehearse, ● Capture, Render, and Pause / Stop while a run of it is unfinished; one blocker line at a time
+(Capture's, else Rehearse's) in the gate's words (`shoot-words.ts` keyed on `kind`, an honest fallback, never cut) with
+Command… — a popover that SHOWS the whole command, wrapped, beside its Copy (what is copied is what is shown) — or Open
+the YAML; each disabled action's full reason as its description. In a narrow window whole segments give way by
+priority (the key caps, "live updates" and the last take's time at ≤ 1100 px; the scenario's name and the last take at
+≤ 1000 px; Command… keeps its icon), never a word cut in half. No action acts before the project is read; one that
+cannot act says why in the polite line and sends nothing; the line never says a step's progress. The polite line is
+text (Txt), one line at a time (a new one replaces it), gone after 6 s and when the screen changes. On the
+Scenario screen the screen feeds it its own view, run_status and render queue (`useFeedActions`: no second read); on
+the Project screen a selection is read once it settled 300 ms; elsewhere `scenario_actions` (shoot-data.ts entries,
+re-read by the scenario's file, a run of it appearing / changing status / going, the project's files, a focus, a
+reconnection; a render it shows at most every 5 s, a job it never saw every 2 s; a step's progress — its run's job
+rewritten — never: the run's end comes by its run.json, `useRunProgress`'s end or Stop's own reload). The shell's
+`engine_info` is read again on a job it never saw (a worker may start), a reconnection and every 15 s — not per step.
+Starts go
+through ONE store function (`startRun`: a scenario being sent ignores a second start in the same tick; the run just
+queued counts as running until a read lists it); they send the hash of the file on screen (`useShownFile`: the
+Scenario screen's, the timeline's with its run) and `env` only when the tab chose another location (run-location.ts:
+one choice per scenario in this tab, shared by the Scenario screen, Prepare and the status bar; a stale one dropped
+once the project is read, said by the screen that shows it or by the polite line). Stop and Pause reach the run's job;
+a terminal's run has none ("press Ctrl-C there", also said beside Prepare's disabled Pause / Stop). A start stays where
+it is, except from Shoot (Prepare, or a run's live screen — its outcome's Rehearse again / Start capture): the new run's
+live route opens and its title takes the focus.
+
+**Commands** (`shell/command-bus.ts`). `MENU_COMMANDS` += `rehearse`, `capture`, `render`, `stop`; the desktop app's
+**Scenario** menu (between View and Window) sends them — ⌘R, ⇧⌘R, ⌘B, ⌘. — as page commands (always enabled: a command
+that cannot act says so; menu state stays BL-126). A browser tab binds none of the four (the browser keeps them); the
+palette's Scenario group runs them. The bus gives a command to the highest priority, never to effect order: the status
+bar's defaults 0, a screen 10 (Prepare's Rehearse / Capture, the live screen's Stop while its run goes), a live
+recording 20 (the legacy Record screen's Stop, which also claims the status bar's actions: one Stop visible); a tie
+goes to the latest. While a modal dialog is open the menu's commands wait — but Stop, which closes the palette first and
+always answers. On a live screen ⌘. waits for the stream (or run_status) to say whose run it is, says a stop or a pause
+already on its way, and sends one call however often it is pressed.
+
+**Prepare** (`ShootPrepare.tsx`) and **live** (`ShootLive.tsx`, LiveView.tsx on the kit, the one image decoder kept):
+see docs/reference/studio-ui.md. Prepare probes no page (critique M1: a run refused at submit never reaches its pages,
+so Prepare does not either). Its Start buttons stay enabled while a start is sent (a repeat is said, never sent: a
+disabled button would drop the focus) and sit in a footer that stays at the foot of the centre pane; a refusal takes
+the focus; a project or scenario that does not load says so where the screen would wait. Its Sessions table has no
+Location column (the checklist's first item says it), the Session column takes the free width, the run notes sit on
+their own line (a note an issue's callout says is left out), the rows stack below 520 px of pane (a container query),
+and a sandbox account or a persona its login steps sign in offers no "Sign in…". The live screen claims the status bar
+while its run goes (Pause / Resume, Stop; its state word from the status bar's table: Rehearsing, Capture paused…) and
+releases it when it ends. A stopped run is "stopped" everywhere the page speaks (the engine's `cancelled` and
+`partial: cancelled` are mapped).
+
+**The sheet.** The capture's confirmation is the kit's Sheet in the shell (one for the status bar, ⇧⌘R and Prepare):
+`alert` (not destructive), Cancel · "Sign in <persona> first…" (the default) · Capture anyway (`sessions_ack` once).
+Opened before any request on Prepare (it knows `confirm`), on the server's 409 `details.sessions` elsewhere. It is a
+page `<dialog>`, not a native sheet (§4j's native sheets are for the server's own asks: L5.12): the question is the
+page's. A protected location is no sheet: it is a blocker with its terminal command (the Studio has no approver).
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

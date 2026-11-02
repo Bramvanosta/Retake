@@ -244,9 +244,10 @@ describe('L5.10b: the YAML source (R4-Source)', () => {
     await page.getByTestId('yaml').waitFor(POLL);
     await page.getByTestId('running').waitFor(POLL);
     expect(await page.getByTestId('running').innerText()).toMatch(/runs-yaml/);
-    expect(await page.getByTestId('run-cancel').isDisabled()).toBe(false);
+    // L5.11a: Stop is the status bar's (one Stop for the run, whatever the view).
+    expect(await page.getByTestId('run-stop').isDisabled()).toBe(false);
     await shot('yaml-7-running');
-    await page.getByTestId('run-cancel').click();
+    await page.getByTestId('run-stop').click();
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
   });
 });

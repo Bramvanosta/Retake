@@ -48,6 +48,7 @@ import { CommentsTab } from './CommentsTab.js';
 import { PreviewFrame } from './PreviewFrame.js';
 import { ProposalBanner } from './ProposalPanel.js';
 import { RenderBar, RendersPanel, useRenders } from './Renders.js';
+import { useShownFile } from './shoot-data.js';
 import { versionNote } from './render-words.js';
 import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
@@ -223,6 +224,8 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   const ed = useSwitchEditor(slug, name, v, reload);
   // Part E: the scenario's renders (a Render refused because the file changed reads the view again).
   const renders = useRenders(slug, name, reload);
+  // L5.11a (critique L6): the status bar's Render (⌘B) renders the capture and the file this screen shows.
+  useShownFile(slug, name, proposal ? null : (v.hash ?? null), v.run_id);
   const shownVersion = useMemo(
     () => ({ run: v.run_id, theme: v.theme, plan_sha256: v.plan_sha256, theme_sha256: v.theme_sha256, ...(v.hash ? { hash: v.hash } : {}) }),
     [v.run_id, v.theme, v.hash, v.plan_sha256, v.theme_sha256],
@@ -536,7 +539,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
           </p>
           {v.source.scenario_changed && (
             <p>
-              <a href={hrefTo({ name: 'run', slug, scenario: name })}>Capture again from the Run screen</a>
+              <a href={hrefTo({ name: 'run', slug, scenario: name })}>Capture again from Shoot</a>
             </p>
           )}
         </Notice>

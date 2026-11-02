@@ -242,7 +242,8 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
 
   it('Open timeline → the quotes segment\'s layout switched (one line, other pixels, same frame); ⌘Z; kept → Render → the verdict', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/${S}`);
-    await page.getByTestId('open-timeline').click();
+    // L5.11a: the Edit mode opens the newest capture's timeline (the strip's Open timeline went).
+    await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).click();
     await page.getByTestId('tracks').waitFor(POLL);
     await page.locator('[data-testid="tl-segment"][data-id="quotes"]').click();
     const key = 'scene:quotes:frame';

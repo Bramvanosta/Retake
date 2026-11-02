@@ -196,7 +196,7 @@ describe('the Projects screen (review B L2)', () => {
     const cards = page.getByTestId('project-card');
     await expect.poll(() => cards.count(), POLL).toBe(6);
     await cards.filter({ hasText: 'Northfield (fixture)' }).getByText(/production/).first().waitFor(POLL);
-    expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last dry run failed\s*·\s*quote/);
+    expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toMatch(/Last rehearsal failed\s*·\s*quote/);
     // The flag words exactly, not the environment's name (review B-M3).
     expect(await cards.filter({ hasText: 'Northfield (fixture)' }).innerText()).toContain('production: production · read-only');
     await sleep(1000);

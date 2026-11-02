@@ -94,7 +94,8 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
   it('Dry run of highlights from the screen: the worker starts, progress, then the new run’s pictures', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/highlights`);
     await page.getByRole('heading', { level: 1, name: 'highlights' }).waitFor();
-    expect(await page.getByTestId('blockers-dry-run').innerText()).toContain('nothing stops it');
+    // L5.11a: Rehearse is the status bar's — enabled, nothing stops it (its description says what it does).
+    expect(await page.locator('#sh-why-dry').textContent()).toContain('no hooks, a screenshot per step');
     expect(await page.getByText('No run of this scenario yet').count()).toBe(1);
     await page.getByTestId('run-dry').click();
     await page.getByTestId('run-submitted').waitFor();
@@ -123,10 +124,11 @@ describe.skipIf(!ENABLED)('the scenario screen’s run actions with the real wor
     const runId = /(\d{8}-\d{6}-highlights)/.exec(await page.getByTestId('run-submitted').innerText())![1];
     await expect.poll(async () => /current step/.test(await page.getByTestId('running').innerText().catch(() => '')), RUN).toBe(true);
     noteWorker();
-    await page.getByTestId('run-cancel').click();
+    // L5.11a: Stop is the status bar's.
+    await page.getByTestId('run-stop').click();
     await expect.poll(() => page.getByTestId('running').count(), RUN).toBe(0);
     await expect.poll(async () => JSON.parse(await readFile(join(root, 'projects', P, 'runs', runId, 'run.json'), 'utf8')).status as string, RUN).toBe('cancelled');
-    await expect.poll(async () => (await page.getByTestId('run-picker').locator('option').allInnerTexts()).some((t) => t.startsWith(`Dry run ${runId} · cancelled`)), RUN).toBe(true);
+    await expect.poll(async () => (await page.getByTestId('run-picker').locator('option').allInnerTexts()).some((t) => t.startsWith(`Rehearsal ${runId} · stopped`)), RUN).toBe(true);
     expect(consoleErrors).toEqual([]);
     await shot('32-real-dry-cancelled');
   }, 300_000);

@@ -40,7 +40,7 @@ import { ScenarioViews } from './scenario-view.js';
 import { ProjectBoards } from './project-board.js';
 import { checkRunId } from './refs.js';
 import type { ProjectBoardView, RunPoster } from './project-board.js';
-import type { ScenarioView } from './scenario-view.js';
+import type { ScenarioActions, ScenarioView } from './scenario-view.js';
 import { submitEnvResetJob, submitHooksJob } from './jobs/hooks-job.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
 import { cancelSignIn, submitAuthLoginJob } from './jobs/auth-job.js';
@@ -256,6 +256,12 @@ export interface Engine {
      * for, else the newest complete one) and every step's binding to it; memoised by file hash and the runs' files.
      */
     view(project: string, name: string, opts?: { run?: string; env?: string }): Promise<ScenarioView>;
+    /**
+     * L5.11a: the Studio's status bar for one scenario (scenario-view.ts `actions`): hash, validity, run blockers on the
+     * location (each with its gate's `kind`), the runs with the unfinished one's job, the capture a render edits, a
+     * render queued or running. Memoised apart from `view` (it never evicts the open scenario's text layer).
+     */
+    actions(project: string, name: string, opts?: { env?: string }): Promise<ScenarioActions>;
     save(project: string, name: string, yaml: string, opts?: { ifMatch?: string | null }): Promise<SaveResult>;
     /**
      * One edit of a saved scenario from the Studio (L4.3, scenarios.ts editScenario): the file the view read, `hash` as
@@ -643,6 +649,12 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       const job = await queue.ofRun(slug, run.id);
       return (job ? overlaid(run.status, job) : undefined) ?? run.status;
     },
+    runJob: async (slug, run) => (await queue.ofRun(slug, run))?.id ?? null,
+    renderJob: async (slug, name) => {
+      const open = (await queue.list({ project: slug, kinds: ['render'], states: ['queued', 'running'] })).find((j) => j.input.kind === 'render' && j.input.scenario === name);
+      if (!open) return undefined;
+      return { job: open.id, state: open.state === 'running' ? 'running' : 'queued', ...(open.progress?.fraction !== undefined ? { fraction: open.progress.fraction } : {}) };
+    },
     runs: runData,
   });
   // L5.10a: the Project screen's board, its memos apart from the views' (critique H1: never evict the open scenario's).
@@ -771,6 +783,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return { ...text, ok, issues, run_blockers };
       },
       view: (slug, name, o = {}) => views.view(slug, name, o),
+      actions: (slug, name, o = {}) => views.actions(slug, name, o),
       save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
       edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client), registry: async () => (await memoRegistry(ws)).registry }),
       fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),

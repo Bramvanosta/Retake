@@ -21,6 +21,8 @@ export interface SheetAction {
   isDefault?: boolean;
   /** Escape chooses it. */
   isCancel?: boolean;
+  /** L5.11a: a test id kept from an older dialog. */
+  testId?: string;
 }
 
 /** The action Return chooses: the one marked default unless it is destructive, else the cancel action. */
@@ -28,7 +30,26 @@ export function defaultAction(actions: SheetAction[]): SheetAction | undefined {
   return actions.find((a) => a.isDefault && a.variant !== 'destructive') ?? actions.find((a) => a.isCancel);
 }
 
-export function Sheet({ open, title, children, actions, onAction, destructive }: { open: boolean; title: ReactNode; children?: ReactNode; actions: SheetAction[]; onAction: (id: string) => void; destructive?: boolean }) {
+export function Sheet({
+  open,
+  title,
+  children,
+  actions,
+  onAction,
+  destructive,
+  alert,
+  testId,
+}: {
+  open: boolean;
+  title: ReactNode;
+  children?: ReactNode;
+  actions: SheetAction[];
+  onAction: (id: string) => void;
+  destructive?: boolean;
+  /** L5.11a (critique L4): `role="alertdialog"` without marking the sheet destructive (a warning that loses no work). */
+  alert?: boolean;
+  testId?: string;
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -81,7 +102,8 @@ export function Sheet({ open, title, children, actions, onAction, destructive }:
     <dialog
       ref={ref}
       className="k-sheet"
-      role={destructive ? 'alertdialog' : undefined}
+      role={destructive || alert ? 'alertdialog' : undefined}
+      data-testid={testId}
       aria-labelledby={titleId}
       aria-describedby={children ? textId : undefined}
       onCancel={(e) => {
@@ -101,7 +123,7 @@ export function Sheet({ open, title, children, actions, onAction, destructive }:
       )}
       <div className="k-sheet-actions">
         {actions.map((a) => (
-          <Button key={a.id} variant={a.variant ?? 'secondary'} data-default={a === def ? 'yes' : undefined} onClick={() => onAction(a.id)}>
+          <Button key={a.id} variant={a.variant ?? 'secondary'} data-default={a === def ? 'yes' : undefined} data-testid={a.testId} onClick={() => onAction(a.id)}>
             {shown(a.label)}
           </Button>
         ))}

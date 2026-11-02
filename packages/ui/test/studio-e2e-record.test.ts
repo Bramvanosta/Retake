@@ -19,6 +19,7 @@
  * - the cursor by row identity (review B-H1 / B-M1): a hold after a chosen step, after the recorder's scroll row and
  *   after its wait row goes immediately after that row; the cursor moves onto the hold, and the next one goes right
  *   after it; each row's Insert after names its step;
+ * - one Stop visible while recording (the screen's; the status bar says "Recording", L5.11a review A-L7);
  * - Stop and keep → the check replay passed; Save: a taken name refused (the file untouched), then a new scenario (no
  *   YAML alias: the block editor deletes and duplicates the scroll row) and the scenario screen;
  * - the hostile flagged page (`/record-lab?hostile=1`): its label shown as inert text (no script ran, the direction
@@ -297,6 +298,12 @@ describe('recording the lab from the Studio', () => {
       await w.getByRole('button', { name: 'Delayed control' }).click();
       await expect.poll(() => page.locator('[data-testid=record-step][data-helper=wait]').count(), POLL).toBe(1);
       expect(await page.locator('[data-testid=record-step][data-helper=scroll]').count()).toBe(1);
+      // L5.11a (review A-L7): while recording, ONE Stop is visible — the screen's own; the status bar says "Recording"
+      // and holds the actions slot (no Rehearse / Capture / second Stop there).
+      await page.getByTestId('status-recording').waitFor(POLL);
+      const stops = await page.getByRole('button', { name: /^(Stop|Stop and keep|Stop recording)$/ }).evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim()));
+      expect(stops).toEqual(['Stop and keep']);
+      expect(await page.getByTestId('status-actions').count()).toBe(0);
       // Stop and keep from the Studio: the window closes as if closed.
       await page.getByTestId('record-stop').click();
       await w.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);

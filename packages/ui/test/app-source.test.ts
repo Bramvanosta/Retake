@@ -42,7 +42,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, RowCard, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TerminalCommands, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, Callout, Checklist, ChecklistItem, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, RowCard, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TerminalCommands, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -1434,6 +1434,11 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(TerminalCommands, { fix: K('tfix'), fixNode: K('tnode') }),
       createElement(Switch, { label: K('wrlabel'), hint: K('wrhint'), checked: true, onChange: go, layout: 'row' }),
       createElement(SourceList, { label: 'Scenes', groups: [{ key: 'g', items: [{ key: 'b', label: K('sbtn'), current: true, onSelect: go, bar: 0.5, value: '1 s' }] }] }),
+      // L5.11a: Shoot's kit additions (the checklist, the status bar's compact blocker, a sheet's action test ids).
+      createElement(Checklist, { label: 'Checks', children: createElement(ChecklistItem, { state: 'attention', word: K('ckword'), title: K('cktitle'), actions: K('ckact'), children: K('ckbody') }) }),
+      createElement(Blocker, { compact: true, word: K('cbword'), fix: { copy: K('cbcopy') }, children: K('cbtext') }),
+      createElement(Blocker, { compact: true, word: K('cbword2'), fix: { label: K('cblink'), to: { name: 'projects' } } }),
+      createElement(Sheet, { open: false, alert: true, testId: 't', title: K('astitle'), actions: [{ id: 'c', label: K('asaction'), isCancel: true, testId: 'c' }], onAction: go }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
@@ -1444,7 +1449,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1545,7 +1550,8 @@ describe('L5.10a: the project side', () => {
 /** The rebuilt scenario-side files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
 const SCENARIO_SIDE = ['ScenarioScreen.tsx', 'Storyboard.tsx', 'TakeStrip.tsx', 'ScenarioInspector.tsx', 'ScenesBrowser.tsx', 'StepForm.tsx', 'StepEditing.tsx', 'YamlTab.tsx', 'YamlView.tsx', 'TextEditing.tsx', 'Thumb.tsx'];
 /** The ops the scenario side may call: its reads, and the mutating ones the plan allows (critique §7.3). */
-const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit', 'scenario_run', 'run_cancel']);
+// L5.11a: Rehearse, Capture and Stop moved to the status bar (shoot-data.ts): the scenario side no longer starts or stops a run.
+const SCENARIO_SIDE_OPS = new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']);
 
 /** Each `call('scenario_edit', …)` of a source: whether its arguments name the version shown (`hash`: the if_match). */
 function editCalls(text: string): Array<{ at: number; hash: boolean }> {
@@ -1598,11 +1604,11 @@ describe('L5.10b: the scenario side', () => {
     expect(offKit('Storyboard.tsx', planted, ctx).length).toBeGreaterThan(offKit('Storyboard.tsx', board, ctx).length);
   });
 
-  it('⚑ the write path is unchanged: the scenario side calls only its reads, scenario_edit, scenario_run and run_cancel; every scenario_edit names the version shown (if_match)', async () => {
+  it('⚑ the write path is unchanged: the scenario side calls only its reads and scenario_edit (L5.11a: runs start and stop in the status bar); every scenario_edit names the version shown (if_match)', async () => {
     const files = (await appSources()).filter(([f]) => SCENARIO_SIDE.includes(f));
     const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
     expect(called.filter(([, op]) => !SCENARIO_SIDE_OPS.has(op))).toEqual([]);
-    expect(new Set(called.map(([, op]) => op))).toEqual(new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit', 'scenario_run', 'run_cancel']));
+    expect(new Set(called.map(([, op]) => op))).toEqual(new Set(['scenario_blocks', 'scenario_forms', 'scenario_validate', 'run_status', 'run_thumbs', 'threads_counts', 'scenario_edit']));
     // scenario_edit: only from the edit loop (StepEditing.tsx) and the YAML save (YamlTab.tsx), each with its hash.
     const edits = files.flatMap(([f, text]) => editCalls(text).map((c) => ({ f, ...c })));
     expect(edits.map((e) => e.f).sort()).toEqual(['StepEditing.tsx', 'YamlTab.tsx']);
@@ -1611,5 +1617,93 @@ describe('L5.10b: the scenario side', () => {
     expect(opsCalled("call('scenario_save', { project, name, yaml })")).toEqual(['scenario_save']);
     expect(editCalls("call('scenario_edit', { project: slug, name, edit })")).toEqual([{ at: 1, hash: false }]);
     expect(editCalls("call('scenario_edit', { project: slug, name, hash: shown.hash, edit })")).toEqual([{ at: 1, hash: true }]);
+  });
+});
+
+// ── L5.11a: Shoot (Prepare, live, the status bar's actions, the Cast) ──────────────────────────────────────────────────
+
+/** The rebuilt Shoot files: kit only (no ratchet row), every value from data through Txt / a kit slot. */
+const SHOOT_SIDE = ['ShootPrepare.tsx', 'ShootLive.tsx', 'ShootBrowser.tsx', 'LiveView.tsx', 'Sessions.tsx', 'CastScreen.tsx', 'shell/StatusActions.tsx'];
+/** The ops Shoot may call: its reads, the run's own controls, a render, a sign-in (no edit, no other write). */
+const SHOOT_OPS = new Set(['scenario_actions', 'scenario_sessions', 'scenario_run', 'scenario_render', 'run_cancel', 'run_pause', 'run_status', 'run_thumbs', 'auth_login', 'sign_in_cancel', 'job_list']);
+
+/**
+ * "dry run" in a string the page shows (M6 / M9 of the plan: the Studio says Rehearse) — string literals, templates and
+ * JSX text of the app; comments, test ids and the one mapping line (shoot-words.ts REHEARSE_MAPPING) excepted.
+ */
+function dryRunWords(file: string, text: string): string[] {
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const out: string[] = [];
+  const at = (n: ts.Node) => `${file}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}`;
+  const RE = /\bdry[\s-]?runs?\b/i;
+  const visit = (n: ts.Node) => {
+    if (ts.isJsxAttribute(n) && /^(?:data-testid|testId)$/.test(n.name.getText(src))) return;
+    if (ts.isVariableDeclaration(n) && n.name.getText(src) === 'REHEARSE_MAPPING') return;
+    if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateHead(n) || ts.isTemplateMiddle(n) || ts.isTemplateTail(n) || ts.isJsxText(n)) && RE.test(n.text)) out.push(`${at(n)} ${n.text.trim().slice(0, 60)}`);
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+describe('L5.11a: Shoot', () => {
+  it('⚑ every value from data is text: each JSX child of the Shoot files goes through Txt / shown / a kit slot (a planted bare blocker message fails it)', async () => {
+    const files = (await appSources()).filter(([f]) => SHOOT_SIDE.includes(f));
+    expect(files.map(([f]) => f).sort()).toEqual([...SHOOT_SIDE].sort());
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    // The mutation: Prepare's blocker message rendered bare.
+    const prep = files.find(([f]) => f === 'ShootPrepare.tsx')![1];
+    const planted = prep.replace('<Txt text={b.message} />', '{b.message}');
+    expect(planted).not.toBe(prep);
+    expect(kitBareText('ShootPrepare.tsx', planted)).toEqual([expect.stringContaining('{b.message}')]);
+    // A step description of the live list the same way.
+    const live = files.find(([f]) => f === 'ShootLive.tsx')![1];
+    const desc = live.replace('{r.desc && <Txt text={r.desc} />}', '{r.desc}');
+    expect(desc).not.toBe(live);
+    expect(kitBareText('ShootLive.tsx', desc)).toEqual([expect.stringContaining('{r.desc}')]);
+  });
+
+  it('⚑ kit only: the rebuilt Shoot files have no ratchet row and nothing off the kit; RunScreen.tsx is gone (−192 legacy controls)', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    for (const f of [...SHOOT_SIDE, 'shell/command-bus.ts']) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f) ?? [], f).toEqual([]);
+    }
+    const names = (await appSources()).map(([f]) => f);
+    expect(names).not.toContain('RunScreen.tsx');
+    for (const gone of ['RunScreen.tsx', 'LiveView.tsx', 'Sessions.tsx']) expect(table[gone], gone).toBeUndefined();
+    // The mutation: a native checkbox in the live step list counts (and ShootLive.tsx has no row to hold it).
+    const live = (await appSources()).find(([f]) => f === 'ShootLive.tsx')![1];
+    const planted = live.replace('<Switch label="Follow current step"', '<input type="checkbox" /><Switch label="Follow current step"');
+    expect(planted).not.toBe(live);
+    const ctx = { appClasses: appCssClasses(await appCss()), tokens: new Set<string>() };
+    expect(offKit('ShootLive.tsx', planted, ctx).length).toBeGreaterThan(offKit('ShootLive.tsx', live, ctx).length);
+  });
+
+  it('⚑ Shoot calls only its reads, the run\'s controls, a render and a sign-in; every scenario_run of the app goes through shoot-data.ts and names the file shown (hash)', async () => {
+    const files = (await appSources()).filter(([f]) => [...SHOOT_SIDE, 'shoot-data.ts'].includes(f));
+    const called = files.flatMap(([f, text]) => opsCalled(text).map((op) => [f, op] as const));
+    expect(called.length).toBeGreaterThan(5);
+    expect(called.filter(([, op]) => !SHOOT_OPS.has(op))).toEqual([]);
+    const runs = (await appSources()).flatMap(([f, text]) => opsCalled(text).filter((op) => op === 'scenario_run').map(() => f));
+    expect(runs).toEqual(['shoot-data.ts']);
+    const store = files.find(([f]) => f === 'shoot-data.ts')![1];
+    expect(store).toMatch(/call<RunAnswer>\('scenario_run', \{ project: o\.slug, name: o\.name, mode: o\.mode, \.\.\.\(o\.hash \? \{ hash: o\.hash \} : \{\}\)/);
+  });
+
+  it('⚑ the Studio says Rehearse: no "dry run" in a string the page shows (comments, test ids and the one mapping line excepted; a planted label fails it)', async () => {
+    const files = await appSources();
+    expect(files.flatMap(([f, text]) => dryRunWords(f, text))).toEqual([]);
+    // The server's Studio-authored lines the page shows (op descriptions excepted: MCP-style metadata, never on screen).
+    const server = await readFile(join(REPO, 'packages/ui/src/server/record-ops.ts'), 'utf8');
+    expect(dryRunWords('record-ops.ts', server)).toEqual([]);
+    const ops = (await readFile(join(REPO, 'packages/ui/src/server/ops.ts'), 'utf8')).replace(/description: (["'`])(?:\\.|(?!\1).)*\1/g, '').replace(/\.describe\((["'`])(?:\\.|(?!\1).)*\1\)/g, '');
+    expect(dryRunWords('ops.ts', ops)).toEqual([]);
+    // The mutations: a label, a template, JSX text.
+    expect(dryRunWords('X.tsx', "const a = <Button>Start dry run</Button>;")).toEqual(['X.tsx:1 Start dry run']);
+    expect(dryRunWords('X.tsx', 'const a = `the ${m} dry-run`;')).toHaveLength(1);
+    expect(dryRunWords('X.tsx', "const a = 'Dry runs';")).toHaveLength(1);
+    expect(dryRunWords('X.tsx', '// a dry run\nconst a = <i data-testid="blockers-dry-run" />;')).toEqual([]);
   });
 });

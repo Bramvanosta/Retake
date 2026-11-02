@@ -120,15 +120,17 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
   it('Open timeline from the scenario screen (disabled with why without a capture); the tracks, pins and the one frame', async () => {
     await page.goto(`${studio.url}#/p/demo/s/nocap`);
     await page.getByRole('heading', { level: 1, name: 'nocap' }).waitFor();
-    await expect.poll(() => page.getByTestId('open-timeline-off').isDisabled(), POLL).toBe(true);
-    // L5.10b: the kit button says why it is off (aria-describedby).
-    const why = await page.getByTestId('open-timeline-off').getAttribute('aria-describedby');
-    expect(await page.locator(`[id="${why}"]`).innerText()).toContain('no finished capture yet');
+    // L5.11a: Open timeline went (the Edit mode opens the same capture); the status bar's Render says why it is off.
+    await expect.poll(() => page.getByTestId('run-render').isDisabled(), POLL).toBe(true);
+    const why = await page.getByTestId('run-render').getAttribute('aria-describedby');
+    expect(await page.locator(`[id="${why}"]`).textContent()).toContain('no finished capture yet');
 
     await page.goto(`${studio.url}#/p/demo/s/bits`);
     await page.getByRole('heading', { level: 1, name: 'bits' }).waitFor();
-    await page.getByTestId('open-timeline').click();
-    await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/demo/s/bits/timeline/${RUN}`);
+    await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).click();
+    await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/demo/s/bits/timeline`);
+    await expect.poll(() => page.getByTestId('timeline').count(), POLL).toBe(1);
+    expect(await page.locator(`text=${RUN}`).count()).toBeGreaterThan(0);
     await page.getByTestId('tracks').waitFor();
     expect(await page.title()).toBe('bits · Timeline · Demo Studio');
     // L5.10b fixes (review B L2): its link back to the scenario says "Board", as the scenario's View does.

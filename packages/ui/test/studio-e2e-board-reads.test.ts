@@ -6,6 +6,9 @@
  *   set by the take's changes (it started, it ended), far under its step count (they were one read per step);
  * - ⚑ a project whose project.yaml does not load: its reads over 5 s stay bounded (they looped ~300 times a second);
  * - ⚑ the arrow keys in the poster grid: no project read at all (they were one read of each op per key press);
+ * - ⚑ L5.11a (critique H2): the status bar's `scenario_actions` for the production selected reads once the selection
+ *   settled (10 quick arrow keys: ≤ 2 reads); a terminal take's steps never re-read it; on the Scenario screen it reads
+ *   nothing (the screen feeds it its own view: a change of the file is one scenario_blocks, no scenario_actions);
  * - a job of another project re-reads nothing here; one of this project re-reads the board (review A-L7);
  * - the inspector hidden: what it shows has a home in the centre pane (review B-M1); the poster grid at the desktop
  *   app's narrowest window, 900 px, keeps readable posters (review B-M2);
@@ -115,6 +118,9 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
   it('⚑ a take from a terminal with the Project screen and the Cast open: project_board / project_get / auth_status bounded by its changes, not its steps', async () => {
     const proj = await tab(`/p/${P}`);
     await proj.locator('[role="option"]').first().waitFor(POLL);
+    // L5.11a: the take's production selected — the scenario in context of the status bar.
+    await proj.locator('[role="option"][data-id="many-steps"]').click();
+    await proj.getByTestId('status-scenario').waitFor(POLL);
     const cast = await tab(`/p/${P}/cast`);
     await cast.getByRole('heading', { level: 1, name: 'Cast' }).waitFor(POLL);
     await sleep(1500);
@@ -151,6 +157,9 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
       expect(c.count('project_get')).toBeLessThanOrEqual(1);
       expect(c.count('auth_status')).toBeLessThanOrEqual(1);
     }
+    // L5.11a (M14 of the plan): the status bar's read of the take's scenario follows its changes, never its steps.
+    console.log(`  scenario_actions: Project screen ${a.count('scenario_actions')}`);
+    expect(a.count('scenario_actions')).toBeLessThanOrEqual(4);
     await proj.context().close();
     await cast.context().close();
   }, 180_000);
@@ -197,9 +206,49 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     }
     console.log(`six arrow keys in the poster grid: ${JSON.stringify(c.ops)}`);
     expect(await page.locator('[role="option"][aria-selected="true"]').count()).toBe(1);
-    // The first one opens a production's inspector (its Lately reads the project's activity once); the next ones: nothing.
-    expect(afterFirst.filter((o) => o !== 'activity_list')).toEqual([]);
-    expect(c.ops.slice(afterFirst.length)).toEqual([]);
+    // The first one opens a production's inspector (its Lately reads the project's activity once); the next ones: nothing
+    // of the project — L5.11a: the status bar reads the production in context once it settled (300 ms), at most a key.
+    const project = (l: string[]) => l.filter((o) => o !== 'scenario_actions');
+    expect(project(afterFirst).filter((o) => o !== 'activity_list')).toEqual([]);
+    expect(project(c.ops.slice(afterFirst.length))).toEqual([]);
+    expect(c.count('scenario_actions')).toBeLessThanOrEqual(6);
+    await page.context().close();
+  });
+
+  it('⚑ L5.11a (critique H2): 10 quick arrow keys read the status bar\'s scenario ≤ 2 times; on the Scenario screen a change of the file is one scenario_blocks and no scenario_actions', async () => {
+    const page = await tab(`/p/${P}`);
+    const grid = page.getByRole('listbox');
+    await page.locator('[role="option"]').first().waitFor(POLL);
+    await page.bringToFront();
+    await grid.focus();
+    await sleep(1500);
+    const c = countOps(page);
+    try {
+      for (let i = 0; i < 10; i++) await page.keyboard.press(i % 3 === 2 ? 'ArrowDown' : 'ArrowRight', { delay: 20 });
+      await sleep(1500);
+    } finally {
+      c.stop();
+    }
+    console.log(`ten quick arrow keys: scenario_actions ${c.count('scenario_actions')}`);
+    expect(c.count('scenario_actions')).toBeGreaterThanOrEqual(1);
+    expect(c.count('scenario_actions')).toBeLessThanOrEqual(2);
+    // The Scenario screen feeds the status bar its own view.
+    await page.goto(`${studio.url}#/p/${P}/s/many-steps`);
+    await page.getByRole('heading', { level: 1, name: 'many-steps' }).waitFor(POLL);
+    await page.getByTestId('status-actions').waitFor(POLL);
+    await sleep(1000);
+    const d = countOps(page);
+    try {
+      const file = join(ws, 'projects', P, 'scenarios', 'many-steps.yaml');
+      await writeFile(file, `${await readFile(file, 'utf8')}# touched\n`);
+      await expect.poll(() => d.count('scenario_blocks'), POLL).toBeGreaterThanOrEqual(1);
+      await sleep(1500);
+    } finally {
+      d.stop();
+    }
+    console.log(`a change of the open scenario's file: ${JSON.stringify(d.ops)}`);
+    expect(d.count('scenario_blocks')).toBe(1);
+    expect(d.count('scenario_actions')).toBe(0);
     await page.context().close();
   });
 

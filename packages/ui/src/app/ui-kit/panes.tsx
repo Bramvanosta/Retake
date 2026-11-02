@@ -5,18 +5,21 @@
  * headed groups of links, the current one `aria-current="page"` with the selection fill and weight 600, nested items,
  * a count or a flag in words), `InspectorSection` (a titled section, collapsible as a native `<details>`),
  * `Facts` (L5.10a: read-only rows), `Disclosure` (L5.10a: a native `<details>`), `Callout` (L5.10b: a short note), `EmptyState`, `Blocker` (one line: what blocks, and the one action that unblocks it — a button, or Copy with a
- * polite "Copied").
+ * visible "Copied"; L5.11a: `compact`, the status bar's form — its command in a popover that shows it in full beside its
+ * Copy), `Checklist` (L5.11a: an ordered list of checks, each a
+ * state column, a title, its body and its actions).
  */
-import { useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { FocusEvent, KeyboardEvent, ReactNode } from 'react';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
 import { Txt, shown } from '../bits.js';
-import { Button } from './Button.js';
+import { Button, LinkButton } from './Button.js';
 import { Icon } from './Icon.js';
 import type { IconName } from './Icon.js';
-import { StatusMark } from './marks.js';
+import { Shape, StatusMark } from './marks.js';
 import type { MarkState } from './marks.js';
+import { followTrigger } from './popover.js';
 
 const ROVING = 'button:not(:disabled), a[href], select:not(:disabled), input:not(:disabled), textarea:not(:disabled)';
 /** Where a control is not one of the toolbar's stops: a popover (a menu's items, open or not), a menu, hidden content. */
@@ -314,33 +317,176 @@ export function TerminalCommands({ fix, fixNode }: { fix?: string; fixNode?: str
   );
 }
 
-export type BlockerFix = { label: string; onClick: () => void } | { copy: string; label?: string };
+export type BlockerFix = { label: string; onClick: () => void } | { copy: string; label?: string } | { label: string; to: Route };
+
+type Copied = 'copied' | 'refused' | null;
+
+/** Copy `text`; the outcome in a word the person sees ("Copied", or why not) — never a screen-reader-only confirmation. */
+function useCopy(): [Copied, (text: string) => void] {
+  const [copied, setCopied] = useState<Copied>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    },
+    [],
+  );
+  const copy = (text: string) => {
+    const done = (v: Copied) => {
+      setCopied(v);
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => setCopied(null), 4000);
+    };
+    if (!navigator.clipboard) return done('refused');
+    navigator.clipboard.writeText(text).then(
+      () => done('copied'),
+      () => done('refused'),
+    );
+  };
+  return [copied, copy];
+}
+
+function CopiedWord({ copied }: { copied: Copied }) {
+  return (
+    <span className="k-copied" role="status">
+      {copied === 'copied' ? 'Copied' : copied === 'refused' ? 'Not copied: select the command instead' : ''}
+    </span>
+  );
+}
+
+/**
+ * L5.11a fixes (review A-M3): the compact blocker's command — a button that opens a small popover (`popover="auto"`: the
+ * top layer, light dismiss, Escape gives the focus back) SHOWING the whole command, wrapped, beside its Copy button: what
+ * is copied is what is on screen.
+ */
+function CommandPopover({ command, testId }: { command: string; testId?: string }) {
+  const id = useId();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [copied, copy] = useCopy();
+  useEffect(() => {
+    const el = pop.current;
+    if (!el) return;
+    let unfollow: (() => void) | undefined;
+    const onToggle = (e: Event) => {
+      const now = (e as ToggleEvent).newState === 'open';
+      setOpen(now);
+      unfollow?.();
+      unfollow = undefined;
+      if (now && trigger.current) {
+        unfollow = followTrigger(trigger.current, el);
+        el.querySelector<HTMLElement>('button')?.focus();
+      }
+    };
+    el.addEventListener('toggle', onToggle);
+    return () => {
+      el.removeEventListener('toggle', onToggle);
+      unfollow?.();
+    };
+  }, []);
+  return (
+    <>
+      <button ref={trigger} type="button" className="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded={open} aria-controls={id} popoverTarget={id} data-testid={testId ? `${testId}-action` : undefined}>
+        <Icon name="copy" />
+        <span className="k-btn-label">Command…</span>
+      </button>
+      <div ref={pop} id={id} popover="auto" role="dialog" aria-label="The command to run in a terminal" className="k-popover" data-testid={testId ? `${testId}-popover` : undefined}>
+        <p className="k-popover-title">In a terminal:</p>
+        <Txt className="k-blocker-code k-mono" text={command} />
+        <div className="k-popover-actions">
+          <Button size="sm" icon="copy" data-testid={testId ? `${testId}-copy` : undefined} onClick={() => copy(command)}>
+            Copy command
+          </Button>
+          <CopiedWord copied={copied} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 /**
  * One line: what blocks (a state word and a sentence), and the one action that unblocks it. L5.10a: without `word`, the
- * same line with no state mark — a command to copy that nothing waits on (Welcome's New project, Claude's set-up).
+ * same line with no state mark — a command to copy that nothing waits on (Welcome's New project, Claude's set-up). The
+ * command is shown in full (it wraps: what is copied is what is shown, review B-M3 of L5.11a).
  */
-export function Blocker({ state = 'attention', word, children, fix }: { state?: MarkState; word?: string; children: ReactNode; fix: BlockerFix }) {
-  const [copied, setCopied] = useState(false);
+export function Blocker({ state = 'attention', word, children, fix, compact, testId }: { state?: MarkState; word?: string; children?: ReactNode; /** Optional only in the compact form (nothing to do here: the words alone). */ fix?: BlockerFix; /** L5.11a: the status bar's one line — the command behind a "Command…" popover that shows it with its Copy. */ compact?: boolean; testId?: string }) {
+  const [copied, copy] = useCopy();
   const run = () => {
-    if ('copy' in fix) {
-      void navigator.clipboard?.writeText(fix.copy).then(
-        () => setCopied(true),
-        () => setCopied(false),
-      );
-    } else fix.onClick();
+    if (!fix) return;
+    if ('copy' in fix) copy(fix.copy);
+    else if ('onClick' in fix) fix.onClick();
   };
+  if (compact) {
+    return (
+      <span className="k-blocker is-compact" data-testid={testId}>
+        <StatusMark state={state} word={<span className="k-blocker-text">{shown(word ?? '')}</span>} />
+        {children !== undefined && children !== null && <span className="k-blocker-text">{shown(children)}</span>}
+        {!fix ? null : 'to' in fix ? (
+          <LinkButton size="sm" variant="ghost" to={fix.to}>
+            {shown(fix.label)}
+          </LinkButton>
+        ) : 'copy' in fix ? (
+          <CommandPopover command={fix.copy} {...(testId ? { testId } : {})} />
+        ) : (
+          <Button size="sm" variant="ghost" data-testid={testId ? `${testId}-action` : undefined} onClick={run}>
+            {shown(fix.label)}
+          </Button>
+        )}
+      </span>
+    );
+  }
+  if (!fix) return null;
   return (
-    <div className="k-blocker">
+    <div className="k-blocker" data-testid={testId}>
       {word !== undefined && <StatusMark state={state} word={word} />}
       <span className="k-blocker-text">{shown(children)}</span>
       {'copy' in fix && <Txt className="k-blocker-code k-mono" text={fix.copy} />}
-      <Button size="sm" icon={'copy' in fix ? 'copy' : undefined} onClick={run}>
-        {shown('copy' in fix ? (fix.label ?? 'Copy command') : fix.label)}
-      </Button>
-      <span className="k-sr" role="status">
-        {copied ? 'Copied' : ''}
-      </span>
+      {'to' in fix ? (
+        <LinkButton size="sm" to={fix.to}>
+          {shown(fix.label)}
+        </LinkButton>
+      ) : (
+        <Button size="sm" icon={'copy' in fix ? 'copy' : undefined} data-testid={testId ? `${testId}-action` : undefined} onClick={run}>
+          {shown('copy' in fix ? (fix.label ?? 'Copy command') : fix.label)}
+        </Button>
+      )}
+      <CopiedWord copied={copied} />
     </div>
+  );
+}
+
+/**
+ * L5.11a: a checklist (R4-ShootPrep) — an ordered list of checks; each item a 28 px state column (a shape AND its word,
+ * the word visible to assistive technology only beside the title that says the same), its title (h3), its body and its
+ * actions; a hairline between items.
+ */
+export function Checklist({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <ol className="k-checklist" aria-label={label}>
+      {shown(children)}
+    </ol>
+  );
+}
+
+export function ChecklistItem({ state, word, title, children, actions, testId, level = 3 }: { state: MarkState; /** The state in words ("Ready", "Blocked: …"): visible on the title's line — a state word (the colour-only rule). */ word: string; title: ReactNode; children?: ReactNode; actions?: ReactNode; testId?: string; /** The title's heading level (2 under a page's h1). */ level?: 2 | 3 }) {
+  const id = useId();
+  const H = level === 2 ? 'h2' : 'h3';
+  return (
+    <li className="k-check" data-state={state} aria-labelledby={id} data-testid={testId}>
+      <span className="k-check-mark k-mark" data-state={state}>
+        <Shape state={state} />
+      </span>
+      <div className="k-check-main">
+        <div className="k-check-head">
+          <H id={id} className="k-check-title">
+            {shown(title)}
+          </H>
+          <span className="k-check-word">{shown(word)}</span>
+        </div>
+        {children !== undefined && children !== null && children !== false && <div className="k-check-body">{shown(children)}</div>}
+        {actions && <div className="k-check-actions">{shown(actions)}</div>}
+      </div>
+    </li>
   );
 }

@@ -15,6 +15,8 @@ import { ShellSlot } from './shell/slots.js';
 import {
   Blocker,
   Button,
+  Checklist,
+  ChecklistItem,
   CommandPalette,
   Disclosure,
   EmptyState,
@@ -236,6 +238,19 @@ function Column({ appearance }: { appearance: Appearance }) {
             </>
           }
         />
+        <StatusBar
+          label={`Sample status with a blocker (${name})`}
+          state={<StatusMark state="ok" word="Connected" />}
+          info="Idle"
+          actions={
+            <>
+              <Blocker compact word="Capture blocked: 1 hook" fix={{ copy: 'studio run northfield-fixture quote' }} testId={`gallery-compact-${appearance}`} />
+              <Button size="sm" kbd={['⌘', 'R']}>
+                Rehearse
+              </Button>
+            </>
+          }
+        />
       </Section>
       <Section title="Source list">
         <SourceList
@@ -354,6 +369,20 @@ function Column({ appearance }: { appearance: Appearance }) {
         <Blocker word="Blocked" fix={{ copy: 'pnpm fixture' }}>
           The setup hook needs the fixture running.
         </Blocker>
+        <Blocker compact word="Blocked: the file has errors" fix={{ label: 'Open the YAML', to: { name: 'ui' } }} />
+      </Section>
+      <Section title="Checklist">
+        <Checklist label={`Checks before a take (${name})`}>
+          <ChecklistItem state="ok" word="Ready" title="Location">
+            The shop and the console on this Mac.
+          </ChecklistItem>
+          <ChecklistItem state="attention" word="Pending: a capture asks first" title="Sessions" actions={<Button size="sm">Sign in…</Button>}>
+            buyer · shop — expired.
+          </ChecklistItem>
+          <ChecklistItem state="idle" word="Off" title="Live picture during a capture">
+            Off by default.
+          </ChecklistItem>
+        </Checklist>
       </Section>
       <Section title="Empty state">
         <EmptyState title="No scenario yet" level={3} actions={<Button variant="primary">New scenario</Button>}>

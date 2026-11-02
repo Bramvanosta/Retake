@@ -12,7 +12,8 @@ import { shown, visibleControls } from '../bits.js';
 export type MarkState = 'ok' | 'running' | 'waiting' | 'idle' | 'warn' | 'attention' | 'fail' | 'recording';
 export const MARK_STATES: MarkState[] = ['ok', 'running', 'waiting', 'idle', 'warn', 'attention', 'fail', 'recording'];
 
-function Shape({ state }: { state: MarkState }) {
+/** A state's shape alone (decorative: the caller shows its word beside it — L5.11a's checklist). */
+export function Shape({ state }: { state: MarkState }) {
   if (state === 'attention') {
     return (
       <svg className="k-mark-svg k-mark-attention" viewBox="0 0 10 10" width="10" height="10" aria-hidden="true" focusable="false">

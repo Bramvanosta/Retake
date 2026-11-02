@@ -281,15 +281,28 @@ describe('desktop shell configuration (L5.2, static)', () => {
     for (const p of ['apps/desktop/target/', 'apps/desktop/core/target/', 'apps/desktop/gen/']) expect(ignore).toContain(p);
   });
 
-  it('prepared for the redesign: one command table, no Studio shortcut bound, one title-bar switch, no forced theme, name and id in one place', () => {
+  it('prepared for the redesign: one command table, the Scenario menu\'s keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place', () => {
     const menu = read('src/menu.rs');
     const accelerators = [...menu.matchAll(/accelerator: Some\("([^"]+)"\)/g)].map((m) => m[1]);
-    // L5.9: the View menu's page commands (⌘K, ⌘1 – ⌘4, ⌥⌘I); Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B come with L5.11.
-    expect(accelerators).toEqual(['CmdOrCtrl+O', 'CmdOrCtrl+K', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+4', 'Alt+CmdOrCtrl+I', 'CmdOrCtrl+0']);
+    // L5.9: the View menu's page commands (⌘K, ⌘1 – ⌘4, ⌥⌘I); L5.11a: the Scenario menu's Rehearse ⌘R, Capture ⇧⌘R,
+    // Render ⌘B and Stop ⌘. (page commands: the page's bus gives them to their owner).
+    expect(accelerators).toEqual(['CmdOrCtrl+O', 'CmdOrCtrl+K', 'CmdOrCtrl+1', 'CmdOrCtrl+2', 'CmdOrCtrl+3', 'CmdOrCtrl+4', 'Alt+CmdOrCtrl+I', 'CmdOrCtrl+R', 'Shift+CmdOrCtrl+R', 'CmdOrCtrl+B', 'CmdOrCtrl+.', 'CmdOrCtrl+0']);
+    const scenario = /\(\s*"Scenario",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
+    expect([...scenario.matchAll(/Item::Page \{ id: "([^"]+)", label: "([^"]+)", accelerator: Some\("([^"]+)"\) \}/g)].map((m) => [m[1], m[2], m[3]])).toEqual([
+      ['rehearse', 'Rehearse', 'CmdOrCtrl+R'],
+      ['capture', 'Capture', 'Shift+CmdOrCtrl+R'],
+      ['render', 'Render', 'CmdOrCtrl+B'],
+      ['stop', 'Stop', 'CmdOrCtrl+.'],
+    ]);
+    // Between View and Window.
+    expect(menu.indexOf('"View",')).toBeLessThan(menu.indexOf('"Scenario",'));
+    expect(menu.indexOf('"Scenario",')).toBeLessThan(menu.indexOf('("Window"'));
     const src = rustSources();
     expect(src.match(/MenuItem::with_id\(/g)).toHaveLength(2);
     expect(src).toContain('menu::SHOW_WINDOW => show_window(app),');
-    expect(src).not.toMatch(/\.reload\(|"reload"|CmdOrCtrl\+(?:Shift\+)?(?:R|B|S|Period|\.|Enter)"/);
+    // No Reload item, nothing bound to ⌘S or ⌘Enter (the page's own); the Scenario keys only as page commands.
+    expect(src).not.toMatch(/\.reload\(|"reload"|CmdOrCtrl\+(?:Shift\+)?(?:S|Enter)"/);
+    expect(src.replace(/Item::Page \{[^}]*\}/g, '')).not.toMatch(/CmdOrCtrl\+(?:R|B|Period|\.)"/);
     expect(menu).toMatch(/^pub const TITLE_BAR: TitleBar = TitleBar::Standard;$/m);
     expect(src.match(/title_bar_style\(/g)).toHaveLength(1);
     expect(src).not.toMatch(/\.theme\(/);
@@ -313,6 +326,6 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(menu).toContain(`TitleBar::Overlay { .. } => "window.__studioShell = Object.freeze({ titleBar: 'overlay' });",`);
     expect(menu).toContain(`CustomEvent('${COMMAND_EVENT}'`);
     // Planted: an id the page does not know would fail the comparison.
-    expect([...page, 'rehearse'].sort()).not.toEqual([...MENU_COMMANDS].sort());
+    expect([...page, 'reload'].sort()).not.toEqual([...MENU_COMMANDS].sort());
   });
 });

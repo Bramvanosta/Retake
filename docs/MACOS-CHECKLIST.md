@@ -1507,6 +1507,45 @@ of `quote`; dark, then light; "Keyboard navigation" on, then off for step 3.
   from a terminal (only the running callout's words change).
 - **Send back:** for each step, OK or what you saw instead (a screenshot, with the appearance).
 
+### 14d. Shoot in the app and in Safari: Prepare, a run live, the status bar's actions, the Scenario menu (L5.11a)
+
+The automated checks run in Chromium; the native menu's keys, WKWebView's clipboard and ⌘. are only reached here.
+`pnpm build`, the desktop app (and Safari on `studio ui`'s link), the workspace of 13a with the fixture running; dark,
+then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status bar, Stop there.)
+
+1. **The Scenario menu.** Open `quote` (Script). The menu bar has **Scenario** between View and Window: Rehearse ⌘R,
+   Capture ⇧⌘R, Render ⌘B, a separator, Stop ⌘. — always enabled. ⇧⌘R: nothing starts, the status bar's polite line
+   says "Capture of quote is blocked: 1 hook to approve"; ⌘B without a capture says why. ⌘R starts a rehearsal (the
+   status bar: "Rehearsing · step n of m · Watch"); ⌘. stops it ("Stopping the rehearsal of quote…"). Hold ⌘R: one run.
+2. **Keys while typing.** In the YAML editor, a step's form field and the ⌘K palette's input, press ⌘R, ⌘B and ⌘. —
+   each acts once or says why (the menu's key equivalent wins over the field; it never types a character); with the
+   capture's sheet open, ⌘R does nothing (a modal waits) and Escape closes the sheet; ⌘. still answers (it stops the run
+   going, or says nothing runs) — with the palette open, ⌘. closes it first. ⌘B in a contenteditable (the README editor)
+   renders, never bolds.
+3. **Copy command in WKWebView.** The status bar's "Capture blocked: 1 hook to approve · Command…": a small popover shows
+   the whole `studio … run … quote` command (wrapped, never cut) with its Copy command; the clipboard holds exactly what
+   it shows (paste it in Terminal), and "Copied" shows beside the button. With every website permission denied for the
+   app, it says "Not copied: select the command instead" and the command is there to select (and on Prepare).
+4. **Prepare.** ⌘2: "Prepare a take of quote", the checklist (Location, Sessions, What would stop a run with its Copy
+   command and the node form under "Without studio on your PATH", Live picture during a capture), Start rehearsal and
+   the disabled Start capture with its reason beside it; the browser lists the runs; the inspector the last take. On
+   `highlights` with the Location set to signed-in in the title bar (the buyer never signed in): the Sessions table has
+   no Location column, its notes on their own line; Start capture opens the sheet — "Sign in buyer first…" has the focus
+   (VoiceOver reads the sheet as an alert), Return goes to Prepare's Sign in… of that persona; Capture anyway starts
+   once. Start rehearsal with VoiceOver on: the live screen's title is read (the focus lands there).
+5. **A run live.** Start rehearsal: the live screen, the picture, the steps in the inspector following the current one,
+   the log; Pause / Resume and Stop in the status bar (⌘. stops this run); after the end, the status bar's Rehearse /
+   Capture / Render come back. A run started in a terminal: its live screen says "press Ctrl-C there" and ⌘. sends
+   nothing.
+6. **Safari.** The same on `studio ui`'s link: ⌘R reloads the page (the browser's), ⇧⌘R, ⌘B and ⌘. are the browser's;
+   ⌘K's Scenario group runs Rehearse, Capture, Render and Stop; no key caps on the status bar's buttons.
+7. **The notification and the quit question** (L5.2b): a rehearsal that ends while the app is in the background
+   notifies "Rehearsal of quote succeeded"; quitting while one runs names it a rehearsal.
+8. **The narrow window.** 900 px wide: the status bar shows the blocker line in full (Command… as its icon) and the three
+   buttons — the last take and the scenario's name give way whole, no word is cut —, nothing scrolls sideways; at 1100 px
+   and above the key caps show. Prepare at 900 px: the Start buttons stay at the foot of the centre pane while the checks
+   scroll; the Sessions rows stack.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

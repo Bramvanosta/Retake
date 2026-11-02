@@ -4,10 +4,11 @@
  * only; while a modal dialog is open it ignores them (critique M5), but the palette's own ⌘K closes the palette. In a
  * browser tab the page binds ⌘K itself on a Mac, Ctrl+K elsewhere outside a text field (⌘R, ⌘1 – 4, ⌥⌘I stay the
  * browser's); in the app (`__studioShell`) it binds
- * none of them: the menu's accelerators send the commands, so a key never acts twice. Rehearse, Capture and Render
- * (⌘R, ⇧⌘R, ⌘B) come with L5.11, when they act.
+ * none of them: the menu's accelerators send the commands, so a key never acts twice. L5.11a: the Scenario menu's
+ * Rehearse, Capture, Render and Stop (⌘R, ⇧⌘R, ⌘B, ⌘. in the app; never bound in a browser tab, where the palette
+ * offers them) go through the shell's command bus (shell/command-bus.ts) to whoever owns them.
  */
-export const MENU_COMMANDS = ['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector'] as const;
+export const MENU_COMMANDS = ['palette', 'mode-script', 'mode-shoot', 'mode-edit', 'mode-review', 'inspector', 'rehearse', 'capture', 'render', 'stop'] as const;
 export type MenuCommand = (typeof MENU_COMMANDS)[number];
 
 export const COMMAND_EVENT = 'studio:command';

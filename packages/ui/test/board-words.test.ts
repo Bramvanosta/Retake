@@ -33,7 +33,7 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['not YAML', base({ file: { parsed: false, ok: false, errors: 1, warnings: 0 } }), 'attention', 'File has errors', null],
   ['errors', base({ file: { parsed: true, ok: false, errors: 2, warnings: 0 }, capture: capture(true) }), 'attention', 'File has errors', null],
   ['running capture', base({ running: run('20261021-100000-quote', { status: 'running', steps_done: 6, steps_total: 18 }) }), 'running', 'Capture running · step 7 of 18', null],
-  ['running dry, starting', base({ running: run('20261021-100000-quote', { mode: 'dry', status: 'running', steps_done: 0, steps_total: 0 }) }), 'running', 'Dry run running · starting', null],
+  ['running dry, starting', base({ running: run('20261021-100000-quote', { mode: 'dry', status: 'running', steps_done: 0, steps_total: 0 }) }), 'running', 'Rehearsal running · starting', null],
   ['queued', base({ running: run('20261021-100000-quote', { status: 'queued', steps_done: 0 }) }), 'running', 'Capture · queued', null],
   ['rendering', base({ capture: capture(true), render_job: { job: 'j_1', state: 'running', reviewing: false, fraction: 0.4 } }), 'running', 'Render running · 40 %', null],
   ['rendering, no fraction', base({ capture: capture(true), render_job: { job: 'j_1', state: 'running', reviewing: false } }), 'running', 'Render running', null],
@@ -63,9 +63,9 @@ const ROWS: Array<[string, BoardScenario, string, string, string | null]> = [
   ['shot, not rendered', base({ capture: capture(true), last_run: run(CAP) }), 'waiting', 'Shot · ready to render', 'ready'],
   ['shot, cannot tell', base({ capture: capture(null) }), 'idle', 'Ready to render · cannot tell if current', 'ready'],
   ['cancelled after the capture: the take stands', base({ capture: capture(true), last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'waiting', 'Shot · ready to render', 'ready'],
-  ['cancelled, no capture', base({ last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'idle', 'Last take cancelled · not shot', 'shoot'],
+  ['cancelled, no capture', base({ last_run: run('20261022-100000-quote', { status: 'cancelled', partial: 'cancelled' }) }), 'idle', 'Last take stopped · not shot', 'shoot'],
   ['a newer partial until run: the take stands', base({ capture: capture(true), last_run: run('20261022-100000-quote', { partial: 'until step 4 of request' }) }), 'waiting', 'Shot · ready to render', 'ready'],
-  ['dry run passed', base({ dry: { id: '20261019-100000-quote' }, last_run: run('20261019-100000-quote', { mode: 'dry' }) }), 'idle', 'Dry run passed · not shot', 'shoot'],
+  ['rehearsal passed', base({ dry: { id: '20261019-100000-quote' }, last_run: run('20261019-100000-quote', { mode: 'dry' }) }), 'idle', 'Rehearsal passed · not shot', 'shoot'],
   ['nothing', base(), 'idle', 'Draft · not shot yet', 'shoot'],
 ];
 
@@ -100,8 +100,8 @@ describe('the inspector words', () => {
     }
     expect(reviewState({ state: 'errors', counts: { error: 3, warning: 0, info: 0 } }).words).toBe('3 errors');
     const words = (['succeeded', 'failed', 'cancelled', 'interrupted', 'queued', 'running', 'unknown'] as const).map((status) => lastTakeWords(run('r', { status, steps_done: 2, steps_total: 5 })).words);
-    expect(words).toEqual(['Capture succeeded', 'Capture failed', 'Capture cancelled', 'Capture interrupted', 'Capture · queued', 'Capture running · step 3 of 5', 'Capture: status invalid']);
-    expect(lastTakeWords(run('r', { mode: 'dry', status: 'failed', partial: 'failed at step 3 of proposal' })).words).toBe('Dry run failed at step 3 of proposal');
+    expect(words).toEqual(['Capture succeeded', 'Capture failed', 'Capture stopped', 'Capture interrupted', 'Capture · queued', 'Capture running · step 3 of 5', 'Capture: status invalid']);
+    expect(lastTakeWords(run('r', { mode: 'dry', status: 'failed', partial: 'failed at step 3 of proposal' })).words).toBe('Rehearsal failed at step 3 of proposal');
     expect(lastTakeWords(run('r', { partial: 'until step 4 of request' })).words).toBe('Capture stopped until step 4 of request');
     expect(runningWords({ mode: 'capture', status: 'running', steps_done: 18, steps_total: 18 })).toBe('Capture running · step 18 of 18');
   });

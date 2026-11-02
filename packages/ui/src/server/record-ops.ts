@@ -227,7 +227,7 @@ const RECORD_NOTES = [
 function envWarnings(o: { production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean; maxMinutes: number }): string[] {
   const w: string[] = [];
   if (o.production) w.push('A production environment: the Studio never allows writes there — what the window writes is stopped or answered by a mock.');
-  else if (o.access === 'read-only') w.push('A read-only environment: what the window writes is stopped or answered by a mock, as in a dry run.');
+  else if (o.access === 'read-only') w.push('A read-only environment: what the window writes is stopped or answered by a mock, as in a rehearsal.');
   if (o.sandbox) w.push('A sandbox environment: it must be up (studio sandbox up) — the recording uses it as it is, without a reset.');
   w.push(`The window holds the worker: captures, renders and previews wait until you stop (at most ${o.maxMinutes} min).`);
   return w;

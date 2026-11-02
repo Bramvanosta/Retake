@@ -776,3 +776,409 @@
     max-width: 112px;
   }
 }
+
+/* L5.11a: Shoot — Prepare a take, one run live, the Cast (R4-ShootPrep, R4-ShootLive) */
+.sp-screen {
+  max-width: 960px;
+}
+.sp-head {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.sp-head p {
+  margin: 0;
+}
+.sp-pages {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+.sp-blockers {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sp-blocker {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+/* The Start actions stay at the foot of the centre pane while the checks scroll (review A-L1 of L5.11a: at 900 px
+   they were below four sections). */
+.sp-starts {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-4) 0;
+  background: var(--ui-canvas);
+}
+/* Keyboard focus scrolls a control clear of that footer instead of under it (the a11y tour's focus-ring rule). */
+.sh-main:has(.sp-starts) {
+  scroll-padding-bottom: 14rem;
+}
+@media (max-width: 1100px) {
+  .sh-main:has(.sp-starts) {
+    scroll-padding-bottom: 7rem;
+  }
+}
+.sp-refused:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.sp-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-4) var(--ui-space-6);
+  padding: var(--ui-space-5) var(--ui-space-6);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.sp-start-text {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  flex: 1 1 280px;
+}
+.sp-start-text p {
+  margin: 0;
+}
+.sp-start-act {
+  display: grid;
+  justify-items: end;
+  gap: var(--ui-space-2);
+  max-width: 100%;
+  text-align: right;
+}
+/* A narrow window: the footer stays one short row — the two buttons side by side with what stops each (their titles
+   and notes stay for assistive technology only; the checks above say the rest). */
+@media (max-width: 1100px) {
+  .sp-starts {
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  }
+  .sp-start {
+    align-items: start;
+    padding: var(--ui-space-3);
+  }
+  .sp-start-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sp-start-act {
+    justify-items: start;
+    text-align: left;
+  }
+}
+.sp-error {
+  margin: 0;
+  color: var(--ui-danger-text);
+}
+
+/* The sessions' table (Prepare and the Cast) — L5.11a fixes (review B-H1): automatic layout, the Session column takes
+   the free width, no cell under its longest word (no `anywhere` breaks), the run notes on their own full-width line;
+   below 520 px of pane the rows stack (a container query: the pane, not the window, decides). */
+.sp-sessions-box {
+  container: sp-sessions / inline-size;
+  min-width: 0;
+}
+.sp-sessions {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.sp-sessions th,
+.sp-sessions td {
+  padding: var(--ui-space-3) var(--ui-space-5) var(--ui-space-3) 0;
+  border-top: 1px solid var(--ui-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+}
+.sp-sessions .sp-col-session {
+  width: 100%;
+}
+.sp-sessions .sp-col-check {
+  min-width: 96px;
+}
+.sp-sessions .sp-col-act {
+  padding-right: 0;
+  white-space: nowrap;
+}
+.sp-sessions thead th {
+  border-top: 0;
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+  white-space: nowrap;
+}
+.sp-sessions tbody th {
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+}
+.sp-sessions td .k-mark {
+  white-space: nowrap;
+}
+.sp-sessions td > * + * {
+  margin-top: var(--ui-space-2);
+}
+.sp-sessions tr.has-notes > th,
+.sp-sessions tr.has-notes > td {
+  padding-bottom: var(--ui-space-1);
+}
+.sp-sessions .sp-notes-row > td {
+  padding-top: 0;
+  border-top: 0;
+}
+.sp-note {
+  display: block;
+  color: var(--ui-text-3);
+}
+@container sp-sessions (max-width: 520px) {
+  .sp-sessions,
+  .sp-sessions tbody,
+  .sp-sessions tr,
+  .sp-sessions th,
+  .sp-sessions td {
+    display: block;
+    width: auto;
+  }
+  .sp-sessions thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sp-sessions tbody tr[data-testid='session-row'] {
+    display: grid;
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-3) 0;
+    border-top: 1px solid var(--ui-hairline);
+  }
+  .sp-sessions tbody tr[data-testid='session-row'] > * {
+    padding: 0;
+    border-top: 0;
+  }
+  .sp-sessions tbody td[data-label]::before {
+    content: attr(data-label) ' · ';
+    color: var(--ui-text-3);
+  }
+  .sp-sessions .sp-col-act {
+    white-space: normal;
+  }
+  .sp-sessions .sp-notes-row > td {
+    padding: 0 0 var(--ui-space-3);
+  }
+}
+.sp-sign-in,
+.sp-sign-in-state {
+  display: grid;
+  gap: var(--ui-space-2);
+  justify-items: start;
+}
+.sp-sign-in-state p {
+  margin: 0;
+}
+.sp-cast {
+  display: grid;
+  gap: var(--ui-space-8);
+}
+.sp-cast-env {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sp-cast-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-2) var(--ui-space-4);
+}
+
+/* The live picture */
+.sp-live {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sp-live-head {
+  display: flex;
+  justify-content: flex-end;
+}
+.sp-live-head:empty {
+  display: none;
+}
+.sp-live-box {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+.sp-live-box[data-state='live'] {
+  box-shadow: 0 0 0 2px var(--ui-record);
+}
+.sp-live-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.sp-live-mark {
+  position: absolute;
+  top: var(--ui-space-4);
+  left: var(--ui-space-4);
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+.sp-live-mark .k-mark {
+  color: var(--ui-on-video);
+}
+.sp-live-empty {
+  position: relative;
+  max-width: 80%;
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-video);
+  text-align: center;
+  color: var(--ui-on-video);
+}
+.sp-progress {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.sp-progress p {
+  margin: 0;
+}
+.sp-run-id {
+  color: var(--ui-text-3);
+}
+.sp-outcome {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sp-outcome p {
+  margin: 0;
+}
+
+/* Steps and log (the inspector) */
+.sp-steps,
+.sp-group-rows,
+.sp-log {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sp-steps {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.sp-steps:focus-visible,
+.sp-log:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.sp-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--ui-space-3);
+  margin: var(--ui-space-3) 0 var(--ui-space-1);
+  padding: 0 var(--ui-space-3);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+}
+.sp-group-head .sp-row-state {
+  margin-left: auto;
+}
+.sp-row {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0 var(--ui-space-3);
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text-2);
+}
+.sp-row-mark {
+  grid-column: 1;
+  align-self: center;
+}
+.sp-row-n {
+  grid-column: 2;
+  min-width: 2ch;
+  color: var(--ui-text-3);
+  text-align: right;
+}
+.sp-row-text {
+  grid-column: 3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sp-row:not(.sp-step) .sp-row-text {
+  grid-column: 2 / 4;
+}
+.sp-row-action {
+  color: var(--ui-text-3);
+}
+.sp-row-state {
+  grid-column: 4;
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  white-space: nowrap;
+}
+.sp-row-more {
+  grid-column: 2 / -1;
+  margin-top: var(--ui-space-2);
+}
+.sp-step[aria-current='step'] {
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+}
+.sp-step[aria-current='step'] .sp-row-state {
+  color: var(--ui-text-strong);
+}
+.sp-log-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.sp-log {
+  display: grid;
+  gap: var(--ui-space-1);
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.sp-log-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--ui-space-3);
+}
+.sp-log-level {
+  color: var(--ui-text-3);
+}
+.sp-log-level[data-level='warn'],
+.sp-log-level[data-level='error'] {
+  color: var(--ui-danger-text);
+  font-weight: var(--ui-weight-strong);
+}
+.sp-log-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

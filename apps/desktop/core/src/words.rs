@@ -57,7 +57,7 @@ pub struct Question {
 pub fn kind_words(k: JobKind) -> &'static str {
     match k {
         JobKind::Capture => "Capture",
-        JobKind::DryRun => "Dry run",
+        JobKind::DryRun => "Rehearsal",
         JobKind::Render => "Render",
         JobKind::Review => "Review",
         JobKind::Export => "Export",

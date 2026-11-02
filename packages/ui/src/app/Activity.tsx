@@ -27,7 +27,7 @@ const STATE: Record<string, [MarkState, string]> = {
 
 /** "capture of quote", "render quote-v1", "review quote-v1", "hooks"… */
 function what(i: ActivityItem): string {
-  if (i.run) return `${i.run.mode === 'dry' ? 'dry run' : 'capture'} of ${i.run.scenario}`;
+  if (i.run) return `${i.run.mode === 'dry' ? 'rehearsal' : 'capture'} of ${i.run.scenario}`;
   if (i.render) return `${i.kind} ${i.render.id}`;
   return i.kind.replace(/_/g, ' ');
 }

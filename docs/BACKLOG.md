@@ -1986,11 +1986,9 @@ and `job_end` lines); what remains:
 - The Project screen: the canvas's Location select (a meaning to define on a project), component and theme counts in
   the browser, Show in Finder, a poster made from the render's frames, "Render outdated" from the plan signature
   instead of the file's bytes and theme name (render-words `sameVersion` today: a theme folder's edit or a project
-  setting is not seen), Render acting from the inspector (it opens the
-  timeline: L5.11 makes it act), Locations as a page of their own (an inspector today), a production's Lately from an
+  setting is not seen), Render acting from the inspector (done in L5.11a: the status bar's Render), Locations as a page of their own (an inspector today), a production's Lately from an
   `activity_list {scenario}` filter (filtered on the page from the project's newest 20 today).
-- The Cast rebuilt on the kit (it hosts the legacy Sessions panel: L5.11's preflight rebuilds it) and the README editor
-  (legacy until L5.12).
+- The README editor (legacy until L5.12). The Cast was rebuilt on the kit in L5.11a.
 - `timelineRun` (the scenario screen's Render / Open timeline) takes a capture whose frames were kept as "no video":
   the board counts it (video or kept frames) — one rule for both.
 - Left after the L5.10a fixes: a type-ahead in the poster listbox; the `workspace` event says a run started or ended
@@ -2007,13 +2005,12 @@ and `job_end` lines); what remains:
   the recorder's kind — today the target's other fields of the form).
 - The YAML source: syntax colours (tokens with contrast in both appearances), Ln / Col in the status bar, R4's Outline
   (the scenes browser plays its part), Show in Finder.
-- The Location: remembered across reloads and honoured by the Run screen (Shoot uses the file's own, said beside the
-  buttons), a Location on the Project screen (a meaning to define).
+- The Location: remembered across reloads (L5.11a made Shoot and the status bar use the tab's choice), a Location on
+  the Project screen (a meaning to define).
 - The storyboard: a type-ahead in a scene's frames, several steps dragged at once, scenes reordered from the browser,
   a frame's picture from the render rather than the capture, per-scene colours (B·3c, not chosen); windowed scenes if
   a file past the view's 2,000-step cap ever needs them (content-visibility holds the 1,200-step budget today).
-- The take strip stays above the board until L5.11 moves Dry run / Capture ("Rehearse") to the status bar's actions;
-  the renders stay the legacy card in a closed section until L5.12 (planned there, not a backlog item). Until then the
+- The take strip stays above the board (L5.11a moved Rehearse / Capture to the status bar's actions); the renders stay the legacy card in a closed section until L5.12 (planned there, not a backlog item). Until then the
   strip pushes the first frames down at 1440 × 900 when two picture notices show (review B L5: watched, not changed).
 - The scenes browser's layout (review B L4): B32 puts the total length beside "Scenes" and a Video block (title,
   outro) at the bottom; the browser keeps "Video" as its first row with the total.
@@ -2021,6 +2018,23 @@ and `job_end` lines); what remains:
   selected one shifts the keys, so the selection lands on the step now at that place (the inspector and the board show
   the same one); a gone key leaves its scene selected (L5.10b fixes, review B M2). Following a step by its content
   across outside edits is a later topic.
+
+### BL-130 — « Épure » 3 extras cut from L5.11a (Shoot)
+*S–M · cut in L5.11a · builds on: L5.11a*
+
+- "Pages that answer" on Prepare (R4-Confirm's "both pages answer"): a page probe from the Studio — cut (critique M1): a
+  run a safety gate refuses at submit never reaches its pages, so Prepare must not either; if ever, only on a click,
+  skipped when the location is protected or refused, keyed on the pages' hash, `openWorldHint: true`.
+- A live session check from the Studio (a job for `auth status --check`) and the check command as a line to copy.
+- Prepare's estimates ("about 50 s"), the status bar's "+n" count of the hidden blockers, the Last take's hooks /
+  rollbacks facts and "Watch replay" (a replay of a run's frames), a manual "Check replay".
+- The Recordings group in Shoot's browser on Prepare and the live route (L5.11b shows it on the Record routes).
+- The sheet's "Sign in … first…" opening the sign-in window itself (it opens Prepare at that persona's Sign in today).
+- The status bar's progress on the Project screen reads `run_status` beside the Project screen's own poster progress
+  (two readers of one run; both throttled): one shared progress entry.
+- A run stopped from elsewhere (CLI, MCP) while it is still queued and no worker runs changes no file: the Scenario
+  screen sees it at its next read (a focus, an event) — a Stop from this tab reads it at once.
+- The engine's, the CLI's and MCP's own wording of "dry run" (the Studio says Rehearse; its mapping line names both).
 
 ## Guard-rails for planned lots (no new scope)
 

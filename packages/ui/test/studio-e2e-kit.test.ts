@@ -501,7 +501,7 @@ describe('the shell (L5.9 part E)', () => {
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'inspector' } })));
     await expect.poll(() => page.locator('.sh-inspector').isVisible(), POLL).toBe(true);
     // An id off the list does nothing.
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'rehearse' } })));
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'reload' } })));
     await page.waitForTimeout(200);
     expect(page.url()).toMatch(/#\/ui$/);
   });

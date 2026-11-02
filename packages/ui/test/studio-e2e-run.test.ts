@@ -206,9 +206,10 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
 
   it('a dry run watched live: frames, steps, log; a hidden tab closes the stream; pause / resume; the outcome', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/watch/run`);
-    await page.getByRole('heading', { level: 1, name: 'Run watch' }).waitFor();
+    // L5.11a: Prepare a take (Shoot's first screen), then the live screen.
+    await page.getByRole('heading', { level: 1, name: 'Prepare a take of watch' }).waitFor();
     // The preflight first: the sessions (none on this environment), then Start.
-    await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), RUN).toContain('signs in nowhere');
+    await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), RUN).toContain('None needed on');
     await shot('40-run-preflight');
     await page.getByTestId('start-dry').click();
     await expect.poll(() => runIdOf(), RUN).toMatch(/^\d{8}-\d{6}-watch$/);
@@ -233,7 +234,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     await expect.poll(() => page.getByTestId('log-line').count(), RUN).toBeGreaterThan(0);
     expect(await page.getByTestId('run-facts').innerText()).toMatch(/running/);
     // One polite status line on the screen (no live region for frames, steps or log lines); labelled controls.
-    expect(await page.locator('.run-screen [aria-live], .run-screen [role="status"], .run-screen [role="log"], .run-screen [role="alert"]').count()).toBe(1);
+    expect(await page.locator('.sp-screen [aria-live], .sp-screen [role="status"], .sp-screen [role="log"], .sp-screen [role="alert"]').count()).toBe(1);
     expect(await page.getByTestId('run-status-line').innerText()).toBe('Running.');
     expect(await page.getByRole('img', { name: /Live picture of the page the run is acting on/ }).count()).toBe(1);
     expect(await page.getByRole('progressbar', { name: 'Steps done' }).count()).toBe(1);
@@ -295,7 +296,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
 
   it('a capture: the picture off by default, shown on request; a third tab falls back to run_status; Stop runs the teardown', async () => {
     await page.goto(`${studio.url}#/p/${P}/s/film/run`);
-    await page.getByRole('heading', { level: 1, name: 'Run film' }).waitFor();
+    await page.getByRole('heading', { level: 1, name: 'Prepare a take of film' }).waitFor();
     const resetsBefore = resets;
     await page.getByTestId('start-capture').click();
     await expect.poll(() => runIdOf(), RUN).toMatch(/^\d{8}-\d{6}-film$/);
@@ -337,8 +338,8 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     await expect.poll(() => studio.runLive.streamCount, RUN).toBe(2);
     const third = await open();
     await third.getByTestId('run-busy').waitFor({ timeout: 30_000 });
-    await expect.poll(async () => (await third.getByTestId('run-steps-done').innerText().catch(() => '')).match(/^\d+\/30 steps done/) !== null, RUN).toBe(true);
-    expect(await third.getByTestId('picture-state').innerText()).toContain('another Run screen');
+    await expect.poll(async () => (await third.getByTestId('run-steps-done').innerText().catch(() => '')).match(/^\d+ \/ 30 steps done/) !== null, RUN).toBe(true);
+    expect(await third.getByTestId('picture-state').innerText()).toContain('another live screen');
     await shot('46-run-third-tab-fallback', third);
     await third.close();
     await second.close();
@@ -379,9 +380,10 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     // L5.10a: the Sessions panel lives on the Cast (the project page it was on is the poster grid now).
     await page.goto(`${studio.url}#/p/${P}/cast`);
     const panel = page.getByTestId('sessions-panel');
-    await expect.poll(() => panel.innerText(), RUN).toContain('never signed in');
+    // L5.11a: a persona never signed in is a missing session (a state word beside its shape); one section per location.
+    await expect.poll(() => panel.innerText(), RUN).toContain('Missing session');
     const row = panel.locator('[data-testid="session-row"][data-persona="owner"]');
-    expect(await row.innerText()).toContain('signed-in');
+    expect(await row.locator('xpath=ancestor::section[1]').innerText()).toContain('signed-in');
     await row.getByRole('button', { name: 'Sign in owner (signed-in)' }).click();
     await expect.poll(() => row.getByTestId('sign-in-state').innerText(), RUN).toContain('sign in there yourself, then close it');
     expect(await row.getByTestId('sign-in-state').innerText()).toContain('time limit');
@@ -395,7 +397,7 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
 
     // The capture's confirmation: shown before anything is sent; Escape closes it and sends nothing.
     await page.goto(`${studio.url}#/p/${P}/s/members/run`);
-    await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), RUN).toContain('never signed in');
+    await expect.poll(() => page.getByTestId('preflight-sessions').innerText(), RUN).toContain('Missing session');
     expect(await page.getByTestId('preflight-confirm-note').innerText()).toContain('A capture asks first');
     const sent = () => calls.filter((c) => c.op === 'scenario_run' && c.body.name === 'members').length;
     await page.getByTestId('start-capture').click();
@@ -406,13 +408,14 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
     expect(sent()).toBe(0);
     await shot('49-confirm-dialog');
     await page.keyboard.press('Escape');
-    await expect.poll(() => dialog.count(), RUN).toBe(0);
+    // L5.11a: the shell's one sheet (the kit's) stays in the document, closed.
+    await expect.poll(() => dialog.isVisible(), RUN).toBe(false);
     expect(sent()).toBe(0);
     // Focus back on the button that opened the dialog; "Sign in first" moves it to that persona's Sign in button.
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), RUN).toBe('start-capture');
     await page.getByTestId('start-capture').click();
     await page.getByTestId('confirm-sign-in-first').click();
-    await expect.poll(() => dialog.count(), RUN).toBe(0);
+    await expect.poll(() => dialog.isVisible(), RUN).toBe(false);
     await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('aria-label')), RUN).toBe('Sign in owner (signed-in)');
     expect(await page.evaluate(() => document.activeElement?.closest('[data-testid="preflight-sessions"]') !== null)).toBe(true);
     expect(sent()).toBe(0);

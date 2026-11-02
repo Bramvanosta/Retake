@@ -51,7 +51,7 @@ export type { RunThumb, RunThumbsOptions, RunThumbsView, ThumbMissingReason, Thu
 export { ScenarioViews, VIEW_ISSUES_MAX, VIEW_RUNS_MAX, VIEW_STEPS_MAX } from './scenario-view.js';
 export { BOARD_RUNS_WINDOW, BOARD_SCENARIOS_MAX, BOARD_TITLE_MAX, FILE_FACTS_TTL_MS, ProjectBoards } from './project-board.js';
 export type { BoardRun, BoardScenario, ProjectBoardContext, ProjectBoardView, RunPoster } from './project-board.js';
-export type { EditAbility, SceneFacts, ScenarioEnvironmentFacts, ScenarioRunChoice, ScenarioSource, ScenarioView, ScenarioViewContext, StepBinding } from './scenario-view.js';
+export type { EditAbility, SceneFacts, ScenarioActions, ScenarioEnvironmentFacts, ScenarioRunChoice, ScenarioSource, ScenarioView, ScenarioViewContext, StepBinding } from './scenario-view.js';
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
@@ -87,7 +87,7 @@ export { HooksSourceError, createHookContext, hooksAccess, selectHooks } from '.
 export type { HookContextOptions, HookSelection } from './hooks.js';
 export { approvalChecker, preflightHooks, refusedError, takeApprovals, takeSiteApproval } from './approvals.js';
 export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, SiteApprovalRequest } from './approvals.js';
-export type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
+export type { RunBlocker, RunBlockerKind, RunSubmitRequest } from './jobs/run-job.js';
 export { ensureWorker, spawnWorker, workerCommand } from './jobs/spawn.js';
 export type { WorkerSpawnFn, WorkerSpawnOptions } from './jobs/spawn.js';
 export { WORKER_ENV_DROPPED, cleanWorkerEnv } from './jobs/worker-env.js';

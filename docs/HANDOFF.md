@@ -1,8 +1,8 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.10 (Studio « Épure » 2: Project and Scenario; L5.10a + L5.10b)** — phases
+Last updated: 2026-11-02, end of lot **L5.11a (Studio « Épure » 3a: Shoot — prepare, live, actions, Cast)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.10 done). **Next: L5.11 (Studio « Épure » 3: Shoot), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.10, L5.11a done). **Next: L5.11b (Studio « Épure » 3b: the Record screen).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -29,7 +29,27 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.10b)
+## State (after L5.11a)
+- **L5.11a done (2026-11-02)** — L5.11 is split in two (the plan sized it L): Shoot without the Record screen, from
+  R4-ShootPrep / R4-ShootLive / R4-Confirm. **Prepare a take**: a checklist (location, sessions this run signs in with,
+  what would stop a run, the live picture switch), each blocker a state word + one line + its Copy command (the command
+  wraps in full: what is copied is what is shown), Start rehearsal / Start capture in a sticky footer. **The live
+  rehearsal or capture** (L4.4's picture, steps, log, Pause on L5.7's clock, Stop) and its outcome. **The status bar's
+  actions on every screen** (Rehearse · Capture · Render · Stop, the blocker in one line with a "Command…" popover)
+  through a command bus with explicit priorities (defaults 0, a screen 10, a live recording 20); the desktop Scenario
+  menu (⌘R ⇧⌘R ⌘B ⌘.) on the same command table; in a browser tab the keys stay unbound and the ⌘K palette offers them.
+  **The Cast** on the kit with the Sessions panel; **the confirmation sheet** (a capture with a session that may not
+  work: Cancel / "Sign in … first…" (default) / "Capture anyway", never on Return). A new Studio READ op
+  `scenario_actions` (its own 64-entry memo, single flight, never in the scenario view's cache; blockers carry a `kind`
+  and `count` from each engine gate, the words key on `kind`). "Dry run" became "Rehearse" in the UI only (CLI / MCP
+  keep `--dry` / `run_dry`, one mapping line on Prepare). RunScreen.tsx deleted; the take strip shrank; ratchet −192
+  (RunScreen, LiveView and Sessions left it; the Record screen's 274 stay for L5.11b). Tests on the Mac: **3980 — 3894 pass, 84
+  skipped, 2 failures in the one full run** (the op allow-list test missing `scenario_actions`, and Prepare's sticky
+  footer covering a focused switch — both real, fixed: a `scroll-padding-bottom` on the centre pane; both files green
+  again); `pnpm test:slow` 65/65; the gated run, scenario-run and Chrome acceptances green once each. Read counts: a
+  24-step take re-reads `scenario_actions` 0 times during progress; 10 quick arrow keys on the poster grid: 1 read.
+  Requirements: 662 tracked — 621 done (R-UI-40 – R-UI-43 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the
+  user: MACOS-CHECKLIST 14d.
 - **L5.10b done (2026-11-02)** — L5.10 is complete. The scenario side of Épure 2 from B32-Scenario / R4-Source: the
   storyboard (frames of the latest take three a row on a container-query board — 3 / 2 / 1 columns —, step number, verb
   and target, state word, durations labelled, cards and Before / After filming as row cards, the step count), one
@@ -523,7 +543,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.11 (Studio « Épure » 3: Shoot) per the roadmap**, only when the user asks (L5.10 is done). **Decided
+**Next: L5.11b (Studio « Épure » 3b: the Record screen in the shell, R4-Record)** — L5.11a is done; L5.12 only when
+the user asks. **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1469,6 +1490,18 @@ sandbox, a hook step and compact results through Claude Code).
   `ScenarioScreen.tsx`, `Storyboard.tsx`, `TakeStrip.tsx`, `ScenarioInspector.tsx`, `ScenesBrowser.tsx`,
   `board-keys.ts`, `scenario-words.ts`, StepForm / StepEditing / YamlTab / YamlView / TextEditing / Thumb on the kit,
   `ui-kit/frames.tsx` (FrameGrid, FrameOption, RowCard), `Callout`, `TerminalCommands`. Cuts: BL-129.
+- **L5.11a done** (Shoot without the Record screen; R-UI-40 – R-UI-43). Planned (the lot sized L → split), criticised
+  (⌘. could reach the wrong owner after a reload; `scenario_actions` on the scenario view's 16-entry cache with a second
+  validation per save; blocker words keyed on a code shared by several gates; a page probe from Prepare that a refused
+  run would never make — cut), built in a worktree, 20 e2e / lint files migrated under `scripts/test-guard.mjs` (11
+  decreases, each explained: Edit mode replaces Open timeline, `run-cancel` → `run-stop`, the compact blocker), reviewed
+  by two reviewers (Prepare's sessions table squeezed to one-character cells at 900 px, `scenario_actions` re-read every
+  step of a running take, focus dropped on Start, a Copy that copied a command not on screen, the polite line raw and
+  never cleared, a weakened location test, a survived Stop-owner mutation…) and fixed with mutation-checked tests (30
+  mutations, all caught). Files: engine `scenario-view.ts` (`actions`), `run-job.ts` (`blockerKind`); ui
+  `ShootPrepare.tsx`, `ShootLive.tsx`, `ShootBrowser.tsx`, `shoot-data.ts`, `shoot-words.ts`, `run-location.ts`,
+  `shell/command-bus.ts`, `shell/StatusActions.tsx`, `shell/say.ts`, LiveView / Sessions on the kit, ui-kit Checklist /
+  Blocker (compact, CommandPopover); desktop `menu.rs` Scenario menu. Cuts: BL-130.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1736,6 +1769,20 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.11a:
+- Commands go through `shell/command-bus.ts`: a handler registers with a priority (PRIORITY.defaults 0, screen 10,
+  recording 20) and is held in a ref; the highest priority wins, the latest registration breaks ties. A screen that owns
+  Stop registers it; never call `stopRun` from a key handler directly.
+- `scenario_actions` is the status bar's and Prepare's read: never route it through `scenarios.view` (its 16-entry LRU
+  holds the open scenario). The Scenario screen feeds the store from its own blocks read; a run's progress never
+  re-reads it (only a run's end or a file change does).
+- Blocker words key on the engine's `kind` (`shoot-words.ts` `blockerShort`), with an honest fallback for an unknown
+  kind; add a kind at the gate when a new gate appears.
+- "Rehearse" is the UI word only; a source lint (app-source "L5.11a: Shoot") keeps "dry run" out of the UI's own words.
+- The polite line (`shell/say.ts`) is one message at a time, through Txt, cleared after 6 s and on a route change (the
+  key includes the run id). Progress never goes there.
+- Prepare's Start footer is sticky; the centre pane has a `scroll-padding-bottom` so keyboard focus lands above it.
+
 Notes from L5.10b:
 - The scenario screen keeps one resolved selection (`resolveSelection`): a gone step falls back to its scene, then the
   video — never to another step. The storyboard is a set of listboxes (one per scene) with grid keys from

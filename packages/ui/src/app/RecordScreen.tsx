@@ -37,7 +37,9 @@ import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, Loading, Notice, plural, Txt, visibleControls, When } from './bits.js';
 import { recordEventAction, useEvents } from './events.js';
 import { hrefTo } from './route.js';
-import { TerminalCommands as Commands } from './ui-kit/index.js';
+import { StatusMark, TerminalCommands as Commands } from './ui-kit/index.js';
+import { PRIORITY, useShellCommand } from './shell/command-bus.js';
+import { ShellSlot } from './shell/slots.js';
 import { SignIn, StoredState } from './Sessions.js';
 import { stepWords } from './scenario-words.js';
 import {
@@ -1150,7 +1152,7 @@ export function RecordingBody({ slug, v, cursor, setCursor, ui, act }: { slug: s
           <p data-testid="record-saved">
             <Txt className="mono" text={v.saved.file} /> —{' '}
             <a href={hrefTo({ name: 'scenario', slug, scenario: v.saved.name, tab: 'blocks' })}>Open the scenario</a> ·{' '}
-            <a href={hrefTo({ name: 'run', slug, scenario: v.saved.name })}>Dry run it</a>
+            <a href={hrefTo({ name: 'run', slug, scenario: v.saved.name })}>Rehearse it</a>
           </p>
         </Notice>
       )}
@@ -1438,8 +1440,20 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
       }),
     onSignedIn: reload,
   };
+  // L5.11a (critiques H1, M7): while its window may be stopped, ⌘. stops THIS recording (it outranks every other owner,
+  // a reload included); the status bar says "Recording" and holds the actions slot (no Rehearse / Capture there), and
+  // the one Stop visible is the screen's own (review A-L7: never two) — L5.11b rebuilds the screen.
+  const canStop = Boolean(v?.can.stop);
+  useShellCommand('stop', act.stop, PRIORITY.recording, canStop);
   return (
     <div className="screen rec-screen">
+      {v && canStop && (
+        <ShellSlot name="actions">
+          <span className="sh-scenario" data-testid="status-recording">
+            <StatusMark state="recording" word="Recording" />
+          </span>
+        </ShellSlot>
+      )}
       <Breadcrumb slug={slug} rec={rec} />
       <p className="sr-only" role="status" data-testid="record-status">
         {status}
