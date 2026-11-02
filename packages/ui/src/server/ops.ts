@@ -46,7 +46,8 @@
  *   holds a lease) and `preview_allow` (the person allows a workspace component to run in the preview, this session).
  * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
  *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
- *   (renderOps).
+ *   (renderOps). L5.12a: `review_export` — the Review report's Export video (MP4): the existing engine `export` job, one
+ *   format, the fixed folder, one at a time per render and at most two exports of the workspace at once (renderOps).
  * - L4.7: the library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
  *   theme-ops.ts (theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview); the
  *   preview pages' leases (PreviewLeases) are shared by timeline_view and theme_preview.
@@ -749,6 +750,22 @@ const RenderInput = z.strictObject({
 const RendersInput = z.strictObject({ project, name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.') });
 const RenderCancelInput = z.strictObject({ project, job: z.string().regex(JOB_ID_RE, 'a job id (j_…)').describe('A render or review job of this project (scenario_renders lists them).') });
 const RenderReviewInput = z.strictObject({ project, render_id: renderId });
+const ReviewExportInput = z.strictObject({ project, render_id: renderId });
+
+/** L5.12a: the one format the Review report exports (the other formats stay `studio export` / Claude's `export`). */
+export const REVIEW_EXPORT_FORMATS = ['mp4_1080p'] as const;
+/** L5.12a fixes: the exports of the workspace queued or running at once that review_export still adds to (CLI and Claude ones count). */
+export const REVIEW_EXPORTS_OPEN = 2;
+
+/** What review_export answers: the job queued (path-free: where it lands is said in words). */
+export interface ReviewExportAnswer {
+  render_id: string;
+  job: string;
+  state: string;
+  formats: string[];
+  /** Where the file lands, in words (never a path). */
+  where: string;
+}
 const ReviewImageInput = z.strictObject({
   project,
   render_id: renderId,
@@ -930,12 +947,34 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
       return { summary: `${a.image} of ${a.render_id} (${v.width}×${v.height})`, data: v as unknown as Record<string, unknown> };
     },
   };
-  return [render, renders, cancel, review, image] as unknown as ToolDef[];
+  const exportOp: ToolDef<typeof ReviewExportInput> = {
+    name: 'review_export',
+    title: 'Export a render as MP4 from the Studio',
+    description:
+      "Queue an export of one render of the project to MP4 (1080p) in its fixed folder, exports/<render id>/ — the engine's export job, nothing else to choose; refused (409) while an export of that render is queued or running, and while two exports of the workspace are. Path-free.",
+    input: ReviewExportInput,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    async run(a, { engine }) {
+      // One chain for the workspace's exports (L5.12a fixes, review B-M3 / A-L8): the check and the submit of two clicks,
+      // two tabs or two renders never interleave — one export per render, at most REVIEW_EXPORTS_OPEN at once (the worker
+      // runs one job at a time anyway: the cap keeps a page from queueing an export, possibly a re-render, of every render).
+      const sub = await oneAtATime('review_export', async () => {
+        const open = await engine.jobs.list({ kinds: ['export'], states: ['queued', 'running'] });
+        const busy = open.find((j) => j.input.kind === 'export' && j.input.project === a.project && j.input.render_id === a.render_id);
+        if (busy) throw new EngineError('conflict', `an export of ${a.render_id} is ${busy.state} (job ${busy.id}): wait for it to end`, { details: { job: busy.id } });
+        if (open.length >= REVIEW_EXPORTS_OPEN) throw new EngineError('conflict', `${open.length} exports are already queued or running: wait for one to end`, { details: { open: open.length } });
+        return engine.exports.submit({ project: a.project, render_id: a.render_id, formats: [...REVIEW_EXPORT_FORMATS] });
+      });
+      const data: ReviewExportAnswer = { render_id: sub.render_id, job: sub.job.id, state: sub.job.state, formats: [...sub.formats], where: `the project's exports folder, under ${sub.render_id}` };
+      return { summary: `export of ${sub.render_id} queued (job ${sub.job.id}): ${sub.formats.join(', ')}`, data: data as unknown as Record<string, unknown> };
+    },
+  };
+  return [render, renders, cancel, review, image, exportOp] as unknown as ToolDef[];
 }
 
 /** The names of the Studio's own ops (not MCP tools). */
 export const TIMELINE_OPS = ['timeline_view', 'timeline_leave', 'preview_allow'] as const;
-export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image'] as const;
+export const RENDER_OPS = ['scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'review_export'] as const;
 export const INDEX_OPS = ['activity_list', 'search'] as const;
 export const SCENARIO_OPS = ['scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms'] as const;
 export const RUN_OPS = ['scenario_run'] as const;

@@ -301,14 +301,19 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
     await timed('render + review (click → verdict)', async () => {
       await page.getByTestId('render').click();
       await expect.poll(() => page.getByTestId('render-job').getAttribute('data-state').catch(() => null), POLL).not.toBeNull();
-      const row = page.locator(`[data-testid="render-row"][data-id="${S}-v1"]`);
+      // L5.12a: Edit's status bar says the render this tab queued once its review is written (the report holds the rows).
+      const reviewed = async () => {
+        const text = await page.getByTestId('render-status').innerText({ timeout: 500 }).catch(() => '');
+        const m = /^v1 reviewed · (clean|\d+ warnings?|\d+ errors?) · /.exec(text);
+        return m ? (m[1] === 'clean' ? 'clean' : /warning/.test(m[1]) ? 'warnings' : 'errors') : null;
+      };
       // Polled with what the page and the job say meanwhile; fails fast (with the job's phase) when the render job runs
       // with no live worker, or shows the same phase for RENDER_STALL_MS (review B-M2: a cold-cache run once sat at
       // 'running' for 600 s with nothing to show).
       let phase = '';
       let since = Date.now();
       const state = async (): Promise<string> => {
-        const review = await row.getAttribute('data-review', { timeout: 500 }).catch(() => null);
+        const review = await reviewed();
         if (review && /^(clean|warnings|errors)$/.test(review)) return review;
         const job = (await studio.engine.jobs.list({ kinds: ['render'] })).sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1);
         const now = `${job?.state ?? 'no job'}${job?.progress ? ` · ${job.progress.phase ?? ''} ${job.progress.steps_done}/${job.progress.steps_total}` : ''}`;
@@ -328,11 +333,15 @@ describe.skipIf(!gated)('R-ACC4-01: the Studio end to end on the fixture in the 
         await page.waitForTimeout(1000);
       }
     });
-    const panel = page.locator(`[data-testid="review-panel"][data-id="${S}-v1"]`);
-    await expect.poll(() => panel.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);
+    // L5.12a: its review on the Review report (the status bar's link), then back to Edit.
+    await page.getByTestId('render-open-review').click();
+    await page.waitForURL(`**#/p/${P}/s/${S}/review/${S}-v1`);
+    await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);
     const v1 = JSON.parse(await readFile(join(dir, 'renders', `${S}-v1.json`), 'utf8')) as RenderRecord;
     expect(v1).toMatchObject({ status: 'succeeded', run_id: ids.capture, edit: { from: 'scenario', sha256: sha(text1) } });
-    timings.push(`v1: ${v1.frames} frames, ${v1.width}×${v1.height}; verdict "${await panel.getByTestId('review-verdict').innerText()}"`);
+    timings.push(`v1: ${v1.frames} frames, ${v1.width}×${v1.height}; verdict "${await page.getByTestId('review-verdict').innerText()}"`);
+    await page.goBack();
+    await page.getByTestId('tracks').waitFor(POLL);
     await check('rendered', true);
     await shot('7-rendered');
     // A frame of the render on the switched segment (looked at: the layout the switch chose).

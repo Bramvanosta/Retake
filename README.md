@@ -3346,7 +3346,7 @@ running: the MCP server keeps working without it.
 
 - **The window (L5.9).** A fixed window of panes: the title bar (the open project › scenario, and the pipeline
   *Script · Shoot · Edit · Review* as the way between a scenario's screens — its blocks, Prepare and its runs, its timeline,
-  its frame comments), the browser on the left (the projects, or the open project's productions, library, locations,
+  its Review report and frame comments — L5.12a), the browser on the left (the projects, or the open project's productions, library, locations,
   cast and README; the workspace, the version and the worker at its foot), the screen in the centre (it scrolls; the bars stay), an inspector on the right where a
   screen has one, and the status bar (the connection, *live updates*, the worker, what a command answered). **Dark by
   default, following your system's appearance** (System Settings › Appearance: Light gives the light one, at once).
@@ -3424,7 +3424,8 @@ running: the MCP server keeps working without it.
   (its location: the file's own, and the one Rehearse and Capture use when you picked another). A selected step that
   disappears from the file (an outside edit) leaves its scene selected — never another step. *View › YAML* shows the
   file's numbered lines with each issue under its line, *Edit* opens the editor, and the inspector says whether the
-  file is valid. The renders sit in a closed *Renders and review* section at the board's end (until L5.12). The points
+  file is valid. The renders sit in a closed *Renders and review* section at the board's end (L5.12a: the queue with
+  **Cancel**, the newest three renders with their verdict, and **Open the review report**). The points
   below come from earlier lots and still hold, in the board's words: a step's row is its frame, a scene's card is its
   inspector, the *Blocks* tab is the board and the *YAML* tab the YAML view, and the runs from the Studio sit in the
   take strip.
@@ -3601,6 +3602,41 @@ running: the MCP server keeps working without it.
   with the keyboard; one status line tells a screen reader when the run starts, pauses, stops or ends. The **Cast**
   (the browser's *Sessions*) lists every persona by location with the same rows and **Sign in…**. A start from
   Prepare puts the keyboard focus on the live screen's title; a refusal shows its words and takes the focus.
+- **Edit in the shell** (L5.12a). The Edit mode gives the take the window: the browser pane is hidden (the modes and ⌘K
+  still go everywhere), the preview fills what the tracks leave, the transport sits under it (Previous frame, Play,
+  Next frame, the time and frame, Unmute, Speed, Comment, Fit / Zoom in) with the take's facts, the tracks under that
+  (the scrubber with time labels; the playhead drawn over the lanes — a 1,200-step take repaints nothing but it), the
+  switches in the inspector (the selected segment first — its times and steps, said when you select it — then the
+  whole video, the general hint last; every choice a chip, one that cannot be taken stays reachable with its reason).
+  Every track item is a 24 px target (ticks crowded together are nudged apart while the lane has room; Zoom in spreads
+  them). After a click on a transport button the arrows, Home and End still move the playhead (after a Tab they move
+  along the toolbar); on the scrubber [ / ] and Shift + ← / → do what the keys line says. The status bar is Edit's:
+  what is on screen in plain words (*Today's edit of take …*, *The take as it was captured*, *The edit Claude proposed
+  …*), the newest render (its verdict, *from this version*, its report), **Cancel the render** while one goes, **Undo**
+  · **Redo** (⌘Z pressed while a switch is still being written waits for it and undoes it after — it says so; if that
+  switch is not saved, the undo is cancelled and said, never the switch before it undone), and **Render** — ⌘B and the
+  palette are this button: it renders the capture and the file shown, refuses a file changed since (and reads it
+  again), and says why it renders nothing on a proposal's preview (also while the preview loads or cannot open). The take picker is the title bar's *Take*; the comments made on another take
+  sit under the tracks, the take's warnings and notes in a closed *Warnings and notes*.
+- **The Review report** (L5.12a; `#/p/<project>/s/<scenario>/review[/<render>]`, the Review mode's first view —
+  then the one you used last; *View: Report · Comments (n open)* in the title bar). The newest render (or the one
+  picked): its version, when, size, length and theme, what the review found in words (*1 error, 2 warnings, 4 notes* —
+  never "passed": a review records what it found, not which checks ran); the **contact sheet** (the review's own
+  sheets, asked one at a time, larger on click); the **checks**, grouped by family (video length, scene lengths,
+  captions, cursor, camera and zoom, transitions and speed, targets on screen, blank or loading screens, text slots,
+  capture and media, changes since the previous render, other) in one list the arrows move through, then *Nothing else
+  found*; in the inspector the **selected check** — the frame it points at (made by the server from the render), its
+  message, where and when, its check and code, and **Show in Edit** (the take, at that frame when the render shows the
+  version Edit plans — else at its step, and Edit says the render was made from another version; a check with no frame
+  on the version shown opens Edit at its step, or where it is, saying nothing). Then the renders (the queue with
+  **Cancel**, a failure with its message, the newest five, *Show all*, newest first — two that read the same *when* show
+  their time of day; a row is a link to its report) and **Export**: **Export video (MP4)** queues the export job (1080p,
+  into the project's exports folder, under the render's id; one at a time per render, two exports of the workspace at
+  most at once; followed here and in the activity), and the raw capture for an editing tool is a command to copy
+  (`studio export-capture <project> <run>`, see [Raw export for editors](#raw-export-for-editors)). The status bar:
+  *Rendered · when · vN* (a neutral mark: what the render did, not a verdict), **Open in Edit**, **Render again** (the
+  latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. Not yet: Show in
+  Finder, other formats, "Open the step", the checks that ran (BACKLOG BL-132).
 - **The timeline** (L4.5). The **Edit** mode (⌘3: the newest finished capture), **Open in Edit** after a capture on
   its live screen or on Prepare's last take, or **Show in timeline** on a
   step bound to a capture (`#/p/<project>/s/<scenario>/timeline[/<run>[/<step>]]`) shows one capture as the edit plans
@@ -3642,22 +3678,22 @@ running: the MCP server keeps working without it.
   colours a few levels brighter than in the render (two video decoders: BACKLOG BL-108). Not in the timeline yet:
   durations by drag, text, variants and a theme picker (BL-107), playback frame-exact through speed changes and a
   lighter copy of the take for browsers without H.264 (BL-108).
-- **Render and review** (L4.5). **Render** at the top of the timeline renders the capture shown, as the screen shows
-  it — the theme and options of your files (the timeline's own switches included), landscape — then reviews it in the
+- **Render and review** (L4.5; L5.12a: Render is Edit's status bar's, the queue, the renders and their reviews are the
+  Review report's — above). **Render** renders the capture shown, as the screen shows it — the theme and options of your files (the timeline's own switches included), landscape — then reviews it in the
   same job (contact sheets at 1 fps, the checks, the report). If the file changed since the screen read it, the render
   is not started and the screen reads it again; while a render of the scenario waits or runs, Render is off (one at a
-  time) and says why. You can keep switching meanwhile: the render keeps the version it was sent with. The **Renders**
-  card (under the tracks, and on the scenario screen, where Render takes the newest finished capture) shows the queue —
+  time) and says why. You can keep switching meanwhile: the render keeps the version it was sent with. The renders (on
+  the Review report, and in the scenario screen's card, where Render takes the newest finished capture) show the queue —
   *queued* (and what runs first), *rendering 43 % · about 12 s left*, *reviewing* — with **Cancel** (during the review:
   **Stop the review**, the render stays); a render that failed, with its message; and the renders, newest first, each
   with its size and length, whether it shows *this version* of the edit, and its review: *clean*, *2 warnings*, *1
-  error*, *reviewing…*, *review failed*. **Show the review** (it opens by itself when a render you started is reviewed)
-  lists the findings — on the timeline, **Show in the preview** jumps to a finding's frame only when the render is of
-  the version shown: the same plan (the same file, capture, options, fps and variant — a `studio render --no-intro`
+  error*, *reviewing…*, *review failed*. A render's report (it opens by itself when a render you started is reviewed)
+  lists the findings — **Show in Edit** goes to a finding's frame only when the render is of the version shown: the same plan (the same file, capture, options, fps and variant — a `studio render --no-intro`
   is another version, *with other options*) and the same theme files — and its images: the contact sheets, the scene
   sheets, the key frames and the diff with the previous render (at most 24), larger on click. A render that failed
-  after the newest video is said in the Render bar too, with its message's first line (no path, no stack). Watching a finished render in the preview, exports and
-  other review settings from the Studio: BL-109.
+  after the newest video is said in Edit's status bar too (*v4 failed — why: in the Review report*), its message's
+  first line on the report (no path, no stack). Watching a finished render in the preview and other review settings
+  from the Studio: BL-109.
 - **Frame comments** (L4.6). **Comments (N open)** beside the scenario's tabs opens the Comments screen
   (`#/p/<project>/s/<scenario>/comments`): the threads on the left — *Open*, *Resolved* or *All*, and *This render
   only* —, a render's own frames in the middle, the open thread on the right. Pick a render (any finished one: an older

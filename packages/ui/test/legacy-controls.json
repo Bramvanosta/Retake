@@ -2,15 +2,10 @@
   "CommentsScreen.tsx": 230,
   "CommentsTab.tsx": 3,
   "LibraryScreen.tsx": 245,
-  "PreviewFrame.tsx": 2,
   "ProposalPanel.tsx": 67,
   "ReadmeEditor.tsx": 39,
-  "Renders.tsx": 73,
   "ThemeEditor.tsx": 191,
   "ThemesScreen.tsx": 167,
-  "TimelineInspector.tsx": 67,
-  "TimelineScreen.tsx": 112,
-  "TimelineTracks.tsx": 40,
   "bits.tsx": 5,
   "main.tsx": 10
 }

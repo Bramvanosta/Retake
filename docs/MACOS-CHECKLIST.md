@@ -1564,6 +1564,45 @@ then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status
    recording. At 900 px: the start form in two columns, a live recording usable (a row's "n alternatives" under its
    text, no word cut; the toolbar wrapping), the status bar's counts give way, nothing scrolls sideways.
 
+### 14e. Edit and the Review report in the app and in Safari (L5.12a)
+
+The automated checks run in Playwright's Chromium (no H.264: its preview says it cannot play the fixture's takes); the
+preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `pnpm build`, the desktop app (and Safari on
+`studio ui`'s link), the workspace of 13a with a capture and a render of `quote`; dark, then light, then a 900 px window.
+
+1. **Edit.** ⌘3 on `quote`: the browser pane is gone, the preview fills the space above the tracks, the transport under
+   it. Play / Pause (Space), ← → one frame, Shift + ← → one second, [ ] the segments — the playhead moves over the lanes;
+   with 1,200 steps (a long take) the tracks still scroll and seek smoothly. Click a segment: the inspector shows it
+   first (VoiceOver reads "Selected scene …" once), every choice a chip; Tab reaches one group at a time, the arrows move
+   inside it, Space writes one line (the status bar's Undo names it); a chip greyed with " — why" is still reached and
+   read. Switch a layout and press ⌘Z at once: the status line says "Saving… Undo in a moment", then "Undone: …".
+   (L5.12a fixes) Click Next frame, then press → and End: the playhead moves (the toolbar does not take the arrows after
+   a click; after a Tab it does). Focus the scrubber: [ ] and Shift + → move by segment and by second. A crowded lane of
+   markers or pins: each is reachable with the mouse (24 px apart while the lane has room). The inspector starts right
+   at the segment (no blank band), its general hint at the end; the status line reads in plain words.
+2. **Render from Edit.** ⌘B renders the take shown (the status bar: "v… · queued — next in the queue", Cancel the render
+   beside it; Cancel works); with `quote.yaml` changed in an editor first, ⌘B is refused with its reason above the
+   stage and the screen shows the new file. On a proposal's preview (Comments › a thread › Preview change) ⌘B says
+   "Previewing a proposal: apply it…" and nothing is queued — press it at once while the preview is still loading too,
+   and on a proposal that can no longer be opened (the status bar's Render is off with the same reason).
+3. **The Review report.** ⌘4 (the report first; after visiting Comments, ⌘4 opens Comments until you go back to the
+   Report through the title bar's View): the head says what the review found — never "passed"; the contact sheets come
+   in one after another, a click shows one larger; Tab into Checks, ↑ ↓ Home End move the selection (VoiceOver reads the
+   family group and the finding); the inspector shows the finding's frame and Show in Edit opens the take at that frame
+   (a render made from another version: Edit says so and shows the step; the video-length check, which has no frame:
+   Edit opens and says nothing about versions). The status bar says "Rendered · … · v…" beside a neutral ring; the
+   renders list reads newest first (the time of day when two share a date); VoiceOver reads a row as a link, the
+   contact sheet's toggle as "…, larger, toggle button" with its pressed state.
+4. **Export.** Export video (MP4): "Export of v… queued", then "Exporting … %", then "Exported … in the project's exports
+   folder, under quote-v…" — the MP4 is in `projects/<slug>/exports/quote-v…/`; a second click while it runs is refused
+   (the button is off); with two exports already waiting (two other renders' reports), a third is refused with "2
+   exports are already queued or running". The raw capture's Copy command: paste it in Terminal and run it (the OTIO package lands in the
+   exports folder).
+5. **Safari.** The same on `studio ui`'s link; ⌘B is the browser's there (the palette's Render renders the report's or
+   Edit's way); the preview plays the H.264 take.
+6. **900 px.** Edit: the transport wraps, the tracks scroll sideways only when zoomed in; the report's head wraps, its
+   check list and sheets stay readable, nothing scrolls sideways.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

@@ -214,7 +214,11 @@
 .k-disclosure-summary:focus-visible,
 .k-rowcard:focus-visible,
 .k-radio-input:focus-visible,
-.k-palette-input:focus-visible {
+.k-palette-input:focus-visible,
+.k-chip:focus-visible,
+.k-trackitem-button:focus-visible,
+.k-scrubber:focus-visible,
+.k-contact-button:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;
   border-radius: var(--ui-radius-control);
@@ -1370,6 +1374,7 @@ summary.k-section-title {
 /* L5.10b: a row card between scenes (a tile, a title, a meta line; selects) */
 .k-rowcard {
   display: flex;
+  box-sizing: border-box;
   align-items: center;
   gap: var(--ui-space-6);
   width: 100%;
@@ -1383,6 +1388,7 @@ summary.k-section-title {
   font-size: var(--ui-type-sm);
   line-height: var(--ui-lead-sm);
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 .k-rowcard:hover {
@@ -1663,4 +1669,319 @@ summary.k-section-title {
 }
 .k-blocker.is-compact > .k-btn {
   flex: none;
+}
+
+/* L5.12a: choice chips (R4-Edit's inspector) — a wrapped row of chips; the checked one raised, weight 600 and a ring. */
+.k-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+}
+.k-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ui-control-sm);
+  padding: 0 var(--ui-space-4);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-field);
+  color: var(--ui-text-2);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-regular);
+  text-align: left;
+  cursor: pointer;
+}
+.k-chip:hover {
+  color: var(--ui-text);
+  background: var(--ui-raised);
+}
+.k-chip.is-checked {
+  border-color: var(--ui-ring);
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+  box-shadow: inset 0 0 0 1px var(--ui-ring);
+}
+.k-chip[aria-disabled='true'] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ui-text-3);
+  cursor: default;
+}
+/* A whole group switched off (a proposal previewed, a view that cannot be edited): dashed, the checked chip too. */
+.k-chips[aria-disabled='true'] .k-chip {
+  border-style: dashed;
+  color: var(--ui-text-3);
+  cursor: default;
+}
+.k-chip-why {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+}
+
+/* L5.12a: tracks — a label column, a lane of items placed by percentages; the playhead drawn over the lanes. */
+.k-track {
+  display: grid;
+  grid-template-columns: var(--ui-label-w) minmax(0, 1fr);
+  align-items: center;
+  min-height: var(--ui-control-sm);
+}
+.k-track + .k-track {
+  border-top: 1px solid var(--ui-hairline);
+}
+.k-track-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  padding: 0 var(--ui-space-3) 0 0;
+  background: var(--ui-pane);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-track-lane {
+  position: relative;
+  height: var(--ui-control-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* 24 px tall in the 26 px lane (review A-L3: a 24 px target). */
+.k-trackitem {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  min-width: 2px;
+}
+.k-trackitem.is-tick {
+  width: 0;
+}
+.k-trackitem-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  width: 100%;
+  height: 100%;
+  min-width: 2px;
+  padding: 0 var(--ui-space-2);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-raised);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+/* A span narrower than 24 px: a 24 px hit area centred on it (the text clips inside; the button does not). */
+.k-trackitem.is-span .k-trackitem-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: max(100%, 24px);
+  transform: translateX(-50%);
+}
+.k-trackitem.is-tick .k-trackitem-button {
+  position: absolute;
+  left: -12px;
+  width: 24px;
+  justify-content: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  color: var(--ui-text-2);
+}
+.k-trackitem-text {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.k-trackitem-segment .k-trackitem-button {
+  background: var(--ui-well);
+}
+.k-trackitem-segment.is-missing .k-trackitem-button,
+.k-trackitem-step.is-still .k-trackitem-button,
+.k-trackitem-speed.is-held .k-trackitem-button {
+  border-style: dashed;
+}
+.k-trackitem-speed.is-fast .k-trackitem-button {
+  font-weight: var(--ui-weight-strong);
+}
+.k-trackitem.is-pressed .k-trackitem-button {
+  background: var(--ui-select);
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+}
+.k-trackitem-pin.is-open .k-trackitem-button {
+  color: var(--ui-text-strong);
+  font-weight: var(--ui-weight-strong);
+}
+.k-trackitem-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-right: 1px dashed var(--ui-field-line);
+  background: var(--ui-hairline);
+  pointer-events: none;
+}
+.k-trackitem-tip {
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + var(--ui-space-1));
+  left: 0;
+  display: none;
+  gap: var(--ui-space-1);
+  width: max-content;
+  max-width: var(--ui-card-w);
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  box-shadow: 0 2px 8px var(--ui-shadow);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  white-space: normal;
+}
+.k-trackitem:hover .k-trackitem-tip,
+.k-trackitem:focus-within .k-trackitem-tip {
+  display: grid;
+}
+.k-trackitem-tip a {
+  color: var(--ui-link);
+}
+.k-scrub {
+  min-height: var(--ui-control-lg);
+}
+.k-scrub-lane {
+  height: var(--ui-control-lg);
+}
+.k-scrubber {
+  position: absolute;
+  inset: 0 0 auto;
+  width: 100%;
+  height: var(--ui-control-sm);
+  margin: 0;
+  accent-color: var(--ui-accent);
+  cursor: pointer;
+}
+.k-scrub-marks {
+  position: absolute;
+  inset: auto 0 0;
+  height: var(--ui-lead-sm);
+  pointer-events: none;
+}
+.k-scrub-mark {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  white-space: nowrap;
+}
+.k-scrub-mark:first-child {
+  transform: none;
+}
+.k-scrub-mark:last-child {
+  transform: translateX(-100%);
+}
+.k-playhead-layer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--ui-label-w);
+  right: 0;
+  pointer-events: none;
+}
+.k-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ui-accent);
+}
+
+/* L5.12a: a contact sheet — figures in a grid; a picture shown larger spans the whole row. */
+.k-contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--ui-card-w), 1fr));
+  gap: var(--ui-space-5);
+}
+.k-contact-item {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  min-width: 0;
+}
+.k-contact-item.is-large {
+  grid-column: 1 / -1;
+}
+.k-contact-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.k-contact-item.is-large .k-contact-button {
+  cursor: zoom-out;
+}
+.k-contact-button img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.k-contact-words {
+  margin: 0;
+  padding: var(--ui-space-6) var(--ui-space-4);
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-well);
+  color: var(--ui-text-3);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-contact-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-contact-meta {
+  color: var(--ui-text-3);
+}
+
+/* L5.12a: a tag — a quiet label in a well (not a state). */
+.k-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-well);
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  white-space: nowrap;
+}
+.k-input-number {
+  width: 88px;
 }

@@ -83,10 +83,10 @@ export function PreviewFrame({ url, planUrl, frameRef, onMessage, onHello, onSto
   // The wrapper is React's own node: when parent.ts removes the iframe (a stopped preview), unmounting this component
   // removes the wrapper, never the node already gone.
   return (
-    <div className="preview-frame-box">
+    <div className="pv-frame-box">
       <iframe
         ref={ref}
-        className="preview-frame"
+        className="pv-frame"
         title="Preview"
         data-testid="preview-frame"
         sandbox="allow-scripts"

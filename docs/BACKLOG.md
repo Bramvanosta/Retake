@@ -2047,6 +2047,20 @@ and `job_end` lines); what remains:
   ⌘. from anywhere in the app).
 - "Show the window" and a manual "Check replay" stay BL-130's.
 
+### BL-132 — « Épure » 4 extras cut from L5.12a (Edit, the Review report)
+*S–M · cut in L5.12a · builds on: L5.12a*
+
+- The checks that ran (a review.json field) and R4's "n passed" — the report says what was found, never "passed".
+- Exports from the Studio beyond the MP4: other formats, an engine `export-capture` job kind (the raw package stays a
+  command to copy), a file route or Show in Finder (BL-125's page → desktop bridge), a download.
+- "Open the step" from a check (a `step` on the scenario route) and the per-scene contact-sheet rows with their times
+  (R4-Review; the review's own scene sheets are shown as they are).
+- Edit's own ruler component (time labels sit on the scrubber), R4-Edit's selects for transition / speed / theme (the
+  inspector keeps chips), the take as captured / proposed edit as a caption under the preview (the status bar says it).
+- A render queued from Edit opens its report by itself (Edit's status bar says "vN reviewed" with Open the review: the
+  page stays where you work); the report opens one queued from the report.
+- Thread rows' 64 px thumbnails, the palette's "Open renders" — L5.12b's area, listed here as plan §8 cut them.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

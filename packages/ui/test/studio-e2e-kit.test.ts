@@ -517,8 +517,9 @@ describe('the shell (L5.9 part E)', () => {
     await page.locator('[data-testid="step"]').first().waitFor(POLL);
     expect(await modes.getByRole('link', { name: 'Script' }).getAttribute('aria-current')).toBe('page');
     expect(await modes.getByRole('link', { name: 'Edit' }).getAttribute('href')).toBe(`#/p/${P}/s/quote/timeline`);
+    // L5.12a: Review opens the view this tab used last — the Review report first.
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'mode-review' } })));
-    await page.waitForURL(`**#/p/${P}/s/quote/comments`);
+    await page.waitForURL(`**#/p/${P}/s/quote/review`);
     expect(await modes.getByRole('link', { name: 'Review' }).getAttribute('aria-current')).toBe('page');
     // On the project's own page the scenario opened last stays in context.
     await page.goto(`${studio.url}#/p/${P}`);

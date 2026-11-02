@@ -32,6 +32,8 @@ import type { ThreadAnswer, ThreadGetAnswer, ThreadItem, ThreadsListAnswer } fro
 import { CallError, call, errorText, useCall } from './api.js';
 import { Badge, Notice, Txt, When, plural } from './bits.js';
 import { CommentsTab } from './CommentsTab.js';
+import { ReviewViews } from './ReviewScreen.js';
+import { ShellSlot } from './shell/slots.js';
 import { useUnsavedMark } from './drafts.js';
 import { commentsEventAction, useEvents } from './events.js';
 import { useRenders } from './Renders.js';
@@ -233,6 +235,10 @@ export function CommentsScreen({ slug, name, thread, at }: { slug: string; name:
 
   return (
     <div className="screen comments-screen" data-testid="comments-screen">
+      {/* L5.12a: Review's View (the report first); the screen's own tabs stay until it is rebuilt (L5.12b). */}
+      <ShellSlot name="context">
+        <ReviewViews slug={slug} name={name} current="comments" />
+      </ShellSlot>
       <Breadcrumb slug={slug} name={name} />
       <header className="screen-head">
         <h1>

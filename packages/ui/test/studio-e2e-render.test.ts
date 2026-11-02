@@ -2,17 +2,19 @@
  * L4.5 part E: Render from the timeline, end to end in headless Chromium against a real Studio server — on a tiny
  * synthetic take (two seconds, VP9: the preview plays it), with the jobs worker run in this process when the test says
  * so (the Studio's own worker is off: the queued state is seen first):
- * - Render on the timeline's header queues the capture shown (the queue says "next in the queue", the button is off: one
- *   render of a scenario at a time);
- * - the worker renders it (the queue shows its phase and progress while the page polls) and reviews it in the same job;
- * - the render appears with its review's verdict and "from this version", its review opens by itself: the verdict, and
- *   the contact sheet as an image (a data: JPEG through the gate, decoded by the page);
+ * - Render in Edit's status bar queues the capture shown (the status bar says "next in the queue", the button is off: one
+ *   render of a scenario at a time); L5.12a: the queue, the renders and the reviews are the Review report's;
+ * - the worker renders it (the report's queue shows its phase and progress while the page polls) and reviews it in the
+ *   same job;
+ * - the render appears with its review's verdict and "from this version"; the report shows the newest render's review:
+ *   the verdict, and the contact sheet as an image (a data: JPEG through the gate, decoded by the page); Edit's status bar
+ *   says "Latest: v1 · … · from this version";
  * - the scenario screen's Renders card shows the same render and verdict (and a step's picture still shows: the same
- *   one `<img>` under the step pictures' cap).
+ *   one `<img>` under the step pictures' cap); its row opens the render's report.
  * No CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
  * L4.5 fixes (review B H1): the real render's plan signature is the timeline's ("from this version"); a render of the
- * same file with other options is another version — its findings never seek the preview; a copy of the same plan does;
- * a render that failed after them is said in the Render bar.
+ * same file with other options is another version — L5.12a: its findings' Show in Edit never seeks the preview to their
+ * frame (said); a copy of the same plan does; a render that failed after them is said in Edit's status bar.
  */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -99,17 +101,23 @@ afterAll(async () => {
 
 describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', () => {
   it('Render → queued → progress → the review status → the contact sheet; the scenario screen shows the same', async () => {
-    await page.getByTestId('no-renders').waitFor();
-    expect(await page.getByTestId('render-status').innerText()).toBe('renders this capture with the theme of the files, then reviews it');
+    await expect.poll(() => page.getByTestId('render-status').innerText(), POLL).toBe('renders this capture with the theme of the files, then reviews it');
 
-    // Render: queued, the button off (one render of a scenario at a time).
+    // Render (Edit's status bar): queued, the button off (one render of a scenario at a time).
     await page.getByTestId('render').click();
+    const bar = page.getByTestId('render-job');
+    await expect.poll(() => bar.getAttribute('data-state'), POLL).toBe('queued');
+    expect(await bar.innerText()).toContain('v1 · queued — next in the queue');
+    expect(await page.getByTestId('render').isDisabled()).toBe(true);
+    await shot('render-1-queued');
+
+    // L5.12a: the queue in full on the Review report (what each job renders).
+    await page.goto(`${studio.url}#/p/demo/s/tiny/review`);
     const job = page.getByTestId('render-job');
     await expect.poll(() => job.getAttribute('data-state'), POLL).toBe('queued');
     expect(await job.innerText()).toContain('v1 · queued — next in the queue');
     expect(await job.innerText()).toContain('renders this version');
     expect(await page.getByTestId('render').isDisabled()).toBe(true);
-    await shot('render-1-queued');
 
     // The worker renders and reviews it; the page follows (events → scenario_renders), its states noted as they pass.
     const seen = new Set<string>();
@@ -117,9 +125,9 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     let progressShot = false;
     const watch = (async () => {
       while (polling) {
-        const s = await job.getAttribute('data-state', { timeout: 200 }).catch(() => null);
-        if (s) seen.add(s);
-        if (s === 'running' && !progressShot && (await page.getByTestId('render-progress').count()) > 0) {
+        const st = await job.getAttribute('data-state', { timeout: 200 }).catch(() => null);
+        if (st) seen.add(st);
+        if (st === 'running' && !progressShot && (await page.getByTestId('render-progress').count()) > 0) {
           progressShot = true;
           await shot('render-2-running');
         }
@@ -133,46 +141,51 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     await expect.poll(() => row.getAttribute('data-review'), POLL).toMatch(/^(clean|warnings|errors)$/);
     polling = false;
     await watch;
-    console.log(`render + review from the timeline: ${Date.now() - t0} ms; states seen: ${[...seen].join(', ')}`);
+    console.log(`render + review: ${Date.now() - t0} ms; states seen: ${[...seen].join(', ')}`);
     expect(seen.has('running') || seen.has('reviewing')).toBe(true);
     expect(await page.getByTestId('render-job').count()).toBe(0);
     expect(await row.innerText()).toContain('from this version');
 
-    // Its review opened by itself: the verdict, and the contact sheet decoded as an image.
-    const panel = page.locator('[data-testid="review-panel"][data-id="tiny-v1"]');
-    await panel.waitFor();
-    await expect.poll(() => panel.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);
-    const sheet = panel.getByTestId('review-sheet').first();
+    // The report shows the newest render's review: the verdict, and the contact sheet decoded as an image.
+    await expect.poll(() => page.getByTestId('review-verdict').innerText(), POLL).toMatch(/\d+ errors?, \d+ warnings?, \d+ notes?/);
+    const sheet = page.getByTestId('review-sheet').first();
     await expect.poll(() => sheet.getAttribute('data-state'), POLL).toBe('ok');
     const img = sheet.locator('img');
     expect(await img.getAttribute('src')).toMatch(/^data:image\/jpeg;base64,/);
     expect(await img.evaluate((el: HTMLImageElement) => el.decode().then(() => el.naturalWidth))).toBeGreaterThan(200);
     expect(await sheet.locator('figcaption').innerText()).toBe('contact sheet (1 fps)');
-    expect(await page.getByTestId('render-status').innerText()).toMatch(/^Latest: v1 · (clean|\d+ warnings?|\d+ errors?) · from this version$/);
     expect(await page.getByTestId('render').isDisabled()).toBe(false);
-    await panel.scrollIntoViewIfNeeded();
     await shot('render-3-review');
     // A click shows it larger.
     await sheet.locator('button').click();
     expect(await sheet.getAttribute('class')).toContain('is-large');
 
-    // The scenario screen's Renders card: the same render, the same verdict.
     const verdict = await row.getAttribute('data-review');
+    // Edit's status bar: the latest render, its verdict, this version.
+    await page.goto(`${studio.url}#/p/demo/s/tiny/timeline`);
+    await expect.poll(() => page.getByTestId('render-status').innerText(), POLL).toMatch(/^Latest: v1 · (clean|\d+ warnings?|\d+ errors?) · from this version$/);
+    expect(await page.getByTestId('render').isDisabled()).toBe(false);
+    expect(await page.getByTestId('render-open-review').getAttribute('href')).toBe('#/p/demo/s/tiny/review/tiny-v1');
+
+    // The scenario screen's Renders card: the same render, the same verdict; its row opens the render's report.
     await page.goto(`${studio.url}#/p/demo/s/tiny`);
-    // L5.10b: in the closed "Renders and review" section at the board's end (until L5.12).
+    // L5.10b: in the closed "Renders and review" section at the board's end.
     await page.getByTestId('renders-section').locator('summary').click();
     const card = page.getByTestId('renders-card');
     await card.waitFor();
     const sRow = card.locator('[data-testid="render-row"][data-id="tiny-v1"]');
     await expect.poll(() => sRow.getAttribute('data-review'), POLL).toBe(verdict);
     expect(await sRow.innerText()).toContain('from this version');
-    await sRow.getByTestId('render-open-review').click();
-    await expect.poll(() => card.getByTestId('review-sheet').first().getAttribute('data-state'), POLL).toBe('ok');
     // The step's picture still comes through the same one <img> (Thumb.tsx's Jpeg, under the step pictures' cap).
     await page.getByTestId('thumb').first().scrollIntoViewIfNeeded();
     await expect.poll(() => page.getByTestId('thumb').first().getAttribute('data-state'), POLL).toBe('ok');
     await card.scrollIntoViewIfNeeded();
     await shot('render-4-scenario');
+    // (L5.12a fixes, review A-L5: a link to the report, never a toggle.)
+    expect(await sRow.locator('a').getAttribute('href')).toBe('#/p/demo/s/tiny/review/tiny-v1');
+    await sRow.locator('a').click();
+    await page.waitForURL('**#/p/demo/s/tiny/review/tiny-v1');
+    await expect.poll(() => page.getByTestId('review-sheet').first().getAttribute('data-state'), POLL).toBe('ok');
 
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
     expect(consoleErrors).toEqual([]);
@@ -197,20 +210,28 @@ describe.skipIf(!canRun)('Render from the timeline in Chromium (L4.5 part E)', (
     // `render --no-intro --scale 0.25` of the same file and capture (another plan), and a copy of v1 (the same plan).
     await copy('tiny-v2', 2, (r) => Object.assign(r, { overrides: { intro: false, scale: 0.25 }, plan: { ...r.plan, width: 480, height: 270 }, width: 480, height: 270 }));
     await copy('tiny-v3', 3, () => undefined);
-    await page.goto(`${studio.url}#/p/demo/s/tiny/timeline`);
+    // L5.12a: the rows on the Review report; Show in Edit of a finding seeks the preview only for the same plan.
+    await page.goto(`${studio.url}#/p/demo/s/tiny/review`);
     const row = (id: string) => page.locator(`[data-testid="render-row"][data-id="${id}"]`);
     await expect.poll(() => row('tiny-v3').getAttribute('data-review'), POLL).toBe('warnings');
     expect(await row('tiny-v3').innerText()).toContain('from this version');
     expect(await row('tiny-v2').innerText()).toContain('with other options');
-    const panel = (id: string) => page.locator(`[data-testid="review-panel"][data-id="${id}"]`);
-    await row('tiny-v2').getByTestId('render-open-review').click();
-    await panel('tiny-v2').getByTestId('review-finding').first().waitFor();
-    expect(await panel('tiny-v2').getByTestId('finding-seek').count()).toBe(0);
-    expect(await panel('tiny-v2').innerText()).toContain('Made from another version of the edit');
-    await row('tiny-v3').getByTestId('render-open-review').click();
-    await panel('tiny-v3').getByTestId('review-finding').first().waitFor();
-    expect(await panel('tiny-v3').getByTestId('finding-seek').count()).toBe(1);
-    // A render that failed after them: the Render bar says so (not "Latest: v3").
+    // v2 (other options): Edit opens on the take, says why it does not go to the finding's frame (12), stays where it is.
+    await page.goto(`${studio.url}#/p/demo/s/tiny/review/tiny-v2`);
+    await page.getByTestId('review-finding').first().waitFor(POLL);
+    await page.getByTestId('review-show-in-edit').click();
+    await page.waitForURL(`**#/p/demo/s/tiny/timeline/${RUN}`);
+    await page.getByTestId('edit-seek-note').waitFor(POLL);
+    expect(await page.getByTestId('edit-seek-note').innerText()).toContain('v2 was made from another version of the edit');
+    expect(Number(await page.getByTestId('preview').getAttribute('data-frame'))).toBe(0);
+    // v3 (the same plan): Edit goes to the finding's frame, nothing said.
+    await page.goto(`${studio.url}#/p/demo/s/tiny/review/tiny-v3`);
+    await page.getByTestId('review-finding').first().waitFor(POLL);
+    await page.getByTestId('review-show-in-edit').click();
+    await page.waitForURL(`**#/p/demo/s/tiny/timeline/${RUN}`);
+    await expect.poll(async () => Number(await page.getByTestId('preview').getAttribute('data-frame')), POLL).toBe(12);
+    expect(await page.getByTestId('edit-seek-note').count()).toBe(0);
+    // A render that failed after them: Edit's status bar says so (not "Latest: v3").
     const queue = new FileJobQueue(ws);
     const job = await queue.enqueue({ version: 1, kind: 'render', project: 'demo', scenario: 'tiny', run_id: RUN, timeline_sha256: 'a'.repeat(64), render_id: 'tiny-v4', overrides: {}, submitted_by: 'test' });
     const rec = (await queue.get(job.id))!;

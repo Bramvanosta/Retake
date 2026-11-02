@@ -27,6 +27,25 @@
     'status status status';
 }
 
+/* L5.12a: a screen hid the browser pane (Edit, the Review report): the centre takes its column. */
+.sh-app[data-browser='none'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'title'
+    'main'
+    'status';
+}
+.sh-app[data-browser='none'][data-inspector='shown'] {
+  grid-template-columns: minmax(0, 1fr) var(--ui-inspector-w);
+  grid-template-areas:
+    'title title'
+    'main inspector'
+    'status status';
+}
+.sh-browser[hidden] {
+  display: none;
+}
+
 /* Skip to content: the first Tab stop, shown while focused (clear of the window buttons). */
 .sh-skip {
   position: absolute;
@@ -226,6 +245,12 @@
   display: flex;
   align-items: center;
   gap: var(--ui-space-3);
+  /* L5.12a: a screen's long line (Edit's, the report's) gives way inside the slot; its buttons never do. */
+  min-width: 0;
+}
+.sh-slot-actions > .k-btn,
+.sh-slot-actions > a.k-btn {
+  flex: none;
 }
 
 /* L5.10a fixes (review B-M1): an inspector the person hid, shown in place in the centre pane (ShellSlot inline) */

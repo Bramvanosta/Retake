@@ -22,6 +22,8 @@ import {
   EmptyState,
   Facts,
   FieldRow,
+  ChoiceChips,
+  ContactSheet,
   FrameCard,
   IconButton,
   InspectorSection,
@@ -33,6 +35,12 @@ import {
   PosterGrid,
   Callout,
   FrameGrid,
+  NumberField,
+  Playhead,
+  Scrubber,
+  Tag,
+  Track,
+  TrackItem,
   FrameOption,
   RadioGroup,
   RowCard,
@@ -99,6 +107,10 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [answer, setAnswer] = useState('none yet');
   const [fit, setFit] = useState<'fit' | 'fill'>('fit');
   const [link, setLink] = useState('https://example.com/a');
+  const [chip, setChip] = useState('card');
+  const [seg2, setSeg2] = useState<string | null>('a');
+  const [at, setAt] = useState(40);
+  const [speed, setSpeed] = useState('1.5');
   const commands: Command[] = [
     { id: 'projects', label: 'Projects', group: 'Go to', run: () => (location.hash = '#/') },
     { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', run: () => setAnswer('UI gallery') },
@@ -370,6 +382,48 @@ function Column({ appearance }: { appearance: Appearance }) {
           ]}
         />
       </Section>
+      <Section title="Edit (choice chips, tracks, a scrubber, a number field, a tag)">
+        <div className="gl-pane">
+          <span id={`gl-chips-${appearance}`}>Layout</span>
+          <ChoiceChips
+            labelledBy={`gl-chips-${appearance}`}
+            chips={[
+              { key: 'default', label: 'Theme default', value: '', checked: chip === 'default' },
+              { key: 'card', label: 'Card', value: 'card', checked: chip === 'card' },
+              { key: 'laptop', label: 'Laptop', value: 'laptop', checked: chip === 'laptop' },
+              { key: 'split', label: 'Split screen', value: 'split', checked: false, disabled: true, why: 'no scene of this video films more than one page' },
+            ]}
+            onPick={setChip}
+          />
+        </div>
+        <div className="gl-pane gl-tracks">
+          <Scrubber time="0:04" max={99} value={at} valueText={`frame ${at}`} onChange={setAt} marks={[{ at: 0, label: '0:00' }, { at: 0.5, label: '0:05' }]} />
+          <Track name="Segments" testId={`gl-track-${appearance}`} count={2}>
+            <TrackItem variant="segment" place={{ from: 0, to: 45 }} frames={100} label="Scene request, 0:00 to 0:04" pressed={seg2 === 'a'} band={0.1} testId="gl-seg" onActivate={() => setSeg2('a')}>
+              request
+            </TrackItem>
+            <TrackItem variant="segment" place={{ from: 45, to: 100 }} frames={100} label="Scene proposal, 0:04 to 0:10" pressed={seg2 === 'b'} testId="gl-seg" onActivate={() => setSeg2('b')}>
+              proposal
+            </TrackItem>
+          </Track>
+          <Track name="Markers" testId={`gl-markers-${appearance}`} count={1}>
+            <TrackItem variant="pin" place={{ at: 60 }} frames={100} label="Comment, open, at 0:06" states={['open']} testId="gl-pin" onActivate={() => setAt(60)} tip="open · 0:06 · the zoom starts too early">
+              ●
+            </TrackItem>
+          </Track>
+          <Playhead at={at / 100} />
+        </div>
+        <NumberField label="Other speed" value={speed} onChange={setSpeed} step={0.05} min={0} max={4} />
+        <Tag>today's edit</Tag>
+      </Section>
+      <Section title="Review (a contact sheet)">
+        <ContactSheet
+          items={[
+            { key: 'a', name: 'contact sheet (1 fps)', label: 'contact sheet (1 fps)', meta: '0:00 – 0:10', picture: <Frame />, state: 'ok' },
+            { key: 'b', name: 'scene request', label: 'scene request', picture: null, words: 'Loading the contact sheet…', state: 'waiting' },
+          ]}
+        />
+      </Section>
       <Section title="Facts and disclosure">
         <div className="gl-pane">
           <Facts
@@ -472,7 +526,7 @@ export function GalleryScreen() {
       <ShellSlot name="inspector">
         <InspectorSection title="Gallery">
           <FieldRow label="Components">
-            <span>24</span>
+            <span>30</span>
           </FieldRow>
           <FieldRow label="Appearances">
             <span>dark and light</span>

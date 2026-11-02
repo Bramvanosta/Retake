@@ -41,6 +41,7 @@ import {
   PosterGrid,
   Progress,
   Callout,
+  ContactSheet,
   FrameGrid,
   FrameOption,
   RadioGroup,
@@ -66,6 +67,7 @@ import {
   filterCommands,
   formatTimecode,
   isMenuCommand,
+  spaceTicks,
   spokenTimecode,
   unsavedFor,
 } from '../src/app/ui-kit/index.js';
@@ -307,6 +309,24 @@ describe('the overlays (L5.9 part C)', () => {
     expect(cmd).toContain('data-testid="blocker-fix"><bdi>studio run p q</bdi>');
     expect(cmd).toContain('data-testid="blocker-fix-node"><bdi>node bin.js run p q</bdi>');
     expect(renderToStaticMarkup(createElement(TerminalCommands, {}))).toBe('');
+  });
+
+  it('⚑ L5.12a fixes: a contact sheet\'s toggle keeps one name (A-L4); a row that opens a screen is a link (A-L5); ticks keep 24 px apart where the lane has room (A-L3)', () => {
+    const go = () => undefined;
+    const sheet = renderToStaticMarkup(createElement(ContactSheet, { items: [{ key: 'a', name: 'contact sheet (1 fps)', label: 'contact sheet (1 fps)', picture: createElement('i'), state: 'ok' }] }));
+    expect(sheet).toContain('aria-pressed="false" aria-label="contact sheet (1 fps), larger"');
+    expect(sheet).not.toMatch(/smaller|: larger/);
+    // A link row: an <a> to the address, aria-current on the row shown — never aria-pressed.
+    const link = renderToStaticMarkup(createElement(RowCard, { compact: true, tile: 'v2', title: 'Jan 1', selected: true, to: { name: 'review', slug: 'demo', scenario: 'bits', render: 'bits-v2' }, testId: 'r' }));
+    expect(link).toMatch(/^<a href="#\/p\/demo\/s\/bits\/review\/bits-v2" class="k-rowcard is-selected is-compact" aria-current="page" data-testid="r">/);
+    expect(link).not.toContain('aria-pressed');
+    expect(renderToStaticMarkup(createElement(RowCard, { tile: 'v1', title: 'x', selected: false, to: { name: 'projects' }, onSelect: go }))).not.toContain('aria-current');
+    // Ticks: nudged apart by the least, inside the lane; a crowded lane keeps them on their frames.
+    expect(spaceTicks([10, 20, 100], 300)).toEqual([10, 34, 100]);
+    expect(spaceTicks([280, 290, 299], 300)).toEqual([252, 276, 300]);
+    expect(spaceTicks([0, 0, 0], 300)).toEqual([0, 24, 48]);
+    expect(spaceTicks([5, 6, 7, 8], 50)).toEqual([5, 6, 7, 8]);
+    expect(spaceTicks([50], 300)).toEqual([50]);
   });
 
   it('L5.10b: the drop slot comes from the pointer (critique M7) — the nearest row by Y, the half by X, the trailing cells the end; the bar on one side', () => {

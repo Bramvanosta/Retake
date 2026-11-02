@@ -208,11 +208,11 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     await expect.poll(() => page.getByTestId('render').isDisabled(), POLL).toBe(false);
     const t0 = Date.now();
     await page.getByTestId('render').click();
-    const row = page.locator('[data-testid="render-row"]').first();
-    await expect.poll(() => row.getAttribute('data-review').catch(() => null), WORK).toMatch(/^(clean|warnings|errors)$/);
+    // L5.12a: Edit's status bar says the render this tab queued once its review is written, and links its report.
+    await expect.poll(() => page.getByTestId('render-status').innerText().catch(() => ''), WORK).toMatch(/^v\d+ reviewed · (clean|\d+ warnings?|\d+ errors?) · /);
     timings.render_review_ms = Date.now() - t0;
     noteWorker();
-    const renderId = (await row.getAttribute('data-id'))!;
+    const renderId = /\/review\/([^/]+)$/.exec((await page.getByTestId('render-open-review').getAttribute('href'))!)![1];
     const rendersDir = join(root, 'projects', P, 'renders');
     const record = JSON.parse(await readFile(join(rendersDir, `${renderId}.json`), 'utf8')) as { template: string; run_id: string; duration_s: number };
     expect(record.template).toBe(COPY);

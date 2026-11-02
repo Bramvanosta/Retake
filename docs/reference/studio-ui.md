@@ -197,13 +197,13 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | StatusMark | ok, running, waiting, idle, warn, attention, fail, recording | its word must say the state |
 | Timecode | `00:00:49.0`, optional total and frame; spoken form in hidden text | mono, tabular |
 | Progress | determinate (values), indeterminate | no motion under reduced motion |
-| Toolbar | one tab stop; arrows, Home, End over its visible controls (a radio group counts once) | groups controls inside a pane (not the title bar); a menu, a segmented control or a field inside it keeps its own keys |
+| Toolbar | one tab stop; arrows, Home, End over its visible controls (a radio group counts once); L5.12a fixes: `clickLeavesKeys` — after a control was focused by a click, the arrows, Home and End stay the page's (Edit's transport: the playhead) until the focus comes by the keyboard | groups controls inside a pane (not the title bar); a menu, a segmented control or a field inside it keeps its own keys |
 | StatusBar | state, information, actions | one per window (the shell's) and samples |
 | SourceList | headed groups, nested items, current (`aria-current`, select fill + 600), a count or a flag in words; L5.10a: an icon, a lead column, a value (mono), a quiet row, a test id; L5.10b: a row that acts (`onSelect`: a button, `aria-current="true"`) and a 2 px bar | the label truncates first; the flag, the count and the value never wrap |
 | Facts | a `<dl>` of read-only rows, the label in the 96 px right-aligned column (L5.10a); a name goes on a `group` around it, never on the `dl` | read-only values; FieldRow stays for controls |
 | Disclosure | a native `<details>`, closed by default (L5.10a) | the one collapsible outside the inspector (the ratchet bans `<details>` elsewhere) |
 | FrameGrid, FrameOption | ONE listbox per scene (L5.10b): three columns (two under 1100 px), options with `aria-selected` and a name (scene, number, verb, target, state words), the list holding the selection the one tab stop; selected: select fill + 2 px ring; a drop: a 3 px bar on one side; dragged: a dashed outline, a dimmed picture | the caller's keys (`board-keys.ts`: ← → by step, ↑ ↓ by column across scenes, Home / End, Page Up / Down three rows, Alt+arrows move); the list takes the drag over its gaps, the slot from the pointer (`slotFromPointer`); an empty scene's drop zone |
-| RowCard | a pressed button: a 96 × 54 tile, a title, a meta line (L5.10b); L5.11b: `compact` — a list row (a number column, the title at body size, transparent until hovered or selected) with an `aside` word on the right (under the text in a RowList narrower than 560 px; a word is never broken); L5.11b fixes: `option` — an option of a RowList listbox instead of a button (`aria-selected`, never a tab stop; the active one ringed while its list has the focus) | cards between scenes, Before / After filming; compact: the Record screen's draft rows |
+| RowCard | a pressed button: a 96 × 54 tile, a title, a meta line (L5.10b); L5.11b: `compact` — a list row (a number column, the title at body size, transparent until hovered or selected) with an `aside` word on the right (under the text in a RowList narrower than 560 px; a word is never broken); L5.11b fixes: `option` — an option of a RowList listbox instead of a button (`aria-selected`, never a tab stop; the active one ringed while its list has the focus); L5.12a fixes: `to` — a link to another screen (`aria-current="page"` on the row shown), never a toggle | cards between scenes, Before / After filming; compact: the Record screen's draft rows; `to`: the render rows |
 | RowList, RowListItem | L5.11b fixes: a list of compact rows, its own size container; `listbox` — the caller holds the active option (`aria-activedescendant`; the list holding it is the one tab stop of all its lists) and the keys; its items `role="none"`, so the list owns only its options and any group the caller puts between them | the Record screen's draft (one listbox per scene; the cursor block a group after its row) |
 | RadioGroup | L5.11b: a `fieldset` of native radios named by its legend (visible or hidden), each a row — label, a second line, a word on the right; checked = a ring with a filled dot (a shape); one tab stop, the arrows native; a value that matches none leaves all unchecked | a choice among a few long options (target alternatives, what to wait for, a zoom factor); a short one is Segmented |
 | Callout | a short note in a pane well: its state as a shape and its title (a state word), then its text (L5.10b) | replaces the legacy Notice on rebuilt screens |
@@ -217,6 +217,12 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
 | CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
+| ChoiceChips | L5.12a: a radio group of `<button role="radio">` named by its legend; one tab stop (the checked chip), arrows / Home / End move the focus, Space / Enter picks; checked = select fill + 600 + a ring; a chip that cannot be taken is `aria-disabled`, dashed, focusable, its reason after " — "; a whole group off is dashed | a choice written at once (Edit's switches); a pick never follows the arrows (one write per pick) |
+| Track, TrackItem | L5.12a: a labelled row (`group` "Name: N items") — a 96 px label column and a lane of items placed by percentages (a span, or a tick with a 24 px target centred on its frame); every item a 24 px target (24 px tall; a span narrower than 24 px a centred 24 px hit area; a lane's ticks nudged apart to 24 px while it has room: `spaceTicks`); an item is a button carrying its words; pressed = select fill + 600 + a 2 px ring; a band at its start under its words (a transition, a camera ramp); a tip beside a tick on hover and focus | timelines; memoise the rows and keep the playhead out of their props |
+| Scrubber, Playhead | L5.12a: the playhead's range input on a lane (its own arrows move one frame; its value text says where) with decorative time labels; the playhead a 2 px line over the lanes | one per timeline; the Playhead is drawn by the screen, never inside the tracks |
+| ContactSheet | L5.12a: figures in a grid, each picture a toggle (`aria-pressed`; one name, "<name>, larger" — the state is aria-pressed's) that spans the row when larger; words while it loads or cannot be read; the label and a meta line as the caption | the pictures come from Thumb.tsx; ask them one at a time |
+| Tag | L5.12a: a quiet label in a well — text, never a state | a source, a note's kind; a state is a StatusMark; not in the status bar (plain words there) |
+| NumberField | L5.12a: TextField's sibling, `type="number"`, min / max / step, Enter runs its action; no unsaved mark (a value written on Set) | a speed or a duration beside chips |
 
 ## The screens (from the canvas)
 
@@ -273,7 +279,7 @@ Studio keeps `APP_NAME` (L5.13 renames).
   600 px, two to 380 px, one below (the board's width: a container query) — 256 × 201 with a 244 × 137 picture and
   20 px gaps at 1440 —: picture or why there is none, number, verb and target ("Wait for …"; without a target, what it
   does: "Wait 1.6 s"), "took …", state words, modifiers, the step's note), cards between them, After filming; a closed
-  "Renders and review" section at its end (the legacy card until L5.12). One selection drives the board, the browser and
+  "Renders and review" section at its end (L5.12a: the queue, the newest three, Open the review report). One selection drives the board, the browser and
   the inspector; a selected step gone from the file leaves its scene selected, never another step. The inspector: a
   step in B32's order (its picture 288 × 162, "Step 3 · Click", scene and "took …", its form — fields in words, "Other
   ways to find it (n)", the modifiers as switches, all on the first screen at 1440 × 900 —, what it does, Move up /
@@ -344,9 +350,44 @@ Studio keeps `APP_NAME` (L5.13 renames).
   to its replacement, else to the title. The Recordings also say a recording's location and steps, and a saved one has
   a row "Open <scenario>" under it. Deviations: Show the window and Check replay (BL-130), the step's "Recorded 00:41
   into the recording", the inspector's second set of insert buttons, the title bar's Location on this screen (BL-131).
-- **Edit** — the timeline and its live preview. L5.12.
-- **Review — frame comments** — the frame, the thread, Claude's proposal. L5.12.
-- **Review — report and exports** — the review report, the raw package. L5.12.
+- **Edit** (R4-Edit) — built in L5.12a: the browser pane hidden (`BrowserCollapsed`); the h1 "<scenario> — Edit" for
+  assistive technology only; the title bar's context: *Take* (a select, with more than one capture). Centre: the notes
+  that matter now (a refused Render, a proposal's banner, why the switches are off, the workspace components the preview
+  waits to run with *Allow in the preview*, a slow scrub), the **stage** — the preview at the video's ratio, as large
+  as what the tracks leave (a size container), its notes over it (Loading, Buffering, cannot play, stopped + Restart) —,
+  the playhead's words under it, the **transport** (a Toolbar: Previous frame, Play / Pause, Next frame, the time and
+  frame, Unmute — kept although R4 draws none —, Speed, Comment (C), Fit / Zoom in), the take's facts; the **tracks**
+  (kit Track / TrackItem on a pane: Segments with their component and the transition as a band, Captions, Steps,
+  Camera with its ramp, Speed with its cuts, Markers, Comments; the Scrubber with time labels on a round step; the
+  Playhead over the lanes, never a prop of the tracks); the key hints; the comments made on another take; *Warnings and
+  notes* (a Disclosure). Inspector: the switch's answer and a 409's offer on top (sticky), then the selected segment
+  (its name, times and steps; said in the inspector's own polite region) and the whole video — every switch a fieldset
+  of **ChoiceChips** (a radio group of buttons: one tab stop, arrows move, Space / Enter picks, a chip that cannot be
+  taken stays focusable with " — why"), a speed or a duration with a NumberField and Set. Status bar (the screen's):
+  what is on screen (plain words, no tag), the render line (polite), Cancel the render, Undo · Redo (⌘Z while a switch is
+  in flight is queued and said; dropped and said when that switch is not saved), Render (⌘B: Edit's, through
+  useRenders; off with why on a proposal — in every state of the screen, the status bar's own Render too). The
+  inspector's general hint is last; an empty answer line takes no room. The transport roves with the arrows after a Tab;
+  after a click they stay the playhead's (`Toolbar clickLeavesKeys`). Deviations: the
+  inspector's transition / speed / theme stay chips (R4 draws selects; the chips keep the one keyboard model and every
+  reason in sight), no ruler of its own (time labels on the scrubber), the take as captured / proposed edit words in the
+  status bar rather than a caption under the preview; Phone / Tablet / Picture-in-picture follow the plan's choices only.
+- **Review — report and exports** (R4-Review) — built in L5.12a (`#/…/review[/<render>]`): the title bar's View (Report
+  · Comments (n open); Review opens the view this tab used last, the report first); the browser hidden. Head: the
+  scenario and the version, its facts and "from this version" against the file on disk, the counts in words (never
+  "passed"), the render picker. **Contact sheet** (kit ContactSheet: the review's sheets as it kept them, one request at
+  a time, larger on click), **Checks** (one RowList listbox; each family a group with its count; severity as a mark and
+  a word; ↑ ↓ Home End), "Nothing else found."; the inspector **Selected check** (the finding's frame, severity, message
+  as text, Where / At / Check / Code, Show in Edit); **Renders** (the queue with Cancel, a failure, newest five, Show
+  all; a row is a link to its report — `RowCard to`, `aria-current` on the one shown; the time of day where two read the
+  same); **Export** (Export video (MP4): the Studio's `review_export` — one export job, 1080p, the fixed folder, two
+  exports of the workspace at most; the raw capture as a command with Copy). Status bar: Rendered · when · vN (a neutral
+  mark), Open in Edit, Render again
+  (⌘B: the report's). Empty states: no render (Render), a review queued (progress) or failed (its message), an unknown
+  render. Deviations: "n passed", Open the step, Show in Finder, the per-scene rows with times (the review's own scene
+  sheets as they are) — BL-132.
+- **Review — frame comments** — the frame, the thread, Claude's proposal. L5.12b (L5.12a: the View switch in its title
+  bar).
 - **Library** — the components (the browser's word "Components" until L5.12). L5.12.
 - **Theme editor** — tokens and their preview. L5.12.
 - **Confirmation sheet** — the kit's Sheet. Built in L5.9; screens adopt it in L5.10 – L5.12. L5.11a: the capture's

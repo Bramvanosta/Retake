@@ -13,6 +13,7 @@
  * Whatever `startTour` started is closed again when it throws.
  */
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -65,7 +66,7 @@ export interface Tour {
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
 /** bits-v1: a render of the version the timeline shows (its plan), its video the bits take as x264 (the viewer's frames). */
-async function writeRender(dir: string, plan: EditPlan, edit: string): Promise<void> {
+export async function writeRender(dir: string, plan: EditPlan, edit: string): Promise<void> {
   const renders = join(dir, 'renders');
   await mkdir(renders, { recursive: true });
   const file = join(renders, 'bits-v1.mp4');
@@ -79,6 +80,28 @@ async function writeRender(dir: string, plan: EditPlan, edit: string): Promise<v
     bundle: { hash: 'synthetic', cached: true, ms: 0 }, browser: { path: null, source: 'playwright' }, timings: { plan_ms: 0, bundle_ms: 0, render_ms: 0, total_ms: 0 }, warnings: [], plan,
   };
   await writeFile(record.record, JSON.stringify(record));
+}
+
+/** L5.12a: bits-v1's review (the Review report's station): a contact sheet, a scene sheet, three findings at frames. */
+export async function writeReview(dir: string): Promise<void> {
+  const rv = join(dir, 'review', 'bits-v1');
+  await mkdir(rv, { recursive: true });
+  for (const [f, c] of [['sheet_1fps.jpg', 'navy'], ['sheet_scene_a.jpg', 'teal']]) execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'lavfi', '-i', `color=c=${c}:s=960x270`, '-frames:v', '1', join(rv, f)]);
+  await writeFile(
+    join(rv, 'report.json'),
+    JSON.stringify({
+      version: 1,
+      clean: false,
+      counts: { error: 1, warning: 1, info: 1 },
+      review: { created_at: '2026-01-01T13:01:00.000Z', fps: 1 },
+      findings: [
+        { severity: 'warning', code: 'caption-too-long', message: 'The caption of scene a is long for its 2 s on screen', at: { frame: 30, segment: 'a', scene: 'a', step: 1 } },
+        { severity: 'info', code: 'video-length', message: 'the video lasts 6 s: shorter than the target of the reference look' },
+        { severity: 'error', code: 'blank-screen', message: 'the screen is blank for 0.5 s', at: { frame: 120, segment: 'b', scene: 'b', step: 0 } },
+      ],
+      files: { sheets: [join(rv, 'sheet_1fps.jpg')], scene_sheets: { a: [join(rv, 'sheet_scene_a.jpg')] }, keyframes: {} },
+    }),
+  );
 }
 
 /** The tour's workspace, server and browser (`prepare`: the caller's own changes to the workspace, e.g. fixture ports). */
@@ -120,6 +143,7 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     const v = await studio.engine.timeline.view({ project: 'demo', scenario: 'bits' });
     if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
     await writeRender(dir, v.plan as EditPlan, v.view.hash!);
+    await writeReview(dir);
     await writeThread(dir, { id: THREAD, scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The zoom starts too early', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
     // A second thread: the list has a row beside the current one (the current row's look is compared with it).
     await writeThread(dir, { id: THREAD2, scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The card could hold longer', anchor: { segment: 'c1', kind: 'card' } });

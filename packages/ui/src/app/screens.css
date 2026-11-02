@@ -1491,3 +1491,432 @@
 .rc-sev {
   font-weight: var(--ui-weight-strong);
 }
+
+/* L5.12a: Edit (R4-Edit) — the stage fills what the notes leave, the tracks under it; the inspector is the shell's. */
+.ed-screen {
+  display: grid;
+  grid-template-rows: auto minmax(240px, 1fr) auto auto;
+  gap: var(--ui-space-4);
+  min-height: 100%;
+  padding: var(--ui-space-5) var(--ui-space-7) var(--ui-space-5);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.ed-screen.is-plain {
+  grid-template-rows: none;
+  align-content: start;
+}
+.ed-top {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.ed-top:empty {
+  display: none;
+}
+.ed-stage-wrap {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto;
+  gap: var(--ui-space-3);
+  min-height: 0;
+}
+.ed-stage {
+  container-type: size;
+  display: grid;
+  place-items: center;
+  min-height: 160px;
+}
+.ed-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+}
+.pv-frame-box,
+.pv-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+/* The frame only displays: every control is the page's. */
+.pv-frame {
+  pointer-events: none;
+  background: var(--ui-video);
+}
+.ed-preview-note {
+  position: relative;
+  z-index: 1;
+  max-width: 80%;
+  margin: 0;
+  padding: var(--ui-space-3) var(--ui-space-5);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  text-align: center;
+}
+.ed-preview-note.ed-note-message {
+  display: grid;
+  gap: var(--ui-space-3);
+  justify-items: center;
+}
+.ed-preview-note p {
+  margin: 0;
+}
+.ed-caption {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ui-text-2);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ed-stage-wrap .k-toolbar {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.ed-time {
+  padding: 0 var(--ui-space-2);
+  color: var(--ui-text-2);
+  white-space: nowrap;
+}
+.ed-facts,
+.ed-keys {
+  margin: 0;
+  color: var(--ui-text-3);
+  text-align: center;
+}
+.ed-keys {
+  margin-top: var(--ui-space-3);
+  text-align: left;
+}
+.ed-tracks {
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.ed-scroll {
+  position: relative;
+  overflow-x: auto;
+}
+.ed-inner {
+  position: relative;
+  box-sizing: border-box;
+  min-width: 100%;
+  /* Room for a tick at the very end (its 24 px target is centred on its frame): the fit level never scrolls. */
+  padding-right: var(--ui-space-5);
+}
+.ed-inner > .k-playhead-layer {
+  right: var(--ui-space-5);
+}
+.ed-track-rows {
+  display: grid;
+}
+.ed-seg-comp {
+  color: var(--ui-text-3);
+}
+.ed-quiet {
+  margin: 0;
+  color: var(--ui-text-3);
+}
+.ed-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.ed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  margin: 0;
+}
+.ed-held,
+.ed-note-list,
+.ed-jobs {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-held li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+.ed-elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2) var(--ui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-elsewhere a {
+  color: var(--ui-link);
+}
+.ed-note-group {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-4);
+}
+.ed-h3 {
+  margin: 0;
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.ed-note-list a {
+  color: var(--ui-link);
+}
+.ed-job {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.ed-job-words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ed-job .k-progress {
+  flex: 1 1 160px;
+}
+.ed-renders {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.ed-render-list {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* The inspector (the shell's pane): what was just done stays on top while the switches scroll. */
+.ed-inspector {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-4);
+  padding: var(--ui-space-5) var(--ui-space-5) var(--ui-space-6);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+/* Sticky from the pane's very top (it takes back the inspector's top padding under its own background). */
+.ed-inspector-top {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: grid;
+  gap: var(--ui-space-3);
+  margin-top: calc(-1 * var(--ui-space-5));
+  padding-top: var(--ui-space-5);
+  background: var(--ui-pane);
+}
+/* Nothing to say (review B-L4): the line takes no room — no blank band above the segment — and stays a live region. */
+.ed-live:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.ed-inspector-top:not(:has(> :not(.ed-live:empty))) {
+  display: contents;
+}
+.ed-live {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.ed-switch {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  margin: 0 0 var(--ui-space-5);
+  padding: 0;
+  border: 0;
+}
+.ed-switch-legend {
+  margin: 0 0 var(--ui-space-2);
+  padding: 0;
+  color: var(--ui-text-2);
+  font-weight: var(--ui-weight-strong);
+}
+.ed-number {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-2);
+}
+.ed-seg-facts {
+  margin-bottom: var(--ui-space-1);
+}
+/* The status bar's line: what is on screen, the render; it gives way first (the buttons never do). */
+.ed-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ed-status-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The separator keeps its spaces (a flex item would trim them). */
+.ed-status-sep {
+  white-space: pre;
+}
+/* What is on screen reads as one line of words (review B-L3: no tag, its spaces its own — not a flex gap). */
+.ed-status-seg.ed-status-source {
+  display: block;
+  white-space: nowrap;
+}
+.k-statusbar .k-progress {
+  width: 120px;
+  flex: none;
+}
+/* A narrow window: what is on screen gives way first (the render line and the buttons stay). */
+@media (max-width: 1100px) {
+  .ed-status-seg.ed-status-source,
+  .ed-status-sep {
+    display: none;
+  }
+  .k-statusbar .k-progress {
+    width: 64px;
+  }
+}
+
+/* L5.12a: the Review report (R4-Review). */
+.rv-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-8);
+  max-width: 1200px;
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.rv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-5);
+}
+.rv-head-text {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.rv-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+}
+.rv-h1-version {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+}
+.rv-facts,
+.rv-verdict {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.rv-section {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.rv-h2 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.rv-quiet {
+  margin: 0;
+  color: var(--ui-text-3);
+}
+.rv-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.rv-checks {
+  display: grid;
+  gap: var(--ui-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.rv-checks:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-control);
+}
+.rv-family-group {
+  display: grid;
+  gap: var(--ui-space-1);
+}
+.rv-family-name {
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-strong);
+}
+.rv-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--ui-radius-frame);
+}
+.rv-frame {
+  min-height: 120px;
+  margin-bottom: var(--ui-space-3);
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+}
+.rv-frame .rv-quiet {
+  padding: var(--ui-space-6) var(--ui-space-4);
+  color: var(--ui-on-video);
+}
+.rv-check-head,
+.rv-check-message {
+  margin: 0 0 var(--ui-space-2);
+}
+.rv-check-message {
+  overflow-wrap: anywhere;
+}
+.rv-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  margin: var(--ui-space-3) 0 0;
+}
+.rv-pending,
+.rv-export {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.gl-tracks {
+  position: relative;
+  width: 100%;
+  padding: var(--ui-space-3);
+}

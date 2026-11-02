@@ -39,6 +39,12 @@ describe('the timeline keys (plan D11, critique "smaller points")', () => {
     const range = { tag: 'INPUT', type: 'range' };
     for (const key of ['ArrowLeft', 'ArrowRight', 'Home', 'End']) expect(keyAction({ key }, range), key).toBeNull();
     expect(keyAction({ key: ' ' }, range)).toEqual({ kind: 'toggle' });
+    // L5.12a fixes (review A-L2): on the scrubber [ / ] and Shift+← → do what the keys line says (the screen stops the
+    // range's own step).
+    expect(keyAction({ key: ']' }, range)).toEqual({ kind: 'segment', dir: 1 });
+    expect(keyAction({ key: '[' }, range)).toEqual({ kind: 'segment', dir: -1 });
+    expect(keyAction({ key: 'ArrowRight', shiftKey: true }, range)).toEqual({ kind: 'seconds', seconds: 1 });
+    expect(keyAction({ key: 'ArrowLeft', shiftKey: true }, range)).toEqual({ kind: 'seconds', seconds: -1 });
     // A button or a link: Space activates it; the arrows are the screen's.
     for (const tag of ['BUTTON', 'A', 'SUMMARY']) {
       expect(keyAction({ key: ' ' }, { tag })).toBeNull();

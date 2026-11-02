@@ -6,6 +6,8 @@
  * the only home of what it shows (`inline`: the Project screen's project facts, README, recent runs, a location's pages)
  * then renders it in place, in the centre pane, under a heading of its own.
  * L5.10b: `browser` — a screen replaces the browser's tree while it claims it (the scenario's scenes); the foot stays.
+ * L5.12a: `BrowserCollapsed` — a screen hides the browser pane while it is mounted (Edit, the Review report: R4 gives the
+ * preview and the report the width; the title bar's modes and ⌘K still go everywhere).
  */
 import { createContext, useContext, useEffect } from 'react';
 import type { ReactNode } from 'react';
@@ -19,6 +21,8 @@ export interface SlotHost {
   hidden?: Partial<Record<SlotName, boolean>>;
   /** Claims a slot while mounted; returns the release. */
   claim(name: SlotName): () => void;
+  /** L5.12a: hides the browser pane while held; returns the release. */
+  collapseBrowser?(): () => void;
 }
 
 export const SlotContext = createContext<SlotHost | null>(null);
@@ -35,4 +39,11 @@ export function ShellSlot({ name, children, inline }: { name: SlotName; children
   }
   const target = host?.targets[name];
   return target ? createPortal(children, target) : null;
+}
+
+/** L5.12a: the browser pane is hidden while this is mounted. */
+export function BrowserCollapsed() {
+  const host = useContext(SlotContext);
+  useEffect(() => host?.collapseBrowser?.(), [host]);
+  return null;
 }

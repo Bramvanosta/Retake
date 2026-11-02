@@ -38,6 +38,8 @@ export interface SegmentLink {
   /** The place; none: the segment is shown disabled. */
   to: Route | null;
   current: boolean;
+  /** L5.12a: a test id kept from an older screen (Review's Comments: `comments-tab`). */
+  testId?: string;
 }
 
 export function SegmentedLinks({ label, items, hint }: { label: string; items: SegmentLink[]; hint?: ReactNode }) {
@@ -48,7 +50,7 @@ export function SegmentedLinks({ label, items, hint }: { label: string; items: S
     <nav className="k-seg k-seg-md k-seg-links" aria-label={label}>
       {items.map((i) =>
         i.to ? (
-          <a key={i.key} href={hrefTo(i.to)} className={i.current ? 'k-seg-item is-current' : 'k-seg-item'} aria-current={i.current ? 'page' : undefined}>
+          <a key={i.key} href={hrefTo(i.to)} className={i.current ? 'k-seg-item is-current' : 'k-seg-item'} aria-current={i.current ? 'page' : undefined} data-testid={i.testId}>
             <span className="k-seg-label">{shown(i.label)}</span>
           </a>
         ) : (

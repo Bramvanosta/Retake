@@ -21,7 +21,7 @@
  * element with a control role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned
  * exceptions, keyed by exact attributes and their source line), no spread onto a non-native element, no <a> without a
  * real href, no positive tabIndex; no outline removed, transparent or faded without an accent ring in its place, and
- * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9); no colour
+ * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9, three since L5.12a); no colour
  * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { execFileSync } from 'node:child_process';
@@ -43,7 +43,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, Checklist, ChecklistItem, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, RadioGroup, RowCard, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TerminalCommands, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, CommandPalette, ContactSheet, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -828,18 +828,19 @@ const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.t
 /** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
 const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
 // (L5.9: the names say "light" from L4.9; the sets hold by role in both appearances.)
-const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'unusable', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'outro-tint', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'card-tint', 'veil'];
+const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'link-hover', 'code-bg', 'faint', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'warning-faint', 'info-soft', 'success-soft', 'input-tint', 'veil'];
 const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
   { text: TEXT_ON_LIGHT, on: LIGHT_BG },
-  // L5.9 (critique H3): a tooltip's background is its own token (--fg is text, and light in dark); primary fills too.
-  { text: ['on-ink', 'on-ink-muted', 'on-ink-link'], on: ['ink', 'ink-soft', 'tooltip-bg', 'ink-veil'] },
+  // L5.9 (critique H3): text on the ink (a stale frame's veil); primary fills too. (L5.12a: the timeline's tooltip and its
+  // link colour left with its legacy rules.)
+  { text: ['on-ink', 'on-ink-muted'], on: ['ink', 'ink-soft', 'ink-veil'] },
   { text: ['on-accent'], on: ['accent-fill', 'accent-strong-fill'] },
   { text: ['ink'], on: ['mark-on-video'] },
 ];
 /** Pairs of those sets that never meet (a rule declaring one together still fails). */
-const NOT_MEANT: Array<[string, string, string]> = [['on-ink-link', 'ink-veil', 'the link colour is for tooltips on --tooltip-bg; the veil over a stale frame carries --on-ink text only']];
+const NOT_MEANT: Array<[string, string, string]> = [];
 /** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead). */
-const NON_TEXT_BG = ['accent-clear', 'accent-fade', 'success-fade', 'backdrop', 'danger', 'muted'];
+const NON_TEXT_BG = ['backdrop', 'danger', 'muted'];
 /** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
 const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
@@ -919,7 +920,7 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'CommentsScreen.tsx', tag: 'div', attrs: { 'data-testid': '"viewer-frame"', onPointerDown: '{onDown}' }, line: '<div', why: 'the region drag on the frame; its keyboard alternative is the four % fields' },
   { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
   { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
-  { file: 'TimelineInspector.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"tl-radios"', onKeyDown: '{roveKeys}' }, line: 'className="tl-radios" role="radiogroup"', why: 'the roving arrow keys of a radio group; its checked radio holds the tab stop' },
+  { file: 'ui-kit/ChoiceChips.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"k-chips"', onKeyDown: '{rove}' }, line: '<div className="k-chips" role="radiogroup"', why: "L5.12a (was TimelineInspector.tsx's tl-radios): the roving arrow keys of the kit's choice chips; its checked chip holds the tab stop" },
   { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
   { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
@@ -1029,7 +1030,8 @@ function focusLint(rules: CssRule[]): string[] {
 const VAR_REF = /var\((--[\w-]+)/g;
 
 /** The faded states app.css accepts (its header): inactive or transient only. */
-const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".tl-radios[aria-disabled='true'] .tl-radio", ".th-color input[type='color'].is-unset"];
+/** L5.12a: the switched-off group's fade left with the timeline's legacy chips (the kit's are dashed, no opacity). */
+const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".th-color input[type='color'].is-unset"];
 
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
@@ -1241,7 +1243,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }', '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it('⚑ opacity below 1 only on the four accepted states (a disabled control, a dragged step, a switched-off group, an unset colour well); none in the kit', async () => {
+  it('⚑ opacity below 1 only on the three accepted states (a disabled control, a dragged step, an unset colour well); none in the kit', async () => {
     const rules = cssRules(await appCss());
     const faded = rules.filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => r.selector);
     expect(faded.sort()).toEqual([...OPACITY_ACCEPTED].sort());
@@ -1273,6 +1275,9 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
         REAL_CONTROL_EXCEPTIONS.splice(0, REAL_CONTROL_EXCEPTIONS.length, ...saved);
       }
     }
+    // L5.12a (M1): the radio-group exception moved with its element into the kit — one such group app-wide, so the move
+    // could not leave a second, unexcused copy behind (a screen's own role="radiogroup" is a ratchet finding as well).
+    expect(files.filter(([, text]) => /<\w+\s[^>]*\brole="radiogroup"/.test(code(text))).map(([f]) => f)).toEqual(['ui-kit/ChoiceChips.tsx']);
     // The lint catches each planted case.
     for (const [line, what] of [
       ['<span onClick={go}>x</span>', 'not a control'],
@@ -1464,6 +1469,15 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       // L5.11b: Record's kit additions (a radio group, a compact row card with a word on the right).
       createElement(RadioGroup, { legend: K('rglegend'), value: 'a', onChange: go, options: [{ value: 'a', label: K('rglabel'), detail: K('rgdetail'), aside: K('rgaside') }] }),
       createElement(RowCard, { compact: true, tile: K('crtile'), title: K('crtitle'), meta: K('crmeta'), aside: K('craside'), selected: true, onSelect: go }),
+      // L5.12a: Edit's and the Review report's kit additions (chips, tracks, the scrubber, a contact sheet, a tag, a number field).
+      createElement(ChoiceChips, { labelledBy: 'l', chips: [{ key: 'a', label: K('chlabel'), value: 'a', checked: true }, { key: 'b', label: K('chlabel2'), value: 'b', checked: false, disabled: true, why: K('chwhy') }], onPick: go }),
+      createElement(Track, { name: K('trname'), testId: 't', count: 1, children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p', onActivate: go, tip: K('trtip'), children: K('tritem') }) }),
+      createElement(Scrubber, { time: K('sctime'), max: 9, value: 0, valueText: K('scvalue'), onChange: go, marks: [{ at: 0.5, label: K('scmark') }] }),
+      createElement(ContactSheet, { items: [{ key: 'a', name: 'Sheet', label: K('cslabel'), meta: K('csmeta'), picture: K('cspic'), state: 'ok' }, { key: 'b', name: 'Sheet 2', label: K('cslabel2'), picture: null, words: K('cswords'), state: 'error' }] }),
+      createElement(Tag, { children: K('tag') }),
+      createElement(NumberField, { label: K('nflabel'), hint: K('nfhint'), error: K('nferror'), value: '1', onChange: go }),
+      // L5.12a fixes (review A-L5): a row card that is a link.
+      createElement(RowCard, { compact: true, tile: K('lrtile'), title: K('lrtitle'), meta: K('lrmeta'), selected: true, to: { name: 'projects' } }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
@@ -1474,7 +1488,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1775,5 +1789,27 @@ describe('L5.11b: Record', () => {
     // The four commands, one owner while the recording goes (a reload included: `live` is true before the view is read).
     for (const id of ['stop', 'rehearse', 'capture', 'render']) expect(text).toMatch(new RegExp(`useShellCommand\\('${id}', [^,]+, PRIORITY\\.recording, live\\)`));
     expect(text).toMatch(/const live = v \? LIVE_STATES\.has\(v\.state\) : error === null;/);
+  });
+});
+
+// ── L5.12a: Edit and the Review report (R4-Edit, R4-Review) ──────────────────────────────────────────────────────────
+
+/** The rebuilt Edit / Review files (L5.12a fixes, review A-M3): every value from data through Txt / a kit slot. */
+const EDIT_REVIEW_SIDE = ['TimelineScreen.tsx', 'TimelineInspector.tsx', 'TimelineTracks.tsx', 'EditPreview.tsx', 'EditStatus.tsx', 'EditNotes.tsx', 'ReviewScreen.tsx', 'Renders.tsx'];
+
+describe('L5.12a: Edit and the Review report', () => {
+  it('⚑ every value from data is text: each JSX child of Edit\'s and the Review report\'s files goes through Txt / shown / a kit slot (a planted bare scenario name or finding code fails it)', async () => {
+    const files = (await appSources()).filter(([f]) => EDIT_REVIEW_SIDE.includes(f));
+    expect(files.map(([f]) => f).sort()).toEqual([...EDIT_REVIEW_SIDE].sort());
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    // The review's mutations: the scenario name from the address bar in Edit's h1 as a template, a finding's code bare.
+    const edit = files.find(([f]) => f === 'TimelineScreen.tsx')![1];
+    const h1 = edit.replace("<Txt text={name} />\n      {' — Edit'}", '{`${name} — Edit`}');
+    expect(h1).not.toBe(edit);
+    expect(kitBareText('TimelineScreen.tsx', h1)).toEqual([expect.stringContaining('{`${name} — Edit`}')]);
+    const report = files.find(([f]) => f === 'ReviewScreen.tsx')![1];
+    const code = report.replace('value: <Txt className="k-mono" text={finding.code} /> }', 'value: <span className="k-mono">{finding.code}</span> }');
+    expect(code).not.toBe(report);
+    expect(kitBareText('ReviewScreen.tsx', code)).toEqual([expect.stringContaining('{finding.code}')]);
   });
 });

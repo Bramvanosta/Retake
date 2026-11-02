@@ -4,6 +4,8 @@
  * comments. "A scenario in context": the route's own, or — on a route of its project (overview, README, components,
  * themes, Record) — the last scenario this tab opened in that project, while the project still has it. With none, the
  * four are shown disabled.
+ * L5.12a: Review has two views — the Review report (`#/…/review[/<render>]`, first) and the frame comments — and the mode
+ * opens the one this tab used last (module memory, like the last scenario: `reviewView`).
  */
 import type { Route } from '../route.js';
 
@@ -39,6 +41,19 @@ export const contextWatch = {
   },
   version: () => version,
 };
+
+/** L5.12a: Review's two views, and the one this tab used last (the Review mode opens it; the report first). */
+export type ReviewView = 'report' | 'comments';
+let lastReview: ReviewView = 'report';
+/** Note the Review view a route shows (the Review mode opens it next); any other route leaves the memory alone. */
+export function noteReviewView(route: Route): void {
+  if (route.name === 'review') lastReview = 'report';
+  else if (route.name === 'comments') lastReview = 'comments';
+}
+/** The Review view the mode opens. */
+export function reviewView(): ReviewView {
+  return lastReview;
+}
 
 /** The project a route belongs to, or null. */
 export function slugOf(route: Route): string | null {
@@ -84,6 +99,7 @@ export function modeOf(route: Route, ctx: ScenarioContext | null): Mode | null {
     case 'proposal':
       return 'edit';
     case 'comments':
+    case 'review':
       return 'review';
     default:
       return null;
@@ -100,7 +116,7 @@ export function modeTarget(mode: Mode, ctx: ScenarioContext): Route {
     case 'edit':
       return { name: 'timeline', slug: ctx.slug, scenario: ctx.scenario };
     case 'review':
-      return { name: 'comments', slug: ctx.slug, scenario: ctx.scenario };
+      return lastReview === 'comments' ? { name: 'comments', slug: ctx.slug, scenario: ctx.scenario } : { name: 'review', slug: ctx.slug, scenario: ctx.scenario };
   }
 }
 

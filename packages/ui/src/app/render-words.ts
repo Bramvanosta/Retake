@@ -7,6 +7,9 @@
 import type { RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@demo-studio/engine';
 import type { StudioEvent } from './events.js';
 
+/** Why Render is off on a proposal's preview (Edit and the status bar say it the same, in every state of Edit). */
+export const PROPOSAL_RENDER = 'Previewing a proposal: apply it (Apply and re-render renders it)';
+
 /** "v3" of "quote-v3", "v3 vertical" of "quote-v3-vertical" (the id itself when it is not one). */
 export function versionWords(renderId: string): string {
   const m = /-v(\d+)(?:-(vertical|square))?$/.exec(renderId);

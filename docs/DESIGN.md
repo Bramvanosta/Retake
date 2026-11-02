@@ -4645,6 +4645,88 @@ Opened before any request on Prepare (it knows `confirm`), on the server's 409 `
 page `<dialog>`, not a native sheet (§4j's native sheets are for the server's own asks: L5.12): the question is the
 page's. A protected location is no sheet: it is a blocker with its terminal command (the Studio has no approver).
 
+## 4n. Edit and the Review report (L5.12a)
+
+R-UI-45, R-UI-46. « Épure » 4a. Reference: R4-Edit, R4-Review (layout and drawing; "Retake" read as `APP_NAME`). Built
+from the lot's plan corrected by its critique and the lead's decisions (H2 Edit's own Render, M1 lints re-pointed by
+name with an app-wide count, M3 the MP4 export as a job, M4 this part's own a11y stations and legacy CSS, M5 cuts, M6
+Cancel and the version note on Edit). A rebuild: every capability of L4.5's TimelineScreen / TimelineTracks /
+TimelineInspector / PreviewFrame / Renders is kept (the Player on its own origin with the literal sandbox, no IPC; the
+seek loop, the keys, the 409 offer, undo by exact bytes, the workspace-component hold, the lease, deep links, comment at
+the playhead, pins). Cuts: BL-132.
+
+**Shell.** `BrowserCollapsed` (slots.tsx): a screen hides the browser pane while mounted (`.sh-app[data-browser=none]`,
+the grid drops the column). Route `review` — `#/p/<slug>/s/<name>/review[/<render id>]`, the render id of a render id's
+shape (`RENDER_ID` = core `RENDER_ID_RE`) or not found; `modeOf` → review; `modeTarget('review')` → the Review view
+this tab used last (`noteReviewView`, the report first). The View (`ReviewViews`: Report · Comments (n open), counted by
+`threads_counts`) sits in the title bar's context on both views (the comments screen keeps its own tabs until L5.12b).
+
+**Edit** (`TimelineScreen.tsx` keeps the one `<PreviewFrame` with `url={urls.frame}` and the checked-URL line — the
+source lint pins them by name; `EditPreview.tsx` the stage, overlays and transport around it; `TimelineTracks.tsx` on
+the kit's Track / TrackItem; `TimelineInspector.tsx` on ChoiceChips / NumberField / Callout; `EditNotes.tsx`;
+`EditStatus.tsx`). The tracks are memoised and take no playhead: the Scrubber and the Playhead are the screen's, drawn
+over the lanes, so ten seeks on a 1,200-step take render no track item (studio-e2e-edit-budget counts React's commits).
+The inspector's top (the switch's words, a refusal, the 409 offer) is sticky in the shell's pane; the selected segment
+is said in the inspector's own polite region; an undo / redo asked while a switch is written is queued, said ("Saving…
+Undo in a moment") and run once its view lands (BL-122). Edit fills the status bar's actions: what is on screen, the
+render line (polite: the job's words, the newest failure, "Latest: vN · verdict · from this version", a render this tab
+queued "reviewed"), Cancel the render (Stop stays for runs), Undo · Redo, Render. **Edit owns `render` at
+`PRIORITY.screen`** (H2): ⌘B and the palette run `useRenders().render(target)` — the capture and the file as shown
+(`expect_edit_sha256`), refused and re-read on a 409 change (`render-refused` Callout, `onStale`), one at a time,
+"Render the take as captured" on such a take; on a proposal's route the target is a reason: said, nothing queued.
+Show in Edit hands over through `edit-handoff.ts` (module memory, taken once): Edit seeks to the finding's frame only
+when that render is of the version it plans (`versionNote(…).same`: the same plan signature and theme files), else to
+the step, with a note.
+
+**The Review report** (`ReviewScreen.tsx`, `review-words.ts`). Reads only what existed: `scenario_renders`,
+`render_review`, `review_image` (one at a time: the next once the one before answered), `render_frame` (FrameRequests:
+one in flight, the newest wins; this tab's session), `threads_counts`, `activity_list` (the export's state, path-free),
+and the status bar's shared `scenario_actions` entry (the file's hash and the latest capture: Render again). The check
+families are a page-side table total over the review package's FINDING_CODES (a test); a family with nothing found is
+not listed — the report never says "passed" (a review records findings, not the checks that ran: BL-132). Checks are
+one RowList listbox, each family a `role=group`, RowCard options; the selection drives the inspector. An unknown render
+id is an empty state; nothing is read with it. Render on the report re-renders the scenario (its latest capture, the
+file on disk) through useRenders — the same refusals —, and a render queued there opens its report once reviewed.
+
+**`review_export`** (ops.ts renderOps; Studio-only, in the `ui` allow-list, never an MCP tool): strict input `{project,
+render_id}` (a render id's shape); queues the engine's existing `export` job with `formats: ['mp4_1080p']` into the
+fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job while one is queued or running) and at most
+`REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2
+exports are already queued or running"); the check and the submit run in one op chain for the whole workspace
+(`'review_export'`), so two clicks, two tabs or two renders never interleave (the race is tested: two calls at once on a
+render with no export yet give one job). The worker runs one job at a time anyway (one worker per workspace, its lock):
+the cap keeps one page from queueing an export — possibly a re-render — of every render. The answer is path-free (`job`,
+`state`, `formats`, `where` in words). The raw capture stays a command to copy, built only from a slug and a run id that
+pass their rules (`rawExportCommand`).
+
+**Kit additions** (gallery entries in both appearances, the hostile-slot SSR test): `ChoiceChips` (roving radio group of
+buttons; a disabled chip `aria-disabled` and focusable with its reason; the real-controls exception re-keyed to it and
+one `role="radiogroup"` app-wide), `Track` / `TrackItem` / `Scrubber` / `Playhead` (tracks.tsx), `ContactSheet`, `Tag`,
+`NumberField`; `Progress`, `RowListItem`, `LinkButton`, `SegmentedLinks` gained test ids / a label; icons zoom-in,
+zoom-fit, export. Legacy: Timeline* / PreviewFrame / Renders leave the ratchet (−294); their app.css rules went (the
+theme editor's `tl-undo`, `tl-preview-note`, `held-list` stay) with the 12 legacy tokens only they used.
+
+**Fixes after the two reviews.** Render on a proposal's route is refused in every state of Edit: the status bar's
+`renderWhy` says `PROPOSAL_RENDER` on route `proposal` (its button off, ⌘B said) and Edit's loading / error / blocked
+states own `render` at `PRIORITY.screen` with the same words (A-M1). An undo / redo queued behind a write that fails or
+meets a 409 is dropped and said once ("Undo cancelled: the switch was not saved…"), never run against the switch before
+(A-M2). Every value from data in the eight Edit / Review files goes through Txt — the h1 names the scenario as text,
+the finding's code too — under an app-source lint (`EDIT_REVIEW_SIDE`) (A-M3). Show in Edit's "made from another
+version" note only when the render is listed AND differs; a finding with no frame on this version goes to its step or
+stays, silently; a render no longer listed goes to the step, no frame trusted (B-M1). The pending ask is dropped by a
+route anywhere but that scenario's Edit (`editSeekRouteChanged` on hashchange) and by an Edit that cannot show the take,
+whose error / blocked states keep the browser collapsed (A-L6, A-L7). The export part re-reads the activity on its own
+project's jobs only (`exportReadsOn`, A-L1). On the scrubber `[ ]` and Shift+← → are the screen's (A-L2). Track items
+are 24 px targets: 24 px tall, a centred 24 px hit area under a narrower span (`::before`; the button no longer clips),
+the ticks of a lane nudged apart by `spaceTicks` while it has room (a ResizeObserver per lane with ticks; a crowded
+lane keeps them on their frames) (A-L3). ContactSheet's toggle keeps one name (A-L4). Render rows are links
+(`RowCard to`, `aria-current`) (A-L5). The report's status bar says "Rendered · when · vN" with the neutral `idle` mark
+(B-L1); renders sharing their "when" words show their time of day (`sharedWhen`, `clockWords`) (B-L2); Edit's status
+line is plain words (B-L3); the inspector's empty answer line takes no room (`.ed-live:empty` visually hidden, the top
+`display: contents` while it holds nothing) and its general hint is last (B-L4); the transport's Toolbar
+`clickLeavesKeys`: after a click focused one of its buttons (Chromium), the arrows, Home and End stay the playhead's
+(B-L5); the unused `mp4ExportCommand` went (B-L7).
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

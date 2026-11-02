@@ -12,6 +12,8 @@
  * - a take encoded as the capture encodes (libx264, H.264): Playwright's Chromium cannot play it — the real message
  *   (critique B14), no frame, the tracks and the scrubber still working, the codec and the slow-scrub note shown.
  * - L5.9 (review B-M1): inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
+ * - L5.12a (R4-Edit): Edit in the shell — the Mode's Edit current, the browser pane hidden, no tabs (the modes and the
+ *   title bar replace them); the rows are the kit's tracks (`[data-testid^="track-"]`), the preview `[data-testid=preview]`.
  * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -133,8 +135,9 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     expect(await page.locator(`text=${RUN}`).count()).toBeGreaterThan(0);
     await page.getByTestId('tracks').waitFor();
     expect(await page.title()).toBe('bits · Timeline · Demo Studio');
-    // L5.10b fixes (review B L2): its link back to the scenario says "Board", as the scenario's View does.
-    expect(await page.getByRole('navigation', { name: 'Scenario views' }).getByRole('link').allInnerTexts()).toEqual(expect.arrayContaining(['Board', 'YAML']));
+    // L5.12a: Edit in the shell — the Mode says Edit, the browser pane is hidden (the stage takes the width), no tabs.
+    expect(await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).getAttribute('aria-current')).toBe('page');
+    expect(await page.locator('.sh-app').getAttribute('data-browser')).toBe('none');
 
     const m = plan.view.model;
     expect(await page.getByTestId('tl-segment').evaluateAll((els) => els.map((e) => e.getAttribute('data-id')))).toEqual(m.segments.map((s) => s.id));
@@ -185,11 +188,14 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
       // clears the centre pane's.
       const rows = await page.evaluate(() => {
         const pane = document.getElementById('main')!.getBoundingClientRect();
-        const preview = document.querySelector('.tl-preview')!.getBoundingClientRect().height;
+        const preview = document.querySelector('[data-testid="preview"]')!.getBoundingClientRect().height;
         const before = Math.min(0.44 * innerHeight, 460) - preview;
-        const tops = [...document.querySelectorAll('[data-testid="tracks"] .tl-row')].map((r) => r.getBoundingClientRect().top - pane.top);
-        const tracks = document.querySelector('[data-testid="tracks"]')!.getBoundingClientRect().top - pane.top;
-        return { now: tops.filter((t) => t < pane.height - 8).length, then: tops.filter((t) => t + before < innerHeight - 8).length, seen: pane.height - tracks, seenThen: innerHeight - (tracks + before), preview };
+        const tops = [...document.querySelectorAll('[data-testid="tracks"] [data-testid^="track-"]')].map((r) => r.getBoundingClientRect().top - pane.top);
+        const box = document.querySelector('[data-testid="tracks"]')!.getBoundingClientRect();
+        const tracks = box.top - pane.top;
+        // L5.12a: Edit's stage fills what the tracks leave — the tracks' whole height in the pane counts as "as much".
+        const whole = box.bottom - pane.top <= pane.height + 1;
+        return { now: tops.filter((t) => t < pane.height - 8).length, then: tops.filter((t) => t + before < innerHeight - 8).length, seen: whole ? Infinity : pane.height - tracks, seenThen: innerHeight - (tracks + before), preview, whole };
       });
       await shot(`timeline-shell-dark-${width}`);
       const why = `${width}×${height}: ${JSON.stringify(rows)}`;
@@ -282,6 +288,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await blur();
     await page.keyboard.press(' ');
     await expect.poll(() => page.getByTestId('play').innerText(), POLL).toBe('Pause');
+    await shot('timeline-playing');
     await sleep(800);
     await page.keyboard.press(' ');
     await expect.poll(() => page.getByTestId('play').innerText(), POLL).toBe('Play');

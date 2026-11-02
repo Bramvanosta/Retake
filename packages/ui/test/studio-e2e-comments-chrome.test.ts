@@ -290,8 +290,9 @@ describe.skipIf(!gated)('frame comments on the fixture product in the installed 
     expect(ids.frame - pinAt).toBeLessThan(5 * 30);
     await expect.poll(async () => Number(await page.getByTestId('preview').getAttribute('data-frame')), POLL).toBe(pinAt);
     await expect.poll(() => page.getByTestId('preview').getAttribute('data-loading'), POLL).toBe('no');
-    // The switched-off chips are greyed (part E's nit), and the banner never applies (review A M1).
-    expect(Number(await page.locator('[data-testid="inspector"] .tl-radio.is-checked').first().evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1);
+    // The switched-off chips look off (part E's nit; L5.12a: the kit's chips are dashed, the checked one too), and the
+    // banner never applies (review A M1).
+    expect(await page.locator('[data-testid="inspector"] [role="radiogroup"][aria-disabled="true"] [role="radio"][aria-checked="true"]').first().evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('dashed');
     await page.getByTestId('banner-back').waitFor(POLL);
     expect(await page.locator('[data-testid="proposal-banner"] button').count()).toBe(0);
     expect(await readFile(scenarioFile(), 'utf8')).toBe(before);

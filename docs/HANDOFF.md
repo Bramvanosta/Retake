@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.11 (Studio « Épure » 3: Shoot; L5.11a + L5.11b)** — phases
+Last updated: 2026-11-02, end of lot **L5.12a (Studio « Épure » 4a: Edit and the Review report)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.11 done). **Next: L5.12 (Studio « Épure » 4: Edit, Review and the rest), only when the user
-asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.11, L5.12a done). **Next: L5.12b (frame comments, Claude's proposal, README, ⌘K), then L5.12c and
+L5.12d — L5.12 was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -30,7 +30,29 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.11b)
+## State (after L5.12a)
+- **L5.12a done (2026-11-02)** — L5.12 is split in four (the plan sized it L+: a Edit and the Review report, b comments /
+  proposal / README / ⌘K, c Library and the theme editor, d the quit sheet and the end of the legacy layer). **Edit** in
+  the shell from R4-Edit: the pinned PreviewFrame (the Player on its own origin, unchanged) with EditPreview / EditStatus
+  / EditNotes, the tracks on new kit pieces (Track / TrackItem / Scrubber / Playhead; the playhead never re-renders the
+  tracks: 0 track renders over 10 seeks on a 1,200-step scenario), the inspector on kit ChoiceChips (the selected segment
+  first and announced; ⌘Z while a switch is written is queued and said, dropped and said if that write fails), the
+  browser pane collapsed. Edit owns Render at screen priority through `useRenders` (refused on a proposal route in every
+  state — never renders the file on disk; a 409 re-reads), Cancel render and the latest render's version note in its
+  status bar. **The Review report** (`#/…/review[/<render id>]`, a malformed id is not found; Report first, the View
+  switch Report · Comments in the title bar): counts in words, never "passed"; contact sheets one at a time; checks
+  grouped by family (a `role=group` each in one listbox); the selected check's frame and Show in Edit (seeks only on the
+  same version); the renders list (newest first, links); Render again; **Export video (MP4)** through a new Studio-only
+  op `review_export` (the existing engine export job, MP4 1080p into the fixed `exports/<render id>/`, path-free, one per
+  render and at most 2 open across the workspace); the raw capture stays a copied command. The scenario's renders card is
+  on the kit. Ratchet −294 (Timeline*, PreviewFrame, Renders → 0), their legacy CSS and 12 legacy tokens removed. Tests
+  on the Mac: **4023 — 3936 pass, 84 skipped, 3 failures in the one full run** (the op allow-list test missing
+  `review_export`; the keyboard-only path, real: a Player frame left a delayRender handle open when two loads came in a
+  row and never said "settled" — fixed in `player/frame-main.tsx`; a scenario-screen read count that passed alone, under
+  load); every failed file green again alone; `pnpm test:slow` 65/65; the gated Chrome timeline / comments, themes and
+  R-ACC4-01 acceptances green once each. Requirements: 665 tracked — 624 done (R-UI-45 / R-UI-46 added), 27 partial, 8 todo, 6
+  n/a-here. Live checks for the user: MACOS-CHECKLIST 14e (the H.264 preview, ⌘B from the menu, VoiceOver, an export
+  landing in exports/).
 - **L5.11b done (2026-11-02)** — L5.11 is complete. The Record screen rebuilt on the kit inside the shell from
   R4-Record: the start form in the centre (Location / Page / Persona selects, Path / Name fields), the Recordings group in
   the Shoot browser (live state, location, step count, Open the saved scenario); the live recording — the draft as one
@@ -560,8 +582,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.12 (Studio « Épure » 4: Edit, Review and the rest) per the roadmap**, only when the user asks (L5.11 is
-done). **Decided
+**Next: L5.12b (frame comments, Claude's proposal, README, ⌘K), then L5.12c and L5.12d** — the user asked for L5.12
+as a whole (L5.12a is done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1527,6 +1549,20 @@ sandbox, a hook step and compact results through Claude Code).
   `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
   (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
   a save back). Cuts: BL-131.
+- **L5.12a done** (Edit and the Review report; R-UI-45, R-UI-46). Planned (L+ → four parts), criticised (Edit's Render
+  through the status bar would have rendered the file on disk from a proposal and lost RenderBar's refusals; exports
+  only as copied commands did not deliver the roadmap's export; lints pinned to files the split moves), built in a
+  worktree, e2e files migrated under `scripts/test-guard.mjs` (7 decreases, each explained: render-row / review-panel /
+  finding-seek moved to the report, the conflict check on the shell's inspector, timeline test 2's height check, the
+  opacity lint 4 → 3 states, the gallery's measured exempt counts), reviewed by two reviewers (Render from a proposal
+  while Edit was loading; a queued ⌘Z undoing the wrong switch after a failed write; the scenario name and finding codes
+  shown bare; a false "made from another version" note; an export race test that raced nothing; "Render succeeded"
+  beside "1 error"…) and fixed with mutation-checked tests (15 + 23 mutations caught; 1 survived by design: Edit's
+  early-state Render owner is a second guard behind the status bar's refusal). Files: ui `TimelineScreen.tsx`,
+  `EditPreview.tsx`, `EditStatus.tsx`, `EditNotes.tsx`, `TimelineInspector.tsx`, `TimelineTracks.tsx`, `ReviewScreen.tsx`,
+  `review-words.ts`, `edit-handoff.ts`, `Renders.tsx`, `route.ts`, `shell/modes.ts` / `StatusActions.tsx` / `slots.tsx`,
+  ui-kit `ChoiceChips`, `tracks.tsx`, `ContactSheet`, `Tag`, `NumberField`; server `ops.ts` (`review_export`). Cuts:
+  BL-132.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1794,6 +1830,20 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.12a:
+- Edit owns `render` at PRIORITY.screen in every state (loading, error, blocked, ready) and the status bar's
+  `renderWhy` also refuses on a proposal route: two guards on purpose (a proposal never renders the file on disk).
+- The playhead is an overlay: never pass `frame` into the tracks (studio-e2e-edit-budget counts track renders).
+- A queued undo / redo behind a switch write is dropped and said when that write fails or conflicts; a pending "Show in
+  Edit" seek is dropped on a route change or an error state.
+- `review_export` runs on one workspace chain: one export per render, at most `REVIEW_EXPORTS_OPEN` (2) open across the
+  workspace (CLI and Claude exports count); the answer carries no path. The raw capture is a command built only from
+  ids passing the slug rules.
+- The Review report never says "passed" (the review does not record which checks ran); "Rendered" is a state word in
+  the a11y checker (`STATE_WORDS`).
+- Every Edit / Review file is under the app-source "every value from data is text" lint (EDIT_REVIEW_SIDE); new screens
+  join such a lint from their first commit.
+
 Notes from L5.11b:
 - On the Record route a live recording holds stop / rehearse / capture / render at PRIORITY.recording from the first
   paint (before the view is read), so ⌘. after a reload reaches `record_stop`. Ownership is per route by design: on

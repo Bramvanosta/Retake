@@ -614,7 +614,7 @@ describe.skipIf(!canRun)("Claude's proposal in Chromium (L4.6 part D2, T14b)", (
     await page.getByTestId('proposal-banner').waitFor(POLL);
     expect(await page.getByTestId('proposal-banner').getAttribute('data-shown')).toBe('yes');
     await expect.poll(() => page.getByTestId('tl-caption').first().innerText(), POLL).toBe('Each frame shows its number.');
-    expect(await page.getByTestId('timeline-source').innerText()).toContain('proposed edit');
+    expect(await page.getByTestId('timeline-source').innerText()).toContain('The edit Claude proposed');
     expect(await page.getByTestId('render').isDisabled()).toBe(true);
     // ⚑ The banner never applies (review A M1): no diff is shown there.
     await page.getByTestId('banner-back').waitFor(POLL);

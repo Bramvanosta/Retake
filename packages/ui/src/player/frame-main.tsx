@@ -10,7 +10,10 @@
  *   the plan's components — each lazily, its own `import()` (critique B3): one that throws at load or is not in the
  *   bundle is `missing` (its kind's scaffold draws, a warning says so) — then mounts the Player, muted, at `frame`.
  * - `settled {frame}` once paused at a frame with nothing pending: no delayRender handle, every video ready and not
- *   seeking, fonts and images loaded, for two polls in a row (critique B8: the Player itself waits for nothing).
+ *   seeking, fonts and images loaded, for two polls in a row (critique B8: the Player itself waits for nothing). L5.12a
+ *   fixes: a delayRender handle an earlier Player left behind (a load that replaced it while it was still loading: its
+ *   video never continued it) is not this one's to wait for — two loads in a row no longer leave "Loading the preview…"
+ *   for ever.
  * - Preview mode (PreviewContext): a theme font that fails is a warning, never a blank preview.
  * - A workspace component the person has not allowed in this Studio session is not in the bundle at all (`held`, review
  *   A H1 c): its uses draw their kind's stand-in, and the warning says it was not run.
@@ -104,6 +107,9 @@ const shown = latest<Mounted | null>(null);
 let settleTarget: number | null = null;
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 let settledStreak = 0;
+/** The delayRender handles open when the current plan was mounted: an earlier generation's, never continued once its Player is gone. */
+let staleHandles = new Set<unknown>();
+const delayHandles = (): unknown[] => (window as unknown as { remotion_delayRenderHandles?: unknown[] }).remotion_delayRenderHandles ?? [];
 let lastFrameSent = -1;
 let framePending = false;
 
@@ -234,6 +240,8 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
   const Video = (vp: Record<string, unknown>) => h(ModulesContext.Provider, { value: modules }, h(PreviewContext.Provider, { value: previewMode }, h(Composition, vp)));
   const frame = Math.min(m.frame, plan.durationInFrames - 1);
   mounted = { gen, plan, Video, props, loop: isPreview, frame };
+  // Every handle open now belongs to an earlier Player (this one has not rendered yet): not waited for.
+  staleHandles = new Set(delayHandles());
   shown.set(mounted);
   send({
     type: 'loaded',
@@ -249,8 +257,7 @@ async function load(m: Extract<ParentMessage, { type: 'load' }>): Promise<void> 
 // ── settled ──────────────────────────────────────────────────────────────────
 
 function quiet(): boolean {
-  const w = window as unknown as { remotion_delayRenderHandles?: unknown[] };
-  if ((w.remotion_delayRenderHandles?.length ?? 0) > 0) return false;
+  if (delayHandles().some((x) => !staleHandles.has(x))) return false;
   if (document.fonts.status !== 'loaded') return false;
   for (const v of Array.from(document.querySelectorAll('video'))) if (v.readyState < 2 || v.seeking) return false;
   for (const i of Array.from(document.images)) if (!i.complete) return false;

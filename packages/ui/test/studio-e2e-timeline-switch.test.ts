@@ -13,6 +13,9 @@
  * - another writer changes the file while the screen shows the old version: the switch is a 409 — "Your switch … was
  *   not applied" — the file keeps the other writer's bytes; Apply it to the new version writes it on them; a value the
  *   other writer changed is refused as stale (never overwritten).
+ * - L5.12a (BL-122): ⌘Z pressed while a switch is still being written is queued and said, then undoes it once its view
+ *   landed — never dropped; the selected segment is said in the inspector's own polite region. L5.12a fixes (review
+ *   A-M2): behind a switch that fails, the queued ⌘Z is dropped and said — the switch before it stays.
  * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { execFileSync } from 'node:child_process';
@@ -62,6 +65,10 @@ const sha = (s: string) => execFileSync('shasum', ['-a', '256'], { input: s }).t
 const option = (key: string, value: string) => page.locator(`[data-testid="switch"][data-key="${key}"] [data-testid="switch-option"][data-value="${value}"]`);
 const checked = (key: string) => page.locator(`[data-testid="switch"][data-key="${key}"] [role="radio"][aria-checked="true"]`).getAttribute('data-value');
 const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+/** timeline_view reads the page sent and not yet answered (a held one counts until it is let go). */
+let viewsInFlight = 0;
+/** Until every read sent before the hold is answered (L5.12a fixes: a read in flight while the test writes the file would show that write). */
+const readsSettled = (held: Route[]) => expect.poll(() => viewsInFlight - held.length, POLL).toBe(0);
 
 /** The preview settled at the frame shown: its picture (PNG) and the source frame it reads. */
 async function settled(): Promise<{ frame: number; png: Buffer; src: number }> {
@@ -162,6 +169,10 @@ beforeAll(async () => {
     document.addEventListener('securitypolicyviolation', () => (window as unknown as { __csp: number }).__csp++);
   });
   page = await context.newPage();
+  const isView = (r: { url(): string }) => r.url().includes('/v1/call/timeline_view');
+  page.on('request', (r) => void (isView(r) && viewsInFlight++));
+  page.on('requestfinished', (r) => void (isView(r) && viewsInFlight--));
+  page.on('requestfailed', (r) => void (isView(r) && viewsInFlight--));
   page.on('console', (m) => {
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(m.text());
   });
@@ -330,22 +341,78 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     await shot('switch-5-disabled');
   }, 60_000);
 
+  it('⚑ L5.12a (BL-122): ⌘Z while a switch is in flight is queued and said, then undoes it; the selected segment is said', async () => {
+    await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
+    await expect.poll(() => page.getByTestId('inspector-selected').innerText(), POLL).toMatch(/^Selected scene a: \d+:\d\d\.\d\d – \d+:\d\d\.\d\d · \d+ steps?\.$/);
+    await expect.poll(() => hashShown(), POLL).toBe(sha(BITS_TEXT));
+    // Hold the write: the switch is in flight while ⌘Z is pressed.
+    const held: Route[] = [];
+    await page.route('**/v1/call/scenario_edit', (r) => void held.push(r));
+    await option('scene:a:frame', 'laptop').click();
+    await expect.poll(() => held.length, POLL).toBe(1);
+    await blur();
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await live()).replace(/\s+/g, ' '), POLL).toBe('Saving… Undo in a moment: the switch is still saving.');
+    await page.unroute('**/v1/call/scenario_edit');
+    await held[0].continue().catch(() => undefined);
+    // The switch lands, then the queued undo runs: the original bytes again.
+    await expect.poll(() => live(), POLL).toBe('Undone: Set the layout of scene a to laptop.');
+    await expect.poll(async () => Buffer.compare(await readFile(file()), Buffer.from(BITS_TEXT)), POLL).toBe(0);
+    await expect.poll(() => checked('scene:a:frame'), POLL).toBe('');
+  }, 60_000);
+
+  it('⚑ L5.12a fixes (review A-M2 / B-M2): a ⌘Z queued behind a switch that fails is dropped and said once — the switch before it stays', async () => {
+    await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
+    await expect.poll(() => hashShown(), POLL).toBe(sha(BITS_TEXT));
+    // Switch A lands: Laptop.
+    await option('scene:a:frame', 'laptop').click();
+    await expect.poll(() => checked('scene:a:frame'), POLL).toBe('laptop');
+    await expect.poll(async () => (await hashShown()) !== sha(BITS_TEXT), POLL).toBe(true);
+    const a = await readFile(file(), 'utf8');
+    expect(a).not.toBe(BITS_TEXT);
+    // Switch B (back to the video's) is held, ⌘Z is queued behind it ("undo B"), then B is refused.
+    const held: Route[] = [];
+    await page.route('**/v1/call/scenario_edit', (r) => void held.push(r));
+    await option('scene:a:frame', '').click();
+    await expect.poll(() => held.length, POLL).toBe(1);
+    await blur();
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect.poll(async () => (await live()).replace(/\s+/g, ' '), POLL).toBe('Saving… Undo in a moment: the switch is still saving.');
+    await held[0].fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'invalid', message: 'not saved: the scenario was refused' } }) });
+    await page.getByTestId('switch-error').waitFor(POLL);
+    await expect.poll(() => live(), POLL).toBe('Undo cancelled: the switch was not saved, so there is nothing to undo.');
+    // Nothing undone: A's bytes stay (no restore was sent), and it is said once.
+    await page.waitForTimeout(600);
+    expect(held).toHaveLength(1);
+    expect(await readFile(file(), 'utf8')).toBe(a);
+    expect(await checked('scene:a:frame')).toBe('laptop');
+    await page.unroute('**/v1/call/scenario_edit');
+    // A itself still undoes: the original bytes again.
+    await page.getByRole('complementary', { name: 'Inspector' }).getByRole('button', { name: 'Dismiss' }).click();
+    await undoKey('Set the layout of scene a to laptop');
+    await expect.poll(async () => Buffer.compare(await readFile(file()), Buffer.from(BITS_TEXT)), POLL).toBe(0);
+  }, 60_000);
+
   it('another writer changed the file: a 409, "Apply it to the new version" writes on their bytes; a value they changed is stale', async () => {
     await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
     await expect.poll(() => hashShown(), POLL).toBe(sha(BITS_TEXT));
     // Hold the screen's reads so it keeps showing the version before the outside write.
     const held: Route[] = [];
     await page.route('**/v1/call/timeline_view', (r) => void held.push(r));
+    await readsSettled(held);
     const outside = BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame, numbered.');
     await writeFile(file(), outside);
     await option('scene:a:frame', 'laptop').click();
     await page.getByTestId('switch-conflict').waitFor(POLL);
     expect(await page.getByTestId('switch-conflict').innerText()).toBe('Your switch (Set the layout of scene a to Laptop) was not applied. The timeline now shows the new version.');
     expect(await readFile(file(), 'utf8')).toBe(outside);
-    // The offer is in sight, though the switches scrolled (the inspector's top stays).
-    const box = (await page.getByTestId('inspector').boundingBox())!;
+    // The offer is in sight, though the switches scrolled (the inspector's top stays). L5.12a: the inspector is the
+    // shell's pane (the scroller), taller than the old card — scrolled to its end here, the offer still in sight.
+    const pane = page.getByRole('complementary', { name: 'Inspector' });
+    await pane.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+    expect(await pane.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    const box = (await pane.boundingBox())!;
     const offer = (await page.getByTestId('switch-conflict').boundingBox())!;
-    expect(await page.getByTestId('inspector').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     expect(offer.y >= box.y && offer.y + offer.height <= box.y + box.height, JSON.stringify({ box, offer })).toBe(true);
     await shot('switch-6-conflict');
     await page.unroute('**/v1/call/timeline_view');
@@ -359,6 +426,7 @@ describe.skipIf(!canRun)('the timeline inspector in Chromium', () => {
     // Stale: held reads again; outside, scene a's layout becomes phone; Browser → 409 → Apply → refused, nothing written.
     held.length = 0;
     await page.route('**/v1/call/timeline_view', (r) => void held.push(r));
+    await readsSettled(held);
     const t2 = await readFile(file(), 'utf8');
     const outside2 = t2.replace('    frame: laptop\n', '    frame: phone\n');
     await writeFile(file(), outside2);

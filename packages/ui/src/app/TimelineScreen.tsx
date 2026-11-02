@@ -34,6 +34,15 @@
  *   back when it leaves (`timeline_leave`): the project's preview URLs are revoked once no page holds one. A workspace
  *   component the take uses is not run in the preview until the person allows it here (`preview_allow`, by id and
  *   folder hash, for this Studio session): its stand-in draws, a notice names it with an Allow button.
+ * - L5.12a « Épure » 4a (R4-Edit, R-UI-45): Edit in the shell — no breadcrumb, heading or tabs (the title bar names the
+ *   project and scenario, the modes go to the other views; the h1 stays for assistive technology), the browser pane
+ *   hidden; the stage (EditPreview.tsx: the preview region, the transport, the take's facts) above the tracks
+ *   (TimelineTracks.tsx on the kit, a scrubber with time labels, the playhead over the lanes), the inspector in the
+ *   shell's pane (TimelineInspector.tsx), the notes (EditNotes.tsx), and the status bar (EditStatus.tsx: what is on
+ *   screen, the render line with Cancel, Undo · Redo, Render — Edit owns ⌘B at the screen's priority, H2). The renders'
+ *   list and reviews moved to the Review report; its "Show in Edit" hands a finding over (edit-handoff.ts) and Edit seeks
+ *   to its frame only when that render shows this version. This file keeps the one PreviewFrame and its checked URL
+ *   (the source lint pins them here), the state, the keys and the seek loop.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TimelineView } from '@demo-studio/engine';
@@ -41,44 +50,34 @@ import type { TimelineViewAnswer } from '../server/ops.js';
 import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';
 import { call, errorText, useCall } from './api.js';
-import { Badge, Loading, Notice, Txt, plural } from './bits.js';
+import { Txt } from './bits.js';
 import { commentsEventAction, useEvents, useScenarioEvents } from './events.js';
 import { commentKey } from './comment-words.js';
-import { CommentsTab } from './CommentsTab.js';
+import { takeEditSeek } from './edit-handoff.js';
+import type { EditSeek } from './edit-handoff.js';
+import { EditNotes, EditNotices } from './EditNotes.js';
+import type { FrameNote } from './EditNotes.js';
+import { EditPreview } from './EditPreview.js';
+import { EditStatus, renderOff } from './EditStatus.js';
 import { PreviewFrame } from './PreviewFrame.js';
 import { ProposalBanner } from './ProposalPanel.js';
-import { RenderBar, RendersPanel, useRenders } from './Renders.js';
+import { RenderOutcome, useRenders } from './Renders.js';
 import { useShownFile } from './shoot-data.js';
-import { versionNote } from './render-words.js';
+import { PROPOSAL_RENDER, versionNote, versionWords } from './render-words.js';
 import type { RenderTarget } from './Renders.js';
 import { hrefTo } from './route.js';
-import { TerminalCommands as Commands } from './ui-kit/index.js';
+import { PRIORITY, useShellCommand } from './shell/command-bus.js';
+import { say } from './shell/say.js';
+import { BrowserCollapsed, ShellSlot } from './shell/slots.js';
+import { Callout, EmptyState, LinkButton, Playhead, Scrubber, Select, TerminalCommands as Commands, studioShell } from './ui-kit/index.js';
 import { TimelineInspector, useSwitchEditor } from './TimelineInspector.js';
 import { Tracks } from './TimelineTracks.js';
-import { canPlay, cannotPlayWords, codecWords, frameWords, keyAction, landingOf, previewUrls, targetFrame, timecode, zoomFactor } from './timeline-words.js';
+import { canPlay, cannotPlayWords, frameWords, keyAction, landingOf, previewUrls, targetFrame, timecode, zoomFactor } from './timeline-words.js';
 import type { CodecProbe, KeyTarget } from './timeline-words.js';
 
 type Ready = Extract<TimelineViewAnswer, { run_id: string; model: unknown }>;
 /** Frame notes kept (warnings and errors the frame posted). */
 const NOTES_MAX = 20;
-
-function Breadcrumb({ slug, name }: { slug: string; name: string }) {
-  return (
-    <nav aria-label="Breadcrumb" className="breadcrumb">
-      <a href={hrefTo({ name: 'projects' })}>Projects</a>
-      <span aria-hidden="true"> / </span>
-      <a href={hrefTo({ name: 'project', slug })}>
-        <Txt text={slug} />
-      </a>
-      <span aria-hidden="true"> / </span>
-      <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })}>
-        <Txt text={name} />
-      </a>
-      <span aria-hidden="true"> / </span>
-      <span aria-current="page">Timeline</span>
-    </nav>
-  );
-}
 
 /** What the browser can say about a codec (no element made: MediaSource, else Media Capabilities). */
 function codecProbe(): CodecProbe {
@@ -135,61 +134,85 @@ export function TimelineScreen({ slug, name, run, step, proposal }: { slug: stri
     if (e.type !== 'resync' && commentsEventAction(e, slug, name).threads) reload();
   });
 
+  // L5.12a fixes (review A-M1): on a proposal's preview Render is refused in every state — before the view is read, on an
+  // error, on a blocked take — at the screen's priority (the status bar's own refuses too); once the view is read, the
+  // take's screen (Timeline below) owns it.
+  const shows = loaded.state === 'ready' && !('blocked' in loaded.data);
+  useShellCommand('render', () => say(`Render of ${name}: ${PROPOSAL_RENDER}`), PRIORITY.screen, proposal !== undefined && !shows);
+  // (review A-L6): an Edit that cannot show the take drops the report's pending Show in Edit (never a stale seek later).
+  const cannot = loaded.state === 'error' || (loaded.state === 'ready' && 'blocked' in loaded.data);
+  useEffect(() => {
+    if (cannot) takeEditSeek(slug, name);
+  }, [cannot, slug, name]);
+
   if (loaded.state === 'loading') {
     return (
-      <div className="screen timeline-screen">
-        <Breadcrumb slug={slug} name={name} />
-        <Loading what="the timeline" />
+      <div className="ed-screen is-plain">
+        <BrowserCollapsed />
+        <EditHeading name={name} />
+        <p className="ed-quiet" role="status">
+          Loading the timeline…
+        </p>
       </div>
     );
   }
   if (loaded.state === 'error') {
     return (
-      <div className="screen timeline-screen">
-        <Breadcrumb slug={slug} name={name} />
-        <Notice tone={loaded.code === 'not_found' ? 'info' : 'danger'} role="alert" title={loaded.code === 'not_found' ? 'No capture to show' : 'This timeline cannot be opened'}>
-          <p className="pre-line" data-testid="timeline-error">
+      <div className="ed-screen is-plain">
+        <BrowserCollapsed />
+        <EditHeading name={name} />
+        <Callout state={loaded.code === 'not_found' ? 'idle' : 'fail'} role="alert" title={loaded.code === 'not_found' ? 'No capture to show' : 'This timeline cannot be opened'}>
+          <p className="ed-pre" data-testid="timeline-error">
             <Txt text={loaded.error} />
           </p>
           <p>
-            <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })}>Back to the scenario</a>: a capture there films the take this screen shows.
+            <LinkButton size="sm" variant="ghost" to={{ name: 'scenario', slug, scenario: name, tab: 'blocks' }}>
+              Back to the scenario
+            </LinkButton>
+            {': a capture there films the take this screen shows.'}
           </p>
           {proposal && (
             <p>
-              <a href={hrefTo({ name: 'comments', slug, scenario: name, thread: proposal.comment_id })} data-testid="banner-back">
+              <LinkButton size="sm" variant="ghost" to={{ name: 'comments', slug, scenario: name, thread: proposal.comment_id }} testId="banner-back">
                 Back to the comment
-              </a>
-              : a proposal is previewed while it is the thread's newest, not yet applied, and the scenario is still the file it was proposed on.
+              </LinkButton>
+              {': a proposal is previewed while it is the thread\'s newest, not yet applied, and the scenario is still the file it was proposed on.'}
             </p>
           )}
-        </Notice>
+        </Callout>
       </div>
     );
   }
   const d = loaded.data;
   if ('blocked' in d) {
     return (
-      <div className="screen timeline-screen">
-        <Breadcrumb slug={slug} name={name} />
-        <header className="screen-head">
-          <h1>
-            <Txt text={name} />
-          </h1>
-        </header>
-        <Notice tone="warning" role="alert" title="The Studio does not preview this take">
+      <div className="ed-screen is-plain">
+        <BrowserCollapsed />
+        <EditHeading name={name} />
+        <EmptyState title="The Studio does not preview this take">
           <div data-testid="timeline-blocked">
             {d.blocked.problems.map((p, i) => (
-              <p key={i} className="pre-line">
+              <p key={i} className="ed-pre">
                 <Txt text={p} />
               </p>
             ))}
             <Commands {...(d.blocked.command ? { fix: d.blocked.command } : {})} />
           </div>
-        </Notice>
+        </EmptyState>
       </div>
     );
   }
   return <Timeline key={d.run_id} slug={slug} name={name} v={d as Ready} step={step} reload={reload} {...(proposal ? { proposal } : {})} />;
+}
+
+/** The screen's h1 for assistive technology (the title bar names the scenario): the name as text (review A-M3). */
+function EditHeading({ name }: { name: string }) {
+  return (
+    <h1 className="k-sr">
+      <Txt text={name} />
+      {' — Edit'}
+    </h1>
+  );
 }
 
 function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; name: string; v: Ready; step?: string; reload: () => void; proposal?: PreviewedProposal }) {
@@ -208,7 +231,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   const [buffering, setBuffering] = useState(false);
   const [rate, setRate] = useState<0.5 | 1 | 2>(1);
   const [missing, setMissing] = useState<string[]>([]);
-  const [notes, setNotes] = useState<Array<{ type: 'warning' | 'error'; message: string }>>([]);
+  const [notes, setNotes] = useState<FrameNote[]>([]);
   const [stopped, setStopped] = useState<string | null>(null);
   const [restart, setRestart] = useState(0);
   const [zoom, setZoom] = useState<'fit' | 'zoom'>('fit');
@@ -222,7 +245,7 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   /** The segment the inspector shows (its id), or null. */
   const [selected, setSelected] = useState<string | null>(null);
   const ed = useSwitchEditor(slug, name, v, reload);
-  // Part E: the scenario's renders (a Render refused because the file changed reads the view again).
+  // The scenario's renders (a Render refused because the file changed reads the view again).
   const renders = useRenders(slug, name, reload);
   // L5.11a (critique L6): the status bar's Render (⌘B) renders the capture and the file this screen shows.
   useShownFile(slug, name, proposal ? null : (v.hash ?? null), v.run_id);
@@ -231,7 +254,6 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     [v.run_id, v.theme, v.hash, v.plan_sha256, v.theme_sha256],
   );
   // Workspace components the take uses that the preview does not run yet (review A H1 c), and the Allow clicks.
-  const held = v.preview_held ?? [];
   const [allowing, setAllowing] = useState<string | null>(null);
   const [allowError, setAllowError] = useState<string | null>(null);
   const allow = (c: { id: string; hash: string }) => {
@@ -256,10 +278,20 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   const commentOn = renders.loaded.state === 'ready' ? renders.loaded.data.renders.find((x) => x.status === 'succeeded' && versionNote(x, shownVersion).same) : undefined;
   const tracksAt = useMemo(() => ({ slug, scenario: name }), [slug, name]);
   const renderTarget: RenderTarget = proposal
-    ? { why: 'Previewing a proposal: apply it (Apply and re-render renders it)' }
+    ? { why: PROPOSAL_RENDER }
     : v.hash === undefined
       ? { why: `scenarios/${name}.yaml is not there: nothing to render` }
       : { run: v.run_id, hash: v.hash, asCaptured: v.source.edit === 'run' };
+  // H2: Edit owns Render (⌘B, the palette) at the screen's priority — the capture and the file as shown, through
+  // useRenders (its refusals, its `mine`); on a proposal it says why and renders nothing.
+  const renderNow = () => {
+    const off = renderOff(renders, renderTarget);
+    if (off !== null || 'why' in renderTarget) return say(`Render of ${name}: ${off ?? 'not ready'}`);
+    if (renders.sending) return;
+    renders.render(renderTarget);
+  };
+  useShellCommand('render', renderNow, PRIORITY.screen);
+  const inApp = useMemo(() => studioShell() !== null, []);
 
   const wait = (w: number | 'any' | null) => {
     waitingRef.current = w;
@@ -407,11 +439,34 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     seek(pin.frame);
   }, [proposal, v.pins.placed, seek]);
 
+  // L5.12a: the Review report's Show in Edit — the finding's frame only when its render shows this version (the same plan
+  // and theme files: its frame f is the preview's frame f); else its step. L5.12a fixes (review B-M1): the note "made from
+  // another version" only when the render is found AND differs — a finding with no frame on this version (the video's
+  // length) goes to its step or stays, saying nothing; a render no longer listed goes to the step, no frame trusted.
+  const [handoff] = useState<EditSeek | null>(() => (proposal ? null : takeEditSeek(slug, name)));
+  const handled = useRef(false);
+  const [seekNote, setSeekNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!handoff || handled.current || renders.loaded.state !== 'ready') return;
+    handled.current = true;
+    const r = renders.loaded.data.renders.find((x) => x.render_id === handoff.render_id);
+    const differs = r !== undefined && !versionNote(r, shownVersion).same;
+    if (r && !differs && handoff.frame !== undefined) {
+      seek(handoff.frame);
+      return;
+    }
+    const first = handoff.step ? m.steps.filter((s) => s.key === handoff.step).sort((a, b) => a.from - b.from)[0] : undefined;
+    if (first) seek(first.from);
+    if (differs) setSeekNote(`${versionWords(handoff.render_id)} was made from another version of the edit: its frame is not this preview's${first ? ', so the preview shows the step it points at' : ''}.`);
+  }, [handoff, renders.loaded, shownVersion, m.steps, seek]);
+
   // Keys.
   const commentRef = useRef<string | null>(null);
   commentRef.current = commentOn ? commentOn.render_id : null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // A control handled the key (the transport's toolbar roves with the arrows, Home and End): its own.
+      if (e.defaultPrevented) return;
       // C: comment the frame at the playhead on the render of this version (when there is one).
       if (commentKey(e, keyTarget(e.target))) {
         if (commentRef.current === null) return;
@@ -435,13 +490,14 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
     return () => window.removeEventListener('keydown', onKey);
   }, [toggle, seek, m, slug, name]);
 
-  // The zoomed level: the playhead stays on screen while playing.
+  // The zoomed level: the playhead stays on screen while playing (an instant scroll).
   useEffect(() => {
     const el = scroller.current;
     if (!el || zoom !== 'zoom' || !playing) return;
-    const lane = el.scrollWidth - LABEL_W;
-    const x = LABEL_W + (frame / Math.max(1, m.frames)) * lane;
-    if (x < el.scrollLeft + LABEL_W || x > el.scrollLeft + el.clientWidth - 24) el.scrollLeft = Math.max(0, x - LABEL_W - 40);
+    const labelW = el.querySelector<HTMLElement>('.k-track-label')?.offsetWidth ?? 96;
+    const lane = el.scrollWidth - labelW;
+    const x = labelW + (frame / Math.max(1, m.frames)) * lane;
+    if (x < el.scrollLeft + labelW || x > el.scrollLeft + el.clientWidth - 24) el.scrollLeft = Math.max(0, x - labelW - 40);
   }, [frame, zoom, playing, m.frames]);
 
   const onSelect = useCallback(
@@ -453,364 +509,113 @@ function Timeline({ slug, name, v, step, reload, proposal }: { slug: string; nam
   );
   // A segment gone from the new version (renamed, deleted): nothing selected.
   const segment = m.segments.find((s) => s.id === selected) ?? null;
+  const stepsOf = useCallback((id: string) => new Set(m.steps.filter((s) => s.scene === id && s.step >= 0).map((s) => s.key)).size, [m.steps]);
 
   const previewOn = urls !== null && playable === true && stopped === null;
   // Loading: the codec not asked yet, or the frame asked not settled.
   const loading = urls !== null && stopped === null && (playable === null || (previewOn && waiting !== null && !playing));
   const words = frameWords(frame, m, v.untrusted.steps);
-  const width = zoom === 'fit' ? '100%' : `${zoomFactor(m.frames, m.fps) * 100}%`;
-  const capture = v.capture;
-  const duration = timecode(m.frames, m.fps);
+  const factor = zoom === 'fit' ? 1 : zoomFactor(m.frames, m.fps);
+  const width = zoom === 'fit' ? '100%' : `${factor * 100}%`;
+  const marks = useMemo(() => timeMarks(m.frames, m.fps, factor), [m.frames, m.fps, factor]);
 
   return (
-    <div className="screen timeline-screen" data-testid="timeline" data-hash={v.hash ?? ''}>
-      <Breadcrumb slug={slug} name={name} />
-      <header className="screen-head">
-        <h1>
-          <Txt text={name} />
-        </h1>
-        <p className="muted tl-facts" data-testid="timeline-facts">
-          Capture <Txt className="mono" text={v.run_id} /> · theme <Txt text={v.theme} /> · {duration} · {plural(m.frames, 'frame')} at {m.fps} fps · {m.width}×{m.height}
-          {capture.codec && (
-            <span data-testid="capture-codec">
-              {' '}
-              · {codecWords(capture.codec)}
-              {capture.keyframe_interval_s !== undefined && `, keyframes ${capture.at_least ? 'at least ' : ''}every ${capture.keyframe_interval_s.toFixed(1)} s`}
-              {capture.b_frames ? ', B-frames' : ''}
-            </span>
-          )}
-        </p>
-        <nav aria-label="Scenario views" className="tabs">
-          <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'blocks' })} className="tab">
-            Board
-          </a>
-          <a href={hrefTo({ name: 'scenario', slug, scenario: name, tab: 'yaml' })} className="tab">
-            YAML
-          </a>
-          <a href={hrefTo({ name: 'timeline', slug, scenario: name })} aria-current="page" className="tab current">
-            Timeline
-          </a>
-          <CommentsTab slug={slug} name={name} />
-        </nav>
-      </header>
-
-      {proposal && <ProposalBanner slug={slug} name={name} proposal={proposal} shown={v.proposal?.shown} />}
-      <div className="tl-top">
-        {v.runs.length > 1 && !proposal && (
-          <label className="tl-run-pick">
-            <span className="label">Capture</span>
-            <select data-testid="timeline-run-picker" value={v.run_id} onChange={(e) => (location.hash = hrefTo({ name: 'timeline', slug, scenario: name, run: e.target.value }))}>
-              {v.runs.map((r) => (
-                <option key={r} value={r}>
-                  {r}
-                </option>
-              ))}
-            </select>
-          </label>
+    <div className="ed-screen" data-testid="timeline" data-hash={v.hash ?? ''}>
+      <BrowserCollapsed />
+      <EditHeading name={name} />
+      {v.runs.length > 1 && !proposal && (
+        <ShellSlot name="context">
+          <Select
+            layout="inline"
+            label="Take"
+            testId="timeline-run-picker"
+            value={v.run_id}
+            options={v.runs.map((r) => ({ value: r, label: r }))}
+            onChange={(r) => (location.hash = hrefTo({ name: 'timeline', slug, scenario: name, run: r }))}
+          />
+        </ShellSlot>
+      )}
+      <ShellSlot name="inspector" inline="Inspector">
+        <TimelineInspector v={v} segment={segment} ed={ed} fps={m.fps} stepsOf={stepsOf} />
+      </ShellSlot>
+      <ShellSlot name="actions">
+        <EditStatus slug={slug} name={name} source={{ proposal: proposal !== undefined, edit: v.source.edit, run: v.run_id, ...(v.source.edit_changes ? { changes: v.source.edit_changes } : {}) }} r={renders} target={renderTarget} shown={shownVersion} ed={ed} inApp={inApp} />
+      </ShellSlot>
+      <div className="ed-top">
+        {proposal && <ProposalBanner slug={slug} name={name} proposal={proposal} shown={v.proposal?.shown} />}
+        <RenderOutcome r={renders} />
+        {seekNote && (
+          <Callout state="idle" role="status" title="Note: made from another version" testId="edit-seek-note">
+            <Txt text={seekNote} />
+          </Callout>
         )}
-        <p className="small" data-testid="timeline-source">
-          {proposal ? (
-            <>
-              <Badge tone="warning">proposed edit</Badge> The edit Claude proposed, on the take its comment was made on — not written.
-            </>
-          ) : v.source.edit === 'scenario' ? (
-            <>
-              <Badge tone="info">today's edit</Badge> The edit of today's file on this take
-              {v.source.edit_changes?.length ? (
-                <>
-                  {' '}
-                  — changed since the take: <Txt text={v.source.edit_changes.join(', ')} />
-                </>
-              ) : null}
-              .
-            </>
-          ) : (
-            <>
-              <Badge tone="warning">as captured</Badge> The take as it was captured.
-            </>
-          )}
-        </p>
-        <RenderBar r={renders} target={renderTarget} shown={shownVersion} />
+        <EditNotices v={v} slug={slug} name={name} proposal={proposal !== undefined} allowing={allowing} allowError={allowError} onAllow={allow} />
       </div>
-      {v.editable !== true && !proposal && (
-        <Notice tone={v.source.scenario_changed ? 'warning' : 'info'} role="note" title={notEditableTitle(v)}>
-          <p className="pre-line" data-testid="timeline-not-editable">
-            <Txt text={v.editable.why} />
-          </p>
-          {v.source.scenario_changed && (
-            <p>
-              <a href={hrefTo({ name: 'run', slug, scenario: name })}>Capture again from Shoot</a>
-            </p>
-          )}
-        </Notice>
-      )}
-      {held.length > 0 && (
-        <Notice tone="warning" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}>
-          <div data-testid="preview-held">
-            <p className="small">
-              Components of this workspace are code: the preview runs one only once you allow it, for this Studio session (until it stops, or the component changes). Its stand-in draws until then; a render uses it either way.
-            </p>
-            <ul className="held-list">
-              {held.map((c) => (
-                <li key={c.id} data-testid="held-component" data-id={c.id}>
-                  <Txt className="mono" text={c.id} /> <span className="muted small">({c.kind}, folder {c.hash})</span>{' '}
-                  <button type="button" className="button small" data-testid="allow-component" disabled={allowing !== null} onClick={() => allow(c)}>
-                    {allowing === c.id ? 'Allowing…' : 'Allow in the preview'}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {allowError && (
-              <p className="pre-line small" role="alert" data-testid="allow-error">
-                <Txt text={allowError} />
-              </p>
-            )}
-          </div>
-        </Notice>
-      )}
-      {capture.slow_scrub && (
-        <Notice tone="info" role="note">
-          <p data-testid="slow-scrub">
-            <Txt text={capture.slow_scrub} />
-          </p>
-        </Notice>
-      )}
-
-      <div className="tl-stage">
-        <section className="tl-preview-wrap" aria-label="Preview and transport">
-          <div
-            className="tl-preview"
-            role="region"
-            aria-label={`Preview, frame ${(frame + 1).toLocaleString('en')} of ${m.frames.toLocaleString('en')}`}
-            aria-busy={loading || buffering}
-            data-testid="preview"
-            data-frame={frame}
-            data-loading={loading ? 'yes' : 'no'}
-            style={{ aspectRatio: `${m.width} / ${m.height}` }}
-          >
-            {previewOn && (
-              <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />
-            )}
-            {loading && (
-              <p className="tl-preview-note" role="status" data-testid="preview-loading">
-                Loading the preview…
-              </p>
-            )}
-            {!loading && buffering && playing && (
-              <p className="tl-preview-note" role="status">
-                Buffering…
-              </p>
-            )}
-            {playable === false && (
-              <p className="tl-preview-note is-message" role="status" data-testid="cannot-play">
-                {cannotPlayWords(capture.codec)}
-              </p>
-            )}
-            {'preview_error' in v && (
-              <p className="tl-preview-note is-message" role="status" data-testid="preview-error">
-                The preview cannot show this take: <Txt text={v.preview_error} />
-              </p>
-            )}
-            {stopped !== null && (
-              <div className="tl-preview-note is-message" role="alert" data-testid="preview-stopped">
-                <p>
-                  <Txt text={stopped} />.
-                </p>
-                <button
-                  type="button"
-                  className="button small"
-                  onClick={() => {
-                    setStopped(null);
-                    setRestart((n) => n + 1);
-                  }}
-                >
-                  Restart the preview
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="tl-transport" role="group" aria-label="Transport">
-            <button type="button" className="button primary small" data-testid="play" disabled={!previewOn} onClick={toggle} aria-pressed={playing}>
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button type="button" className="button small" aria-label="Previous frame" data-testid="prev-frame" onClick={() => seek(frameRef.current - 1)}>
-              ◀︎ Frame
-            </button>
-            <button type="button" className="button small" aria-label="Next frame" data-testid="next-frame" onClick={() => seek(frameRef.current + 1)}>
-              Frame ▶︎
-            </button>
-            <output className="tl-time mono" data-testid="timecode" aria-live="off">
-              {timecode(frame, m.fps)} / {duration} · frame {frame.toLocaleString('en')}
-            </output>
-            <button
-              type="button"
-              className="button small"
-              data-testid="mute"
-              disabled={!previewOn}
-              onClick={() => {
-                wantSound.current = muted;
-                conn.current?.send({ type: 'mute', muted: !muted });
-              }}
-            >
-              {muted ? 'Unmute' : 'Mute'}
-            </button>
-            <label className="tl-rate">
-              <span className="label">Speed</span>
-              <select
-                value={rate}
-                disabled={!previewOn}
-                data-testid="rate"
-                onChange={(e) => {
-                  const r = Number(e.target.value) as 0.5 | 1 | 2;
-                  setRate(r);
-                  conn.current?.send({ type: 'rate', rate: r });
-                }}
-              >
-                <option value={0.5}>0.5×</option>
-                <option value={1}>1×</option>
-                <option value={2}>2×</option>
-              </select>
-            </label>
-            {commentOn ? (
-              <a
-                className="button small"
-                data-testid="comment-here"
-                data-render={commentOn.render_id}
-                href={hrefTo({ name: 'comments', slug, scenario: name, at: { render: commentOn.render_id, frame } })}
-                aria-label={`Comment frame ${frame.toLocaleString('en')} of render ${commentOn.render_id}`}
-              >
-                Comment
-              </a>
-            ) : (
-              <>
-                <button type="button" className="button small" disabled data-testid="comment-here-off" aria-describedby="comment-why">
-                  Comment
-                </button>
-                <span id="comment-why" className="sr-only">
-                  No render of this version yet: render it, or comment on an earlier render from Comments
-                </span>
-              </>
-            )}
-            <span className="tl-zoomer" role="group" aria-label="Zoom">
-              <button type="button" className="button quiet small" aria-pressed={zoom === 'fit'} data-testid="zoom-fit" onClick={() => setZoom('fit')}>
-                Fit
-              </button>
-              <button type="button" className="button quiet small" aria-pressed={zoom === 'zoom'} data-testid="zoom-in" onClick={() => setZoom('zoom')}>
-                Zoom in
-              </button>
-            </span>
-          </div>
-          <p className="muted small tl-keys">
-            Space plays or pauses · ← → one frame · Shift + ← → one second · Home / End · [ ] the previous / next segment · ⌘Z undoes a switch · C comments the frame
-            {commentOn ? ` on ${commentOn.render_id}` : ' (no render of this version yet: render it, or comment an earlier render from Comments)'}
-          </p>
-        </section>
-        <TimelineInspector v={v} segment={segment} ed={ed} />
-      </div>
-
-      <div className="tl-scroll" ref={scroller} data-testid="timeline-scroll" data-zoom={zoom}>
-        <div className="tl-inner" style={{ width }}>
-          <div className="tl-row tl-scrub-row">
-            <span className="tl-label" aria-hidden="true">
-              {timecode(frame, m.fps)}
-            </span>
-            <div className="tl-lane">
-              <input
-                type="range"
-                className="tl-scrubber"
-                data-testid="scrubber"
-                min={0}
-                max={last}
-                step={1}
-                value={frame}
-                aria-label="Playhead"
-                aria-valuetext={words}
-                onChange={(e) => seek(Number(e.target.value))}
-              />
-            </div>
-          </div>
-          <Tracks view={v as TimelineView} onSeek={seek} selected={selected} onSelect={onSelect} at={tracksAt} />
-          <div className="tl-overlay" aria-hidden="true">
-            <div className="tl-playhead" data-testid="playhead" style={{ left: `${(frame / Math.max(1, m.frames)) * 100}%` }} />
+      <EditPreview
+        slug={slug}
+        name={name}
+        m={m}
+        run={v.run_id}
+        theme={v.theme}
+        capture={v.capture}
+        frame={frame}
+        words={words}
+        previewOn={previewOn}
+        loading={loading}
+        buffering={buffering}
+        playing={playing}
+        playable={playable}
+        cannotPlay={cannotPlayWords(v.capture.codec)}
+        {...('preview_error' in v ? { previewError: v.preview_error } : {})}
+        stopped={stopped}
+        onRestart={() => {
+          setStopped(null);
+          setRestart((n) => n + 1);
+        }}
+        muted={muted}
+        onMute={() => {
+          wantSound.current = muted;
+          conn.current?.send({ type: 'mute', muted: !muted });
+        }}
+        rate={rate}
+        onRate={(r) => {
+          setRate(r);
+          conn.current?.send({ type: 'rate', rate: r });
+        }}
+        onToggle={toggle}
+        onStep={(by) => seek(frameRef.current + by)}
+        commentOn={commentOn ? commentOn.render_id : null}
+        zoom={zoom}
+        onZoom={setZoom}
+      >
+        {previewOn && <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />}
+      </EditPreview>
+      <section className="ed-tracks" aria-label="Tracks">
+        <div className="ed-scroll" ref={scroller} data-testid="timeline-scroll" data-zoom={zoom}>
+          <div className="ed-inner" style={{ width }}>
+            <Scrubber testId="scrubber" time={timecode(frame, m.fps)} max={last} value={frame} valueText={words} onChange={seek} marks={marks} />
+            <Tracks view={v as TimelineView} onSeek={seek} selected={selected} onSelect={onSelect} at={tracksAt} />
+            <Playhead testId="playhead" at={frame / Math.max(1, m.frames)} />
           </div>
         </div>
-      </div>
-      <section className="card tl-renders" aria-labelledby="tl-renders-h">
-        <h2 id="tl-renders-h" className="card-title">
-          Renders
-        </h2>
-        <RendersPanel r={renders} slug={slug} shown={shownVersion} onSeek={seek} fps={m.fps} />
+        <p className="ed-keys">
+          Space plays or pauses · ← → one frame · Shift + ← → one second · Home / End · [ ] the previous / next segment · ⌘Z undoes a switch · C comments the frame
+          <Txt text={commentOn ? ` on ${commentOn.render_id}` : ' (no render of this version yet: render it, or comment an earlier render from Comments)'} />
+        </p>
       </section>
-      {v.pins.elsewhere.length > 0 && (
-        <section className="card tl-elsewhere" aria-labelledby="elsewhere-h" data-testid="pins-elsewhere">
-          <h2 id="elsewhere-h" className="card-title">
-            Comments made on another take ({v.pins.elsewhere.length})
-          </h2>
-          <ul>
-            {v.pins.elsewhere.map((id) => (
-              <li key={id}>
-                <a href={hrefTo({ name: 'comments', slug, scenario: name, thread: id })} data-testid="pin-elsewhere">
-                  <Txt text={v.untrusted.threads[id]?.text ?? id} />
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <Notes v={v} missing={missing} notes={notes} />
+      <EditNotes v={v} slug={slug} name={name} missing={missing} notes={notes} />
     </div>
   );
 }
 
-/** The title of the "no switches" notice: what keeps the switches off, in words that fit the case. */
-function notEditableTitle(v: Ready): string {
-  if (v.source.scenario_changed) return 'The filmed part changed since this take';
-  if (v.hash === undefined) return 'There is no scenario file to switch';
-  if (v.source.edit === 'run') return 'Switches are off for this take';
-  return 'Switches are off for this file';
-}
-
-/** The width of the tracks' label column (px): the playhead and the follow scroll offset by it. */
-const LABEL_W = 112;
-
-function Notes({ v, missing, notes }: { v: Ready; missing: string[]; notes: Array<{ type: 'warning' | 'error'; message: string }> }) {
-  const plan = [...v.untrusted.warnings.map((w) => ({ type: 'warning' as const, message: w })), ...v.untrusted.notes.map((n) => ({ type: 'note' as const, message: n }))];
-  if (missing.length === 0 && notes.length === 0 && plan.length === 0) return null;
-  return (
-    <section className="card tl-notes" aria-labelledby="tl-notes-h" data-testid="timeline-notes">
-      <h2 id="tl-notes-h" className="card-title">
-        Warnings and notes
-      </h2>
-      {missing.length > 0 && (
-        <p data-testid="preview-missing">
-          Not in the preview (their stand-ins draw): <Txt text={missing.join(', ')} />
-        </p>
-      )}
-      {notes.length > 0 && (
-        <>
-          <p className="small muted">From the preview — text a component may have written:</p>
-          <ul data-testid="preview-notes">
-            {notes.map((n, i) => (
-              <li key={i}>
-                <Badge tone={n.type === 'error' ? 'danger' : 'warning'}>{n.type}</Badge> <Txt text={n.message} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      {plan.length > 0 && (
-        <details>
-          <summary>The edit's warnings and notes ({plan.length})</summary>
-          <ul data-testid="plan-notes">
-            {plan.map((n, i) => (
-              <li key={i}>
-                <Badge tone={n.type === 'warning' ? 'warning' : 'neutral'}>{n.type}</Badge> <Txt text={n.message} />
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
-    </section>
-  );
+/** Time labels under the scrubber: about a dozen across what is on screen, on a round step (1 s … 5 min). */
+function timeMarks(frames: number, fps: number, factor: number): Array<{ at: number; label: string }> {
+  const seconds = frames / Math.max(1, fps);
+  const step = [1, 2, 5, 10, 15, 30, 60, 120, 300].find((s) => seconds / s <= 12 * factor) ?? 600;
+  const out: Array<{ at: number; label: string }> = [];
+  for (let t = 0; t <= seconds && out.length < 400; t += step) {
+    const m = Math.floor(t / 60);
+    out.push({ at: t / seconds, label: `${m}:${String(Math.floor(t - m * 60)).padStart(2, '0')}` });
+  }
+  return out;
 }

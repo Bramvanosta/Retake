@@ -145,6 +145,40 @@ export function TextArea({ label, value, onChange, baseline = '', unsaved, mono,
   );
 }
 
+/**
+ * L5.12a: a number field (TextField's sibling: `type="number"`, min / max / step, `inputMode` decimal) — a value written
+ * on Set (an inspector's speed, a duration), not typed text: no unsaved mark. Enter runs `onEnter`.
+ */
+export function NumberField({ label, value, onChange, min, max, step, disabled, error, hint, layout = 'inline', id, testId, onEnter }: { label: ReactNode; value: string; onChange: (value: string) => void; min?: number; max?: number; step?: number; disabled?: boolean; error?: ReactNode; hint?: ReactNode; layout?: FieldLayout; id?: string; testId?: string; onEnter?: () => void }) {
+  const own = useId();
+  const fid = id ?? own;
+  return (
+    <Frame id={fid} label={label} hint={hint} error={error} layout={layout}>
+      <input
+        id={fid}
+        type="number"
+        inputMode="decimal"
+        className="k-input k-input-number k-mono"
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        data-testid={testId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(fid, hint, error)}
+        onChange={(e) => onChange(e.currentTarget.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && onEnter) {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
+      />
+    </Frame>
+  );
+}
+
 export interface SelectOption {
   value: string;
   label: string;

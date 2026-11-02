@@ -46,9 +46,25 @@ function stops(bar: HTMLElement): HTMLElement[] {
   return out;
 }
 
-export function Toolbar({ label, children }: { label: string; children: ReactNode }) {
+export function Toolbar({
+  label,
+  children,
+  clickLeavesKeys,
+}: {
+  label: string;
+  children: ReactNode;
+  /**
+   * L5.12a fixes (review B-L5): a control focused by a click (Chromium focuses a clicked button) leaves the arrows, Home
+   * and End to the page — Edit's transport, where they step the playhead; the toolbar roves once the focus came by the
+   * keyboard (Tab, Shift+Tab, a script).
+   */
+  clickLeavesKeys?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const current = useRef(0);
+  /** When a pointer last went down in it, and whether the focus came with it. */
+  const pointerAt = useRef(-Infinity);
+  const byPointer = useRef(false);
   const items = () => (ref.current ? stops(ref.current) : []);
   const sync = () => {
     const all = items();
@@ -59,6 +75,7 @@ export function Toolbar({ label, children }: { label: string; children: ReactNod
   };
   useLayoutEffect(sync);
   const onFocus = (e: FocusEvent<HTMLDivElement>) => {
+    byPointer.current = performance.now() - pointerAt.current < 500;
     const i = items().indexOf(e.target as HTMLElement);
     if (i >= 0 && i !== current.current) {
       current.current = i;
@@ -68,6 +85,7 @@ export function Toolbar({ label, children }: { label: string; children: ReactNod
   const rove = (e: KeyboardEvent<HTMLDivElement>) => {
     // A control inside handled the key (a menu's trigger or items, a field): theirs (review A-M2).
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (clickLeavesKeys && byPointer.current) return;
     const t = e.target as HTMLElement;
     // A field keeps its arrows, Home and End; a radio group keeps its arrows (they move its choice).
     if (t.matches(OWN_KEYS)) return;
@@ -84,7 +102,7 @@ export function Toolbar({ label, children }: { label: string; children: ReactNod
     all[next].focus();
   };
   return (
-    <div role="toolbar" aria-label={label} className="k-toolbar" ref={ref} onKeyDown={rove} onFocus={onFocus}>
+    <div role="toolbar" aria-label={label} className="k-toolbar" ref={ref} onKeyDown={rove} onFocus={onFocus} onPointerDown={() => (pointerAt.current = performance.now())}>
       {shown(children)}
     </div>
   );

@@ -14,6 +14,11 @@
  * - L4.5 fixes: the review's scene sheets and key frames are listed and served (review B); ⚑ a hard link and a key
  *   frames folder linked out are refused (review A N4); a failed render's message is its first line without paths
  *   (review B M6).
+ * - ⚑ L5.12a `review_export` (the Review report's Export video): a strict input (a project and a render id — no format,
+ *   no folder, no path: 400), an unknown render queues nothing, one export job of the render in MP4 1080p only (the
+ *   engine's own, in the fixed exports/<render id>/), a path-free answer, a second one refused while it waits (L5.12a
+ *   fixes: two at once on a render with no export yet — one job), at most two exports of the workspace at once, a Studio
+ *   op only (never an MCP tool).
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -25,6 +30,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue } from '@demo-studio/engine';
 import type { JobRecord, ScenarioRendersView } from '@demo-studio/engine';
 import { RENDER_OPS, UI_OPS, startStudioServer } from '../src/index.js';
+import { TOOLS } from '@demo-studio/mcp';
 import type { RenderReviewAnswer, ScenarioRenderAnswer, StudioServer } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
@@ -271,6 +277,64 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect((await call('review_image', { project: 'demo', render_id: '../x', image: 'sheet_1fps.jpg' })).status).toBe(400);
     expect((await call('review_image', { project: 'demo', render_id: 'tl-v7', image: 'sheet_9fps.jpg' })).status).toBe(404);
     expect(existsSync(join(dir, 'review', 'tl-v7', 'sheet_1fps.jpg'))).toBe(true);
+  });
+
+  it('⚑ L5.12a review_export: MP4 into the fixed folder, path-free; a strict input; an unknown render queues nothing; one at a time per render; not an MCP tool', async () => {
+    expect(UI_OPS).toContain('review_export');
+    expect(TOOLS.map((t) => t.name)).not.toContain('review_export');
+    const exportJobs = async () => queue.list({ project: 'demo', kinds: ['export'], limit: 50 });
+    // A strict input: no format, no folder, no path; a render id of a render id's shape only.
+    for (const bad of [
+      { project: 'demo', render_id: 'tl-v7', formats: ['webm'] },
+      { project: 'demo', render_id: 'tl-v7', dir: '/tmp' },
+      { project: 'demo', render_id: 'tl-v7', out: 'x' },
+      { project: 'demo', render_id: '../tl-v7' },
+      { project: 'demo', render_id: 'tl-v7; touch x' },
+      { project: 'demo', render_id: 'tl v7' },
+      { project: 'demo', render_id: RUN },
+      { project: 'demo', render_id: 'latest' },
+      { project: '../demo', render_id: 'tl-v7' },
+      { project: 'demo' },
+    ]) {
+      const r = await call('review_export', bad);
+      expect(r.status, JSON.stringify(bad)).toBe(400);
+    }
+    // A render the project does not have: refused, nothing queued.
+    const unknown = await call('review_export', { project: 'demo', render_id: 'tl-v99' });
+    expect(unknown.status, unknown.body).toBe(404);
+    expect(await exportJobs()).toEqual([]);
+    // L5.12a fixes (review B-M3): the race itself — two clicks at once on a render with no export yet: one 200, one 409,
+    // exactly one job (the chain holds the check and the submit together).
+    await writeRecord('tl-v12', '2026-01-02T11:00:00.000Z');
+    const race = await Promise.all([call('review_export', { project: 'demo', render_id: 'tl-v12' }), call('review_export', { project: 'demo', render_id: 'tl-v12' })]);
+    expect(race.map((x) => x.status).sort()).toEqual([200, 409]);
+    const raced = await exportJobs();
+    expect(raced.map((j) => (j.input as { render_id: string }).render_id)).toEqual(['tl-v12']);
+    // One export of the render: the engine's job, MP4 1080p only, submitted by the Studio; the answer names no path.
+    const r = await call('review_export', { project: 'demo', render_id: 'tl-v7' });
+    expect(r.status, r.body).toBe(200);
+    const d = r.json<{ data: { render_id: string; job: string; state: string; formats: string[]; where: string } }>().data;
+    expect(d).toMatchObject({ render_id: 'tl-v7', state: 'queued', formats: ['mp4_1080p'], where: "the project's exports folder, under tl-v7" });
+    for (const needle of [ws, homedir(), 'exports/', '.mp4']) expect(r.body.includes(needle), needle).toBe(false);
+    const jobs = (await exportJobs()).filter((j) => (j.input as { render_id: string }).render_id === 'tl-v7');
+    expect(jobs.map((j) => j.id)).toEqual([d.job]);
+    expect(jobs[0].input).toEqual({ version: 1, kind: 'export', project: 'demo', render_id: 'tl-v7', formats: ['mp4_1080p'], submitted_by: 'ui' });
+    // One at a time per render: a second (also two at once) is refused naming the job, nothing more queued.
+    const [a, b] = await Promise.all([call('review_export', { project: 'demo', render_id: 'tl-v7' }), call('review_export', { project: 'demo', render_id: 'tl-v7' })]);
+    for (const x of [a, b]) {
+      expect(x.status).toBe(409);
+      expect(x.json<{ error: { details: Record<string, unknown> } }>().error.details).toEqual({ job: d.job });
+    }
+    expect(await exportJobs()).toHaveLength(2);
+    // ⚑ The workspace's cap (review A-L8): two exports queued, a third render's is refused — it queues once one ended.
+    await writeRecord('tl-v13', '2026-01-02T11:30:00.000Z');
+    const third = await call('review_export', { project: 'demo', render_id: 'tl-v13' });
+    expect(third.status, third.body).toBe(409);
+    expect(third.json<{ error: { message: string; details: Record<string, unknown> } }>().error).toMatchObject({ message: '2 exports are already queued or running: wait for one to end', details: { open: 2 } });
+    expect(await exportJobs()).toHaveLength(2);
+    await studio.engine.jobs.cancel(raced[0].id);
+    const after = await call('review_export', { project: 'demo', render_id: 'tl-v13' });
+    expect(after.status, after.body).toBe(200);
   });
 
   it('review B M6: a failed render shows its first line, every path cut to its file name — never a stack', async () => {

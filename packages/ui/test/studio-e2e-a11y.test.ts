@@ -196,7 +196,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(await dialogCheck(page, page.getByTestId('start-capture'), () => page.keyboard.press('Enter'))).toEqual([]);
   }, 180_000);
 
-  it('blocks of a take with its inspector, the timeline with a segment selected', async () => {
+  it('blocks of a take with its inspector, Edit with a segment selected, the Review report with a check selected', async () => {
     const { page } = t;
     let r = await station(t, 'blocks-take', async () => {
       await go(page, at('/p/demo/s/bits'), '[data-testid="step"]');
@@ -204,13 +204,32 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       await page.getByTestId('inspector').waitFor(POLL);
     });
     expect(r.findings, r.report).toEqual([]);
-    r = await station(t, 'timeline', async () => {
-      await go(page, at(`/p/demo/s/bits/timeline/${RUN}`), '[data-testid="tracks"]');
-      await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
-      await page.locator('[data-testid="switch"]').first().waitFor(POLL);
-    });
+    // L5.12a (M4): Edit with a segment selected — dark at 1280, 1440 and 900, light at 1280.
+    r = await station(
+      t,
+      'timeline',
+      async () => {
+        await go(page, at(`/p/demo/s/bits/timeline/${RUN}`), '[data-testid="tracks"]');
+        await page.locator('[data-testid="tl-segment"][data-id="a"]').click();
+        await page.locator('[data-testid="switch"]').first().waitFor(POLL);
+      },
+      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+    );
     expect(r.findings, r.report).toEqual([]);
-  }, 180_000);
+    // L5.12a (M4): the Review report with a check selected (its frame in the inspector) — the same widths.
+    r = await station(
+      t,
+      'review-report',
+      async () => {
+        await go(page, at('/p/demo/s/bits/review'), '[data-testid="review-sheet"][data-state="ok"]');
+        await page.getByRole('listbox').focus();
+        await page.keyboard.press('ArrowDown');
+        await page.locator('[data-testid="review-frame"][data-state="ok"]').waitFor(POLL);
+      },
+      { schemes: [{ scheme: 'dark', widths: [1280, 1440, 900] }, { scheme: 'light', widths: [1280] }] },
+    );
+    expect(r.findings, r.report).toEqual([]);
+  }, 240_000);
 
   it('Comments: the list, a thread with Claude\'s proposal (its diff), none yet; the timeline previewing the proposal', async () => {
     const { page } = t;
@@ -240,7 +259,10 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       { scheme: 'dark' as const, widths: WIDTHS },
       { scheme: 'light' as const, widths: WIDTHS },
     ];
-    let r = await station(t, 'gallery', () => go(page, at('/ui'), '[data-testid="gallery"]'), { schemes: both, exemptMax: 24 });
+    // (L5.12a: the budgets are the counts measured, not a margin — 26 texts exempt as disabled at the gallery, its sheet and
+    // its palette (the disabled choice chip, its label and its reason, in both scopes: shown on purpose), 27 with the menu
+    // open (its own disabled item is one more). L5.12a fixes, review B-L6.)
+    let r = await station(t, 'gallery', () => go(page, at('/ui'), '[data-testid="gallery"]'), { schemes: both, exemptMax: 26 });
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.audits[1280].stats.texts).toBeGreaterThan(150);
     expect(r.result.walk!.stops).toBeGreaterThan(80);
@@ -249,7 +271,7 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       r = await station(t, `gallery-sheet-${scope}`, async () => {
         await col.getByRole('button', { name: 'Discard the take…' }).click();
         await page.locator('dialog.k-sheet[open]').waitFor(POLL);
-      }, { schemes: both, exemptMax: 24 });
+      }, { schemes: both, exemptMax: 26 });
       expect(r.findings, r.report).toEqual([]);
       expect(r.result.walk!.stops).toBe(2);
       await page.keyboard.press('Escape');
@@ -258,13 +280,13 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
       r = await station(t, `gallery-menu-${scope}`, async () => {
         await col.getByRole('button', { name: 'Take', exact: true }).click();
         await col.getByRole('menuitem', { name: 'Duplicate' }).waitFor(POLL);
-      }, { schemes: both, walk: false, exemptMax: 24 });
+      }, { schemes: both, walk: false, exemptMax: 27 });
       expect(r.findings, r.report).toEqual([]);
       await page.keyboard.press('Escape');
       r = await station(t, `gallery-palette-${scope}`, async () => {
         await col.getByRole('button', { name: 'Open the palette' }).click();
         await page.locator('dialog.k-palette[open]').waitFor(POLL);
-      }, { schemes: both, exemptMax: 24 });
+      }, { schemes: both, exemptMax: 26 });
       expect(r.findings, r.report).toEqual([]);
       expect(r.result.walk!.stops).toBe(1);
       await page.keyboard.press('Escape');

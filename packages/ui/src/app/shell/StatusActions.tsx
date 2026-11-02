@@ -12,7 +12,7 @@
  * follows the run); Stop and Pause reach the run's job — a terminal's run has none: "press Ctrl-C there" (critique M4).
  * A screen may claim the actions slot (Prepare, the live screen, a live recording): the buttons then hide, the commands
  * stay (the screen's own outrank them where it registers some); on a run or Record route the claim also takes the
- * scenario's state line (L5.11b: a live recording's status bar is the recording's, not the remembered scenario's). On the Scenario screen the screen feeds what it read
+ * scenario's state line (L5.11b: a live recording's status bar is the recording's, not the remembered scenario's; L5.12a: Edit's and the Review report's too — they say the take, the edit and the review). On the Scenario screen the screen feeds what it read
  * (no second read: critique H2); on the Project screen a selection is read once it settled for 300 ms. The one
  * confirmation sheet of a capture with sessions to confirm lives here (`SessionsSheet`).
  */
@@ -43,6 +43,7 @@ import {
   useShootEvents,
 } from '../shoot-data.js';
 import type { LiveRun, SheetAsk } from '../shoot-data.js';
+import { PROPOSAL_RENDER } from '../render-words.js';
 import { SHOOT_STATES, blockerShort, modeWord, shootState } from '../shoot-words.js';
 import { Blocker, Button, LinkButton, Sheet, StatusMark } from '../ui-kit/index.js';
 import { PRIORITY, useShellCommand } from './command-bus.js';
@@ -133,6 +134,9 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const renderRun = route.name === 'timeline' && route.run && route.scenario === name ? route.run : slug && name ? (shownFile(slug, name)?.run ?? data?.capture?.id) : undefined;
   const renderWhy = (): string | null => {
     if (!ctx) return 'no scenario';
+    // L5.12a fixes (review A-M1): a proposal's preview never renders the file on disk — in every state of Edit (loading,
+    // an error, blocked), not only once its view is read (Edit then owns Render and says the same).
+    if (route.name === 'proposal') return PROPOSAL_RENDER;
     if (!loc.ready || !data) return 'loading the scenario';
     if (data.render_job) return `a render is ${data.render_job.state}${data.render_job.fraction !== undefined ? ` · ${Math.round(data.render_job.fraction * 100)} %` : ''}`;
     if (!renderRun) return 'no finished capture yet: a capture films the take a render edits';
@@ -201,7 +205,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   // the blocker's words stay.
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
   const info: ReactNode =
-    ctx && slug && name && !onPrepare && !(claimed && (onRun || route.name === 'record')) ? (
+    ctx && slug && name && !onPrepare && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'review')) ? (
       <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
         {!('scenario' in route) && (
           <span className="sh-seg" data-drop="name">

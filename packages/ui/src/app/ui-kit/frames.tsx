@@ -16,6 +16,8 @@
 import { createContext, useContext } from 'react';
 import type { DragEvent, FocusEvent, KeyboardEvent, ReactNode, Ref } from 'react';
 import { shown, visibleControls } from '../bits.js';
+import { hrefTo } from '../route.js';
+import type { Route } from '../route.js';
 
 /** A frame's box on screen (getBoundingClientRect's four sides). */
 export interface FrameRect {
@@ -229,13 +231,15 @@ export function RowCard({
   quiet,
   compact,
   option,
+  to,
 }: {
   tile: ReactNode;
   title: ReactNode;
   meta?: ReactNode;
   aside?: ReactNode;
   selected: boolean;
-  onSelect: () => void;
+  /** Its action (a row that selects); a link row (`to`) needs none. */
+  onSelect?: () => void;
   testId?: string;
   quiet?: boolean;
   compact?: boolean;
@@ -244,6 +248,11 @@ export function RowCard({
    * its id, whether it is the active one (the list's focus ring marks it) — never a tab stop of its own.
    */
   option?: { id: string; active: boolean };
+  /**
+   * L5.12a fixes (review A-L5): a row that opens another screen (a render's report) is a link — `aria-current` marks the
+   * row of the screen shown — never a toggle that says "not pressed".
+   */
+  to?: Route;
 }) {
   const cls = `k-rowcard${selected ? ' is-selected' : ''}${quiet ? ' is-quiet' : ''}${compact ? ' is-compact' : ''}${option?.active ? ' is-active' : ''}`;
   const body = (
@@ -256,6 +265,13 @@ export function RowCard({
       {aside !== undefined && aside !== null && <span className="k-rowcard-aside">{shown(aside)}</span>}
     </>
   );
+  if (to) {
+    return (
+      <a href={hrefTo(to)} className={cls} aria-current={selected ? 'page' : undefined} data-testid={testId}>
+        {shown(body)}
+      </a>
+    );
+  }
   if (option) {
     return (
       <div id={option.id} role="option" aria-selected={selected} className={cls} onClick={onSelect} data-testid={testId}>
@@ -309,10 +325,10 @@ export function RowList({
 }
 
 /** An item of a RowList (in a listbox: `role="none"`, so its option or the caller's group is what the list owns). `data`: the row's identities (tests, styles). */
-export function RowListItem({ className, testId, data, children }: { className?: string; testId?: string; data?: { key?: string; row?: string; role?: string; helper?: string }; children: ReactNode }) {
+export function RowListItem({ className, testId, data, children }: { className?: string; testId?: string; data?: { key?: string; row?: string; role?: string; helper?: string; /** L5.12a: a render row's id and its review's state, a job's state (tests). */ id?: string; review?: string; state?: string }; children: ReactNode }) {
   const inListbox = useContext(InListbox);
   return (
-    <li role={inListbox ? 'none' : undefined} className={className} data-testid={testId} data-key={data?.key} data-row={data?.row} data-role={data?.role} data-helper={data?.helper}>
+    <li role={inListbox ? 'none' : undefined} className={className} data-testid={testId} data-key={data?.key} data-row={data?.row} data-role={data?.role} data-helper={data?.helper} data-id={data?.id} data-review={data?.review} data-state={data?.state}>
       {shown(children)}
     </li>
   );

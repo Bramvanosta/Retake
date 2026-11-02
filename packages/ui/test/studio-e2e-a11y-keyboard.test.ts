@@ -293,8 +293,12 @@ describe.skipIf(!canRun)('⚑ the keyboard-only path (L4.9 part C)', () => {
     await page.keyboard.press('ControlOrMeta+z');
     await expect.poll(() => readFile(file, 'utf8'), POLL).toBe(BITS_TEXT);
 
-    // The Comments tab, the thread, a reply typed and sent with the keyboard.
-    await tabTo(page, 'a[data-testid="comments-tab"]', 120, 'Shift+Tab');
+    // L5.12a: the Review mode (the title bar: Shift+Tab) opens the Review report; its View's Comments, the thread, a reply
+    // typed and sent with the keyboard.
+    await tabTo(page, 'a[href$="/s/bits/review"]', 120, 'Shift+Tab');
+    await page.keyboard.press('Enter');
+    await page.waitForURL('**#/p/demo/s/bits/review');
+    await tabTo(page, 'a[data-testid="comments-tab"]', 60);
     await page.keyboard.press('Enter');
     await page.waitForURL('**#/p/demo/s/bits/comments');
     await tabTo(page, `[data-testid="thread-item"] a[href$="${THREAD}"]`, 120);

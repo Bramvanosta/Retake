@@ -14,7 +14,7 @@
  * what it read (its view, its run_status, its renders: no second read — critique H2) and the hash it shows. One resolved selection drives the board, the browser and the inspector (`resolveSelection`: review B M2). The
  * centre: the take strip (TakeStrip.tsx), the file's notices
  * (not valid YAML, its issues, the steps limit, a YAML draft open), the edit bar (StepEditing.tsx), the palette, the
- * storyboard (Storyboard.tsx) and, closed at its end, the renders and their review (Renders.tsx, until L5.12).
+ * storyboard (Storyboard.tsx) and, closed at its end, the renders (Renders.tsx; L5.12a: their reviews are the Review report's).
  *
  * Events (critique B1): the view is read again only for this scenario's own file, a run of this scenario that appears,
  * changes status or goes away, the picker, a reconnection or the window's focus — a running run's progress is a
@@ -28,8 +28,8 @@ import { Txt, plural } from './bits.js';
 import { envFlagWords } from './board-words.js';
 import { useScenarioEvents } from './events.js';
 import { useProjectView } from './project-data.js';
-import { RenderBar, RendersPanel, useRenders } from './Renders.js';
-import type { RenderTarget, RendersState } from './Renders.js';
+import { RenderJobs, RenderOutcome, RendersList, useRenders } from './Renders.js';
+import type { RendersState } from './Renders.js';
 import { chooseLocation, useRunLocation } from './run-location.js';
 import { useFeedActions, useRunChanged, useRunProgress, useShownFile } from './shoot-data.js';
 import type { FedActions } from './shoot-data.js';
@@ -69,17 +69,22 @@ export function allIssues(v: View) {
 }
 
 /**
- * Renders (L4.5 part E, Renders.tsx): Render the newest finished capture on the file as shown, the queue, the renders
- * with their review's verdict and a render's review (its contact sheets) — the timeline screen shows the same.
+ * Renders (L4.5 part E; L5.12a: the card on the kit, R-UI-46) — the queue (Cancel), the newest failure, the newest three
+ * renders (version, when, the verdict, whether it shows this file) and the Review report; Render is the status bar's.
  */
-function RendersCard({ v, slug, r }: { v: View; slug: string; r: RendersState }) {
+function RendersCard({ v, slug, name, r }: { v: View; slug: string; name: string; r: RendersState }) {
   const run = timelineRun(v);
   const shown = { ...(run ? { run } : {}), hash: v.hash };
-  const target: RenderTarget = run ? { run, hash: v.hash } : { why: 'no finished capture yet: a capture films the take a render edits' };
   return (
     <section className="sb-renders" aria-label="Renders" data-testid="renders-card">
-      <RenderBar r={r} target={target} shown={shown} />
-      <RendersPanel r={r} slug={slug} shown={shown} />
+      <RenderOutcome r={r} />
+      <RenderJobs r={r} shown={shown} />
+      <RendersList r={r} slug={slug} name={name} shown={shown} limit={3} />
+      <p className="sc-quiet">
+        <LinkButton size="sm" variant="ghost" to={{ name: 'review', slug, scenario: name }} testId="open-review-report">
+          Open the review report
+        </LinkButton>
+      </p>
     </section>
   );
 }
@@ -424,7 +429,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
             )}
             <Storyboard v={v} subject={effective} onSelect={setSubject} editFrom={editFrom} ed={ed} moves={boardMoves} canAdd={ed.enabled && forms !== null} onAddStep={(at) => setPalette({ at })} />
             <Disclosure summary="Renders and review" testId="renders-section">
-              <RendersCard v={v} slug={slug} r={renders} />
+              <RendersCard v={v} slug={slug} name={name} r={renders} />
             </Disclosure>
             <p className="sc-quiet">
               <LinkButton size="sm" variant="ghost" to={{ name: 'record', slug }} testId="record-link">

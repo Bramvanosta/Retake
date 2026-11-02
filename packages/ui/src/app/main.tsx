@@ -1,7 +1,7 @@
 /**
  * The Studio app (L4.1): the session bootstrap (session.ts), the hash router (route.ts), live updates (events.ts: one
  * event stream per browser) and the screens inside the shell — Welcome (L5.10a: the projects, search and recent activity), a project's productions (L5.10a: the poster grid, its smart groups and locations; the Cast),
- * its README editor, a scenario as blocks with its run's pictures (L4.2), its Shoot screens (L4.4; L5.11a: Prepare a take and one run live), its timeline (L4.5), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
+ * its README editor, a scenario as blocks with its run's pictures (L4.2), its Shoot screens (L4.4; L5.11a: Prepare a take and one run live), its timeline (L4.5; L5.12a: Edit in the shell), its Review report (L5.12a), its frame comments and the preview of a proposed change (L4.6), its component library and its themes (L4.7), the Record screen (L4.8). Every string from the server is a React text node: no HTML from data,
  * ever (a source lint test bans the raw-HTML APIs); the strict CSP (no inline script, no eval, same-origin connections)
  * is the second line. L5.9: the screens sit in the design system's shell (shell/AppShell.tsx: title bar with the mode
  * switch, browser, centre pane, inspector, status bar), the `#/ui` gallery shows every component of the kit (ui-kit/);
@@ -28,6 +28,7 @@ import { ShootLive } from './ShootLive.js';
 import { ShootPrepare } from './ShootPrepare.js';
 import { ThemesScreen } from './ThemesScreen.js';
 import { TimelineScreen } from './TimelineScreen.js';
+import { ReviewScreen } from './ReviewScreen.js';
 import { hrefTo, parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
@@ -51,7 +52,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', review: 'Review report', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -67,7 +68,7 @@ function Studio() {
   });
   const first = useRef(true);
   useEffect(() => {
-    document.title = `${route.name === 'themes' && route.theme ? `${route.theme} · ` : ''}${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · ${APP_NAME}`;
+    document.title = `${route.name === 'themes' && route.theme ? `${route.theme} · ` : ''}${route.name === 'scenario' || route.name === 'run' || route.name === 'timeline' || route.name === 'comments' || route.name === 'proposal' || route.name === 'review' ? `${route.scenario} · ` : ''}${TITLES[route.name]} · ${APP_NAME}`;
     // Back on the projects: read them again (the first load is useCall's own).
     if (route.name === 'projects' && !first.current) reloadList();
     first.current = false;
@@ -91,6 +92,7 @@ function Studio() {
       {route.name === 'proposal' && (
         <TimelineScreen key={`${route.slug}/${route.scenario}/proposal/${route.thread}/${route.entry}`} slug={route.slug} name={route.scenario} proposal={{ comment_id: route.thread, entry_id: route.entry }} />
       )}
+      {route.name === 'review' && <ReviewScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.render ? { render: route.render } : {})} />}
       {route.name === 'comments' && (
         <CommentsScreen key={`${route.slug}/${route.scenario}`} slug={route.slug} name={route.scenario} {...(route.thread ? { thread: route.thread } : {})} {...(route.at ? { at: route.at } : {})} />
       )}

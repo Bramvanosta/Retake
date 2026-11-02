@@ -105,8 +105,8 @@ export interface KeyTarget {
  * What a key does on the timeline screen (plan D11, critique "smaller points"): Space play / pause, ← / → one frame,
  * Shift+← / → one second, Home / End, [ / ] the previous / next segment — never while typing (an input, a select, a
  * text area, an editable element) or in a radio group (its arrows move the choice); on the scrubber (a range input) its
- * own arrows, Home and End move it (no double step) and only Space is the screen's; on a button or a link Space is its
- * own (it activates it).
+ * own arrows, Home and End move it (no double step) and Space, [ / ] and Shift+← / → are the screen's; on a button or a
+ * link Space is its own (it activates it).
  */
 export function keyAction(e: { key: string; shiftKey?: boolean; altKey?: boolean; ctrlKey?: boolean; metaKey?: boolean }, t: KeyTarget): KeyAction | null {
   if (e.altKey || e.ctrlKey || e.metaKey) return null;
@@ -116,7 +116,9 @@ export function keyAction(e: { key: string; shiftKey?: boolean; altKey?: boolean
   if (tag === 'input' && !range) return null;
   const space = e.key === ' ' || e.key === 'Spacebar';
   if (space) return tag === 'button' || tag === 'a' || tag === 'summary' ? null : { kind: 'toggle' };
-  if (range) return null;
+  // The scrubber keeps its own arrows (one frame), Home and End; [ / ] and Shift+← → do what the keys line says there too
+  // (L5.12a fixes, review A-L2: the caller's preventDefault stops the range's own step).
+  if (range && !(e.key === '[' || e.key === ']' || (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')))) return null;
   switch (e.key) {
     case 'ArrowLeft':
       return e.shiftKey ? { kind: 'seconds', seconds: -1 } : { kind: 'step', frames: -1 };

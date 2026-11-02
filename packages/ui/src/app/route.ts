@@ -13,6 +13,9 @@
  * recent recordings, or one recording, live then reviewed (L4.8). `#/ui` the design system's gallery (L5.9).
  * L5.10a: `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
  * screen with a location in its inspector, `#/p/<slug>/cast` the Cast (the personas' sessions).
+ * L5.12a: `#/p/<slug>/s/<name>/review[/<render id>]` the Review report of a scenario's newest render or of one — the
+ * render id must have a render id's shape (RENDER_ID: `<scenario>-v<n>[-vertical|-square]`, core's RENDER_ID_RE) or the
+ * address is not found (never read with it).
  * A slug, a scenario name, a run id, a comment or render id is whatever
  * the address bar holds, percent-decoded and capped — the server checks it (`project_get` / `scenario_blocks` refuse anything but a slug); here it is only ever a text node or an
  * argument. `hrefTo` is the only way the app builds an `href` (the source lint test enforces it).
@@ -34,6 +37,7 @@ export type Route =
   | { name: 'timeline'; slug: string; scenario: string; run?: string; step?: string }
   | { name: 'comments'; slug: string; scenario: string; thread?: string; at?: { render: string; frame: number } }
   | { name: 'proposal'; slug: string; scenario: string; thread: string; entry: string }
+  | { name: 'review'; slug: string; scenario: string; render?: string }
   | { name: 'library'; slug: string; theme?: string; component?: string }
   | { name: 'themes'; slug: string; theme?: string }
   | { name: 'record'; slug: string; rec?: string }
@@ -41,6 +45,8 @@ export type Route =
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
+/** A render id's shape (core RENDER_ID_RE; a test keeps the two the same): `<scenario>-v<n>`, a variant suffix. */
+export const RENDER_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*-v\d+(?:-vertical|-square)?$/;
 /** A frame in an address: a whole number, at most this (the server checks it against the render). */
 const FRAME_MAX = 10_000_000;
 
@@ -107,6 +113,12 @@ export function parseRoute(hash: string): Route {
     const [pSlug, pScenario, pThread, pEntry] = prParts as string[];
     return { name: 'proposal', slug: pSlug, scenario: pScenario, thread: pThread, entry: pEntry };
   }
+  const rv = /^\/p\/([^/]+)\/s\/([^/]+)\/review(?:\/([^/]+))?\/?$/.exec(path);
+  const rvParts = rv ? [rv[1], rv[2]].map(decode) : null;
+  const rvRender = rv?.[3] !== undefined ? decode(rv[3]) : undefined;
+  if (rv && rvParts && rvParts.every((x) => x !== null) && rvRender !== null && (rvRender === undefined || RENDER_ID.test(rvRender))) {
+    return { name: 'review', slug: rvParts[0]!, scenario: rvParts[1]!, ...(rvRender !== undefined ? { render: rvRender } : {}) };
+  }
   const lb = /^\/p\/([^/]+)\/library(?:\/([^/]+)(?:\/([^/]+)\/([^/]+))?)?\/?$/.exec(path);
   const lbParts = lb ? [lb[1], lb[2], lb[3], lb[4]].map((x) => (x === undefined ? undefined : decode(x))) : null;
   if (lbParts && lbParts.every((x) => x !== null)) {
@@ -161,6 +173,9 @@ export function hrefTo(r: Route): string {
     }
     case 'proposal':
       return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/proposal/${encodeURIComponent(r.thread)}/${encodeURIComponent(r.entry)}`;
+    case 'review':
+      // A render id of another shape is dropped (the address would not parse back).
+      return `#/p/${encodeURIComponent(r.slug)}/s/${encodeURIComponent(r.scenario)}/review${r.render !== undefined && RENDER_ID.test(r.render) ? `/${encodeURIComponent(r.render)}` : ''}`;
     case 'library': {
       // A component needs its theme (the detail shows it in one) and is "namespace/name": anything else is dropped.
       const parts = r.component?.split('/');

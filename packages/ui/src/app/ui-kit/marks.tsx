@@ -75,11 +75,11 @@ export function Timecode({ seconds, total, frame }: { seconds: number; total?: n
 }
 
 /** A progress bar with its label; no `value`: indeterminate (nothing to count yet; no `aria-busy`: the page is not loading). */
-export function Progress({ label, value, max = 100, valueText }: { label: ReactNode; value?: number; max?: number; valueText?: string }) {
+export function Progress({ label, value, max = 100, valueText, testId }: { label: ReactNode; value?: number; max?: number; valueText?: string; /** L5.12a: a test id kept from an older screen. */ testId?: string }) {
   const id = useId();
   const pct = value === undefined ? undefined : Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="k-progress">
+    <div className="k-progress" data-testid={testId}>
       <span id={id} className="k-progress-label">
         {shown(label)}
         {valueText && <span className="k-progress-value"> {shown(valueText)}</span>}

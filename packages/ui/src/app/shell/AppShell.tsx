@@ -33,7 +33,7 @@ import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
 import { isShellCommand, runShellCommand, scenarioGroup } from './command-bus.js';
 import type { ShellCommand } from './command-bus.js';
-import { MODES, contextWatch, modeOf, modeTarget, scenarioInContext, screenKey, slugOf } from './modes.js';
+import { MODES, contextWatch, modeOf, modeTarget, noteReviewView, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode } from './modes.js';
 import { SlotContext } from './slots.js';
 import type { SlotHost, SlotName } from './slots.js';
@@ -108,7 +108,7 @@ function inTextField(t: EventTarget | null): boolean {
   return t instanceof HTMLElement && (t.isContentEditable || t.matches('textarea, select, input:not([type="button"], [type="checkbox"], [type="radio"], [type="submit"], [type="reset"], [type="image"], [type="color"], [type="file"], [type="range"])'));
 }
 
-const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'library', 'themes', 'record']);
+const PROJECT_ROUTES = new Set<Route['name']>(['project', 'group', 'location', 'cast', 'readme', 'scenario', 'run', 'timeline', 'comments', 'proposal', 'review', 'library', 'themes', 'record']);
 
 interface OpenProject {
   view: Loaded<ProjectView>;
@@ -223,6 +223,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   useProjectDataEvents(openSlug);
   useSyncExternalStore(contextWatch.subscribe, contextWatch.version);
   const ctx = scenarioInContext(route, undefined, project?.scenarios);
+  noteReviewView(route);
   const mode = modeOf(route, ctx);
   const inApp = useMemo(() => studioShell() !== null, []);
 
@@ -257,10 +258,16 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     const at = (name: SlotName) => (el: HTMLElement | null) => setTargets((t) => (t[name] === el ? t : { ...t, [name]: el }));
     return { inspector: at('inspector'), context: at('context'), actions: at('actions'), browser: at('browser') };
   }, []);
+  // L5.12a: a screen that hides the browser pane while mounted (Edit, the Review report).
+  const [collapsed, setCollapsed] = useState(0);
+  const collapseBrowser = useCallback(() => {
+    setCollapsed((n) => n + 1);
+    return () => setCollapsed((n) => n - 1);
+  }, []);
   const hasInspector = claims.inspector > 0;
   const [inspectorOff, setInspectorOff] = useState(false);
   const inspectorShown = hasInspector && !inspectorOff;
-  const host = useMemo<SlotHost>(() => ({ targets, claim, hidden: { inspector: inspectorOff } }), [targets, claim, inspectorOff]);
+  const host = useMemo<SlotHost>(() => ({ targets, claim, collapseBrowser, hidden: { inspector: inspectorOff } }), [targets, claim, collapseBrowser, inspectorOff]);
   const inspector = useRef<HTMLElement>(null);
   /** Shows or hides the inspector; hiding it with the focus inside moves the focus to the centre pane (review A-L6). */
   const toggleInspector = useCallback(() => {
@@ -392,7 +399,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const conn = CONNECTION[connection];
   return (
     <SlotContext.Provider value={host}>
-      <div className="sh-app" data-inspector={inspectorShown ? 'shown' : 'none'}>
+      <div className="sh-app" data-inspector={inspectorShown ? 'shown' : 'none'} data-browser={collapsed > 0 ? 'none' : 'shown'}>
         <div className="sh-skip">
           <Button size="sm" onClick={() => main.current?.focus()}>
             Skip to content
@@ -434,7 +441,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
             {hasInspector && <IconButton icon="inspector" label="Inspector" pressed={inspectorShown} onClick={toggleInspector} />}
           </div>
         </header>
-        <aside className="sh-browser sidebar" aria-label="Browser">
+        <aside className="sh-browser sidebar" aria-label="Browser" hidden={collapsed > 0}>
           {claims.browser === 0 && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
           <div className="sh-slot-browser" ref={slotRefs.browser} hidden={claims.browser === 0} />
           <div className="sh-browser-foot">
