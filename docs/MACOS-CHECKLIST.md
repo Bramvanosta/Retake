@@ -1507,7 +1507,7 @@ of `quote`; dark, then light; "Keyboard navigation" on, then off for step 3.
   from a terminal (only the running callout's words change).
 - **Send back:** for each step, OK or what you saw instead (a screenshot, with the appearance).
 
-### 14d. Shoot in the app and in Safari: Prepare, a run live, the status bar's actions, the Scenario menu (L5.11a)
+### 14d. Shoot in the app and in Safari: Prepare, a run live, the status bar's actions, the Scenario menu (L5.11a), Record (L5.11b)
 
 The automated checks run in Chromium; the native menu's keys, WKWebView's clipboard and ⌘. are only reached here.
 `pnpm build`, the desktop app (and Safari on `studio ui`'s link), the workspace of 13a with the fixture running; dark,
@@ -1545,6 +1545,24 @@ then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status
    buttons — the last take and the scenario's name give way whole, no word is cut —, nothing scrolls sideways; at 1100 px
    and above the key caps show. Prepare at 900 px: the Start buttons stay at the foot of the centre pane while the checks
    scroll; the Sessions rows stack.
+9. **Record in the shell (L5.11b).** Open `quote` (Script), then Record a scenario (the browser's Project group): the
+   browser is Shoot's (Prepare, the runs, Recordings, Record a scenario), the start form in the centre. Start recording
+   on the shop's `/`: the real window opens full size and the recording's title has the focus (VoiceOver reads it). In
+   the window click a product, then come back (Cmd-Tab): the row says "n alternatives" on its right — press it, the
+   choices show under it and the Insert toolbar says "Insert after step n of …"; pick one ("Target picked by you"), Hold
+   2 s, then Back to the end (selecting a row moves the insert point after it: after a pick, Back to the end before the
+   next inserts, or they go after that row). With the keyboard only: Tab from the title reaches the draft in one stop,
+   ↑ ↓ / Home / End move through the rows (VoiceOver reads each step), Enter selects one, Tab goes on to its choices and
+   the toolbar, and Stop recording is a few Tabs further whatever the draft's length; arrowing through the choices
+   checks each one, and the last one stays checked once saved. The status bar says "Recording · browser window open · n actions · n inserts · draft
+   updated …" and shows no Rehearse / Capture / Render / Stop; ⌘R, ⇧⌘R and ⌘B say why they wait (nothing starts — not
+   `quote`); with the caret in the Caption… field, ⌘. stops the recording (the window closes; the draft, then the
+   check). The only Stop on screen is the inspector's "Stop recording"; with the inspector hidden (⌥⌘I) it shows at the
+   top of the centre beside the time, and a Name typed in the inspector is still there when it shows again. In Safari,
+   ⌘K's Scenario group offers "Stop recording" and "Discard…" named after the recording (not `quote`). Discard: the sheet's "Keep it" has the focus; Return keeps the recording; Discard then removes
+   it and the focus lands on the title. Reload the page (⌘R in Safari) during a recording: ⌘. in the app still stops the
+   recording. At 900 px: the start form in two columns, a live recording usable (a row's "n alternatives" under its
+   text, no word cut; the toolbar wrapping), the status bar's counts give way, nothing scrolls sideways.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

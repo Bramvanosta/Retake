@@ -6,7 +6,9 @@
  *   Params have loaded), the themes, ⚑ the theme editor on the workspace's own editable theme (its fields enabled,
  *   measured and walked; no sideways scroll at either width — its hidden legend once widened the page), the Record start
  *   form, a recording live with its draft (the `record` job run in this process, Playwright playing the person in the
- *   recording window — no headed window), the recording done and its Discard dialog (walked inside);
+ *   recording window — no headed window), the recording done and its Discard dialog (walked inside); L5.11b: the start
+ *   form and the live recording (a row selected: its alternatives and the Insert toolbar; the status bar the
+ *   recording's) also in dark at 900 px, the shell's narrowest window, beside light 1280;
  * - the native dialogs' keyboard contract (modal, focus moves in, Escape closes, focus returns to the opener): Create
  *   with Claude, Discard the recording;
  * - ⚑ a keyboard-only path (no pointer event at all): Skip to content → the demo project → bits → the steps listbox
@@ -72,6 +74,11 @@ afterAll(async () => {
 });
 
 const at = (hash: string) => `${t.studio.url}#${hash}`;
+/** L5.11b: the Record screen in dark at 1280 / 1440 and the 900 px window, and light at 1280. */
+const RECORD_SCHEMES = [
+  { scheme: 'dark' as const, widths: [1280, 1440, 900] },
+  { scheme: 'light' as const, widths: [1280] },
+];
 const stateOf = () => t.page.getByTestId('record-state').first().getAttribute('data-state');
 
 /** The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. */
@@ -98,8 +105,9 @@ function work(drive: (w: RecordWindow) => Promise<void>): Promise<number> {
 describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9 part C)', () => {
   it('the Record start form; a recording live with its draft; done; the Discard dialog (focus in, Escape, focus back)', async () => {
     const { page } = t;
-    let r = await station(t, 'record-start', () => go(page, at(`/p/${N}/record`), '[data-testid="record-start-form"]'));
+    let r = await station(t, 'record-start', () => go(page, at(`/p/${N}/record`), '[data-testid="record-start-form"]'), { schemes: RECORD_SCHEMES });
     expect(r.findings, r.report).toEqual([]);
+    expect(Object.keys(r.result.all).sort()).toEqual(['dark@1280', 'dark@1440', 'dark@900', 'light@1280']);
     await page.getByTestId('record-page').selectOption('shop');
     await page.getByTestId('record-path').fill('/record-lab');
     await page.getByTestId('record-name').fill('a11y-draft');
@@ -119,7 +127,13 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
       await page.getByTestId('record-caption-text').fill('Pick a bag size');
       await page.getByTestId('record-caption-text').press('Enter');
       await page.getByTestId('record-pending').waitFor(POLL);
-      live = await station(t, 'record-live', async () => undefined);
+      // L5.11b: a row with alternatives selected — its radio group and the Insert toolbar right after it.
+      const row = page.locator('[data-testid=record-step]', { has: page.locator('.k-rowcard-aside') }).first();
+      await row.waitFor(POLL);
+      await row.getByTestId('record-insert-after').click();
+      await page.getByTestId('record-alternatives').waitFor(POLL);
+      await page.getByTestId('status-recording').waitFor(POLL);
+      live = await station(t, 'record-live', async () => undefined, { schemes: RECORD_SCHEMES });
       await page.getByTestId('record-stop').click();
       await w.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);
     });

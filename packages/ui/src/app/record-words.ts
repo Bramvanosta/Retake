@@ -272,6 +272,22 @@ export function writesWords(w: { total: number; by_steps: number; ambient: numbe
   return `The window sent ${n} (${w.by_steps} from steps, ${w.ambient} by the page itself): what was created or changed stays, and every run of the draft does it again — add a reset hook so each take starts from the same data.`;
 }
 
+/**
+ * Why Save waits, or null when it can go (L5.11b fixes, review B-M2): while the window is open (or about to), after
+ * Stop; while the draft is made and checked, once the check is over; else the recording cannot be saved, the name needs
+ * fixing, or there is no draft. `name` is the Studio's own field (a slug: nameProblem rejects anything else).
+ */
+export function saveWhyWords(v: { state: RecordState; can: { save: boolean }; draft_sha256: string | null }, name: string, problem: string | null): string | null {
+  if (!v.can.save) {
+    if (v.state === 'queued' || v.state === 'preflight' || v.state === 'recording') return `Saving opens after Stop. It writes a new file, scenarios/${problem === null && name ? name : '<name>'}.yaml.`;
+    if (v.state === 'draft' || v.state === 'check') return 'Saving opens once the check is over.';
+    return 'This recording cannot be saved.';
+  }
+  if (problem) return 'The name needs fixing first.';
+  if (!v.draft_sha256) return 'There is no draft to save.';
+  return null;
+}
+
 /** The one polite status line: said only when the state (or the saved flag) changes. */
 export function statusLine(state: RecordState, saved: boolean): string {
   if (saved) return 'Saved as a scenario.';

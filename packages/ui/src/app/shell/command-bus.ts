@@ -67,3 +67,62 @@ export function useShellCommand(id: ShellCommand, handler: () => void, priority:
   ref.current = handler;
   useEffect(() => (enabled ? registerShellCommand(id, ref, priority) : undefined), [id, priority, enabled]);
 }
+
+/**
+ * L5.11b fixes (review A-M2 / A-L1): a screen whose commands are not the scenario's — a live recording — gives the ⌘K
+ * palette's Scenario group its own entries while it owns the commands ("Stop recording · <recording>", "Discard…"), in
+ * place of Rehearse / Capture / Render / Stop of the scenario remembered in context (never named there). One screen at a
+ * time: the latest mounted wins; null gives the group back.
+ */
+export interface ScreenCommand {
+  id: string;
+  label: string;
+  hint?: string;
+  run: () => void;
+}
+
+let group: ScreenCommand[] | null = null;
+let groupVersion = 0;
+const groupListeners = new Set<() => void>();
+
+export const scenarioGroup = {
+  subscribe(fn: () => void): () => void {
+    groupListeners.add(fn);
+    return () => {
+      groupListeners.delete(fn);
+    };
+  },
+  get(): ScreenCommand[] | null {
+    return group;
+  },
+  version(): number {
+    return groupVersion;
+  },
+};
+
+function setGroup(next: ScreenCommand[] | null): void {
+  group = next;
+  groupVersion++;
+  for (const fn of groupListeners) fn();
+}
+
+/** The palette's Scenario group while mounted with `commands` (null: the default group); each run reads the latest. */
+export function useScenarioGroup(commands: ScreenCommand[] | null): void {
+  const ref = useRef(commands);
+  ref.current = commands;
+  // The entries' words (ids, labels, hints) decide a new group; their handlers are read at each run.
+  const words = commands ? JSON.stringify(commands.map((c) => [c.id, c.label, c.hint ?? ''])) : null;
+  useEffect(() => {
+    if (words === null) return undefined;
+    const ids = (JSON.parse(words) as Array<[string, string, string]>).map(([id, label, hint]) => ({
+      id,
+      label,
+      ...(hint ? { hint } : {}),
+      run: () => ref.current?.find((c) => c.id === id)?.run(),
+    }));
+    setGroup(ids);
+    return () => {
+      if (group === ids) setGroup(null);
+    };
+  }, [words]);
+}

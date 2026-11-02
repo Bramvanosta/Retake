@@ -19,7 +19,12 @@
  * - the cursor by row identity (review B-H1 / B-M1): a hold after a chosen step, after the recorder's scroll row and
  *   after its wait row goes immediately after that row; the cursor moves onto the hold, and the next one goes right
  *   after it; each row's Insert after names its step;
- * - one Stop visible while recording (the screen's; the status bar says "Recording", L5.11a review A-L7);
+ * - one Stop visible while recording (the inspector's "Stop recording"; the status bar says "Recording · browser window
+ *   open" with the counts and holds the actions slot, L5.11a review A-L7 / L5.11b);
+ * - L5.11b (critique L2 / H1 of L5.11): while a recording goes, Rehearse and Capture send nothing and say why (the
+ *   scenario remembered in context is never run from the Record route); ⌘. stops the recording — after a reload too;
+ * - L5.11b: the Discard sheet — "Keep it" holds the focus, Return keeps it (nothing sent), Discard then discards and the
+ *   focus lands on the title; after Save the focus is in the centre pane (never dropped);
  * - Stop and keep → the check replay passed; Save: a taken name refused (the file untouched), then a new scenario (no
  *   YAML alias: the block editor deletes and duplicates the scroll row) and the scenario screen;
  * - the hostile flagged page (`/record-lab?hostile=1`): its label shown as inert text (no script ran, the direction
@@ -67,6 +72,8 @@ const logs: string[] = [];
 const workerLogs: string[] = [];
 const stderr: string[] = [];
 const answers: string[] = [];
+/** Every op the page called, in order (`/v1/call/<op>`). */
+const calls: string[] = [];
 const consoleErrors: string[] = [];
 const writeErr = process.stderr.write.bind(process.stderr);
 
@@ -79,6 +86,16 @@ async function shot(name: string): Promise<void> {
 const recDir = (id: string) => join(ws, 'projects', P, '.demo-studio', 'records', id);
 const recOf = () => /#\/p\/[^/]+\/record\/([^/]+)$/.exec(page.url())?.[1] ?? '';
 const stateOf = () => page.getByTestId('record-state').first().getAttribute('data-state');
+const said = () => page.locator('.sh-said').innerText();
+const command = (id: string) => page.evaluate((x) => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: x } })), id);
+/** Selects a draft row (its option: the cursor goes right after it, its alternatives show), then waits for them. */
+async function pickAlternatives(row: ReturnType<Page['locator']>) {
+  await row.getByTestId('record-insert-after').click();
+  expect(await row.getByTestId('record-insert-after').getAttribute('aria-selected')).toBe('true');
+  const alts = page.getByTestId('record-alternatives');
+  await alts.waitFor({ timeout: 20_000 });
+  return alts;
+}
 
 /** The view as the server tells it (the test's own read; the page reads it too). */
 async function view(rec: string): Promise<RecordViewAnswer> {
@@ -88,9 +105,13 @@ async function view(rec: string): Promise<RecordViewAnswer> {
   return r.json<{ data: RecordViewAnswer }>().data;
 }
 
-/** The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. */
-function work(drive: (w: Window) => Promise<void>): Promise<number> {
-  return runWorker({
+/**
+ * The in-process worker (one job), Playwright playing the person; the window closes after `drive` if still open. A drive
+ * that throws fails the job — and the test, with the drive's own error (L5.11b fixes, review B-L2: not a later "failed").
+ */
+async function work(drive: (w: Window) => Promise<void>): Promise<number> {
+  let failed: { error: unknown } | null = null;
+  const code = await runWorker({
     root: ws,
     once: true,
     idleExitMs: 0,
@@ -102,12 +123,19 @@ function work(drive: (w: Window) => Promise<void>): Promise<number> {
       drive: async (w) => {
         await w.waitForLoadState('domcontentloaded');
         await w.waitForTimeout(800);
-        await drive(w);
+        try {
+          await drive(w);
+        } catch (error) {
+          failed = { error };
+          throw error;
+        }
         await w.waitForTimeout(400).catch(() => undefined);
         await w.close().catch(() => undefined);
       },
     },
   });
+  if (failed) throw (failed as { error: unknown }).error;
+  return code;
 }
 
 /** Wait for the screen to show a state; a failed or cancelled job ends the wait at once, with the worker's log. */
@@ -176,6 +204,10 @@ beforeAll(async () => {
   page.on('console', (m) => {
     if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) consoleErrors.push(m.text());
   });
+  page.on('request', (r) => {
+    const m = /\/v1\/call\/([a-z_]+)/.exec(new URL(r.url()).pathname);
+    if (m) calls.push(m[1]);
+  });
   page.on('response', (r) => {
     if (new URL(r.url()).pathname.startsWith('/v1/call/')) void r.text().then((t) => answers.push(t), () => undefined);
   });
@@ -223,15 +255,23 @@ describe('recording the lab from the Studio', () => {
 
       // A pick on a click that later folds into the typing.
       await w.locator('#lab-email').click();
-      const alts = page.getByTestId('record-alternatives').first();
-      await alts.waitFor({ timeout: 20_000 });
-      await alts.locator('summary').click();
+      // L5.11b: a row with verified alternatives says so on its right; pressing it shows them under it (a radio group).
+      const emailRow = page.locator('[data-testid=record-step]', { has: page.locator('.k-rowcard-aside') }).first();
+      await emailRow.waitFor({ timeout: 20_000 });
+      expect(await emailRow.locator('.k-rowcard-aside').textContent()).toMatch(/^\d+ alternatives?$/);
+      const alts = await pickAlternatives(emailRow);
       const options = alts.getByTestId('record-alternative');
       expect(await options.count()).toBeGreaterThanOrEqual(2);
-      picked = ((await alts.locator('label').nth(1).locator('.step-target').textContent()) ?? '').trim();
+      picked = ((await alts.locator('.k-radio').nth(1).locator('.rc-alt-words').textContent()) ?? '').trim();
       // The radio follows the server's answer (a controlled choice): a click, then the view says so.
       await options.nth(1).click();
-      await expect.poll(() => alts.locator('summary').textContent(), POLL).toMatch(/picked by you/);
+      await expect.poll(() => alts.getByTestId('record-alt-state').textContent(), POLL).toMatch(/picked by you/);
+      expect(await options.nth(1).isChecked()).toBe(true);
+      // Only the selected row shows its alternatives.
+      expect(await page.getByTestId('record-alternatives').count()).toBe(1);
+      // Back to the end: the next inserts follow the next actions.
+      await page.getByTestId('record-cursor-end').click();
+      await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/^Insert at the end/);
       await w.keyboard.type('buyer@example.com');
 
       // A password: a placeholder only.
@@ -257,8 +297,11 @@ describe('recording the lab from the Studio', () => {
       await page.getByTestId('record-pending').waitFor();
       await page.getByTestId('record-insert-mark').click();
       await expect.poll(() => page.getByTestId('record-pending').getByTestId('record-insert-chip').count(), POLL).toBe(2);
-      expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom 1.4×');
+      // Zoom…: the theme's factors, its maximum (1.4) the default (L5.11b: a disclosure like Wait for… and Caption…).
+      expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom…');
       await page.getByTestId('record-insert-zoom').click();
+      expect(await page.getByRole('radio', { name: /^1\.4×/ }).isChecked()).toBe(true);
+      await page.getByTestId('record-zoom-add').click();
       await expect.poll(() => page.getByTestId('record-pending').getByTestId('record-insert-chip').count(), POLL).toBe(3);
       await page.getByTestId('record-insert-hold').click();
       await expect.poll(() => page.locator('[data-testid=record-step][data-role=insert]').count(), POLL).toBe(1);
@@ -288,22 +331,29 @@ describe('recording the lab from the Studio', () => {
       }
       await w.waitForTimeout(700);
       await w.getByRole('button', { name: 'Far away' }).click();
-      const far = page.locator('[data-testid=record-step][data-role=action]', { hasText: 'Far away' }).getByTestId('record-alternatives');
-      await far.waitFor({ timeout: 20_000 });
-      await far.locator('summary').click();
-      await far.locator('label', { hasText: 'lab-far', hasNotText: '#lab-far' }).getByTestId('record-alternative').click();
-      await expect.poll(() => far.locator('summary').textContent(), POLL).toMatch(/picked by you/);
+      const farRow = page.locator('[data-testid=record-step][data-role=action]', { hasText: 'Far away' });
+      await farRow.locator('.k-rowcard-aside').waitFor({ timeout: 20_000 });
+      const far = await pickAlternatives(farRow);
+      await far.locator('.k-radio', { hasText: 'lab-far', hasNotText: '#lab-far' }).getByTestId('record-alternative').click();
+      await expect.poll(() => far.getByTestId('record-alt-state').textContent(), POLL).toMatch(/picked by you/);
+      // The inspector shows the selected step.
+      expect(await page.getByTestId('record-step-inspector').textContent()).toMatch(/Step \d+ · /);
+      await page.getByTestId('record-cursor-end').click();
       await w.getByRole('button', { name: 'Unlock the last step' }).click();
       await w.waitForTimeout(1700);
       await w.getByRole('button', { name: 'Delayed control' }).click();
       await expect.poll(() => page.locator('[data-testid=record-step][data-helper=wait]').count(), POLL).toBe(1);
       expect(await page.locator('[data-testid=record-step][data-helper=scroll]').count()).toBe(1);
-      // L5.11a (review A-L7): while recording, ONE Stop is visible — the screen's own; the status bar says "Recording"
-      // and holds the actions slot (no Rehearse / Capture / second Stop there).
+      // L5.11a (review A-L7) / L5.11b: while recording, ONE Stop is visible — the inspector's; the status bar says
+      // "Recording · browser window open" with the counts and holds the actions slot (no Rehearse / Capture / second
+      // Stop there), and no scenario's state line beside it.
       await page.getByTestId('status-recording').waitFor(POLL);
-      const stops = await page.getByRole('button', { name: /^(Stop|Stop and keep|Stop recording)$/ }).evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim()));
-      expect(stops).toEqual(['Stop and keep']);
+      const stops = await page.getByRole('button', { name: /^(Stop|Stop and keep|Stop recording|Cancel recording)$/ }).evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent !== null).map((e) => e.textContent?.trim()));
+      expect(stops).toEqual(['Stop recording']);
+      expect(await page.locator('.sh-inspector').getByTestId('record-stop').count()).toBe(1);
       expect(await page.getByTestId('status-actions').count()).toBe(0);
+      expect(await page.getByTestId('status-scenario').count()).toBe(0);
+      expect(await page.getByTestId('status-recording').textContent()).toMatch(/^Recording · browser window open · \d+ actions · 5 inserts · draft updated (just now|\d+ s ago)$/);
       // Stop and keep from the Studio: the window closes as if closed.
       await page.getByTestId('record-stop').click();
       await w.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);
@@ -322,7 +372,9 @@ describe('recording the lab from the Studio', () => {
     expect(typing.find((s) => s.target === picked)?.summary).toMatch(/buyer@example\.com/);
     // The choice in effect on that step is the one made on the click (the latest press of the target that has one).
     expect(v.untrusted!.sources.some((x) => x.role === 'action' && x.chosen?.index === 1)).toBe(true);
-    expect(await page.getByTestId('record-alternatives').first().locator('summary').textContent()).toMatch(/picked by you/);
+    expect(await page.locator('.k-rowcard-aside', { hasText: 'Target picked by you' }).count()).toBeGreaterThanOrEqual(1);
+    // Over: the status bar is the defaults' again (the recording no longer claims it).
+    await expect.poll(() => page.getByTestId('status-recording').count(), POLL).toBe(0);
     expect(yaml).toContain('{{vars.password_1}}');
     // One step for the split word.
     expect(yaml).toContain('Two words');
@@ -347,11 +399,13 @@ describe('recording the lab from the Studio', () => {
     const after = async (rowSel: string) => {
       const row = page.locator(rowSel).first();
       const id = (await row.getAttribute('data-row'))!;
+      // L5.11b: the row itself is an option of its scene's listbox (its name its own words); selected, the toolbar right
+      // after it says where.
       const btn = row.getByTestId('record-insert-after');
-      expect(await btn.getAttribute('aria-label')).toMatch(/^Insert after step \d+ of /);
+      expect(await btn.getAttribute('aria-selected')).toBe('false');
       await btn.click();
-      expect(await btn.getAttribute('aria-pressed')).toBe('true');
-      expect(await btn.textContent()).toBe('Insert after this step');
+      expect(await btn.getAttribute('aria-selected')).toBe('true');
+      expect(await page.getByTestId('record-cursor-where').textContent()).toMatch(/^Insert after step \d+ of /);
       return id;
     };
     const holdAt = async (n: number) => {
@@ -370,8 +424,10 @@ describe('recording the lab from the Studio', () => {
     let r = await rows();
     expect(r.slice(r.findIndex((x) => x.endsWith(`:${first}`)), r.findIndex((x) => x.endsWith(`:${first}`)) + 3)).toEqual([expect.stringMatching(new RegExp(`:${first}$`)), h1, 'CURSOR']);
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/after step 2 of/);
-    // Remove takes it out again; the cursor's row is gone: back to the end.
-    await page.locator(`[data-testid=record-step][data-row="${h1.split('::')[1]}"]`).getByTestId('record-insert-remove').click();
+    // Remove takes it out again (L5.11b fixes: the selected row's Remove is in its cursor block — the cursor is on the hold);
+    // the cursor's row is gone: back to the end.
+    expect(await page.locator(`[data-testid=record-step][data-row="${h1.split('::')[1]}"]`).getByTestId('record-insert-after').getAttribute('aria-selected')).toBe('true');
+    await page.getByTestId('record-cursor').getByTestId('record-insert-remove').click();
     await expect.poll(async () => (await inserts()).length, POLL).toBe(before);
     await expect.poll(() => page.getByTestId('record-cursor-where').textContent(), POLL).toMatch(/at the end/);
 
@@ -382,7 +438,8 @@ describe('recording the lab from the Studio', () => {
     r = await rows();
     const at = r.findIndex((x) => x === `helper:scroll:${scroll}`);
     expect(r.slice(at, at + 5)).toEqual([`helper:scroll:${scroll}`, s1, s2, 'CURSOR', expect.stringMatching(/^action::a\d+$/)]);
-    expect(await page.locator('[data-testid=record-step]').nth(r.slice(0, at + 4).filter((x) => x !== 'CURSOR').length).textContent()).toContain('Far away');
+    // The press after them is the "Far away" click (its target picked earlier: the test id, L5.11b shows the pick in the row).
+    expect(await page.locator('[data-testid=record-step]').nth(r.slice(0, at + 4).filter((x) => x !== 'CURSOR').length).textContent()).toContain('lab-far');
 
     // After the recorder's wait row: between the wait and its press.
     const wait = await after('[data-testid=record-step][data-helper=wait]');
@@ -416,6 +473,9 @@ describe('recording the lab from the Studio', () => {
     await page.getByTestId('record-save').click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/s/e2e-lab`);
     await page.getByTestId('step').first().waitFor();
+    // L5.11b: the focus is never dropped — the Save button went with the screen; the centre pane holds it.
+    expect(await page.evaluate(() => document.activeElement !== document.body && document.activeElement !== null)).toBe(true);
+    expect(await page.evaluate(() => Boolean(document.activeElement?.closest('#main')))).toBe(true);
     const text = await readFile(join(ws, 'projects', P, 'scenarios', 'e2e-lab.yaml'), 'utf8');
     for (const t of ['{{vars.password_1}}', 'Two words', 'Pick a bag size', 'mark: m1', 'zoom: 1.4', 'hold: 2']) expect(text, t).toContain(t);
     expect(text).not.toContain(SENTINEL);
@@ -438,12 +498,16 @@ describe('recording the lab from the Studio', () => {
     // The start form's recent list says so.
     await page.goto(`${studio.url}#/p/${P}/record`);
     await page.getByTestId('record-recent-item').first().waitFor();
-    expect(await page.getByTestId('record-recent').textContent()).toMatch(/saved as\s*e2e-lab/);
+    // L5.11b: the recent recordings are Shoot's browser's Recordings group.
+    expect(await page.locator('.sh-browser').getByTestId('record-recent-item').filter({ hasText: 'e2e-lab' }).first().textContent()).toMatch(/saved as e2e-lab/);
   });
 });
 
 describe('the hostile page, Discard of an open window, read-only and sign-in', () => {
-  it('the hostile label shown as inert text; saved, its step is left out (hidden_text): no hidden character in the file', async () => {
+  it('the hostile label shown as inert text; ⚑ Rehearse / Capture refused while recording; ⚑ ⌘. stops the recording after a reload; saved, its step is left out (hidden_text): no hidden character in the file', async () => {
+    // A scenario in context (opened in this tab before Record): the status bar's defaults would act on it.
+    await page.goto(`${studio.url}#/p/${P}/s/quote`);
+    await page.getByTestId('run-dry').waitFor(POLL);
     const rec = await startRecording({ path: '/record-lab?hostile=1', name: 'e2e-hostile' });
     await work(async (w) => {
       await w.getByRole('heading', { name: 'Recording lab' }).waitFor();
@@ -453,10 +517,30 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       await w.locator('#lab-hostile').click();
       await expect.poll(() => page.getByTestId('record-issues').locator('[data-code=hidden_text]').count(), POLL).toBe(1);
       expect(await page.evaluate(() => (globalThis as { __pwned?: unknown }).__pwned)).toBeUndefined();
-      expect(await page.locator('main img').count()).toBe(0);
+      expect(await page.locator('main img, .sh-inspector img').count()).toBe(0);
       await shot('record-hostile-1280');
-      await page.getByTestId('record-stop').click();
+      // L5.11b (critique L2): Rehearse and Capture (the menu's ⌘R / ⇧⌘R, the palette's Scenario group) and Render say
+      // why they wait, and nothing is sent — the remembered scenario is never run from here while the window is open.
+      await page.getByTestId('status-recording').waitFor(POLL);
+      // The status bar is the recording's: no line for the scenario in context beside it.
+      expect(await page.getByTestId('status-scenario').count()).toBe(0);
+      const before = calls.length;
+      await command('rehearse');
+      await expect.poll(said, POLL).toBe('Rehearse waits while a recording window is open: stop the recording first');
+      await command('capture');
+      await expect.poll(said, POLL).toBe('Capture waits while a recording window is open: stop the recording first');
+      await command('render');
+      await expect.poll(said, POLL).toBe('Render waits while a recording window is open: stop the recording first');
+      expect(calls.slice(before).filter((c) => c === 'scenario_run' || c === 'scenario_render')).toEqual([]);
+      // ⚑ The one owner of ⌘. after a reload (critique H1): the recording's — record_stop, never a run's stop.
+      await page.reload();
+      await page.getByTestId('record-title').waitFor(POLL);
+      await expect.poll(() => page.getByTestId('status-recording').getAttribute('data-state'), POLL).toBe('recording');
+      const sent = calls.length;
+      await command('stop');
       await w.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);
+      await expect.poll(() => calls.slice(sent).includes('record_stop'), POLL).toBe(true);
+      expect(calls.slice(sent).filter((c) => c === 'run_cancel' || c === 'run_pause')).toEqual([]);
     });
     await untilState('done');
     const v = await view(rec);
@@ -482,6 +566,23 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       await page.getByTestId('record-discard').click();
       await page.getByTestId('record-discard-confirm').waitFor();
       expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('record-discard-keep');
+      // ⚑ L5.11b: the kit's sheet — Return chooses "Keep it" (the default), never Discard: nothing is sent, the
+      // focus goes back to Discard.
+      const before = calls.length;
+      await page.keyboard.press('Enter');
+      await page.getByTestId('record-discard-confirm').waitFor({ state: 'hidden' });
+      expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('record-discard');
+      expect(calls.slice(before)).not.toContain('record_discard');
+      expect(await stateOf()).toBe('recording');
+      // Escape keeps it too.
+      await page.getByTestId('record-discard').click();
+      await page.getByTestId('record-discard-confirm').waitFor();
+      await page.keyboard.press('Escape');
+      await page.getByTestId('record-discard-confirm').waitFor({ state: 'hidden' });
+      expect(calls.slice(before)).not.toContain('record_discard');
+      await page.getByTestId('record-discard').click();
+      await page.getByTestId('record-discard-confirm').waitFor();
+      await shot('record-discard-sheet-1280');
       await page.getByTestId('record-discard-yes').click();
       await w.waitForEvent('close', { timeout: 15_000 }).catch(() => undefined);
     });
@@ -489,8 +590,11 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
     expect(await page.getByTestId('record-sentence').textContent()).toMatch(/^Discarded/);
     await expect.poll(() => page.getByTestId('record-note').count(), POLL).toBe(0);
     expect(await page.getByTestId('record-job-error').count()).toBe(0);
-    expect(await page.locator('main .notice-danger').count()).toBe(0);
+    // No failure callout at all (L5.11b fixes, review B-M1: the kit's callout, not the old notice class).
+    expect(await page.locator('#main .k-callout[data-state="fail"]').count()).toBe(0);
     expect(existsSync(recDir(rec))).toBe(false);
+    // ⚑ The focus was never dropped: Discard went with the window; the title holds it.
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('record-title');
     await shot('record-discarded-1280');
   }, 240_000);
 
@@ -532,7 +636,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
     await expect.poll(stateOf, POLL).toBe('failed');
     await page.getByTestId('record-sign-in').waitFor();
     // No empty draft card under a refusal (review B-L5).
-    expect(await page.locator('.rec-draft-card').count()).toBe(0);
+    expect(await page.getByTestId('record-draft-section').count()).toBe(0);
     expect(await page.getByTestId('record-sign-in').getByTestId('sign-in-button').getAttribute('aria-label')).toBe('Sign in supplier (signed-in)');
     expect(await page.getByTestId('record-job-error').textContent()).not.toContain(ws);
     await shot('record-sign-in-1280');

@@ -98,20 +98,26 @@ async function person(w: Window): Promise<void> {
   await page.getByTestId('record-caption-kicker').fill(KICKER);
   await page.getByTestId('record-caption-text').press('Enter');
   await page.getByTestId('record-pending').waitFor();
-  expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom 1.4×');
+  // Zoom… (L5.11b: a disclosure): the theme's maximum, 1.4×, is the default.
+  expect(await page.getByTestId('record-insert-zoom').textContent()).toBe('Zoom…');
   await page.getByTestId('record-insert-zoom').click();
+  expect(await page.getByRole('radio', { name: /^1\.4×/ }).isChecked()).toBe(true);
+  await page.getByTestId('record-zoom-add').click();
   await expect.poll(() => page.getByTestId('record-pending').getByTestId('record-insert-chip').count(), POLL).toBe(2);
   await shot('acc-pending');
 
   await w.getByRole('button', { name: 'Request a quote' }).click();
   await expect.poll(() => page.getByTestId('record-pending').count(), POLL).toBe(0);
-  // A pick among the click's verified alternatives.
-  const alts = stepRow('Request a quote').getByTestId('record-alternatives');
+  // A pick among the click's verified alternatives (L5.11b: the row pressed shows them under it; then back to the end).
+  const row = stepRow('Request a quote');
+  await row.locator('.k-rowcard-aside').waitFor({ timeout: 20_000 });
+  await row.getByTestId('record-insert-after').click();
+  const alts = page.getByTestId('record-alternatives');
   await alts.waitFor({ timeout: 20_000 });
-  await alts.locator('summary').click();
-  const picked = ((await alts.locator('label').nth(1).locator('.step-target').textContent()) ?? '').trim();
+  const picked = ((await alts.locator('.k-radio').nth(1).locator('.rc-alt-words').textContent()) ?? '').trim();
   await alts.getByTestId('record-alternative').nth(1).click();
-  await expect.poll(() => alts.locator('summary').textContent(), POLL).toMatch(/picked by you/);
+  await expect.poll(() => alts.getByTestId('record-alt-state').textContent(), POLL).toMatch(/picked by you/);
+  await page.getByTestId('record-cursor-end').click();
   pickedTarget = picked;
 
   await w.waitForTimeout(500);

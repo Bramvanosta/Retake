@@ -34,6 +34,7 @@ import {
   Callout,
   FrameGrid,
   FrameOption,
+  RadioGroup,
   RowCard,
   Progress,
   Segmented,
@@ -88,6 +89,8 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [poster, setPoster] = useState<string | null>(null);
   const [frame, setFrame] = useState(0);
   const [rowCard, setRowCard] = useState(false);
+  const [stepRow, setStepRow] = useState(true);
+  const [way, setWay] = useState('0');
   const [caption, setCaption] = useState(true);
   const [pressed, setPressed] = useState(true);
   const [sheet, setSheet] = useState(false);
@@ -350,6 +353,22 @@ function Column({ appearance }: { appearance: Appearance }) {
         <div className="gl-pane">
           <Switch layout="row" label="Caption" hint={caption ? 'On this step' : 'No caption on this step'} checked={caption} onChange={setCaption} />
         </div>
+      </Section>
+      <Section title="Record (compact rows, a radio group)">
+        <div className="gl-pane">
+          <RowCard compact tile="2" title="Scroll to “Fresh arrivals”" meta="Recorded scroll" selected={false} onSelect={() => setStepRow(false)} />
+          <RowCard compact tile="3" title="Click “Selowa Ridge”" meta="Suggested: text" aside="2 alternatives" selected={stepRow} onSelect={() => setStepRow((v) => !v)} />
+        </div>
+        <RadioGroup
+          legend={`Ways to find “Selowa Ridge” (${name})`}
+          value={way}
+          onChange={setWay}
+          options={[
+            { value: '0', label: 'Text “Selowa Ridge”', aside: 'Suggested' },
+            { value: '1', label: 'Role: link “Selowa Ridge”' },
+            { value: '2', label: 'CSS .lot-card:nth-child(3)', detail: 'depends on the page’s code (a CSS selector)', disabled: true },
+          ]}
+        />
       </Section>
       <Section title="Facts and disclosure">
         <div className="gl-pane">

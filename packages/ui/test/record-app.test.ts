@@ -3,13 +3,17 @@
  * recordEventAction) — states in words, who started a recording, the window note (full size, never "side by side"),
  * the time left, the target flags, the inserts, the check (B7 wording, the events changed after it), the preflight
  * refusal a Sign in answers, the Studio's text rules (core studioText's, before anything is sent), the writes' reset
- * advice, the status line, and which events make the screen read its recording again.
+ * advice, the status line, and which events make the screen read its recording again. L5.11b: a recording's state in the
+ * Shoot browser and beside its mark — a shape and a state word for every state (the colour-only rule).
  */
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { RecordInsert } from '@demo-studio/core';
 import type { RecordCheckView, RecordState } from '@demo-studio/engine';
 import { recordEventAction } from '../src/app/events.js';
 import { cursorRow, draftRows } from '../src/app/RecordScreen.js';
+import { RECORD_MARK, ShootBrowser, recordStateWord, recordingWords } from '../src/app/ShootBrowser.js';
 import type { RecordViewAnswer } from '../src/server/record-ops.js';
 import {
   CHECK_SCOPE_NOTE,
@@ -31,6 +35,7 @@ import {
   personaProblem,
   preflightSignIn,
   readOnlyWords,
+  saveWhyWords,
   startedByWords,
   stateSentence,
   statusLine,
@@ -244,5 +249,58 @@ describe('the draft rows and the events', () => {
     // The start form: any recording of the project.
     expect(recordEventAction(w(['p/rec_b']), 'p', undefined)).toBe(true);
     expect(recordEventAction(w(['pq/rec_b']), 'p', undefined)).toBe(false);
+  });
+});
+
+describe('L5.11b: a recording\'s state beside its mark (Shoot\'s browser, the screen)', () => {
+  const STATES = Object.keys(STATE_WORDS) as RecordState[];
+  /** The a11y checker's vocabulary a status mark needs beside it (a11y.ts saysState), as far as these words go. */
+  const SAYS = /\b(waiting|pending|recording|draft|recorded|interrupted|invalid|failed|cancelled|discarded|missing|ended|done|saved)\b/i;
+  it('every state has a mark and a word that says a state; live states say "now"-ish words', () => {
+    for (const st of STATES) {
+      expect(RECORD_MARK[st], st).toBeDefined();
+      expect(recordStateWord(st), st).toMatch(SAYS);
+      expect(recordStateWord(st).charAt(0), st).toBe(recordStateWord(st).charAt(0).toUpperCase());
+    }
+    expect(RECORD_MARK.recording).toBe('recording');
+    expect(RECORD_MARK.done).toBe('ok');
+    expect(RECORD_MARK.failed).toBe('fail');
+    expect(recordStateWord('preflight')).toBe('Pending: opening the window');
+  });
+
+  it('the browser\'s words: the actions while it goes, "not saved" / "saved as" once over, who started it when not the Studio', () => {
+    const r = { state: 'recording' as RecordState, actions: 7, saved: null, studio: true, started_by: 'ui' as const };
+    expect(recordingWords(r)).toBe('Recording · 7 actions');
+    expect(recordingWords({ ...r, state: 'done' })).toBe('Recorded · not saved');
+    expect(recordingWords({ ...r, state: 'done', saved: { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' } })).toBe('Recorded · saved as quote-v2');
+    expect(recordingWords({ ...r, state: 'done', studio: false, started_by: 'mcp' })).toBe('Recorded · by Claude');
+    expect(recordingWords({ ...r, state: 'discarded', studio: false })).toBe('Discarded');
+    expect(recordingWords({ ...r, state: 'queued', actions: null })).toBe('Waiting for the worker');
+    // L5.11b fixes (review B-L6): its location, and its steps once over (L4.8's list said both).
+    expect(recordingWords({ ...r, env: 'local', steps: 5 })).toBe('Recording · 7 actions · local');
+    expect(recordingWords({ ...r, state: 'done', env: 'staging', steps: 12, saved: { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' } })).toBe('Recorded · 12 steps · staging · saved as quote-v2');
+    expect(recordingWords({ ...r, state: 'done', env: 'local', steps: 1 })).toBe('Recorded · 1 step · local · not saved');
+  });
+
+  it('⚑ the Recordings group: a saved recording links its scenario (a row under it); its words through Txt (B-L6)', () => {
+    const item = (rec_id: string, saved: { name: string; file: string } | null) => ({ rec_id, state: 'done' as const, job: null, started_by: 'ui' as const, started_at: null, name: `draft-${rec_id}`, env: 'local', persona: null, page: 'shop', path: '/', steps: 4, actions: 4, saved, studio: saved === null });
+    const html = renderToStaticMarkup(createElement(ShootBrowser, { slug: 'p', name: null, runs: null, current: null, recordings: { items: [item('rec_a', { name: 'quote-v2', file: 'scenarios/quote-v2.yaml' }), item('rec_b', null)], current: 'rec_a' } }));
+    expect(html).toMatch(/<a href="#\/p\/p\/s\/quote-v2"[^>]*data-testid="record-recent-saved"[^>]*>.*Open quote-v2/);
+    expect((html.match(/data-testid="record-recent-saved"/g) ?? []).length).toBe(1);
+    expect(html).toContain('Recorded · 4 steps · local · saved as quote-v2');
+    expect(html).toContain('Recorded · 4 steps · local · not saved');
+  });
+});
+
+describe('L5.11b fixes: why Save waits, in the words of each state (review B-M2)', () => {
+  const v = (state: RecordState, save = false, draft: string | null = null) => ({ state, can: { save }, draft_sha256: draft });
+  it('after Stop while the window is open; once the check is over while it runs; enabled when done', () => {
+    for (const s of ['queued', 'preflight', 'recording'] as const) expect(saveWhyWords(v(s), 'quote-v2', null), s).toBe('Saving opens after Stop. It writes a new file, scenarios/quote-v2.yaml.');
+    expect(saveWhyWords(v('recording'), 'bad name', 'Letters only')).toBe('Saving opens after Stop. It writes a new file, scenarios/<name>.yaml.');
+    for (const s of ['draft', 'check'] as const) expect(saveWhyWords(v(s), 'quote-v2', null), s).toBe('Saving opens once the check is over.');
+    expect(saveWhyWords(v('interrupted'), 'quote-v2', null)).toBe('This recording cannot be saved.');
+    expect(saveWhyWords(v('done', true, 'abc'), 'quote-v2', null)).toBeNull();
+    expect(saveWhyWords(v('done', true, 'abc'), 'x y', 'Letters only')).toBe('The name needs fixing first.');
+    expect(saveWhyWords(v('done', true, null), 'quote-v2', null)).toBe('There is no draft to save.');
   });
 });

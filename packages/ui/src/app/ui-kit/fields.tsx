@@ -1,5 +1,5 @@
 /**
- * L5.9: fields — `TextField`, `TextArea`, `Select`, `FieldRow`. Native elements with a visible label (stacked, or in the
+ * L5.9: fields — `TextField`, `TextArea`, `Select`, `FieldRow` (L5.11b: `RadioGroup`). Native elements with a visible label (stacked, or in the
  * inspector's row: a right-aligned 96 px label column). The text inputs carry the tab's unsaved mark (L5.2b,
  * drafts.ts): `unsaved` is REQUIRED — the item the desktop app's quit question names while the value differs from its
  * `baseline` — or an explicit `null` for text that is no one's work (a search box); a test parses these two components
@@ -184,5 +184,41 @@ export function FieldRow({ label, hint, children }: { label: ReactNode; hint?: R
         {hint && <span className="k-hint">{shown(hint)}</span>}
       </div>
     </div>
+  );
+}
+
+export interface RadioOption {
+  value: string;
+  label: ReactNode;
+  /** A second line under the label (what the choice means, why it may be fragile): it wraps. */
+  detail?: ReactNode;
+  /** A word on the right ("Suggested", "the theme's maximum"). */
+  aside?: ReactNode;
+  disabled?: boolean;
+  testId?: string;
+}
+
+/**
+ * L5.11b: a radio group — a `fieldset` of native radios named by its legend (visible, or hidden and still the group's
+ * name); each option a label that covers its row: the label, a second line, a word on the right. One tab stop, the arrows
+ * move and check (the platform's); the checked radio is a filled dot inside a ring (a shape, not a colour only). A
+ * `value` that matches no option leaves every radio unchecked (a choice made elsewhere).
+ */
+export function RadioGroup({ legend, legendHidden, value, options, onChange, disabled, testId }: { legend: ReactNode; legendHidden?: boolean; value: string; options: RadioOption[]; onChange: (value: string) => void; disabled?: boolean; testId?: string }) {
+  const name = useId();
+  return (
+    <fieldset className="k-radios" disabled={disabled} data-testid={testId}>
+      <legend className={legendHidden ? 'k-sr' : 'k-radios-legend'}>{shown(legend)}</legend>
+      {options.map((o) => (
+        <label key={o.value} className="k-radio">
+          <input type="radio" className="k-radio-input" name={name} value={o.value} checked={o.value === value} disabled={o.disabled} onChange={() => onChange(o.value)} data-testid={o.testId} />
+          <span className="k-radio-text">
+            <span className="k-radio-label">{shown(o.label)}</span>
+            {o.detail !== undefined && <span className="k-radio-detail">{shown(o.detail)}</span>}
+          </span>
+          {o.aside !== undefined && <span className="k-radio-aside">{shown(o.aside)}</span>}
+        </label>
+      ))}
+    </fieldset>
   );
 }

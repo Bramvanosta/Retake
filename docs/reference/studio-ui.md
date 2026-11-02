@@ -203,7 +203,9 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Facts | a `<dl>` of read-only rows, the label in the 96 px right-aligned column (L5.10a); a name goes on a `group` around it, never on the `dl` | read-only values; FieldRow stays for controls |
 | Disclosure | a native `<details>`, closed by default (L5.10a) | the one collapsible outside the inspector (the ratchet bans `<details>` elsewhere) |
 | FrameGrid, FrameOption | ONE listbox per scene (L5.10b): three columns (two under 1100 px), options with `aria-selected` and a name (scene, number, verb, target, state words), the list holding the selection the one tab stop; selected: select fill + 2 px ring; a drop: a 3 px bar on one side; dragged: a dashed outline, a dimmed picture | the caller's keys (`board-keys.ts`: ← → by step, ↑ ↓ by column across scenes, Home / End, Page Up / Down three rows, Alt+arrows move); the list takes the drag over its gaps, the slot from the pointer (`slotFromPointer`); an empty scene's drop zone |
-| RowCard | a pressed button: a 96 × 54 tile, a title, a meta line (L5.10b) | cards between scenes, Before / After filming |
+| RowCard | a pressed button: a 96 × 54 tile, a title, a meta line (L5.10b); L5.11b: `compact` — a list row (a number column, the title at body size, transparent until hovered or selected) with an `aside` word on the right (under the text in a RowList narrower than 560 px; a word is never broken); L5.11b fixes: `option` — an option of a RowList listbox instead of a button (`aria-selected`, never a tab stop; the active one ringed while its list has the focus) | cards between scenes, Before / After filming; compact: the Record screen's draft rows |
+| RowList, RowListItem | L5.11b fixes: a list of compact rows, its own size container; `listbox` — the caller holds the active option (`aria-activedescendant`; the list holding it is the one tab stop of all its lists) and the keys; its items `role="none"`, so the list owns only its options and any group the caller puts between them | the Record screen's draft (one listbox per scene; the cursor block a group after its row) |
+| RadioGroup | L5.11b: a `fieldset` of native radios named by its legend (visible or hidden), each a row — label, a second line, a word on the right; checked = a ring with a filled dot (a shape); one tab stop, the arrows native; a value that matches none leaves all unchecked | a choice among a few long options (target alternatives, what to wait for, a zoom factor); a short one is Segmented |
 | Callout | a short note in a pane well: its state as a shape and its title (a state word), then its text (L5.10b) | replaces the legacy Notice on rebuilt screens |
 | TerminalCommands | the command to type and its node form, selectable (L5.10b) | blockers and refusals (the Run, Record and Timeline screens use it too) |
 | PosterGrid | ONE listbox (L5.10a): options with `aria-selected`, the selected one the active descendant (no `aria-activedescendant` while none is), select fill + 2 px ring; as many columns as fit, 200 px at least | arrows (↑ ↓ move by the row the layout shows: three at 1440, one at 900), Home / End, Enter opens, Space selects, Escape clears; a click selects, a double-click opens; nothing selected at first |
@@ -297,7 +299,7 @@ Studio keeps `APP_NAME` (L5.13 renames).
   or scenario that does not load says so in the checks, beside the buttons and in the status bar; the inspector: the
   Last take (its poster, facts, Open in Edit, Open its run); the status bar: its state and the scenes and steps, Pause /
   Stop while a run goes (disabled ones say why). Deviations: no "Pages that answer" (no page is probed from Prepare: BL-130), no estimates, no
-  hooks / rollbacks facts or Watch replay in the Last take, no Recordings group (L5.11b) — BL-130.
+  hooks / rollbacks facts or Watch replay in the Last take, no Recordings group (on the Record routes only, L5.11b) — BL-130.
 - **Shoot — a live rehearsal / capture** (R4-ShootLive) — built in L5.11a: "Rehearsal of <name>" / "Capture of
   <name>" (no run id in the title), the current step, when it started and where; the live picture (a video-toned frame,
   a "Live" mark, the toggle); the steps done and the time elapsed (a kit Progress); the mode's note and what Pause and
@@ -307,8 +309,41 @@ Studio keeps `APP_NAME` (L5.13 renames).
   words (Rehearsing, Capture paused…), Pause / Resume, Stop while it goes (⌘. stops this run — once the stream says
   whose run it is; a stop or pause on its way is said), then the defaults. Opened by a start, its title takes the focus;
   the outcome's Start capture / Rehearse again open the new run.
-- **Shoot — record a scenario** — the Record screen in the shell. L5.11b (the legacy screen claims the status bar's
-  slot while its recording is live — "Recording", ⌘. stops it — and shows its one Stop in the screen).
+- **Shoot — record a scenario** (R4-Record) — built in L5.11b. The browser is Shoot's: Prepare and the Runs while a
+  scenario is in context, the **Recordings** (the project's recent ones, newest first: name, when — "now" while it goes
+  —, its state as a shape and words, "not saved" / "saved as …", who started it when not the Studio; the open one with
+  its live state and actions), Record a scenario. **The start form** in the centre: Location, Page and Persona (Selects),
+  Path and Name (text fields with no unsaved mark: nobody's work), the window note (full size: the desktop layout is
+  what the video films), the persona's stored session with Sign in, the location's warnings, the recording already open
+  (one window at a time, Open it), Start recording (the record variant) with what stops it beside it; a refusal takes
+  the focus. **A recording**: h1 "Recording <name>" (focused when Start opened it), the state in a sentence, the time
+  left (mono, right), the state as a shape and words with the counts, the callout "Recording in the browser window";
+  the draft as compact row cards by scene (number, the step's words and target, what made it, "2 alternatives" or
+  "Target picked by you" on the right; an insert set in; the modifiers as chips). L5.11b fixes: each scene's rows are a
+  listbox and the draft is ONE tab stop — ↑ ↓ across scenes, Home / End, Page Up / Down, Enter or Space selects the
+  active row (a click too). Selecting a row puts the draft cursor right after it — a group (not a row) with the row's
+  own Remove buttons, its verified alternatives as a radio group ("Suggested" on the recorder's; the radio follows each
+  arrow press while the pick is saved, the newest sent when the one in flight ends), then the Insert toolbar "Insert after step n of <scene>" (Hold 2 s, Wait for…, Caption…, Mark, Zoom…
+  — the theme's factors up to its maximum —, Back to the end); pressing it again goes back to the end ("Insert at the
+  end": a hold or a wait before the next action, the rest waiting for it under "Applies to your next action"); "Waiting
+  for your next action in the browser…" while the window is open; the draft as YAML in a disclosure. **The inspector**:
+  Started with (location, page, path, persona, who, when; the Name Save uses), the selected step (its facts, Add after
+  this step — the toolbar takes the focus), Stop recording (the record variant, ⌘. in the app) / Save as new scenario
+  (disabled with "Saving opens after Stop. It writes a new file, scenarios/<name>.yaml." while the window is open,
+  "Saving opens once the check is over." while the draft is made and checked; Enter in Name says why) / Discard (the
+  kit's sheet:
+  "Keep it" is the default and the cancel, Return never discards), then Check, To look at, Secret fields, Writes,
+  Warnings. **The status bar** while the recording goes (queued → checked): "Recording · browser window open" and "n
+  actions · n inserts · draft updated just now" (the counts give way under 1000 px); ⌘. stops this recording (also
+  after a reload, before its view is read: it waits and says so), Rehearse / Capture / Render say why they wait and
+  send nothing; once it is over, the defaults again. ⌘K's Scenario group is the recording's while it goes: "Stop
+  recording" and "Discard…", named after it (never the scenario in context). The one Stop visible is the inspector's
+  (in the head beside the time when the inspector is hidden; what was typed — the Name, an open insert form — survives
+  hiding it and a cursor block that moves). Stop or Discard pressed while a change is written goes right after it. The
+  focus is never dropped: a control that goes (Stop, Discard, a removed insert, the toolbar moving onto a hold) hands it
+  to its replacement, else to the title. The Recordings also say a recording's location and steps, and a saved one has
+  a row "Open <scenario>" under it. Deviations: Show the window and Check replay (BL-130), the step's "Recorded 00:41
+  into the recording", the inspector's second set of insert buttons, the title bar's Location on this screen (BL-131).
 - **Edit** — the timeline and its live preview. L5.12.
 - **Review — frame comments** — the frame, the thread, Claude's proposal. L5.12.
 - **Review — report and exports** — the review report, the raw package. L5.12.

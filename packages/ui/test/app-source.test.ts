@@ -27,13 +27,14 @@
 import { execFileSync } from 'node:child_process';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createElement } from 'react';
+import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@demo-studio/components/kit';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
 import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
+import { SlotContext } from '../src/app/shell/slots.js';
 import type { RecordingUi } from '../src/app/RecordScreen.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { visibleControls } from '../src/app/bits.js';
@@ -42,7 +43,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, Checklist, ChecklistItem, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, RowCard, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TerminalCommands, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, Callout, Checklist, ChecklistItem, CommandPalette, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, PosterGrid, Progress, RadioGroup, RowCard, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, TerminalCommands, TextArea, TextField, Toolbar } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -662,8 +663,14 @@ function placesOf(html: string): Array<{ n: string; where: 'bdi' | 'option' | 'a
   return out;
 }
 
-const UI: RecordingUi = { busy: false, note: { tone: 'danger', text: H('note'), issues: [{ severity: 'error', code: 'invalid', message: H('noteissue'), scene: H('scene'), step: 0 }], fix: H('notefix') }, taken: null, discarding: false, now: Date.parse('2026-10-28T10:05:00.000Z') };
-const ACT = { annotate: () => undefined, stop: () => undefined, discard: () => undefined, save: () => undefined, onSignedIn: () => undefined };
+/** RecordingBody with its inspector rendered in place (the person hid it: ShellSlot's inline form), as the shell shows it. */
+function recordingWithInspector(v: RecordViewAnswer, cursor: { at: 'end' } | { at: 'after'; row: string }) {
+  const host = { targets: {}, hidden: { inspector: true }, claim: () => () => undefined };
+  return createElement(SlotContext.Provider, { value: host }, createElement(Fragment, null, createElement(RecordingBody, { slug: 'p', v, cursor, setCursor: () => undefined, ui: UI, act: ACT })));
+}
+
+const UI: RecordingUi = { busy: false, note: { tone: 'danger', text: H('note'), issues: [{ severity: 'error', code: 'invalid', message: H('noteissue'), scene: H('scene'), step: 0 }], fix: H('notefix') }, taken: null, discarding: false, confirming: false, now: Date.parse('2026-10-28T10:05:00.000Z') };
+const ACT = { annotate: () => undefined, stop: () => undefined, discard: () => undefined, save: () => undefined, onSignedIn: () => undefined, confirm: () => undefined };
 
 describe('the Record screen shows page text only through Txt (L4.8 part 5)', () => {
   it('⚑ a recording: every page string (rows, targets, alternatives, inserts, issues, placeholders, writes, the check, the YAML) in a <bdi>, its direction controls as visible marks', () => {
@@ -674,7 +681,7 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
       [done, { at: 'after' as const, row: 'a1' }],
       [failed, { at: 'end' as const }],
     ] as const) {
-      const html = shownMarkup(renderToStaticMarkup(createElement(RecordingBody, { slug: 'p', v, cursor, setCursor: () => undefined, ui: UI, act: ACT })));
+      const html = shownMarkup(renderToStaticMarkup(recordingWithInspector(v, cursor)));
       expect(html.includes(RLO), 'a raw direction control').toBe(false);
       expect(html).not.toMatch(/<img|onerror="/);
       const places = placesOf(html);
@@ -682,13 +689,26 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
       expect(bare, JSON.stringify(bare)).toEqual([]);
       // Attributes hold page text only with the controls made visible (visibleControls): no raw RLO above.
       const shown = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
-      for (const n of ['name', 'env', 'persona', 'scene', 'scenepage', 'sceneopen', 'label0', 'target0', 'summary0', 'chip0', 'label1', 'alt0', 'alt1', 'waittext', 'caption', 'kicker', 'mark', 'issue', 'placeholder', 'write', 'checkerror', 'action', 'yaml1', 'yaml2', 'problem', 'warning', 'savedfile', 'note', 'noteissue', 'notefix']) {
+      for (const n of ['name', 'env', 'persona', 'page', 'path', 'scene', 'scenepage', 'sceneopen', 'label0', 'target0', 'summary0', 'chip0', 'label1', 'label2', 'summary2', 'caption', 'kicker', 'mark', 'issue', 'placeholder', 'write', 'checkerror', 'action', 'yaml1', 'yaml2', 'problem', 'warning', 'savedfile', 'note', 'noteissue', 'notefix']) {
         expect(shown, n).toContain(n);
       }
-      // The cursor's words (its row's step and scene) are page text too; each row's Insert after names its step, its
-      // controls made visible (an attribute), and keeps its name whatever the cursor (aria-pressed says it).
-      if (cursor.at === 'after') expect(html.slice(html.indexOf('Where:')).slice(0, 400)).toMatch(/after (?:<!-- -->)?<bdi[^>]*>step 1 of /);
-      if (v.can.annotate) expect(html).toMatch(/aria-label="Insert after step 1 of [^"]*PAGE-scene\[U\+202E\]gnp"/);
+      // (L5.11b: an insert row says what it is by its own step — label2 / summary2 — beside its Remove; no chip repeats it.)
+      // L5.11b: the selected row (the cursor's) shows its alternatives — the radios' words — and the inspector its step;
+      // the cursor's words (its row's step and scene) are page text too, in the Insert toolbar's line and, its controls
+      // made visible, in the toolbar's name (an attribute).
+      if (cursor.at === 'after') {
+        for (const n of ['alt0', 'alt1']) expect(shown, n).toContain(n);
+        expect(html.slice(html.indexOf('Insert after')).slice(0, 400)).toMatch(/Insert after (?:<!-- -->)?<bdi[^>]*>step 1 of /);
+        expect(html).toMatch(/aria-label="Insert after step 1 of [^"]*PAGE-scene\[U\+202E\]gnp"/);
+        expect(html).toMatch(/<bdi>Step 1 · <\/bdi><bdi>[^<]*PAGE-label0/);
+      } else expect(html).not.toContain('PAGE-alt0');
+      // Each row an option of its scene's listbox (L5.11b fixes, review A-M2: the cursor's aria-selected="true"), its name
+      // its own words; the cursor block is a group, not an option (review A-L3).
+      if (v.can.annotate) {
+        expect((html.match(/role="option" aria-selected="true"/g) ?? []).length).toBe(cursor.at === 'after' ? 1 : 0);
+        expect(html).toMatch(/<div class="rc-here" role="group" aria-label="Inserts go [^"]*">/);
+        expect((html.match(/role="option"/g) ?? []).length).toBe(v.untrusted!.blocks.entries.flatMap((e) => (e.type === 'scene' ? e.steps : [])).length);
+      }
       // A failed job: its message and its command.
       if (v.state === 'failed') for (const n of ['jobmessage', 'jobfix']) expect(shown, n).toContain(n);
     }
@@ -697,13 +717,14 @@ describe('the Record screen shows page text only through Txt (L4.8 part 5)', () 
   it('B-L5: Start is refused for a persona that cannot sign in by itself — the reason said, Sign in offered', () => {
     const o = hostileOptions();
     const html = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: { ...o, open: null }, onStarted: () => undefined, onChanged: () => undefined }));
-    expect(html).toMatch(/<button type="submit"[^>]*disabled=""[^>]*data-testid="record-start"/);
+    expect(html).toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*type="submit")(?=[^>]*disabled="")/);
     expect(html).toContain('data-testid="record-start-blocked"');
     expect(html).toContain('data-testid="sign-in-button"');
     const signed = { ...o, open: null, environments: o.environments.map((e) => ({ ...e, problem: undefined, personas: e.personas.map((x) => ({ ...x, status: 'valid' as const })) })) } as RecordOptionsAnswer;
     const ok = renderToStaticMarkup(createElement(StartForm, { slug: 'p', o: signed, onStarted: () => undefined, onChanged: () => undefined }));
     expect(ok).not.toContain('data-testid="record-start-blocked"');
-    expect(ok).not.toMatch(/<button type="submit"[^>]*disabled=""[^>]*data-testid="record-start"/);
+    expect(ok).toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*type="submit")/);
+    expect(ok).not.toMatch(/<button (?=[^>]*data-testid="record-start")(?=[^>]*disabled="")/);
   });
 
   it('⚑ the start form and the recent list: names, notes, warnings, the open recording in a <bdi>; a select option with visible marks', () => {
@@ -899,10 +920,11 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'ui-kit/frames.tsx', tag: 'li', attrs: { role: '"option"', 'data-key': '{dataKey}', id: '{id}' }, line: '<li', why: "L5.10b: an option of a scene's frames listbox (FrameGrid), which holds the tab stop (aria-activedescendant); its drag moves are Alt+arrows by keyboard" },
   { file: 'ui-kit/frames.tsx', tag: 'p', attrs: { 'data-testid': '"drop-empty"', onDrop: '{dropped}' }, line: '<p', why: 'L5.10b: the drop target of a step dragged into an empty scene (FrameGrid); the keyboard moves steps with Alt+arrows' },
   { file: 'TimelineInspector.tsx', tag: 'div', attrs: { role: '"radiogroup"', className: '"tl-radios"', onKeyDown: '{roveKeys}' }, line: 'className="tl-radios" role="radiogroup"', why: 'the roving arrow keys of a radio group; its checked radio holds the tab stop' },
-  { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rec-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
+  { file: 'RecordScreen.tsx', tag: 'form', attrs: { className: '"rc-insert-form"', onKeyDown: '{onKey}' }, line: '<form', why: 'Escape from its fields closes the insert form; the form itself is no control' },
   { file: 'ui-kit/panes.tsx', tag: 'div', attrs: { role: '"toolbar"', onKeyDown: '{rove}' }, line: '<div role="toolbar"', why: 'L5.9: the roving arrow keys of a toolbar; its current control holds the tab stop' },
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
   { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
+  { file: 'ui-kit/frames.tsx', tag: 'div', attrs: { role: '"option"', id: '{option.id}' }, line: 'role="option"', why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does" },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
 
@@ -1439,6 +1461,9 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(Blocker, { compact: true, word: K('cbword'), fix: { copy: K('cbcopy') }, children: K('cbtext') }),
       createElement(Blocker, { compact: true, word: K('cbword2'), fix: { label: K('cblink'), to: { name: 'projects' } } }),
       createElement(Sheet, { open: false, alert: true, testId: 't', title: K('astitle'), actions: [{ id: 'c', label: K('asaction'), isCancel: true, testId: 'c' }], onAction: go }),
+      // L5.11b: Record's kit additions (a radio group, a compact row card with a word on the right).
+      createElement(RadioGroup, { legend: K('rglegend'), value: 'a', onChange: go, options: [{ value: 'a', label: K('rglabel'), detail: K('rgdetail'), aside: K('rgaside') }] }),
+      createElement(RowCard, { compact: true, tile: K('crtile'), title: K('crtitle'), meta: K('crmeta'), aside: K('craside'), selected: true, onSelect: go }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
@@ -1449,7 +1474,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -1705,5 +1730,50 @@ describe('L5.11a: Shoot', () => {
     expect(dryRunWords('X.tsx', 'const a = `the ${m} dry-run`;')).toHaveLength(1);
     expect(dryRunWords('X.tsx', "const a = 'Dry runs';")).toHaveLength(1);
     expect(dryRunWords('X.tsx', '// a dry run\nconst a = <i data-testid="blockers-dry-run" />;')).toEqual([]);
+  });
+});
+
+// ── L5.11b: the Record screen in the shell (R4-Record) ─────────────────────────────────────────────────────────────
+
+/** The ops the Record screen calls itself (the browser's and status bar's reads are the shared stores'). */
+const RECORD_OPS = new Set(['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save']);
+
+describe('L5.11b: Record', () => {
+  it('⚑ every value from data is text: each JSX child of the Record screen goes through Txt / shown / a kit slot (a planted bare issue message fails it)', async () => {
+    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
+    expect(kitBareText('RecordScreen.tsx', text)).toEqual([]);
+    // The mutations: an issue's message, a placeholder's step rendered bare.
+    const planted = text.replace('<Txt text={i.message} />\n              </li>', '{i.message}\n              </li>');
+    expect(planted).not.toBe(text);
+    expect(kitBareText('RecordScreen.tsx', planted)).toEqual([expect.stringContaining('{i.message}')]);
+    const step = text.replace('<Txt text={stepWords(p.scene, p.step)} />', '{stepWords(p.scene, p.step)}');
+    expect(step).not.toBe(text);
+    expect(kitBareText('RecordScreen.tsx', step)).toEqual([expect.stringContaining('{stepWords(p.scene, p.step)}')]);
+  });
+
+  it('⚑ kit only: RecordScreen.tsx has no ratchet row and nothing off the kit (−274 legacy controls); its CSS left app.css', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    for (const f of ['RecordScreen.tsx', 'ShootBrowser.tsx']) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f) ?? [], f).toEqual([]);
+    }
+    expect(await appCss()).not.toMatch(/\.rec-[a-z]/);
+    // The mutation: a native radio in the alternatives counts (and RecordScreen.tsx has no row to hold it).
+    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
+    const planted = text.replace('<RadioGroup\n        legend={`Ways to find step ${n}`}', '<input type="radio" /><RadioGroup\n        legend={`Ways to find step ${n}`}');
+    expect(planted).not.toBe(text);
+    const ctx = { appClasses: appCssClasses(await appCss()), tokens: new Set<string>() };
+    expect(offKit('RecordScreen.tsx', planted, ctx).length).toBeGreaterThan(offKit('RecordScreen.tsx', text, ctx).length);
+  });
+
+  it('the Record screen calls only the record ops; the Scenario menu\'s commands are held at the recording\'s priority while it goes', async () => {
+    const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
+    const called = opsCalled(text);
+    expect(called.length).toBeGreaterThanOrEqual(7);
+    expect(called.filter((op) => !RECORD_OPS.has(op))).toEqual([]);
+    // The four commands, one owner while the recording goes (a reload included: `live` is true before the view is read).
+    for (const id of ['stop', 'rehearse', 'capture', 'render']) expect(text).toMatch(new RegExp(`useShellCommand\\('${id}', [^,]+, PRIORITY\\.recording, live\\)`));
+    expect(text).toMatch(/const live = v \? LIVE_STATES\.has\(v\.state\) : error === null;/);
   });
 });

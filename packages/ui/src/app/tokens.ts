@@ -101,7 +101,6 @@ export const LEGACY_COLOURS: Record<string, Pair> = {
   'accent-soft': { light: '#eaf0fd', dark: '#1d2a44' },
   'accent-line': { light: '#b8cbf5', dark: '#34508a' },
   'accent-line-soft': { light: '#c6d4f6', dark: '#2c4373' },
-  'accent-line-strong': { light: '#8eaaf0', dark: '#4d73c4' },
   'accent-fade': { light: 'rgba(35, 87, 217, 0.28)', dark: 'rgba(122, 170, 255, 0.28)' },
   'accent-clear': { light: 'rgba(35, 87, 217, 0)', dark: 'rgba(122, 170, 255, 0)' },
   'on-accent': { light: '#ffffff', dark: '#ffffff' },

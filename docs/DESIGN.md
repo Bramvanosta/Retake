@@ -3436,7 +3436,7 @@ Correctness (review B):
   review panel shows scene sheets, key frames and the diff too (at most 24 images); the app bundle budget is 430 KB
   (≈ 415 KB).
 
-## 4h. Record screen (L4.8)
+## 4h. Record screen (L4.8; L5.11b: in the shell, on the kit — the last paragraph)
 
 R-UI-20…22: record a scenario from the Studio by clicking through the product, pick a step's target among verified
 alternatives, add quick inserts while recording. Built in six parts (the lot's plan and its critique B1–B17, C1–C7
@@ -3532,6 +3532,81 @@ Studio — the plan has the caption from the picked click on, the zoom on it and
 the Mac (2026-10-28): Stop → checked ≈ 10 s, Save 0.18 s, dry run ≈ 24 s, capture ≈ 24 s, render + review ≈ 37–41 s
 for a 25 s video. The real window with a person switching to the Studio is MACOS-CHECKLIST 13i: `drive` is an
 in-process hook, so no automated test has a person's Cmd-Tab.
+
+**L5.11b — the Record screen in the shell** (« Épure » 3b, R4-Record, R-UI-44; every capability above is kept). The
+screen is rebuilt on the kit (`RecordScreen.tsx`; ratchet −274: it left `test/legacy-controls.json`), its routes
+unchanged. Built from the lot's plan corrected by its critique (H1 the command priorities, M7 one Stop, L2 never a
+capture of the remembered scenario from the Record route). Cuts: BL-131 (and BL-130's Show the window, Check replay).
+- **Browser.** Shoot's (`ShootBrowser.tsx`): Prepare and the Runs while a scenario is in context (the status bar's
+  shared `scenario_actions` entry: no second read), the **Recordings** group (record_options' `recent`, read on the
+  route's open and again when the recording on screen changes state or is saved — never per poll; the open one shows
+  its live state and actions from the screen's own view), Record a scenario. The start form no longer lists them.
+- **The start form** in the centre: Location / Page / Persona as kit Selects, Path / Name as TextFields with
+  `unsaved: null` (a start form is nobody's work: no quit question), the rest as before. Start stays enabled while it
+  is sent (a repeat is said, never sent: a disabled button would drop the focus), a refusal takes the focus, the new
+  recording's title takes it when its route opens.
+- **A recording.** The draft rows are the kit's compact RowCards — options of a listbox since the fixes below:
+  pressing one IS the draft cursor
+  (a selected row = inserts go right after it; pressed again, or Back to the end = at the end), so the selection and the
+  cursor are one state, keyed by the row's identity as before. Under the selected row: its verified alternatives (a
+  kit RadioGroup, the recorder's suggestion marked) and the Insert toolbar (a kit Toolbar: Hold 2 s, Wait for…,
+  Caption…, Mark, Zoom… — a radio of `zoom.options`, the theme's maximum marked —, Back to the end; the forms open under
+  it, Enter adds, Escape closes and gives the focus back). A row with alternatives says "n alternatives" or "Target
+  picked by you" on its right; an insert row is set in, its modifiers are chips (their Remove: the cursor block). The
+  inspector (through
+  the shell's slot, shown in place when hidden; `RecordingBody` renders it, so the SSR lint sees it): Started with
+  (facts + the Name Save uses), the selected step (facts + Add after this step, which focuses the toolbar), Stop
+  recording / Save as new scenario (disabled with why until the check is over) / Discard (the kit's Sheet, destructive:
+  "Keep it" is the default and the cancel — Return or Escape keeps it), Check, To look at, Secret fields, Writes,
+  Warnings. Every state, check and note callout carries a state word (the colour-only rule; the checker's vocabulary
+  gained "recorded" and "discarded").
+- **The status bar and the commands.** While the recording goes (`LIVE_STATES`, queued → check) the screen claims the
+  actions slot — "Recording · browser window open" (or the state), "n actions · n inserts · draft updated …" — and the
+  status bar's own scenario line steps aside on that route. It owns the four Scenario commands at
+  `PRIORITY.recording` from the route's first paint (`live` is true until the view says otherwise or the read fails):
+  ⌘. stops this recording (`record_stop`; before the view is read it says to wait; a stop already asked, a terminal's
+  recording or a recording past its window each say so) — never a run of the scenario in context, a reload included;
+  Rehearse / Capture / Render say why they wait and send nothing. Once it is over the defaults (naming their scenario)
+  take the commands and the slot back. The one Stop visible is the inspector's (critique M7; the head's while the
+  inspector is hidden).
+- **Words and focus.** State changes after the screen opened and each change made are said through the shell's polite
+  line (`shell/say.ts`; keyed per recording, so a line of the start form never outlives it); the sr-only status line of
+  L4.8 is gone. A focused control that disappears or turns disabled (Stop, Discard, a removed insert, the toolbar
+  moving onto a new hold) hands the focus to its replacement by test id, else to the title; after Save the shell's
+  centre pane holds it.
+- **Tests.** `studio-e2e-record.test.ts` (8, migrated: the row pressed for the alternatives, Zoom…, the Recordings group;
+  new: Rehearse / Capture / Render refused while recording with nothing sent, ⌘. after a reload calls `record_stop` and
+  no run op, the Discard sheet's Return and Escape send nothing and give the focus back, the focus after Discard and
+  Save, the status bar's words and its one Stop); `studio-e2e-a11y-keyboard.test.ts` (the start form and a live
+  recording with a row selected at dark 1280 / 1440 / 900 and light 1280; done; the Discard sheet walked);
+  `app-source.test.ts` (the SSR lint renders the body with its inspector in place; RecordScreen kit-only and Txt-only,
+  each with a planted mutation; its ops and its command priorities); `kit-static.test.ts` (RadioGroup, compact
+  RowCard); `record-app.test.ts` (every recording state a mark and a state word).
+- **Fixes after the two reviews.** *The draft is one tab stop* (A-M2): each scene's rows are a kit `RowList` listbox
+  (`aria-activedescendant`; the list holding the active row is the tab stop, the others `-1`) of `RowCard` options — ↑ /
+  ↓ the row before / after across scenes, Home / End, Page Up / Page Down (board-keys' `gridMove`, one column), Enter /
+  Space select the active row (= the cursor after it; again: back to the end); Stop is a few Tabs from the title
+  whatever the draft's length. The cursor block is a `group` between the options (never counted as a row: A-L3) holding
+  the selected row's own Remove buttons (an insert row's, its modifiers' — the rows show those as text), its
+  alternatives and the Insert toolbar; at the end it sits after every scene, in one place. *One change in flight*
+  (A-M1 / A-L6): the radio shows the pick asked for at once while it is saved; a newer pick of the same step waits and
+  replaces an older one waiting; Stop and Discard wait for the change being written (said) and go right after; an
+  insert, a Remove or Save asked meanwhile is refused and said; a change that waited reads the newest view's revision.
+  *Nothing typed is lost* (A-L7 / B-L4): the open insert form and the Name Save uses live in the recording's body, not
+  in the cursor block or the inspector (React mounts the inspector again when it moves between its pane and the centre:
+  a slot that moved a DOM box instead would build DOM outside JSX, which the app's source lint refuses), and the Discard
+  sheet is outside the inspector; the focus keeper puts the focus back on a field by its test id (a radio by its
+  value). With the inspector hidden, the one Stop is in the head beside the time. *The palette* (A-M2 / A-L1): while a
+  recording goes its Scenario group is the recording's — "Stop recording" (or Cancel) and "Discard…", named after the
+  recording (command-bus `useScenarioGroup`), with or without a scenario in context, never naming that scenario. *Words*:
+  Save's reason per state (B-M2: "Saving opens after Stop…" while the window is open, "…once the check is over" while
+  the draft is made and checked — `saveWhyWords`); Enter in Name while Save cannot go says why (A-L4); an info note is a
+  status, a refusal or failure an alert, and the start refusal is said once, by the focus (A-L5). A compact row's aside
+  wraps under its text in a list narrower than 560 px and a word is never broken (A-L2). The Recordings group says a
+  recording's location and step count again and links a saved one's scenario (B-L6). The commands' ownership stays per
+  route (A-L8, by design): on the start form or Prepare, one click from a live recording, the status bar's defaults act
+  on the scenario in context. Tests: `studio-e2e-record-keys.test.ts` (12, the record ops answered by the test: a view
+  held back, a save held back, any state and length).
 
 ## 4i. The Studio's identity and accessibility (L4.9)
 
@@ -4546,7 +4621,8 @@ live route opens and its title takes the focus.
 that cannot act says so; menu state stays BL-126). A browser tab binds none of the four (the browser keeps them); the
 palette's Scenario group runs them. The bus gives a command to the highest priority, never to effect order: the status
 bar's defaults 0, a screen 10 (Prepare's Rehearse / Capture, the live screen's Stop while its run goes), a live
-recording 20 (the legacy Record screen's Stop, which also claims the status bar's actions: one Stop visible); a tie
+recording 20 (L5.11b: the Record screen's four commands while its recording goes — it also claims the status bar's
+actions: one Stop visible, §4h); a tie
 goes to the latest. While a modal dialog is open the menu's commands wait — but Stop, which closes the palette first and
 always answers. On a live screen ⌘. waits for the stream (or run_status) to say whose run it is, says a stop or a pause
 already on its way, and sends one call however often it is pressed.

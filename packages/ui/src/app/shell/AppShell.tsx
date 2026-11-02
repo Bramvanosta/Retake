@@ -31,7 +31,7 @@ import { Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks
 import type { Command, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
-import { isShellCommand, runShellCommand } from './command-bus.js';
+import { isShellCommand, runShellCommand, scenarioGroup } from './command-bus.js';
 import type { ShellCommand } from './command-bus.js';
 import { MODES, contextWatch, modeOf, modeTarget, scenarioInContext, screenKey, slugOf } from './modes.js';
 import type { Mode } from './modes.js';
@@ -229,8 +229,8 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   // The centre pane scrolls back to the top when the screen changes, not when a screen moves inside itself (M2).
   const key = screenKey(route);
   // The screen a polite line was said on (read by `say`: a screen's own mount effect runs after this render) — a run's
-  // live screen is another screen than Prepare (the same screenKey).
-  const saidKey = `${key}|${route.name === 'run' ? (route.run ?? '') : ''}`;
+  // live screen is another screen than Prepare (the same screenKey), a recording another than the start form (L5.11b).
+  const saidKey = `${key}|${route.name === 'run' ? (route.run ?? '') : route.name === 'record' ? (route.rec ?? '') : ''}`;
   const keyNow = useRef(saidKey);
   keyNow.current = saidKey;
   const firstScreen = useRef(true);
@@ -352,16 +352,19 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     };
   }, [run, inApp]);
 
+  useSyncExternalStore(scenarioGroup.subscribe, scenarioGroup.version);
+  const screenGroup = scenarioGroup.get();
   const commands = useMemo<Command[]>(() => {
     const go = (r: Route) => () => {
       location.hash = hrefTo(r);
     };
     const out: Command[] = [{ id: 'go-projects', label: 'All projects', hint: 'the Welcome screen', group: 'Go to', run: go({ name: 'projects' }) }];
-    if (ctx) {
-      for (const m of MODES) out.push({ id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, group: 'Go to', ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
-      // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
-      for (const c of SCENARIO_COMMANDS) out.push({ id: c.id, label: c.label, hint: ctx.scenario, group: 'Scenario', ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
-    }
+    if (ctx) for (const m of MODES) out.push({ id: `mode-${m.mode}`, label: m.label, hint: ctx.scenario, group: 'Go to', ...(inApp ? { kbd: ['⌘', String(MODES.indexOf(m) + 1)] } : {}), run: go(modeTarget(m.mode, ctx)) });
+    // L5.11b fixes (review A-M2 / A-L1): a live recording's own entries (Stop recording, Discard…, named after it) take
+    // the Scenario group's place — with or without a scenario in context, never naming that scenario.
+    if (screenGroup) for (const c of screenGroup) out.push({ id: c.id, label: c.label, ...(c.hint ? { hint: c.hint } : {}), group: 'Scenario', ...(inApp && c.id === 'record-stop' ? { kbd: ['⌘', '.'] } : {}), run: c.run });
+    // L5.11a: the Scenario menu (the palette closes as it runs: the bus, not the modal-waiting `run`).
+    else if (ctx) for (const c of SCENARIO_COMMANDS) out.push({ id: c.id, label: c.label, hint: ctx.scenario, group: 'Scenario', ...(inApp ? { kbd: c.kbd } : {}), run: () => void (runShellCommand(c.id) || say('Open a scenario first')) });
     if (project) {
       const slug = project.slug;
       const pages: Array<[string, string, Route]> = [
@@ -381,7 +384,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
     out.push({ id: 'go-ui', label: 'UI gallery', hint: 'every component of the design system', group: 'Go to', run: go({ name: 'ui' }) });
     if (hasInspector) out.push({ id: 'inspector', label: inspectorOff ? 'Show inspector' : 'Hide inspector', group: 'Commands', ...(inApp ? { kbd: ['⌥', '⌘', 'I'] } : {}), run: toggleInspector });
     return out;
-  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say]);
+  }, [ctx, project, projects, hasInspector, inspectorOff, inApp, toggleInspector, open.view, say, screenGroup]);
 
   // L5.11a: the scenario in context's state and actions (the buttons hide while a screen claims the slot).
   const shoot = useStatusActions({ route, ctx, say, claimed: claims.actions > 0, inApp });

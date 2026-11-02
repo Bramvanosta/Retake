@@ -2036,6 +2036,17 @@ and `job_end` lines); what remains:
   screen sees it at its next read (a focus, an event) — a Stop from this tab reads it at once.
 - The engine's, the CLI's and MCP's own wording of "dry run" (the Studio says Rehearse; its mapping line names both).
 
+### BL-131 — « Épure » 3 extras cut from L5.11b (Record)
+*S · cut in L5.11b · builds on: L5.11b*
+
+- The selected step's "Recorded 00:41 into the recording" (R4-Record): the view carries no event times per row.
+- The inspector's second set of insert buttons under "Add after this step" (R4-Record draws both): one Insert toolbar
+  at the draft's cursor, the inspector's button focuses it.
+- The title bar's Location on the Record routes (R4-Record): the start form's Location select instead.
+- A Stop button in the status bar during a recording (the canvas has none; the one visible Stop is the inspector's,
+  ⌘. from anywhere in the app).
+- "Show the window" and a manual "Check replay" stay BL-130's.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

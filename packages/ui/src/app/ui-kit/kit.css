@@ -213,6 +213,7 @@
 .k-section-title:focus-visible,
 .k-disclosure-summary:focus-visible,
 .k-rowcard:focus-visible,
+.k-radio-input:focus-visible,
 .k-palette-input:focus-visible {
   outline: 2px solid var(--ui-ring);
   outline-offset: 2px;
@@ -1421,6 +1422,134 @@ summary.k-section-title {
 .k-rowcard-meta {
   color: var(--ui-text-3);
   overflow-wrap: anywhere;
+}
+
+/* L5.11b: a compact row card (the Record screen's draft rows): a number column, the title at the body size, a word on the right */
+.k-rowcard.is-compact {
+  gap: var(--ui-space-5);
+  padding: var(--ui-space-3) var(--ui-space-5);
+  background: transparent;
+}
+.k-rowcard.is-compact:hover {
+  background: var(--ui-raised);
+}
+.k-rowcard.is-compact.is-selected {
+  background: var(--ui-select);
+}
+.k-rowcard.is-compact .k-rowcard-tile {
+  width: auto;
+  min-width: 2.5em;
+  height: auto;
+  justify-content: flex-end;
+  background: transparent;
+  color: var(--ui-text-3);
+  font-variant-numeric: tabular-nums;
+}
+.k-rowcard.is-compact .k-rowcard-text {
+  flex: 1 1 auto;
+}
+.k-rowcard.is-compact .k-rowcard-title {
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-regular);
+  /* L5.11b fixes (review A-L2): a word breaks only when it cannot fit a line of its own */
+  overflow-wrap: break-word;
+}
+.k-rowcard-aside {
+  flex: none;
+  max-width: 40%;
+  color: var(--ui-text-3);
+  text-align: right;
+  overflow-wrap: break-word;
+}
+/* A list of compact rows (its own size container); in a narrow one (under 560 px) the main text keeps the line and the
+   aside wraps under it */
+.k-rowlist {
+  container: k-rows / inline-size;
+}
+@container k-rows (max-width: 560px) {
+  .k-rowcard.is-compact {
+    flex-wrap: wrap;
+    row-gap: var(--ui-space-1);
+  }
+  .k-rowcard.is-compact .k-rowcard-text {
+    flex: 1 1 calc(100% - 2.5em - var(--ui-space-5));
+  }
+  .k-rowcard.is-compact .k-rowcard-aside {
+    max-width: none;
+    margin-left: calc(2.5em + var(--ui-space-5));
+    text-align: left;
+  }
+}
+
+/* L5.11b: a radio group — a fieldset of native radios, each label a row (a ring with a filled dot when checked) */
+.k-radios {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.k-radios-legend {
+  margin-bottom: var(--ui-space-2);
+  padding: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+}
+.k-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-4);
+  min-width: 0;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-control);
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  cursor: pointer;
+}
+.k-radio:hover {
+  background: var(--ui-raised);
+}
+.k-radio-input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  appearance: none;
+  border: 2px solid var(--ui-text-3);
+  border-radius: 50%;
+  background: var(--ui-well);
+  cursor: pointer;
+}
+.k-radio-input:checked {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent);
+  box-shadow: inset 0 0 0 3px var(--ui-well);
+}
+.k-radio-input:disabled {
+  border-color: var(--ui-raised);
+  cursor: default;
+}
+.k-radio-text {
+  display: grid;
+  gap: var(--ui-space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.k-radio-label {
+  overflow-wrap: anywhere;
+}
+.k-radio-detail {
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.k-radio-aside {
+  flex: none;
+  color: var(--ui-text-3);
 }
 
 /* L5.10b: a command to type in a terminal (selectable text) */

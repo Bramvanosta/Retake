@@ -43,7 +43,10 @@ import {
   Callout,
   FrameGrid,
   FrameOption,
+  RadioGroup,
   RowCard,
+  RowList,
+  RowListItem,
   TerminalCommands,
   dropSide,
   slotFromPointer,
@@ -110,6 +113,48 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const ids = [...some.matchAll(/aria-describedby="([^"]+)"/g)].map((m) => m[1]);
     expect(ids).toHaveLength(1);
     for (const x of ids) expect(some, x).toContain(`id="${x}"`);
+  });
+
+  it('L5.11b: a radio group — a fieldset of native radios named by its legend (one name), the checked one native, a value that matches none leaves all unchecked; a compact row card is a pressed button with its word on the right', () => {
+    const opts = [{ value: '0', label: 'Text', aside: 'Suggested', testId: 'alt' }, { value: '1', label: 'Role', detail: 'a CSS selector', disabled: true }];
+    const rg = html(createElement(RadioGroup, { legend: 'Ways to find step 3', value: '0', options: opts, onChange: noop }));
+    expect(rg).toMatch(/^<fieldset class="k-radios"><legend class="k-radios-legend">Ways to find step 3<\/legend>/);
+    expect(rg.match(/<input type="radio"/g)).toHaveLength(2);
+    expect(new Set([...rg.matchAll(/name="([^"]+)"/g)].map((m) => m[1])).size).toBe(1);
+    expect(rg).toMatch(/<label class="k-radio"><input (?=[^>]*type="radio")(?=[^>]*class="k-radio-input")(?=[^>]*checked="")(?=[^>]*value="0")(?=[^>]*data-testid="alt")[^>]*\/>/);
+    expect(rg).toMatch(/<input (?=[^>]*value="1")(?=[^>]*disabled="")[^>]*\/>/);
+    expect(rg).toContain('<span class="k-radio-aside">Suggested</span>');
+    expect(rg).toContain('<span class="k-radio-detail">a CSS selector</span>');
+    const none = html(createElement(RadioGroup, { legend: 'Wait until', legendHidden: true, value: '-1', options: opts, onChange: noop, disabled: true }));
+    expect(none).toMatch(/^<fieldset class="k-radios" disabled=""><legend class="k-sr">Wait until<\/legend>/);
+    expect(none).not.toContain('checked=""');
+    const row = html(createElement(RowCard, { compact: true, tile: '3', title: 'Click “Selowa Ridge”', meta: 'Suggested: text', aside: '2 alternatives', selected: true, onSelect: noop, testId: 'r' }));
+    expect(row).toMatch(/^<button type="button" class="k-rowcard is-selected is-compact" aria-pressed="true" data-testid="r">/);
+    expect(row).toContain('<span class="k-rowcard-aside">2 alternatives</span>');
+    expect(html(createElement(RowCard, { tile: 'Card', title: 'A card', selected: false, onSelect: noop }))).not.toContain('k-rowcard-aside');
+    // L5.11b fixes (review A-M2): a RowList listbox — the list the tab stop (its active option by id), its items role="none"
+    // around RowCard options (never a tab stop), the caller's group between them owned by no option; plain, a list.
+    const option = (id: string, selected: boolean, active: boolean) => createElement(RowListItem, { key: id, testId: 'step', data: { row: id, role: 'action' }, children: createElement(RowCard, { compact: true, option: { id, active }, tile: '1', title: 'Click', selected, onSelect: noop, testId: 'opt' }) });
+    const list = html(
+      createElement(RowList, {
+        labelledBy: 'scene-1',
+        className: 'rc-rows',
+        testId: 'rows',
+        listbox: { activeId: 'o1', tabbable: true, onKeyDown: noop, onFocus: noop },
+        children: [option('o1', false, true), createElement(RowListItem, { key: 'g', children: createElement('div', { role: 'group', 'aria-label': 'Inserts' }, 'x') }), option('o2', true, false)],
+      }),
+    );
+    expect(list).toMatch(/^<ol class="k-rowlist rc-rows" role="listbox" aria-labelledby="scene-1" aria-activedescendant="o1" tabindex="0" data-testid="rows">/);
+    expect(list).toContain('<li role="none" data-testid="step" data-row="o1" data-role="action"><div id="o1" role="option" aria-selected="false" class="k-rowcard is-compact is-active" data-testid="opt">');
+    expect(list).toContain('<li role="none"><div role="group" aria-label="Inserts">x</div></li>');
+    expect(list).toContain('<div id="o2" role="option" aria-selected="true" class="k-rowcard is-selected is-compact"');
+    expect(list.match(/role="option"/g)).toHaveLength(2);
+    expect(list).not.toMatch(/role="option"[^>]*tabindex/);
+    const away = html(createElement(RowList, { listbox: { tabbable: false, onKeyDown: noop, onFocus: noop }, children: option('o3', false, false) }));
+    expect(away).toMatch(/^<ol class="k-rowlist" role="listbox" tabindex="-1">/);
+    expect(away).not.toContain('aria-activedescendant');
+    const plain = html(createElement(RowList, { children: createElement(RowListItem, { children: 'Click' }) }));
+    expect(plain).toBe('<ol class="k-rowlist"><li>Click</li></ol>');
   });
 
   it('switch: a native checkbox with role="switch" inside its label; fields: a visible label bound to a native input / textarea / select, an error in words', () => {

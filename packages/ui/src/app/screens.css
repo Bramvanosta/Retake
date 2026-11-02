@@ -1182,3 +1182,312 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* L5.11b: Record a scenario (R4-Record) — the start form, one recording: its header, the draft rows with the cursor
+   block (alternatives, the Insert toolbar), the inspector's controls */
+.rc-screen {
+  max-width: 960px;
+}
+.rc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ui-space-6);
+  min-width: 0;
+}
+.rc-head-text {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.rc-head-text .sc-h1 {
+  overflow-wrap: anywhere;
+}
+.rc-head-text .sc-h1:focus-visible,
+.rc-refused:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-control);
+}
+/* The time left and, while the inspector is hidden, the one Stop (L5.11b fixes, review B-L4) */
+.rc-head-side {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.rc-time {
+  flex: none;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+}
+.rc-state {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-5);
+  margin: 0;
+}
+.rc-quiet {
+  color: var(--ui-text-3);
+}
+.rc-list {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding-left: var(--ui-space-7);
+  overflow-wrap: anywhere;
+}
+.rc-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.rc-link {
+  color: var(--ui-link);
+  text-decoration: underline;
+}
+.rc-link:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+  border-radius: var(--ui-radius-kbd);
+}
+.rc-error {
+  margin: 0;
+  color: var(--ui-danger-text);
+}
+
+/* The start form: the fields two a row, one in a narrow centre */
+.rc-start {
+  display: grid;
+  gap: var(--ui-space-6);
+  padding: var(--ui-space-7);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+}
+.rc-fields {
+  display: grid;
+  align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--ui-space-5) var(--ui-space-6);
+}
+.rc-persona {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.rc-persona p {
+  margin: 0;
+}
+.rc-start-act {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+
+/* The draft: scenes of rows; an insert row set in; the cursor block under its row */
+.rc-draft-section,
+.rc-draft {
+  display: grid;
+  gap: var(--ui-space-5);
+  min-width: 0;
+}
+.rc-scene {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.rc-scene-title {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.rc-rows {
+  display: grid;
+  gap: var(--ui-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* L5.11b fixes (review A-M2): a scene's rows are a listbox — one tab stop; the focused list and its active row are
+   ringed (the selected row keeps its own fill and inset ring) */
+.rc-rows[role="listbox"] {
+  border-radius: var(--ui-radius-card);
+}
+.rc-rows[role="listbox"]:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.rc-rows[role="listbox"]:focus-visible .k-rowcard.is-active {
+  outline: 2px dashed var(--ui-ring);
+  outline-offset: -2px;
+}
+.rc-row {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.rc-row.is-insert {
+  margin-left: var(--ui-space-9);
+}
+.rc-row.is-helper .rc-row-label,
+.rc-row.is-helper .rc-row-target {
+  color: var(--ui-text-2);
+}
+.rc-row-target {
+  font-family: var(--ui-mono);
+}
+.rc-row-static {
+  display: flex;
+  gap: var(--ui-space-5);
+  padding: var(--ui-space-3) var(--ui-space-5);
+  min-width: 0;
+}
+.rc-row-n {
+  flex: none;
+  min-width: 2.5em;
+  color: var(--ui-text-3);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rc-row-text {
+  display: grid;
+  gap: var(--ui-space-1);
+  min-width: 0;
+}
+.rc-row-title {
+  overflow-wrap: anywhere;
+}
+.rc-row-meta {
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.rc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-2);
+  margin: 0 0 0 calc(2.5em + var(--ui-space-10));
+}
+.rc-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  padding: var(--ui-space-1) var(--ui-space-1) var(--ui-space-1) var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-well);
+  overflow-wrap: anywhere;
+}
+.rc-chip-text {
+  min-width: 0;
+}
+.rc-by {
+  color: var(--ui-text-3);
+}
+.rc-here {
+  display: grid;
+  gap: var(--ui-space-5);
+  margin: var(--ui-space-2) 0 var(--ui-space-3);
+  padding: var(--ui-space-5) var(--ui-space-6);
+  border-left: 3px solid var(--ui-accent);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-pane);
+  min-width: 0;
+}
+/* The selected row's own inserts with their Remove, first in its cursor block */
+.rc-chips.rc-removes {
+  margin: 0;
+}
+.rc-alts {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.rc-alts-state {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.rc-alt-words {
+  font-family: var(--ui-mono);
+}
+.rc-insert {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.rc-insert-where {
+  margin: 0;
+  color: var(--ui-text-2);
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.rc-insert .k-toolbar {
+  flex-wrap: wrap;
+}
+.rc-insert-form {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 480px;
+  padding: var(--ui-space-5);
+  border-radius: var(--ui-radius-card);
+  background: var(--ui-well);
+}
+.rc-form-act,
+.rc-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-4);
+}
+.rc-pending {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.rc-pending p {
+  margin: 0;
+}
+.rc-pending .rc-chips {
+  margin-left: 0;
+}
+.rc-waiting {
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.rc-sign-in {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.rc-sign-in p {
+  margin: 0;
+}
+.rc-yaml {
+  margin: 0;
+  font-family: var(--ui-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The inspector's controls and lists */
+.rc-control + .rc-control {
+  margin-top: var(--ui-space-3);
+}
+.rc-control .sc-quiet {
+  flex: 1 1 100%;
+}
+.rc-from-page {
+  margin-top: var(--ui-space-2);
+}
+.rc-issues {
+  padding-left: 0;
+  list-style: none;
+}
+.rc-sev {
+  font-weight: var(--ui-weight-strong);
+}

@@ -1,8 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.11a (Studio « Épure » 3a: Shoot — prepare, live, actions, Cast)** — phases
+Last updated: 2026-11-02, end of lot **L5.11 (Studio « Épure » 3: Shoot; L5.11a + L5.11b)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.10, L5.11a done). **Next: L5.11b (Studio « Épure » 3b: the Record screen).** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.11 done). **Next: L5.12 (Studio « Épure » 4: Edit, Review and the rest), only when the user
+asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -29,7 +30,23 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.11a)
+## State (after L5.11b)
+- **L5.11b done (2026-11-02)** — L5.11 is complete. The Record screen rebuilt on the kit inside the shell from
+  R4-Record: the start form in the centre (Location / Page / Persona selects, Path / Name fields), the Recordings group in
+  the Shoot browser (live state, location, step count, Open the saved scenario); the live recording — the draft as one
+  tab stop (a listbox per scene with arrow / Home / End / PgUp / PgDn keys, Enter selects = moves the insert point), the
+  selected row's alternatives as a kit RadioGroup (the requested choice shows at once; one change in flight, the newest
+  pick queued), the Insert toolbar (Hold 2 s, Wait for…, Caption…, Mark, Zoom… with the theme's factors, Back to the
+  end; a typed form survives the block moving), the inspector (Started with + Name, the selected step, Stop recording,
+  Save as new scenario with why it waits, Discard through a kit Sheet whose default is "Keep it", Check / To look at /
+  Secret fields / Writes / Warnings). The status bar is claimed on the Record route while a Studio recording is live
+  ("Recording · browser window open · n actions · n inserts · draft updated …"); ⌘. stops the recording (never a run,
+  after a reload too), Rehearse / Capture / Render say why and send nothing; the ⌘K palette offers Stop recording /
+  Discard… named after the recording. One Stop (in the inspector; in the head beside the time when the inspector is
+  hidden). RecordScreen left the kit ratchet (274 → 0); about 265 lines of legacy CSS removed. Tests on the Mac: **4000
+  — 3916 pass, 84 skipped, 0 failures in the one full run**; `pnpm test:slow` 65/65; the gated record and Chrome
+  acceptances green once each. Requirements: 663 tracked — 622 done (R-UI-44 added), 27 partial, 8 todo, 6 n/a-here.
+  Live checks for the user: MACOS-CHECKLIST 14d (item 9: the real window, ⌘. while typing, VoiceOver, 900 px).
 - **L5.11a done (2026-11-02)** — L5.11 is split in two (the plan sized it L): Shoot without the Record screen, from
   R4-ShootPrep / R4-ShootLive / R4-Confirm. **Prepare a take**: a checklist (location, sessions this run signs in with,
   what would stop a run, the live picture switch), each blocker a state word + one line + its Copy command (the command
@@ -543,8 +560,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.11b (Studio « Épure » 3b: the Record screen in the shell, R4-Record)** — L5.11a is done; L5.12 only when
-the user asks. **Decided
+**Next: L5.12 (Studio « Épure » 4: Edit, Review and the rest) per the roadmap**, only when the user asks (L5.11 is
+done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1502,6 +1519,14 @@ sandbox, a hook step and compact results through Claude Code).
   `ShootPrepare.tsx`, `ShootLive.tsx`, `ShootBrowser.tsx`, `shoot-data.ts`, `shoot-words.ts`, `run-location.ts`,
   `shell/command-bus.ts`, `shell/StatusActions.tsx`, `shell/say.ts`, LiveView / Sessions on the kit, ui-kit Checklist /
   Blocker (compact, CommandPopover); desktop `menu.rs` Scenario menu. Cuts: BL-130.
+- **L5.11b done** (the Record screen in the shell; R-UI-44). Built from the L5.11 plan's part R and the critique's
+  record items, reviewed by two reviewers (arrowing through alternatives under a slow save checking one option and
+  focusing another; every draft row a tab stop, Stop 200 Tabs away; a typed Caption lost when the insert block moved; a
+  vacuous callout assertion; Save's rule untested; the drive's errors surfacing late…) and fixed with mutation-checked
+  tests (12 + 23 mutations, all caught). Files: ui `RecordScreen.tsx` (rebuilt), `ShootBrowser.tsx` (Recordings),
+  `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
+  (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
+  a save back). Cuts: BL-131.
 - **L4.6 done** (frame comments UI; R-UI-27/28/29 done). Planned with probes (a seek to (F − 0.5)/fps returns the exact
   frame in 0.06–0.2 s where an exact select takes 1.3 s at the end of a render), criticised (what the person reads could
   differ from what Apply writes; proposals Claude could not plan or review; Apply and re-render on a vertical thread;
@@ -1769,6 +1794,17 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.11b:
+- On the Record route a live recording holds stop / rehearse / capture / render at PRIORITY.recording from the first
+  paint (before the view is read), so ⌘. after a reload reaches `record_stop`. Ownership is per route by design: on
+  the start form or Prepare the usual defaults apply.
+- One change in flight per recording: picks queue (newest per step), Stop and Discard wait and go right after, other
+  changes are refused and said; queued changes read the newest view's revision.
+- State that must survive the inspector's remount (the Name, the insert form, the Discard sheet) lives in
+  `RecordingBody`; the inspector itself still remounts when hidden (the app-source lint bans `document.createElement`).
+- `studio-e2e-record-keys.test.ts` answers the record ops in the page (no headed window), so it can hold a view or a
+  save back and build any draft length; `studio-e2e-record` keeps the real window flow.
+
 Notes from L5.11a:
 - Commands go through `shell/command-bus.ts`: a handler registers with a priority (PRIORITY.defaults 0, screen 10,
   recording 20) and is held in a ref; the highest priority wins, the latest registration breaks ties. A screen that owns

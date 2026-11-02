@@ -3749,32 +3749,42 @@ running: the MCP server keeps working without it.
   window by its title bar — a click in the page is recorded, and a visit to the Studio commits the typing in progress
   (typing on in the same field still makes one step). Nothing you do in the Studio reaches the window: it shows the
   **live draft** (`#/p/<project>/record/<id>`), step by step as you act, with the steps the recorder added (a wait, a
-  scroll) marked. Under a step, *Other targets: N verified* lists the targets that matched the same element when you
-  acted: pick one and the saved step uses it (the recorder's wait and scroll before it follow). **Quick inserts** go at
-  the draft's cursor — at the end (following your next actions) or right *after* the row you choose, whatever its kind
+  scroll) marked. A step whose target others matched says *n alternatives* on its right: press the row and they show
+  under it as choices (the recorder's *Suggested*) — pick one and the saved step uses it (the recorder's wait and scroll
+  before it follow). Pressing a row also puts the draft's cursor right after it: the **Insert** toolbar under it says
+  *Insert after step n of <scene>*; press the row again (or *Back to the end*) to insert at the end. The draft is one
+  Tab stop: ↑ / ↓ move through the rows (across scenes), Home / End, Enter or Space selects one — its choices and the
+  toolbar come next in the Tab order, **Stop recording** a few Tabs on. **Quick inserts**
+  go at the draft's cursor — at the end (following your next actions) or right *after* the row you choose, whatever its kind
   (after the recorder's scroll: between the scroll and its press; after its wait: between the wait and its press); the
   cursor stays on that row while the draft grows, and moves onto a hold or a wait you add, so the next one follows it:
-  **Hold 2 s**, **Mark**, **Zoom** (until the scene ends; the factor is at most the theme's `max_zoom` — 1.4× with the
-  default and editorial themes — so it is never clamped), **Wait for…** (the next target — a list's field by its
+  **Hold 2 s**, **Mark**, **Zoom…** (until the scene ends; the factors offered go up to the theme's `max_zoom` — 1.4×
+  with the default and editorial themes, the default choice — so it is never clamped), **Wait for…** (the next target — a list's field by its
   label —, the page idle, or a text) and **Caption…** (a text and a kicker); a caption, a mark or a zoom made at the
-  end waits for your next action and goes on it (*Applies to your next action*); each insert has **Remove**. A
+  end waits for your next action and goes on it (*Applies to your next action*); each insert has **Remove** (a row's
+  inserts under it once you select it). A
   password or another secret field shows as its `{{vars.…}}` placeholder only (a secret typed in two parts too: one
   placeholder). A text holding a hidden character (a direction control, a zero-width or line-separator character)
-  never reaches the draft: its step is left out and said so. **Stop and keep** closes the window (as closing it
-  yourself does), makes the draft and runs the check replay — it replays the draft **as recorded, without your picks
+  never reaches the draft: its step is left out and said so. **Stop recording** closes the window (as closing it
+  yourself does; in the desktop app ⌘. does the same while a recording goes — never a run of the scenario you had open,
+  and Rehearse / Capture / Render wait, saying why, until it is over; ⌘K offers *Stop recording* and *Discard…* named
+  after the recording), makes the draft and runs the check replay — it replays the draft **as recorded, without your picks
   and inserts** (none of them is checked; its counts are recorded steps, and its failing step is shown on its row, or
-  as a recorded step when that row is gone): save, then dry-run the scenario to replay everything. **Save as
-  scenario** writes a **new** `scenarios/<name>.yaml` (a taken name is refused: choose another) — exactly the draft on
+  as a recorded step when that row is gone): save, then dry-run the scenario to replay everything. **Save as new
+  scenario** (it waits, saying why, until the check is over) writes a **new** `scenarios/<name>.yaml` (a taken name is refused: choose another) — exactly the draft on
   the screen: if its events, project.yaml or the arrangement changed since the screen read it, Save is refused and the
   screen reads it again — and opens its scenario screen; nothing is saved before you do, and the file has no YAML
-  alias (the block editor can delete or duplicate the recorder's steps). **Discard** (after a confirmation) removes
+  alias (the block editor can delete or duplicate the recorder's steps). **Discard** (after a confirmation whose
+  default is *Keep it*: Return never discards) removes
   the recording, also while the window is open (it ends *Discarded*) or while the check runs (the folder goes when the
   job ends, even with no Studio open). One recording window at a time in the workspace; it holds the jobs worker while
-  open, and stops by itself after 30 minutes; **Cancel** before the window opens never discards a window that opened
+  open, and stops by itself after 30 minutes; **Cancel recording** before the window opens never discards a window that opened
   meanwhile. A persona that cannot sign in by itself (no valid session, no `login:` steps) blocks **Start** and offers
   its **Sign in**; recordings Claude or `studio record` started are listed and shown read-only (already saved by their
   job), and so is one whose origin cannot be verified (its job gone) or whose files were changed after its job wrote
-  them (*cannot be verified*: no Save). The recent recordings are listed under the form. Not here: thumbnails per step, a picture of the window, editing steps before Save (BACKLOG BL-118), and
+  them (*cannot be verified*: no Save). The recent recordings are Shoot's browser's **Recordings** on these screens
+  (their state, saved or not; the open one live), and the status bar says *Recording · browser window open* with the
+  counts while one goes. Not here: thumbnails per step, a picture of the window, editing steps before Save (BACKLOG BL-118), and
   recording through the live picture without a window (BL-25).
 - **Sessions.** The project page lists every persona of every environment with its saved sign-in (*valid*, *expired*,
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
