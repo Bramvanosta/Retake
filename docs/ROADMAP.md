@@ -82,8 +82,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **done** — L5.10a (project side) and L5.10b (scenario side) (live checks: MACOS-CHECKLIST 14c) |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M → L, split | **done** — L5.11a (prepare, live, actions, Cast) and L5.11b (the Record screen) (live checks: MACOS-CHECKLIST 14d) |
-| L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **in progress** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K) and L5.12c (Library, themes) done; d (quit sheet, end of legacy) next |
-| L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
+| L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **done** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K), L5.12c (Library, themes), L5.12d (quit sheet, end of legacy, motion) (live checks: MACOS-CHECKLIST 14e) |
+| L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **next** (when the user asks) |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
 | L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
 | L5.15 | Renders on the GPU with a lighter load | S | todo |
@@ -946,6 +946,13 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   DataTables, Create / Set as default / copy-first as Sheets; the theme editor with one live preview and its fields on a
   kit ColorField; the Themes list and New theme form on the kit; ratchet −603. Two independent reviews fixed with
   mutation-checked tests. Cuts: BL-134. Next: L5.12d.
+
+### L5.12d — Studio « Épure » 4d: the quit sheet, motion, the end of the legacy layer (split from L5.12)
+- **Goal:** the desktop quit question in the page, reduced motion, and no legacy control or CSS left.
+- **Done (2026-11-03, in a worktree):** the quit question as a kit Sheet asked by the shell and answered through the
+  server's pipe (`desktop_answer`), the native alert as the fallback and for logout / restart; bits / main on the kit;
+  app.css and the legacy tokens deleted, the ratchet at zero; the reduced-motion and className lints. Two independent
+  reviews fixed with mutation-checked tests. Cuts: BL-135. L5.12 is done; next: L5.13.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

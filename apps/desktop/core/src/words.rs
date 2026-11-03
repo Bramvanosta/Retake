@@ -300,6 +300,36 @@ mod tests {
         }
     }
 
+    /// Review A-L1 / B-L1: the longest question these words can build fits the page's bound (guard_flow QUIT_TEXT_MAX,
+    /// the page's QUIT_TEXT_MAX): eight lines of the longest kind on each side, names of 100 characters (cut where
+    /// shown), the largest totals ("…and 999992 more"), a Studio recording's note and the unknown state's note.
+    #[test]
+    fn the_longest_question_fits_the_page_bound() {
+        use crate::guard_flow::{page_fits, QUIT_TEXT_MAX};
+        use crate::pipe::LIST_MAX;
+        let (p100, s100) = ("p".repeat(100), "S".repeat(100));
+        let u = |kind| UnsavedItem { kind, project: Some(p100.clone()), scenario: Some(s100.clone()) };
+        let j = |kind| JobItem { kind, state: JobState::Running, project: Some(p100.clone()), scenario: Some(s100.clone()) };
+        let longest_u = *UnsavedKind::ALL.iter().max_by_key(|k| unsaved_line(&u(**k)).chars().count()).unwrap();
+        let longest_j = *JobKind::ALL.iter().max_by_key(|k| job_line(&j(**k)).chars().count()).unwrap();
+        let units = |s: &str| s.encode_utf16().count();
+        let mut worst = 0;
+        for recording in [false, true] {
+            let mut jobs = vec![j(longest_j); LIST_MAX];
+            if recording {
+                jobs[0] = j(JobKind::StudioRecording);
+            }
+            let p = Pending { unsaved: vec![u(longest_u); LIST_MAX], unsaved_total: 1_000_000, jobs, jobs_total: 1_000_000, unknown: true };
+            for action in [Action::Quit, Action::OpenWorkspace, Action::LogOut, Action::SystemRestart] {
+                let q = guard_question(&p, action, APP).unwrap();
+                assert!(page_fits(&q), "{action:?}: {} units", units(&q.text));
+                worst = worst.max(units(&q.text));
+            }
+        }
+        // Room to spare — and a bound that still means something.
+        assert!(worst > 2000 && worst <= QUIT_TEXT_MAX * 3 / 4, "{worst}");
+    }
+
     #[test]
     fn nothing_pending_is_no_question_quit_stays_instant() {
         assert_eq!(guard_question(&Pending::default(), Action::Quit, APP), None);

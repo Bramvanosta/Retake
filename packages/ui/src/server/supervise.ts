@@ -8,7 +8,9 @@
  *   "unsaved_total"}` — what Quit would leave behind, whole, at start and on every change: coalesced (at most one write
  *   per PENDING_GAP_MS, the last state always written), latest-wins while stdout is full (nothing queues);
  * - `{"type":"job_end","kind","outcome","reason"?,"project","scenario"?}` — once per job that ends while the server
- *   runs (at most JOB_END_PER_MIN a minute; more are counted on stderr).
+ *   runs (at most JOB_END_PER_MIN a minute; more are counted on stderr);
+ * - L5.12d: `{"type":"shown","id","shown":true}` / `{"type":"answer","id","answer"}` — the window page's word on the
+ *   quit question (desktop.ts `desktop_answer`), written as the op runs.
  *
  * Words live in the shell: every field is an enum it knows or a slug it checks again — never a path, a message, a URL
  * or page text. A hand-edited job.json is data: its project and scenario are named only when they pass the slug rules
@@ -30,6 +32,7 @@ import { join } from 'node:path';
 import { FileJobQueue, JobsWatch, liveWorker } from '@demo-studio/engine';
 import type { JobRecord } from '@demo-studio/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
+import type { DesktopPipe } from './desktop.js';
 
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;
@@ -396,6 +399,17 @@ export class Supervisor {
     }, wait);
   }
 
+  /**
+   * A line of the window's page (L5.12d desktop.ts: `shown` / `answer`): framed like the others and written even while
+   * stdout is full (Node keeps it: an answer is never dropped); not counted in `written`. False once stopped: nothing
+   * written (review B-L6: `desktop_answer` then says so).
+   */
+  pageLine(line: string): boolean {
+    if (this.stopped) return false;
+    this.o.out.write(`\n${line}\n`);
+    return true;
+  }
+
   stop(): void {
     this.stopped = true;
     clearTimeout(this.pollTimer);
@@ -409,13 +423,15 @@ export class Supervisor {
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {
-  server: { engine: { workspace: { root: string; projectsDir: string } }; unsaved: UnsavedBoard; onWrite(f: () => void): () => void; close(): Promise<void> };
+  server: { engine: { workspace: { root: string; projectsDir: string } }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
   out: PipeOut;
   pollMs?: number;
   log?: (message: string) => void;
 }): Supervisor {
   const sup = new Supervisor({ root: o.server.engine.workspace.root, projectsDir: o.server.engine.workspace.projectsDir, board: o.server.unsaved, out: o.out, ...(o.pollMs ? { pollMs: o.pollMs } : {}), ...(o.log ? { log: o.log } : {}) });
   const off = o.server.onWrite(() => void sup.nudge());
+  // L5.12d: the window page's ack and answer to the quit question go out on the same pipe.
+  o.server.desktop?.attach((line) => sup.pageLine(line));
   const close = o.server.close;
   o.server.close = () => {
     sup.stop();

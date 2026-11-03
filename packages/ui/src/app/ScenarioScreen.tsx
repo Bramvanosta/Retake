@@ -363,7 +363,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
     if (tab === 'yaml') {
       const r = rangeOf(v, s);
       if (r) setFocus(r);
-    } else document.getElementById(at)?.scrollIntoView({ block: 'start' });
+    } else document.getElementById(at)?.scrollIntoView({ block: 'start', behavior: 'auto' });
   };
   browse.current = onBrowse;
   const issues = allIssues(v);

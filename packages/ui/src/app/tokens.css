@@ -57,10 +57,6 @@
   --ui-overlay-w: 560px;
   --ui-palette-w: 640px;
   --ui-titlebar-inset: 0px;
-  --radius: 8px;
-  --font: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --main-h: calc(100dvh - 82px);
 }
 html[data-titlebar='overlay'] {
   --ui-titlebar-inset: 80px;
@@ -105,47 +101,6 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #43464d;
   --ui-backdrop: rgba(6, 7, 8, 0.55);
   --ui-shadow: rgba(0, 0, 0, 0.55);
-  --bg: #111214;
-  --surface: #18191c;
-  --subtle: #1b1c20;
-  --field-off: #1f2024;
-  --code-bg: #222428;
-  --hover: #25272b;
-  --thumb-stripe: #222428;
-  --tint: #25272b;
-  --thumb-bg: #222428;
-  --hook-tint: #23272c;
-  --fg: #ececef;
-  --fg-soft: #dcdee3;
-  --hook-fg: #c3cdd7;
-  --tint-fg: #c9ccd3;
-  --muted: #a3a8b3;
-  --line: #2e3035;
-  --line-strong: #43464d;
-  --hook-line: #5d6874;
-  --busy-edge: #80858f;
-  --accent: #7aaaff;
-  --accent-strong: #a3c4ff;
-  --accent-fill: #2f6fe0;
-  --accent-strong-fill: #2a62c9;
-  --accent-soft: #1d2a44;
-  --accent-line: #34508a;
-  --on-accent: #ffffff;
-  --danger: #ff7b72;
-  --danger-soft: #3a2422;
-  --danger-line: #6b3430;
-  --danger-line-strong: #82403a;
-  --warning: #f2b84b;
-  --warning-soft: #33291a;
-  --warning-line: #5e4a24;
-  --info: #8bb8f0;
-  --info-soft: #192b3f;
-  --info-line: #2f4a72;
-  --success: #6fd394;
-  --success-soft: #1b2e22;
-  --input-tint: #2a2340;
-  --input-fg: #c9b5f5;
-  --ink-soft: #141518;
 }
 /* The system asks for light. */
 @media (prefers-color-scheme: light) {
@@ -187,50 +142,9 @@ html[data-titlebar='overlay'] {
     --ui-field-line: #d3d5da;
     --ui-backdrop: rgba(22, 24, 29, 0.35);
     --ui-shadow: rgba(0, 0, 0, 0.18);
-    --bg: #f6f7f9;
-    --surface: #ffffff;
-    --subtle: #fafbfc;
-    --field-off: #f9fafb;
-    --code-bg: #f4f5f7;
-    --hover: #f1f3f6;
-    --thumb-stripe: #f1f2f5;
-    --tint: #eef0f3;
-    --thumb-bg: #eceef2;
-    --hook-tint: #e9edf1;
-    --fg: #16181d;
-    --fg-soft: #262a31;
-    --hook-fg: #2f3b47;
-    --tint-fg: #3c4350;
-    --muted: #565d69;
-    --line: #e2e5ea;
-    --line-strong: #cfd4dc;
-    --hook-line: #9aa6b2;
-    --busy-edge: #7d828c;
-    --accent: #2357d9;
-    --accent-strong: #1b45ad;
-    --accent-fill: #2357d9;
-    --accent-strong-fill: #1b45ad;
-    --accent-soft: #eaf0fd;
-    --accent-line: #b8cbf5;
-    --on-accent: #ffffff;
-    --danger: #b42318;
-    --danger-soft: #fdecea;
-    --danger-line: #f2c3bd;
-    --danger-line-strong: #e7b4ae;
-    --warning: #8a5300;
-    --warning-soft: #fdf3e1;
-    --warning-line: #efd6a8;
-    --info: #1f5fae;
-    --info-soft: #e8f1fb;
-    --info-line: #c4d9f3;
-    --success: #1d6b3a;
-    --success-soft: #e6f4ea;
-    --input-tint: #f1ebfb;
-    --input-fg: #5b3a99;
-    --ink-soft: #1c1f24;
   }
 }
-/* Scopes inside the page (the gallery, a legacy route kept light): after the media block, so a scope always wins. */
+/* Scopes inside the page (the gallery): after the media block, so a scope always wins. */
 [data-appearance='light'] {
   color-scheme: light;
   --ui-canvas: #f6f6f7;
@@ -269,47 +183,6 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #d3d5da;
   --ui-backdrop: rgba(22, 24, 29, 0.35);
   --ui-shadow: rgba(0, 0, 0, 0.18);
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --subtle: #fafbfc;
-  --field-off: #f9fafb;
-  --code-bg: #f4f5f7;
-  --hover: #f1f3f6;
-  --thumb-stripe: #f1f2f5;
-  --tint: #eef0f3;
-  --thumb-bg: #eceef2;
-  --hook-tint: #e9edf1;
-  --fg: #16181d;
-  --fg-soft: #262a31;
-  --hook-fg: #2f3b47;
-  --tint-fg: #3c4350;
-  --muted: #565d69;
-  --line: #e2e5ea;
-  --line-strong: #cfd4dc;
-  --hook-line: #9aa6b2;
-  --busy-edge: #7d828c;
-  --accent: #2357d9;
-  --accent-strong: #1b45ad;
-  --accent-fill: #2357d9;
-  --accent-strong-fill: #1b45ad;
-  --accent-soft: #eaf0fd;
-  --accent-line: #b8cbf5;
-  --on-accent: #ffffff;
-  --danger: #b42318;
-  --danger-soft: #fdecea;
-  --danger-line: #f2c3bd;
-  --danger-line-strong: #e7b4ae;
-  --warning: #8a5300;
-  --warning-soft: #fdf3e1;
-  --warning-line: #efd6a8;
-  --info: #1f5fae;
-  --info-soft: #e8f1fb;
-  --info-line: #c4d9f3;
-  --success: #1d6b3a;
-  --success-soft: #e6f4ea;
-  --input-tint: #f1ebfb;
-  --input-fg: #5b3a99;
-  --ink-soft: #1c1f24;
 }
 [data-appearance='dark'] {
   color-scheme: dark;
@@ -349,47 +222,6 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #43464d;
   --ui-backdrop: rgba(6, 7, 8, 0.55);
   --ui-shadow: rgba(0, 0, 0, 0.55);
-  --bg: #111214;
-  --surface: #18191c;
-  --subtle: #1b1c20;
-  --field-off: #1f2024;
-  --code-bg: #222428;
-  --hover: #25272b;
-  --thumb-stripe: #222428;
-  --tint: #25272b;
-  --thumb-bg: #222428;
-  --hook-tint: #23272c;
-  --fg: #ececef;
-  --fg-soft: #dcdee3;
-  --hook-fg: #c3cdd7;
-  --tint-fg: #c9ccd3;
-  --muted: #a3a8b3;
-  --line: #2e3035;
-  --line-strong: #43464d;
-  --hook-line: #5d6874;
-  --busy-edge: #80858f;
-  --accent: #7aaaff;
-  --accent-strong: #a3c4ff;
-  --accent-fill: #2f6fe0;
-  --accent-strong-fill: #2a62c9;
-  --accent-soft: #1d2a44;
-  --accent-line: #34508a;
-  --on-accent: #ffffff;
-  --danger: #ff7b72;
-  --danger-soft: #3a2422;
-  --danger-line: #6b3430;
-  --danger-line-strong: #82403a;
-  --warning: #f2b84b;
-  --warning-soft: #33291a;
-  --warning-line: #5e4a24;
-  --info: #8bb8f0;
-  --info-soft: #192b3f;
-  --info-line: #2f4a72;
-  --success: #6fd394;
-  --success-soft: #1b2e22;
-  --input-tint: #2a2340;
-  --input-fg: #c9b5f5;
-  --ink-soft: #141518;
 }
 /* ::backdrop inherits no custom property in Safari 17 and Firefox 120 (UI_TARGETS): the veils are declared on it. */
 ::backdrop {

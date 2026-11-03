@@ -12,7 +12,7 @@ import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { info, setToken, useCall, useConnection } from './api.js';
 import { onlyRunProgress, startEvents, useEvents } from './events.js';
-import { Notice, Txt } from './bits.js';
+import { Txt } from './bits.js';
 import { APP_NAME } from './brand.js';
 import { dirtyDrafts, guardUnload } from './drafts.js';
 import { startUnsavedReport } from './unsaved-report.js';
@@ -29,15 +29,15 @@ import { ShootPrepare } from './ShootPrepare.js';
 import { ThemesScreen } from './ThemesScreen.js';
 import { TimelineScreen } from './TimelineScreen.js';
 import { ReviewScreen } from './ReviewScreen.js';
-import { hrefTo, parseRoute } from './route.js';
+import { parseRoute } from './route.js';
 import type { Route } from './route.js';
 import { SessionEnded, openSession, takeCodeFromUrl } from './session.js';
 import { AppShell } from './shell/AppShell.js';
 import type { ProjectList } from './shell/AppShell.js';
 import { GalleryScreen } from './GalleryScreen.js';
-import { studioShell } from './ui-kit/index.js';
+import { Callout, EmptyState, LinkButton, Progress, TextArea, studioShell } from './ui-kit/index.js';
 import './tokens.css';
-import './app.css';
+import './base.css';
 import './ui-kit/kit.css';
 import './shell/shell.css';
 import './screens.css';
@@ -101,11 +101,10 @@ function Studio() {
       {route.name === 'record' && <RecordScreen key={route.slug} slug={route.slug} {...(route.rec ? { rec: route.rec } : {})} />}
       {route.name === 'ui' && <GalleryScreen />}
       {route.name === 'not-found' && (
-        <div className="screen">
-          <h1>Nothing here</h1>
-          <p>
-            <a href={hrefTo({ name: 'projects' })}>Back to the projects</a>
-          </p>
+        <div className="sc-screen">
+          <EmptyState level={1} title="Nothing here" actions={<LinkButton to={{ name: 'projects' }}>Back to the projects</LinkButton>}>
+            This address is not a place of the Studio.
+          </EmptyState>
         </div>
       )}
     </AppShell>
@@ -115,35 +114,36 @@ function Studio() {
 /**
  * The session ended (the server restarted or stopped answering this tab's token). Unsaved text (a README, a scenario's YAML) stays on screen,
  * read-only, to copy into the new session (review B H1: the editor is gone, the text must not go with it); closing the
- * tab still asks first while there is some.
+ * tab still asks first while there is some. L5.12d: on the kit (Callout, read-only TextArea), as are Connecting, the
+ * start error and the not-found screen.
  */
 function Ended() {
   const drafts = dirtyDrafts();
   return (
-    <main className="ended" data-testid="session-ended">
-      <h1>{APP_NAME}</h1>
-      <Notice tone="warning" role="alert" title="This Studio session ended">
-        <p>
-          Run <code>studio ui</code> again in a terminal: it opens a new session. A Studio link works once, in one tab.
+    <main className="sc-ended" data-testid="session-ended">
+      <h1 className="sc-h1">{APP_NAME}</h1>
+      <Callout state="warn" role="alert" title="This Studio session ended">
+        <p className="sc-ended-p">
+          Run <code className="k-mono">studio ui</code> again in a terminal: it opens a new session. A Studio link works once, in one tab.
         </p>
-      </Notice>
+      </Callout>
       {drafts.length > 0 && (
-        <section className="kept-drafts" aria-labelledby="kept-h" data-testid="unsaved-drafts">
-          <h2 id="kept-h">Your unsaved text</h2>
-          <p>It was not saved. Copy it before you close this tab, then paste it into the editor of the new session.</p>
+        <section className="sc-ended-drafts" aria-labelledby="kept-h" data-testid="unsaved-drafts">
+          <h2 id="kept-h" className="sc-h2">
+            Your unsaved text
+          </h2>
+          <p className="sc-ended-p">It was not saved. Copy it before you close this tab, then paste it into the editor of the new session.</p>
           {drafts.map((d) => (
-            <label key={d.key} className="field">
-              <span className="label">
-                <Txt text={d.label} />
-              </span>
-              <textarea className="kept" readOnly value={d.text} rows={10} data-testid="unsaved-draft" />
-            </label>
+            <TextArea key={d.key} label={<Txt text={d.label} />} value={d.text} onChange={keep} unsaved={null} readOnly mono rows={10} testId="unsaved-draft" />
           ))}
         </section>
       )}
     </main>
   );
 }
+
+/** A kept draft is read-only: nothing to change. */
+const keep = () => undefined;
 
 type Boot = { kind: 'loading' } | { kind: 'ended' } | { kind: 'error'; message: string } | { kind: 'ready' };
 
@@ -169,18 +169,19 @@ function App({ code }: { code: string | null }) {
   if (boot.kind === 'ended') return <Ended />;
   if (boot.kind === 'error') {
     return (
-      <main className="ended">
-        <h1>{APP_NAME}</h1>
-        <Notice tone="danger" role="alert" title="The Studio could not start">
-          <p>{boot.message}</p>
-        </Notice>
+      <main className="sc-ended" data-testid="session-error">
+        <h1 className="sc-h1">{APP_NAME}</h1>
+        <Callout state="fail" role="alert" title="The Studio could not start">
+          <Txt text={boot.message} />
+        </Callout>
       </main>
     );
   }
   if (boot.kind === 'loading') {
     return (
-      <main className="ended">
-        <p role="status">Connecting…</p>
+      <main className="sc-ended" data-testid="session-connecting">
+        <h1 className="sc-h1">{APP_NAME}</h1>
+        <Progress label="Connecting…" />
       </main>
     );
   }

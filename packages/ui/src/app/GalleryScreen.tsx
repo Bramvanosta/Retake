@@ -617,7 +617,7 @@ export function GalleryScreen() {
         </InspectorSection>
       </ShellSlot>
       <ShellSlot name="actions">
-        <Button size="sm" variant="ghost" onClick={() => document.getElementById('main')?.scrollTo({ top: 0 })}>
+        <Button size="sm" variant="ghost" onClick={() => document.getElementById('main')?.scrollTo({ top: 0, behavior: 'auto' })}>
           Back to top
         </Button>
       </ShellSlot>

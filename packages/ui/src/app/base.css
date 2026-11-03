@@ -1,0 +1,66 @@
+/*
+ * L5.12d: the page's base — the legacy layer (app.css, L4.1 – L5.12) is gone with the last legacy screen. Element
+ * defaults only (no class: the kit, the shell and the screens style their own) on `--ui-*` tokens only; the kit's lints
+ * (closed palette, sizes from tokens, the focus ring, placeholders, reduced motion) read this file too.
+ */
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--ui-canvas);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--ui-link);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+/* Review B-L4: a plain link's ring keeps the kit ring's radius (a kit control's own rule sets it too). */
+a:focus-visible {
+  border-radius: var(--ui-radius-control);
+}
+
+code,
+kbd {
+  font-family: var(--ui-mono);
+}
+
+/* Placeholders: the kit's own colour at full opacity (WebKit's default reads 2.35:1, Firefox's adds opacity .54). */
+::placeholder {
+  color: var(--ui-text-3);
+  opacity: 1;
+}
+
+/* A name from data breaks anywhere rather than pushing a pane wider (Txt's <bdi>). */
+bdi {
+  overflow-wrap: anywhere;
+}

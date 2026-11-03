@@ -7,10 +7,11 @@
  * origin (absent when an older running server does not say it).
  * `--supervised` (L5.2, the desktop shell): `--json --no-open`, and the server also stops when its stdin closes — the
  * parent that holds the pipe died or quit, so no orphan server keeps `ui.json`. The stdin watcher is installed before
- * the server starts (an EOF during the start closes it right after). Bytes read on stdin are discarded (BL-106's
- * confirm will be the first inbound message). Its line says `"v":2` (L5.2b): after it, a server this process serves
+ * the server starts (an EOF during the start closes it right after). Bytes read on stdin are discarded (L5.12d: the
+ * window page's answer to the quit question comes through the op `desktop_answer` and goes out on stdout). Its line says `"v":2` (L5.2b): after it, a server this process serves
  * writes the `pending` and `job_end` lines of the shell's quit question and notifications (ui supervise.ts: enums and
- * checked slugs only, ≤ 8 KB a line, coalesced), and nothing else — console.log / info / debug go to stderr, the lines
+ * checked slugs only, ≤ 8 KB a line, coalesced) and, L5.12d, the window page's `shown` / `answer` lines (desktop.ts),
+ * and nothing else — console.log / info / debug go to stderr, the lines
  * through stdout's own write captured first (critique M4); a reader gone is seen as stdin's end (EPIPE is ignored). A
  * reused server gets no such lines (no pipe reaches it: the shell says so). A folder that is no workspace prints
  * `{"type":"error","v":2,"code":"no_workspace"}` on stdout before exiting 2, so the shell tells it from a usage error

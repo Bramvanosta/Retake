@@ -31,9 +31,9 @@ appearances.
 ## Tokens
 
 One file, `packages/ui/src/app/tokens.ts`, for both appearances; `tokens.css` is generated from it
-(`pnpm -F @demo-studio/ui gen:tokens`; a test fails when they differ). The kit and the shell read `--ui-*` only; the
-legacy screens read the L4.9 palette (`--bg`, `--fg` …: light exactly as L4.9, dark mapped onto these), which goes with
-the last legacy screen.
+(`pnpm -F @demo-studio/ui gen:tokens`; a test fails when they differ). Every token is a `--ui-*` one (L5.12d: the L4.9
+palette — `--bg`, `--fg` … — went with the last legacy screen and app.css); the kit, the shell, the screens and the
+page's base (`base.css`: element defaults only, no class) read them.
 
 ### Colours (`--ui-*`)
 
@@ -107,8 +107,8 @@ waiting 4.6 on pane; knob on track 4.2, track on pane 3.5. Light: ring 4.3 / 4.0
 row always adds weight 600 or a 2 px ring), waiting on raised surfaces (never drawn there), a disabled control's text
 (WCAG exempts it). No other token shares a status colour's value (the accessibility checker reads a colour back to its
 family; L5.9's review moved `--ui-idle` off `--ui-text-3`'s value in dark and `--ui-waiting` off `--ui-track`'s in light).
-The legacy steps' in-flight edge `--busy-edge` (`#80858f` / `#7d828c`) is a mark at 3:1 on a step's every background
-(3.9 – 4.7 dark, 3.4 – 3.9 light): the steps keep their text colours while a write is in flight, no fade.
+(The legacy steps' in-flight edge `--busy-edge` went with the legacy palette in L5.12d: the kit's steps show a write in
+flight with their own dashed edge, no fade.)
 
 ### Fields and the segmented well (review B-L2: aligned with the canvas)
 
@@ -213,7 +213,7 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | FrameCard, PosterCard | selected (select fill + 2 px ring) or not; a button that selects or a link that goes | the picture comes from Thumb.tsx (the one image source) |
 | Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied", or a link); L5.10a: without a word, no mark (a command to copy nothing waits on); L5.11a: `compact` — the status bar's form: the mark and a few words (never cut), a ghost action — for a command, "Command…", a popover that shows the whole command wrapped beside its Copy (L5.11a fixes: what is copied is what is shown). The command is never cut (it wraps); "Copied" (or "Not copied: select the command instead") is visible | one line; the explanation on demand |
 | Checklist, ChecklistItem | an `<ol>` of checks (L5.11a): a 28 px state column (the shape), a title (h3) with its state word beside it (a visible word: the colour-only rule), its body, its actions; a hairline between items | Prepare's four checks; a short list of facts each with one state |
-| EmptyState | title, text, actions | |
+| EmptyState | title, text, actions; `level` 1 – 3 (L5.12d: 1 when it is the whole screen — the not-found screen) | |
 | Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions; L5.12c: `content` fields, Return in a one-line text field runs the default (when on) | the default holds the focus (off: the first text field, else the first action that is on); a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
 | CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape; L5.12b (R4-Palette): 640 px (`--ui-palette-w`), "Search commands, scenes and themes", an icon per row (`icon`, decorative), Esc's key cap in the field, a footer legend (↑ ↓ Move · Return Run · Esc Close, and a `footnote`); the list is never a tab stop of its own | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
@@ -456,8 +456,27 @@ Studio keeps `APP_NAME` (L5.13 renames).
   BL-133).
 - **Light appearance** — the same layout, the mapped palette. Built in L5.9 (tokens).
 
-Until a screen is rebuilt it keeps its L4 content inside the shell's centre pane, in both appearances (the legacy
-palette's dark values; the L4.9 checker passes on every one of them in dark and light).
+- **The quit sheet (R4-Confirm, L5.12d)** — in the desktop app only, the quit question the shell asks
+  (`studio:quit`): a kit Sheet over whatever is open, the shell's words as text (title, the lines and bullets pre-line,
+  up to the shell's own bound of 4 000), the alert's buttons in its visual order and its keys — the default rightmost,
+  as in every kit Sheet: unsaved text [Quit Anyway (destructive, no key)] [Cancel ●], jobs only [Cancel] [Quit
+  Anyway ●] —, Escape = Cancel, Return on a focused destructive button = the default (Space presses it); it acks once it
+  is painted and visible and answers through `desktop_answer`, staying open and busy until the answer arrives (a failed
+  one is said in the sheet, which stays answerable); the native alert after 1.5 s without an ack (DESIGN §4j).
+- **The screens outside the shell (L5.12d)** — Connecting (a Progress), the start error (a Callout), the session ended
+  (a Callout and each unsaved text in a read-only TextArea to copy), the not-found screen (an EmptyState, level 1).
+
+**The legacy layer is gone (L5.12d).** Every screen is on the kit: `app.css` (the cascade layer `legacy`) is deleted, the
+ratchet table `test/legacy-controls.json` is `{}` (every file holds zero findings), bits.tsx keeps only `Txt`, `shown`
+and small helpers (no Badge, Notice or Loading). A class word given in a JSX `className` or an object's `className:`
+field — a const or a one-expression helper of the same file it names included, a comparison's strings left out — is a
+class of a stylesheet or one of the named hooks, each with its reason (a lint), so a legacy class written there fails;
+what the lint does not see is a template's variable part (`k-btn-${variant}` passes on the prefix) or a class built
+in another file.
+
+**Motion (L5.12d).** Every animation or transition of the stylesheets has a later rule of its own selector, in cascade
+order (base → kit → shell → screens), off under `prefers-reduced-motion: reduce` (a lint; today the spinner, the indeterminate progress and the switch's knob); no smooth
+scrolling anywhere (every scroll call says `behavior: 'auto'`, a lint; Edit's follow-while-playing is instant).
 
 ## The mark and the name
 

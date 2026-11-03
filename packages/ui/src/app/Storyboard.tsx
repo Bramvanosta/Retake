@@ -184,7 +184,7 @@ export function Storyboard({
       // Known at once (before the next render): a focus this call causes finds the selection in its list.
       selRef.current = o.key;
       if (focus) lists.current.get(o.scene)?.focus({ preventScroll: true });
-      if (scroll) document.getElementById(optIds.get(o.key)!)?.scrollIntoView({ block: 'nearest' });
+      if (scroll) document.getElementById(optIds.get(o.key)!)?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     },
     [order, optIds, onSelect],
   );

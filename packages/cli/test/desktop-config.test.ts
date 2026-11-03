@@ -25,12 +25,17 @@
  * a signal only while AppKit runs one (B M1), the hook answering Cancel while one is up (B L13), no picker inside a
  * question (B L10), the dead server's ports refused before its alert waits (B L11), test mode never for a launchd
  * launch (A L2), and the pipe's enum lists the same in TypeScript and Rust (B L8).
+ * L5.12d: the quit question asked in the page — the detail's keys, the events and the id rule compared between the
+ * shell (guard_flow.rs), the page (shell/quit.ts) and the server (desktop.ts); no TerminateLater; the page only for a
+ * plain Quit on the Studio's origin (test mode's DEMO_STUDIO_DESKTOP_TEST_QUIT=native aside); every exit closes it.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
+import { QUIT_CLOSE_EVENT, QUIT_DETAIL_KEYS, QUIT_EVENT, QUIT_ID_RE as PAGE_QUIT_ID_RE, QUIT_LABEL_MAX, QUIT_TEXT_MAX } from '../../ui/src/app/shell/quit.js';
+import { QUIT_ID_RE as SERVER_QUIT_ID_RE } from '../../ui/src/server/desktop.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
@@ -104,7 +109,11 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(src.match(/initialization_script\(/g)).toHaveLength(1);
     expect(src).toContain('.initialization_script(menu::SHELL_FLAG_JS)');
     expect(src.match(/\.eval\(/g)).toHaveLength(2);
-    expect(src).toContain('if let (Some(js), Some(w)) = (menu::page_command_js(id), app.get_webview_window(WINDOW)) {\n                    let _ = w.eval(js);');
+    // L5.12d: the second eval is eval_in_window's — called with a menu table's page command or the quit flow's scripts only.
+    expect(src).toMatch(/pub\(crate\) fn eval_in_window\(app: &AppHandle, js: String\) \{\n\s*if let Some\(w\) = app\.get_webview_window\(WINDOW\) \{\n\s*let _ = w\.eval\(js\);/);
+    expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    eval_in_window(app, js);');
+    expect(src.match(/eval_in_window\(/g)).toHaveLength(4);
+    expect(read('src/guard.rs').match(/crate::eval_in_window\(app, js\)/g)).toHaveLength(2);
     expect(src.match(/Command::new\(/g)).toHaveLength(1);
     expect(src).toContain('Command::new(&cfg.node)');
     expect(src).not.toMatch(/"sh"|"\/bin\/sh"|"bash"|"-c"|osascript/);
@@ -181,7 +190,12 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(notify).not.toMatch(/UNAuthorizationOptions::Sound|setSound/);
     // H1: no terminate inside a run_on_main_thread closure (bracket-matched arguments); the only terminate: is
     // request_terminate's performSelectorOnMainThread, called from the signal thread when no question is up (H2).
+    // L5.12d fixes: one exception, the flow's re-entry `run_on_main_thread(request_terminate)` — queued behind the
+    // page's close script, it only POSTS terminate: (waitUntilDone NO), which arrives after the callback returned.
+    expect(src.match(/run_on_main_thread\(request_terminate\)/g)).toHaveLength(1);
+    expect(guard).toMatch(/pub fn request_terminate\(\) \{[\s\S]{0,400}waitUntilDone: Bool::NO\]/);
     for (let i = src.indexOf('run_on_main_thread('); i >= 0; i = src.indexOf('run_on_main_thread(', i + 1)) {
+      if (src.startsWith('run_on_main_thread(request_terminate)', i)) continue;
       let depth = 0;
       let j = i + 'run_on_main_thread'.length;
       do {
@@ -216,13 +230,58 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(macos.match(/abortModal\(\)/g)).toHaveLength(1);
     // Review B L13 / L10: the quit hook answers Cancel while any modal of the shell is up; Open Workspace… never opens
     // the picker inside one.
-    expect(guard).toMatch(/fn decide\(\) -> NSApplicationTerminateReply \{\n\s*if GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| crate::macos::modal_up\(\) \{/);
+    // (L5.12d: read first and handed to the flow, which answers Cancel then — guard_flow's own tests.)
+    expect(guard).toMatch(/fn decide\(\) -> NSApplicationTerminateReply \{\n\s*let other_modal = GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| crate::macos::modal_up\(\);/);
     expect(main).toMatch(/fn open_other\(app: &AppHandle\) \{\n(?:\s*\/\/[^\n]*\n)*\s*if guard::GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| macos::modal_up\(\) \{/);
     // Review A L2: test mode only with its variable and a parent other than launchd, decided at launch.
     expect(main).toContain('*MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))');
     expect(src.match(/std::env::var\("DEMO_STUDIO_DESKTOP_TEST"\)/g)).toHaveLength(1);
     // The guard's facts are an owned server's pipe only (an attached one has none: never its stale snapshot).
     expect(read('src/child.rs')).toContain('self.proc.as_ref().map(|_| lock(&self.pending).clone())');
+  });
+
+  it('⚑ L5.12d: the quit question in the page — the detail\'s keys, events and id rule the same in Rust and the page; no TerminateLater; the page only for a plain Quit on the Studio\'s origin; every exit closes it', () => {
+    const flow = read('core/src/guard_flow.rs');
+    const guard = read('src/guard.rs');
+    const main = read('src/main.rs');
+    const src = rustSources();
+    const rsKeys = (text: string) => [...(/pub const QUIT_DETAIL_KEYS: \[&str; \d+\] = \[([^\]]*)\];/.exec(text)?.[1] ?? '').matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(rsKeys(flow)).toEqual([...QUIT_DETAIL_KEYS]);
+    // Planted: a key renamed on one side fails the comparison.
+    expect(rsKeys(flow.replace('"destructive"]', '"danger"]'))).not.toEqual([...QUIT_DETAIL_KEYS]);
+    // page_quit_js builds the detail from that list (no key of its own), and the events are the page's.
+    expect(flow).toMatch(/let detail = QUIT_DETAIL_KEYS\.iter\(\)\.zip\(values\)/);
+    expect(flow).toContain(`pub const QUIT_EVENT: &str = "${QUIT_EVENT}";`);
+    expect(flow).toContain(`pub const QUIT_CLOSE_EVENT: &str = "${QUIT_CLOSE_EVENT}";`);
+    // One bound for the question's words (review A-L1 / B-L1): the shell's — which its longest question fits (words.rs
+    // the_longest_question_fits_the_page_bound) and past which it asks natively at once (page_fits) — is the page's.
+    const rsConst = (text: string, name: string) => Number(new RegExp(`pub const ${name}: usize = ([0-9_]+);`).exec(text)?.[1]?.replace(/_/g, ''));
+    expect(rsConst(flow, 'QUIT_TEXT_MAX')).toBe(QUIT_TEXT_MAX);
+    expect(rsConst(flow, 'QUIT_LABEL_MAX')).toBe(QUIT_LABEL_MAX);
+    expect(QUIT_TEXT_MAX).toBe(4000);
+    expect(rsConst(flow.replace('QUIT_TEXT_MAX: usize = 4000', 'QUIT_TEXT_MAX: usize = 2000'), 'QUIT_TEXT_MAX')).not.toBe(QUIT_TEXT_MAX);
+    expect(flow).toContain('if fallback || !a.page || !page_fits(&q) {');
+    // One id rule: 22 base64url characters in the shell, the page and the server.
+    expect(flow).toContain("s.len() == 22 && s.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')");
+    expect(String(PAGE_QUIT_ID_RE)).toBe('/^[A-Za-z0-9_-]{22}$/');
+    expect(String(SERVER_QUIT_ID_RE)).toBe('/^[A-Za-z0-9_-]{22}$/');
+    // No TerminateLater (critique H1: a reply from a tao callback hangs); the re-entry is request_terminate's post.
+    expect(src.replace(/\/\/[^\n]*/g, '')).not.toMatch(/TerminateLater|replyToApplicationShouldTerminate/);
+    expect(guard).toMatch(/Effect::Terminate => \{\n(?:\s*\/\/[^\n]*\n)*\s*let _ = app\.run_on_main_thread\(request_terminate\);/);
+    // The page is asked for a plain Quit only, on the Studio's own origin, unless test mode keeps the native alert.
+    expect(guard).toContain('let page = question.is_some() && action == Action::Quit && page_question_on() && crate::window_on_studio(app);');
+    expect(guard).toMatch(/fn page_question_on\(\) -> bool \{\n\s*!\(crate::test_mode\(\) && std::env::var\("DEMO_STUDIO_DESKTOP_TEST_QUIT"\)/);
+    expect(main).toMatch(/fn window_on_studio\([\s\S]{0,400}dc::loopback_port\(url\.as_str\(\)\)\.is_some_and\(\|\(p, _\)\| p == studio\)/);
+    // The window is shown before the dispatch (the flow's effects in order: guard_flow tests), the id logged in test mode only.
+    expect(guard).toMatch(/if crate::test_mode\(\) \{\n[^\n]*\n\s*log\(&format!\("\(test mode\) page question \{id\}"\)\);/);
+    // The page's lines reach the flow from the owned server's pipe only.
+    expect(src.match(/guard::from_page\(/g)).toHaveLength(1);
+    expect(read('src/child.rs')).toMatch(/msg @ \(PipeMsg::Answer \{ \.\. \} \| PipeMsg::Shown \{ \.\. \}\) => \{\n\s*crate::guard::from_page\(msg\);/);
+    // Every exit from a page question closes it: the server gone or exited, a signal, Open Workspace…'s question.
+    expect(main).toMatch(/fn server_gone\([\s\S]{0,300}guard::drop_page_question\(app\);/);
+    expect(/fn server_exited\([^)]*\) \{[\s\S]*?\n\}\n/.exec(main)?.[0]).toContain('guard::drop_page_question(app);');
+    expect(main).toMatch(/macos::end_modals\(\);\n[^\n]*\n\s*guard::drop_page_question\(&app\);/);
+    expect(guard).toMatch(/pub fn confirm_open_other\([\s\S]{0,400}drop_page_question\(app\);/);
   });
 
   it('L5.2b review B L8: the pipe enum lists are the same in TypeScript (server, page) and Rust (desktop_core pipe.rs)', () => {

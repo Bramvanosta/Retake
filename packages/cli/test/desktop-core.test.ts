@@ -9,7 +9,9 @@
  * words (nothing pending: no question; no character from outside the word tables or a checked slug), the no-storm
  * notification rule; review fixes: framed lines (A L3), names cut where shown (A L1), logout / restart words (B M2),
  * the restart alert's default (B M4), Studio recordings and the other editors' words (B L5 / L7 / L14), the
- * notification permission asked again after a no (B L9), test mode never for a launchd launch (A L2). Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
+ * notification permission asked again after a no (B L9), test mode never for a launchd launch (A L2). L5.12d: the quit
+ * question's flow (guard_flow: page first, the native alert after 1.5 s without an ack, ids taken once, APPROVED
+ * expiring and cleared by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines. Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
  * title, on Windows, on macOS without the Xcode command line tools (checked with `xcode-select -p` BEFORE cargo runs:
  * the `cc` shim would open their install dialog), without rustc / cargo, or with a Rust older than 1.70 (the crate
  * declares no `rust-version`).
@@ -45,7 +47,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
     const out = `${r.stdout}\n${r.stderr}`;
     expect(r.status, out).toBe(0);
     const m = /test result: ok\. (\d+) passed; 0 failed/.exec(out);
-    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(40);
+    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(51);
     for (const name of [
       'a_line_with_any_other_host_scheme_port_or_shape_is_refused',
       'navigation_exact_origins_only',
@@ -78,6 +80,19 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'studio_recordings_new_editors_and_fixed_words',
       'permission_asks_again_after_a_no_and_says_each_outcome_once',
       'test_mode_needs_its_variable_and_a_parent_other_than_launchd',
+      // L5.12d: the quit question's flow (page first, native fallback; critique H1) and the page's pipe lines.
+      'quit_asks_the_page_first_window_shown_before_the_dispatch_then_quit_anyway_re_enters_once',
+      'no_ack_within_the_window_goes_native_and_the_page_sheet_is_closed',
+      'a_wrong_old_or_replayed_id_is_ignored_and_a_cancel_leaves_nothing_approved',
+      'approved_expires_and_any_cancel_clears_it_the_restart_alert_case',
+      'logout_restart_signal_server_gone_and_nothing_pending_close_the_page_question',
+      'a_second_quit_re_dispatches_the_same_id_and_after_ten_seconds_shown_goes_native',
+      'the_page_script_is_one_constant_shape_with_the_question_as_json_data',
+      'ids_are_22_base64url_characters',
+      'answer_and_shown_lines_are_strict',
+      // L5.12d fixes: one bound for the page's words (review A-L1 / B-L1), strict page lines (A-L6: in the test above).
+      'a_question_past_the_page_bounds_is_asked_natively_at_once',
+      'the_longest_question_fits_the_page_bound',
     ]) {
       expect(out, name).toMatch(new RegExp(`${name} \\.\\.\\. ok`));
     }

@@ -58,7 +58,9 @@ fn pick_message() -> String {
 /// `terminate:`, L5.2b) and notifications are logged, never posted (notify.rs). Review A L2: honoured only when the
 /// process was started by another one (a test, a terminal) — never by launchd (`getppid() == 1`: a Finder or Dock
 /// launch, which a `launchctl setenv` could otherwise arm). Decided once, at launch (a parent that dies later makes
-/// launchd the parent: the mode does not change mid-run).
+/// launchd the parent: the mode does not change mid-run). L5.12d: the quit question's id is logged (the gated test
+/// answers with it through `desktop_answer`, as the page would) and DEMO_STUDIO_DESKTOP_TEST_QUIT=native keeps the
+/// native alert (the L5.2b tests that answer it with DEMO_STUDIO_DESKTOP_TEST_ANSWERS / MODAL_MS).
 pub fn test_mode() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
     *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
@@ -341,6 +343,8 @@ fn server_gone(app: &AppHandle, pid: u32) {
     if later_while_guard_open(app, move |h| server_gone(h, pid)) {
         return;
     }
+    // No answer can come any more (H1): the page's quit question closes.
+    guard::drop_page_question(app);
     let shell = app.state::<Arc<Shell>>().inner().clone();
     let current = match &*lock(&shell.session) {
         Some(x) if !x.server.owned() && x.server.line.pid == pid => Some((x.workspace.clone(), x.source)),
@@ -365,6 +369,8 @@ fn server_exited(app: &AppHandle, pid: u32, status: std::process::ExitStatus, ta
     // Review A L3: its ports are nobody's now — no reload reaches them while the alert waits; set before the alert is
     // put off for an open question too (review B L11).
     *lock(&shell.allowed) = dc::Allowed::NONE;
+    // No answer can come any more (H1): the page's quit question closes.
+    guard::drop_page_question(app);
     let again = tail.clone();
     if later_while_guard_open(app, move |h| server_exited(h, pid, status, again)) {
         return;
@@ -384,6 +390,23 @@ pub(crate) fn current_pending(app: &AppHandle) -> Option<dc::Pending> {
     let shell = app.try_state::<Arc<Shell>>()?.inner().clone();
     let s = lock(&shell.session);
     s.as_ref().and_then(|x| x.server.pending())
+}
+
+/// The window's page is on the Studio's own origin now (L5.12d: the quit question's script goes there only — the player
+/// origin is allowed for navigations too).
+pub(crate) fn window_on_studio(app: &AppHandle) -> bool {
+    let Some(shell) = app.try_state::<Arc<Shell>>().map(|s| s.inner().clone()) else { return false };
+    let studio = lock(&shell.allowed).studio;
+    let Some(w) = app.get_webview_window(WINDOW) else { return false };
+    let Ok(url) = w.url() else { return false };
+    studio != 0 && dc::loopback_port(url.as_str()).is_some_and(|(p, _)| p == studio)
+}
+
+/// Evaluate one of the shell's constant-shaped scripts in the window's page (menu commands, the quit question).
+pub(crate) fn eval_in_window(app: &AppHandle, js: String) {
+    if let Some(w) = app.get_webview_window(WINDOW) {
+        let _ = w.eval(js);
+    }
 }
 
 /// Show the (hidden) window: the Dock icon, Window › Show Studio Window, a notification's click, the quit question.
@@ -510,6 +533,8 @@ fn install_signals(app: AppHandle) {
                 log("quit: ending the open question");
             }
             macos::end_modals();
+            // H1: a quit question in the window closes too.
+            guard::drop_page_question(&app);
             return;
         }
     });
@@ -549,8 +574,8 @@ fn main() {
             menu::SHOW_WINDOW => show_window(app),
             // L5.9: a page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
             id => {
-                if let (Some(js), Some(w)) = (menu::page_command_js(id), app.get_webview_window(WINDOW)) {
-                    let _ = w.eval(js);
+                if let Some(js) = menu::page_command_js(id) {
+                    eval_in_window(app, js);
                 }
             }
         })

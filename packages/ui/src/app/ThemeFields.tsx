@@ -69,7 +69,7 @@ export const SECTIONS = [
 export function showSection(key: string): void {
   const el = document.querySelector<HTMLElement>(`[data-section="${key}"]`);
   if (!el) return;
-  el.scrollIntoView({ block: 'start' });
+  el.scrollIntoView({ block: 'start', behavior: 'auto' });
   el.focus({ preventScroll: true });
 }
 

@@ -83,7 +83,7 @@ export function CommandPalette({ open, onClose, commands, placeholder = 'Search 
   useEffect(() => {
     if (!open) return;
     const c = hits[active];
-    if (c) document.getElementById(optId(c))?.scrollIntoView({ block: 'nearest' });
+    if (c) document.getElementById(optId(c))?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   });
   const runAt = (i: number) => {
     const c = hits[i];

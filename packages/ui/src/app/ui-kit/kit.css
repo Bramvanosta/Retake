@@ -1,11 +1,11 @@
 /*
  * L5.9: the kit's look (docs/reference/studio-ui.md, DESIGN §4k). Rules for `.k-*` classes only, `--ui-*` tokens only
  * (tokens.css; a lint fails a legacy token, a colour literal, a font size, line height, weight or radius that is not a
- * token). Unlayered: it wins over app.css (the `legacy` layer) whatever the order, so a kit component looks the same in
- * a legacy screen. Three type sizes (13 / 15 / 20), weights 400 and 600, a 2 px focus ring in --ui-ring everywhere.
+ * token). After base.css (element defaults only: L5.12d deleted the legacy layer). Three type sizes (13 / 15 / 20),
+ * weights 400 and 600, a 2 px focus ring in --ui-ring everywhere.
  */
 
-/* A scope (the gallery's columns, a legacy route kept light): its own surface and text. */
+/* A scope (the gallery's columns): its own surface and text. */
 .k-scope {
   background: var(--ui-canvas);
   color: var(--ui-text);

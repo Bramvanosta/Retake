@@ -15,6 +15,8 @@
  * (every component of the design system, both appearances side by side) in dark and light at both widths, and its
  * sheet (a modal alertdialog walked inside: focus in, Escape, focus back), menu (a popover: items named and reached)
  * and command palette (a modal dialog walked inside; its options reached through the combobox) open in each scope.
+ * L5.12d: the desktop app's quit sheet (unsaved text; jobs only) and the not-found screen, dark at 1280 / 1440 / 900 and
+ * light at 1280.
  * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots of every state (the viewport: the shell's panes scroll themselves).
  */
 import { join } from 'node:path';
@@ -291,6 +293,47 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     expect(r.findings, r.report).toEqual([]);
     expect(await page.evaluate(() => (window as unknown as { __csp: number }).__csp)).toBe(0);
     expect(t.consoleErrors).toEqual([]);
+  }, 180_000);
+
+  it('⚑ L5.12d: the desktop app\'s quit sheet (its event dispatched in a page with the app\'s flag) and the not-found screen, in dark and light', async () => {
+    const tab = t.page;
+    // An app page: the shell's init-script flag, desktop_answer answered here (this server is not supervised).
+    const app = await tab.context().newPage();
+    const errors: string[] = [];
+    app.on('pageerror', (e) => errors.push(String(e)));
+    await app.addInitScript(() => ((window as unknown as { __studioShell: unknown }).__studioShell = Object.freeze({ titleBar: 'standard' })));
+    await app.route('**/v1/call/desktop_answer', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true,"summary":"ok","data":{"ok":true}}' }));
+    await app.goto(t.studio.launchUrl());
+    await app.getByRole('heading', { level: 2, name: 'Projects' }).waitFor(POLL);
+    t.page = app;
+    try {
+      const SCHEMES_D = [{ scheme: 'dark' as const, widths: [1280, 1440, 900] }, { scheme: 'light' as const, widths: [1280] }];
+      for (const [name, detail] of [
+        ['quit-sheet-unsaved', { id: 'quitQuestionTour000000', action: 'quit', title: 'Quit Demo Studio?', text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture\n• A comment being written (northfield-fixture · quote)', buttons: ['Cancel', 'Quit Anyway'], proceed: 1, cancel: 0, destructive: true }],
+        ['quit-sheet-jobs', { id: 'quitQuestionTour000001', action: 'quit', title: 'Quit Demo Studio?', text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)', buttons: ['Quit Anyway', 'Cancel'], proceed: 0, cancel: 1, destructive: false }],
+      ] as const) {
+        const r = await station(
+          t,
+          name,
+          async () => {
+            await app.evaluate((d) => window.dispatchEvent(new CustomEvent('studio:quit', { detail: d })), detail);
+            await app.locator('dialog[data-testid="quit-sheet"][open]').waitFor(POLL);
+          },
+          { schemes: SCHEMES_D },
+        );
+        expect(r.findings, r.report).toEqual([]);
+        // A modal: the walk stays inside it — its two answers.
+        expect(r.result.walk!.stops).toBe(2);
+        await app.keyboard.press('Escape');
+        await app.locator('dialog[data-testid="quit-sheet"][open]').waitFor({ state: 'detached' });
+      }
+      const r = await station(t, 'not-found', () => go(app, `${t.studio.url}#/no/such/place`, 'h1:has-text("Nothing here")'), { schemes: SCHEMES_D });
+      expect(r.findings, r.report).toEqual([]);
+      expect(errors).toEqual([]);
+    } finally {
+      t.page = tab;
+      await app.close();
+    }
   }, 180_000);
 
   it('⚑ L5.9: the UI gallery in dark and light at both widths; its sheet, menu and palette open in each scope', async () => {

@@ -132,8 +132,6 @@ export interface SourceItem {
   children?: SourceItem[];
   /** The nested list's name ("Projects of the workspace"). */
   childrenLabel?: string;
-  /** A class kept for older tests and styles (L5.9: the browser keeps `nav-link`). */
-  className?: string;
   /** L5.10a: an icon before the label (decorative: the label names the row). */
   icon?: IconName;
   /** L5.10a: a value on the right in mono (a length, a count in words). */
@@ -152,7 +150,7 @@ export interface SourceItem {
 
 /** A row: a link to its place, or a button that acts (the current one `aria-current`: "page" for a place, "true" for a pick). */
 function SourceRow({ i, children }: { i: SourceItem; children: ReactNode }) {
-  const cls = `k-source-item${i.current ? ' is-current' : ''}${i.quiet ? ' is-quiet' : ''}${i.bar !== undefined ? ' has-bar' : ''}${i.className ? ` ${i.className}` : ''}`;
+  const cls = `k-source-item${i.current ? ' is-current' : ''}${i.quiet ? ' is-quiet' : ''}${i.bar !== undefined ? ' has-bar' : ''}`;
   if (i.onSelect || !i.to) {
     return (
       <button type="button" className={cls} aria-current={i.current ? 'true' : undefined} data-testid={i.testId} onClick={i.onSelect}>
@@ -277,9 +275,10 @@ export function Disclosure({ summary, children, defaultOpen = false, testId }: {
   );
 }
 
-export function EmptyState({ title, children, actions, level = 2 }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; level?: 2 | 3 }) {
+/** L5.12d: `level` 1 for a screen that is only this (the not-found screen's heading is the centre pane's h1). */
+export function EmptyState({ title, children, actions, level = 2 }: { title: ReactNode; children?: ReactNode; actions?: ReactNode; level?: 1 | 2 | 3 }) {
   const id = useId();
-  const H = level === 2 ? 'h2' : 'h3';
+  const H = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3';
   return (
     <section className="k-empty" aria-labelledby={id}>
       <H id={id} className="k-empty-title">

@@ -8,7 +8,6 @@
  */
 import type { DraftSource, JobClient, RecordInsert, RecordInsertAt, SecretFieldKind } from '@demo-studio/core';
 import type { RecordCheckView, RecordState } from '@demo-studio/engine';
-import type { BadgeTone } from './bits.js';
 
 /** Quick inserts' defaults (core RECORD_HOLD_S.default) and caps; the zoom's factor comes with the view (the theme's max_zoom). */
 export const HOLD_DEFAULT_S = 2;
@@ -30,8 +29,11 @@ const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 /** States in which the window, the draft or the check is still on its way. */
 export const LIVE_STATES: ReadonlySet<RecordState> = new Set(['queued', 'preflight', 'recording', 'draft', 'check']);
 
-/** A state in a few words, and its badge's tone (a badge always carries the word). */
-export const STATE_WORDS: Record<RecordState, [string, BadgeTone]> = {
+/** A state's tone (the kit's StatusMark state is chosen from it; its word always beside it). */
+export type RecordTone = 'neutral' | 'danger' | 'warning' | 'info' | 'success';
+
+/** A state in a few words, and its tone. */
+export const STATE_WORDS: Record<RecordState, [string, RecordTone]> = {
   queued: ['waiting for the worker', 'info'],
   preflight: ['opening the window', 'info'],
   recording: ['recording', 'info'],
@@ -169,7 +171,7 @@ export function insertText(i: RecordInsert): string | null {
 }
 
 /** An issue's severity: a glyph and a word (never colour alone). */
-export const SEVERITY_WORDS: Record<'error' | 'warning' | 'info', [string, BadgeTone]> = {
+export const SEVERITY_WORDS: Record<'error' | 'warning' | 'info', [string, RecordTone]> = {
   error: ['✖ error', 'danger'],
   warning: ['⚠ warning', 'warning'],
   info: ['ℹ note', 'info'],

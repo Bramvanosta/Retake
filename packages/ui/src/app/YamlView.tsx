@@ -23,7 +23,7 @@ export function YamlView({ v, focus, issues }: { v: View; focus: { line: number;
   const list = useRef<HTMLOListElement>(null);
   useEffect(() => {
     if (!focus) return;
-    list.current?.children[focus.line - 1]?.scrollIntoView({ block: 'center' });
+    list.current?.children[focus.line - 1]?.scrollIntoView({ block: 'center', behavior: 'auto' });
   }, [focus]);
   return (
     <div className="yv">

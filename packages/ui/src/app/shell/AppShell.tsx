@@ -14,6 +14,8 @@
  * Pause / Stop, the confirmation sheet) — the default owner of the Scenario menu's commands (Rehearse ⌘R, Capture ⇧⌘R,
  * Render ⌘B, Stop ⌘. from the app's menu; the palette's Scenario group in a browser tab, which binds none of the four),
  * routed through the command bus (command-bus.ts: a screen or a live recording outranks the defaults by priority).
+ * L5.12d: in the desktop app, the quit question as a kit Sheet (QuitSheet.tsx: `studio:quit`, answered through
+ * `desktop_answer`); a browser tab has none (only the app's window is ever asked).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -40,6 +42,7 @@ import { SlotContext } from './slots.js';
 import type { SlotHost, SlotName } from './slots.js';
 import { setSay } from './say.js';
 import { useStatusActions } from './StatusActions.js';
+import { QuitSheet } from './QuitSheet.js';
 
 export interface ProjectList {
   root: string;
@@ -137,9 +140,8 @@ function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] 
           label: 'Projects',
           icon: 'folder',
           current: route.name === 'projects',
-          className: 'nav-link',
           childrenLabel: 'Projects of the workspace',
-          children: projects.map((p) => ({ key: p.slug, to: { name: 'project', slug: p.slug }, label: <Txt text={p.name} />, current: false, className: 'nav-link', ...(p.error ? { flag: 'does not load' } : {}) })),
+          children: projects.map((p) => ({ key: p.slug, to: { name: 'project', slug: p.slug }, label: <Txt text={p.name} />, current: false, ...(p.error ? { flag: 'does not load' } : {}) })),
         },
       ],
     },
@@ -155,7 +157,7 @@ function projectTree(route: Route, slug: string, d: OpenProject, readmeDirty: bo
   const view = d.view.state === 'ready' ? d.view.data : null;
   const counts = board ? groupCounts(board.scenarios) : null;
   const total = board ? (board.truncated?.total ?? board.scenarios.length) : view?.scenarios.length;
-  const row = (key: string, to: Route, label: ReactNode, current: boolean, extra: Partial<SourceItem> = {}): SourceItem => ({ key, to, label, current, className: 'nav-link', ...extra });
+  const row = (key: string, to: Route, label: ReactNode, current: boolean, extra: Partial<SourceItem> = {}): SourceItem => ({ key, to, label, current, ...extra });
   const personas = d.cast.state === 'ready' ? d.cast.data.personas : [];
   const manyEnvs = new Set(personas.map((p) => p.env)).size > 1;
   return [
@@ -245,7 +247,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   keyNow.current = saidKey;
   const firstScreen = useRef(true);
   useEffect(() => {
-    main.current?.scrollTo?.(0, 0);
+    main.current?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
     if (firstScreen.current) {
       firstScreen.current = false;
       return;
@@ -538,6 +540,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
         </div>
         {shoot.overlay}
         <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} {...(inApp ? { footnote: 'Commands with a key are also in the menu bar' } : {})} />
+        {inApp && <QuitSheet />}
       </div>
     </SlotContext.Provider>
   );

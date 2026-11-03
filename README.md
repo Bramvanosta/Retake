@@ -3977,6 +3977,13 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   app is up — the quit question, Open Workspace…'s, the restart alert, "not a workspace", the folder picker (the
   picker's case is checked by hand: MACOS-CHECKLIST 14a). A job queued from the Studio counts at once; one from Claude
   within a second.
+  **Since L5.12d** the question of a plain Quit (⌘Q, the menu, the Dock) is a sheet in the window itself, with the
+  same words, the buttons in the same places (the default on the right) and the same keys — Return on a focused Quit
+  Anyway still chooses the default; Quit Anyway quits at once. If the answer does not reach the app, the sheet says so
+  and stays. If the window cannot show it (the page still loading, the connecting or ended screen, the server not
+  answering), the app's own alert asks after about 1.5 s; logout, restart and shut down, the restart alert
+  and Open Workspace… keep the app's own alerts. A second ⌘Q while the sheet is up shows it again; left unanswered for
+  10 seconds, the next ⌘Q asks with the alert.
 - **Notifications** (L5.2b). When a job ends while the window is not in front (closed, hidden, minimised, or another
   app active), a notification says how it ended — "Capture finished", "Render needs attention — the review found errors
   or warnings", "Recording needs attention — ready to save on the Record screen" — with the project and scenario;

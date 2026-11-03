@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.12c (Studio « Épure » 4c: the Library and the theme editor)** — phases
+Last updated: 2026-11-02, end of lot **L5.12 (Studio « Épure » 4: Edit, Review and the rest; L5.12a – L5.12d)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.11, L5.12a – c done). **Next: L5.12d (the quit sheet, motion, the end of the legacy layer) —
-L5.12 was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.12 done; the « Épure » redesign is complete). **Next: L5.13 (rename to Retake), only when the
+user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -30,7 +30,22 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.12c)
+## State (after L5.12d)
+- **L5.12d done (2026-11-03)** — L5.12 is complete and the Studio has no legacy layer left. **The desktop quit question
+  is a kit Sheet in the window's page**: the shell builds the words (`words.rs`), dispatches `studio:quit` to the Studio
+  origin only, the page acks once the sheet is painted and visible and answers through a new Studio-only op
+  `desktop_answer` (strict, supervised only, an answer never dropped) written on the server's pipe; a pure state machine
+  (`core/src/guard_flow.rs`) holds the rules — ids used once, APPROVED tied to the answer and expiring, every exit closes
+  the page sheet, no ack in 1.5 s → the native alert, a second ⌘Q after 10 s → native, logout / restart / shut down stay
+  native. The buttons sit in the alert's order and keys (Return never quits). **The end of legacy**: bits.tsx's Badge /
+  Notice / Loading gone, main.tsx's Connecting / start error / Ended / not-found on the kit, app.css deleted (base.css:
+  element defaults on --ui-* tokens; body text 13/18), the legacy tokens removed, legacy-controls.json `{}` (the ratchet
+  asserts zero findings everywhere); a reduced-motion lint (cascade order checked, scroll calls `behavior: 'auto'`) and an
+  "every className word is defined" lint. Tests on the Mac: **4079 — 3990 pass, 88 skipped, 1 failure in the one full run** (a runner-web capture-size check, a cursor box
+  1 px over under load, untouched by this lot: green alone); `pnpm test:slow` 65/65; the gated desktop shell 19/19 (the
+  sheet shown in ~100 ms, the native fallback after ~1.6 s). Requirements: 670 tracked — 629 done (R-DSK-04 / R-UI-50 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the user:
+  MACOS-CHECKLIST 14e items 12–13 (the sheet with VoiceOver, a minimised window or another Space, a hung page, logout
+  keeping the native alert, Reduce Motion, the Ended screen in the app).
 - **L5.12c done (2026-11-03)** — **the Library** in the shell from R4-Library: the browser's Library group and the
   project's themes, the title-bar Theme select, Source · Kind · search, sections of poster cards (one tab stop with
   arrow keys; Play a one-name toggle; the selection ring over the whole card), the selected card's inspector (facts,
@@ -609,8 +624,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.12d (the quit sheet, motion, the end of the legacy layer)** — the user asked for L5.12 as a whole (L5.12a – c
-are done). **Decided
+**Next: L5.13 (rename to Retake) per the roadmap**, only when the user asks (L5.12 is done: the « Épure » redesign is
+complete). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1576,6 +1591,15 @@ sandbox, a hook step and compact results through Claude Code).
   `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
   (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
   a save back). Cuts: BL-131.
+- **L5.12d done** (the quit sheet, the end of legacy, motion; R-DSK-04, R-UI-50). Started with a probe of the re-entry
+  on macOS (the hook answers Cancel, a thread re-posts `terminate:`: SIGUSR2 and a Dock-style quit exit in 18–330 ms,
+  reliable), so the page sheet was built with every rule of the critique's H1; reviewed by two reviewers (no path quits
+  without a yes or traps the person; the buttons in the reverse of the alert's order; Return on a focused Quit Anyway
+  quitting; the page's text cap below words.rs's worst case; the gated page path not covering SIGTERM / a server exit;
+  lint gaps for object-literal classes and motion cascade order…) and fixed with mutation-checked tests (29 + 19
+  mutations, all caught). Files: desktop `core/src/guard_flow.rs`, `pipe.rs`, `guard.rs`, `child.rs`, `main.rs`; ui
+  `server/desktop.ts`, `server/supervise.ts`, `shell/quit.ts`, `shell/QuitSheet.tsx`, `base.css` (app.css deleted),
+  `bits.tsx`, `main.tsx`. Cuts: BL-135.
 - **L5.12c done** (the Library and the theme editor; R-UI-49). Built from the L5.12 plan's part c with the critique's M5
   cut (one preview with a target switch, not three tiles), reviewed by two reviewers (Set as default on a starter from
   the grid losing its result when the inspector remounted on the copy's page; a refused colour re-sent on leaving the
@@ -1876,6 +1900,15 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.12d:
+- The quit question: `guard_flow.rs` is the only place its rules live (pure, injected clock); guard.rs runs its effects.
+  `DEMO_STUDIO_DESKTOP_TEST_QUIT=native` keeps the L5.2b gated cases on the native alert; the page-path cases run
+  without it.
+- `desktop_answer` is never an MCP tool and never nudges onWrite; only `shown` is rate-capped.
+- There is no legacy CSS: base.css holds element defaults on --ui-* tokens; a className word must be defined in a
+  stylesheet (or be a named hook); every motion rule has a later `prefers-reduced-motion: reduce` override.
+- Connecting / Ended have no session to answer through: Quit there goes native after 1.5 s, by design.
+
 Notes from L5.12c:
 - App files import the api's `call` / `useCall` only by name (no alias, namespace, default or dynamic import, no
   re-export): `apiImportFindings` in app-source, so the per-file op lists (`LIBRARY_OPS`, `COMMENTS_OPS`, Shoot's,

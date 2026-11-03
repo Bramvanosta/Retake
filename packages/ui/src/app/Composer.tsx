@@ -107,7 +107,7 @@ export function Composer(p: { slug: string; name: string; shown: Shown; frame: n
   useEffect(() => {
     if (!p.focusText || served.current) return;
     served.current = true;
-    actionsRef.current?.scrollIntoView({ block: 'nearest' });
+    actionsRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
     textRef.current?.focus({ preventScroll: true });
   }, [p.focusText]);
   const how = useId();

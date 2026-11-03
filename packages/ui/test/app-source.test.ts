@@ -25,6 +25,7 @@
  * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, posix } from 'node:path';
 import { Fragment, createElement } from 'react';
@@ -45,7 +46,7 @@ import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDa
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
 import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, ColorField, CommandPalette, ContactSheet, DataTable, DiffTable, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RegionOverlay, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
-import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
+import { cssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
 
 const APP = join(REPO, 'packages', 'ui', 'src', 'app');
@@ -818,10 +819,16 @@ function cssRules(text: string): CssRule[] {
   return out;
 }
 
-const appCss = () => readFile(join(APP, 'app.css'), 'utf8');
-/** L5.9: the kit's and the shell's stylesheets — every .css of the app but app.css (legacy) and tokens.css (generated). */
+/** L5.12d: the page's base (element defaults only; the legacy layer, app.css, is gone). */
+const baseCss = () => readFile(join(APP, 'base.css'), 'utf8');
+/** L5.9: the app's stylesheets — every .css of the app but tokens.css (generated); L5.12d: base.css among them. */
 async function kitCss(): Promise<Array<[string, string]>> {
-  return (await appSources()).filter(([f]) => f.endsWith('.css') && f !== 'app.css' && f !== 'tokens.css');
+  return (await appSources()).filter(([f]) => f.endsWith('.css') && f !== 'tokens.css');
+}
+/** L5.12d: the legacy layer is gone — app.css deleted, imported by nothing. */
+async function legacyGone(): Promise<void> {
+  expect(existsSync(join(APP, 'app.css'))).toBe(false);
+  expect((await appSources()).filter(([, text]) => /app\.css['"]/.test(text)).map(([f]) => f)).toEqual([]);
 }
 const APPEARANCES: Appearance[] = ['dark', 'light'];
 /** The tokens of one appearance, name → value: tokens.ts, the one token file (L5.9). */
@@ -833,33 +840,11 @@ const NAMED_COLOURS = 'aliceblue antiquewhite aqua aquamarine azure beige bisque
 const NAMED_COLOUR = new RegExp(`(?:^|[\\s,(])(?:${NAMED_COLOURS.join('|')})(?=$|[\\s,)])`, 'i');
 const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.test(value);
 
-/** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
-const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
-// (L5.9: the names say "light" from L4.9; the sets hold by role in both appearances.)
-const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'code-bg', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'info-soft', 'success-soft', 'input-tint'];
-const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
-  { text: TEXT_ON_LIGHT, on: LIGHT_BG },
-  // Primary fills. (L5.12a: the timeline's tooltip and its link colour left with its legacy rules; L5.12b: the comments'
-  // frame — the ink, its veil, the region on video — left with theirs: the kit's video tokens draw them.)
-  { text: ['on-accent'], on: ['accent-fill', 'accent-strong-fill'] },
-];
-/** Pairs of those sets that never meet (a rule declaring one together still fails). */
-const NOT_MEANT: Array<[string, string, string]> = [];
-/** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead);
- * L5.12b: the ink under a picture (a thumbnail, a poster) — its text left with the comments' frame. */
-const NON_TEXT_BG = ['danger', 'muted', 'ink-soft'];
+// L5.12d: the legacy palette's pairs (CONTRAST_SETS, NON_TEXT_PAIRS) went with it — every pair below is the kit's.
 /** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
 const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
 const OVER_MEDIA: string[] = [];
-/** Non-text marks at 3:1 (WCAG 1.4.11): the focus ring on the light surfaces, the comment region on video, the status dots. */
-const NON_TEXT_PAIRS: Array<[string, string[]]> = [
-  ['accent', ['bg', 'surface', 'subtle', 'hover', 'tint', 'accent-soft']],
-  ['accent-strong', ['bg', 'surface', 'accent-soft']],
-  ['danger', ['surface']],
-  // L5.9 (review A-L2): the in-flight steps' dashed edge, on a step's every background (rest, hover, selected).
-  ['busy-edge', ['surface', 'bg', 'accent-soft']],
-];
 
 /**
  * L5.9: the kit's pairs (`--ui-*`), in both appearances — text at 4.5:1 on every surface it may sit on; marks (the focus
@@ -906,7 +891,7 @@ function worstRatio(tokens: Map<string, string>, t: string, b: string): number {
   const fg = rgbaOf(tokens.get(`--${t}`));
   const bg = rgbaOf(tokens.get(`--${b}`));
   if (!fg || !bg || fg[3] !== 1) return Number.NaN;
-  const bases = bg[3] === 1 ? [bg] : (OVER_MEDIA.includes(b) ? GREYS : [rgbaOf(tokens.get('--surface'))!, rgbaOf(tokens.get('--bg'))!]).map((base) => overOpaque(bg, base));
+  const bases = bg[3] === 1 ? [bg] : (OVER_MEDIA.includes(b) ? GREYS : [rgbaOf(tokens.get('--ui-pane'))!, rgbaOf(tokens.get('--ui-canvas'))!]).map((base) => overOpaque(bg, base));
   // contrastRatio takes hex only: undefined (an unreadable token) is a failure, never a skip.
   return Math.min(...bases.map((base) => contrastRatio(hexOf(fg), hexOf(base)) ?? Number.NaN));
 }
@@ -1037,18 +1022,14 @@ function focusLint(rules: CssRule[]): string[] {
 /** A var() reference: any custom-property character (an underscore or a capital is part of the name). */
 const VAR_REF = /var\((--[\w-]+)/g;
 
-/** The faded states app.css accepts (its header): inactive or transient only. */
-/** L5.12a: the switched-off group's fade left with the timeline's legacy chips (the kit's are dashed, no opacity). */
-const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging'];
 
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
-    const rules = cssRules(await appCss());
-    // (L5.12b: the legacy layer shrinks as the screens move to the kit — d deletes the rest; L5.12c: the Library's and the
-    // themes' rules left too.)
-    expect(rules.length).toBeGreaterThan(200);
+    // (L5.12d: the legacy layer is gone; every stylesheet of the app is read.)
+    await legacyGone();
+    expect((await kitCss()).flatMap(([, t]) => cssRules(t)).length).toBeGreaterThan(200);
     const bad: string[] = [];
-    for (const [f, text] of [['app.css', await appCss()] as [string, string], ...(await kitCss())]) {
+    for (const [f, text] of await kitCss()) {
       for (const r of cssRules(text)) {
         for (const [k, v] of r.decls) {
           if (colourIn(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} }`);
@@ -1086,10 +1067,9 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(await readFile(join(APP, '..', '..', 'fonts', 'LICENSE.txt'), 'utf8')).toContain('SIL Open Font License, Version 1.1');
     // The lint sees a hand edit (planted).
     expect(file.replace('--ui-canvas: #111214', '--ui-canvas: #111215')).not.toBe(tokensCss());
-    // Review B-L7: the centre pane's height is the window less the two bars, from their own tokens.
-    const t = tokenMap('dark');
-    const bars = ['--ui-titlebar-h', '--ui-statusbar-h'].map((n) => Number(/^(\d+)px$/.exec(t.get(n) ?? '')?.[1]));
-    expect(t.get('--main-h')).toBe(`calc(100dvh - ${bars[0] + bars[1]}px)`);
+    // (L5.12d: --main-h, the legacy screens' centre-pane height, went with them: the shell's grid reads the bars' tokens.)
+    // Every token is the kit's.
+    expect([...tokenMap('dark').keys()].filter((k) => !k.startsWith('--ui-'))).toEqual([]);
     // Review A-L9: the veils are declared on ::backdrop itself in each appearance (Safari 17 and Firefox 120 do not
     // inherit custom properties into it).
     for (const sel of ['::backdrop', "[data-appearance='light'] ::backdrop", "[data-appearance='dark'] ::backdrop"]) {
@@ -1107,16 +1087,12 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     }
   });
 
-  it('⚑ every var(--x) of the stylesheets and the app sources is a token, every token is used; app.css reads no --ui-* token, the kit and the shell nothing else', async () => {
-    const text = await appCss();
-    const rules = cssRules(text);
+  it('⚑ every var(--x) of the stylesheets and the app sources is a token, every token is used; the stylesheets read --ui-* tokens only (L5.12d: there is no other)', async () => {
     const tokens = tokensOf('dark');
     const used = new Set<string>();
     const kit = await kitCss();
     // (Any custom-property character: `var(--accent_strong)` is not read as --accent.)
-    for (const r of rules) for (const [, v] of r.decls) for (const m of v.matchAll(VAR_REF)) used.add(m[1]);
     expect([...'1px solid var(--accent_strong)'.matchAll(VAR_REF)].map((m) => m[1])).toEqual(['--accent_strong']);
-    expect([...used].filter((u) => u.startsWith('--ui-')), 'app.css reads a --ui-* token (legacy screens do not half-migrate)').toEqual([]);
     for (const [f, css] of kit) {
       const own = cssRules(css).flatMap((r) => r.decls.flatMap(([, v]) => [...v.matchAll(VAR_REF)].map((m) => m[1])));
       expect(own.filter((u) => !u.startsWith('--ui-')), `${f} reads a legacy token`).toEqual([]);
@@ -1148,42 +1124,32 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
   });
 
   it('⚑ the Geist pair first in the font stacks (bundled, BL-120); the body, code and the kit use them', async () => {
-    const rules = cssRules(await appCss());
+    const rules = cssRules(await baseCss());
     const tokens = tokensOf('dark');
-    for (const [sans, mono] of [['--font', '--mono'], ['--ui-font', '--ui-mono']]) {
+    for (const [sans, mono] of [['--ui-font', '--ui-mono']]) {
       expect(tokens.get(sans)!.split(',')[0].trim()).toBe("'Geist'");
       expect(tokens.get(mono)!.split(',')[0].trim()).toBe("'Geist Mono'");
       expect(tokens.get(sans)).toMatch(/sans-serif$/);
       expect(tokens.get(mono)).toMatch(/monospace$/);
     }
     const fonts = rules.flatMap((r) => r.decls.filter(([k]) => k === 'font' || k === 'font-family').map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
-    expect(fonts.find((d) => d.startsWith('body '))).toBe('body { font: 14px/1.5 var(--font) }');
-    for (const d of fonts) expect(/var\(--(?:font|mono)\)|: inherit \}$/.test(d), d).toBe(true);
+    // (L5.12d: the page's base, on the kit's tokens: the legacy body's 14px/1.5 is the kit's 13 / 18.)
+    expect(fonts.find((d) => d.startsWith('body '))).toBe('body { font-family: var(--ui-font) }');
+    expect(fonts.find((d) => d.startsWith('code,'))).toBe('code,\nkbd { font-family: var(--ui-mono) }');
     for (const [f, css] of await kitCss()) {
       for (const r of cssRules(css)) for (const [k, v] of r.decls) if (k === 'font' || k === 'font-family') expect(/var\(--ui-(?:font|mono)\)|^inherit$/.test(v), `${f}: ${r.selector} { ${k}: ${v} }`).toBe(true);
     }
   });
 
   it('⚑ every text token on every background it may sit on reaches 4.5:1 (alpha composited), marks 3:1 — in dark and in light', async () => {
-    const rules = cssRules(await appCss());
     const fails: string[] = [];
     for (const a of APPEARANCES) {
       const tokens = tokensOf(a);
-      for (const set of CONTRAST_SETS) {
-        for (const t of set.text) {
-          for (const b of set.on) {
-            if (NOT_MEANT.some(([x, y]) => x === t && y === b)) continue;
-            const r = worstRatio(tokens, t, b);
-            if (!(r >= 4.5)) fails.push(`${a}: --${t} on --${b}: ${r.toFixed(2)}:1`);
-          }
-        }
-      }
-      for (const [mark, on] of NON_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, mark, b) >= 3)) fails.push(`${a}: --${mark} (a mark) on --${b}: ${worstRatio(tokens, mark, b).toFixed(2)}:1`);
-      // The kit's set.
+      // The kit's set (L5.12d: the only one).
       for (const [t, on] of UI_TEXT_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${t}`, `ui-${b}`) >= 4.5)) fails.push(`${a}: --ui-${t} on --ui-${b}: ${worstRatio(tokens, `ui-${t}`, `ui-${b}`).toFixed(2)}:1`);
       for (const [m, on] of UI_MARK_PAIRS) for (const b of on) if (!(worstRatio(tokens, `ui-${m}`, `ui-${b}`) >= 3)) fails.push(`${a}: --ui-${m} (a mark) on --ui-${b}: ${worstRatio(tokens, `ui-${m}`, `ui-${b}`).toFixed(2)}:1`);
       // Every pair a rule declares together, excuses or not.
-      for (const [f, css] of [['app.css', rules] as [string, CssRule[]], ...(await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])]) {
+      for (const [f, css] of (await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])) {
         for (const r of css) {
           const fg = r.decls.filter(([k]) => k === 'color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
           const bg = r.decls.filter(([k]) => k === 'background' || k === 'background-color').flatMap(([, v]) => [...v.matchAll(/var\(--([a-z0-9-]+)\)/g)].map((m) => m[1]));
@@ -1193,9 +1159,9 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     }
     expect(fails).toEqual([]);
     // Every token used as a text colour is a text token; every background token is classified.
-    const texts = new Set([...CONTRAST_SETS.flatMap((x) => x.text), ...UI_TEXT_PAIRS.map(([t]) => `ui-${t}`)]);
-    const backs = new Set([...CONTRAST_SETS.flatMap((x) => x.on), ...NON_TEXT_BG, ...UI_TEXT_PAIRS.flatMap(([, on]) => on.map((b) => `ui-${b}`)), ...UI_NON_TEXT_BG]);
-    for (const [f, css] of [['app.css', rules] as [string, CssRule[]], ...(await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])]) {
+    const texts = new Set(UI_TEXT_PAIRS.map(([t]) => `ui-${t}`));
+    const backs = new Set([...UI_TEXT_PAIRS.flatMap(([, on]) => on.map((b) => `ui-${b}`)), ...UI_NON_TEXT_BG]);
+    for (const [f, css] of (await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])) {
       for (const r of css) {
         for (const [k, v] of r.decls) {
           for (const m of v.matchAll(/var\(--([a-z0-9-]+)\)/g)) {
@@ -1208,23 +1174,17 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       }
     }
     // The lint fails a pale text token (planted) in either appearance, and an unreadable token is a failure, not a skip.
-    expect(worstRatio(new Map(tokensOf('light')).set('--muted', '#8b919b'), 'muted', 'surface')).toBeLessThan(4.5);
-    expect(worstRatio(new Map(tokensOf('dark')).set('--muted', '#565d69'), 'muted', 'surface')).toBeLessThan(4.5);
+    expect(worstRatio(new Map(tokensOf('light')).set('--ui-text-3', '#8b919b'), 'ui-text-3', 'ui-pane')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', '#6f747e'), 'ui-text-3', 'ui-raised')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('light')).set('--ui-track', '#cfd1d6'), 'ui-knob', 'ui-track')).toBeLessThan(3);
-    expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--muted', 'grey'), 'muted', 'surface'))).toBe(true);
+    expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', 'grey'), 'ui-text-3', 'ui-pane'))).toBe(true);
   });
 
   it('⚑ placeholders take the app\'s own colour at full opacity (WebKit\'s default reads 2.35:1)', async () => {
-    const rules = cssRules(await appCss());
+    const rules = cssRules(await baseCss());
     const ph = rules.filter((r) => /(^|,\s*)::placeholder$/.test(r.selector));
     expect(ph).toHaveLength(1);
-    const decls = new Map(ph[0].decls);
-    expect(decls.get('color')).toMatch(/^var\(--[a-z-]+\)$/);
-    expect(TEXT_ON_LIGHT).toContain(decls.get('color')!.slice(6, -1));
-    expect(decls.get('opacity')).toBe('1');
-    // No other rule of app.css fades or recolours a placeholder; the kit's one rule uses its own text token at full opacity.
-    expect(rules.filter((r) => r.selector.includes('placeholder') && r !== ph[0]).map((r) => r.selector)).toEqual([]);
+    // (L5.12d: the page's base, every placeholder; the kit's own rules alike.)
     for (const [f, css] of await kitCss()) {
       for (const r of cssRules(css).filter((x) => x.selector.includes('placeholder'))) {
         expect(new Map(r.decls).get('color'), `${f}: ${r.selector}`).toBe('var(--ui-text-3)');
@@ -1234,8 +1194,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
   });
 
   it('⚑ no outline removed, transparent or faded without an accent ring in its place; every focus ring in --accent / --accent-strong / --ui-ring (the skip link\'s target excepted)', async () => {
-    const rules = cssRules(await appCss());
-    expect(focusLint(rules)).toEqual([]);
+    // (L5.12d: the page's base ring is --ui-ring, read with the others.)
+    expect(cssRules(await baseCss()).find((r) => r.selector === ':focus-visible')?.decls).toEqual([['outline', '2px solid var(--ui-ring)'], ['outline-offset', '2px']]);
     // main is focused by the skip link (tabIndex -1) to move the reading point, never to show a control.
     const kit = await kitCss();
     expect(kit.flatMap(([, css]) => focusLint(cssRules(css)))).toEqual(['.sh-main:focus: outline none, no ring in its place']);
@@ -1258,16 +1218,13 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }', '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it('⚑ opacity below 1 only on the two accepted states (a disabled control, a dragged step); none in the kit (L5.12c: the unset colour well is hatched)', async () => {
-    const rules = cssRules(await appCss());
-    const faded = rules.filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => r.selector);
-    expect(faded.sort()).toEqual([...OPACITY_ACCEPTED].sort());
+  it('⚑ no opacity below 1 in any stylesheet (L5.12c: the unset colour well is hatched; L5.12d: the legacy layer\'s two faded states — a disabled legacy button, a dragged step — went with it)', async () => {
+    await legacyGone();
     for (const [f, css] of await kitCss()) expect(cssRules(css).filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => `${f}: ${r.selector}`)).toEqual([]);
   });
 
   it('⚑ L5.9: heights follow the shell\'s centre pane (--main-h), never the viewport — no vh in a height, inside min() / max() / clamp() too (review B-M1)', async () => {
     const vh = (rules: CssRule[]) => rules.flatMap((r) => r.decls.filter(([k, v]) => /^(?:min-|max-)?height$/.test(k) && /\d(?:d|s|l)?vh\b/.test(v)).map(([k, v]) => `${r.selector} { ${k}: ${v} }`));
-    expect(vh(cssRules(await appCss()))).toEqual([]);
     for (const [f, css] of await kitCss()) expect(vh(cssRules(css)), f).toEqual([]);
     expect(vh(cssRules('.x { max-height: calc(100vh - 32px) } .y { height: 100dvh } .z { height: min(44vh, 460px) } .w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) } .v { height: max(var(--main-h), 10px) }'))).toEqual(['.x { max-height: calc(100vh - 32px) }', '.y { height: 100dvh }', '.z { height: min(44vh, 460px) }', '.w { max-height: calc(clamp(1px, 40svh, 9px) + 2px) }']);
   });
@@ -1324,6 +1281,250 @@ describe('real controls (L4.9 part B, a TypeScript-parser lint)', () => {
   });
 });
 
+// ── L5.12d: the end of the legacy layer ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Class words of the app's TSX that no stylesheet defines, each kept on purpose and said why (review A-L5 / B-L2: none
+ * harvested from a comparison any more). A new word must be a class of a stylesheet (a forgotten one is a class of the
+ * deleted legacy layer, or a typo); a word ending in "-" is a prefix a template completes (`k-mark-${state}`): some
+ * class must start with it.
+ */
+const CLASS_HOOKS = new Map<string, string>([
+  // Hooks the e2e tests read.
+  ['sh-said', "the status bar's said line (record-keys, scenario and kit e2e read it)"],
+  ['sp-live-screen', 'the live shoot screen (the shoot e2e waits on its data-read)'],
+  // The kit's markup as kit-static pins it: the middle size is the base rule (only sm / lg have rules of their own).
+  ['k-btn-md', "Menu's text trigger: a Button's middle size"],
+  ['k-iconbtn-md', "Menu's icon trigger: an IconButton's middle size"],
+  ['k-seg-md', "the link Segmented's middle size"],
+  // A screen's root named beside sc-screen (which styles it), or a landmark beside the class that styles it.
+  ['cast', 'CastScreen root beside sc-screen'],
+  ['pr', 'ProductionsScreen root beside sc-screen'],
+  ['wl', 'WelcomeScreen root beside sc-screen'],
+  ['tm-editor', 'the theme editor beside tm-screen'],
+  ['sidebar', "the browser's aside beside sh-browser"],
+  // A state whose look comes from elsewhere (an attribute, a child, the native state).
+  ['is-busy', "a busy Button: natively disabled, the k-spinner child moves"],
+  ['is-gap', 'a DiffTable gap row (data-kind="gap" beside it)'],
+  ['is-unusable', 'a chip with a reason: its k-why line says it'],
+  ['th-none', 'a Thumb with no picture (data-state="none" beside it)'],
+  // A part named for its reader: its parent's rule lays it out (a flex or grid child), it needs none of its own.
+  ['k-card-picture-', 'k-card-picture-${kind}: the kind beside k-card-picture'],
+  ['k-card-picture-poster', 'the poster kind beside k-card-picture'],
+  ['k-chip-label', "a chip's label inside k-chip"],
+  ['k-color', "ColorField's field (its parts: k-color-line, k-color-well…)"],
+  ['k-contact-label', "a contact sheet item's label"],
+  ['k-empty-action', "an EmptyState's action row"],
+  ['k-facts-group', 'a named Facts group (kit-static pins its markup)'],
+  ['k-palette-group', "a palette group (role=group, its heading styled)"],
+  ['k-progress-label', "a Progress' label"],
+  ['k-seg-label', "a segment's label"],
+  ['k-source-group', 'a source list group (kit-static pins its markup)'],
+  ['ed-notes', "Edit's notes pane (data-testid beside it)"],
+  ['lb-cards', "the Library grid's key-handling wrapper"],
+  ['rc-state-mark', "Record's state mark (data-state beside it)"],
+  ['rv-family', "a Review family row inside its RowListItem"],
+  ['sc-lately', 'Activity\'s list (its items and words styled)'],
+  ['sh-foot-meta', "the browser foot's second line beside sh-foot-line"],
+  ['sh-scenario-env', 'the status bar\'s " · on <env>" words'],
+  ['sh-slot-inspector', "the inspector slot's portal target"],
+  ['sp-col-persona', "Sessions' persona column head"],
+  ['sp-group', "a Shoot checklist group (its head styled)"],
+  ['tm-note-message', 'a theme note\'s message beside tm-note'],
+  ['wl-project-error', "a Welcome project card's error words"],
+  ['wl-run', "a Welcome project card's last-run words"],
+]);
+
+/** A comparison or a membership test: its operands are values tested, never classes (`x === 'record' ? … : …`). */
+const TESTS = new Set([ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken, ts.SyntaxKind.InKeyword]);
+
+/** A declaration a class expression may name and the lint follows: a class string or a helper that builds one. */
+function followable(n: ts.Node): boolean {
+  if (ts.isParenthesizedExpression(n)) return followable(n.expression);
+  if (ts.isArrowFunction(n)) return !ts.isBlock(n.body);
+  return ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n) || ts.isTemplateExpression(n) || ts.isConditionalExpression(n) || ts.isBinaryExpression(n) || (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === 'join');
+}
+
+/**
+ * Every class word the app's TSX gives an element (review A-L5 / B-L2): JSX `className` attributes and object-literal
+ * `className:` fields (a kit row's class); a name in them is followed to a const or an expression-bodied helper of the
+ * same file (`className={cls}`, Button's `cls(variant, size)`), once. The literal parts of each are its words (a
+ * template's too) — never a comparison's operands, nor a property read (`i.className`: another field's value).
+ */
+function classWords(file: string, text: string): string[] {
+  const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const decls = new Map<string, ts.Node[]>();
+  const collect = (n: ts.Node) => {
+    if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && followable(n.initializer)) decls.set(n.name.text, [...(decls.get(n.name.text) ?? []), n.initializer]);
+    ts.forEachChild(n, collect);
+  };
+  collect(src);
+  const followed = new Set<ts.Node>();
+  const out: string[] = [];
+  const lits = (n: ts.Node, acc: string[]) => {
+    if (ts.isBinaryExpression(n) && TESTS.has(n.operatorToken.kind)) return;
+    if (ts.isElementAccessExpression(n)) return;
+    if (ts.isPropertyAccessExpression(n)) {
+      // A chain's object (`[…].filter(Boolean).join`) — not a field read off a name (`i.className`, `p.error`).
+      if (!ts.isIdentifier(n.expression)) lits(n.expression, acc);
+      return;
+    }
+    if (ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) acc.push(n.text);
+    else if (ts.isTemplateExpression(n)) {
+      acc.push(n.head.text);
+      for (const sp of n.templateSpans) {
+        lits(sp.expression, acc);
+        acc.push(sp.literal.text);
+      }
+      return;
+    } else if (ts.isIdentifier(n)) {
+      for (const d of decls.get(n.text) ?? []) {
+        if (followed.has(d)) continue;
+        followed.add(d);
+        lits(d, acc);
+      }
+      return;
+    } else if (ts.isArrowFunction(n)) {
+      // A helper's words are its body's (its parameters' defaults are not classes).
+      lits(n.body, acc);
+      return;
+    }
+    ts.forEachChild(n, (c) => lits(c, acc));
+  };
+  const words = (n: ts.Node) => {
+    const acc: string[] = [];
+    lits(n, acc);
+    out.push(...acc.flatMap((x) => x.split(/\s+/)).filter(Boolean));
+  };
+  const visit = (n: ts.Node) => {
+    if (ts.isJsxAttribute(n) && n.name.getText(src) === 'className' && n.initializer) words(n.initializer);
+    else if (ts.isPropertyAssignment(n) && (ts.isIdentifier(n.name) || ts.isStringLiteral(n.name)) && n.name.text === 'className') words(n.initializer);
+    else if (ts.isShorthandPropertyAssignment(n) && n.name.text === 'className') words(n.name);
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+/** The class words no stylesheet defines (nor starts, for a "-" prefix) and no hook excuses. */
+function undefinedClasses(files: Array<[string, string]>, defined: Set<string>): string[] {
+  const out = new Set<string>();
+  for (const [f, text] of files.filter(([x]) => x.endsWith('.tsx'))) {
+    for (const w of classWords(f, text)) {
+      const ok = w.endsWith('-') ? [...defined].some((d) => d.startsWith(w)) : defined.has(w);
+      if (!ok && !CLASS_HOOKS.has(w)) out.add(`${f}: ${w}`);
+    }
+  }
+  return [...out].sort();
+}
+
+/** The reduced-motion media block (the kit's spelling: one per stylesheet that moves). */
+const REDUCE = '@media (prefers-reduced-motion: reduce)';
+/** A declaration that moves something, and a value that does not. */
+const MOVES = /^(?:animation|animation-name|animation-duration|transition|transition-property|transition-duration)$/;
+const STILL = /^(?:none|0s?|0ms)$/;
+/** scrollIntoView / scrollTo / scrollBy with their arguments (one level of parentheses). */
+const SCROLL_CALL = /\.(scrollIntoView|scrollTo|scrollBy)\??\.?\(((?:[^()]|\([^()]*\))*)\)/g;
+
+/**
+ * The app's stylesheets' rules in cascade order (review A-L4): main.tsx's CSS imports, in order (base → kit → shell →
+ * screens; tokens.css moves nothing), each file's rules in source order.
+ */
+async function cascadeRules(): Promise<Array<CssRule & { f: string }>> {
+  const main = (await appSources()).find(([f]) => f === 'main.tsx')![1];
+  const order = [...main.matchAll(/^import '\.\/([\w/.-]+\.css)';$/gm)].map((m) => m[1]!).filter((f) => f !== 'tokens.css');
+  const css = await kitCss();
+  // Every stylesheet is imported there (none outside the cascade this reads).
+  expect(css.map(([f]) => f).sort()).toEqual([...order].sort());
+  return order.flatMap((f) => cssRules(css.find(([x]) => x === f)![1]).map((r) => ({ f, ...r })));
+}
+
+/**
+ * Rules (in cascade order) that animate or transition with no LATER rule of their own selector turning it off under
+ * REDUCE — the same specificity, so the later one wins (review A-L4: a rule re-declaring `.k-spinner`'s animation after
+ * kit.css's reduce block would move again).
+ */
+function reducedMotionGaps(rules: Array<CssRule & { f: string }>): string[] {
+  const out: string[] = [];
+  rules.forEach((r, i) => {
+    if (r.media === REDUCE) return;
+    for (const kind of ['animation', 'transition'] as const) {
+      if (!r.decls.some(([k, v]) => k.startsWith(kind) && MOVES.test(k) && !STILL.test(v))) continue;
+      const offAt = rules.flatMap((x, j) => (x.media === REDUCE && x.selector.split(/,\s*/).includes(r.selector) && x.decls.some(([k, v]) => (k === kind || k === `${kind}-${kind === 'animation' ? 'name' : 'duration'}`) && STILL.test(v)) ? [j] : []));
+      if (!offAt.some((j) => j > i)) out.push(`${r.f}: ${r.selector} (${kind}${offAt.length ? ', after its reduced-motion rule' : ''})`);
+    }
+  });
+  return out;
+}
+
+describe('⚑ L5.12d: the legacy layer is gone', () => {
+  it('app.css deleted and imported by nothing, no cascade layer left; base.css holds element defaults only; bits.tsx keeps Txt and the small helpers (Badge, Notice, Loading gone)', async () => {
+    await legacyGone();
+    const files = await appSources();
+    const main = files.find(([f]) => f === 'main.tsx')![1];
+    expect([...main.matchAll(/^import '\.\/([\w/.-]+\.css)';$/gm)].map((m) => m[1])).toEqual(['tokens.css', 'base.css', 'ui-kit/kit.css', 'shell/shell.css', 'screens.css']);
+    for (const [f, css] of await kitCss()) expect(css, f).not.toMatch(/@layer\b/);
+    expect([...cssClasses(await baseCss())]).toEqual([]);
+    for (const r of cssRules(await baseCss())) expect(r.selector, r.selector).toMatch(/^(?:[*a-z0-9]+|\[hidden\]|#root|:focus-visible|::placeholder|a:hover|a:focus-visible)(?:,\n(?:[*a-z0-9]+|#root))*$/);
+    // Review B-L4: a plain link's focus ring keeps the kit ring's radius (the legacy layer gave it one).
+    expect(cssRules(await baseCss()).find((r) => r.selector === 'a:focus-visible')?.decls).toContainEqual(['border-radius', 'var(--ui-radius-control)']);
+    const bits = files.find(([f]) => f === 'bits.tsx')![1];
+    expect([...bits.matchAll(/^export (?:function|const|type) (\w+)/gm)].map((m) => m[1]).sort()).toEqual(['Txt', 'When', 'plural', 'shown', 'visibleControls']);
+    expect(files.filter(([, text]) => /\b(?:Badge|Notice|Loading|EnvFlags|RunState|BadgeTone)\b[^\n]*from '\.{1,2}\/bits\.js'/.test(text) || /import \{[^}]*\b(?:Badge|Notice|Loading)\b[^}]*\} from '[^']*bits\.js'/.test(text)).map(([f]) => f)).toEqual([]);
+  });
+
+  it('⚑ reduced motion: every animation and transition of the stylesheets is turned off under prefers-reduced-motion: reduce (its own selector); no smooth scroll — every scrollIntoView / scrollTo / scrollBy says behavior: \'auto\'', async () => {
+    const all = await cascadeRules();
+    expect(reducedMotionGaps(all)).toEqual([]);
+    expect(all.filter((r) => r.media !== REDUCE && r.decls.some(([k, v]) => MOVES.test(k) && !STILL.test(v))).length).toBeGreaterThanOrEqual(3);
+    for (const r of all) expect(r.decls.filter(([k, v]) => k === 'scroll-behavior' && v !== 'auto'), `${r.f}: ${r.selector}`).toEqual([]);
+    const calls = (await appSources()).filter(([f]) => /\.tsx?$/.test(f)).flatMap(([f, src]) => [...code(src).matchAll(SCROLL_CALL)].map((m) => [f, m[0], m[2]] as const));
+    expect(calls.length).toBeGreaterThanOrEqual(10);
+    expect(calls.filter(([, , args]) => !/behavior: 'auto'/.test(args)).map(([f, call]) => `${f}: ${call}`)).toEqual([]);
+    // Planted: a transition with no reduced-motion rule of its own, a rule of the media block deleted, a smooth scroll.
+    const kit = cssRules('.a { transition: opacity 0.2s } .b { animation: x 1s } @media (prefers-reduced-motion: reduce) { .b { animation: none } }').map((r) => ({ f: 'planted.css', ...r }));
+    expect(reducedMotionGaps(kit)).toEqual(['planted.css: .a (transition)']);
+    const real = (await kitCss()).find(([f]) => f === 'ui-kit/kit.css')![1];
+    const without = real.replace(/(@media \(prefers-reduced-motion: reduce\) \{[\s\S]*?)\s*\.k-spinner \{\n\s*animation: none;\n\s*\}/, '$1');
+    expect(without).not.toBe(real);
+    expect(reducedMotionGaps(cssRules(without).map((r) => ({ f: 'ui-kit/kit.css', ...r })))).toEqual(['ui-kit/kit.css: .k-spinner (animation)']);
+    // Planted (review A-L4): a later stylesheet animating `.k-spinner` again, after kit.css's reduce block, moves.
+    const later = [...all, ...cssRules('.k-spinner { animation: k-spin 0.8s linear infinite; }').map((r) => ({ f: 'screens.css', ...r }))];
+    expect(reducedMotionGaps(later)).toEqual(['screens.css: .k-spinner (animation, after its reduced-motion rule)']);
+    expect([..."el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); m.scrollTo({ top: 0 });".matchAll(SCROLL_CALL)].filter((m) => !/behavior: 'auto'/.test(m[2])).length).toBe(2);
+  });
+
+  it('every className word is a class of a stylesheet (a prefix of one), or one of the known hooks — a forgotten legacy class is caught', async () => {
+    const files = await appSources();
+    const defined = new Set<string>();
+    for (const [, css] of await kitCss()) for (const c of cssClasses(css)) defined.add(c);
+    expect(undefinedClasses(files, defined)).toEqual([]);
+    // Each hook is still used (a stale one leaves the list) and is no class of a stylesheet (it would need no excuse).
+    const words = new Set(files.filter(([f]) => f.endsWith('.tsx')).flatMap(([f, text]) => classWords(f, text)));
+    expect([...CLASS_HOOKS.keys()].filter((h) => !words.has(h) || defined.has(h))).toEqual([]);
+    // Planted: a legacy class back in a screen (the deleted layer's notice, card), a typo of a kit class.
+    for (const [line, word] of [
+      ['<div className="notice notice-warning">x</div>', 'notice'],
+      ['<section className="sc-screen card">x</section>', 'card'],
+      ['<p className="k-hnit">x</p>', 'k-hnit'],
+      ['<span className={`badge badge-${tone}`}>x</span>', 'badge'],
+    ] as const) {
+      expect(undefinedClasses([['Planted.tsx', `export const X = () => (${line});`]], defined), line).toContain(`Planted.tsx: ${word}`);
+    }
+    expect(undefinedClasses([['Planted.tsx', 'export const X = () => (<span className={`k-mark k-mark-${s}`} />);']], defined)).toEqual([]);
+    // Planted (review A-L5 / B-L2): a legacy word in an object-literal `className:` field (a kit row's class), through a
+    // const, through an expression-bodied helper (Button's `cls`); a comparison's string is no class word.
+    for (const [text, word] of [
+      ["export const row = { key: 'a', label: 'A', current: false, className: 'nav-link' };", 'nav-link'],
+      ['const cls = `k-source-item muted`;\nexport const X = () => <a className={cls} />;', 'muted'],
+      ["const cls = (v: string) => `k-btn k-btn-${v} card`;\nexport const X = ({ v }: { v: string }) => <button className={cls(v)} />;", 'card'],
+    ] as const) {
+      expect(undefinedClasses([['Planted.tsx', text]], defined), text).toEqual([`Planted.tsx: ${word}`]);
+    }
+    expect(classWords('Planted.tsx', "export const X = ({ v }: { v: string }) => <a className={v === 'record' ? 'k-btn' : `k-btn ${'record' !== v ? 'k-btn-ghost' : ''}`} />;")).toEqual(['k-btn', 'k-btn', 'k-btn-ghost']);
+  });
+});
+
 // ── L5.9 part E: screens stay on the kit (review A-M3: scripts/kit-ratchet.ts, the table in legacy-controls.json) ─────
 
 /** A legacy screen's row as committed at HEAD (none outside a git checkout, or before the table existed). */
@@ -1336,11 +1537,14 @@ function headTable(): Record<string, number> | null {
 }
 
 describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint with a ratchet)', () => {
-  it('no native control, widget role, kit class, app.css class or legacy token outside ui-kit/ but the legacy screens\' counted ones (each count ≤ its row; the rows only go down)', async () => {
+  it('no native control, widget role, kit class or legacy token outside ui-kit/ but the legacy screens\' counted ones (each count ≤ its row; the rows only go down)', async () => {
     const table = await readTable();
     const found = await ratchetFindings();
     const over = [...found].filter(([f, x]) => x.length > (table[f] ?? 0)).map(([f, x]) => `${f}: ${x.length} findings, the table allows ${table[f] ?? 0} (${x.slice(0, 4).join('; ')})`);
     expect(over).toEqual([]);
+    // L5.12d: every legacy screen is rebuilt — the table is empty and every file of the app holds zero findings.
+    expect(table).toEqual({});
+    expect([...found].filter(([, x]) => x.length > 0).map(([f, x]) => `${f}: ${x.join('; ')}`)).toEqual([]);
     // The shell and the gallery are kit-only: no row, nothing found.
     for (const f of [...found.keys()].filter((x) => x.startsWith('shell/') || x === 'GalleryScreen.tsx')) {
       expect(table[f], f).toBeUndefined();
@@ -1350,17 +1554,16 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     const head = headTable();
     if (head) expect(Object.entries(table).filter(([f, n]) => n > (head[f] ?? 0)).map(([f]) => f)).toEqual([]);
     // Planted, in a file without a row: each kind found.
-    const ctx = { appClasses: new Set(['button', 'primary', 'card']), tokens: new Set(['--danger-soft', '--accent']) };
+    const ctx = { tokens: new Set(['--danger-soft', '--accent']) };
     const planted = (line: string) => offKit('New.tsx', `export const X = () => (${line});`, ctx);
     expect(planted('<button type="button">Go</button>')).toEqual(['New.tsx:1 <button>']);
     expect(planted('<div role="switch" />')).toEqual(['New.tsx:1 role switch']);
     expect(planted('<a href="#/" className="k-btn k-btn-primary">Go</a>')).toEqual(['New.tsx:1 class k-btn', 'New.tsx:1 class k-btn-primary']);
     // The review's mutation: an ad-hoc button on a legacy colour, a link dressed as a legacy button.
     expect(planted('<div role="button" tabIndex={0} onClick={go} onKeyDown={go} style={{ background: \'var(--danger-soft)\' }}>Ad hoc</div>')).toEqual(['New.tsx:1 role button', 'New.tsx:1 legacy token --danger-soft']);
-    expect(planted('<a href={hrefTo(r)} className="button primary">Go</a>')).toEqual(['New.tsx:1 legacy class button', 'New.tsx:1 legacy class primary']);
     expect(planted("<div role={on ? 'tab' : undefined} />")).toEqual([expect.stringContaining('(not a literal)')]);
     expect(planted('<div role={`tab`} />')).toEqual([expect.stringContaining('(not a literal)')]);
-    expect(planted('<div className={on ? \'card\' : `k-panel ${x}`} />')).toEqual(['New.tsx:1 legacy class card', 'New.tsx:1 class k-panel']);
+    expect(planted('<div className={on ? \'card\' : `k-panel ${x}`} />')).toEqual(['New.tsx:1 class k-panel']);
     for (const tag of ['progress', 'meter', 'details', 'summary', 'label']) expect(planted(`<${tag} />`), tag).toEqual([`New.tsx:1 <${tag}>`]);
     for (const role of ['checkbox', 'radio', 'tab', 'slider', 'option', 'menuitemradio', 'spinbutton']) expect(planted(`<div role="${role}" />`), role).toEqual([`New.tsx:1 role ${role}`]);
     expect(offKit('New.tsx', "const c = getComputedStyle(el).getPropertyValue('--accent');", ctx)).toEqual(['New.tsx:1 legacy token --accent']);
@@ -1368,8 +1571,8 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     expect(planted('<span className="k-sr k-mono">x</span>')).toEqual([]);
     expect(planted('<Button variant="primary">Go</Button>')).toEqual([]);
     expect(planted('<div role="region" style={{ color: \'var(--ui-text-2)\' }} title="studio render --review" />')).toEqual([]);
-    // app.css's classes are read from its selectors.
-    expect([...appCssClasses('.a, .b > .c:hover { x: 1 } @media (max-width: 9px) { .d.e { y: 2 } } /* .f */')].sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+    // A stylesheet's classes are read from its selectors (the className lint's).
+    expect([...cssClasses('.a, .b > .c:hover { x: 1 } @media (max-width: 9px) { .d.e { y: 2 } } /* .f */')].sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 
   it('the kit, the shell and the new screens\' stylesheets: sizes, weights and radii from --ui-* tokens only', async () => {
@@ -1379,7 +1582,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
       for (const r of cssRules(css)) for (const [k, v] of r.decls) if (SIZED.has(k) && !/^(?:(?:var\(--ui-[\w-]+\)|0|50%|inherit)\s*)+$/.test(v)) bad.push(`${f}: ${r.selector} { ${k}: ${v} }`);
     };
     const kit = await kitCss();
-    expect(kit.map(([f]) => f).sort()).toEqual(['screens.css', 'shell/shell.css', 'ui-kit/kit.css']);
+    expect(kit.map(([f]) => f).sort()).toEqual(['base.css', 'screens.css', 'shell/shell.css', 'ui-kit/kit.css']);
     for (const [f, css] of kit) lint(f, css);
     expect(bad).toEqual([]);
     lint('planted.css', '.k-x { font-size: 14px; border-radius: 3px; font-weight: 650 } .k-y { border-radius: 0 0 var(--ui-radius-overlay) var(--ui-radius-overlay) }');
@@ -1664,7 +1867,7 @@ describe('L5.10b: the scenario side', () => {
     const board = (await appSources()).find(([f]) => f === 'Storyboard.tsx')![1];
     const planted = board.replace('<p id="steps-keys" className="sc-quiet sb-keys">', '<p id="steps-keys" className="sc-quiet sb-keys"><button className="button">x</button>');
     expect(planted).not.toBe(board);
-    const ctx = { appClasses: appCssClasses(await appCss()), tokens: new Set<string>() };
+    const ctx = { tokens: new Set<string>() };
     expect(offKit('Storyboard.tsx', planted, ctx).length).toBeGreaterThan(offKit('Storyboard.tsx', board, ctx).length);
   });
 
@@ -1741,7 +1944,7 @@ describe('L5.11a: Shoot', () => {
     const live = (await appSources()).find(([f]) => f === 'ShootLive.tsx')![1];
     const planted = live.replace('<Switch label="Follow current step"', '<input type="checkbox" /><Switch label="Follow current step"');
     expect(planted).not.toBe(live);
-    const ctx = { appClasses: appCssClasses(await appCss()), tokens: new Set<string>() };
+    const ctx = { tokens: new Set<string>() };
     expect(offKit('ShootLive.tsx', planted, ctx).length).toBeGreaterThan(offKit('ShootLive.tsx', live, ctx).length);
   });
 
@@ -1797,12 +2000,12 @@ describe('L5.11b: Record', () => {
       expect(table[f], f).toBeUndefined();
       expect(found.get(f) ?? [], f).toEqual([]);
     }
-    expect(await appCss()).not.toMatch(/\.rec-[a-z]/);
+    await legacyGone();
     // The mutation: a native radio in the alternatives counts (and RecordScreen.tsx has no row to hold it).
     const text = (await appSources()).find(([f]) => f === 'RecordScreen.tsx')![1];
     const planted = text.replace('<RadioGroup\n        legend={`Ways to find step ${n}`}', '<input type="radio" /><RadioGroup\n        legend={`Ways to find step ${n}`}');
     expect(planted).not.toBe(text);
-    const ctx = { appClasses: appCssClasses(await appCss()), tokens: new Set<string>() };
+    const ctx = { tokens: new Set<string>() };
     expect(offKit('RecordScreen.tsx', planted, ctx).length).toBeGreaterThan(offKit('RecordScreen.tsx', text, ctx).length);
   });
 
@@ -2067,13 +2270,12 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
       expect(names).not.toContain(gone);
       expect(table[gone], gone).toBeUndefined();
     }
-    const css = await appCss();
-    expect(css).not.toMatch(/\.(?:cv|cl|pp|pd)-[a-z]|\.th-(?:meta|text|entr|proposal|still|actions|form)|\.comments-|\.composer\b|\.readme-input|\.editor-bar|\.save-state/);
+    await legacyGone();
     // The mutation: a native button in the composer counts (and Composer.tsx has no row to hold it).
     const text = (await appSources()).find(([f]) => f === 'Composer.tsx')![1];
     const planted = text.replace('<div className="cm-actions" ref={actionsRef}>', '<div className="cm-actions" ref={actionsRef}><button type="button">x</button>');
     expect(planted).not.toBe(text);
-    const ctx = { appClasses: appCssClasses(css), tokens: new Set<string>() };
+    const ctx = { tokens: new Set<string>() };
     expect(offKit('Composer.tsx', planted, ctx).length).toBeGreaterThan(offKit('Composer.tsx', text, ctx).length);
   });
 
@@ -2290,13 +2492,12 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     // The Library's Create dialog was the last ad-hoc one: every dialog of the app is the kit's (Sheet, the palette).
     const sources = await appSources();
     expect(sources.filter(([f, text]) => !f.startsWith('ui-kit/') && /<dialog\b/.test(code(text))).map(([f]) => f)).toEqual([]);
-    const css = await appCss();
-    expect(css).not.toMatch(/\.(?:lib|th|theme)-[a-z]|\.library-screen|\.themes-screen|\.confirm-dialog|\.tl-preview-note|\.tl-undo\b/);
+    await legacyGone();
     // The mutation: a native input in the theme's fields counts (and ThemeFields.tsx has no row to hold it).
     const text = sources.find(([f]) => f === 'ThemeFields.tsx')![1];
     const planted = text.replace('<div className="tm-chips" data-testid={`chips-${name}`}>', '<div className="tm-chips" data-testid={`chips-${name}`}><input type="radio" />');
     expect(planted).not.toBe(text);
-    const ctx = { appClasses: appCssClasses(css), tokens: new Set<string>() };
+    const ctx = { tokens: new Set<string>() };
     expect(offKit('ThemeFields.tsx', planted, ctx).length).toBeGreaterThan(offKit('ThemeFields.tsx', text, ctx).length);
   });
 

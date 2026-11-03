@@ -1473,6 +1473,11 @@ labels, the first the default, the last the cancel), the shell shows a native sh
 those labels as the app's own buttons), the answer goes back on the child's stdin (`{"type":"confirmed","id","button"}`,
 the index pressed; the same shape as DESIGN §4j); the page can neither raise one nor answer it (it has no IPC and no access to the
 pipe); a browser tab keeps the terminal prompt. Today `--supervised` reads and discards its stdin. DESIGN §4j.
+**Amended in L5.12d:** the desktop quit question is the first page → shell answer, and it is NOT presence: the page asks
+`desktop_answer` (an own op behind the Studio token) and the server writes the answer on its stdout pipe; any program
+holding the token could answer a question it was shown the id of — harmless there (the person's own quit question,
+taken only for the id the shell put in its window's page, once, and every answer only quits or keeps the app). A
+presence primitive still needs the shell's own UI (an NSAlert the page cannot touch), the stdin direction above unused.
 Residue documented in L4.4: the capture's session confirmation (`sessions_ack`) is a guard against a wasted take, not
 presence — a page script can send it; the run's own preflight stays the authority and stops before filming a persona
 it can check (a `check`, or never signed in); one without a `check` is used as saved and fails only when a page lands on
@@ -1955,7 +1960,8 @@ and `job_end` lines); what remains:
 - **The Scenario menu** — Rehearse ⌘R, Capture ⇧⌘R, Render ⌘B, Stop ⌘. — and the status bar's actions: L5.11, when
   they act (critique M6), through the same `Item::Page` table and `MENU_COMMANDS`.
 - The inset following full screen (the buttons hidden: the 80 px could go), and native confirmation sheets through the
-  pipe (BL-106 amended, unchanged).
+  pipe (BL-106 amended, unchanged). L5.12d: the quit question is a page Sheet answered through the server's pipe
+  (DESIGN §4j), the native alert its fallback; Open Workspace… through the page is BL-135.
 
 ### BL-127 — Design-system extras cut from L5.9
 *S–M · cut in L5.9 · builds on: L5.9*
@@ -2087,6 +2093,24 @@ and `job_end` lines); what remains:
 - R4-Library's card without visible buttons (Play sits under each poster, inside the card's frame: the selected card's
   Play / Retry are its tab stops after the card; L5.12c fixes made the grid one tab stop).
 - The Themes list's site panel keeps a plain layout (kit fields, no R4 drawing of its own).
+
+### BL-135 — « Épure » 4 extras cut from L5.12d (the quit sheet, the end of the legacy layer)
+*S–M · cut in L5.12d · builds on: L5.12d, L5.2b · see BL-106, BL-126*
+
+- **File › Open Workspace…'s question through the page** (critique M4): today the native alert. Through the page it
+  turns the synchronous `confirm_open_other` called from a menu callback into an async flow (dispatch, wait for an
+  answer that comes on the pipe, then run the open flow on the main thread — and the picker after it), with the same
+  rules as the quit question (an id taken once, a fallback after 1.5 s, every exit closing the sheet).
+- The quit sheet's words for logout / restart / shut down stay native by design (loginwindow never waits on a web
+  page); a page Sheet for the restart alert needs a server, which is what is gone.
+- A Show in Finder / export download from the sheet's text (it names unsaved text of other tabs): BL-125's page →
+  desktop bridge.
+- A quit sheet on the Connecting and session-ended screens (L5.12d fixes, review B-L5): they have no session, so no
+  answer path; a page → shell "no sheet here" word would need one (BL-125's bridge) — until then ⌘Q there waits the
+  1.5 s for the native alert, by design.
+- The className lint reads a template's literal parts only: a variable part (`k-btn-${variant}`) passes on its prefix,
+  and a class built in another file is not followed (review B-L2); a runtime check of the classes in the DOM (the
+  review's probe) would close it.
 
 ## Guard-rails for planned lots (no new scope)
 

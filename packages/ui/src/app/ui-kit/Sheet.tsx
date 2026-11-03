@@ -13,6 +13,9 @@
  * first action that is on — never a control that is not a tab stop (review A-L1: an unchecked chip); Return in a
  * one-line text field of the sheet chooses the default action when it is on (review A-L2 / B-L2: edit a copy's name,
  * press Return).
+ * L5.12d fixes (review A-L2): Return never activates a destructive action — on a focused destructive button it chooses
+ * the default instead, as the native alert's Return does wherever the focus ring is (Space and a click still press it);
+ * an action can be `busy` (its answer in flight: the kit Button's moving mark, disabled).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -32,6 +35,8 @@ export interface SheetAction {
   testId?: string;
   /** L5.12c: off for now (nothing to act on yet). */
   disabled?: boolean;
+  /** L5.12d fixes: chosen, its answer in flight (disabled, the moving mark). */
+  busy?: boolean;
 }
 
 /** A sheet's one-line text fields (Return in one chooses the default action; the first takes the focus when it is off). */
@@ -118,10 +123,18 @@ export function Sheet({
     }
     giveBack();
   };
-  // Return in a one-line text field: the default action, when it is on (a text area keeps its Return).
+  // Return in a one-line text field: the default action, when it is on (a text area keeps its Return). Return on a
+  // focused destructive action never presses it (review A-L2): the default instead, when it is on — else nothing.
   const onKeyDown = (e: KeyboardEvent<HTMLDialogElement>) => {
     if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.nativeEvent.isComposing) return;
     const t = e.target as HTMLElement;
+    const buttons = [...(ref.current?.querySelectorAll<HTMLButtonElement>('.k-sheet-actions > button') ?? [])];
+    const on = buttons.indexOf(t as HTMLButtonElement);
+    if (on >= 0 && actions[on]?.variant === 'destructive') {
+      e.preventDefault();
+      if (def && !def.disabled && !def.busy) onAction(def.id);
+      return;
+    }
     if (!(t instanceof HTMLInputElement) || !t.matches(TEXT_FIELD) || !def || def.disabled) return;
     e.preventDefault();
     onAction(def.id);
@@ -153,7 +166,7 @@ export function Sheet({
       {content && <div className="k-sheet-content">{shown(content)}</div>}
       <div className="k-sheet-actions">
         {actions.map((a) => (
-          <Button key={a.id} variant={a.variant ?? 'secondary'} disabled={a.disabled} data-default={a === def ? 'yes' : undefined} data-testid={a.testId} onClick={() => onAction(a.id)}>
+          <Button key={a.id} variant={a.variant ?? 'secondary'} disabled={a.disabled} busy={a.busy} data-default={a === def ? 'yes' : undefined} data-testid={a.testId} onClick={() => onAction(a.id)}>
             {shown(a.label)}
           </Button>
         ))}

@@ -302,7 +302,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
           disabled={scenarios.length === 0}
           onClick={() => {
             const el = document.getElementById(USE_SELECT);
-            el?.scrollIntoView({ block: 'nearest' });
+            el?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
             el?.focus();
           }}
         >

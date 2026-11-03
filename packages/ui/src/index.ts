@@ -75,3 +75,4 @@ export {
 } from './server/supervise.js';
 export type { JobEnd, PendingSnapshot, PipeJob, PipeKind, PipeOut, PipeOutcome, PipeReason, SupervisorOptions } from './server/supervise.js';
 export type { Launched } from './server/launch.js';
+export { DESKTOP_OPS, DesktopAnswerInput, DesktopPipe, QUIT_ID_RE, SHOWN_PER_MIN, desktopOps } from './server/desktop.js';

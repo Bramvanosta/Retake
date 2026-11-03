@@ -85,7 +85,7 @@ export function PosterGrid({ label, items, selected, onSelect, onOpen, described
   const at = selected === null ? -1 : items.findIndex((i) => i.id === selected);
   // The selected option stays in view (inside the centre pane: `nearest`).
   useEffect(() => {
-    if (at >= 0) list.current?.querySelector<HTMLElement>(`[data-index="${at}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    if (at >= 0) list.current?.querySelector<HTMLElement>(`[data-index="${at}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
   }, [at]);
   const onKeyDown = (e: KeyboardEvent<HTMLUListElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey || items.length === 0) return;

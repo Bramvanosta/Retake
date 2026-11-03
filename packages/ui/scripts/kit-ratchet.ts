@@ -5,13 +5,12 @@
  *   `<details>`, `<summary>`, `<label>`);
  * - a widget role (button, checkbox, radio, tab, slider, switch, menuitem, option, combobox…), or a role that is not a
  *   literal (an expression or a template the lint cannot read);
- * - a kit class (`k-…`, but the utilities `k-sr`, `k-mono`, `k-scope`), or any legacy app.css class (`button primary` on
- *   a link, `badge`, a layout class: the legacy layer is the old screens' own);
- * - a legacy token (`--accent`, `--danger-soft`… any non `--ui-*` token) written in the TypeScript (a `style`, a
- *   `getPropertyValue`).
- * The legacy screens' findings are counted per file in test/legacy-controls.json: a count may only stay or go DOWN
- * (≤ its row), so a rebase over another lowering never conflicts; a file without a row (the shell, the gallery, every
- * new screen) has none. The script lowers the rows when they drop (a file at 0 leaves the table) and never raises one.
+ * - a kit class (`k-…`, but the utilities `k-sr`, `k-mono`, `k-scope`);
+ * - a legacy token (any non `--ui-*` token of tokens.ts) written in the TypeScript (a `style`, a `getPropertyValue`).
+ * The legacy screens' findings were counted per file in test/legacy-controls.json: a count could only stay or go DOWN
+ * (≤ its row). L5.12d: the last legacy screens are rebuilt and the legacy layer (app.css, its classes and tokens) is
+ * deleted — the table is `{}` and every file holds zero findings; a class word no stylesheet defines is the className
+ * lint's (app-source.test.ts). The script still lowers rows and never raises one.
  */
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -60,22 +59,20 @@ export const KIT_ROLES = new Set([
   'alertdialog',
   'link',
 ]);
-/** The class names app.css's selectors use. */
-export function appCssClasses(css: string): Set<string> {
+/** The class names a stylesheet's selectors use (comments stripped, @media blocks walked). */
+export function cssClasses(css: string): Set<string> {
   const out = new Set<string>();
   const text = css.replace(/\/\*[\s\S]*?\*\//g, '');
   for (const m of text.matchAll(/([^{}]+)\{/g)) for (const c of m[1].matchAll(/\.([a-zA-Z_][\w-]*)/g)) out.add(c[1]);
   return out;
 }
 
-/** The legacy tokens (every token but the kit's `--ui-*`). */
+/** The legacy tokens (every token but the kit's `--ui-*`; none since L5.12d — kept so that one added back is a finding). */
 export function legacyTokens(): Set<string> {
   return new Set([...tokenMap('dark').keys()].filter((k) => !k.startsWith('--ui-')));
 }
 
 export interface RatchetContext {
-  /** app.css's classes. */
-  appClasses: Set<string>;
   /** The legacy tokens. */
   tokens: Set<string>;
 }
@@ -120,7 +117,6 @@ export function offKit(file: string, text: string, ctx: RatchetContext): string[
         if (name === 'className') {
           for (const word of literals(init).flatMap((s) => s.split(/\s+/)).filter(Boolean)) {
             if (word.startsWith('k-') && !KIT_UTILITIES.has(word)) out.push(`${at(n)} class ${word}`);
-            else if (ctx.appClasses.has(word)) out.push(`${at(n)} legacy class ${word}`);
           }
         }
       }
@@ -141,10 +137,9 @@ export async function readTable(): Promise<Record<string, number>> {
 
 /** Every TSX source of the app outside ui-kit/, with its findings. */
 export async function ratchetFindings(): Promise<Map<string, string[]>> {
-  const appClasses = appCssClasses(await readFile(join(APP_DIR, 'app.css'), 'utf8'));
   const tokens = legacyTokens();
   const files = (await readdir(APP_DIR, { recursive: true })).filter((f) => f.endsWith('.tsx') && !f.startsWith('ui-kit/')).sort();
   const out = new Map<string, string[]>();
-  for (const f of files) out.set(f, offKit(f, await readFile(join(APP_DIR, f), 'utf8'), { appClasses, tokens }));
+  for (const f of files) out.set(f, offKit(f, await readFile(join(APP_DIR, f), 'utf8'), { tokens }));
   return out;
 }

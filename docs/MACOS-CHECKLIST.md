@@ -1564,7 +1564,7 @@ then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status
    recording. At 900 px: the start form in two columns, a live recording usable (a row's "n alternatives" under its
    text, no word cut; the toolbar wrapping), the status bar's counts give way, nothing scrolls sideways.
 
-### 14e. Edit, the Review report, frame comments, the README, ⌘K, the Library and the theme editor in the app and in Safari (L5.12a, L5.12b, L5.12c)
+### 14e. Edit, the Review report, frame comments, the README, ⌘K, the Library, the theme editor and the quit sheet in the app and in Safari (L5.12a – L5.12d)
 
 The automated checks run in Playwright's Chromium (no H.264: its preview says it cannot play the fixture's takes); the
 preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `pnpm build`, the desktop app (and Safari on
@@ -1651,6 +1651,24 @@ preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `
    of it — nothing is written. Copy to edit… on a starter asks the name in a sheet: edit it and press Return in the field
    — it copies. New theme…: type a paper colour that is not a hex — the line under the form says why and Make the theme
    stays off. Dark, light, 900 px.
+12. **The quit sheet (L5.12d).** In the app (`pnpm desktop:build`, launched from Finder), type in the README without
+   saving, ⌘Q: the window comes to the front and a sheet drops from under the title bar ("Quit Demo Studio?", the README
+   named) — the buttons sit as in the native alert, the default on the right ([Quit Anyway] [Cancel]); Return does
+   nothing harmful (Cancel is the default and closes it, the app stays), Escape cancels, Quit Anyway is red; Tab onto
+   Quit Anyway, Return: still Cancel (Space presses it); click Quit Anyway — the app quits at once, the server stops.
+   Again with only a job running (a render): [Cancel] [Quit Anyway], Return = Quit Anyway. With the window minimised, then on another Space: ⌘Q (the Dock's Quit too) brings it back and the sheet
+   is on screen. A page that cannot answer (`kill -STOP` on the server's pid, `ps` shows it under the app) —
+   ⌘Q gives the native alert after about 1.5 s and the sheet goes away — check that the sheet is gone BEHIND the alert
+   while the alert is up (its close script is queued before the alert opens; WebKit may only paint it once the alert is
+   answered: note which); answer it, then `kill -CONT`. On the Connecting or the session-ended screen (no session to
+   answer through: no sheet there by design), ⌘Q with unsaved text gives the native alert after about 1.5 s. A second ⌘Q while
+   the sheet is up shows it again (not a second sheet); left unanswered 10 s, the next ⌘Q asks natively. Log out with
+   unsaved text: the native alert (never the sheet). VoiceOver on the sheet: it is read as an alert with its title and
+   text, Cancel focused; Tab reaches Quit Anyway. System Settings › Accessibility › Display › Reduce motion on: the
+   busy spinners and the indeterminate progress bars stand still, the switches jump; nothing slides. Dark, light.
+13. **The screens outside the shell (L5.12d).** Stop the server (`kill` its pid) with unsaved README text: the session
+   ended screen keeps the text in a read-only field to copy (the Ended screen of a browser tab too); a typo in the
+   address (`#/nowhere`) says "Nothing here" with Back to the projects. Dark, light.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

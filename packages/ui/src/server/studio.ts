@@ -58,6 +58,7 @@ import { opChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
+import { DesktopPipe, desktopOps } from './desktop.js';
 import { z } from 'zod';
 
 /**
@@ -89,6 +90,8 @@ import { z } from 'zod';
  * `scenario_record` and `job_cancel` stay out (a recording from the Studio is pinned: page and path, no --allow-writes,
  * the check on; it is stopped, discarded and saved through its own ops only).
  * L5.2b: `unsaved_report` (unsaved.ts — what a tab holds unsaved, kinds and names only: the desktop app's quit question).
+ * L5.12d: `desktop_answer` (desktop.ts — the window page's ack and answer to the desktop app's quit question, written
+ * on the supervised pipe; 409 on any other server).
  * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
@@ -140,6 +143,8 @@ const ROUTES: Record<string, RouteSpec> = {
   '/v1/events': { methods: ['GET'], token: true, api: true },
   '/v1/live': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
 };
+/** Ops that write but never nudge the job watch: the tabs' unsaved reports, the page's word to the desktop shell. */
+const NO_NUDGE = new Set<string>(['unsaved_report', 'desktop_answer']);
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 const CALL_PREFIX = '/v1/call/';
 
@@ -202,8 +207,10 @@ export interface StudioServer {
   runLive: RunLive;
   /** What the tabs hold unsaved (L5.2b: `unsaved_report`). */
   unsaved: UnsavedBoard;
+  /** The window page's word to the desktop shell (L5.12d: `desktop_answer`; attached by startSupervisor). */
+  desktop: DesktopPipe;
   /**
-   * `f` runs after each op that succeeded and is not read-only (`unsaved_report` excepted): the supervised server's job
+   * `f` runs after each op that succeeded and is not read-only (NO_NUDGE excepted): the supervised server's job
    * watch polls at once (a Studio submit shows in the desktop shell without waiting). Returns the unsubscribe.
    */
   onWrite(f: () => void): () => void;
@@ -260,6 +267,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const leases = new PreviewLeases((p) => playerNow().release(p));
   const forbid = () => [engine.workspace.root, homedir()];
   const unsaved = new UnsavedBoard(engine.workspace.projectsDir);
+  const desktop = new DesktopPipe();
   const tools = uiTools([
     ...indexOps(live),
     overviewOp(),
@@ -275,6 +283,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
     ...recordOps({ chain }),
     ...unsavedOps(unsaved),
+    ...desktopOps(desktop),
   ]);
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
@@ -405,7 +414,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       return;
     }
     send(res, 200, { ok: true, summary: r.output.summary, data: capUntrusted(r.output.data), ...(r.output.images?.length ? { images: r.output.images } : {}) });
-    if (!tool.annotations.readOnlyHint && op !== 'unsaved_report') for (const f of writeListeners) f();
+    if (!tool.annotations.readOnlyHint && !NO_NUDGE.has(op)) for (const f of writeListeners) f();
   };
 
   const server: Server = createServer((req, res) => {
@@ -459,6 +468,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     live,
     runLive,
     unsaved,
+    desktop,
     onWrite: (f) => {
       writeListeners.add(f);
       return () => writeListeners.delete(f);

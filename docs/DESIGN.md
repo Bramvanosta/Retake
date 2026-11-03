@@ -3967,7 +3967,7 @@ delegate (`class_addMethod`, type `Q@:@`): tao 0.37 does not implement it and Ta
 test turns red at that upgrade. The method, on the main thread: no session of the app's own (none, or an attached
 server: it has no pipe) or nothing pending → Now (a mutex read: Quit stays instant); otherwise the window is shown and
 an app-modal alert (`macos::ask`; not a sheet — it works with the window hidden, needs no TerminateLater bookkeeping,
-and logout waits for it) asks with `desktop-core` `guard_question`: "Quit Demo Studio?" — "Unsaved text in the Studio
+and logout waits for it; L5.12d: the fallback — a plain Quit asks the window's page first, below) asks with `desktop-core` `guard_question`: "Quit Demo Studio?" — "Unsaved text in the Studio
 (this window, or a browser tab on it) can no longer be saved: • README.md of shop • Scenario quote of shop (YAML)"
 (review B L6: the board holds every tab on the server; a browser tab keeps its text on screen, but nothing saves it
 once the server stops) / "These jobs keep running after the app quits, but it will not tell you when they end:
@@ -4020,6 +4020,75 @@ critique and probes (`l52b/probe-crit`, `probe-tao`):
 - A panic in the hook answers Now (`catch_unwind`, L7): an app that cannot quit is worse than a question not asked.
 - An attached server: no guard, no notifications, said once at attach ("they need a server of this app's own"); the
   relay (the `--supervised` child kept alive with the file's token) is BL-125.
+
+**The quit question in the page (L5.12d, `desktop-core` `guard_flow`, `src/guard.rs`; R-DSK-04).** Page first, the
+native alert as the fallback. For a plain Quit (⌘Q, the menu, the Dock — no `kAEQuitReason`) with something pending,
+an owned server and the window on the Studio's own origin (`w.url()`: the player origin is allowed for navigations
+too, and its top document would swallow the event), the hook answers Cancel at once and asks the page: `ShowWindow`
+(unminimise, front) then one constant-shaped script, `page_quit_js` — `window.dispatchEvent(new CustomEvent(
+"studio:quit", { detail: {id, action, title, text, buttons, proceed, cancel, destructive} }))`, the words of
+`guard_question` as JSON data (every string `json::quote`d, U+2028 escaped) and a fresh id (16 bytes of
+`/dev/urandom`, base64url, 22 characters; logged in test mode only). The page (`shell/QuitSheet.tsx`, mounted only
+under the app's flag) checks the detail whole (exactly the eight keys — a static test compares the Rust and page lists
+—, the id's shape, two buttons ≤ 100 characters, words ≤ 4 000 UTF-16 units, indexes in range: anything else, no
+sheet, no ack). The bound is one constant on both sides (`guard_flow` `QUIT_TEXT_MAX` / `QUIT_LABEL_MAX` = the page's,
+compared by a static test — L5.12d fixes, review A-L1 / B-L1): words.rs's longest question (eight unsaved and eight job
+lines of cut names, the largest totals, the recording and unknown notes) stays under ¾ of it (a desktop-core test builds
+it), and a question past it would be asked natively at once (`page_fits`), never sent to be refused. The page opens a
+kit Sheet (title and text through Txt, the text pre-line; the buttons left to right as the native alert shows them —
+its first, default button rightmost, as the kit's other sheets place their primary action: unsaved text reads
+[Quit Anyway] [Cancel ●], jobs only [Cancel] [Quit Anyway ●], review B-M1; the kit's rules give the alert's keys:
+unsaved text → Return = Cancel, Quit Anyway destructive with no key, Escape = Cancel; jobs only → Return = Quit Anyway;
+Return on a Tab-focused destructive button chooses the default, as the alert's Return does wherever the focus ring is —
+Space and a click still press it, A-L2; no key caps on the buttons, as every kit Sheet), and acks
+through the own op `desktop_answer {id, shown: true}` once the dialog is open, two animation frames painted and
+`document.visibilityState === 'visible'` (a minimised window or another Space acks when it shows); the answer is
+`desktop_answer {id, answer: proceed | cancel}`: the sheet stays open, the chosen button busy and the other off, until
+the call settles — answered, it closes; failed (a 409, a 503), a Callout in the sheet says "The app did not get the
+answer" and the question stays answerable (A-L3; the shell's own timers still apply). The server (`server/desktop.ts`) writes one framed pipe line —
+`{"type":"shown","id","shown":true}` / `{"type":"answer","id","answer"}` — on the supervised stdout (never another
+server: 409, reason `not_supervised`; once its supervisor has stopped — the server closing — nothing can be written:
+503, reason `stopped`, never "answered", B-L6; `shown` capped at 20 a minute, an answer never; Studio only, never an MCP
+tool; no job-watch nudge); `pipe.rs` reads them strictly (exactly `type`, `id` and the line's own field: any other key
+ignores the line, A-L6) (`PipeMsg::Shown` / `Answer`, unknown types still ignored both ways:
+an older shell ignores them, an older server never acks → the fallback). The flow (pure, its own unit tests with an
+injected clock — critique H1):
+- **No TerminateLater** (a reply from a tao callback hangs, H1 of L5.2b): Quit Anyway sets APPROVED and re-enters
+  through `request_terminate()` (`performSelectorOnMainThread:`, as SIGUSR2 does); the re-entered hook consumes it →
+  Now. Probed first on macOS 26 (release build, temporary code): the hook's Cancel then a posted `terminate:` 0 / 50 /
+  300 ms later → the app exits 0 in 18 – 330 ms; a quit Apple event (a Dock Quit: `NSRunningApplication terminate`)
+  94 – 135 ms; a Cancel on re-entry keeps the app and a later Quit works (×4 each).
+- **No ack within 1.5 s** (a hung page, not loaded yet, the Connecting / Ended screen, the server stopped): the timer
+  closes the page's question, sets FALLBACK and re-sends `terminate:`; the re-entered hook asks natively. The
+  re-entry is queued on the main thread behind the close script (`run_on_main_thread`, the same event-loop queue an
+  eval from another thread takes), then posted: the page's sheet is closed before the native alert opens (L5.12d fixes,
+  review A's note; whether WebKit paints it closed behind the app-modal alert is MACOS-CHECKLIST 14e). The Connecting
+  and Ended screens have no session — no token, no server to answer through — so they mount no sheet and the 1.5 s
+  wait there is by design (B-L5): telling the shell "no sheet here" would need an answer path they do not have.
+- **`shown` / `answer` only for the question up now, once**: an old, replayed, post-fallback id, or one arriving while
+  the native alert is up, is ignored (logged "ignored a page answer: not the question up now").
+- **APPROVED is tied to that answer, expires after 5 s and any Cancel clears it** — the restart alert opening between
+  the page's Quit Anyway and the re-entered `terminate:` answers Cancel and leaves nothing approved (a later ⌘Q asks).
+- **Every exit from a page question closes its sheet** (`studio:quit-close {id}`): the fallback, logout / restart
+  arriving while asked (native for them), nothing pending any more, the server gone or exited, a signal, Open
+  Workspace…'s question.
+- **A second ⌘Q while it is up re-dispatches the same id** (a reloaded page shows it again) and waits for an ack
+  again; once the question was shown 10 s ago and is still unanswered, the next ⌘Q asks natively (a page that acked and
+  then hung never traps the person). This replaces L5.2b's "a second Quit is ignored" for the page path (the native
+  alert keeps it).
+- **Native stays for** logout, restart and shut down (loginwindow never waits on a web page), the restart alert (no
+  server, no answer path), "not a workspace", the folder picker, File › Open Workspace…'s question (through the page it
+  would turn a synchronous menu callback into an async flow: cut, BL-135), an attached server (no pipe: no question at
+  all), test mode's `DEMO_STUDIO_DESKTOP_TEST_QUIT=native` (the L5.2b gated cases that answer the alert), and every
+  fallback.
+Gated (DEMO_STUDIO_TEST_DESKTOP=1): the page asks and acks by itself in WKWebView; Cancel and Quit Anyway through
+`desktop_answer` with the id test mode logs; a second Quit re-dispatches the same id; a replayed old id is ignored; the
+server SIGSTOPped → no ack → the native alert after ≈ 1.5 s and the late ack ignored; L5.12d fixes (review B-M2), with
+the page path on: SIGTERM while the sheet is up → the app exits 0 at once, the question in the window dropped, no alert;
+the owned server killed while the sheet is up → the question dropped before the restart alert (answered Not Now
+through the test answers), a later Quit native. Measured (gated, release build):
+⌘Q to the page's ack 100 ms, Quit Anyway to the app's exit 28 ms, ⌘Q to the native fallback 1 629 ms. VoiceOver on the sheet and a
+hung page in daily use are MACOS-CHECKLIST 14e.
 
 **Job notifications (L5.2b, `src/notify.rs`).** UNUserNotificationCenter (`objc2-user-notifications`, default features
 off, and `block2`: both already in Cargo.lock through objc2-ui-kit — four dependency edges, no new package). A
@@ -4906,6 +4975,51 @@ stop to the selected card), Play the one, a re-read none (an e2e counts React's 
 are memoised on the theme shown with a stable `send` / `setDraft`, each colour row on its own value and draft: a drag
 of 30 moves renders the dragged field 30 times and nothing else of the editor (31 commits, the previews held). The on-screen observer has one root per scroller: the centre pane for the boxes inside it,
 the window for the inspector's picture (an observer rooted at the centre never saw it).
+
+### 4n (d). The quit sheet, reduced motion, the end of the legacy layer (L5.12d)
+
+R-DSK-04, R-UI-50. « Épure » 4d. Reference: R4-Confirm (layout; "Retake" read as `APP_NAME`).
+- **The desktop quit question as a page Sheet** answered through the server's pipe, the native alert as the fallback —
+  §4j "The quit question in the page" (the flow and its rules, the op `desktop_answer`, the probe of the re-entry).
+- **The end of the legacy layer.** bits.tsx keeps `Txt`, `shown`, `visibleControls`, `plural`, `When`: `Badge`,
+  `Notice`, `Loading` (and `EnvFlags`, `RunState`, which nothing used) are gone — every state is a kit StatusMark, Tag,
+  Callout, EmptyState or Progress, always with a word. main.tsx's screens outside the shell are on the kit: Connecting (a
+  Progress), the start error (a Callout, the message through Txt), the session ended (a Callout and each kept draft in
+  a read-only kit TextArea; test ids `session-ended`, `unsaved-drafts`, `unsaved-draft` kept), the not-found screen (an
+  EmptyState whose heading is the centre pane's h1 — the kit's EmptyState takes `level` 1 — and Back to the projects).
+  `app.css` (the cascade layer `legacy`, 1 240 lines at L5.12c) is deleted; `base.css` holds element defaults only (box
+  sizing, `[hidden]`, the page's height, the body on `--ui-canvas` / `--ui-text` in the kit's 13 / 18 type — the legacy
+  body was 14 / 21 —, links in `--ui-link`, the focus ring in `--ui-ring`, code in the mono stack, placeholders,
+  `bdi` breaking anywhere), `--ui-*` tokens only and no class: the kit's lints read it too. A plain link's focus ring
+  keeps a radius (`a:focus-visible`, the kit ring's `--ui-radius-control`: the legacy layer gave it 4 px; review B-L4). tokens.ts' L4.9 palette and
+  its appearance-free tokens (`--font`, `--mono`, `--radius`, `--main-h`) are removed (tokens.css −169 lines): every
+  token is a `--ui-*` one. `test/legacy-controls.json` is `{}`: the ratchet test asserts every app file holds zero
+  findings (`pnpm -F @demo-studio/ui ratchet`: "the table is current"). The "every className word is defined" lint the
+  plan relied on did not exist: it is added (app-source) — a className word is a class of a stylesheet (or a prefix one
+  completes in a template), or one of 38 named hooks, each with its reason (two e2e hooks, the kit's middle sizes, a
+  screen root's name beside `sc-screen`, states shown by an attribute, parts laid out by their parent); a forgotten
+  legacy class (`notice`, `card`, `badge`) or a typo fails it. It reads JSX `className` attributes and object-literal
+  `className:` fields, follows a name to a const or an expression-bodied helper of the same file (`className={cls}`,
+  Button's `cls(variant, size)`), and skips comparison operands (review A-L5 / B-L2: `'record'` of `x === 'record'` no
+  longer excused a class `record`); the dead `nav-link` (no rule, no test) and SourceItem's `className` went. A
+  template's variable part is not checked (`k-btn-${v}` passes on the prefix).
+- **Reduced motion.** A source lint: every `animation` / `transition` of the app's stylesheets (kit.css, shell.css,
+  screens.css, base.css) has a LATER rule of its own selector, in cascade order (main.tsx's imports: base → kit → shell →
+  screens; review A-L4), turning it off under `@media (prefers-reduced-motion: reduce)` (today the spinner, the
+  indeterminate progress and the switch's knob; a later stylesheet animating `.k-spinner` again fails it); no `scroll-behavior` but `auto`; every
+  `scrollIntoView` / `scrollTo` / `scrollBy` of the app says `behavior: 'auto'` (15 calls; `scrollTo(0, 0)` became
+  `scrollTo({ top: 0, left: 0, behavior: 'auto' })`). Edit's follow-while-playing sets `scrollLeft`: instant by
+  construction (no smooth scroll anywhere). Chromium (`emulateMedia({ reducedMotion: 'reduce' })` on the gallery):
+  the spinner's and the progress fill's `animation-name` are `none`, the knob's `transition-duration` `0s`, and no
+  element of the gallery animates or transitions; without it they move.
+- **The closing accessibility tours.** Every rebuilt screen has its station (a – c added Edit with a segment selected,
+  the Review report with a check selected, a thread with Claude's proposal, the palette on Edit and on Scenario, the
+  Library with a card selected, its Create sheet, a component's detail, the theme editor); d adds the quit sheet —
+  unsaved text and jobs only, its event dispatched in a page with the app's flag — and the not-found screen, each dark
+  at 1280 / 1440 / 900 and light at 1280: 0 findings (the sheet's walk stays inside it: its two answers). The keyboard
+  tour through Edit and the report stays green.
+- Cut (BL-135): Open Workspace… through the page (critique M4); the sheet's own words for logout / restart (native by
+  design).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

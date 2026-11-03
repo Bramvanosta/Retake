@@ -3,7 +3,6 @@
  * words, never by colour alone.
  */
 import type { ScenarioView, StepBinding } from '@demo-studio/engine';
-import type { BadgeTone } from './bits.js';
 
 export type View = ScenarioView & { hints?: Record<string, string> };
 
@@ -67,7 +66,10 @@ export function missingWords(b: Extract<StepBinding, { missing: string }>): stri
   }
 }
 
-export const STATUS_WORDS: Record<string, [string, BadgeTone]> = {
+/** A step outcome's tone (the kit's mark is chosen from it; the words always beside it). */
+export type StatusTone = 'neutral' | 'danger' | 'warning' | 'info' | 'success';
+
+export const STATUS_WORDS: Record<string, [string, StatusTone]> = {
   ok: ['done', 'success'],
   failed: ['failed in this run', 'danger'],
   skipped: ['skipped in this run', 'warning'],

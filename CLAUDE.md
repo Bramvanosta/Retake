@@ -58,7 +58,7 @@ node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests:
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
-pnpm -F @demo-studio/ui gen:tokens                             # regenerate the Studio's tokens.css from tokens.ts (dark + light); `ratchet` lowers the kit-only counts
+pnpm -F @demo-studio/ui gen:tokens                             # regenerate the Studio's tokens.css from tokens.ts (dark + light); `ratchet` checks the kit-only table (empty since L5.12: no legacy control left)
 pnpm desktop:build                                             # the macOS app (apps/desktop, Rust + Tauri, offline: CARGO_NET_OFFLINE=true); desktop:dev / desktop:test / desktop:clean
 ```
 

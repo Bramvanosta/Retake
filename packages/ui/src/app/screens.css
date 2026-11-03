@@ -2862,3 +2862,23 @@
   display: grid;
   gap: var(--ui-space-2);
 }
+
+/* L5.12d: the screens outside the shell (main.tsx): Connecting, the start error, the session ended with the unsaved
+   text kept to copy. */
+.sc-ended {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-6);
+  max-width: 560px;
+  margin: 0 auto;
+  padding: var(--ui-space-10) var(--ui-space-8);
+  color: var(--ui-text);
+}
+.sc-ended-drafts {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.sc-ended-p {
+  margin: 0;
+  color: var(--ui-text-2);
+}

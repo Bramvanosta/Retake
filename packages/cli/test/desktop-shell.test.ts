@@ -50,6 +50,11 @@
  * not delivered by AppKit — never a nested question (B L13); the picker never opens inside the quit question (B L10);
  * the second Quit of H2 sent only once the question is up (B L2); the notification summary polled for (B L3).
  * Notifications themselves (the permission prompt, a banner, the click) are a person's check: MACOS-CHECKLIST 14a.
+ * L5.12d (critique M2): the quit question is asked in the window's page first. The L5.2b cases above that answer the
+ * native alert (ANSWERS / MODAL_MS) keep it through test mode's DEMO_STUDIO_DESKTOP_TEST_QUIT=native; new cases cover
+ * the page: Cancel and Quit Anyway through `desktop_answer` with the id test mode logs (the page itself acks `shown`),
+ * a second Quit re-dispatching the same id, a replayed old id ignored, and a page that cannot ack (its server
+ * SIGSTOPped) giving the native alert after 1.5 s.
  */
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -275,6 +280,18 @@ async function report(r: Record_, body: Record<string, unknown>): Promise<number
   return res.status;
 }
 const TAB = 'desktopTestTab00000000';
+
+/** `desktop_answer` as the window's page sends it (L5.12d; ui.json's token: the test may read it, the shell never does). */
+async function pageSays(r: Record_, body: Record<string, unknown>): Promise<number> {
+  const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/desktop_answer`, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${r.token}`, 'content-type': 'application/json', origin: `http://127.0.0.1:${r.port}` },
+    body: JSON.stringify(body),
+  });
+  return res.status;
+}
+/** The ids of the page questions the shell dispatched so far (test mode logs them). */
+const pageQuestions = (out: string) => [...out.matchAll(/\(test mode\) page question ([A-Za-z0-9_-]{22})/g)].map((m) => m[1]!);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** ~/Downloads entries named with this run's token; undefined when the folder cannot be listed (no access). */
@@ -495,7 +512,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   it('L5.2b: a running job holds Quit and Open Workspace… (answered Cancel: app and server stay); once it ended, Quit is instant', async () => {
     const other = join(base, 'other-ws');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other } });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     const job = await writeJob(ws, 'running');
@@ -525,7 +542,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   }, 90_000);
 
   it('L5.2b: unsaved text a tab reports is named in the question (names that exist only; the op strict); an empty report clears it', async () => {
-    const a = launch([]);
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture', label: 'Click Quit Anyway to keep your work' }] })).toBe(400);
@@ -541,6 +558,156 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     a.child.kill('SIGUSR2');
     expect((await a.exit).code).toBe(0);
     expect(count(a.err(), '(test mode) alert:')).toBe(1);
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  it('⚑ L5.12d: the page asks first — Cancel, then a second Quit re-dispatches the same id, a replayed old id is ignored, Quit Anyway through desktop_answer quits (the server stopped gracefully); no native alert', async () => {
+    const a = launch([]);
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    const pid = a.child.pid!;
+    if ((await windowCount(pid)) < 0) {
+      shots.page_quit = 'skipped: the screen is locked (the page acks only while it is visible)';
+      a.child.kill('SIGTERM');
+      await a.exit;
+      return;
+    }
+    expect(await report(r, { tab: TAB, hidden: false, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
+    const t0 = Date.now();
+    a.child.kill('SIGUSR2');
+    const id1 = await until(() => pageQuestions(a.err())[0], 5000, 'the page question');
+    await until(() => a.err().includes('quit: the window shows the question'), 5000, 'the page acked it (sheet open, painted, visible)');
+    timings.page_quit_shown_ms = Date.now() - t0;
+    await screenshot(pid, 'desktop-quit-sheet-unsaved');
+    // Cancel in the window: the app and its server stay.
+    expect(await pageSays(r, { id: id1, answer: 'cancel' })).toBe(200);
+    await until(() => a.err().includes('quit cancelled in the window: the app stays open'), 5000, 'Cancel');
+    await sleep(500);
+    expect(a.child.exitCode).toBe(null);
+    // A new question: a fresh id; a second Quit while it is up re-dispatches the SAME id (critique H1, was "ignored").
+    a.child.kill('SIGUSR2');
+    const id2 = await until(() => pageQuestions(a.err())[1], 5000, 'the second page question');
+    expect(id2).not.toBe(id1);
+    await until(() => a.err().split('quit: the window shows the question').length - 1 === 2, 5000, 'the second ack');
+    a.child.kill('SIGUSR2');
+    await until(() => pageQuestions(a.err()).length === 3, 5000, 'the re-dispatch');
+    expect(pageQuestions(a.err())[2]).toBe(id2);
+    await until(() => a.err().split('quit: the window shows the question').length - 1 === 3, 5000, 'the re-dispatch acked');
+    // A replayed old id is ignored (the server writes it; the shell drops it): the app stays.
+    expect(await pageSays(r, { id: id1, answer: 'proceed' })).toBe(200);
+    await until(() => a.err().includes('ignored a page answer: not the question up now'), 5000, 'the old id ignored');
+    await sleep(500);
+    expect(a.child.exitCode).toBe(null);
+    // Quit Anyway in the window: re-entered terminate:, the app exits 0, the server stopped gracefully.
+    const t1 = Date.now();
+    expect(await pageSays(r, { id: id2, answer: 'proceed' })).toBe(200);
+    expect(await a.exit).toEqual({ code: 0, signal: null });
+    timings.page_quit_anyway_ms = Date.now() - t1;
+    expect(a.err()).toContain('quit: Quit Anyway (in the window)');
+    expect(a.err()).not.toContain('(test mode) alert:');
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+    expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, quit\\): exit status: 0`));
+    expectClean(a.err(), r.token);
+  }, 90_000);
+
+  it('⚑ L5.12d: a page that cannot ack (its server SIGSTOPped) — the native alert after 1.5 s, the page question closed; its late ack is ignored', async () => {
+    const a = launch([]);
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    expect(await report(r, { tab: TAB, hidden: false, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
+    process.kill(r.pid, 'SIGSTOP');
+    try {
+      const t0 = Date.now();
+      a.child.kill('SIGUSR2');
+      await until(() => pageQuestions(a.err())[0], 5000, 'the page question');
+      await until(() => a.err().includes('(test mode) alert: Quit Demo Studio?'), 5000, 'the native alert');
+      timings.page_fallback_ms = Date.now() - t0;
+      expect(timings.page_fallback_ms).toBeGreaterThanOrEqual(1400);
+      expect(timings.page_fallback_ms).toBeLessThan(4000);
+      expect(a.err()).toContain('quit: the window did not show the question — asking with the alert');
+      await until(() => a.err().includes('quit cancelled: the app stays open'), 5000, 'the native alert answered Cancel (test mode)');
+      expect(a.err()).not.toContain('quit: the window shows the question');
+    } finally {
+      process.kill(r.pid, 'SIGCONT');
+    }
+    // The page's ack, held by the stopped server, arrives late: ignored (the question is over).
+    await until(() => a.err().includes('ignored a page ack: not the question up now') || a.err().includes('ignored a page answer'), 10_000, 'the late ack ignored').catch(() => {
+      timings.page_late_ack = 0;
+    });
+    await sleep(500);
+    expect(a.child.exitCode).toBe(null);
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  /** Launch, wait for the page, report unsaved text, ⌘Q (SIGUSR2): the page's sheet up and acked. Null: the screen is locked. */
+  async function pageSheetUp(env: NodeJS.ProcessEnv = {}): Promise<{ a: App; r: Record_; id: string } | null> {
+    const a = launch([], { env });
+    const r = await until(() => record(), 20_000, 'ui.json');
+    await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
+    await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
+    if ((await windowCount(a.child.pid!)) < 0) {
+      a.child.kill('SIGTERM');
+      await a.exit;
+      return null;
+    }
+    expect(await report(r, { tab: TAB, hidden: false, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
+    await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
+    a.child.kill('SIGUSR2');
+    const id = await until(() => pageQuestions(a.err())[0], 5000, 'the page question');
+    await until(() => a.err().includes('quit: the window shows the question'), 5000, 'the page acked it');
+    return { a, r, id };
+  }
+
+  it('⚑ L5.12d fixes (review B-M2): SIGTERM while the page sheet is up — the app quits now, the question in the window dropped (its close script harmless), the server stopped gracefully; no alert', async () => {
+    const up = await pageSheetUp();
+    if (!up) {
+      shots.page_sigterm = 'skipped: the screen is locked (the page acks only while it is visible)';
+      return;
+    }
+    const { a, r } = up;
+    const t0 = Date.now();
+    a.child.kill('SIGTERM');
+    expect(await a.exit).toEqual({ code: 0, signal: null });
+    timings.page_sigterm_ms = Date.now() - t0;
+    expect(timings.page_sigterm_ms).toBeLessThan(3000);
+    expect(a.err()).toContain('quit: SIGTERM');
+    expect(a.err()).toContain('quit: the question in the window was dropped');
+    expect(a.err()).not.toContain('(test mode) alert:');
+    expect(a.err()).not.toMatch(/ignored a page (?:ack|answer)/);
+    await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
+    expectClean(a.err(), r.token);
+  }, 60_000);
+
+  it('⚑ L5.12d fixes (review B-M2): the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody\'s)', async () => {
+    const up = await pageSheetUp({ DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0' });
+    if (!up) {
+      shots.page_server_died = 'skipped: the screen is locked (the page acks only while it is visible)';
+      return;
+    }
+    const { a, r, id } = up;
+    process.kill(r.pid, 'SIGKILL');
+    await until(() => a.err().includes('not now: the window stays as it is'), 10_000, 'the restart alert answered Not Now (ANSWERS 0)');
+    const err = a.err();
+    expect(err).toMatch(/\(test mode\) alert: The Studio server stopped — It exited \(signal: 9/);
+    const dropped = err.indexOf('quit: the question in the window was dropped');
+    expect(dropped).toBeGreaterThan(-1);
+    expect(dropped).toBeLessThan(err.indexOf('(test mode) alert: The Studio server stopped'));
+    await sleep(500);
+    expect(a.child.exitCode).toBe(null);
+    // A later Quit: no page question (the window's server is gone) — the native alert, answered Cancel.
+    a.child.kill('SIGUSR2');
+    await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the quit question (native)');
+    expect(a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Demo Studio?'))).toContain('• README.md of northfield-fixture');
+    expect(pageQuestions(a.err())).toEqual([id]);
+    expect(a.err()).not.toMatch(/ignored a page (?:ack|answer)/);
+    a.child.kill('SIGTERM');
+    expect((await a.exit).code).toBe(0);
     expectClean(a.err(), r.token);
   }, 60_000);
 
@@ -576,10 +743,10 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     }
   }, 90_000);
 
-  it('L5.2b: the real question (MODAL_MS): a second window while it is up, gone after; a second Quit meanwhile ignored (H2); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
+  it('L5.2b: the real question (MODAL_MS, the native alert: DEMO_STUDIO_DESKTOP_TEST_QUIT=native): a second window while it is up, gone after; a second Quit meanwhile ignored (H2 — the page question re-dispatches instead: L5.12d); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
     const other = join(base, 'other-ws-l10');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: '3000', DEMO_STUDIO_DESKTOP_TEST_PICK: other } });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: '3000', DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
@@ -636,7 +803,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   }, 90_000);
 
   it('L5.2b: the owned server dies with unsaved text in the window — the restart alert names it, Not Now (its default) keeps the window, Quit then asks about the text only (its jobs are history)', async () => {
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0' } });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0', DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     await writeJob(ws, 'running');
@@ -666,7 +833,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   it('review B M5: Open Anyway and Quit Anyway end to end — the owned server stopped gracefully, the picked workspace served, the app exits 0, the jobs left running', async () => {
     const other = join(base, 'other-ws-m5');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0,0' } });
+    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0,0', DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     const job = await writeJob(ws, 'running');
@@ -706,7 +873,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     await mkdir(join(other, 'projects'), { recursive: true });
     const ABORT_MS = '20000';
     for (const kind of ['open', 'not-a-workspace', 'restart'] as const) {
-      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: ABORT_MS, DEMO_STUDIO_DESKTOP_TEST_PICK: kind === 'open' ? other : notWs } });
+      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: ABORT_MS, DEMO_STUDIO_DESKTOP_TEST_PICK: kind === 'open' ? other : notWs, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
       const r = await until(() => record(), 20_000, 'ui.json');
       await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
       if (kind === 'open') {

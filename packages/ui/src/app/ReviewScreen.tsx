@@ -472,7 +472,7 @@ function Checks({ groups, messages, fps, labelledBy, selected, onSelect }: { gro
     if (to === null) return;
     e.preventDefault();
     onSelect(order[to]);
-    listRef.current?.querySelector(`#${optionId(order[to])}`)?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector(`#${optionId(order[to])}`)?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   };
   return (
     <div ref={listRef}>

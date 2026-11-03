@@ -265,7 +265,7 @@ function StepList({ s, fb, finished, mode }: { s: RunLiveState; fb: RunStatusLit
   useEffect(() => {
     if (!follow || !curKey || !box.current) return;
     // The inspector pane is the scroller: the current row is brought into view there (nothing moves when it is visible).
-    box.current.querySelector<HTMLElement>(`[data-key="${CSS.escape(curKey)}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    box.current.querySelector<HTMLElement>(`[data-key="${CSS.escape(curKey)}"]`)?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
   }, [follow, curKey]);
   const scenes: Array<{ scene: string; steps: OutlineStep[] }> = [];
   for (const r of rows) {

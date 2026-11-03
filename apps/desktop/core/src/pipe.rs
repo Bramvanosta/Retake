@@ -6,6 +6,9 @@
 //! prose in an alert or a notification. An item with an unknown enum is dropped from its list but still counted in its
 //! total (the question still asks); a bad slug drops the name, the item stays. Lists are cut to `LIST_MAX`.
 //!
+//! L5.12d: `answer` {id, answer: proceed | cancel} and `shown` {id, shown: true} — the window page's word on the quit
+//! question (guard_flow), the id checked here (22 base64url characters) and against the question up in the shell.
+//!
 //! What is ignored (forward compatible, critique M4): a line that is no JSON object, a `type` this shell does not know,
 //! a `job_end` of an unknown kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then
 //! asks with generic words until the next valid one. The server frames each line with a newline before it (review A
@@ -182,6 +185,10 @@ pub enum PipeMsg {
     JobEnd(JobEnd),
     /// A `pending` that failed its checks (why).
     BadPending(String),
+    /// L5.12d: the window's page answered the quit question `id` (Quit Anyway: `proceed`) — through `desktop_answer`.
+    Answer { id: String, proceed: bool },
+    /// L5.12d: the window's page shows the quit question `id`.
+    Shown { id: String },
     /// Not for this shell (why): no JSON object, an unknown type, a job_end it cannot word.
     Ignored(&'static str),
     /// An empty line (the server's framing newline: review A L3) — nothing to say.
@@ -237,6 +244,26 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
             let reason = v.get("reason").and_then(Json::as_str).and_then(Reason::parse);
             let (project, scenario) = names(&v);
             PipeMsg::JobEnd(JobEnd { kind, outcome, reason, project, scenario })
+        }
+        Some(t @ ("answer" | "shown")) => {
+            // Strict (review A-L6): exactly `type`, `id` and its own field — the server writes these two fixed shapes.
+            let Json::Obj(fields) = &v else { return PipeMsg::Ignored("not JSON") };
+            let own = if t == "shown" { "shown" } else { "answer" };
+            if fields.len() != 3 || !fields.iter().all(|(k, _)| k == "type" || k == "id" || k == own) {
+                return PipeMsg::Ignored("a page line with other fields");
+            }
+            let Some(id) = v.get("id").and_then(Json::as_str).filter(|s| crate::guard_flow::id_ok(s)) else { return PipeMsg::Ignored("a page line without a question id") };
+            if t == "shown" {
+                return match v.get("shown") {
+                    Some(Json::Bool(true)) => PipeMsg::Shown { id: id.to_string() },
+                    _ => PipeMsg::Ignored("a shown line without shown: true"),
+                };
+            }
+            match v.get("answer").and_then(Json::as_str) {
+                Some("proceed") => PipeMsg::Answer { id: id.to_string(), proceed: true },
+                Some("cancel") => PipeMsg::Answer { id: id.to_string(), proceed: false },
+                _ => PipeMsg::Ignored("an answer this app does not know"),
+            }
         }
         Some(_) => PipeMsg::Ignored("a line type this app does not know"),
         None => PipeMsg::Ignored("no line type"),
@@ -342,6 +369,31 @@ mod tests {
         assert_eq!((p.jobs.len(), p.jobs_total, p.unsaved_total), (0, 0, 1));
         for k in JobKind::ALL {
             assert_eq!(JobKind::parse(k.wire()), Some(*k));
+        }
+    }
+
+    /// L5.12d: the page's answer and ack — strict fields, the id's shape checked; anything else ignored.
+    #[test]
+    fn answer_and_shown_lines_are_strict() {
+        const ID: &str = "AAAAAAAAAAAAAAAAAAAAAA";
+        assert_eq!(parse_pipe_line(&format!(r#"{{"type":"answer","id":"{ID}","answer":"proceed"}}"#)), PipeMsg::Answer { id: ID.into(), proceed: true });
+        assert_eq!(parse_pipe_line(&format!(r#"{{"type":"answer","id":"{ID}","answer":"cancel"}}"#)), PipeMsg::Answer { id: ID.into(), proceed: false });
+        assert_eq!(parse_pipe_line(&format!(r#"{{"type":"shown","id":"{ID}","shown":true}}"#)), PipeMsg::Shown { id: ID.into() });
+        for bad in [
+            format!(r#"{{"type":"answer","id":"{ID}","answer":"yes"}}"#),
+            format!(r#"{{"type":"answer","id":"{ID}"}}"#),
+            r#"{"type":"answer","id":"short","answer":"proceed"}"#.to_string(),
+            r#"{"type":"answer","id":"AAAAAAAAAAAAAAAAAAAA/+","answer":"proceed"}"#.to_string(),
+            format!(r#"{{"type":"shown","id":"{ID}","shown":false}}"#),
+            format!(r#"{{"type":"shown","id":"{ID}"}}"#),
+            r#"{"type":"shown","id":7,"shown":true}"#.to_string(),
+            // Review A-L6: no other field, not even one of the other line's.
+            format!(r#"{{"type":"answer","id":"{ID}","answer":"proceed","shown":true}}"#),
+            format!(r#"{{"type":"shown","id":"{ID}","shown":true,"answer":"cancel"}}"#),
+            format!(r#"{{"type":"answer","id":"{ID}","answer":"proceed","text":"x"}}"#),
+            format!(r#"{{"type":"shown","id":"{ID}","answer":"proceed"}}"#),
+        ] {
+            assert!(matches!(parse_pipe_line(&bad), PipeMsg::Ignored(_)), "{bad}");
         }
     }
 

@@ -860,7 +860,7 @@ function DraftList({
     const opt = document.getElementById(optId(activeAt));
     const list = opt?.closest<HTMLElement>('[role="listbox"]');
     if (list && document.activeElement !== list) list.focus({ preventScroll: true });
-    opt?.scrollIntoView?.({ block: 'nearest' });
+    opt?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
   });
   const press = (r: DraftRow) => {
     if (!r.source) return;
@@ -1539,7 +1539,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
   const live = v ? LIVE_STATES.has(v.state) : error === null;
   useFocusKeeper(title);
   // A recording opens at the top of the centre pane (the start form shares the screen's key: no scroll back by the shell).
-  useEffect(() => document.getElementById('main')?.scrollTo?.(0, 0), []);
+  useEffect(() => document.getElementById('main')?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' }), []);
   // The clock ticks while the recording goes (the time left, "draft updated …").
   useEffect(() => {
     if (!state || !LIVE_STATES.has(state)) return;

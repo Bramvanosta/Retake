@@ -351,3 +351,10 @@
     white-space: nowrap;
   }
 }
+
+/* L5.12d: the desktop app's quit question (QuitSheet.tsx): the shell's lines and bullets as it wrote them. */
+.sh-quit-text {
+  display: block;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

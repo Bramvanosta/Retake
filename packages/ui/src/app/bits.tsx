@@ -1,11 +1,11 @@
 /**
  * Small pieces shared by the screens. Every value from the server is a React text node; names, slugs, paths, URLs and
  * errors go through `Txt`: a `<bdi>` (bidirectional isolation — a right-to-left override cannot reorder the text around
- * it) whose explicit direction controls are shown as visible marks, so a name holding U+202E then "gnp.exe" never reads as "exe.png". Badges
- * always carry a word — colour is never the only cue.
+ * it) whose explicit direction controls are shown as visible marks, so a name holding U+202E then "gnp.exe" never reads as "exe.png".
+ * L5.12d: the legacy Badge, Notice and Loading are gone — every screen shows states with the kit (StatusMark, Tag,
+ * Callout, EmptyState, Progress), always with a word: colour is never the only cue.
  */
 import type { ReactNode } from 'react';
-import type { EnvironmentView } from '@demo-studio/engine';
 
 /** U+202A–U+202E and U+2066–U+2069: the controls that make text display in another order than it is stored. */
 const BIDI_CONTROLS = /[\u202A-\u202E\u2066-\u2069]/g;
@@ -49,45 +49,5 @@ export function When({ iso }: { iso: string | undefined }) {
     <time dateTime={new Date(t).toISOString()} title={new Date(t).toLocaleString('en')}>
       {text}
     </time>
-  );
-}
-
-export type BadgeTone = 'neutral' | 'danger' | 'warning' | 'info' | 'success';
-
-export function Badge({ tone = 'neutral', children }: { tone?: BadgeTone; children: ReactNode }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>;
-}
-
-/** production / read-only / sandbox, in words. */
-export function EnvFlags({ env }: { env: Pick<EnvironmentView, 'production' | 'access' | 'sandbox'> }) {
-  return (
-    <>
-      {env.production && <Badge tone="danger">production</Badge>}
-      {env.access === 'read-only' && <Badge tone="warning">read-only</Badge>}
-      {env.sandbox && <Badge tone="info">sandbox</Badge>}
-    </>
-  );
-}
-
-const RUN_TONE: Record<string, BadgeTone> = { succeeded: 'success', failed: 'danger', interrupted: 'danger', cancelled: 'warning', running: 'info', queued: 'info' };
-
-export function RunState({ status }: { status: string }) {
-  return <Badge tone={RUN_TONE[status] ?? 'neutral'}>{status}</Badge>;
-}
-
-export function Notice({ tone, title, children, role = 'status' }: { tone: 'info' | 'warning' | 'danger'; title?: string; children?: ReactNode; role?: 'status' | 'alert' | 'note' }) {
-  return (
-    <div className={`notice notice-${tone}`} role={role}>
-      {title && <p className="notice-title">{title}</p>}
-      {children}
-    </div>
-  );
-}
-
-export function Loading({ what }: { what: string }) {
-  return (
-    <p className="muted" role="status">
-      Loading {what}…
-    </p>
   );
 }

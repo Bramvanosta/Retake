@@ -147,6 +147,11 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                         None => {}
                     }
                 }
+                // L5.12d: the window page's ack or answer to the quit question (checked against the question up).
+                msg @ (PipeMsg::Answer { .. } | PipeMsg::Shown { .. }) => {
+                    crate::guard::from_page(msg);
+                    continue;
+                }
                 // The server's framing newline (review A L3): nothing to say, nothing changed.
                 PipeMsg::Blank => continue,
                 PipeMsg::Ignored(why) => {

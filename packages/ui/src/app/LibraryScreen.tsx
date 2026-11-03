@@ -361,7 +361,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
       // Enter on the selected card: its inspector (the pane, or in place when the person hid it).
       e.preventDefault();
       const target = document.querySelector<HTMLElement>('[data-lib-focus]');
-      target?.scrollIntoView?.({ block: 'nearest' });
+      target?.scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
       target?.focus();
       return;
     }

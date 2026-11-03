@@ -3,7 +3,7 @@
  * project, a scenario with a long name), on the UI gallery and the shell:
  * - ⚑ appearance switching — dark with no preference or `dark`, light only when the system asks, flipped live without a
  *   reload; a `data-appearance` scope keeps its own; the kit's focus ring is --ui-ring with its radius (the legacy layer
- *   cannot override it: critique M4);
+ *   cannot override it: critique M4); ⚑ L5.12d: under prefers-reduced-motion nothing of the gallery moves;
  * - the segmented control (arrows, a disabled segment skipped), the switch (Space), the toolbar (one tab stop; arrows,
  *   Home, End: L8; ⚑ holding a menu, radios and a URL field, it leaves their keys to them: review A-M2), the menu
  *   (Enter / ↓ / ↑ open it on the first or last item, arrows, typeahead, Enter chooses, Escape and Tab close it with the
@@ -124,6 +124,40 @@ describe('⚑ appearance (L5.9 part E)', () => {
     expect(await btn.evaluate((el) => el === document.activeElement)).toBe(true);
     const ring = await btn.evaluate((el) => ({ c: getComputedStyle(el).outlineColor, w: getComputedStyle(el).outlineWidth, r: getComputedStyle(el).borderTopLeftRadius }));
     expect(ring).toEqual({ c: 'rgb(47, 111, 224)', w: '2px', r: '7px' });
+  });
+});
+
+describe('⚑ L5.12d: reduced motion', () => {
+  it('the gallery under prefers-reduced-motion: reduce — the busy spinner and the indeterminate progress stand still (animation-name none), the switch\'s knob jumps (transition 0s); without it they move', async () => {
+    await gallery();
+    const motion = () =>
+      page.evaluate(() => {
+        const cs = (sel: string) => {
+          const el = document.querySelector(sel);
+          if (!el) throw new Error(`no ${sel}`);
+          return getComputedStyle(el);
+        };
+        return {
+          spinner: cs('.k-spinner').animationName,
+          progress: cs('.k-progress-track.is-indeterminate .k-progress-fill').animationName,
+          knob: cs('.k-switch-knob').transitionDuration,
+        };
+      });
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    expect(await motion()).toEqual({ spinner: 'k-spin', progress: 'k-slide', knob: '0.12s' });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await motion()).toEqual({ spinner: 'none', progress: 'none', knob: '0s' });
+    // Every element of the gallery: nothing animates or transitions under reduce.
+    const moving = await page.evaluate(() =>
+      [...document.querySelectorAll('*')]
+        .filter((el) => {
+          const c = getComputedStyle(el);
+          return c.animationName !== 'none' || c.transitionDuration.split(',').some((d) => Number.parseFloat(d) > 0);
+        })
+        .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`),
+    );
+    expect(moving).toEqual([]);
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
   });
 });
 
@@ -299,6 +333,23 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await sheet.waitFor({ state: 'hidden' });
     expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: cancel');
     expect(await opener.evaluate((el) => el === document.activeElement)).toBe(true);
+    // Review A-L2: Return on a Tab-focused destructive action never presses it — the default (Cancel) instead, as the
+    // native alert's Return; Space presses it.
+    await page.keyboard.press('Enter');
+    await sheet.waitFor(POLL);
+    await page.keyboard.press('Tab');
+    expect(await focused()).toBe('button::Discard');
+    await page.keyboard.press('Enter');
+    await sheet.waitFor({ state: 'hidden' });
+    expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: cancel');
+    await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
+    await page.keyboard.press('Enter');
+    await sheet.waitFor(POLL);
+    await page.keyboard.press('Tab');
+    await page.keyboard.press(' ');
+    await sheet.waitFor({ state: 'hidden' });
+    expect(await page.getByTestId('answer-dark').innerText()).toBe('Last answer: discard');
+    await expect.poll(() => opener.evaluate((el) => el === document.activeElement), POLL).toBe(true);
     // The destructive action, chosen on purpose.
     await page.keyboard.press('Enter');
     await sheet.getByRole('button', { name: 'Discard' }).click();
