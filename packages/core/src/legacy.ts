@@ -110,11 +110,51 @@ export function oldKitImportMessage(spec: string, kit: string): string | undefin
 
 // ── the home ────────────────────────────────────────────────────────────────────────────────────────────────────────
 
+/** The variable that named the home before L5.13 (DEMO_STUDIO_HOME). */
+export const OLD_HOME_VAR = `${OLD_ENV_PREFIX}HOME`;
+
+/** Where the sign-ins of before L5.13 are: `~/.demo-studio`, or the folder DEMO_STUDIO_HOME names. */
+export interface OldHomeDir {
+  /** Absolute. */
+  dir: string;
+  /** As told to the person: `~/.demo-studio`, or the variable's folder (`~/…` under the home). */
+  shown: string;
+  /** `shown` as a shell word for a command (single-quoted absolute path when it needs quoting). */
+  word: string;
+  /** Set when the folder is the one DEMO_STUDIO_HOME names (the person had moved the home then). */
+  byVar?: typeof OLD_HOME_VAR;
+}
+
+/**
+ * The home of before L5.13 for `env` (the L5.13a leftover): with DEMO_STUDIO_HOME set (and RETAKE_HOME not) the old
+ * build kept the sign-ins in THAT folder — resolved as the old build did (`~` expanded, then made absolute) — so that
+ * folder is the one to look at and to name, never `~/.demo-studio`; otherwise `~/.demo-studio`. Null when RETAKE_HOME is
+ * set (the person chose a home). Computes paths only, touches nothing.
+ */
+export function oldHomeDir(env: Record<string, string | undefined> = process.env, home: string = homedir()): OldHomeDir | null {
+  if (env.RETAKE_HOME?.trim()) return null;
+  const v = env[OLD_HOME_VAR]?.trim();
+  if (!v) return { dir: join(home, OLD_DIR), shown: `~/${OLD_DIR}`, word: `~/${OLD_DIR}` };
+  const dir = resolve(v === '~' || v.startsWith('~/') ? home + v.slice(1) : v);
+  const shown = dir === home ? '~' : dir.startsWith(`${home}/`) ? `~/${dir.slice(home.length + 1)}` : dir;
+  return { dir, shown, word: shellWord(shown, dir), byVar: OLD_HOME_VAR };
+}
+
+/** A path as a shell word: as it is when it needs no quoting (a leading `~/` kept), single-quoted (absolute) otherwise. */
+function shellWord(shown: string, dir: string): string {
+  if (/^(?:~\/)?[\w@%+=:,./-]+$/.test(shown)) return shown;
+  return `'${dir.replace(/'/g, `'\\''`)}'`;
+}
+
 /** The sign-ins left in the home of before L5.13. */
 export interface OldHome {
-  /** `~/.demo-studio` and `~/.retake` (absolute). */
+  /** The old home (`~/.demo-studio`, or DEMO_STUDIO_HOME's folder) and `~/.retake` (absolute). */
   old: string;
   home: string;
+  /** The old home as told (oldHomeDir `shown`). */
+  shown: string;
+  /** Set when the old home is DEMO_STUDIO_HOME's folder. */
+  byVar?: typeof OLD_HOME_VAR;
   /** The new home exists already (files the tool recreated by itself: approvals.key, mcp-http.token, desktop.json). */
   homeExists: boolean;
   /** The command that moves it (a swap when the new home exists). */
@@ -125,24 +165,28 @@ export interface OldHome {
 export const RECREATED_HOME_FILES = ['approvals.key', 'mcp-http.token', 'desktop.json'] as const;
 
 /**
- * The sign-ins of before L5.13 that are not read (critique H3): the old home holds `profiles/` or `sessions/` and the
- * new one holds neither. Stats only, and none at all when RETAKE_HOME is set (the person chose a home; every test sets
- * it, so tests never look at the real home: critique L10).
+ * The sign-ins of before L5.13 that are not read (critique H3): the old home (oldHomeDir: DEMO_STUDIO_HOME's folder
+ * when that is set, `~/.demo-studio` otherwise) holds `profiles/` or `sessions/` and the new one holds neither. Stats
+ * only, and none at all when RETAKE_HOME is set (the person chose a home; every test sets it, so tests never look at the
+ * real home: critique L10).
  */
 export function oldHomeState(env: Record<string, string | undefined> = process.env, home: string = homedir(), exists: (p: string) => boolean = existsSync): OldHome | null {
-  if (env.RETAKE_HOME?.trim()) return null;
-  const old = join(home, OLD_DIR);
+  const where = oldHomeDir(env, home);
+  if (!where) return null;
+  const old = where.dir;
   const now = join(home, '.retake');
   const signIns = (dir: string) => exists(join(dir, 'profiles')) || exists(join(dir, 'sessions'));
-  if (!signIns(old) || signIns(now)) return null;
+  if (old === now || !signIns(old) || signIns(now)) return null;
   const homeExists = exists(now);
-  const command = homeExists ? `mv ~/.retake ~/.retake.after-upgrade && mv ~/${OLD_DIR} ~/.retake` : `mv ~/${OLD_DIR} ~/.retake`;
-  return { old, home: now, homeExists, command };
+  const command = homeExists ? `mv ~/.retake ~/.retake.after-upgrade && mv ${where.word} ~/.retake` : `mv ${where.word} ~/.retake`;
+  return { old, home: now, shown: where.shown, ...(where.byVar ? { byVar: where.byVar } : {}), homeExists, command };
 }
 
 /** The one stderr line at CLI start (and the persona-missing preflight's hint). */
 export function oldHomeLine(s: OldHome): string {
-  return `Retake keeps sign-ins in ~/.retake; ~/${OLD_DIR} (from before the rename) is not read — stop the Studio, MCP clients and the worker, then: ${s.command} (retake doctor says more)`;
+  const stop = `stop the Studio, MCP clients and the worker, then: ${s.command} (retake doctor says more)`;
+  if (s.byVar) return `Sign-ins from before the rename are in ${s.shown}, set by ${s.byVar}, and not read (Retake keeps them in ~/.retake): set RETAKE_HOME to it, or move it — ${stop}`;
+  return `Retake keeps sign-ins in ~/.retake; ${s.shown} (from before the rename) is not read — ${stop}`;
 }
 
 /**
@@ -160,17 +204,19 @@ export function oldSignInHints(env: Record<string, string | undefined> = process
 
 /** What engine_info's `legacy` field says (the Studio's note, MCP's engine_info): absent when nothing old is left. */
 export interface LegacyInfo {
-  /** The old home still holds the only sign-ins (`~/.demo-studio`). */
+  /** The old home still holds the only sign-ins (`~/.demo-studio`, or DEMO_STUDIO_HOME's folder: then `old_home_var`). */
   old_home?: string;
+  /** `DEMO_STUDIO_HOME` when `old_home` is the folder it names (set RETAKE_HOME to it, or move it). */
+  old_home_var?: string;
   /** Old variables set whose new twin is not (oldVarsUnread): an MCP client never shows the CLI's stderr line. */
   old_vars?: string[];
 }
 
 export function legacyInfo(env: Record<string, string | undefined> = process.env): LegacyInfo | undefined {
-  const home = oldHomeState(env) ? `~/${OLD_DIR}` : undefined;
+  const old = oldHomeState(env);
   const vars = oldVarsUnread(env);
-  if (!home && !vars.length) return undefined;
-  return { ...(home ? { old_home: home } : {}), ...(vars.length ? { old_vars: vars } : {}) };
+  if (!old && !vars.length) return undefined;
+  return { ...(old ? { old_home: old.shown, ...(old.byVar ? { old_home_var: old.byVar } : {}) } : {}), ...(vars.length ? { old_vars: vars } : {}) };
 }
 
 // ── the workspace file ──────────────────────────────────────────────────────────────────────────────────────────────

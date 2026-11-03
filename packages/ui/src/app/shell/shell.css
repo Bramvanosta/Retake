@@ -101,13 +101,6 @@
   align-items: center;
   gap: var(--ui-space-3);
 }
-.sh-appmark {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--ui-radius-segment);
-  background: var(--ui-accent);
-}
 .sh-appname {
   flex: none;
   font-weight: var(--ui-weight-strong);
@@ -185,6 +178,11 @@
 }
 .sh-foot-legacy {
   color: var(--ui-text-2);
+}
+/* L5.13b: the rename notes apart from the Workspace block under them (it read as that block's first line): a gap after
+   the last note only, the notes themselves at the foot's own gap. */
+.sh-foot-legacy + .sh-foot-line:not(.sh-foot-legacy) {
+  margin-top: var(--ui-space-4);
 }
 .sh-foot-label {
   display: block;

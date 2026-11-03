@@ -855,7 +855,7 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
     const p = await open(app);
     try {
       expect(await p.evaluate(() => document.documentElement.dataset.titlebar)).toBe('overlay');
-      const geo = await p.evaluate(() => ({ mark: document.querySelector('.sh-appmark')!.getBoundingClientRect().left, bar: document.querySelector('.sh-titlebar')!.getBoundingClientRect().height, select: getComputedStyle(document.querySelector('.sh-titlebar')!).userSelect }));
+      const geo = await p.evaluate(() => ({ mark: document.querySelector('.sh-titlebar .k-appmark')!.getBoundingClientRect().left, bar: document.querySelector('.sh-titlebar')!.getBoundingClientRect().height, select: getComputedStyle(document.querySelector('.sh-titlebar')!).userSelect }));
       expect(geo.mark).toBeGreaterThanOrEqual(80);
       expect(geo.bar).toBe(48);
       // The mode switch stays centred on the window, inset or not (review B-L1: it sat 42 px right).
@@ -900,7 +900,7 @@ describe('⚑ the overlay title bar contract (L5.9, DESIGN §4j)', () => {
     // A browser tab: no flag, no inset; the switch centred too.
     expect(await page.evaluate(() => document.documentElement.dataset.titlebar ?? null)).toBeNull();
     expect(await centreOffset(page)).toBeLessThanOrEqual(1);
-    expect(await page.evaluate(() => document.querySelector('.sh-appmark')!.getBoundingClientRect().left)).toBeLessThan(40);
+    expect(await page.evaluate(() => document.querySelector('.sh-titlebar .k-appmark')!.getBoundingClientRect().left)).toBeLessThan(40);
     expect(errors).toEqual([]);
   });
 });

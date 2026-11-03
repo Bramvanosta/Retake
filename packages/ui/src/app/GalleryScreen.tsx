@@ -14,6 +14,7 @@ import { Picture } from './Thumb.js';
 import { SAMPLE_ACCENT, okHex, pickerValue } from './theme-words.js';
 import { ShellSlot } from './shell/slots.js';
 import {
+  AppMark,
   Blocker,
   Button,
   Checklist,
@@ -64,11 +65,14 @@ import {
   Toolbar,
 } from './ui-kit/index.js';
 import type { ButtonVariant, Command, MarkState } from './ui-kit/index.js';
+import type { MarkVariant } from '../mark.js';
 
 /** A 32 × 18 grey picture (PNG): the cards' frame. */
 const FRAME_PNG =
   'iVBORw0KGgoAAAANSUhEUgAAACAAAAASCAIAAAC1qksFAAABtklEQVR42q3TVW4cURSE4bMcx05MM2YaZmZmZmaP2U7MJK839dRq9b2PdwOfSr9UtLKp+bWlXVPp/+wYN/bMWwdW1ZF958S5d+be13gOdb5jQ+DUFNJYIjpbzOBImFwpsztt9Wbt/rwzWHSHy95o1R+vB5PNUKoVyXRiuV6iMEiVRpnKJFebEfTVbd1vtWF917S5b9k+tKmPHbunLugHWu+R3n9iDJ6Zw1prVG+PG51J6BZPxubLOQIFV6jkiVR8sVog0YAeTrej2W48308Wh+nyOFud5utzwnauju1cHdu5OrazerF5TijD1VGGq6MMV0cZVi+3Lwi6Ir1URpFeKqNIL5WRpy80FqXWstK5JGzn6tjO1bGdq2M7q9d614QyXB1luDrKcHWUYfXG4JagK9JLZRTppTKK9FIZefpq96rev2kO7wjbuTq2c3Vs5+rYzurt8QOJOhTKsHp3+o9EHQq6PH1rdN+Z/O3NHknUobCd1QeLZxJ1KJRh9dHylUQdCro8fX/+NDx/GV+8kahDYTurT68+SNShUIbV5zdfJOpQ0OXpJ5fvs+vPxe03iToUtrP68v7nP8P2dLcYjGN9AAAAAElFTkSuQmCC';
 
+/** The app mark's variants at the sizes they are seen at (L5.13b), each named in a visible caption (the marks are aria-hidden). */
+const APP_MARKS: Array<[MarkVariant, number]> = [['full', 128], ['full', 64], ['small', 32], ['tiny', 18], ['tiny', 16]];
 const WORDS: Record<MarkState, string> = { ok: 'Ready', running: 'Running', waiting: 'Waiting', idle: 'Idle', warn: 'Warning', attention: 'Blocked', fail: 'Failed', recording: 'Recording' };
 const VARIANTS: Array<[ButtonVariant, string]> = [
   ['primary', 'Render'],
@@ -226,6 +230,12 @@ function Column({ appearance }: { appearance: Appearance }) {
         {MARK_STATES.map((s) => (
           <StatusMark key={s} state={s} word={WORDS[s]} />
         ))}
+      </Section>
+      <Section title="App mark">
+        {APP_MARKS.map(([variant, size]) => (
+          <AppMark key={`${variant}-${size}`} variant={variant} size={size} />
+        ))}
+        <span className="gl-lede">{APP_MARKS.map(([variant, size]) => `${variant} ${size} px`).join(' · ')}</span>
       </Section>
       <Section title="Time and progress">
         <Timecode seconds={49} total={72} frame={1470} />

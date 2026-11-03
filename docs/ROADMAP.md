@@ -83,8 +83,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **done** — L5.10a (project side) and L5.10b (scenario side) (live checks: MACOS-CHECKLIST 14c) |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M → L, split | **done** — L5.11a (prepare, live, actions, Cast) and L5.11b (the Record screen) (live checks: MACOS-CHECKLIST 14d) |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **done** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K), L5.12c (Library, themes), L5.12d (quit sheet, end of legacy, motion) (live checks: MACOS-CHECKLIST 14e) |
-| L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **next** (when the user asks) |
-| L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
+| L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **done** — L5.13a the rename, L5.13b the mark (2026-11-03) |
+| L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **next** (when the user asks) |
 | L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
 | L5.15 | Renders on the GPU with a lighter load | S | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
@@ -953,6 +953,14 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   server's pipe (`desktop_answer`), the native alert as the fallback and for logout / restart; bits / main on the kit;
   app.css and the legacy tokens deleted, the ratchet at zero; the reduced-motion and className lints. Two independent
   reviews fixed with mutation-checked tests. Cuts: BL-135. L5.12 is done; next: L5.13.
+
+### L5.13 — Rename to Retake (split in L5.13a, L5.13b)
+- **Goal:** one name everywhere, no alias, and the "two takes" mark.
+- **Done (2026-11-03, in a worktree):** L5.13a — the command `retake`, packages `@retake/*`, `RETAKE_*` variables, the
+  home, workspace file and tool folders, MCP server / plugin / skills, the desktop app's name and identifier, Docker names,
+  by a committed deterministic script; an existing installation told (CLI line, Studio note, MCP, doctor), never migrated;
+  a guard test for leftovers. L5.13b — the mark in the Studio, the favicon and the desktop icons from one source. Two
+  independent reviews per part fixed with mutation-checked tests. Cuts: BL-136. Next: L5.16.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

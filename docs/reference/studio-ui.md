@@ -50,7 +50,7 @@ page's base (`base.css`: element defaults only, no class) read them.
 | `--ui-kbd` | `#2e3035` | `#e2e3e6` | key caps, a command to copy |
 | `--ui-record-tint` | `#2b2224` | `#f6e3e1` | the Capture button |
 | `--ui-recording` | `#3d2523` | `#f2d4d1` | the same while recording |
-| `--ui-accent` | `#2f6fe0` | `#2f6fe0` | the primary fill, a switch on, a progress fill, the app mark |
+| `--ui-accent` | `#2f6fe0` | `#2f6fe0` | the primary fill, a switch on, a progress fill |
 | `--ui-danger` | `#c42e25` | `#b42318` | a destructive button's fill |
 | `--ui-text` | `#ececef` | `#16181d` | text |
 | `--ui-text-2` | `#c9ccd3` | `#3d424b` | secondary text, a ghost button |
@@ -73,6 +73,7 @@ page's base (`base.css`: element defaults only, no class) read them.
 | `--ui-field-line` | `#43464d` | `#d3d5da` | a field's edge (see Fields below) |
 | `--ui-backdrop` | `rgba(6, 7, 8, 0.55)` | `rgba(22, 24, 29, 0.35)` | behind a sheet or the palette |
 | `--ui-shadow` | `rgba(0, 0, 0, 0.55)` | `rgba(0, 0, 0, 0.18)` | an overlay's shadow, the current segment's lift |
+| `--ui-mark-plate`, `-back`, `-front` | see The mark | | the app mark (L5.13b) |
 
 ### Contrast (WCAG ratios; a lint recomputes every pair in both appearances)
 
@@ -150,7 +151,7 @@ flight with their own dashed edge, no fade.)
 └───────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Title bar.** The app mark and name, then the open project (L5.10a: a menu button — the workspace's projects, then
+- **Title bar.** The app mark (tiny, 18 px: The mark and the name) and name, then the open project (L5.10a: a menu button — the workspace's projects, then
   "All projects" → Welcome) › the scenario (text), truncated before they reach the mode switch (at 900 px too). The mode switch is centred: a link per mode when a scenario is in context (the
   route's, or the one opened last in this project while it still lists it), disabled buttons with a hint otherwise.
   It is centred on the window, under the desktop app's overlay bar too (two equal side columns around it; the window
@@ -162,7 +163,9 @@ flight with their own dashed edge, no fade.)
   **Library** (Components, Themes); **Locations** (one row per environment, its riskiest flag in a word: production,
   read-only, sandbox, default); **Cast** (Sessions, then each persona's session as a shape and a word); **Project**
   (README with "unsaved" while dirty, Record a scenario). Its foot: the workspace path, the version and the worker's
-  pid, the UI gallery link. A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
+  pid, the UI gallery link; above them, the rename notes when something from before L5.13 is left unread (`role="note"`:
+  the old home's sign-ins, as the engine names the folder — with the old home variable, "set RETAKE_HOME to it, or move
+  it" —, and the old variables set), a gap after the last note only (the notes themselves at the foot's own gap). A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
   slot; the foot stays) — Video (the total length), Before filming, each scene (number, title, length, a 2 px bar against
   the longest), the cards (quieter), After filming; a row selects its entry and brings it into view (on the board the
   entry, in the YAML view its lines).
@@ -226,6 +229,7 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | RegionOverlay | L5.12b: a region over a picture by its shares (0–1), its label at the corner, dashed while drawn; `aria-hidden` (the region is said in words beside it) | presentational: the drag surface is the caller's |
 | DataTable | L5.12c: a native table — a caption (visible, or hidden and still its name), column headers `th scope="col"`, each row headed by its first cell (`th scope="row"`), a cell without a value a quiet dash; figures right-aligned (`numeric`); cells wrap (no inner scroll) | a component's slots and params; not for a list that selects (RowList) |
 | ColorField | L5.12c: one colour — the native `<input type="color">` (its well is the swatch dragged from: each move `onDraft`, its native `change` `onCommit`) and the hex typed beside it (Enter or leaving writes, once; empty and removable removes; anything else goes back), while dragged a dot of the written colour (a hex only) and "previewing #…" in words, a hint; nothing written: the well hatched and dashed (a shape, never a fade) and "not set (the picker starts at #…)" in hidden words describing both inputs; `version` (a new one shows the written value again: a refused write re-read); `onText` (the caller owns the text: every keystroke, kept as typed — a form) | the kit holds no colour: the picker's value and the swatch come from the caller (theme data); the hex field is named by the label and a hidden "hex" |
+| AppMark | L5.13b: the app mark, `full` / `small` / `tiny` at a given size (mark.ts's drawing, `--ui-mark-*`), `aria-hidden` | the title bar and Welcome only; the name always beside it (The mark and the name) |
 
 L5.12b also gave the kit: Segmented options a `testId` (the comments' `filter-*`), TrackItem `to` (a tick that is a
 link: a comment's pin), Scrubber `label`, TextArea `onKeyDown` (⌘↩ posts), LinkButton `onClick` (a hand-off before it
@@ -240,7 +244,7 @@ The Project and Scenario reference is **B32 (« B·3b Épure », round 3, valida
 layout and drawing. C1 / C2 are round 1's rejected « Script » direction: not used. The canvas says "Retake"; the
 Studio keeps `APP_NAME` (L5.13 renames).
 
-- **Welcome** (no project open; R4-Welcome) — built in L5.10a: R4's identity column — the app's 128 px mark, its name,
+- **Welcome** (no project open; R4-Welcome) — built in L5.10a: R4's identity column — the app's 128 px mark (full: The mark and the name), its name,
   version and one sentence, New project as a command to copy (no write path from the page), the projects folder —
   beside "Recent projects" (name, slug, scenario and location counts, last run as a shape and a word, location flags in
   words, folder; a project that does not load with its first error line); one column under 1180 px; then the search and
@@ -479,6 +483,39 @@ scrolling anywhere (every scroll call says `behavior: 'auto'`, a lint; Edit's fo
 
 ## The mark and the name
 
-The app mark today is the blue square of L4.1, drawn by the shell; "two takes" (declension "Nette": the previous take
-as a blue outline behind, the new one in front with a play triangle, on an ink plate) and the name Retake land together
-in L5.13 — `brand.ts`, the desktop app's name in `tauri.conf.json`, and the docs.
+The name is `brand.ts`'s `APP_NAME` (L5.13a) and the desktop app's `productName` in `tauri.conf.json`. The mark is
+**"two takes"** (L5.13b; declension « Nette » of the canvas, kept exactly as validated): the previous take as a blue
+outline behind, the new one in front with a play triangle, on a plate — one drawing, `packages/ui/src/mark.ts`, on a
+100-unit grid (plate 96 with 22-unit corners), in three variants by the size it is seen at (the bands are
+`markVariantFor`'s):
+
+| variant | size | drawing | where |
+|---|---|---|---|
+| full | ≥ 64 px | back take a 6-unit outline (50 × 36 at 17, 21), front take filled (50 × 36 at 33, 43), play triangle in the plate's colour (2.5 stroke, round joins) | Welcome (128 px), the desktop icon (1024, and the icns' 128 – 1024 slots) |
+| small | 21 – 63 px | frames 52 × 38 at 15, 19 / 33, 43, an 8-unit outline, no triangle | the icns' 32 pt slot (32 and 64 px) |
+| tiny | ≤ 20 px | both takes filled (56 × 40 at 12, 16; 56 × 42 at 32, 40), no triangle | the title bar (18 px), the favicon, the icns' 16 pt slot |
+
+| token | dark | light | use |
+|---|---|---|---|
+| `--ui-mark-plate` | `#2a2e37` | `#141823` | the plate and the triangle — a quiet lift in dark (≈ 1.3:1 on the `#18191c` title bar, accepted as decorative: the blue take carries the mark; an ink plate would vanish), the ink plate in light (the canvas's light-plate declension is not used: its triangle cannot be plate-coloured) |
+| `--ui-mark-back` | `#3d7bff` | `#3d7bff` | the back take |
+| `--ui-mark-front` | `#f4f5f7` | `#f4f5f7` | the front take |
+
+- **In the page:** the kit's `AppMark` (`variant`, `size`) — inline SVG, `aria-hidden` (the name is always written
+  beside it), painted by `.k-appmark-*` classes on those tokens (no colour in the component); the gallery shows the three
+  variants in both appearances.
+- **The favicon** is the tiny mark on the fixed ink palette (tokens.ts `MARK_INK`: plate `#141823`, back `#3d7bff`,
+  front `#f4f5f7` — a favicon does not follow the page's appearance in every browser), a `data:image/svg+xml` URL in
+  the document (the CSP's `img-src 'self' data:`; no route serves it).
+- **The desktop icon** is generated: `pnpm -F @retake/ui gen:mark` writes `apps/desktop/icons/icon.svg` (the full mark
+  on macOS's icon grid: a 1024 canvas, the plate 824 wide at 100), `icon.png` (1024², sharp), the iconset's 16 and 32 pt
+  slots drawn for their size (`iconset/icon_16x16{,@2x}.png` tiny, `icon_32x32{,@2x}.png` small) and `icon.json` (the
+  hash of each SVG a PNG was made from); a test compares them with `mark.ts` (ui `mark.test.ts`: the SVGs as text, each
+  PNG's pixels against its SVG rasterised again, within a tolerance). `desktop.mjs` requires the four drawn files at
+  their pixel sizes and fails the build otherwise.
+- **Contrast:** the back take on the plate, the front take on the back and on the plate, ≥ 3:1 in both appearances
+  (app-source's mark pairs).
+- Don't: draw the mark anywhere but through `mark.ts` (`AppMark`, `markSvg`); give it a meaning (it is never a button
+  or a state); put the triangle on the small or tiny variants. At Dock size the light front take with its triangle
+  reads close to a well-known video platform's logo — the person chose to keep the drawing as validated (2026-11-03);
+  the macOS 26 appearance variants (Icon Composer: dark, tinted) are BACKLOG BL-136.

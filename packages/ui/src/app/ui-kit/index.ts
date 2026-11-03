@@ -5,6 +5,7 @@
  */
 export { Button, IconButton, Kbd, LinkButton } from './Button.js';
 export type { ButtonProps, ButtonSize, ButtonVariant, IconButtonProps } from './Button.js';
+export { AppMark } from './AppMark.js';
 export { Icon, ICON_NAMES } from './Icon.js';
 export type { IconName } from './Icon.js';
 export { Segmented, SegmentedLinks } from './Segmented.js';

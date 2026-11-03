@@ -115,16 +115,52 @@ function run(cmd, args) {
   if (r.status !== 0) fail(`${cmd} failed`);
 }
 
-/** icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). */
+/**
+ * L5.13b: the icns slots drawn for their size — the mark's tiny (16 pt) and small (32 pt) drawings, file → pixel size
+ * (`pnpm -F @retake/ui gen:mark` writes them to icons/iconset/; mark.ts MARK_ICONSET, a test compares the two lists).
+ */
+export const DRAWN_ICONS = Object.freeze({ 'icon_16x16.png': 16, 'icon_16x16@2x.png': 32, 'icon_32x32.png': 32, 'icon_32x32@2x.png': 64 });
+
+/**
+ * What is wrong with the drawn icons in `dir` (none: an empty list): each must be there, a PNG, of its slot's pixel size
+ * (read from its IHDR header — iconutil accepts a mis-sized PNG without a word). No sips fallback for those slots.
+ */
+export function drawnIconProblems(dir = join(APP_DIR, 'icons', 'iconset')) {
+  const problems = [];
+  for (const [file, px] of Object.entries(DRAWN_ICONS)) {
+    const p = join(dir, file);
+    if (!existsSync(p)) {
+      problems.push(`${file} is missing`);
+      continue;
+    }
+    const b = readFileSync(p);
+    if (b.length < 24 || b.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a' || b.subarray(12, 16).toString('latin1') !== 'IHDR') {
+      problems.push(`${file} is not a PNG`);
+      continue;
+    }
+    const [w, h] = [b.readUInt32BE(16), b.readUInt32BE(20)];
+    if (w !== px || h !== px) problems.push(`${file} is ${w}×${h}, its slot needs ${px}×${px}`);
+  }
+  return problems;
+}
+
+/**
+ * icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). L5.13b: the 16 and 32 pt slots
+ * are the drawn icons of icons/iconset/ (required, sizes checked), the larger ones are downscaled from icon.png.
+ */
 function icns(out) {
+  const problems = drawnIconProblems();
+  if (problems.length) fail(`apps/desktop/icons/iconset: ${problems.join('; ')} — run pnpm -F @retake/ui gen:mark`);
   const work = mkdtempSync(join(tmpdir(), 'retake-icon-'));
   try {
     const set = join(work, 'icon.iconset');
     mkdirSync(set);
     const src = join(APP_DIR, 'icons', 'icon.png');
     for (const size of [16, 32, 128, 256, 512]) {
-      run('sips', ['-z', String(size), String(size), src, '--out', join(set, `icon_${size}x${size}.png`)]);
-      run('sips', ['-z', String(size * 2), String(size * 2), src, '--out', join(set, `icon_${size}x${size}@2x.png`)]);
+      for (const [file, px] of [[`icon_${size}x${size}.png`, size], [`icon_${size}x${size}@2x.png`, size * 2]]) {
+        if (file in DRAWN_ICONS) copyFileSync(join(APP_DIR, 'icons', 'iconset', file), join(set, file));
+        else run('sips', ['-z', String(px), String(px), src, '--out', join(set, file)]);
+      }
     }
     run('iconutil', ['-c', 'icns', set, '-o', out]);
   } finally {

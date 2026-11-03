@@ -6,6 +6,7 @@
  * - `UI_COLOURS` — the design system's semantic set (`--ui-*`), read by the kit (`ui-kit/`), the shell, the screens and
  *   the page's base (base.css).
  * - `UI_STATIC` — appearance-free tokens: type, spacing, radii, sizes, the font stacks.
+ * - `MARK_INK` — the app mark's fixed palette (the desktop icon, the favicon); the in-app mark reads `--ui-mark-*`.
  * L5.12d: the L4.1 – L4.9 palette (`--bg`, `--fg` …) and its appearance-free tokens went with the legacy layer (app.css):
  * every token is a `--ui-*` one.
  * No token is built from another (every value is a literal); the font files are the bundled Geist pair (BL-120),
@@ -63,7 +64,19 @@ export const UI_COLOURS: Record<string, Pair> = {
   'field-line': { dark: '#43464d', light: '#d3d5da' },
   backdrop: { dark: 'rgba(6, 7, 8, 0.55)', light: 'rgba(22, 24, 29, 0.35)' },
   shadow: { dark: 'rgba(0, 0, 0, 0.55)', light: 'rgba(0, 0, 0, 0.18)' },
+  // L5.13b: the "two takes" mark (mark.ts, ui-kit AppMark) — its plate a quiet lift on dark surfaces (≈ 1.3:1 on the
+  // title bar: the blue take carries the mark; an ink plate would vanish), the ink plate in light (the canvas's light
+  // plate cannot carry a plate-coloured triangle); the takes the same in both. Contrast pairs: app-source.test.ts.
+  'mark-plate': { dark: '#2a2e37', light: '#141823' },
+  'mark-back': { dark: '#3d7bff', light: '#3d7bff' },
+  'mark-front': { dark: '#f4f5f7', light: '#f4f5f7' },
 };
+
+/**
+ * L5.13b: the mark's fixed ink palette (mark.ts `MarkPalette`) — the desktop icon (gen:mark) and the favicon, which
+ * cannot follow the page's appearance (BL-124: "on an ink plate").
+ */
+export const MARK_INK = { plate: '#141823', back: '#3d7bff', front: '#f4f5f7' } as const;
 
 const SANS = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
 const MONO = "'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";

@@ -1,0 +1,25 @@
+{
+  "svg_sha256": "777ba0900b21ea0679c762562e9d2dfb7d93604c3d7450431848dce0c02d15c5",
+  "iconset": {
+    "icon_16x16.png": {
+      "variant": "tiny",
+      "px": 16,
+      "svg_sha256": "955cbe8ede15edd47620b293b8d6f7c71f2381449b083d29aa54835f223ee1bc"
+    },
+    "icon_16x16@2x.png": {
+      "variant": "tiny",
+      "px": 32,
+      "svg_sha256": "b95f9a73228f498e1fef7ce37a5ce81b60c012749fb2dd5fd5b6844460114a2f"
+    },
+    "icon_32x32.png": {
+      "variant": "small",
+      "px": 32,
+      "svg_sha256": "6fb888f22e781388f2d6f8b94af409afe784e5133c315c9d28c6e4e847966a03"
+    },
+    "icon_32x32@2x.png": {
+      "variant": "small",
+      "px": 64,
+      "svg_sha256": "427fe8d5f265962f15ff84389155c110c8a66e9847aefbf06cd68a076a476617"
+    }
+  }
+}

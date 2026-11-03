@@ -530,6 +530,29 @@
   color: var(--ui-fail);
 }
 
+/* L5.13b: the app mark, "two takes" (AppMark: mark.ts's drawing; decorative, the name beside it) */
+.k-appmark {
+  display: block;
+  flex: none;
+}
+.k-appmark-plate {
+  fill: var(--ui-mark-plate);
+}
+.k-appmark-back {
+  fill: var(--ui-mark-back);
+}
+.k-appmark-outline {
+  fill: none;
+  stroke: var(--ui-mark-back);
+}
+.k-appmark-front {
+  fill: var(--ui-mark-front);
+}
+.k-appmark-play {
+  fill: var(--ui-mark-plate);
+  stroke: var(--ui-mark-plate);
+}
+
 .k-timecode {
   color: var(--ui-text);
   font-size: var(--ui-type-sm);

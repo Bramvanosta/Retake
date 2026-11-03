@@ -184,7 +184,7 @@ export interface EngineInfo {
   entitlements: Entitlements;
   /**
    * L5.13: what is left from before the rename and not read — `old_home`: the old home still holds the sign-ins
-   * (`retake doctor` gives the move); `old_vars`: old variables set whose `RETAKE_*` twin is not (an MCP client never
+   * (`retake doctor` gives the move; `old_home_var` when it is the folder the old home variable names); `old_vars`: old variables set whose `RETAKE_*` twin is not (an MCP client never
    * shows the CLI's stderr line). Absent when nothing is.
    */
   legacy?: LegacyInfo;

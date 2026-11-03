@@ -1699,6 +1699,25 @@ Nothing of the new build moves your files: each step below is yours (README "Upg
    `retake-scenario`, `retake-theme`, `retake-component`; a dry run works with your moved sessions.
 <!-- old-name:end -->
 
+### 14g. The "two takes" mark: the Dock, Finder, the title bar and the favicon (L5.13b)
+
+By hand (no test sees the Dock, Finder or a real tab's favicon): `pnpm desktop:build`, then the built
+`apps/desktop/target/release/bundle/Retake.app`.
+
+1. **The Dock.** Open the app from Finder: the Dock shows the full mark (the blue outlined take behind, the light take
+   with its play triangle in front, on the ink plate) at the size of its neighbours — not the old blue square, not a
+   generic app icon. If the old icon still shows, macOS's icon cache kept it: quit the app, `touch` the bundle, open it
+   again.
+2. **Finder.** The bundle in a Finder window, in icon view at the largest size (the full mark, crisp) and in list view
+   (16 pt: the tiny mark — both takes filled, no triangle; on a Retina display too); ⌘I's preview at 32 pt (the small
+   mark: the back take an outline, no triangle). Nothing blurry, nothing cut at the plate's corners.
+3. **The window.** The title bar's mark (18 px, tiny) before "Retake", in dark and in light (System Settings ›
+   Appearance): its plate a lifted grey in dark, the ink plate in light, never lost in the bar. Welcome (no project
+   open): the 128 px full mark above the name.
+4. **The favicon.** `retake ui` in Safari, Chrome and Firefox: the tab's icon is the tiny mark on the ink plate in both
+   appearances (Safari may show a letter instead of an SVG favicon: note it — a favicon following the appearance there
+   is BACKLOG BL-136).
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

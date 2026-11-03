@@ -23,6 +23,7 @@ import {
   legacyInfo,
   loadWorkspaceConfig,
   oldEnvNames,
+  oldHomeDir,
   oldHomeLine,
   oldHomeState,
   oldKitImportMessage,
@@ -62,13 +63,53 @@ describe('the old home (critique H3)', () => {
 
   it('the old home holds profiles/ or sessions/ and the new one neither: the move, or the swap when the new one exists', () => {
     const move = oldHomeState({}, H, tree('.demo-studio/profiles').exists);
-    expect(move).toEqual({ old: join(H, '.demo-studio'), home: join(H, '.retake'), homeExists: false, command: 'mv ~/.demo-studio ~/.retake' });
+    expect(move).toEqual({ old: join(H, '.demo-studio'), home: join(H, '.retake'), shown: '~/.demo-studio', homeExists: false, command: 'mv ~/.demo-studio ~/.retake' });
     expect(oldHomeLine(move!)).toBe(
       'Retake keeps sign-ins in ~/.retake; ~/.demo-studio (from before the rename) is not read — stop the Studio, MCP clients and the worker, then: mv ~/.demo-studio ~/.retake (retake doctor says more)',
     );
     // The first signed job, the HTTP token or the desktop app recreated ~/.retake: still told, with the swap.
     const swap = oldHomeState({ RETAKE_HOME: ' ' }, H, tree('.demo-studio/sessions', '.retake/approvals.key').exists);
     expect(swap?.command).toBe('mv ~/.retake ~/.retake.after-upgrade && mv ~/.demo-studio ~/.retake');
+  });
+
+  it('the old home variable set (RETAKE_HOME not): THAT folder is the old home — looked at and named (set RETAKE_HOME to it, or move it); the old default home is not looked at (L5.13a leftover)', () => {
+    // The person had moved the home: their sign-ins are in the variable's folder, whatever ~/.demo-studio holds.
+    const out = '/Volumes/disk/old-home';
+    const t = { seen: [] as string[] };
+    const exists = (p: string) => (t.seen.push(p), [join(out, 'profiles'), join(H, '.demo-studio', 'profiles')].includes(p));
+    const s = oldHomeState({ DEMO_STUDIO_HOME: out }, H, exists);
+    expect(s).toEqual({ old: out, home: join(H, '.retake'), shown: out, byVar: 'DEMO_STUDIO_HOME', homeExists: false, command: `mv ${out} ~/.retake` });
+    expect(t.seen.filter((p) => p.startsWith(join(H, '.demo-studio')))).toEqual([]);
+    expect(oldHomeLine(s!)).toBe(
+      'Sign-ins from before the rename are in /Volumes/disk/old-home, set by DEMO_STUDIO_HOME, and not read (Retake keeps them in ~/.retake): set RETAKE_HOME to it, or move it — stop the Studio, MCP clients and the worker, then: mv /Volumes/disk/old-home ~/.retake (retake doctor says more)',
+    );
+    // The variable's folder without sign-ins: nothing to say, even when ~/.demo-studio holds some (it is not theirs).
+    expect(oldHomeState({ DEMO_STUDIO_HOME: out }, H, (p) => p === join(H, '.demo-studio', 'profiles'))).toBeNull();
+    // `~` expanded as the old build did; a folder under the home shown with `~/`; a word that needs quoting quoted (absolute).
+    expect(oldHomeDir({ DEMO_STUDIO_HOME: ' ~/old home ' }, H)).toEqual({ dir: join(H, 'old home'), shown: '~/old home', word: `'${join(H, 'old home')}'`, byVar: 'DEMO_STUDIO_HOME' });
+    const swap = oldHomeState({ DEMO_STUDIO_HOME: '~/dsh' }, H, (p) => p === join(H, 'dsh', 'sessions') || p === join(H, '.retake'));
+    expect(swap?.command).toBe('mv ~/.retake ~/.retake.after-upgrade && mv ~/dsh ~/.retake');
+    // The plain case stays as it was; RETAKE_HOME still wins over both; the variable naming ~/.retake itself: nothing.
+    expect(oldHomeDir({ DEMO_STUDIO_HOME: '  ' }, H)).toEqual({ dir: join(H, '.demo-studio'), shown: '~/.demo-studio', word: '~/.demo-studio' });
+    expect(oldHomeDir({ DEMO_STUDIO_HOME: out, RETAKE_HOME: '/h' }, H)).toBeNull();
+    expect(oldHomeState({ DEMO_STUDIO_HOME: '~/.retake' }, H, () => true)).toBeNull();
+    // The preflight's hints: the old home line naming the folder, then the variable's own line.
+    expect(oldSignInHints({ DEMO_STUDIO_HOME: out }, H, exists)).toEqual([oldHomeLine(s!), oldVarsLine(['DEMO_STUDIO_HOME'])]);
+  });
+
+  it('engine_info names the variable\'s folder and the variable (legacyInfo; the real home is a scratch HOME here)', async () => {
+    const home = join(tmp, 'info-var-home');
+    const out = join(tmp, 'info-var-old');
+    await mkdir(join(out, 'sessions'), { recursive: true });
+    await mkdir(join(home, '.demo-studio', 'profiles'), { recursive: true });
+    const saved = process.env.HOME;
+    process.env.HOME = home; // scratch HOME: restored below
+    try {
+      expect(legacyInfo({ DEMO_STUDIO_HOME: out })).toEqual({ old_home: out, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
+      expect(legacyInfo({})).toEqual({ old_home: '~/.demo-studio' });
+    } finally {
+      process.env.HOME = saved;
+    }
   });
 
   it('nothing to say: no old home, an old home without sign-ins, or a new home with sign-ins', () => {

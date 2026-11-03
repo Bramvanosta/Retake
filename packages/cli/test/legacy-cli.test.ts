@@ -78,6 +78,21 @@ describe('doctor: Before Retake', () => {
     expect(beforeRetakeChecks(probes({ HOME: H }, [`${H}/.demo-studio/approvals.key`]), W)[0].detail).toBe('~/.demo-studio (from before the rename) is not read; it holds no sign-ins');
   });
 
+  it('the old home variable set: the folder it names is the old home — named with the variable, set RETAKE_HOME to it or move it; the old default home not looked at (L5.13a leftover)', () => {
+    const out = '/Volumes/disk/old home';
+    const p = probes({ HOME: H, DEMO_STUDIO_HOME: out }, [`${out}/profiles/p/local/buyer`, `${H}/.demo-studio/profiles`]);
+    expect(lines(beforeRetakeChecks(p, W))[0]).toBe(
+      "warn Before Retake: home: /Volumes/disk/old home (set by DEMO_STUDIO_HOME) holds the sign-ins from before the rename and is not read → set RETAKE_HOME to '/Volumes/disk/old home' where DEMO_STUDIO_HOME is set, or move it: stop the Studio, the desktop app, MCP clients and the worker first, then: mv '/Volumes/disk/old home' ~/.retake",
+    );
+    expect(p.seen.filter((x) => x.startsWith(`${H}/.demo-studio`))).toEqual([]);
+    // Under the home: shown with ~/; the variable's folder without sign-ins says so; the plain case is unchanged above.
+    expect(beforeRetakeChecks(probes({ HOME: H, DEMO_STUDIO_HOME: '~/dsh' }, [`${H}/dsh/approvals.key`]), W)[0].detail).toBe('~/dsh (set by DEMO_STUDIO_HOME, from before the rename) is not read; it holds no sign-ins');
+    // RETAKE_HOME set: neither is looked at.
+    const set = probes({ HOME: H, DEMO_STUDIO_HOME: out, RETAKE_HOME: '/scratch/h' }, [`${out}/profiles`]);
+    expect(beforeRetakeChecks(set, W).filter((c) => c.name.endsWith('home'))).toEqual([]);
+    expect(set.seen.filter((x) => x.startsWith(out) || x.startsWith(H))).toEqual([]);
+  });
+
   it('RETAKE_HOME set, or no HOME in the probes: the old home is not even looked at', () => {
     for (const env of [{ HOME: H, RETAKE_HOME: '/scratch/h' }, {}]) {
       const p = probes(env, [`${H}/.demo-studio/profiles`]);

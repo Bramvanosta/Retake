@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve } from '@retake/core';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve } from '@retake/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -596,7 +596,8 @@ const BEFORE = 'Before Retake';
  * L5.13 — what is left from before the rename, each line with the exact command; no line when nothing is.
  * Stats, folder listings and the workspace's and projects' own `.gitignore` files, through the probes (nothing under
  * the old home is read, nothing is written):
- * the old home's sign-ins (not looked at when RETAKE_HOME is set — the person chose a home — nor without a HOME), the old variables in the
+ * the old home's sign-ins (the folder the old home variable names when it is set: core oldHomeDir; not looked at when
+ * RETAKE_HOME is set — the person chose a home — nor without a HOME), the old variables in the
  * environment, the old workspace file (`refused`: the load failed on it), the old tool folders of the workspace and its
  * projects with their pending rollback journals (critique L9), a `.gitignore` that ignores the old folder and not
  * `.retake/` (review B M1). Hooks, components and the MCP registration that still
@@ -604,28 +605,33 @@ const BEFORE = 'Before Retake';
  */
 export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused?: string): DoctorCheck[] {
   const out: DoctorCheck[] = [];
-  const old = `~/${OLD_DIR}`;
   // The probes' HOME only (never this process's): a mocked environment without one looks at no home at all.
   const home = p.env.HOME?.trim();
-  if (!p.env.RETAKE_HOME?.trim() && home) {
+  // The old home, or the folder the old home variable names when it is set (the old build kept the sign-ins there:
+  // core oldHomeDir).
+  const where = home ? oldHomeDir(p.env, home) : null;
+  if (home && where && where.dir !== join(home, '.retake')) {
     const signIns = (dir: string) => p.exists(join(dir, 'profiles')) || p.exists(join(dir, 'sessions'));
-    const oldDir = join(home, OLD_DIR);
+    const old = where.byVar ? `${where.shown} (set by ${where.byVar})` : where.shown;
+    const oldDir = where.dir;
     const newDir = join(home, '.retake');
     if (p.exists(oldDir)) {
       const stop = 'stop the Studio, the desktop app, MCP clients and the worker first';
+      // With the variable: keeping that folder as the home is the other way (RETAKE_HOME names it).
+      const orVar = where.byVar ? `set RETAKE_HOME to ${where.word} where ${where.byVar} is set, or move it: ` : '';
       if (!signIns(oldDir)) {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} (from before the rename) is not read; it holds no sign-ins`, hint: `remove it once you have checked it holds nothing you need` });
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${where.byVar ? `${where.shown} (set by ${where.byVar}, from before the rename)` : `${old} (from before the rename)`} is not read; it holds no sign-ins`, hint: `remove it once you have checked it holds nothing you need` });
       } else if (signIns(newDir)) {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} and ~/.retake both hold sign-ins: only ~/.retake is read`, hint: `merge by hand: move the profiles/<project>/<env>/<persona> and sessions/ entries you still need from ${old} into ~/.retake (${stop}), then remove ${old}` });
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} and ~/.retake both hold sign-ins: only ~/.retake is read`, hint: `merge by hand: move the profiles/<project>/<env>/<persona> and sessions/ entries you still need from ${where.shown} into ~/.retake (${stop}), then remove ${where.shown}` });
       } else if (p.exists(newDir)) {
         out.push({
           status: 'warn',
           name: `${BEFORE}: home`,
           detail: `${old} holds the sign-ins from before the rename and is not read; ~/.retake holds only files the tool recreated by itself (${RECREATED_HOME_FILES.join(', ')})`,
-          hint: `${stop}, then: mv ~/.retake ~/.retake.after-upgrade && mv ${old} ~/.retake`,
+          hint: `${orVar}${stop}, then: mv ~/.retake ~/.retake.after-upgrade && mv ${where.word} ~/.retake`,
         });
       } else {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} holds the sign-ins from before the rename and is not read`, hint: `${stop}, then: mv ${old} ~/.retake` });
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} holds the sign-ins from before the rename and is not read`, hint: `${orVar}${stop}, then: mv ${where.word} ~/.retake` });
       }
     }
   }

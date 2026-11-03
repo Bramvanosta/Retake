@@ -2114,8 +2114,8 @@ and `job_end` lines); what remains:
   and a class built in another file is not followed (review B-L2); a runtime check of the classes in the DOM (the
   review's probe) would close it.
 <!-- old-name:begin — BL-136 names the old names it would drop -->
-### BL-136 — Rename extras cut from L5.13a (and the old names to drop later)
-*S–M · cut in L5.13a · builds on: L5.13a · see BL-124*
+### BL-136 — Rename extras cut from L5.13a and L5.13b (and the old names to drop later)
+*S–M · cut in L5.13a / L5.13b · builds on: L5.13a, L5.13b · see BL-124*
 
 - **Drop the old outgoing variables**: hook and seed shells and sandbox process services still get `DEMO_STUDIO_SANDBOX`,
   `_RUN_ID`, `_ENV`, `_PROJECT_DIR` and `_ALLOWED_HOSTS` next to the `RETAKE_*` ones (core `legacy.ts`
@@ -2132,7 +2132,10 @@ and `job_end` lines); what remains:
 - The built-in `studio/` component namespace → `retake/`, with a migration of every theme and scenario that names it
   (if ever wanted); the `studio` comment channel and the `studio:*` page events likewise.
 - One `TOOL_DIR` constant for the ~45 `.retake` path literals.
-- The mark's extras are L5.13b's (macOS 26 icon appearances, a favicon following the appearance in Safari).
+- **The mark's extras, cut from L5.13b:** the macOS 26 icon appearance variants (Icon Composer: dark, tinted and clear
+  icons — an `.icon` file next to the icns; today one appearance, the ink plate, in every mode); a favicon that follows
+  the page's appearance in Safari (today the tiny mark on its fixed ink plate, a `data:` SVG — Safari may ignore SVG
+  favicons); a menu-bar / template-image form of the mark (none needed while the app has no status item).
 <!-- old-name:end -->
 
 

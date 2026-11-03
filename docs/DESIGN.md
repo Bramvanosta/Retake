@@ -4160,7 +4160,8 @@ rename (L5.13) changes the bundle id → one new prompt.
 **Build.** `desktop:build`: `cargo build --release --locked --features custom-protocol` (thin LTO, stripped: 7.9 MB
 binary) → `<target>/release/bundle/Retake.app` (Info.plist with `NSLocalNetworkUsageDescription` — the worker and
 its browser are the app's children, so macOS names the app in a local-network prompt —, the icon made by `sips` +
-`iconutil` from `icons/icon.png`, rasterised once from `icons/icon.svg`: the Studio's brand mark), `launch.json`,
+`iconutil` — the 16 and 32 pt slots copied from `icons/iconset/`, the larger ones downscaled from `icons/icon.png`;
+all generated from the app mark by `gen:mark`, §4o (b)), `launch.json`,
 `codesign --force --sign -` (ad hoc, no entitlement). Never copied to /Applications. Launch Services records each
 built copy even when its binary is started directly: `desktop:clean` unregisters it. Disk (measured 2026-10-29): the
 build folders are inside the checkout unless CARGO_TARGET_DIR is set — `apps/desktop/target` (≈ 1 GB for a debug
@@ -4324,7 +4325,10 @@ accepts the options of a listbox that a focusable combobox controls with `aria-a
 
 **Lints** (app-source.test.ts): colour literals only in tokens.css / tokens.ts; tokens.css = tokensCss(); its only URLs
 the two fonts; every token defined is used and every one used defined; contrast of every pair in both appearances (the
-legacy sets, the kit's text × surfaces and marks × surfaces, the switch's knob × track and track × pane: M7); focus
+legacy sets, the kit's text × surfaces and marks × surfaces, the switch's knob × track and track × pane: M7; L5.13b:
+the app mark's back take on its plate and front take on the back and the plate, every `fill` / `stroke` token in a mark
+pair — the dark plate itself is a quiet lift, ≈ 1.3:1 on the title bar, accepted below 3:1: the blue take carries the
+mark); focus
 rings in `--accent`, `--accent-strong` or `--ui-ring`; no `vh` in a height, inside `min()` / `max()` / `clamp()` too
 (review B-M1: the timeline's preview is `clamp(160px, calc(var(--main-h) * 0.44 - 46px), 460px)` — L4.9's 44vh less the
 two bars — so as many track rows show on load as before the shell; the palette, a fixed dialog, takes `70%` of the
@@ -5051,7 +5055,10 @@ for the web app.
   `ui --supervised` speak there) while `~/.demo-studio` holds `profiles/` or `sessions/` and `~/.retake` holds
   neither — RETAKE_HOME is tested first, so a chosen home (every test's) never makes it look; the same in
   engine_info (`legacy.old_home`: a one-line note in the Studio's sidebar, the MCP summary) and in the preflight's
-  failure when a persona was never signed in. Likewise an old variable set without its `RETAKE_*` twin
+  failure when a persona was never signed in. With `DEMO_STUDIO_HOME` set (and RETAKE_HOME not) the old home is the
+  folder it names (core `oldHomeDir`: the old build kept that person's sign-ins there; `~/.demo-studio` is then not
+  looked at): the line, the note (`legacy.old_home_var`), the MCP summary and doctor name that folder and the variable
+  — set RETAKE_HOME to it, or move it (L5.13b, the L5.13a leftover). Likewise an old variable set without its `RETAKE_*` twin
   (`DEMO_STUDIO_HOME`, `_ROOT`…: the tool now runs on another home or workspace): named — never its value — on that
   stderr line, in `legacy.old_vars` (an MCP client launched with an old registration env never shows stderr) and, for
   the home, in the preflight's failure. `retake doctor`'s "Before Retake" lines (the home: the move, or the swap
@@ -5090,8 +5097,41 @@ for the web app.
   bundled once, as the scaffold — flagged, so the bundle guard does not ask which component its kit imports belong to;
   a workspace component reusing a scaffold's id from another folder stays under the holder check (met when the rename
   made all 49 previews stale at once; editor `preview-scaffold.test.ts`).
-- The "two takes" mark (title bar, Welcome, favicon, desktop icon) is L5.13b.
+- The "two takes" mark (title bar, Welcome, favicon, desktop icon) is L5.13b: §4o (b).
 <!-- old-name:end -->
+
+### 4o (b). The "two takes" mark (L5.13b)
+
+R-REN-03. The app mark is one drawing, `packages/ui/src/mark.ts` (pure: geometry and `markSvg(variant, palette,
+{size?, iconGrid?})`, no colour of its own) — declension « Nette » of the canvas (BL-124), kept exactly as validated:
+the previous take as an outline behind, the new one in front with a play triangle, on a 96-unit plate (22-unit corners)
+of a 100-unit grid. Three variants by the size it is seen at (`markVariantFor`): `full` ≥ 64 px (the triangle at its
+size), `small` 21 – 63 px (larger frames, an 8-unit outline, no triangle), `tiny` ≤ 20 px (both takes filled, no
+triangle) — the bands are `markVariantFor`'s (16 pt → tiny, 32 pt → small for the iconset slots, 18 px → tiny for the
+title bar, 128 px → full on Welcome). Its colours are tokens.ts's: `--ui-mark-plate` (`#2a2e37` dark — a quiet lift,
+≈ 1.3:1 on the title bar's `--ui-pane` and accepted below 3:1 as decorative: the blue take carries the mark, an ink
+plate would vanish —, `#141823` light: the ink plate, since the canvas's light-plate declension, its triangle light on
+a light front, cannot be drawn with a plate-coloured triangle), `--ui-mark-back` `#3d7bff`, `--ui-mark-front` `#f4f5f7`; and the fixed `MARK_INK`
+palette (plate `#141823`) for what cannot follow the page's appearance. The kit's `AppMark` draws the geometry inline
+(`aria-hidden`, the name always beside it; fills by `.k-appmark-*` classes on the tokens, so the colour lints hold): the
+title bar's 18 px tiny mark and Welcome's 128 px full one (the placeholder squares went), and the gallery. The favicon
+is the tiny mark in `MARK_INK` as a `data:image/svg+xml` URL in the document (bundle.ts `FAVICON_URL`; the CSP's
+`img-src 'self' data:` unchanged, no route). The desktop icon is generated, never drawn by hand: `pnpm -F @retake/ui
+gen:mark` (scripts/gen-mark.ts, tsx) writes `apps/desktop/icons/icon.svg` (the full mark placed on macOS's icon grid: a
+1024 canvas, the plate 824 wide at 100 — scale 824 / 96), `icon.png` (1024², sharp resolved from packages/review where
+it is already a dependency), `iconset/icon_16x16{,@2x}.png` (tiny) and `icon_32x32{,@2x}.png` (small) — Finder's 16 and
+32 pt slots drawn for their size, the variant chosen by the slot's points so both densities show the same drawing
+(critique L3) — and `icon.json` (the SHA-256 of each SVG a PNG was made from). `desktop.mjs`'s icns step copies the
+committed iconset sizes — all four required, each one's pixel size read from its PNG header first (`DRAWN_ICONS`,
+`drawnIconProblems`: a missing or mis-sized file fails the build with "run gen:mark", never a sips fallback; iconutil
+itself accepts a mis-sized PNG) — and downscales `icon.png` (sips) for the others. `markSvg` takes `#rrggbb` palette
+values only (it throws otherwise). Tests (ui `mark.test.ts`): the committed SVG equals `markSvg`, icon.json names it
+and each iconset SVG, PNG sizes read from their headers, and each PNG's pixels compared with its SVG rasterised again
+by sharp (mean Δ < 2, max < 128 on 0–255 — never bytes, which follow the sharp / librsvg version: a reverted icon.png
+or a swapped slot fails), the mark's colours in the contrast lint (back on plate, front on back and plate ≥ 3:1 in
+both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny mark, AppMark draws mark.ts's geometry aria-hidden with no colour
+of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
+follows the appearance in Safari (BL-136).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

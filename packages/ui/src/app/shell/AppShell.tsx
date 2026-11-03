@@ -29,7 +29,7 @@ import { useEventMode, useEvents } from '../events.js';
 import type { EventMode } from '../events.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
-import { Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
+import { AppMark, Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
 import type { Command, IconName, MarkState, MenuCommand, SourceGroup, SourceItem } from '../ui-kit/index.js';
 import { BOARD_GROUPS, GROUP_LABEL, castState, envFlagWord, groupCounts } from '../board-words.js';
 import { useBoard, useCast, useProjectDataEvents, useProjectView } from '../project-data.js';
@@ -55,7 +55,7 @@ interface EngineInfoData {
   root: string;
   worker: { pid: number; started_by?: string } | null;
   /** L5.13: the sign-ins of before the rename are left in the old home; old variables are set — neither is read. */
-  legacy?: { old_home?: string; old_vars?: string[] };
+  legacy?: { old_home?: string; old_home_var?: string; old_vars?: string[] };
 }
 
 const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
@@ -445,7 +445,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
         </div>
         <header className="sh-titlebar">
           <div className="sh-titlebar-start">
-            <span className="sh-appmark" aria-hidden="true" />
+            <AppMark variant="tiny" size={18} />
             <span className="sh-appname">{APP_NAME}</span>
             {project && (
               <span className="sh-crumbs">
@@ -485,9 +485,17 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           <div className="sh-browser-foot">
             {info?.legacy?.old_home && (
               <p className="sh-foot-line sh-foot-legacy" role="note" data-testid="legacy-home">
-                {/* old-name:begin — the old home, in our own words (L5.13, critique H3) */}
-                Sign-ins from before the rename are in <span className="k-mono">~/.demo-studio</span> and not read: <span className="k-mono">retake doctor</span> shows the command to move them.
-                {/* old-name:end */}
+                {/* The old home as the engine names it (core legacyInfo): the old default, or the folder the old home variable named (then set RETAKE_HOME to it, or move it). */}
+                Sign-ins from before the rename are in <Txt className="k-mono" text={info.legacy.old_home} />
+                {info.legacy.old_home_var ? (
+                  <>
+                    , set by <Txt className="k-mono" text={info.legacy.old_home_var} />, and not read: set <span className="k-mono">RETAKE_HOME</span> to it, or move it (<span className="k-mono">retake doctor</span> shows the command).
+                  </>
+                ) : (
+                  <>
+                    {' '}and not read: <span className="k-mono">retake doctor</span> shows the command to move them.
+                  </>
+                )}
               </p>
             )}
             {info?.legacy?.old_vars && (

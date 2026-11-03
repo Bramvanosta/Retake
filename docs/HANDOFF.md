@@ -1,9 +1,11 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.12 (Studio « Épure » 4: Edit, Review and the rest; L5.12a – L5.12d)** — phases
+**Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by `scripts/rename-l513.mjs`, so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
+
+Last updated: 2026-11-03, end of lot **L5.13 (rename to Retake; L5.13a – L5.13b)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.12 done; the « Épure » redesign is complete). **Next: L5.13 (rename to Retake), only when the
-user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.13 done; the « Épure » redesign is complete and the tool is called Retake). **Next: L5.16 (the
+standalone app), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -29,6 +31,36 @@ automatically with themeable components, and let Claude operate everything throu
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
+
+## State (after L5.13)
+- **L5.13 done (2026-11-03)** — the rename to Retake, everything at once with no alias (L5.13a), and the "two takes"
+  mark (L5.13b). **L5.13a**: the command `retake`, packages `@retake/*`, variables `RETAKE_*`, the home `~/.retake`, the
+  workspace file `retake.yaml`, the tool folders `.retake/`, the MCP server / plugin / skills `retake` (`retake@retake`,
+  `retake-scenario` / `-theme` / `-component`, plugin key `cli`), the desktop app `Retake.app` (`local.retake.desktop`),
+  Docker objects `retake-*` (approved by the user), all done by a committed, deterministic script
+  (`scripts/rename-l513.mjs`, tracked files only, idempotent) plus hand changes. An existing installation is told, never
+  migrated: the old names the code still knows live only in `packages/core/src/legacy.ts` and `packages/engine/src/legacy.ts`
+  — a stderr line at CLI start, `engine_info.legacy` (MCP summary + a Studio sidebar note), the preflight hint and doctor's
+  "Before Retake" group (old home or the folder an old home variable names, old variables, the workspace file, old tool
+  folders with pending journals, project `.gitignore`s), each with the exact command; an old workspace file is refused
+  only when it is the tool's; nothing starts beside a live old Studio / worker (lock.ts's pid + start-time rule). Safety
+  lists keep the old names on purpose (the old tool folder stays agent-writable = never run as code; the worker drops the
+  old MCP token; outgoing hook / sandbox variables are written under both names for the person's product code). A guard
+  test (`core/test/old-name.test.ts`) keeps old names out of every tracked file and path except tagged lines / regions in
+  listed files; vitest gives every run a temp `RETAKE_HOME` and refuses the real homes. Kept, not old names: the built-in
+  `studio/` component namespace, the `studio` comment channel, `studio:*` page events, "the Studio" (the web app).
+  **L5.13b**: the mark "Nette" as validated (full with the play triangle; small and tiny without), one source
+  `packages/ui/src/mark.ts`, colours in tokens.ts, the kit `AppMark` in the title bar / Welcome / gallery, the favicon as a
+  data: URL (CSP unchanged), `pnpm -F @retake/ui gen:mark` → `apps/desktop/icons` (svg, 1024 png, the 16 / 32 pt iconset
+  slots drawn from the small variants, icon.json), the icns step requiring them; tests compare every committed PNG with
+  its SVG rasterised again. Tests on the Mac: **4144 — 4052 pass, 88 skipped, 4 failures in the one full run**: two
+  mechanical leftovers fixed after (an alphabetical order, a Rust test name), two load flakes green alone (capture-perf,
+  run cancellation); `pnpm test:slow` 63/65 then 65/65 (the plugin test's userConfig key fixed; the catalogue's freeze
+  check green alone); `pnpm test:pg` 20/20; the gated desktop shell 19/19 (Retake.app); Docker 6/7 — the K6 exec-seed
+  interrupt test times out on this Mac's Docker on the pre-rename main too (environment, not this lot). Requirements: 674
+  tracked — 633 done (R-REN-01 – 04 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the user: README's upgrade
+  section on their own installation, MACOS-CHECKLIST 14f (the renamed app: notifications and Local Network asked again)
+  and 14g (Dock / Finder icon).
 
 ## State (after L5.12d)
 - **L5.12d done (2026-11-03)** — L5.12 is complete and the Studio has no legacy layer left. **The desktop quit question
@@ -624,8 +656,8 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.13 (rename to Retake) per the roadmap**, only when the user asks (L5.12 is done: the « Épure » redesign is
-complete). **Decided
+**Next: L5.16 (the standalone app) per the roadmap**, only when the user asks (L5.13 is done: the tool is called
+Retake). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1591,6 +1623,18 @@ sandbox, a hook step and compact results through Claude Code).
   `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
   (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
   a save back). Cuts: BL-131.
+- **L5.13 done** (the rename to Retake and the mark; R-REN-01 – R-REN-04). Planned with a probe (the lockfile is never
+  regenerated offline: a text rewrite, keys re-sorted) and an adversarial critique (four Highs: the old tool folder must
+  stay never-run-as-code, the outgoing sandbox variable is read by the person's product, the old-home notice must not die
+  at first use, test isolation once the variable is renamed), split in two parts. L5.13a: the script, legacy.ts, the
+  notices and doctor group, the guard test, README "Upgrading", DESIGN §4o; two reviews (a planted old ui.json could block
+  every start; a test deleting the scratch home; a set old home variable silent; project `.gitignore`s; the script
+  touching untracked / dirty files) fixed with mutation-checked tests (≈ 40 + 31). L5.13b: the mark and gen:mark; two
+  reviews (the title-bar svg broke the hostile-data e2e guard; PNG tests that read only sizes; the icns step's silent
+  fallback; mark colours outside the contrast lint) fixed (28 mutations, with the old-home-variable case). Cuts: BL-136.
+  Files: `scripts/rename-l513.mjs`, `packages/{core,engine}/src/legacy.ts`, cli doctor / errors / main, `packages/ui/src/mark.ts`,
+  `ui-kit/AppMark.tsx`, `packages/ui/scripts/gen-mark.ts`, `apps/desktop/icons/*`, `core/test/old-name.test.ts`, 14
+  `legacy*` tests; ~1 030 files renamed.
 - **L5.12d done** (the quit sheet, the end of legacy, motion; R-DSK-04, R-UI-50). Started with a probe of the re-entry
   on macOS (the hook answers Cancel, a thread re-posts `terminate:`: SIGUSR2 and a Dock-style quit exit in 18–330 ms,
   reliable), so the page sheet was built with every rule of the critique's H1; reviewed by two reviewers (no path quits
@@ -1900,6 +1944,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.13:
+- Names: a branch from before L5.13 runs `node scripts/rename-l513.mjs` on itself before a rebase (`--dry` lists,
+  `--only <files>` for a few files, `--allow-dirty` for a dirty tree); lines or regions tagged `old-name:` are never
+  rewritten. The old names the code reads live only in `packages/core/src/legacy.ts` / `packages/engine/src/legacy.ts`;
+  tests of them are `legacy*.test.ts`; elsewhere the guard fails.
+- Every brief exports `RETAKE_HOME` (vitest makes a temp one when unset and refuses `~/.retake` / the old home).
+- Not old names: the `studio/` namespace, the `studio` comment channel, `studio:*` events, "the Studio", README block
+  markers `studio:component-preview`.
+- The main checkout's git-ignored old tool folders stay ignored (`.gitignore` keeps them): optional cleanup.
+
 Notes from L5.12d:
 - The quit question: `guard_flow.rs` is the only place its rules live (pure, injected clock); guard.rs runs its effects.
   `RETAKE_DESKTOP_TEST_QUIT=native` keeps the L5.2b gated cases on the native alert; the page-path cases run

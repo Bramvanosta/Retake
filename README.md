@@ -158,7 +158,8 @@ In this order:
    `mv ~/.demo-studio ~/.retake`. When `~/.retake` exists already (the tool recreated `approvals.key`,
    `mcp-http.token` or `desktop.json` by itself): `mv ~/.retake ~/.retake.after-upgrade && mv ~/.demo-studio ~/.retake`.
    A home of your own named by `DEMO_STUDIO_HOME` is named by `RETAKE_HOME` now (while only the old variable is set,
-   every command says so on stderr, and the Studio and Claude's `engine_info` say it too).
+   every command says so on stderr, and the Studio and Claude's `engine_info` say it too — naming that folder, not
+   `~/.demo-studio`, when it holds the only sign-ins): set `RETAKE_HOME` to it, or move it to `~/.retake`.
 4. **Each workspace**: `mv studio.yaml retake.yaml` (a workspace whose only workspace file is `studio.yaml` is refused
    with that command), `mv .demo-studio .retake` at its root and in each project (pending rollback journals live there:
    `retake env reset` finds them only once moved), and `.retake/` in the workspace's `.gitignore` **and in each
@@ -3425,7 +3426,9 @@ running: the MCP server keeps working without it.
 - **Fonts.** The Studio bundles the Geist and Geist Mono variable fonts (SIL Open Font License 1.1: the licence is
   `packages/ui/fonts/LICENSE.txt`, beside the files) and serves them itself — no font is fetched from the internet.
   After changing a colour in `packages/ui/src/app/tokens.ts`, `pnpm -F @retake/ui gen:tokens` writes
-  `tokens.css` again (a test fails while it is stale). A screen moved onto the design system lowers its row of
+  `tokens.css` again (a test fails while it is stale). The app mark ("two takes": `packages/ui/src/mark.ts`) is
+  drawn from one source: after changing it, `pnpm -F @retake/ui gen:mark` writes the desktop app's icon files
+  (`apps/desktop/icons/`) again (a test fails while they are stale). A screen moved onto the design system lowers its row of
   `packages/ui/test/legacy-controls.json` with `pnpm -F @retake/ui ratchet` (the count of controls, roles, classes
   and tokens it still draws by hand; a row only goes down).
 

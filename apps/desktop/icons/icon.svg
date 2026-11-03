@@ -1,13 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- The Studio's brand mark (app.css .brand-mark: the accent square, its inset shine on the right and bottom edges)
-       on a macOS icon plate. pnpm desktop:build makes icon.icns from icon.png (sips + iconutil). -->
-  <defs>
-    <mask id="shine">
-      <rect x="262" y="262" width="500" height="500" rx="139" fill="#fff"/>
-      <rect x="95" y="95" width="500" height="500" rx="139" fill="#000"/>
-    </mask>
-  </defs>
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="#f6f7f9"/>
-  <rect x="262" y="262" width="500" height="500" rx="139" fill="#2357d9"/>
-  <rect x="262" y="262" width="500" height="500" fill="#fff" fill-opacity="0.28" mask="url(#shine)"/>
+<g transform="translate(82.8333 82.8333) scale(8.5833)">
+<rect x="2" y="2" width="96" height="96" rx="22" fill="#141823"/>
+<rect x="17" y="21" width="50" height="36" rx="7" fill="none" stroke="#3d7bff" stroke-width="6"/>
+<rect x="33" y="43" width="50" height="36" rx="7" fill="#f4f5f7"/>
+<path d="M53 54 L53 68 L64.5 61 Z" fill="#141823" stroke="#141823" stroke-width="2.5" stroke-linejoin="round"/>
+</g>
 </svg>

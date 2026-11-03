@@ -360,9 +360,9 @@ describe('the Studio in Chromium', () => {
     expect(await pwned(page)).toBeNull();
     expect(dialogs).toEqual([]);
     expect(await csp(page)).toBe(0);
-    // (The kit's own icons and state shapes — classes k-icon and k-mark-svg, the kit's own — are aria-hidden SVG drawn
-    // by the Studio, never from data; the __pwned and CSP checks above stay the real guard.)
-    expect(await page.locator('img, iframe, svg:not(.k-icon):not(.k-mark-svg), object, embed').count()).toBe(0);
+    // (The kit's own icons, state shapes and app mark — classes k-icon, k-mark-svg and k-appmark, the kit's own — are
+    // aria-hidden SVG drawn by the Studio, never from data; the __pwned and CSP checks above stay the real guard.)
+    expect(await page.locator('img, iframe, svg:not(.k-icon):not(.k-mark-svg):not(.k-appmark), object, embed').count()).toBe(0);
     expect(await page.locator('script').count()).toBe(1);
     const hrefs = await page.locator('a[href]').evaluateAll((as) => as.map((a) => a.getAttribute('href') ?? ''));
     expect(hrefs.length).toBeGreaterThan(0);

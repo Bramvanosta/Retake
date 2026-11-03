@@ -29,7 +29,8 @@
  * shell (guard_flow.rs), the page (shell/quit.ts) and the server (desktop.ts); no TerminateLater; the page only for a
  * plain Quit on the Studio's origin (test mode's RETAKE_DESKTOP_TEST_QUIT=native aside); every exit closes it.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -338,6 +339,34 @@ describe('desktop shell configuration (L5.2, static)', () => {
     for (const c of ['dev', 'build', 'test', 'clean']) expect(pkg.scripts[`desktop:${c}`]).toBe(`node apps/desktop/scripts/desktop.mjs ${c}`);
     const ignore = readFileSync(join(REPO, '.gitignore'), 'utf8').split('\n');
     for (const p of ['apps/desktop/target/', 'apps/desktop/core/target/', 'apps/desktop/gen/']) expect(ignore).toContain(p);
+  });
+
+  it('⚑ L5.13b: the icns\'s 16 and 32 pt slots are the drawn icons — all four required, each a PNG of its slot\'s size (no silent sips fallback)', async () => {
+    type Drawn = { DRAWN_ICONS: Record<string, number>; drawnIconProblems: (dir?: string) => string[] };
+    const { DRAWN_ICONS, drawnIconProblems } = (await import(join(APP, 'scripts', 'desktop.mjs'))) as Drawn;
+    expect(DRAWN_ICONS).toEqual({ 'icon_16x16.png': 16, 'icon_16x16@2x.png': 32, 'icon_32x32.png': 32, 'icon_32x32@2x.png': 64 });
+    // The committed iconset passes.
+    expect(drawnIconProblems()).toEqual([]);
+    const dir = mkdtempSync(join(tmpdir(), 'retake-drawn-'));
+    try {
+      const committed = join(APP, 'icons', 'iconset');
+      const fill = () => {
+        for (const f of Object.keys(DRAWN_ICONS)) copyFileSync(join(committed, f), join(dir, f));
+      };
+      fill();
+      expect(drawnIconProblems(dir)).toEqual([]);
+      // A missing file, a 32 px drawing in the 16 px slot, a file that is no PNG: each named.
+      rmSync(join(dir, 'icon_32x32@2x.png'));
+      copyFileSync(join(committed, 'icon_32x32.png'), join(dir, 'icon_16x16.png'));
+      writeFileSync(join(dir, 'icon_16x16@2x.png'), 'not a png at all, but long enough');
+      expect(drawnIconProblems(dir)).toEqual(['icon_16x16.png is 32×32, its slot needs 16×16', 'icon_16x16@2x.png is not a PNG', 'icon_32x32@2x.png is missing']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    // The build fails on any of them (never a sips downscale for a drawn slot).
+    const js = read('scripts/desktop.mjs');
+    expect(js).toContain("if (problems.length) fail(`apps/desktop/icons/iconset: ${problems.join('; ')} — run pnpm -F @retake/ui gen:mark`);");
+    expect(js).toContain("if (file in DRAWN_ICONS) copyFileSync(join(APP_DIR, 'icons', 'iconset', file), join(set, file));");
   });
 
   it('prepared for the redesign: one command table, the Scenario menu\'s keys as page commands only, ⌘S and ⌘Enter left free, one title-bar switch, no forced theme, name and id in one place', () => {

@@ -8,13 +8,16 @@
  * served from memory at `/fonts/<file>` (font/woff2) — the Studio's own origin, never a CDN; tokens.css names those
  * two URLs, left to the server (esbuild `external`). The document names its colour schemes (no white flash on a dark
  * system before app.css) and preloads both fonts.
+ * L5.13b: the favicon is the app mark's tiny variant on its ink plate (mark.ts, tokens.ts MARK_INK) as a `data:` URL in
+ * the document — the CSP's `img-src 'self' data:` allows it, no route serves it.
  */
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_NAME } from './app/brand.js';
-import { FONT_FILES } from './app/tokens.js';
+import { FONT_FILES, MARK_INK } from './app/tokens.js';
+import { markDataUrl } from './mark.js';
 
 export interface UiAsset {
   bytes: Buffer;
@@ -28,6 +31,9 @@ const PACKAGE_DIR = dirname(dirname(fileURLToPath(import.meta.url)));
 export const APP_ENTRY = join(PACKAGE_DIR, 'src', 'app', 'main.tsx');
 export const FONTS_DIR = join(PACKAGE_DIR, 'fonts');
 
+/** The favicon: the tiny "two takes" mark (a favicon cannot follow the page's appearance in every browser: the ink plate). */
+export const FAVICON_URL = markDataUrl('tiny', MARK_INK);
+
 /** Browsers the bundle targets (the user opens the Studio in Safari, Chrome or Firefox). */
 export const UI_TARGETS = ['chrome120', 'safari17', 'firefox120'];
 
@@ -39,7 +45,7 @@ export const INDEX_HTML = `<!doctype html>
 <meta name="referrer" content="no-referrer">
 <meta name="color-scheme" content="dark light">
 <title>${APP_NAME}</title>
-<link rel="icon" href="data:,">
+<link rel="icon" type="image/svg+xml" href="${FAVICON_URL}">
 ${FONT_FILES.map((f) => `<link rel="preload" href="/fonts/${f.file}" as="font" type="font/woff2" crossorigin>`).join('\n')}
 <link rel="stylesheet" href="/app.css">
 <script type="module" src="/app.js"></script>

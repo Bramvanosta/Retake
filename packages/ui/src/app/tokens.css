@@ -101,6 +101,9 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #43464d;
   --ui-backdrop: rgba(6, 7, 8, 0.55);
   --ui-shadow: rgba(0, 0, 0, 0.55);
+  --ui-mark-plate: #2a2e37;
+  --ui-mark-back: #3d7bff;
+  --ui-mark-front: #f4f5f7;
 }
 /* The system asks for light. */
 @media (prefers-color-scheme: light) {
@@ -142,6 +145,9 @@ html[data-titlebar='overlay'] {
     --ui-field-line: #d3d5da;
     --ui-backdrop: rgba(22, 24, 29, 0.35);
     --ui-shadow: rgba(0, 0, 0, 0.18);
+    --ui-mark-plate: #141823;
+    --ui-mark-back: #3d7bff;
+    --ui-mark-front: #f4f5f7;
   }
 }
 /* Scopes inside the page (the gallery): after the media block, so a scope always wins. */
@@ -183,6 +189,9 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #d3d5da;
   --ui-backdrop: rgba(22, 24, 29, 0.35);
   --ui-shadow: rgba(0, 0, 0, 0.18);
+  --ui-mark-plate: #141823;
+  --ui-mark-back: #3d7bff;
+  --ui-mark-front: #f4f5f7;
 }
 [data-appearance='dark'] {
   color-scheme: dark;
@@ -222,6 +231,9 @@ html[data-titlebar='overlay'] {
   --ui-field-line: #43464d;
   --ui-backdrop: rgba(6, 7, 8, 0.55);
   --ui-shadow: rgba(0, 0, 0, 0.55);
+  --ui-mark-plate: #2a2e37;
+  --ui-mark-back: #3d7bff;
+  --ui-mark-front: #f4f5f7;
 }
 /* ::backdrop inherits no custom property in Safari 17 and Firefox 120 (UI_TARGETS): the veils are declared on it. */
 ::backdrop {

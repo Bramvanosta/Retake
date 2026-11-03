@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "gen:tokens": "tsx scripts/gen-tokens.ts",
+    "gen:mark": "tsx scripts/gen-mark.ts",
     "ratchet": "tsx scripts/ratchet.ts"
   },
   "dependencies": {

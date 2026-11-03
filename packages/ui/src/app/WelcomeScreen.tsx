@@ -21,7 +21,7 @@ import { envFlagWords } from './board-words.js';
 import { hrefTo } from './route.js';
 import { ShellSlot } from './shell/slots.js';
 import type { ProjectList } from './shell/AppShell.js';
-import { Blocker, EmptyState, Facts, InspectorSection, StatusMark } from './ui-kit/index.js';
+import { AppMark, Blocker, EmptyState, Facts, InspectorSection, StatusMark } from './ui-kit/index.js';
 import type { MarkState } from './ui-kit/index.js';
 
 /** projects_overview's answer: per project, its environment flags and last run (or why it does not open). */
@@ -128,7 +128,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
     <div className="sc-screen wl">
       <div className="wl-top">
         <section className="wl-intro" aria-labelledby="wl-h1">
-          <span className="wl-mark" aria-hidden="true" />
+          <AppMark variant="full" size={128} />
           <h1 id="wl-h1" className="sc-h1">
             {shown(APP_NAME)}
           </h1>

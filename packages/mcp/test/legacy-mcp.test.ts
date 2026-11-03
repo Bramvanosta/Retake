@@ -1,8 +1,9 @@
 /**
  * old-name: this whole file (the guard test allows it).
  *
- * L5.13 through MCP, on a server started from the sources over stdio, in a HOME whose `.demo-studio` (the home from
- * before the rename) still holds the only sign-ins, with no RETAKE_HOME and an old DEMO_STUDIO_HOME still exported:
+ * L5.13 through MCP, on a server started from the sources over stdio, with no RETAKE_HOME and an old DEMO_STUDIO_HOME
+ * still exported whose folder holds the only sign-ins (a HOME whose `.demo-studio` holds some too — not that person's:
+ * the L5.13a leftover, the old home is the variable's folder):
  * - critique H1: a scenario whose `eval.file` lies in an old `.demo-studio/` folder of the project is refused (its
  *   files — page dumps, drafts — are never run as code);
  * - critique H3 / L10: the old-home line goes to stderr only (the protocol on stdout stays clean) and engine_info says it;
@@ -42,6 +43,7 @@ beforeAll(async () => {
   await mkdir(ws, { recursive: true });
   await fixtureWorkspace(ws);
   await mkdir(join(home, '.demo-studio', 'profiles', 'northfield-fixture', 'signed-in', 'buyer'), { recursive: true });
+  await mkdir(join(tmp, 'old-custom-home', 'profiles', 'northfield-fixture', 'signed-in', 'buyer'), { recursive: true });
   const old = join(ws, 'projects', 'northfield-fixture', '.demo-studio', 'inspect', 'i_01');
   await mkdir(old, { recursive: true });
   await writeFile(join(old, 'dump.js'), 'document.title');
@@ -79,11 +81,15 @@ describe('MCP and the names from before the rename', () => {
   it('the old-home line is on stderr, never on stdout; engine_info says the sign-ins are not read (critique H3, L10)', async () => {
     const info = await call('engine_info');
     expect(info.isError).toBeFalsy();
-    expect(info.structuredContent?.legacy).toEqual({ old_home: '~/.demo-studio', old_vars: ['DEMO_STUDIO_HOME'] });
-    expect(info.content[0].text).toContain('The signed-in sessions from before the rename (~/.demo-studio) are not read');
-    expect(info.content[0].text).toContain("This server's environment sets DEMO_STUDIO_HOME (names from before the rename), no longer read: ask the user to rename it RETAKE_HOME where set");
-    expect(info.content[0].text).not.toContain('old-custom-home');
-    expect(stderr).toContain('Retake keeps sign-ins in ~/.retake; ~/.demo-studio (from before the rename) is not read');
+    const custom = join(tmp, 'old-custom-home');
+    expect(info.structuredContent?.legacy).toEqual({ old_home: custom, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
+    expect(info.content[0].text).toContain(`The signed-in sessions from before the rename (${custom}, the folder DEMO_STUDIO_HOME names) are not read: personas show as never signed in until the user sets RETAKE_HOME to that folder or moves it`);
+    const vars = info.content[0].text.slice(info.content[0].text.indexOf("This server's environment"));
+    expect(vars).toContain("This server's environment sets DEMO_STUDIO_HOME (names from before the rename), no longer read: ask the user to rename it RETAKE_HOME where set");
+    expect(vars).not.toContain('old-custom-home');
+    expect(info.content[0].text).not.toContain('~/.demo-studio');
+    expect(stderr).toContain(`Sign-ins from before the rename are in ${custom}, set by DEMO_STUDIO_HOME, and not read (Retake keeps them in ~/.retake): set RETAKE_HOME to it, or move it`);
+    expect(stderr).not.toContain('~/.demo-studio');
     expect(stderr).toContain("DEMO_STUDIO_HOME is set but no longer read: rename it RETAKE_HOME where it is set — shell profile, the MCP registration's env");
     expect(protocolErrors).toEqual([]);
   });

@@ -851,7 +851,9 @@ const OVER_MEDIA: string[] = [];
  * ring, status marks, the switch's knob and track, the accent fill as a mark) at 3:1 where they stand.
  * Accepted below 3:1 and stated (DESIGN §4k): --ui-hairline (decorative, inside lists), --ui-field-line (a field's
  * edge: every field has a visible label and the focus ring), --ui-select against --ui-pane (a selected row adds weight
- * 600 or a 2 px ring: the checker's `selected` rule), --ui-waiting on raised surfaces (never drawn there).
+ * 600 or a 2 px ring: the checker's `selected` rule), --ui-waiting on raised surfaces (never drawn there),
+ * --ui-mark-plate against the title bar / canvas (L5.13b: the app mark's plate is a quiet lift in dark, ≈ 1.3:1 — the
+ * blue take carries the mark, its pairs below).
  */
 const UI_TEXT = ['text', 'text-2', 'text-3', 'text-strong', 'link', 'danger-text'];
 const UI_SURFACES = ['canvas', 'pane', 'raised', 'raised-hi', 'field', 'well', 'overlay', 'select'];
@@ -870,6 +872,9 @@ const UI_MARK_PAIRS: Array<[string, string[]]> = [
   ['track', ['canvas', 'pane', 'overlay']],
   ['accent', ['canvas', 'pane', 'overlay']],
   ['record', ['record-tint', 'recording']],
+  // L5.13b: the app mark (kit AppMark, `fill` / `stroke` on these tokens): both takes on the plate, the front on the back.
+  ['mark-back', ['mark-plate']],
+  ['mark-front', ['mark-back', 'mark-plate']],
 ];
 
 type RGBA = [number, number, number, number];
@@ -1158,9 +1163,11 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
       }
     }
     expect(fails).toEqual([]);
-    // Every token used as a text colour is a text token; every background token is classified.
+    // Every token used as a text colour is a text token; every background token is classified; every `fill` / `stroke`
+    // token is in a mark pair (L5.13b: the app mark's paint — a mark or the ground it is checked on).
     const texts = new Set(UI_TEXT_PAIRS.map(([t]) => `ui-${t}`));
     const backs = new Set([...UI_TEXT_PAIRS.flatMap(([, on]) => on.map((b) => `ui-${b}`)), ...UI_NON_TEXT_BG]);
+    const paints = new Set(UI_MARK_PAIRS.flatMap(([mk, on]) => [mk, ...on].map((x) => `ui-${x}`)));
     for (const [f, css] of (await kitCss()).map(([kf, kt]) => [kf, cssRules(kt)] as [string, CssRule[]])) {
       for (const r of css) {
         for (const [k, v] of r.decls) {
@@ -1169,6 +1176,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
             const glyph = /^\.k-(?:record-mark|mark-attention|mark-fail)$/.test(r.selector) && UI_MARK_PAIRS.some(([mk]) => `ui-${mk}` === m[1]);
             if (k === 'color') expect(texts.has(m[1]) || glyph, `${f}: ${r.selector}: color --${m[1]} is not a text token`).toBe(true);
             if (k === 'background' || k === 'background-color') expect(backs.has(m[1]), `${f}: ${r.selector}: background --${m[1]} is not classified`).toBe(true);
+            if (k === 'fill' || k === 'stroke') expect(paints.has(m[1]), `${f}: ${r.selector}: ${k} --${m[1]} is in no mark pair`).toBe(true);
           }
         }
       }
@@ -1177,6 +1185,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     expect(worstRatio(new Map(tokensOf('light')).set('--ui-text-3', '#8b919b'), 'ui-text-3', 'ui-pane')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', '#6f747e'), 'ui-text-3', 'ui-raised')).toBeLessThan(4.5);
     expect(worstRatio(new Map(tokensOf('light')).set('--ui-track', '#cfd1d6'), 'ui-knob', 'ui-track')).toBeLessThan(3);
+    // (L5.13b: a lighter dark plate sinks the blue take — the pair catches it.)
+    expect(worstRatio(new Map(tokensOf('dark')).set('--ui-mark-plate', '#4a5266'), 'ui-mark-back', 'ui-mark-plate')).toBeLessThan(3);
     expect(Number.isNaN(worstRatio(new Map(tokensOf('dark')).set('--ui-text-3', 'grey'), 'ui-text-3', 'ui-pane'))).toBe(true);
   });
 
@@ -2582,5 +2592,22 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(themeWordsImports("import { SAMPLE_ACCENT } from './theme-words.js';")).toEqual(['SAMPLE_ACCENT']);
     expect(themeWordsImports("import * as tw from '../theme-words.js';")).toBe('*');
     expect(colourExports("export const X = '#123456';\nexport const Y = 'words';\nexport const Z = (v: string) => v ?? 'rgb(0, 0, 0)';").sort()).toEqual(['X', 'Z']);
+  });
+});
+
+describe('L5.13: the rename notes in the browser foot', () => {
+  it('⚑ the old home as the engine names it, as text (with the old home variable: set RETAKE_HOME to it, or move it); a gap after the last note only (L5.13b reviews B-L2)', async () => {
+    const shellCss = cssRules((await kitCss()).find(([f]) => f === 'shell/shell.css')![1]);
+    expect(shellCss.filter((r) => r.selector.includes('sh-foot-legacy')).map((r) => [r.selector, r.decls])).toEqual([
+      ['.sh-foot-legacy', [['color', 'var(--ui-text-2)']]],
+      ['.sh-foot-legacy + .sh-foot-line:not(.sh-foot-legacy)', [['margin-top', 'var(--ui-space-4)']]],
+    ]);
+    const shell = await readFile(join(APP, 'shell', 'AppShell.tsx'), 'utf8');
+    const note = /data-testid="legacy-home">([\s\S]*?)<\/p>/.exec(shell)?.[1] ?? '';
+    expect(note).toContain('Sign-ins from before the rename are in <Txt className="k-mono" text={info.legacy.old_home} />');
+    expect(note).toContain('{info.legacy.old_home_var ? (');
+    expect(note).toContain(', set by <Txt className="k-mono" text={info.legacy.old_home_var} />, and not read: set <span className="k-mono">RETAKE_HOME</span> to it, or move it');
+    // No home written by the page itself: the engine's words only (core legacyInfo).
+    expect(note).not.toMatch(/~\//);
   });
 });
