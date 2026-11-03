@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join, relative } from 'node:path';
-import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, READING_PACE, readingSeconds, resolveEnvironment, timelineVideo, tutorialOff, wordCount } from '@demo-studio/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, READING_PACE, readingSeconds, resolveEnvironment, timelineVideo, tutorialOff, wordCount } from '@retake/core';
 import type {
   ComponentKind,
   DisplayEntry,
@@ -23,9 +23,9 @@ import type {
   TimelineTrack,
   TimelineVideo,
   TransitionKind,
-} from '@demo-studio/core';
-import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, isMultiPaneGeometry, paramEnums, parseCsv, themeTokens } from '@demo-studio/components';
-import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, PictureMedia, SlotContext } from '@demo-studio/components';
+} from '@retake/core';
+import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, isMultiPaneGeometry, paramEnums, parseCsv, themeTokens } from '@retake/components';
+import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, PictureMedia, SlotContext } from '@retake/components';
 import { MIN_ZOOM_EASE_S, cameraTrack, hintEase, clampView, isStatic, reframeTrack } from './camera.js';
 import type { ReframeTarget, ZoomMove } from './camera.js';
 import { DESIGN_SPACES, FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from './layout.js';
@@ -62,7 +62,7 @@ import type { RunTiming } from './timing.js';
 import { MessageList, clamp, cursorAt, round, secs, stepEnd } from './util.js';
 import { INSET_GROW, cornerOf, drawsUrl, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, planPaneLayout, stepBoxes } from './panes.js';
 import { captionBandOver, mapUseRect, overlayBoxAt, playsSound, staysInInset } from './remotion/frames.js';
-import { autoFit } from '@demo-studio/components/kit';
+import { autoFit } from '@retake/components/kit';
 import { planBadgeNumbers, planClipTutorial, planProgress, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 import type { TutorialResolve } from './tutorial.js';
 import type { PlanTutorial } from './plan-types.js';

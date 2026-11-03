@@ -1,5 +1,5 @@
 /**
- * The recorder's event model (L3.4, `studio record` / `scenario_record`): what a recording session streams to
+ * The recorder's event model (L3.4, `retake record` / `scenario_record`): what a recording session streams to
  * `events.jsonl` while a person performs a flow in a headed window — intent, never coordinates and never a secret.
  *
  * Every event is checked against this schema before it is kept. Guarantees the schema itself enforces:
@@ -729,7 +729,7 @@ export function draftFromRecording(
             away = e.where === 'environment' ? 'foreign' : e.where;
             raise(
               away === 'sign_in'
-                ? { severity: 'warning', code: 'signed_out', message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (studio login / auth_login) and record that part again` }
+                ? { severity: 'warning', code: 'signed_out', message: `the window reached a sign-in page${ctx.persona ? ` (persona ${ctx.persona} signed out)` : ''}: nothing done there was recorded — sign the persona in (retake login / auth_login) and record that part again` }
                 : { severity: 'warning', code: 'foreign_page', message: 'the window left the environment\'s pages (another site): nothing done there was recorded' },
             );
           }
@@ -1426,10 +1426,10 @@ export function draftFromRecording(
   doc.commentBefore = (
     inserts.length === 0 && Object.keys(choices).length === 0
       ? [
-          ' Recorded with studio record: a draft. Captions are empty and nothing is held — add them, check the steps flagged',
+          ' Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged',
           ' in the recording\'s report (page_inspect), then run_dry.',
         ]
-      : [' Recorded with studio record and arranged in the Studio: a draft. Check the steps flagged in the recording\'s', ' report (page_inspect), then run_dry.']
+      : [' Recorded with retake record and arranged in the Studio: a draft. Check the steps flagged in the recording\'s', ' report (page_inspect), then run_dry.']
   ).join('\n');
   visit(doc, {
     Pair(_, pair) {

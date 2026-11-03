@@ -3,7 +3,7 @@
  * workspace (the repository root is itself a workspace: a component created there would land in <repo>/components/):
  * template list / detail, component list / get / validate / create (and its refusals: the built-in namespace, a
  * built-in id); a component preview with slot values and params and a theme preview rendered by the worker (in this
- * process, `once`) into .demo-studio/previews/<id>/ — the built-in component's folder is left byte for byte; a guarded
+ * process, `once`) into .retake/previews/<id>/ — the built-in component's folder is left byte for byte; a guarded
  * preview of a workspace component that reaches for a second local server (B gets nothing, the origin is a warning);
  * refusals at submit; a cancel before start; previews count nothing in the history. Needs ffmpeg and a headless shell.
  */
@@ -16,8 +16,8 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LIBRARY_DIR, PREVIEW_FILE } from '@demo-studio/components';
-import { renderComponentPreviews, loadPreviewTheme } from '@demo-studio/editor';
+import { LIBRARY_DIR, PREVIEW_FILE } from '@retake/components';
+import { renderComponentPreviews, loadPreviewTheme } from '@retake/editor';
 import { createEngine, historyFile, runWorker } from '../src/index.js';
 import type { Engine, JobRecord, PreviewJobResult } from '../src/index.js';
 import { TEMPLATES, hasTool, linkSharedCache, pixelAt } from '../../editor/test/render-helpers.js';
@@ -30,7 +30,7 @@ let engine: Engine;
 let b: Server;
 let bPort = 0;
 let hits: string[] = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 
@@ -77,7 +77,7 @@ export default function Reaching() {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-preview-jobs-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
+  process.env.RETAKE_HOME = join(root, '.home');
   // Workspace themes: editorial and motion copied, plus one whose logo lies outside its folder.
   const templates = join(root, 'templates');
   await mkdir(templates, { recursive: true });
@@ -87,7 +87,7 @@ beforeAll(async () => {
   await cp(join(TEMPLATES, 'editorial', 'logo.svg'), join(root, 'outside', 'logo.svg'));
   await rm(join(templates, 'leaky', 'logo.svg'));
   await symlink(join(root, 'outside', 'logo.svg'), join(templates, 'leaky', 'logo.svg'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   const dir = join(root, 'projects', 'demo');
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
@@ -103,8 +103,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await new Promise<void>((r) => (b ? b.close(() => r()) : r()));
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -162,7 +162,7 @@ describe.skipIf(!canRender)('themes and components (read side, scaffold)', () =>
 });
 
 describe.skipIf(!canRender)('preview jobs', () => {
-  it('a component preview with slot values and params: one still in .demo-studio/previews/<id>/; the built-in folder unchanged; history counts nothing', async () => {
+  it('a component preview with slot values and params: one still in .retake/previews/<id>/; the built-in folder unchanged; history counts nothing', async () => {
     const dir = join(LIBRARY_DIR, 'studio', 'card-title');
     const before = await folderHash(dir);
     const sub = await engine.components.preview({ project: 'demo', component: 'studio/card-title', slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, at_s: 1.5 });
@@ -173,7 +173,7 @@ describe.skipIf(!canRender)('preview jobs', () => {
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state, JSON.stringify(job.error)).toBe('succeeded');
     const r = job.result as PreviewJobResult;
-    expect(r.dir).toBe(join(root, '.demo-studio', 'previews', sub.preview_id));
+    expect(r.dir).toBe(join(root, '.retake', 'previews', sub.preview_id));
     expect(r.images).toHaveLength(1);
     expect(r.images[0]).toMatchObject({ component: 'studio/card-title', kind: 'card', at: 1.5 });
     expect(r.images[0].file.startsWith(`${r.dir}/`)).toBe(true);
@@ -236,11 +236,11 @@ describe.skipIf(!canRender)('preview jobs', () => {
     await work();
     const job: JobRecord = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
-    expect(existsSync(join(root, '.demo-studio', 'previews', sub.preview_id))).toBe(false);
+    expect(existsSync(join(root, '.retake', 'previews', sub.preview_id))).toBe(false);
     const ac = new AbortController();
     ac.abort();
     const out = join(root, 'aborted');
-    const reg = await import('@demo-studio/components').then((c) => c.loadComponentRegistry({ root }));
+    const reg = await import('@retake/components').then((c) => c.loadComponentRegistry({ root }));
     const info = reg.get('studio/card-title');
     await expect(
       renderComponentPreviews({ root, registry: reg, template: await loadPreviewTheme('editorial', root), targets: [{ id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }], outDir: out, signal: ac.signal }),

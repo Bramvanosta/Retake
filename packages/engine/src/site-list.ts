@@ -1,18 +1,18 @@
 /**
  * The site extractions of a workspace as the Studio's theme panel lists them (L4.7, plan D8 + critique B11 / C5): the
- * newest SITE_KEEP folders of `.demo-studio/site/`, each read back from its site.json. An extraction made by
- * `studio theme from-site` has no signed job, and `.demo-studio/` is a folder any file tool writes: every string of
+ * newest SITE_KEEP folders of `.retake/site/`, each read back from its site.json. An extraction made by
+ * `retake theme from-site` has no signed job, and `.retake/` is a folder any file tool writes: every string of
  * site.json is data — the URL and the host included (re-parsed with parseSiteUrl, dropped otherwise) go under
  * `untrusted`, never beside the tool's own fields. What the tool keeps as its own: the id and its time, the status, hex
  * colours (the roles with their contrast checks) and the logo candidates that exist as plain PNGs (`site:<id>/logo-<n>`,
- * what New theme takes). Folders are read only when `.demo-studio/`, `site/` and the extraction's folder are real
+ * what New theme takes). Folders are read only when `.retake/`, `site/` and the extraction's folder are real
  * folders (no link); site.json through readPlainFile (no link, regular, capped). Path-free.
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SITE_ID_RE, parseSiteUrl, readPlainFile, unsafeTestResolve } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
-import type { PaletteCheck } from '@demo-studio/components';
+import { SITE_ID_RE, parseSiteUrl, readPlainFile, unsafeTestResolve } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
+import type { PaletteCheck } from '@retake/components';
 import { components } from './components.js';
 import { SITE_KEEP, siteRoot, siteView } from './jobs/site-job.js';
 
@@ -61,7 +61,7 @@ async function realFolder(p: string): Promise<boolean> {
 /** The newest site extractions of the workspace (see the header). */
 export async function siteList(ws: WorkspaceConfig): Promise<SiteList> {
   const root = siteRoot(ws);
-  if (!(await realFolder(join(ws.root, '.demo-studio'))) || !(await realFolder(root))) return { sites: [] };
+  if (!(await realFolder(join(ws.root, '.retake'))) || !(await realFolder(root))) return { sites: [] };
   let names: string[];
   try {
     names = await readdir(root);

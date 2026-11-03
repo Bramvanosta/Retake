@@ -1,6 +1,6 @@
 /**
  * Which hooks write (L1.7, R-ENV-04): a read-only run refuses them. Static classification shared by validation, the
- * runner (which refuses a read-only run with writing hooks before any browser opens) and @demo-studio/hooks (which
+ * runner (which refuses a read-only run with writing hooks before any browser opens) and @retake/hooks (which
  * refuses each one again on its templated content). The model is destructive.ts.
  */
 import { readProjectText, shellDestructiveReason, sqlSource } from './destructive.js';

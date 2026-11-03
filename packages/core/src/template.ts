@@ -170,13 +170,13 @@ function isDirectory(p: string): boolean {
   }
 }
 
-/** The starter templates shipped with Demo Studio (default, editorial, motion): `templates/` of the repository. */
+/** The starter templates shipped with Retake (default, editorial, motion): `templates/` of the repository. */
 export const STARTER_TEMPLATES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
 
 export interface TemplateEntry {
   name: string;
   dir: string;
-  /** workspace: in the workspace's templates_dir; starter: shipped with Demo Studio (no workspace template has its name). */
+  /** workspace: in the workspace's templates_dir; starter: shipped with Retake (no workspace template has its name). */
   source: 'workspace' | 'starter';
 }
 

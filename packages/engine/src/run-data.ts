@@ -11,8 +11,8 @@
  * returns the first frame at or after the time). Both sources therefore give the same picture, the last step's
  * included (its hold ends at the very end of the capture, past the last frame's start).
  */
-import type { RunRecord, Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@demo-studio/core';
-import { ACTION_NAMES, FORMAT_VERSIONS, SCENARIO_COMPARE_MAX_BYTES, newerFormatMessage } from '@demo-studio/core';
+import type { RunRecord, Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@retake/core';
+import { ACTION_NAMES, FORMAT_VERSIONS, SCENARIO_COMPARE_MAX_BYTES, newerFormatMessage } from '@retake/core';
 import { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, lsig } from './run-files.js';
 
 /** run.json and timeline.json larger than this are not read (not files the runner wrote). */

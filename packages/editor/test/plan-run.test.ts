@@ -12,10 +12,10 @@ import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import type { LoadedProject, Timeline } from '@demo-studio/core';
-import { PlanTrustError, planRun, preReadProblems } from '@demo-studio/editor';
-import type { PlanRunOptions } from '@demo-studio/editor';
+import { loadProject } from '@retake/core';
+import type { LoadedProject, Timeline } from '@retake/core';
+import { PlanTrustError, planRun, preReadProblems } from '@retake/editor';
+import type { PlanRunOptions } from '@retake/editor';
 import { synthTimeline } from './helpers.js';
 import { TEMPLATES, hasTool, makeColourCapture } from './render-helpers.js';
 
@@ -71,7 +71,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-plan-run-'));
   outside = join(root, 'outside');
   await mkdir(outside, { recursive: true });
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   await writeFile(join(outside, 'secret.csv'), 'month,count\nJan,1\n');
   await writeFile(join(outside, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>');
   await writeFile(join(outside, 'logo'), '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>');

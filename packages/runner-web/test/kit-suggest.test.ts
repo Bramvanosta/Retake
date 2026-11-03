@@ -73,7 +73,7 @@ afterAll(async () => {
 describe('suggestFor (kit 1.5.0)', () => {
   it("is the inventory's entry for each element: same target, context and action", async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const inv = kit.inventory({ limit: 300 });
       return inv.elements.map((e) => {
         const s = kit.suggestFor(kit.el(e.ref)!);
@@ -86,7 +86,7 @@ describe('suggestFor (kit 1.5.0)', () => {
 
   it('from what a person acts on: a span in a button, a label, a hidden file input; null for plain text', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const at = (sel: string) => kit.suggestFor(document.querySelector(sel)!);
       return {
         inner: at('#inner'),
@@ -108,7 +108,7 @@ describe('suggestFor (kit 1.5.0)', () => {
 
   it('secretField: by type, autocomplete, names, labels and one-time-code boxes; never a plain field', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const ids = ['s-pw', 's-ac', 's-cc', 's-csc', 's-key', 's-token', 's-pin', 's-iban', 's-newpw', 'otp4', 'n-name', 'n-pass', 'n-cb', 'n-ce', 'email', 'q'];
       return Object.fromEntries(ids.map((id) => [id, kit.secretField(document.getElementById(id)!)]));
     });
@@ -136,7 +136,7 @@ describe('suggestFor (kit 1.5.0)', () => {
 describe('alternative targets (kit 1.6.0, the recorder only)', () => {
   it('up to three other targets, each resolving once to the very element; never positional; without the option nothing changes', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const sels = ['#email', '#q', '#roast', '#notes', '#x', '#inner', 'tr:nth-child(2) button', '[role=dialog] button', 'a[href]', '#zone'];
       return sels.map((sel) => {
         const e = kit.suggestFor(document.querySelector(sel)!, { alternatives: 3, alternatives_budget_ms: 50 });
@@ -180,7 +180,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
 
   it('each one is verified in the page: a key the page shares with an element outside the interactive ones is not offered', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const alts = () => kit.suggestFor(document.querySelector('#x')!, { alternatives: 3, alternatives_budget_ms: 50 })?.alternatives?.map((a) => a.target);
       const before = alts();
       const twin = document.createElement('div');
@@ -200,7 +200,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
 
   it('a noisy text is never offered — mostly digits (a price) or pieces run together — and the good ones still are (review B-L7)', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const box = document.createElement('div');
       box.innerHTML =
         '<div role="listbox" aria-label="Sizes"><div role="option" id="o5" data-testid="opt-5kg"><span>5 kg</span><span>€36.40 / kg</span></div></div>' +
@@ -227,7 +227,7 @@ describe('alternative targets (kit 1.6.0, the recorder only)', () => {
 
   it('a spent budget gives none, said partial; the inventory of page_inspect never carries them', async () => {
     const r = await page.evaluate(() => {
-      const kit = (window as unknown as { __demoStudio: Kit }).__demoStudio;
+      const kit = (window as unknown as { __retake: Kit }).__retake;
       const e = kit.suggestFor(document.querySelector('#email')!, { alternatives: 3, alternatives_budget_ms: 0 });
       const inv = kit.inventory({ limit: 300 });
       return { alternatives: e?.alternatives, partial: e?.alternatives_partial, inventory: inv.elements.some((x) => 'alternatives' in x || 'alternatives_partial' in x) };
@@ -243,13 +243,13 @@ describe('the passive kit (the recorder\'s copy)', () => {
       await p.goto(`${server.url}/lab.html`);
       await p.evaluate(kitSource({ ...kitConfigFor(undefined, { hidden: true }), passive: true }));
       const r = await p.evaluate(() => {
-        const w = window as unknown as Record<string, unknown> & { __demoStudio: Kit & { healthy(): boolean; version: string } };
+        const w = window as unknown as Record<string, unknown> & { __retake: Kit & { healthy(): boolean; version: string } };
         return {
-          version: w.__demoStudio.version,
-          healthy: w.__demoStudio.healthy(),
-          cursor: document.querySelectorAll('demo-studio-cursor').length,
-          patched: w.__demoStudioNotifyPatched === true,
-          save: w.__demoStudio.suggestFor(document.querySelector('#inner')!)?.tag,
+          version: w.__retake.version,
+          healthy: w.__retake.healthy(),
+          cursor: document.querySelectorAll('retake-cursor').length,
+          patched: w.__retakeNotifyPatched === true,
+          save: w.__retake.suggestFor(document.querySelector('#inner')!)?.tag,
         };
       });
       expect(r).toEqual({ version: '1.6.0', healthy: true, cursor: 0, patched: false, save: 'button' });

@@ -1,4 +1,4 @@
-import type { ActionName, BBox, NormalizedArgsMap, PointSpec } from '@demo-studio/core';
+import type { ActionName, BBox, NormalizedArgsMap, PointSpec } from '@retake/core';
 import type { StepContext } from '../runtime.js';
 
 /** What an action reports for its timeline event. */

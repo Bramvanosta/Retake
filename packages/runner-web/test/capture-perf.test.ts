@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { RunRecord, Timeline } from '@demo-studio/core';
+import type { RunRecord, Timeline } from '@retake/core';
 import { cfrSchedule, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
 import { FAST, execFileP, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
@@ -105,7 +105,7 @@ describe('capture performance and disk (L5.7)', () => {
     const p = rec.perf!;
     expect(p).toBeDefined();
     expect(p.cpu!.browser).toBeGreaterThan(0);
-    expect(p.cpu!.studio).toBeGreaterThan(0);
+    expect(p.cpu!.retake).toBeGreaterThan(0);
     expect(p.cpu!.cores).toBeGreaterThan(0);
     expect(p.machine.cpus).toBeGreaterThan(0);
     expect(p.frames.received).toBe(tl.capture.frames);

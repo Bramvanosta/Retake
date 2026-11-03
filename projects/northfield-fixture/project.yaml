@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../packages/core/schema/project.schema.json
-# Demo Studio project filming the bundled fixture product (fixtures/wholesale).
+# Retake project filming the bundled fixture product (fixtures/wholesale).
 # Start it first:  pnpm fixture   (or: node fixtures/wholesale/server.mjs)
 version: 1
 name: Northfield (fixture)
@@ -15,7 +15,7 @@ environments:
     console: {url: http://localhost:4403, display: console.northfield.example}
     shop: {url: http://localhost:4404, display: shop.northfield.example}
   # Pretend production (L1.7): the local fixture, filmed read-only — the browser's writes to the fixture are stopped
-  # or answered by a mock, hooks that write are refused (`studio run northfield-fixture quote --env production` is
+  # or answered by a mock, hooks that write are refused (`retake run northfield-fixture quote --env production` is
   # refused before anything runs: its setup hooks write). The `read-only` scenario runs here.
   production:
     production: true
@@ -25,16 +25,16 @@ environments:
     read_only:
       mocks:   # for every scenario on this environment: the shop marks its notifications read when the bell opens
         - {request: "POST shop:/api/notifications/read", json: {unread: 0, items: []}}
-# Sandbox mode (L1.8): a disposable copy of the fixture that Demo Studio starts on ports of its own (4501–4504), seeds
-# and resets before every take (`studio run northfield-fixture sandbox-quote --sandbox`; `studio sandbox up | status |
+# Sandbox mode (L1.8): a disposable copy of the fixture that Retake starts on ports of its own (4501–4504), seeds
+# and resets before every take (`retake run northfield-fixture sandbox-quote --sandbox`; `retake sandbox up | status |
 # logs | reset | down northfield-fixture`). Its pages, display URLs and accounts come from its sandbox.yaml.
 # sandbox-docker: the same in Docker (4511–4514) with a real Mailpit (4525) — `--env sandbox-docker`.
 sandboxes:
   sandbox: sandbox/sandbox.yaml
   sandbox-docker: sandbox/docker/sandbox.yaml
 default_env: local
-# Personas of the signed-in environment. Their sessions live in ~/.demo-studio (never in this file):
-# `studio login northfield-fixture --env signed-in --persona supplier` signs one in; a run without a valid session signs
+# Personas of the signed-in environment. Their sessions live in ~/.retake (never in this file):
+# `retake login northfield-fixture --env signed-in --persona supplier` signs one in; a run without a valid session signs
 # in automatically, off camera, with the `login` steps (the passwords come from the environment: see
 # fixtures/wholesale/README.md).
 auth:

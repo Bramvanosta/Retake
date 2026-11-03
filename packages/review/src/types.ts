@@ -2,9 +2,9 @@
  * Review contract (docs/DESIGN-phase2.md §3): what `reviewRender` writes and returns, the findings and the rules
  * (thresholds) of the checks.
  */
-import type { LoadedProject } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { PlanSegment, RenderRecord } from '@demo-studio/editor';
+import type { LoadedProject } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
+import type { PlanSegment, RenderRecord } from '@retake/editor';
 
 export type Severity = 'error' | 'warning' | 'info';
 

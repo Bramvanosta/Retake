@@ -27,8 +27,8 @@ export function checkPersonaPaths(auth: unknown, ctx: CheckContext): void {
         if (p[k] === undefined) continue;
         ctx.error(
           [...path, 'personas', name, k],
-          `a persona's session is never a path in project.yaml (it would only exist on this computer): \`studio login\` keeps it in ~/.demo-studio/profiles/<project>/<env>/${name} ` +
-            '(DEMO_STUDIO_HOME moves it) — remove `' + k + '`' + (k === 'storage_state' ? ' and set `session: storage_state`' : ''),
+          `a persona's session is never a path in project.yaml (it would only exist on this computer): \`retake login\` keeps it in ~/.retake/profiles/<project>/<env>/${name} ` +
+            '(RETAKE_HOME moves it) — remove `' + k + '`' + (k === 'storage_state' ? ' and set `session: storage_state`' : ''),
         );
       }
     }
@@ -199,7 +199,7 @@ export function checkAuth(
     } else if (legacy.length) {
       ctx.warning(
         [...path, legacy[0]],
-        `\`${legacy[0]}\` is a path that only exists on this computer: name the account in \`personas\` instead (its session then lives in ~/.demo-studio, outside the project) — it still works, as persona "default"`,
+        `\`${legacy[0]}\` is a path that only exists on this computer: name the account in \`personas\` instead (its session then lives in ~/.retake, outside the project) — it still works, as persona "default"`,
       );
     }
     if (block.login_url !== undefined) checkPatterns(block.login_url, [...path, 'login_url'], urls, ctx);

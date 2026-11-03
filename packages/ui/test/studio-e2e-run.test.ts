@@ -1,5 +1,5 @@
 /**
- * L4.4 part C (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`): the Run screen end to end — the built-in
+ * L4.4 part C (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Run screen end to end — the built-in
  * Studio server, the real worker it starts, headless Chromium (the installed build of playwright-core; nothing
  * downloaded) and a small product page of this test's own on a free port (an animated board: the live picture keeps
  * changing, also during a pause — critique B16). Covered:
@@ -17,7 +17,7 @@
  *   the run's own preflight result is the first row (it stops before filming). Review B L4: the dialog closes before
  *   it goes — Escape gives focus back to Start capture, "Sign in first" moves it to that persona's Sign in button.
  *
- * The worker is killed by pid at the end whatever happened. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * The worker is killed by pid at the end whatever happened. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
@@ -28,13 +28,13 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readWorkerLock } from '@demo-studio/engine';
+import { readWorkerLock } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'live';
 const RUN = { timeout: 120_000, interval: 200 };
 const MARKUP = '<b>markup</b> stays text';
@@ -47,7 +47,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const workers = new Set<number>();
 const consoleErrors: string[] = [];
 /** Bodies of the page's POST /v1/live and /v1/call/<op> requests, in order. */
@@ -121,8 +121,8 @@ const holds = (n: number, s: number) => Array.from({ length: n }, () => `      -
 
 async function workspace(): Promise<void> {
   root = await mkdtemp(join(tmpdir(), 'studio-ui-run-e2e-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(root, 'projects', P);
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await writeFile(
@@ -168,12 +168,12 @@ const frames = (p: Page = page) => p.getByTestId('live-canvas').evaluate((c) => 
 const stepsDone = (p: Page = page) => p.locator('[data-testid="run-step"][data-status="ok"], [data-testid="run-step"][data-status="dry"]').count();
 const runIdOf = (p: Page = page) => decodeURIComponent(/\/run\/([^/]+)$/.exec(new URL(p.url()).hash)?.[1] ?? '');
 
-describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('the Run screen with the real worker (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     await serve();
     await workspace();
     studio = await startStudioServer({ root, workerIdleExitMs: 5000 });
-    const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+    const executablePath = process.env.RETAKE_CHROMIUM;
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
     context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     page = await context.newPage();
@@ -199,8 +199,8 @@ describe.skipIf(!ENABLED)('the Run screen with the real worker (DEMO_STUDIO_TEST
       }
     }
     await new Promise<void>((r) => (product ? product.close(() => r()) : r()));
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     if (root) await rm(root, { recursive: true, force: true });
   });
 

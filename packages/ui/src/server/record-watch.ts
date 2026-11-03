@@ -4,12 +4,12 @@
  * check written) and meta.json (the folder created) — by size and mtime. Nothing is read: stats only, never through a
  * link. The event stream (live.ts) diffs the scans each poll and names the recordings that changed
  * (`workspace {records: ['<project>/<rec_id>']}`): a Record screen re-reads its own recording's view then, on top of its
- * own poll while the recording is live. A project whose `.demo-studio` or records folder is a link is not looked into
+ * own poll while the recording is live. A project whose `.retake` or records folder is a link is not looked into
  * (reads never follow a link out of a project).
  */
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROJECT_SLUG_RE, RECORD_ID_RE } from '@demo-studio/core';
+import { PROJECT_SLUG_RE, RECORD_ID_RE } from '@retake/core';
 
 /** Recording folders looked at per project, at most (the newest; the records folder keeps about 20). */
 export const RECORD_WATCH_PER_PROJECT = 40;
@@ -50,8 +50,8 @@ function realDir(dir: string): boolean {
 export function recordsWatchScan(projectsDir: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const slug of dirs(projectsDir, PROJECT_SLUG_RE).sort().slice(0, RECORD_WATCH_PROJECTS_MAX)) {
-    const root = join(projectsDir, slug, '.demo-studio', 'records');
-    if (!realDir(join(projectsDir, slug, '.demo-studio')) || !realDir(root)) continue;
+    const root = join(projectsDir, slug, '.retake', 'records');
+    if (!realDir(join(projectsDir, slug, '.retake')) || !realDir(root)) continue;
     for (const id of dirs(root, RECORD_ID_RE).sort().reverse().slice(0, RECORD_WATCH_PER_PROJECT)) {
       out.set(`${slug}/${id}`, FILES.map((f) => stamp(join(root, id, f))).join('|'));
     }

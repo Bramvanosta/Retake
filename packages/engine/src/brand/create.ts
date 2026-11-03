@@ -1,15 +1,15 @@
 /**
  * A new workspace theme from brand inputs (L3.5, R-MCP-10): `template_create_from_brand` (trust `mcp`) and
- * `studio theme create` (trust `author`). It writes one new folder `<templates_dir>/<name>/` — template.yaml over a
+ * `retake theme create` (trust `author`). It writes one new folder `<templates_dir>/<name>/` — template.yaml over a
  * base theme (components/src/brand), the logo, wordmark and fonts copied after their checks (brand/files.ts),
  * LICENSES.md and a provenance file — and never touches an existing theme, except `replace` of one this tool made and
  * nobody changed since (every file's sha256 as written, no file added); through MCP (trust `mcp`) only a theme made
- * through MCP is replaced, never one a human made with `studio theme create`.
+ * through MCP is replaced, never one a human made with `retake theme create`.
  *
  * Names: lower-case (core THEME_NAME_RE), never a starter's (compared without case: on macOS `Default/` would shadow
  * the starter `default` for every project), never an existing folder's (a `readdir` compared without case, entries of
  * any type, links included — an empty folder or a dangling link counts). Refused when templates_dir lies anywhere
- * inside the Demo Studio package (the repository as a workspace: the new theme would land among the committed
+ * inside the Retake package (the repository as a workspace: the new theme would land among the committed
  * starters). The folder is built hidden (`.tmp-<name>-<12 hex>/`, which listTemplates skips; its provenance file
  * written first), validated (schema, loader, asset containment, the registry resolving its components), then renamed
  * into place; a failure removes it. A crash's leftovers (`.tmp-` / `.old-<name>-<12 hex>/` older than an hour, holding
@@ -21,7 +21,9 @@ import { basename, dirname, extname, join, relative, sep } from 'node:path';
 import {
   AuthorBrandInputSchema,
   BrandInputSchema,
-  DEMO_STUDIO_VERSION,
+  OLD_MADE_BY,
+  OLD_THEME_PROVENANCE_FILE,
+  RETAKE_VERSION,
   STARTER_TEMPLATES_DIR,
   TEMPLATE_FILE,
   THEME_NAME_RE,
@@ -32,9 +34,9 @@ import {
   parseYaml,
   printableText,
   siteRef,
-} from '@demo-studio/core';
-import type { BrandFontRef, BrandInput, TemplateFile, WorkspaceConfig } from '@demo-studio/core';
-import type { Palette } from '@demo-studio/components';
+} from '@retake/core';
+import type { BrandFontRef, BrandInput, TemplateFile, WorkspaceConfig } from '@retake/core';
+import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -43,9 +45,9 @@ import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFo
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
 
 /** The provenance file of a theme this tool made (hidden: the loader and listTemplates ignore it). */
-export const THEME_PROVENANCE_FILE = '.demo-studio-theme.json';
+export const THEME_PROVENANCE_FILE = '.retake-theme.json';
 export const DEFAULT_BRAND_BASE = 'editorial';
-/** The Demo Studio package (the repository, or its install folder): no theme is ever written inside it. */
+/** The Retake package (the repository, or its install folder): no theme is ever written inside it. */
 export const PACKAGE_ROOT = dirname(STARTER_TEMPLATES_DIR);
 /** Hidden build / swap folders older than this are leftovers of a crash, removed by the next create. */
 const STALE_MS = 60 * 60 * 1000;
@@ -93,7 +95,7 @@ export interface ThemeCreateOptions {
 
 interface Provenance {
   version: 1;
-  made_by: 'demo-studio';
+  made_by: 'retake';
   tool_version: string;
   created_at: string;
   name: string;
@@ -153,24 +155,31 @@ async function walk(dir: string, rel = ''): Promise<{ files: string[]; odd: stri
 
 /**
  * Why a theme folder may not be replaced, or null: it must be this tool's, every file as written, none added — and,
- * for a replace through MCP (`trust` mcp), made through MCP too (a theme a human made with `studio theme create` is
+ * for a replace through MCP (`trust` mcp), made through MCP too (a theme a human made with `retake theme create` is
  * theirs).
  */
 export async function replaceProblem(dir: string, trust: BrandTrust = 'author'): Promise<string | null> {
   const st = await lstat(dir);
   if (!st.isDirectory()) return `${dir} is not a folder (a link or a file)`;
   let prov: Provenance;
+  let provFile = THEME_PROVENANCE_FILE;
   try {
     prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8')) as Provenance;
   } catch {
-    return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
+    // A theme the tool made before L5.13 carries the provenance file of that name (legacy.ts): still the tool's.
+    try {
+      prov = JSON.parse(await readFile(join(dir, OLD_THEME_PROVENANCE_FILE), 'utf8')) as Provenance;
+      provFile = OLD_THEME_PROVENANCE_FILE;
+    } catch {
+      return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
+    }
   }
-  if (prov?.made_by !== 'demo-studio' || !prov.files || typeof prov.files !== 'object') return `${dir}: ${THEME_PROVENANCE_FILE} is not this tool's`;
-  if (trust === 'mcp' && prov.trust !== 'mcp') return `${dir} was made by a human with studio theme create: through MCP only a theme made through MCP is replaced`;
+  if (!madeByTool(prov) || !prov.files || typeof prov.files !== 'object') return `${dir}: ${provFile} is not this tool's`;
+  if (trust === 'mcp' && prov.trust !== 'mcp') return `${dir} was made by a human with retake theme create: through MCP only a theme made through MCP is replaced`;
   const { files, odd } = await walk(dir);
   if (odd.length) return `${dir} holds links or special files (${odd.join(', ')})`;
   const listed = Object.keys(prov.files);
-  const added = files.filter((f) => f !== THEME_PROVENANCE_FILE && !listed.includes(f));
+  const added = files.filter((f) => f !== provFile && !listed.includes(f));
   if (added.length) return `files were added since it was made: ${added.join(', ')}`;
   for (const f of listed) {
     let h: string;
@@ -184,6 +193,11 @@ export async function replaceProblem(dir: string, trust: BrandTrust = 'author'):
   return null;
 }
 
+/** Whether a provenance record is this tool's — `made_by` of today, or of before L5.13 (legacy.ts). */
+function madeByTool(prov: Partial<Provenance> | null | undefined): boolean {
+  return prov?.made_by === 'retake' || (prov?.made_by as string | undefined) === OLD_MADE_BY;
+}
+
 /** Remove this tool's build / swap folders left by a crash (see the module comment); anything else stays. */
 export async function removeStale(templatesDir: string, now: number): Promise<void> {
   for (const e of await entries(templatesDir)) {
@@ -195,7 +209,7 @@ export async function removeStale(templatesDir: string, now: number): Promise<vo
       if (!st.isDirectory() || now - st.mtimeMs <= STALE_MS) continue;
       if ((await readdir(p)).length) {
         const prov = JSON.parse(await readFile(join(p, THEME_PROVENANCE_FILE), 'utf8')) as Partial<Provenance> | null;
-        if (prov?.made_by !== 'demo-studio') continue;
+        if (!madeByTool(prov)) continue;
       }
       await rm(p, { recursive: true, force: true });
     } catch {
@@ -253,7 +267,7 @@ function licencesMarkdown(o: {
   const lines = [
     `# Licences — \`${o.name}\` theme`,
     '',
-    `Made by Demo Studio from brand inputs on ${o.date}, over the \`${o.base}\` theme.`,
+    `Made by Retake from brand inputs on ${o.date}, over the \`${o.base}\` theme.`,
     '',
     '## Brand artwork',
     '',
@@ -372,8 +386,8 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
   const replace = input.replace === true;
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir)) {
-    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Demo Studio folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
-      fix: 'work in a workspace of your own: set DEMO_STUDIO_ROOT, or a studio.yaml whose templates_dir is outside the Demo Studio folder',
+    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
+      fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
   }
   await mkdir(templatesDir, { recursive: true });
@@ -508,8 +522,8 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
   const siteId = [input.logo, input.wordmark].map((r) => (r !== undefined ? siteRef(r)?.site_id : undefined)).find((x) => x !== undefined);
   const provenance: Provenance = {
     version: 1,
-    made_by: 'demo-studio',
-    tool_version: DEMO_STUDIO_VERSION,
+    made_by: 'retake',
+    tool_version: RETAKE_VERSION,
     created_at: now.toISOString(),
     name,
     base: baseName,

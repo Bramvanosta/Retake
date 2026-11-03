@@ -1,22 +1,22 @@
 import { execFile } from 'node:child_process';
-import { accessSync, constants, existsSync } from 'node:fs';
+import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, dirname, join, relative } from 'node:path';
-import { UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, studioHome, unsafeTestResolve } from '@demo-studio/core';
-import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
-import type { ChromiumProbe } from '@demo-studio/runner-web';
+import { delimiter, dirname, join, relative, resolve } from 'node:path';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve } from '@retake/core';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
-import { checkedText, loginCommandFor, projectPersonaStates, studioCommand, tildePath } from './auth.js';
+import { checkedText, loginCommandFor, projectPersonaStates, retakeCommand, tildePath } from './auth.js';
 import type { PersonaState } from './auth.js';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
-/** One line of `studio doctor`. */
+/** One line of `retake doctor`. */
 export interface DoctorCheck {
   status: CheckStatus;
   /** Short subject: "Node.js", "Chromium", "ffmpeg"… */
@@ -45,12 +45,35 @@ export interface DoctorProbes {
   chromium(browser: BrowserConfig | undefined): Promise<ChromiumProbe>;
   /** HEAD request: an HTTP status (reachable), or the network error. */
   head(url: string, timeoutMs: number): Promise<{ status?: number; error?: string; ms: number }>;
-  /** A sandbox of the project, as `studio sandbox status` sees it (L1.8; no lock, nothing started). */
+  /** A sandbox of the project, as `retake sandbox status` sees it (L1.8; no lock, nothing started). */
   sandbox?(project: LoadedProject, env: string): Promise<SandboxProbe>;
-  /** The Node.js running this command (default process.execPath): what `studio mcp --print-config` registers. */
+  /** The Node.js running this command (default process.execPath): what `retake mcp --print-config` registers. */
   execPath?: string;
   /** The jobs worker serving a workspace (L3.1), or null. */
   worker?(root: string): Promise<{ pid: number; since: string; started_by?: string } | null>;
+  /** The names in a real folder (not a link), or null: what "Before Retake" counts (pending journals). */
+  list?(dir: string): string[] | null;
+  /** The text of a small regular file (not a link; ≤ 64 KB), or null: the `.gitignore` files "Before Retake" reads. */
+  read?(file: string): string | null;
+}
+
+/** The largest file the `read` probe reads (a `.gitignore`). */
+const READ_MAX_BYTES = 64 * 1024;
+
+function readSmallFile(file: string): string | null {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const st = fstatSync(fd);
+    if (!st.isFile() || st.size > READ_MAX_BYTES) return null;
+    const buf = Buffer.alloc(st.size);
+    const n = readSync(fd, buf, 0, buf.length, 0);
+    return buf.subarray(0, n).toString('utf8');
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
 }
 
 /** What doctor shows of a sandbox: up / partial / down, its services, its seed. */
@@ -108,8 +131,16 @@ export function systemProbes(): DoctorProbes {
         });
       }),
     exists: (p) => existsSync(p),
+    list: (dir) => {
+      try {
+        return lstatSync(dir).isDirectory() ? readdirSync(dir) : null;
+      } catch {
+        return null;
+      }
+    },
+    read: readSmallFile,
     sandbox: async (project, env) => {
-      const { openSandbox } = await import('@demo-studio/sandbox');
+      const { openSandbox } = await import('@retake/sandbox');
       try {
         const st = await openSandbox(project, env).status();
         const problems = st.services
@@ -120,10 +151,10 @@ export function systemProbes(): DoctorProbes {
         return { state: 'down', provider: project.sandboxes?.[env]?.manifest.provider ?? '?', problems: [], services: 0, error: errorMessage(e) };
       }
     },
-    chromium: async (browser) => (await import('@demo-studio/runner-web')).probeChromium(browser),
+    chromium: async (browser) => (await import('@retake/runner-web')).probeChromium(browser),
     execPath: process.execPath,
     worker: async (root) => {
-      const w = await (await import('@demo-studio/engine')).liveWorker(root);
+      const w = await (await import('@retake/engine')).liveWorker(root);
       return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}) } : null;
     },
     head: async (url, timeoutMs) => {
@@ -142,7 +173,7 @@ export function systemProbes(): DoctorProbes {
 
 const firstLine = (s: string) => s.split('\n').find((l) => l.trim())?.trim() ?? '';
 
-/** ffmpeg / ffprobe: configured path (studio.yaml `ffmpeg`, ffprobe next to it) or PATH. */
+/** ffmpeg / ffprobe: configured path (retake.yaml `ffmpeg`, ffprobe next to it) or PATH. */
 async function mediaTool(p: DoctorProbes, name: 'ffmpeg' | 'ffprobe', configured: string | undefined): Promise<DoctorCheck> {
   const ffmpegPath = configured ? expandHome(configured) : undefined;
   const cmd = ffmpegPath ? (name === 'ffmpeg' ? ffmpegPath : join(dirname(ffmpegPath), 'ffprobe')) : name;
@@ -153,7 +184,7 @@ async function mediaTool(p: DoctorProbes, name: 'ffmpeg' | 'ffprobe', configured
       status: 'fail',
       name,
       detail: `${cmd} not found`,
-      hint: `install ffmpeg (macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg)${name === 'ffmpeg' ? ', or set "ffmpeg: /path/to/ffmpeg" in studio.yaml' : ''}`,
+      hint: `install ffmpeg (macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg)${name === 'ffmpeg' ? ', or set "ffmpeg: /path/to/ffmpeg" in retake.yaml' : ''}`,
     };
   }
   if (res.code !== 0) return { status: 'fail', name, detail: `${where} -version failed: ${firstLine(res.stderr) || `exit ${res.code}`}` };
@@ -185,7 +216,7 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): Do
       status: 'fail',
       name: 'Chromium',
       detail: c.path ? `not found at ${c.path} (${src})` : 'no Chromium known to Playwright',
-      hint: 'pnpm --filter @demo-studio/runner-web exec playwright-core install chromium — or point $DEMO_STUDIO_CHROMIUM / browser.executable at a Chromium or Chrome binary',
+      hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary',
     };
   }
   if (!c.launched) {
@@ -201,7 +232,7 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): Do
 }
 
 /**
- * Is the capture browser GPU-accelerated (L5.7, R-FLD-24)? Chromium's own report of the browser `studio doctor` just
+ * Is the capture browser GPU-accelerated (L5.7, R-FLD-24)? Chromium's own report of the browser `retake doctor` just
  * launched, as captures launch it: without the GPU, motion is filmed choppy and Chromium's CPU climbs.
  */
 export function gpuCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): DoctorCheck | null {
@@ -235,14 +266,14 @@ export async function captureEncoderCheck(p: DoctorProbes, configured: string | 
 }
 
 function displayCheck(p: DoctorProbes): DoctorCheck {
-  if (p.platform === 'darwin') return { status: 'ok', name: 'Display', detail: 'macOS desktop (needed by --headed and studio login)' };
+  if (p.platform === 'darwin') return { status: 'ok', name: 'Display', detail: 'macOS desktop (needed by --headed and retake login)' };
   const d = p.env.WAYLAND_DISPLAY ? `WAYLAND_DISPLAY=${p.env.WAYLAND_DISPLAY}` : p.env.DISPLAY ? `DISPLAY=${p.env.DISPLAY}` : null;
-  if (d) return { status: 'ok', name: 'Display', detail: `${d} (needed by --headed and studio login)` };
+  if (d) return { status: 'ok', name: 'Display', detail: `${d} (needed by --headed and retake login)` };
   return {
     status: 'warn',
     name: 'Display',
     detail: 'none: DISPLAY / WAYLAND_DISPLAY are not set',
-    hint: 'headless captures work; --headed and studio login need a desktop session (or xvfb-run)',
+    hint: 'headless captures work; --headed and retake login need a desktop session (or xvfb-run)',
   };
 }
 
@@ -308,7 +339,7 @@ export interface DockerNeed {
 /**
  * Docker (L1.8): only docker-compose sandboxes need it. OK with the daemon's and Compose's versions and the context;
  * WARN when it is missing, too old or its daemon is down — a FAIL only when the --project's default sandbox (the one
- * `studio sandbox up` / `run --sandbox` pick without --env) is a docker-compose one.
+ * `retake sandbox up` / `run --sandbox` pick without --env) is a docker-compose one.
  */
 export async function dockerCheck(p: DoctorProbes, need: DockerNeed | null = null): Promise<DoctorCheck> {
   const name = 'Docker';
@@ -319,11 +350,11 @@ export async function dockerCheck(p: DoctorProbes, need: DockerNeed | null = nul
     hint,
   });
   // The places the sandbox package looks in (PATH first, then Docker Desktop's, OrbStack's, Homebrew's…).
-  const { dockerPlaces } = await import('@demo-studio/sandbox');
-  const bin = p.env.DEMO_STUDIO_DOCKER ?? p.which('docker') ?? dockerPlaces(p.env.HOME ?? homedir()).find((x) => p.exists(x)) ?? null;
-  if (!bin) return bad('not found', 'install Docker Desktop or OrbStack (or set DEMO_STUDIO_DOCKER to the docker binary)');
+  const { dockerPlaces } = await import('@retake/sandbox');
+  const bin = p.env.RETAKE_DOCKER ?? p.which('docker') ?? dockerPlaces(p.env.HOME ?? homedir()).find((x) => p.exists(x)) ?? null;
+  if (!bin) return bad('not found', 'install Docker Desktop or OrbStack (or set RETAKE_DOCKER to the docker binary)');
   const v = await p.exec(bin, ['compose', 'version', '--short'], 10_000);
-  if (!v) return bad(`${bin} could not be run`, 'install Docker Desktop or OrbStack (or set DEMO_STUDIO_DOCKER to the docker binary)');
+  if (!v) return bad(`${bin} could not be run`, 'install Docker Desktop or OrbStack (or set RETAKE_DOCKER to the docker binary)');
   if (v.code !== 0) return bad(`docker compose is not available (${firstLine(v.stderr) || `exit ${v.code}`})`, 'install the Compose v2 plugin (Docker Desktop and OrbStack include it)');
   const compose = v.stdout.trim().replace(/^v/, '');
   const cv = versionOf(compose);
@@ -353,7 +384,7 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
           status: 'warn',
           name: 'Workspace',
           detail: `${ws.root} (${marker}) · no projects in ${ws.projectsDir}`,
-          hint: 'cd into your workspace, pass --root <dir>, set $DEMO_STUDIO_ROOT, or create a project with studio new <slug>',
+          hint: 'cd into your workspace, pass --root <dir>, set $RETAKE_ROOT, or create a project with retake new <slug>',
         },
   );
   const templates = await listTemplates(ws.root).catch(() => []);
@@ -380,7 +411,7 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
   try {
     project = await openProject(ws, slug);
   } catch (e) {
-    return [{ status: 'fail', name: `Project ${slug}`, detail: errorMessage(e).split('\n')[0], hint: 'studio list shows the projects of the workspace' }];
+    return [{ status: 'fail', name: `Project ${slug}`, detail: errorMessage(e).split('\n')[0], hint: 'retake list shows the projects of the workspace' }];
   }
   const out: DoctorCheck[] = [{ status: 'ok', name: `Project ${slug}`, detail: project.dir }];
   const envNames = Object.keys(project.config.environments ?? {});
@@ -392,7 +423,7 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
     }
   })();
   // Browser profile(s) of the single-account form (auth.profile / storage_state): global, or one per environment.
-  const rw = await import('@demo-studio/runner-web');
+  const rw = await import('@retake/runner-web');
   const seen = new Set<string>();
   for (const env of envNames.length ? envNames : ['']) {
     const auth = rw.resolveAuth(project, env);
@@ -414,20 +445,20 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
       out.push(
         p.exists(auth.storageState)
           ? ((await gitPlacement(p, auth.storageState, false, name, auth.storageState)) ?? { status: 'ok', name, detail: auth.storageState })
-          : { status: 'fail', name, detail: `${auth.storageState} not found`, hint: 'export it again, or name the account in auth.personas + studio login' },
+          : { status: 'fail', name, detail: `${auth.storageState} not found`, hint: 'export it again, or name the account in auth.personas + retake login' },
       );
     }
   }
   // Sandboxes (L1.8): one line each — their accounts sign in off camera at every take and their hosts are up only
   // while the sandbox runs, so neither gets a line of its own.
   const sandboxes = new Set(sandboxNames(project));
-  // Personas (L1.6): their sessions live under the studio home, never in the project.
-  const home = studioHome(p.env as NodeJS.ProcessEnv);
+  // Personas (L1.6): their sessions live under the Retake home, never in the project.
+  const home = retakeHome(p.env as NodeJS.ProcessEnv);
   const personas = (await projectPersonaStates(project, loginCommand, undefined, home)).filter((x) => !x.state.legacy && !sandboxes.has(x.state.env));
   if (personas.length) {
-    const where = `${tildePath(home)}${p.env.DEMO_STUDIO_HOME ? ' (DEMO_STUDIO_HOME)' : ''}`;
+    const where = `${tildePath(home)}${p.env.RETAKE_HOME ? ' (RETAKE_HOME)' : ''}`;
     out.push((await gitPlacement(p, home, true, 'Session home', where)) ?? { status: 'ok', name: 'Session home', detail: `${where} · outside any git work tree` });
-    for (const { state } of personas) out.push(await personaCheck(p, state, home, `${studioCommand(global)} auth status --project ${slug} --check`));
+    for (const { state } of personas) out.push(await personaCheck(p, state, home, `${retakeCommand(global)} auth status --project ${slug} --check`));
   } else if (!seen.size) {
     out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
   }
@@ -435,7 +466,7 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
   for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global));
   // L5.8 (R-FLD-30): a local environment with a database, a mailbox or reset hooks and no sandbox: point to one.
   const advice = sandboxAdvice(project);
-  if (advice) out.push({ status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, studioCommand(global)) });
+  if (advice) out.push({ status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, retakeCommand(global)) });
   // Hosts of every environment page: HEAD with a 5 s timeout. An unreachable default environment is a failure.
   for (const env of envNames) {
     if (sandboxes.has(env)) continue;
@@ -464,14 +495,14 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
 async function sandboxCheck(p: DoctorProbes, project: LoadedProject, env: string, global: GlobalOptions): Promise<DoctorCheck> {
   const name = `Sandbox ${env}`;
   const envFlag = sandboxNames(project)[0] === env ? '' : ` --env ${env}`;
-  const studio = studioCommand(global);
+  const studio = retakeCommand(global);
   if (!p.sandbox) return { status: 'ok', name, detail: 'not checked' };
   const s = await p.sandbox(project, env);
   if (s.error) return { status: 'warn', name, detail: `${s.provider} · ${s.error.split('\n')[0]}` };
   const seed = s.seed ? ` · seed ${s.seed}` : '';
   if (s.state === 'up') return { status: 'ok', name, detail: `${s.provider} · up, ${s.services === 1 ? 'its service is' : `its ${s.services} services are`} healthy${seed}` };
   if (s.state === 'down') {
-    return { status: 'warn', name, detail: `${s.provider} · not running`, hint: `${studio} sandbox up ${project.slug}${envFlag} (studio run … --sandbox starts it too)` };
+    return { status: 'warn', name, detail: `${s.provider} · not running`, hint: `${studio} sandbox up ${project.slug}${envFlag} (retake run … --sandbox starts it too)` };
   }
   return { status: 'warn', name, detail: `${s.provider} · partly up: ${s.problems.join('; ')}`, hint: `${studio} sandbox status ${project.slug}${envFlag}, then ${studio} sandbox up ${project.slug}${envFlag}` };
 }
@@ -487,7 +518,7 @@ function gitWorkTree(p: DoctorProbes, path: string): string | null {
 }
 
 /**
- * A session (a profile, a snapshot, the studio home) in a git work tree (R-AUTH-02): a WARN when git does not ignore
+ * A session (a profile, a snapshot, the Retake home) in a git work tree (R-AUTH-02): a WARN when git does not ignore
  * it — a commit could publish a signed-in session —, an OK naming the work tree when it is ignored; null when it is
  * outside any work tree. `detail` is the line's detail otherwise.
  */
@@ -501,7 +532,7 @@ async function gitPlacement(p: DoctorProbes, path: string, dir: boolean, name: s
     status: 'warn',
     name,
     detail: `${tildePath(path)} is inside the git work tree ${tildePath(root)}${res ? ', not ignored' : ' (git not found: cannot tell whether it is ignored)'}: a commit could publish a signed-in session`,
-    hint: name === 'Session home' ? 'set DEMO_STUDIO_HOME to a folder outside any repository (or ignore it in that repository)' : 'keep sessions outside repositories: name the account in auth.personas (its session then lives in ~/.demo-studio), or ignore the path',
+    hint: name === 'Session home' ? 'set RETAKE_HOME to a folder outside any repository (or ignore it in that repository)' : 'keep sessions outside repositories: name the account in auth.personas (its session then lives in ~/.retake), or ignore the path',
   };
 }
 
@@ -511,12 +542,12 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
   const where = s.session === 'profile' ? 'profile' : 'snapshot';
   if (s.status === 'never') return { status: 'warn', name, detail: 'never signed in', hint: `sign in once: ${s.command}` };
   if (s.in_use) {
-    return { status: 'warn', name, detail: `its profile is in use by a browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''}`, hint: 'close the studio login window (or the other browser) before capturing' };
+    return { status: 'warn', name, detail: `its profile is in use by a browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''}`, hint: 'close the retake login window (or the other browser) before capturing' };
   }
   if (s.status === 'expired') return { status: 'warn', name, detail: `expired · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `sign in again: ${s.command}` };
   if (s.status === 'error') return { status: 'warn', name, detail: `could not be checked · ${checkedText(s)}${s.detail ? `: ${s.detail}` : ''}`, hint: `is the app running? Then sign in again if needed: ${s.command}` };
   const detail = s.status === 'valid' ? `valid · ${checkedText(s)} · ${where}` : `${where} saved, not checked yet (${recheck})`;
-  // A git work tree nested in the studio home (the home itself is reported once).
+  // A git work tree nested in the Retake home (the home itself is reported once).
   const file = s.session === 'profile' ? s.profile : s.snapshot;
   if (file && gitWorkTree(p, file) !== gitWorkTree(p, home)) {
     const nested = await gitPlacement(p, file, s.session === 'profile', name, detail);
@@ -526,41 +557,118 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
 }
 
 /**
- * The MCP line (L3.1): the Node.js a registration names (`studio mcp --print-config`: a stable alias of it where one
+ * The MCP line (L3.1): the Node.js a registration names (`retake mcp --print-config`: a stable alias of it where one
  * exists, so a patch upgrade does not break it), the PATH a GUI client gets from it finds ffmpeg, the jobs worker, and
- * the workspace's `.demo-studio/` (its job queue and history) git-ignored when the workspace is a git work tree.
+ * the workspace's `.retake/` (its job queue and history) git-ignored when the workspace is a git work tree.
  */
 async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck> {
   const name = 'MCP';
-  const { stableNodePath, clientPath } = await import('@demo-studio/mcp');
+  const { stableNodePath, clientPath } = await import('@retake/mcp');
   const exec = p.execPath ?? process.execPath;
   const node = stableNodePath(exec, p.exists);
   const parts = [`node ${tildePath(node)}`];
   const warns: Array<{ detail: string; hint: string }> = [];
   if (Number(p.nodeVersion.split('.')[0]) < MIN_NODE_MAJOR) {
-    warns.push({ detail: `the registration would name Node.js ${p.nodeVersion}`, hint: `run studio mcp --print-config with Node.js ${MIN_NODE_MAJOR}+` });
+    warns.push({ detail: `the registration would name Node.js ${p.nodeVersion}`, hint: `run retake mcp --print-config with Node.js ${MIN_NODE_MAJOR}+` });
   } else if (node === exec && /\/v?\d+\.\d+\.\d+\//.test(node)) {
-    warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (studio mcp --print-config), or point it at a version manager alias' });
+    warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (retake mcp --print-config), or point it at a version manager alias' });
   }
   if (!ws.ffmpeg) {
     const path = clientPath(node, p.env.PATH ?? '', p.exists);
     if (whichOnPath('ffmpeg', { PATH: path }, p.platform)) parts.push('ffmpeg on the PATH it registers');
-    else warns.push({ detail: 'ffmpeg is not on the PATH a GUI client gets from the registration', hint: 'install ffmpeg (Homebrew), or set ffmpeg: in studio.yaml' });
+    else warns.push({ detail: 'ffmpeg is not on the PATH a GUI client gets from the registration', hint: 'install ffmpeg (Homebrew), or set ffmpeg: in retake.yaml' });
   }
   const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
   parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''})` : 'worker idle (a client starts it with its first job)');
   const tree = gitWorkTree(p, ws.root);
   if (tree) {
-    const rel = relative(tree, join(ws.root, '.demo-studio'));
+    const rel = relative(tree, join(ws.root, '.retake'));
     const res = await p.exec('git', ['-C', tree, 'check-ignore', '-q', `${rel}/`], 5000);
-    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(join(ws.root, '.demo-studio'))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
+    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(join(ws.root, '.retake'))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
   }
   if (warns.length) return { status: 'warn', name, detail: [...warns.map((w) => w.detail), ...parts].join(' · '), hint: warns.map((w) => w.hint).join('; ') };
-  return { status: 'ok', name, detail: `${parts.join(' · ')} · register: studio mcp --print-config` };
+  return { status: 'ok', name, detail: `${parts.join(' · ')} · register: retake mcp --print-config` };
+}
+
+const BEFORE = 'Before Retake';
+
+/**
+ * L5.13 — what is left from before the rename, each line with the exact command; no line when nothing is.
+ * Stats, folder listings and the workspace's and projects' own `.gitignore` files, through the probes (nothing under
+ * the old home is read, nothing is written):
+ * the old home's sign-ins (not looked at when RETAKE_HOME is set — the person chose a home — nor without a HOME), the old variables in the
+ * environment, the old workspace file (`refused`: the load failed on it), the old tool folders of the workspace and its
+ * projects with their pending rollback journals (critique L9), a `.gitignore` that ignores the old folder and not
+ * `.retake/` (review B M1). Hooks, components and the MCP registration that still
+ * name an old name are the grep commands of README's upgrade section.
+ */
+export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused?: string): DoctorCheck[] {
+  const out: DoctorCheck[] = [];
+  const old = `~/${OLD_DIR}`;
+  // The probes' HOME only (never this process's): a mocked environment without one looks at no home at all.
+  const home = p.env.HOME?.trim();
+  if (!p.env.RETAKE_HOME?.trim() && home) {
+    const signIns = (dir: string) => p.exists(join(dir, 'profiles')) || p.exists(join(dir, 'sessions'));
+    const oldDir = join(home, OLD_DIR);
+    const newDir = join(home, '.retake');
+    if (p.exists(oldDir)) {
+      const stop = 'stop the Studio, the desktop app, MCP clients and the worker first';
+      if (!signIns(oldDir)) {
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} (from before the rename) is not read; it holds no sign-ins`, hint: `remove it once you have checked it holds nothing you need` });
+      } else if (signIns(newDir)) {
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} and ~/.retake both hold sign-ins: only ~/.retake is read`, hint: `merge by hand: move the profiles/<project>/<env>/<persona> and sessions/ entries you still need from ${old} into ~/.retake (${stop}), then remove ${old}` });
+      } else if (p.exists(newDir)) {
+        out.push({
+          status: 'warn',
+          name: `${BEFORE}: home`,
+          detail: `${old} holds the sign-ins from before the rename and is not read; ~/.retake holds only files the tool recreated by itself (${RECREATED_HOME_FILES.join(', ')})`,
+          hint: `${stop}, then: mv ~/.retake ~/.retake.after-upgrade && mv ${old} ~/.retake`,
+        });
+      } else {
+        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} holds the sign-ins from before the rename and is not read`, hint: `${stop}, then: mv ${old} ~/.retake` });
+      }
+    }
+  }
+  const vars = oldEnvNames(p.env);
+  if (vars.length) {
+    out.push({
+      status: 'warn',
+      name: `${BEFORE}: variables`,
+      detail: `${vars.slice(0, 5).join(', ')}${vars.length > 5 ? `, … (${vars.length})` : ''} set: not read any more`,
+      hint: `rename them RETAKE_* (${OLD_ENV_PREFIX}HOME → RETAKE_HOME…) where they are set: your shell profile, the env of an MCP registration`,
+    });
+  }
+  if (refused) {
+    const m = oldWorkspaceFileMessage(ws.root);
+    out.push({ status: 'fail', name: `${BEFORE}: workspace file`, detail: m.message, hint: m.fix });
+  } else if (p.exists(join(ws.root, WORKSPACE_FILE)) && oldWorkspaceFileAt(ws.root)) {
+    out.push({ status: 'warn', name: `${BEFORE}: workspace file`, detail: `${join(ws.root, OLD_WORKSPACE_FILE)} (from before the rename) lies next to ${WORKSPACE_FILE}: not read`, hint: `copy what it still holds into ${WORKSPACE_FILE}, then remove it` });
+  }
+  const dirs = [ws.root, ...(p.list?.(ws.projectsDir) ?? []).sort().map((slug) => join(ws.projectsDir, slug))];
+  const label = (dir: string) => (dir === ws.root ? 'workspace' : `project ${relative(ws.projectsDir, dir)}`);
+  for (const dir of dirs) {
+    // Review B M1: a .gitignore the tool wrote names the old folder only — moved, `.retake/` would be committed.
+    const ignore = join(dir, '.gitignore');
+    const text = p.read?.(ignore);
+    if (text && gitignoreNamesOldDirOnly(text)) {
+      out.push({ status: 'warn', name: `${BEFORE}: ${label(dir)} .gitignore`, detail: `${ignore} ignores ${OLD_DIR}/ but not .retake/ (the tool's state of this machine)`, hint: `add it: ${gitignoreFix(ignore)}` });
+    }
+    if (!p.exists(join(dir, OLD_DIR))) continue;
+    const journals = (p.list?.(join(dir, OLD_DIR, 'journals')) ?? []).filter((f) => f.endsWith('.json')).length;
+    const pending = journals ? ` · ${journals} pending rollback journal${journals === 1 ? '' : 's'} (retake env reset finds them only once moved)` : '';
+    const both = p.exists(join(dir, '.retake'));
+    out.push({
+      status: 'warn',
+      name: `${BEFORE}: ${dir === ws.root ? 'workspace folder' : label(dir)}`,
+      detail: `${join(dir, OLD_DIR)} (the tool's folder from before the rename) is not read${both ? ', next to .retake/' : ''}${pending}`,
+      hint: both ? `move what you still need from it (journals/, records/…) into ${join(dir, '.retake')} by hand, then remove it` : `stop the Studio, the worker and the project's sandboxes, then: ${oldDirMove(dir)}`,
+    });
+  }
+  return out;
 }
 
 /** Every doctor check, in display order. */
-export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
+export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions; refused?: string } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
   const chromium = await probes.chromium(ws.browser);
   out.push(chromiumCheck(chromium, ws.browser));
@@ -580,6 +688,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   out.push(...(await workspaceChecks(probes, ws)));
   out.push(await mcpCheck(probes, ws));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
+  out.push(...beforeRetakeChecks(probes, ws, opts.refused));
   return out;
 }
 
@@ -609,10 +718,20 @@ export interface DoctorOptions {
   json?: boolean;
 }
 
-/** `studio doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
+/** `retake doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
 export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes()): Promise<ExitCode> {
-  const ws = await openWorkspace(global);
-  const checks = await doctorChecks(probes, ws, { project: opts.project, global });
+  let ws: WorkspaceConfig;
+  let refused: string | undefined;
+  try {
+    ws = await openWorkspace(global);
+  } catch (e) {
+    // The workspace file from before L5.13 alone: a "Before Retake" line says to rename it; the rest is still checked.
+    const root = global.root ? resolve(global.root) : findWorkspaceRoot();
+    if (!(e instanceof ConfigError) || probes.exists(join(root, WORKSPACE_FILE)) || !oldWorkspaceFileAt(root)) throw e;
+    ws = { root, projectsDir: join(root, 'projects'), templatesDir: join(root, 'templates'), componentsDir: join(root, 'components') };
+    refused = errorMessage(e);
+  }
+  const checks = await doctorChecks(probes, ws, { project: opts.project, global, refused });
   const fails = checks.filter((c) => c.status === 'fail').length;
   const warns = checks.filter((c) => c.status === 'warn').length;
   if (opts.json) {
@@ -621,7 +740,7 @@ export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorO
     const c = ui.c;
     const tag = { ok: c.green('OK  '), warn: c.yellow('WARN'), fail: c.red('FAIL') } as const;
     const width = Math.max(...checks.map((x) => x.name.length));
-    ui.line(c.bold('studio doctor'));
+    ui.line(c.bold('retake doctor'));
     for (const x of checks) {
       ui.line(`  ${tag[x.status]}  ${x.name.padEnd(width)}  ${x.detail}`);
       if (x.hint && x.status !== 'ok') ui.line(`  ${' '.repeat(4)}  ${' '.repeat(width)}  ${c.dim(`→ ${x.hint}`)}`);

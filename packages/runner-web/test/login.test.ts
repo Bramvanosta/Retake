@@ -1,16 +1,16 @@
 /**
- * `studio login`'s engine (L1.6, R-AUTH-06): signIn in a real Chromium against the cookie sign-in app of auth-server.ts.
- * The headed window is played by `drive` (a headless window here; a visible one with DEMO_STUDIO_TEST_HEADED=1 — the
+ * `retake login`'s engine (L1.6, R-AUTH-06): signIn in a real Chromium against the cookie sign-in app of auth-server.ts.
+ * The headed window is played by `drive` (a headless window here; a visible one with RETAKE_TEST_HEADED=1 — the
  * only proof of the real window without a person), the automated login with an injected secret reader. Every test has
- * its own studio home (DEMO_STUDIO_HOME): nothing touches ~/.demo-studio, nothing reads the real Keychain.
+ * its own Retake home (RETAKE_HOME): nothing touches ~/.retake, nothing reads the real Keychain.
  */
 import { existsSync, statSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { personaPaths, resolvePersonas } from '@demo-studio/core';
-import type { AuthConfig, LoadedProject, PersonaConfig } from '@demo-studio/core';
+import { personaPaths, resolvePersonas } from '@retake/core';
+import type { AuthConfig, LoadedProject, PersonaConfig } from '@retake/core';
 import { checkSavedSession, readSnapshot, readStatus, signIn } from '../src/index.js';
 import type { SignInOptions } from '../src/index.js';
 import { ACCOUNTS, startAuthServer } from './auth-server.js';
@@ -30,7 +30,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   home = await tempDir('ds-login-home-');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
 });
 
 const ENV = 'test';
@@ -76,7 +76,7 @@ function person(persona: 'supplier' | 'buyer', close: 'page' | 'browser') {
   };
 }
 
-describe('studio login (R-AUTH-06): signIn', () => {
+describe('retake login (R-AUTH-06): signIn', () => {
   it('headed (driven): the master profile and the snapshot (the session cookie included) are saved, checked the way a run sees them', async () => {
     const { project, persona } = await setup();
     let opened = '';
@@ -88,7 +88,7 @@ describe('studio login (R-AUTH-06): signIn', () => {
     // The session cookie (no expiry) is lost when the profile closes: only the snapshot keeps it.
     const snap = await readSnapshot(f.snapshot!);
     expect(snap?.cookies?.find((c) => c.name === 'sid')).toMatchObject({ expires: -1 });
-    expect(snap?.demo_studio).toMatchObject({ version: 1, project: 'northfield', env: ENV, persona: 'supplier', how: 'manual' });
+    expect(snap?.retake).toMatchObject({ version: 1, project: 'northfield', env: ENV, persona: 'supplier', how: 'manual' });
     expect(statSync(f.snapshot!).mode & 0o777).toBe(0o600);
     expect(statSync(f.profileDir!).mode & 0o777).toBe(0o700);
     expect(await readStatus(f.statusFile)).toMatchObject({ status: 'valid', by: 'login', at: `${srv.url}/home` });
@@ -117,7 +117,7 @@ describe('studio login (R-AUTH-06): signIn', () => {
     expect(r.check.status).toBe('valid');
     expect(r.alreadySignedIn).toBeUndefined();
     expect(asked).toEqual(['keychain:demo-test/supplier']);
-    expect((await readSnapshot(persona('supplier').snapshot!))?.demo_studio?.how).toBe('auto');
+    expect((await readSnapshot(persona('supplier').snapshot!))?.retake?.how).toBe('auto');
     // No password anywhere in the persona's files.
     for (const file of [persona('supplier').snapshot!, persona('supplier').statusFile]) expect(await readFile(file, 'utf8')).not.toContain(ACCOUNTS.supplier.password);
     // The buyer's cookie persists in the master: the second login finds the session still valid and runs no step.
@@ -243,8 +243,8 @@ describe('studio login (R-AUTH-06): signIn', () => {
   });
 });
 
-// The real window (a person's `studio login`, minus the person): only on a desktop, on demand.
-describe.skipIf(process.env.DEMO_STUDIO_TEST_HEADED !== '1')('studio login, a visible window (DEMO_STUDIO_TEST_HEADED=1)', () => {
+// The real window (a person's `retake login`, minus the person): only on a desktop, on demand.
+describe.skipIf(process.env.RETAKE_TEST_HEADED !== '1')('retake login, a visible window (RETAKE_TEST_HEADED=1)', () => {
   it('a visible window, the page closed then the browser quit: both save a session a run can use', async () => {
     const { project, persona } = await setup();
     const a = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page') });

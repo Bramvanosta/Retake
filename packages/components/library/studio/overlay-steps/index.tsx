@@ -1,6 +1,6 @@
 import { useCurrentFrame } from 'remotion';
-import { CapText, biasMotion, capTextLayout, clamp, darkLight, fadeOut, nightTone, progress, readableOn, roundTo, stepBadgeBox, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { CapText, biasMotion, capTextLayout, clamp, darkLight, fadeOut, nightTone, progress, readableOn, roundTo, stepBadgeBox, withAlpha } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { size: number; placement: 'auto' | 'left' | 'right' | 'above' | 'below'; tone: 'accent' | 'dark'; numbering: 'scene' | 'video'; pulse: boolean };
 

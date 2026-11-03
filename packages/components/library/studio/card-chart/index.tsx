@@ -15,8 +15,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, TableMedia, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, TableMedia, ThemeTokens } from '@retake/components/kit';
 
 type Params = {
   type: 'bar' | 'line';

@@ -11,9 +11,9 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Timeline } from '@demo-studio/core';
-import { overlayBoxAt, renderVideo } from '@demo-studio/editor';
-import type { ClipSegment, RenderRecord } from '@demo-studio/editor';
+import type { Timeline } from '@retake/core';
+import { overlayBoxAt, renderVideo } from '@retake/editor';
+import type { ClipSegment, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, hasTool, pixelAt, renderWorkspace, syntheticTimeline } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
 

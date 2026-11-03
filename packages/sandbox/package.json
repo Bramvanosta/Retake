@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/sandbox",
+  "name": "@retake/sandbox",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -18,8 +18,8 @@
     "scaffold"
   ],
   "dependencies": {
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/hooks": "workspace:*",
     "pg": "^8.16.0"
   },
   "devDependencies": {

@@ -124,7 +124,7 @@ function Ended() {
       <h1 className="sc-h1">{APP_NAME}</h1>
       <Callout state="warn" role="alert" title="This Studio session ended">
         <p className="sc-ended-p">
-          Run <code className="k-mono">studio ui</code> again in a terminal: it opens a new session. A Studio link works once, in one tab.
+          Run <code className="k-mono">retake ui</code> again in a terminal: it opens a new session. A Studio link works once, in one tab.
         </p>
       </Callout>
       {drafts.length > 0 && (

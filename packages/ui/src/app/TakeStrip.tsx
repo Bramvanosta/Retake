@@ -11,7 +11,7 @@
  * mode opens the same capture).
  */
 import { useEffect, useState } from 'react';
-import type { ScenarioRunChoice } from '@demo-studio/engine';
+import type { ScenarioRunChoice } from '@retake/engine';
 import { call, useCall } from './api.js';
 import { Txt, When, shown, visibleControls } from './bits.js';
 import { commentsEventAction, useEvents } from './events.js';

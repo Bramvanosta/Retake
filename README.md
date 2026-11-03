@@ -1,6 +1,6 @@
-# Demo Studio
+# Retake
 
-Demo Studio turns a precise, written scenario into a professional product video. It drives a real web app in a
+Retake turns a precise, written scenario into a professional product video. It drives a real web app in a
 headless browser at any virtual resolution, draws the cursor **inside the page** (so clicks and screen reactions are
 in sync by construction), records the screen through the Chrome DevTools screencast, and writes a timeline of every
 step. Later phases edit that capture automatically into a finished video (themes, components, captions,
@@ -8,12 +8,13 @@ intro/outro), produce review artefacts, and expose everything to an AI agent thr
 
 The tool is generic: it is not tied to any product or brand. Your projects, themes, logos, scripts and hooks live in
 **your own workspace folder**, never in this repository; signed-in sessions stay on your computer, outside any project
-(`~/.demo-studio`).
+(`~/.retake`).
 
 - [How it works](#how-it-works)
 - [Requirements](#requirements)
 - [Quick start (bundled fixture product)](#quick-start-bundled-fixture-product)
 - [Your own workspace](#your-own-workspace)
+- [Upgrading from the name before L5.13](#upgrading-from-demo-studio-before-l513) <!-- old-name: the anchor -->
 - [Command line](#command-line)
 - [Project layout](#project-layout)
 - [Scenario language](#scenario-language)
@@ -31,8 +32,8 @@ The tool is generic: it is not tied to any product or brand. Your projects, them
 ## How it works
 
 1. You describe a video in YAML: scenes, steps (`click`, `type`, `select`, `scroll`, `drop_file`…), captions and
-   edit hints. `studio validate` checks it with line/column messages before anything runs.
-2. `studio run` launches Chromium headless (new headless mode) with the project's viewport, injects a small in-page
+   edit hints. `retake validate` checks it with line/column messages before anything runs.
+2. `retake run` launches Chromium headless (new headless mode) with the project's viewport, injects a small in-page
    kit (cursor overlay + element resolver) into every document, and executes the whole scenario in one process with
    deterministic pacing: eased cursor moves at ~60 Hz with the real mouse, hover before click, popup-aware click
    strategies, typing at a natural speed, animated scrolls.
@@ -49,16 +50,16 @@ Because the browser is headless and offscreen, a capture does not take over your
 ## Requirements
 
 - macOS or Linux, Node.js 22+ (an older Node.js gets a message saying so; `.nvmrc` pins 22 for nvm, and for mise when `idiomatic_version_file_enable_tools` includes `node`), pnpm 10
-- ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `studio.yaml`); used with 6.1 (Linux) and 9.0 (macOS, Homebrew)
-- Chromium for Playwright: `pnpm --filter @demo-studio/runner-web exec playwright-core install chromium`
-  (or point `$DEMO_STUDIO_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
+- ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `retake.yaml`); used with 6.1 (Linux) and 9.0 (macOS, Homebrew)
+- Chromium for Playwright: `pnpm --filter @retake/runner-web exec playwright-core install chromium`
+  (or point `$RETAKE_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
 - Optional: PostgreSQL client access for `sql` hooks
 - Optional: Docker with Compose v2.17+ (Docker Desktop or OrbStack) for docker-compose sandboxes (Sandbox mode)
 
-`studio doctor` checks all of this in one go (see [Command line](#command-line)).
+`retake doctor` checks all of this in one go (see [Command line](#command-line)).
 
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide (an Apple M4 captures ≈ 60
-frames/s while the cursor moves, blurred dialogs included); `studio doctor` checks it (Chromium's own GPU report: the
+frames/s while the cursor moves, blurred dialogs included); `retake doctor` checks it (Chromium's own GPU report: the
 capture browser's new headless mode uses the GPU, `browser.channel: headless-shell` does not). Without a GPU the
 browser renders in software: pages with heavy effects (for example `backdrop-filter` blur behind dialogs) are then
 captured at a lower frame rate, and the run warns with the measured cause (no GPU, a busy machine, a page whose
@@ -81,23 +82,23 @@ project that films it (`projects/northfield-fixture`).
 ```sh
 pnpm install
 pnpm build
-pnpm studio doctor                                               # is this machine ready?
+pnpm retake doctor                                               # is this machine ready?
 
 # terminal 1 — the fixture product (supplier console on :4401, buyer shop on :4402)
 pnpm fixture
 
 # terminal 2
-pnpm studio list
-pnpm studio validate northfield-fixture catalogue
-pnpm studio run northfield-fixture catalogue --dry --hooks run   # screenshots of every step, no recording
-pnpm studio run northfield-fixture catalogue                     # capture.mp4 + timeline.json
-pnpm studio run northfield-fixture quote
-pnpm studio run northfield-fixture signup                        # sign-up email, phone cards, tap-open
+pnpm retake list
+pnpm retake validate northfield-fixture catalogue
+pnpm retake run northfield-fixture catalogue --dry --hooks run   # screenshots of every step, no recording
+pnpm retake run northfield-fixture catalogue                     # capture.mp4 + timeline.json
+pnpm retake run northfield-fixture quote
+pnpm retake run northfield-fixture signup                        # sign-up email, phone cards, tap-open
 ```
 
-`pnpm studio …` runs `node packages/cli/dist/bin.js …` from the repository root, whose `studio.yaml` makes the
-repository a workspace holding the fixture project and the starter templates. To call `studio` from anywhere, alias
-it: `alias studio="node /path/to/demo-studio/packages/cli/dist/bin.js"`.
+`pnpm retake …` runs `node packages/cli/dist/bin.js …` from the repository root, whose `retake.yaml` makes the
+repository a workspace holding the fixture project and the starter templates. To call `retake` from anywhere, alias
+it: `alias retake="node /path/to/retake/packages/cli/dist/bin.js"`.
 
 ## Your own workspace
 
@@ -105,14 +106,14 @@ Keep your material in a folder of your own, for example:
 
 ```
 ~/demo-workspace/
-  studio.yaml          # marks the workspace (all keys optional)
+  retake.yaml          # marks the workspace (all keys optional)
   projects/<slug>/     # one folder per product
   templates/<name>/    # your themes (copy a starter from this repository's templates/ to begin)
-  components/<ns>/<name>/  # your own components (studio components create)
+  components/<ns>/<name>/  # your own components (retake components create)
 ```
 
 ```yaml
-# studio.yaml
+# retake.yaml
 version: 1                 # format version: optional (see File formats and versions)
 projects_dir: projects     # default "projects"
 templates_dir: templates   # default "templates"
@@ -121,74 +122,134 @@ ffmpeg: /opt/homebrew/bin/ffmpeg
 browser: {locale: en-GB, timezone: Europe/Stockholm}   # defaults for every project (project.yaml wins)
 ```
 
-The CLI finds the workspace in this order: `--root <dir>` (`-C`), then `$DEMO_STUDIO_ROOT`, then the nearest folder
-above the current directory that contains `studio.yaml`, then the nearest one containing `projects/` or
-`templates/`. So either run `studio` from inside your folder, or `export DEMO_STUDIO_ROOT=~/demo-workspace`.
+The CLI finds the workspace in this order: `--root <dir>` (`-C`), then `$RETAKE_ROOT`, then the nearest folder
+above the current directory that contains `retake.yaml`, then the nearest one containing `projects/` or
+`templates/`. So either run `retake` from inside your folder, or `export RETAKE_ROOT=~/demo-workspace`.
 
 ```sh
-studio new acme-demo --name "Acme demo" --env "staging=app:https://app.staging.example.com,admin:https://admin.staging.example.com"
-studio validate acme-demo
+retake new acme-demo --name "Acme demo" --env "staging=app:https://app.staging.example.com,admin:https://admin.staging.example.com"
+retake validate acme-demo
 ```
 
-`studio new` writes `README.md` (a skeleton to describe the product, audience, goals, tone and accounts — by
+`retake new` writes `README.md` (a skeleton to describe the product, audience, goals, tone and accounts — by
 reference, never passwords), `project.yaml`, `scenarios/`, `hooks/`, `assets/` and a `.gitignore` for generated
-folders. On a terminal, `studio new <slug>` without `--env` asks instead: the environments, then whether each one
+folders. On a terminal, `retake new <slug>` without `--env` asks instead: the environments, then whether each one
 needs a sign-in and the accounts the videos are filmed as, and offers to sign each one in (see
 [Signing in](#signing-in-personas-and-sessions)).
+
+<!-- old-name:begin — the upgrade from the name before L5.13 (the guard test allows this region) -->
+## Upgrading from Demo Studio (before L5.13)
+
+Retake was called Demo Studio before L5.13: command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`,
+tool folders `.demo-studio/`, variables `DEMO_STUDIO_*`, packages `@demo-studio/*`. Nothing reads those names any more
+and nothing moves them for you: `retake doctor` lists what is left (its "Before Retake" lines, each with the command),
+the CLI prints one line on stderr while the old home holds your only sign-ins, and the Studio says so in its sidebar.
+In this order:
+
+1. **Stop everything of the old build first**: the Studio and the desktop app, MCP clients (Claude Code, Claude
+   desktop), the jobs worker (`studio jobs` shows its pid) and every sandbox (`studio sandbox down <project>`). A Docker
+   sandbox left up keeps running under its `demo-studio-*` name until its project's tool folder is moved (step 4);
+   `retake sandbox down` then takes it down. `retake ui`, `retake mcp`, a jobs worker, `retake sandbox up / reset`,
+   `retake run --sandbox`, `retake env reset` and `retake record` refuse to start while a Studio or a worker of the old
+   build still holds the workspace (its `.demo-studio/ui.json` or `workers/worker.lock` names a running process); when
+   none runs any more, remove the file the refusal names.
+2. Pull, then `pnpm install --frozen-lockfile --offline && pnpm build`.
+3. **The home** (signed-in profiles and sessions, the approval key, the HTTP MCP token, the desktop app's settings):
+   `mv ~/.demo-studio ~/.retake`. When `~/.retake` exists already (the tool recreated `approvals.key`,
+   `mcp-http.token` or `desktop.json` by itself): `mv ~/.retake ~/.retake.after-upgrade && mv ~/.demo-studio ~/.retake`.
+   A home of your own named by `DEMO_STUDIO_HOME` is named by `RETAKE_HOME` now (while only the old variable is set,
+   every command says so on stderr, and the Studio and Claude's `engine_info` say it too).
+4. **Each workspace**: `mv studio.yaml retake.yaml` (a workspace whose only workspace file is `studio.yaml` is refused
+   with that command), `mv .demo-studio .retake` at its root and in each project (pending rollback journals live there:
+   `retake env reset` finds them only once moved), and `.retake/` in the workspace's `.gitignore` **and in each
+   project's own `.gitignore`** (every project the tool made lists `.demo-studio/` there: moved, its `.retake/` — stills
+   of your product, journals, sandbox state — would be committed): `for f in .gitignore projects/*/.gitignore; do
+   grep -qx '.retake/' "$f" || printf '.retake/\n' >> "$f"; done` (doctor names each file left).
+5. **Variables**: rename every `DEMO_STUDIO_*` to `RETAKE_*` where it is set (your shell profile, the `env` of an MCP
+   registration). For hook shells, seed steps and sandbox services the tool still writes `DEMO_STUDIO_SANDBOX`,
+   `DEMO_STUDIO_RUN_ID`, `DEMO_STUDIO_ENV`, `DEMO_STUDIO_PROJECT_DIR` and `DEMO_STUDIO_ALLOWED_HOSTS` next to the
+   `RETAKE_*` ones, so a script or a product server that switches on them keeps working; move them to the new names —
+   `grep -rn DEMO_STUDIO_ <your product repository> <workspace>/projects` — a later version stops writing the old ones.
+6. **Your components** import `@retake/components/kit` (one importing `@demo-studio/components/kit` is refused with
+   that message): `grep -rl '@demo-studio/components/kit' <workspace>/components | xargs sed -i '' 's#@demo-studio/components/kit#@retake/components/kit#'`.
+7. **MCP and the plugin** (the tool never edits your Claude configuration): `claude mcp remove demo-studio` (with the
+   `--scope` it was added with), `cd <workspace> && claude plugin uninstall demo-studio@demo-studio --scope local` (the
+   local scope is the folder's: run it from the workspace) and `claude plugin marketplace remove demo-studio`; then
+   register again from `retake mcp --print-config` (the plugin's entry-point value is `cli=` now). Permission lists
+   naming `mcp__demo-studio__*` become `mcp__retake__*` (the plugin's: `mcp__plugin_retake_retake__*`). A workspace
+   `.mcp.json` with a `demo-studio` server: `grep -n demo-studio <workspace>/.mcp.json`. **Claude desktop**: in
+   `~/Library/Application Support/Claude/claude_desktop_config.json`, replace the `demo-studio` entry of `mcpServers`
+   by the `retake` one `retake mcp --print-config` prints, then restart Claude. **Your shell**: an `alias studio=…` in
+   your profile or a `~/.local/bin/studio` link from the old instructions keeps the old command alive — remove it
+   (`grep -n 'studio' ~/.zshrc`, `ls -l ~/.local/bin/studio`) and make the `retake` one if you want it.
+8. **The desktop app**: `pnpm desktop:build` builds `Retake.app` (identifier `local.retake.desktop`); delete the old
+   `Demo Studio.app` yourself (`pnpm desktop:clean` only unregisters `Retake.app`). macOS asks again for notifications
+   and for the local network; the old "Demo Studio" entries stay in System Settings until you remove them.
+9. **Docker**: the first take re-seeds and re-snapshots each sandbox (the snapshot's name changed). Old objects:
+   `docker ps -a --filter name=demo-studio-`, `docker volume ls --filter name=demo-studio-`,
+   `docker image ls 'demo-studio*'` — remove them (`docker rm`, `docker volume rm`, `docker image rm`) once nothing
+   needs them.
+10. Run `retake doctor` until it shows no "Before Retake" line.
+
+Themes the tool made before (`.demo-studio-theme.json`) and raw packages exported before
+(`kind: demo-studio/raw-capture`) are still recognised as the tool's: `--replace` and a new export to the same folder
+work. Renaming the folder of your clone is optional (register MCP and the plugin again and rebuild the desktop app if
+you do).
+<!-- old-name:end -->
 
 ## Command line
 
 ```
-studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
-studio list [--json]                                  # projects (with scenarios) and templates
-studio validate <project> [scenario|file] [--env E] [--until REF] [--json]
-studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
+retake new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
+retake list [--json]                                  # projects (with scenarios) and templates
+retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
+retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
            [--raw [--cursor baked|none|layer] [--format mp4|prores] [--fps 30|60] [--layer prores|webm] [--selects]
            [--no-cuts] [--out DIR]]          # capture, then the raw package for editors
-studio inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona P] [--env E] [--within T] [--target T]…
+retake inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona P] [--env E] [--within T] [--target T]…
                [--limit N] [--images marked|none] [--json] [--out DIR]   # a page's elements with verified targets
-studio hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
-studio hooks rollback <project> [run-id] [--env E] [--allow-writes] [--dry]
-studio env reset <project> [--env E] [--yes] [--allow-writes] [--dry]
-studio sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
-studio sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)
-studio sandbox status <project> [--env E] [--json]   # exit 0 when up and healthy
-studio sandbox logs <project> [service] [--env E] [--lines N] [--follow]
-studio components list [--kind K] [--json]            # workspace components, then the built-in library
-studio components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
-studio components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
-studio components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
-studio theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
+retake hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
+retake hooks rollback <project> [run-id] [--env E] [--allow-writes] [--dry]
+retake env reset <project> [--env E] [--yes] [--allow-writes] [--dry]
+retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
+retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)
+retake sandbox status <project> [--env E] [--json]   # exit 0 when up and healthy
+retake sandbox logs <project> [service] [--env E] [--lines N] [--follow]
+retake components list [--kind K] [--json]            # workspace components, then the built-in library
+retake components validate [id|dir] [--json]         # manifest, params, previews, entry compile (all when omitted)
+retake components create <namespace/name> --kind K [--description D] [--name N] [--theme T] [--no-preview] [--json]
+retake components preview [id|dir] [--all] [--stale] [--workspace] [--theme T] [--out DIR] [--json]   # preview.png + README
+retake theme create <name> --accent HEX --logo FILE [--text|--paper|--muted|--dark HEX] [--background SPEC] [--base T]
               [--wordmark FILE] [--display-font FILE] [--body-font FILE]… [--brand-name N] [--brand-url U]
               [--no-adjust] [--replace] [--json]   # a new workspace theme from brand files (Themes from your brand)
-studio theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
-studio plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
-studio render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
+retake theme from-site <url> [--json]              # colours, font names, logo PNGs and a screenshot of a public page (Themes from a site)
+retake plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
+retake render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
               [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]
               [--review] [--json]
-studio still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json]
-studio export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
+retake still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json]
+retake export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
               [--concurrency N] [--json]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
-studio review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--previous ID | --no-previous] [--strict]
+retake review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--previous ID | --no-previous] [--strict]
               [--json]
-studio comment add <project> <render-id|latest> (--at S | --frame N | --marker M) [--region x,y,w,h] [--scenario S]
+retake comment add <project> <render-id|latest> (--at S | --frame N | --marker M) [--region x,y,w,h] [--scenario S]
               [--author A] [--json] "text"          # a comment on one frame of a render (Frame comments)
-studio comment list <project> [--scenario S] [--render ID|latest] [--status open|resolved|all] [--limit N] [--json]
-studio comment reply|resolve|reopen <project> <id> ["text" | --note T [--render ID]] [--author A] [--json]
-studio export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4|prores] [--fps 30|60]
+retake comment list <project> [--scenario S] [--render ID|latest] [--status open|resolved|all] [--limit N] [--json]
+retake comment reply|resolve|reopen <project> <id> ["text" | --note T [--render ID]] [--author A] [--json]
+retake export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4|prores] [--fps 30|60]
               [--cursor baked|none|layer] [--layer prores|webm] [--selects] [--no-cuts] [--out DIR] [--json]
-studio schema [scenario|project|template|timeline|sandbox]    # JSON Schema on stdout
-studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
-studio auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
-studio doctor [--project P] [--json]                  # check this machine, the workspace and a project
-studio prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
-studio mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
-studio mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
-studio ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)
-studio ui --supervised                                # for the desktop app: --json --no-open, stops when its stdin closes
-studio jobs [--project P] [--state S] [--limit N] [--json]   # jobs Claude started (dry runs, captures, hooks…)
-studio jobs status <id> [--json] · studio jobs cancel <id>   # one job; cancel it (teardown and rollbacks still run)
+retake schema [scenario|project|template|timeline|sandbox]    # JSON Schema on stdout
+retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
+retake auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
+retake doctor [--project P] [--json]                  # check this machine, the workspace and a project
+retake prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
+retake mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
+retake mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
+retake ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)
+retake ui --supervised                                # for the desktop app: --json --no-open, stops when its stdin closes
+retake jobs [--project P] [--state S] [--limit N] [--json]   # jobs Claude started (dry runs, captures, hooks…)
+retake jobs status <id> [--json] · retake jobs cancel <id>   # one job; cancel it (teardown and rollbacks still run)
 ```
 
 Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug messages), `--no-color`.
@@ -208,17 +269,17 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **inspect** replays a page (an environment page key with `--path`, or a URL of one of its pages) or a scenario up to
   `--until` as a dry run (hooks skipped), then lists the page's visible interactive elements — dialogs and menus first
   — with a target the runner resolves to each, its action, and why it may be fragile; `--target` checks your own
-  targets, `--within` lists inside one. Files in `<project>/.demo-studio/inspect/<id>/` (or `--out`), with a marked
+  targets, `--within` lists inside one. Files in `<project>/.retake/inspect/<id>/` (or `--out`), with a marked
   screenshot; `--json` prints the report. What `page_inspect` gives Claude — see
-  [Authoring](#mcp-claude-drives-demo-studio).
+  [Authoring](#mcp-claude-drives-retake).
 - **sandbox** starts, seeds, resets and stops the sandboxes of a project, shows their state and their services' logs —
   see [Sandbox mode](#sandbox-mode).
 - **hooks run** runs a scenario's setup or teardown, the project's `reset` hooks, or a YAML file listing hooks (same
   entries as `setup:`). Its journal (executed hooks and their rollbacks) is kept in
-  `<project>/.demo-studio/journals/<id>.json` — never in `runs/`, which only holds captures; **hooks rollback**
+  `<project>/.retake/journals/<id>.json` — never in `runs/`, which only holds captures; **hooks rollback**
   replays the pending rollbacks of one journal (a run id or a journal id) or of every journal; **env reset** replays
   every pending journal (captures' and standalone ones), then runs the `reset` hooks (journaled in
-  `.demo-studio/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
+  `.retake/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
   asked on a terminal, or they are refused). On a read-only environment, hooks that write are refused; a replayed
   rollback is judged by the environment its hook ran in (`--allow-writes` where that is a production environment
   that allows writes).
@@ -234,7 +295,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `default_env` when that is a sandbox, else the first one declared — is a docker-compose one), the workspace root
   and its projects, and the fonts of every template (the starter templates included). With
   `--project <slug>` it also checks that project's sessions — one line per persona (never signed in, expired, in use
-  by a browser, its last check), the studio home (a warning when it, or a session, sits inside a git work tree that
+  by a browser, its last check), the Retake home (a warning when it, or a session, sits inside a git work tree that
   does not ignore it), the profile of the single-account form — and sends a `HEAD`
   request (5 s timeout) to every page of every environment: an unreachable page of the default environment is a
   failure, of another environment a warning. A sandbox gets one line instead (up and healthy, or how to start it):
@@ -254,10 +315,10 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **export-capture** (and **run --raw**) writes the raw package of a run for another editing tool — clips per scene,
   cursor data or layer, FCPXML / EDL / OTIO / CSV markers, `manifest.json` — see
   [Raw export for editors](#raw-export-for-editors).
-- **mcp** serves Demo Studio's tools to an MCP client over stdio (Claude Code, Claude desktop); `--print-config`
+- **mcp** serves Retake's tools to an MCP client over stdio (Claude Code, Claude desktop); `--print-config`
   prints how to register it; `--http` serves them over HTTP on `127.0.0.1` instead (`--port`, default 47820;
   `--rotate-token`; `--json`: one line `{type, url, port, pid}`), `--print-config --http` prints that registration
-  (the token by reference only, never the token itself) — see [MCP: Claude drives Demo Studio](#mcp-claude-drives-demo-studio).
+  (the token by reference only, never the token itself) — see [MCP: Claude drives Retake](#mcp-claude-drives-retake).
 - **record** `<project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
   opens a browser window on the environment's page: perform the flow by hand, then close the window (or press Ctrl-C:
   stop and keep). Nothing is filmed. A draft scenario is made from what you did — verified targets, `select` / `pick` /
@@ -265,7 +326,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `{{vars.password_1}}` placeholders (set a showable demo value) — saved as `scenarios/<name>.yaml` when the name is
   free (default `recorded-YYYYMMDD-HHMM`; an existing scenario is never overwritten), then checked by a headless dry
   replay (up to the step before the first write that reached a server, whatever its host). The recording's
-  files stay in `<project>/.demo-studio/records/` (the newest 20). The access is the environment's own, as a run.
+  files stay in `<project>/.retake/records/` (the newest 20). The access is the environment's own, as a run.
   See [Recording a scenario](#recording-a-scenario).
 - **ui** serves the Studio web app of the workspace on `127.0.0.1` until Ctrl-C and opens it in the browser
   (`--no-open`: print the link only; `--port`: a fixed port; `--json`: one line `{type, v, url, port, pid, reused,
@@ -280,8 +341,8 @@ invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a se
 resetting or stopping a sandbox.
 
 ```
-$ studio doctor --project northfield-fixture        # Linux container without a desktop, fixture running
-studio doctor
+$ retake doctor --project northfield-fixture        # Linux container without a desktop, fixture running
+retake doctor
   OK    Node.js                     22.22.0
   OK    Chromium                    141.0.7390.37 · /opt/pw-browsers/chromium-1194/chrome-linux/chrome · new headless launch 293 ms
   WARN  GPU                         the capture browser renders in software · ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device …)) · in software: gpu_compositing, rasterization, …
@@ -290,26 +351,26 @@ studio doctor
   OK    ffprobe                     6.1.1-3ubuntu5 · /usr/bin/ffprobe
   OK    Capture encoder             libx264 (preset veryfast) during the take
   WARN  Display                     none: DISPLAY / WAYLAND_DISPLAY are not set
-                                    → headless captures work; --headed and studio login need a desktop session (or xvfb-run)
+                                    → headless captures work; --headed and retake login need a desktop session (or xvfb-run)
   WARN  Secrets                     secret-tool not found: {{keychain:service/account}} refs cannot be resolved
                                     → install libsecret-tools (secret-tool), or use {{env:VAR}} refs
   WARN  Notifications               notify-send not found: notify steps are only logged
                                     → install libnotify-bin (notify-send) for desktop notifications
   WARN  Docker                      not found — needed by the docker-compose sandbox sandbox-docker of project northfield-fixture
-                                    → install Docker Desktop or OrbStack (or set DEMO_STUDIO_DOCKER to the docker binary)
-  OK    Workspace                   /home/user/Video (studio.yaml) · 1 project: northfield-fixture
+                                    → install Docker Desktop or OrbStack (or set RETAKE_DOCKER to the docker binary)
+  OK    Workspace                   /home/user/Video (retake.yaml) · 1 project: northfield-fixture
   OK    Template default            fonts present (4 files)
   OK    Template editorial          fonts present (4 files)
   OK    Template motion             fonts present (4 files)
   OK    Project northfield-fixture  /home/user/Video/projects/northfield-fixture
-  OK    Session home                ~/.demo-studio · outside any git work tree
+  OK    Session home                ~/.retake · outside any git work tree
   WARN  Persona signed-in·supplier  never signed in
-                                    → sign in once: studio login northfield-fixture --env signed-in --persona supplier
+                                    → sign in once: retake login northfield-fixture --env signed-in --persona supplier
   WARN  Persona signed-in·buyer     never signed in
-                                    → sign in once: studio login northfield-fixture --env signed-in --persona buyer
+                                    → sign in once: retake login northfield-fixture --env signed-in --persona buyer
   WARN  Sandbox sandbox             process · not running
-                                    → studio sandbox up northfield-fixture (studio run … --sandbox starts it too)
-  WARN  Sandbox sandbox-docker      docker-compose · sandbox sandbox-docker: docker-compose sandboxes need Docker with Compose v2.17 or later: `docker` was not found (install Docker Desktop or OrbStack, or set DEMO_STUDIO_DOCKER)
+                                    → retake sandbox up northfield-fixture (retake run … --sandbox starts it too)
+  WARN  Sandbox sandbox-docker      docker-compose · sandbox sandbox-docker: docker-compose sandboxes need Docker with Compose v2.17 or later: `docker` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)
   OK    Host local·console          http://localhost:4401 → HTTP 200 (56 ms)
   OK    Host local·shop             http://localhost:4402 → HTTP 200 (7 ms)
   OK    Host signed-in·console      http://localhost:4403 → HTTP 302 (2 ms)
@@ -330,10 +391,10 @@ projects/<slug>/
   assets/              # files used by scenarios (drop_file, eval, music…)
   runs/<run-id>/       # generated: capture.mp4, timeline.json, run.json, frames/, screenshots/, journal
   renders/             # generated: <scenario>-v<N>.mp4 + .json (render records), stills/
-  review/<render-id>/  # generated by `studio review`: contact sheets, key frames, timeline.json, report.json/.md
-  comments/<scenario>/ # frame comments, one c_<id>.json per thread (committed: your review; `studio comment`)
+  review/<render-id>/  # generated by `retake review`: contact sheets, key frames, timeline.json, report.json/.md
+  comments/<scenario>/ # frame comments, one c_<id>.json per thread (committed: your review; `retake comment`)
   sandbox/             # optional: sandbox.yaml of a sandbox environment, its seed/ and compose files (Sandbox mode)
-  .demo-studio/        # generated tool state: journals/<id>.json of `studio hooks run` / `studio env reset`, sandbox state,
+  .retake/        # generated tool state: journals/<id>.json of `retake hooks run` / `retake env reset`, sandbox state,
                        # comments/<id>.jpg (the frame still of each comment thread: machine-local, never committed)
 ```
 
@@ -365,7 +426,7 @@ vars: {customer: Northfield Roasters}
 pacing: {type_cps: 12}                                    # override field-tested pacing defaults
 defaults: {timeout_s: 30}                                 # every step's timeout when it sets none (a scenario's `defaults` win)
 browser: {timezone: Europe/London, color_scheme: light}  # browser.locale would override `locale`; frame_rate_limit: false, see Requirements
-reset:                         # run by `studio env reset`
+reset:                         # run by `retake env reset`
   - http: {method: POST, url: "{{admin}}/api/demo/reset"}
 hooks:                         # named hooks a scenario's `hook: <name>` steps run during the take (see below)
   mark-paid: {http: {method: POST, url: "{{admin}}/api/invoices/latest/paid"}}
@@ -384,8 +445,8 @@ visit is not filmed cold — a page that changes data when it loads does it then
 capture keeps one picture per step in `runs/<id>/screenshots/`, as a dry run does — the frame of the video at the end
 of each step (of the kept frames with `keep_frames`), named `<scene>-<nn>-<action>.jpg`; nothing is taken during the
 take). The browser locale is
-`browser.locale` when set, else the project `locale`, else the `studio.yaml` `browser.locale` default.
-Run `studio schema project` for the full schema (also in `packages/core/schema/` for editor autocompletion).
+`browser.locale` when set, else the project `locale`, else the `retake.yaml` `browser.locale` default.
+Run `retake schema project` for the full schema (also in `packages/core/schema/` for editor autocompletion).
 
 **Pacing** (`pacing:` in project.yaml or a scenario; every key optional, the defaults follow the field notes of
 `docs/reference/choreography.md`):
@@ -585,7 +646,7 @@ A take fails early, loudly and completely rather than "succeeding" with a wrong 
   the next acting step starts once the check of the previous click is over (at most 1 s after its press).
 - **Transient download failures are retried** (above); a mail that never came lists what did come (below).
 - **Failed `optional` steps are listed** in run.json `optional_failures` (`{scene, step, action, error, screenshot}`),
-  by `studio run` under the summary and by `run_status` over MCP — not only among the warnings.
+  by `retake run` under the summary and by `run_status` over MCP — not only among the warnings.
 
 ### Components in scenarios
 
@@ -620,7 +681,7 @@ scenes:
 | `card` | scene entry | `{component, params, slots, duration, transition}`; needs `component`, `slots.title` (the theme's card component shows a title) or your file (`video`, `image`, `lottie`) |
 | `overlay` | step modifier | `{component, slots, params, duration (0 < s ≤ 30), target}`, or your file over the capture: `{video \| image \| lottie, at, anchor \| rect, scale, duration, loop}` |
 | `transition` | scene, card | the transition INTO it: `crossfade` · `cut` · `fade-black` (the theme's of that kind) or a transition component — `studio/transition-tap-open` or `{component, params}` |
-| `caption_component` | scenario | the caption component of every clip, e.g. `studio/caption-overlay` (default: the theme's). `studio plan` / `studio render`, MCP `plan_preview` / `render` and the Studio read it the same way; a render's `overrides.components.caption` (MCP `render {overrides}`) wins over it and `captions: false` still turns captions off. An edit value: a render of the same take uses it, no new capture |
+| `caption_component` | scenario | the caption component of every clip, e.g. `studio/caption-overlay` (default: the theme's). `retake plan` / `retake render`, MCP `plan_preview` / `render` and the Studio read it the same way; a render's `overrides.components.caption` (MCP `render {overrides}`) wins over it and `captions: false` still turns captions off. An edit value: a render of the same take uses it, no new capture |
 
 No component is ever mandatory: a file given as `video`, `image` or `lottie` is drawn by the built-in `studio/media` /
 `studio/lottie` components — see [your own media and motion](#your-own-media-and-motion).
@@ -669,7 +730,7 @@ through the zone's `<input type=file>` (no drag events into frames). See the fix
 
 Strings in scenarios and hooks accept `{{page}}` (an environment page base URL, e.g. `{{console}}`), `{{vars.x}}` or
 `{{x}}`, `{{env:VAR}}`, `{{keychain:service/account}}` (macOS Keychain, Linux `secret-tool`), `{{run.id}}` /
-`{{run.dir}}` (the run folder: hooks of `studio hooks run` have no run folder, only `{{run.id}}`),
+`{{run.dir}}` (the run folder: hooks of `retake hooks run` have no run folder, only `{{run.id}}`),
 `{{hooks.<save_as>.json.id}}` (an earlier setup hook's response) and, inside an http rollback, `{{response.json.id}}`.
 
 **Every string of a scene is templated** — typed text, targets (`click: "Open {{vars.customer}}"`), `wait_for` /
@@ -710,7 +771,7 @@ then the pending setup rollbacks are replayed, most recent first. Ctrl-C (or SIG
 once: a shell hook's process group gets SIGTERM (SIGKILL 2 s later; an http, sql or js hook running then ends first),
 the next hooks do not run, the completed ones are rolled back (rollbacks are never interrupted), then the teardown
 runs. A second Ctrl-C quits at once and kills the shell hooks still running; what was not rolled back stays in the
-run's journal for `studio hooks rollback`.
+run's journal for `retake hooks rollback`.
 
 A `js` hook runs in a **tab of its own** in the run's browser, opened on its environment page (`page`, default the
 first one): cookies, localStorage and IndexedDB are shared with the capture, sessionStorage and page state are not,
@@ -795,12 +856,12 @@ scenes:
 
 A password field shows bullets; any other field shows what is typed, so typing a secret there warns
 (`types the value of a secret reference into a visible field`). For real credentials prefer signing in beforehand —
-personas, `studio login`, or their automated `login:` steps off camera (see
+personas, `retake login`, or their automated `login:` steps off camera (see
 [Signing in](#signing-in-personas-and-sessions)); put values the video may show in `vars`.
 
 ## Recording a scenario
 
-Instead of writing a scenario, a person can **show the flow once**: `studio record` opens a browser window on an
+Instead of writing a scenario, a person can **show the flow once**: `retake record` opens a browser window on an
 environment page, you click and type through the flow as you would for a colleague, then close the window. A draft
 scenario comes out of it, with targets the runner verified at the moment you pressed. Nothing is filmed while
 recording: the draft is a starting point you edit, dry-run and capture like any scenario. The Studio's **Record
@@ -815,7 +876,7 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
 
 - **Controls.** Close the window (the last tab) to finish, or press Ctrl-C in the terminal: both stop and **keep**
   what was recorded (a Ctrl-C during the check replay that follows stops the check). The longest recording is 30 min
-  (`DEMO_STUDIO_RECORD_MAX_MIN`): it then stops and keeps. There is no in-page control: nothing is added to the page.
+  (`RETAKE_RECORD_MAX_MIN`): it then stops and keeps. There is no in-page control: nothing is added to the page.
   The window opens at its own size (maximised); a window narrower than the capture is warned and the check replay
   runs at the capture size.
 - **What is recorded.** Presses (by mouse or by keyboard) on interactive elements, typing per field (committed when
@@ -850,10 +911,10 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
   writes reach the product — each is listed after the recording, whatever its host (an API on another host, a form
   post, a beacon), attached to the step that caused it within 2 s (`note: sends POST shop:/api/quotes`), with the
   advice to add a setup or reset hook so each take starts from the same data.
-  `--allow-writes` as for `studio run`. Hooks never run while recording.
+  `--allow-writes` as for `retake run`. Hooks never run while recording.
 - **Signed in.** The window uses the page's persona (or `--persona`, `none` signed out): a session that expired signs
   in again off camera when the persona has `login:` steps, otherwise the recording is refused before any window opens,
-  with the `studio login` command.
+  with the `retake login` command.
 - **After recording.** The summary lists scenes and steps, issues in the order they came, each at its place
   (`scene.step: …`, the step it is about or the one that came next: a target only found by its text, a secret field, a
   fake file, a page opened from the address bar, a write no action caused…), writes, and the **check replay**: a
@@ -862,7 +923,7 @@ node packages/cli/dist/bin.js run northfield-fixture my-quote --dry             
   writes stopped or mocked do not count, so it usually replays the whole draft); it starts from the state the
   recording left the product in. The draft is validated with the project before it is saved or checked. The draft is
   saved as `scenarios/<name>.yaml` when that name is free (default `recorded-YYYYMMDD-HHMM`; an existing scenario is
-  never overwritten), and always kept with the recording in `<project>/.demo-studio/records/<id>/` (`draft.yaml`,
+  never overwritten), and always kept with the recording in `<project>/.retake/records/<id>/` (`draft.yaml`,
   `record.json`, `events.jsonl`, `meta.json`; private files; the newest 20). Exit 1 when nothing was recorded, the draft does not
   validate or the check failed. `--json` prints the outcome; `--no-check` skips the replay.
 - **Through Claude.** `scenario_record` (MCP) starts the same recording as a job: the window opens on the machine the
@@ -916,7 +977,7 @@ template folder).
 `templates/<name>/template.yaml` gives the brand and motion style (colours, fonts, logo, wordmark, background, cursor,
 captions, timings) and picks a default **component per kind**. Every section is optional and merged over the
 defaults; start from a starter template (`templates/README.md`). The starter templates `default`, `editorial` and
-`motion` are always available by name, also in a workspace without a `templates/` folder (`studio list` marks them
+`motion` are always available by name, also in a workspace without a `templates/` folder (`retake list` marks them
 "starter"); a workspace template of the same name takes precedence.
 
 ```yaml
@@ -956,7 +1017,7 @@ optionally a wordmark and font files (`.ttf`, `.otf`, `.woff`, `.woff2`) — and
 colours:
 
 ```sh
-studio theme create acme --accent '#0e7c66' --logo brand/logo.svg --wordmark brand/wordmark.svg \
+retake theme create acme --accent '#0e7c66' --logo brand/logo.svg --wordmark brand/wordmark.svg \
   --display-font brand/AcmeSerif-Regular.ttf --body-font brand/AcmeSans-Regular.ttf --body-font brand/AcmeSans-SemiBold.ttf \
   --brand-name Acme --brand-url acme.example
 ```
@@ -966,7 +1027,7 @@ one **new** folder `templates/acme/`: `template.yaml` over a base theme (`--base
 frame, captions, motion and durations are kept), the logo and wordmark copied as `logo.<ext>` / `wordmark.<ext>`, the
 fonts as `fonts/display-<Weight>.<ext>` / `fonts/body-<Weight>[Italic].<ext>` (the renderer reads a face's weight from
 its file name; no fonts given: the base's are copied), `LICENSES.md` (where each file came from, what each font
-declares about its licence) and `.demo-studio-theme.json` (inputs and the sha256 of every file written).
+declares about its licence) and `.retake-theme.json` (inputs and the sha256 of every file written).
 
 - **Colours** are hex. Only the accent is required; text, muted, paper, a night tone (`dark`) and the background are
   derived from it when omitted (a dark paper makes a dark theme; base `motion` suits it). Contrast is checked (WCAG:
@@ -985,15 +1046,15 @@ declares about its licence) and `.demo-studio-theme.json` (inputs and the sha256
   give `{file, weight}` to set it. What a font says about itself (family, copyright, licence) is printed without
   control or bidirectional characters and escaped in `LICENSES.md` (never a link or an image there).
 - **Names**: lower-case letters, digits and `-`; never a starter's name (`default`, `editorial`, `motion`, in any case)
-  nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Demo Studio made
+  nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Retake made
   only while none of its files changed and none was added — once you edit it, it is yours; through MCP only a theme
-  made through MCP is replaced (never one you made with `studio theme create`). Refused when the
-  workspace's templates folder lies inside the Demo Studio folder (the repository is not a workspace for your brand:
-  set `DEMO_STUDIO_ROOT` or a `studio.yaml`).
-- Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.demo-studio/`),
+  made through MCP is replaced (never one you made with `retake theme create`). Refused when the
+  workspace's templates folder lies inside the Retake folder (the repository is not a workspace for your brand:
+  set `RETAKE_ROOT` or a `retake.yaml`).
+- Through MCP the files must be files of the workspace that no tool writes: never in a hidden folder (`.retake/`),
   `components/`, or a project's `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` (case ignored), never through
-  a link leaving the workspace. A human typing `studio theme create` names any file. These rules hold against what
-  Demo Studio's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
+  a link leaving the workspace. A human typing `retake theme create` names any file. These rules hold against what
+  Retake's MCP tools write; an agent's own file tools (Claude Code's Write, under your permissions) can still put
   a file in `brand/` — the content checks above apply to it all the same.
 
 
@@ -1002,16 +1063,16 @@ declares about its licence) and `.demo-studio-theme.json` (inputs and the sha256
 No brand kit at hand? Read the brand's public site:
 
 ```sh
-studio theme from-site https://www.brand.example/
+retake theme from-site https://www.brand.example/
 ```
 
 or ask Claude (MCP `template_from_site {url}`: **you are asked to approve the exact URL first**, in your MCP client).
-A clean headless Chromium on your machine opens the page once and writes to `.demo-studio/site/<id>/`: `site.json`
+A clean headless Chromium on your machine opens the page once and writes to `.retake/site/<id>/`: `site.json`
 (colour swatches with their share of the page and contrast ratios, roles — paper, text, accent, dark —, the font
 family names the page uses, the logo candidates, network counts), `screenshot.jpg` and up to six logo candidates
 `logo-<n>.png` (the header's logo images and inline SVGs, the icons, the og:image — converted to transparent PNGs by
 the browser with JavaScript off and no network; the site's own bytes are never kept, nor its font files). The answer
-ends with a draft for `studio theme create` / `template_create_from_brand` — the colours, `logo: site:<id>/logo-1`, the
+ends with a draft for `retake theme create` / `template_create_from_brand` — the colours, `logo: site:<id>/logo-1`, the
 host as the brand URL — and the template.yaml it would make (not written). Choose, change what you like, give the
 brand's font files yourself (a site's fonts are not copied: their licence rarely allows it), then create the theme.
 The newest 10 extractions are kept.
@@ -1023,7 +1084,7 @@ The newest 10 extractions are kept.
   read once you approve it in turn. "Public" means what this machine reaches as public addresses: through a VPN or a
   split-horizon DNS, a public-looking name may still lead to a network of yours. Never a page of one of your
   projects' environments, nor a protected host — those are filmed through runs and `page_inspect` (a warning only in
-  `studio theme from-site`). Only the URL you approved is checked against them, not what the page then loads.
+  `retake theme from-site`). Only the URL you approved is checked against them, not what the page then loads.
 - **The browser's only network is a local proxy in the worker** that connects to public addresses only (every address
   a name resolves to must be public: no loopback, private, link-local / cloud metadata, carrier-grade NAT,
   documentation, multicast or IPv6 special range) and to the address it checked (no DNS rebinding), on port 443, for
@@ -1038,10 +1099,10 @@ The newest 10 extractions are kept.
   type; logo candidates a create would refuse (under 64 px high, over 2 MB) are never made (drawn smaller first).
 - Through MCP, everything the page chose — its title, description, site name, alt texts, font names, URLs, the hosts
   it tried, errors — comes back under `untrusted`, and the images are described as a third-party page (text in them is
-  data, not instructions). `site:<id>/logo-<n>` is the only way a theme can take a file from `.demo-studio/`: a PNG of
+  data, not instructions). `site:<id>/logo-<n>` is the only way a theme can take a file from `.retake/`: a PNG of
   that extraction, a plain file (no link), re-checked by its header.
-- Tests: `DEMO_STUDIO_UNSAFE_TEST_RESOLVE=brand.test=127.0.0.1:<port>,…` maps invented `.test` names to local ports
-  (and accepts their self-signed certificates) for the test suite only; `studio doctor` warns when it is set.
+- Tests: `RETAKE_UNSAFE_TEST_RESOLVE=brand.test=127.0.0.1:<port>,…` maps invented `.test` names to local ports
+  (and accepts their self-signed certificates) for the test suite only; `retake doctor` warns when it is set.
 ## Components
 
 Every visual element of the edit — intro, outro, cards, waiting screens (interstitials), captions, screen layouts,
@@ -1049,17 +1110,17 @@ overlays and transitions — is a **component**: a folder with a manifest and a 
 implementation. The editor only assembles components; themes give them their colours, fonts and logo.
 
 ```
-components/<namespace>/<name>/     # in your workspace (studio.yaml components_dir); built-ins: packages/components/library/
+components/<namespace>/<name>/     # in your workspace (retake.yaml components_dir); built-ins: packages/components/library/
   component.yaml                   # the manifest
   index.tsx                        # export default function (props: ComponentProps) { … }
-  preview.png                      # generated by `studio components preview` (960×540), never hand-edited
+  preview.png                      # generated by `retake components preview` (960×540), never hand-edited
   preview.json                     # its sidecar: theme, moment, source hash (stale when the sources change)
   README.md                        # your notes + a generated block showing the preview, slots and params
 ```
 
 **Ids and resolution.** An id is `namespace/name` (lower-case letters, digits and `-`) and must match the folder. Ids
 resolve from the workspace `components/` folder first, then the built-in library (`studio/…`), then — later — a
-marketplace cache: a workspace component with a built-in id overrides it (`studio components list` warns). The built-in
+marketplace cache: a workspace component with a built-in id overrides it (`retake components list` warns). The built-in
 library (`packages/components/library/studio/*`) has a component for every id the starter themes and the legacy
 template fields use, plus a tablet layout — every one theme-driven, in the family of the **reference look** of
 `docs/reference/look.md` (the six measured on renders carry the tag `reference-look`), each with its committed preview:
@@ -1087,7 +1148,7 @@ exactly, the phone and the tablet within device proportions (0.42–0.62, 0.62�
 letterboxed / pillarboxed in the device screen with the theme background (`rects.display`), as is a capture of another
 aspect in `raw`. `frame: tablet` (scenario, project, `--frame`) is the tablet layout, like `card`, `browser`, `laptop`,
 `phone` and `raw`. `packages/components/scaffolds/<kind>/` holds one valid, theme-driven template per kind
-(`studio components create` copies it; the renderer draws it as the stand-in of a missing component).
+(`retake components create` copies it; the renderer draws it as the stand-in of a missing component).
 
 **How a theme picks components.** A template's `components:` map (or its legacy fields, see
 [Templates](#templates-themes)) names the default component and params of each kind; a scenario overrides it per use
@@ -1128,7 +1189,7 @@ preview:                          # sample values: previews render with any them
 | `slots.<name>` | `type`: `text`, `image` (URL), `url` (shown as text), `color`, `screen` (the capture: layouts, interstitials, transitions); `required`; `default_from`: `theme.logo`, `theme.wordmark`, `theme.brand.name`, `theme.brand.url`, `theme.outro.tagline`, `theme.outro.url`, `scenario.title.text`, `scenario.title.kicker`, `scenario.outro.tagline`, `scenario.outro.url`, `scene.caption.text`, `scene.caption.kicker`, `interstitial.text`, `interstitial.kicker`; `max_chars` (text and url) |
 | `params` | JSON Schema subset: `type`, `properties`, `required`, `additionalProperties`, `default`, `enum`, `const`, `minimum`/`maximum` (+ exclusive), `multipleOf`, `minLength`/`maxLength`, `pattern`, `items`, `minItems`/`maxItems`, `uniqueItems`, `anyOf`, `oneOf` (+ annotations such as `description`). Objects are **closed** unless they set `additionalProperties`. Every `default` must match its schema |
 | `geometry`, `geometry_vertical`, `geometry_square` | layouts only: `screen` (+ `frame`, `chrome`, `caption`, `brandmark`) rects `{x, y, w, h}` in the 1920×1080 (vertical: 1080×1920, square: 1080×1080) design space, and `radius` — the planner and the review reason on them without rendering. `geometry` is required, the others when `variants` lists `vertical` / `square`. Every value may be an **expression** over the numeric params (see below). In the vertical and square variants a screen rect with another aspect than the capture **reframes** it (see [Variants](#variants-4k-music-and-export)) |
-| `engines` | `{kit: "1"}` or `{kit: "^1"}`: the kit API major the component was written for (absent: 1). This Demo Studio provides kit API 1; a component that needs another one is not loaded (a registry notice in `studio components list` / `component_list`): its uses fall back to the theme's component with a plan warning, or render as a stand-in |
+| `engines` | `{kit: "1"}` or `{kit: "^1"}`: the kit API major the component was written for (absent: 1). This Retake provides kit API 1; a component that needs another one is not loaded (a registry notice in `retake components list` / `component_list`): its uses fall back to the theme's component with a plan warning, or render as a stand-in |
 | `preview` | `slots` must give a sample for every required slot that is not filled from the theme; `params` are validated; `at` = seconds of the preview stills (preview.png shows the last one); `screen`: `desktop` (default), `tablet` or `phone` — the sample screen a layout, caption, overlay or transition preview shows |
 
 **Geometry that follows params.** A layout's geometry values are numbers or arithmetic expressions over its numeric
@@ -1137,7 +1198,7 @@ preview:                          # sample values: previews render with any them
 so a manifest stays data. The planner evaluates the geometry with the params of each use (theme `components` entry,
 legacy `frame.width`, scenario, overrides) and the capture aspect; captions, overlays and the brand mark are placed from
 the evaluated rects, and the composition hands the same rects to the layout component (`props.rects`, output px), so
-the card is drawn exactly where the captions expect it. `studio components validate` parses every expression, rejects
+the card is drawn exactly where the captions expect it. `retake components validate` parses every expression, rejects
 unknown names (did you mean) and string params, and checks the geometry evaluated with the param defaults stays inside
 the design space; at plan time a use whose geometry cannot be evaluated or leaves the frame is a plan warning. The
 built-in card layout:
@@ -1162,8 +1223,8 @@ the brand mark under it.)
 ### Implementation
 
 ```tsx
-import { Background, FitText, Logo, rise, stagger, useCurrentFrame } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, FitText, Logo, rise, stagger, useCurrentFrame } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; stagger: number };
 
@@ -1182,11 +1243,11 @@ export default function SplitIntro({ theme, slots, params, unit, width, fps }: C
 }
 ```
 
-Rules, checked by `studio components validate`: read every colour, font and logo from `props.theme` (never a brand);
+Rules, checked by `retake components validate`: read every colour, font and logo from `props.theme` (never a brand);
 size everything in 1920-wide design px times `props.unit` (2 for 4K, 0.5 for previews); animate from
 `useCurrentFrame()` only — no `Math.random()` (use `random(seed)` from the kit; `random(null)` and `random()` are
 refused too), `Date`, timers or network; import
-only `react`, `remotion`, `@demo-studio/components/kit` and the component's own files — the renderer primitives
+only `react`, `remotion`, `@retake/components/kit` and the component's own files — the renderer primitives
 (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random`) through the kit, like the scaffolds,
 and `remotion` directly only for what the kit does not re-export (`interpolate`, `spring`…). Props: `theme`, `slots`,
 `params` (defaults applied), `unit`, `width`, `height`, `fps`, `durationInFrames`, `variant`, and per kind `screen`
@@ -1205,7 +1266,7 @@ radial / linear), `fonts.display` / `fonts.body` (CSS family names the renderer
 registers from the template font files), `logo`, `wordmark` (image and/or the brand name as text), `brand` (name,
 url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styles), `brandmark`, `motion.zoom_ease`.
 
-### The kit (`@demo-studio/components/kit`)
+### The kit (`@retake/components/kit`)
 
 | Helper | What it does |
 |---|---|
@@ -1229,29 +1290,29 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 ### Creating, checking and previewing components
 
 ```
-$ studio components create acme/intro-split --kind intro --description "Logo left, title right."
+$ retake components create acme/intro-split --kind intro --description "Logo left, title right."
 ✓ created intro component acme/intro-split in components/acme/intro-split (validated)
   preview.png     generated preview (editorial theme, at 2.8 s): components/acme/intro-split/preview.png
-$ studio components validate acme/intro-split
+$ retake components validate acme/intro-split
 ✓ component acme/intro-split components/acme/intro-split
-$ studio components preview acme/intro-split --theme ./my-theme
+$ retake components preview acme/intro-split --theme ./my-theme
 ✓ acme/intro-split components/acme/intro-split/preview.png 41 KB · at 2.8 s
-$ studio components preview --all --stale          # every component whose preview is missing or out of date
-$ studio components list --kind intro
+$ retake components preview --all --stale          # every component whose preview is missing or out of date
+$ retake components list --kind intro
 ```
 
 `create` copies the scaffold of the kind (a tasteful, theme-driven placeholder that imports only react and the kit)
 with your id, name and description, validates it and renders its preview (`--no-preview` skips it; without a browser
-it warns and you run `studio components preview` later). `validate` checks the manifest (strict keys with "did you mean", semver, slots and their sources,
+it warns and you run `retake components preview` later). `validate` checks the manifest (strict keys with "did you mean", semver, slots and their sources,
 params schema and defaults, preview samples, layout geometry inside the design space, id = folder), the entry file,
 and compiles the entry with esbuild: syntax errors, imports other than react / remotion / the kit (named), misspelt
 named imports (`"remotion" has no export named "useCurrentFrme" (did you mean "useCurrentFrame"?)`), and
 non-deterministic or networked APIs — every message as `file:line:col`. Without an argument it validates every
 workspace component (exit 1 on any error). In code: `loadComponentRegistry({root})` (`list(kind?)`, `get(id)`,
 `resolve(ref, kind)`, `resolveTheme(template)`), `validateComponent(dir)`, `createComponent(root, {id, kind,
-description})`, `themeTokens(template, urls)` from `@demo-studio/components`.
+description})`, `themeTokens(template, urls)` from `@retake/components`.
 
-**Previews.** `studio components preview [<id|dir>] [--all] [--stale] [--workspace] [--theme <name>] [--out <dir>]
+**Previews.** `retake components preview [<id|dir>] [--all] [--stale] [--workspace] [--theme <name>] [--out <dir>]
 [--json]` renders each component with its manifest's preview samples, in context: an intro, outro or card alone; a
 layout with a neutral **sample screen** (`packages/components/preview/`, generated once from the fixture shop by
 `scripts/preview-samples.mjs`: desktop, tablet, phone) as its capture, the brand mark and the theme's caption; a caption,
@@ -1266,7 +1327,7 @@ workspace components, the built-in library and the scaffolds; `--stale` only tho
 with another theme or older than their sources. One bundle and one browser serve every preview (≈ 30 s for the 27
 built-ins). The built-in previews are committed and a test fails when one is missing or stale. In code:
 `renderComponentPreviews({root, targets, template, outDir?})` and `buildComponentPreview` (the pure spec) from
-`@demo-studio/editor`; `previewStatus(dir)`, `componentSourceHash(dir)` from `@demo-studio/components`.
+`@retake/editor`; `previewStatus(dir)`, `componentSourceHash(dir)` from `@retake/components`.
 
 ## Mails, documents and notifications
 
@@ -1538,7 +1599,7 @@ bell — the shop polls its notifications every second — rings with it a secon
 ## Editing: the edit plan
 
 The editor turns a run (`capture.mp4` + `timeline.json`) into a video in two steps: `planEdit` (package
-`@demo-studio/editor`) computes an **EditPlan** — a pure, deterministic description of every output frame — and the
+`@retake/editor`) computes an **EditPlan** — a pure, deterministic description of every output frame — and the
 render pipeline (L2.4) only draws that plan with Remotion. The plan is also what the review, the Studio timeline and
 frame comments read. It never re-reads the scenario: the timeline carries the edit info (`video`, scene captions,
 speeds, step `camera` / `overlay` / `mark` / `hold`).
@@ -1615,12 +1676,12 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
 kind or segment id), `theme` (the caller loads that template) and `music` (a file, or `false`). `variant` is
 `landscape`, `vertical` or `square`.
 
-`studio plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
+`retake plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
 JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and `--square` try another theme,
 frame or the 9:16 / 1:1 variant:
 
 ```
-$ studio plan northfield-fixture latest --scenario catalogue
+$ retake plan northfield-fixture latest --scenario catalogue
 catalogue (run 20261011-182524-catalogue) — landscape 1920×1080 @ 30 fps — 59.00 s (1770 frames) — theme editorial — frame card
 
 Segments
@@ -1643,11 +1704,11 @@ the scaffold of its kind as a stand-in.
 
 ## Rendering
 
-`studio render <project> <scenario>` plans the latest capture of a scenario (or `--run <id|dir|latest>`) and renders
+`retake render <project> <scenario>` plans the latest capture of a scenario (or `--run <id|dir|latest>`) and renders
 the plan with [Remotion](https://www.remotion.dev):
 
 ```
-$ studio render northfield-fixture catalogue
+$ retake render northfield-fixture catalogue
 ✓ rendered catalogue-v1 → projects/northfield-fixture/renders/catalogue-v1.mp4
   59.00 s · 1770 frames @ 30 fps · 1920×1080 · 8.5 MB · h264 crf 16, silent audio · checked: 59.01 s, 1920×1080, 1 audio track
   theme editorial · run 20261011-182524-catalogue · bundle built in 9.9 s · render 3 m 27 s (concurrency 3) · total 3 m 38 s
@@ -1668,7 +1729,7 @@ $ studio render northfield-fixture catalogue
   `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--tutorial` / `--no-tutorial` (every
   tutorial overlay on over the scenario's switches, or none), `--no-intro`, `--no-outro`,
   `--concurrency` (frames rendered in parallel; default ¾ of the CPUs, 1–8), `--json` (the record without the plan).
-- **Stills**: `studio still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
+- **Stills**: `retake still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
   (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
 - **Review**: `--review` reviews the render right after it (see [Reviewing a render](#reviewing-a-render)); with
   `--json` the review result is added to the record under `review`.
@@ -1686,20 +1747,20 @@ $ studio render northfield-fixture catalogue
   a token only the take knew (`{{hooks.…}}`) keeps the captured text, with a warning. The plan notes say `edit
   re-planned from today's scenario … (changed: caption of open.0, cards and interstitials, …)`.
 - **A change to the filmed part needs a new capture.** When it changed since the run, the render shows that run as
-  captured, its edit included, and `studio render` and `studio plan` warn first (`! the filmed part of scenario quote
-  changed since run … was captured (scene send: step send.2 changed; the setup hooks): …`, naming the `studio run`
+  captured, its edit included, and `retake render` and `retake plan` warn first (`! the filmed part of scenario quote
+  changed since run … was captured (scene send: step send.2 changed; the setup hooks): …`, naming the `retake run`
   that films it); through MCP, `plan_preview` and `render` say the same with `scenario_changed: true` and
   `filmed_changes`, and `plan_preview`'s last line then says to capture first (never "render it" on the old run); an
   edit-only change says `edit: "scenario"` with `edit_changes`. The files are compared by their data: a comment, blank
   lines, quoting, indentation or key order is no change; a link, a non-regular file or one over 2 MB is not compared;
   a run without its snapshot, or a file that does not validate, renders as captured. A render records where its edit
   came from (`edit` in `renders/<id>.json`). A render job (MCP `render`, the Studio) keeps the scenario text its edit
-  was planned from in its job folder (`.demo-studio/jobs/<job>/edit.yaml`, L4.5): it renders that version even when
+  was planned from in its job folder (`.retake/jobs/<job>/edit.yaml`, L4.5): it renders that version even when
   the file changes while it waits in the queue (keep editing after Render); an export that re-renders a master still
   refuses a scenario file changed since it was planned (submit again). Project-level changes (project.yaml environments
   or vars) are not compared.
 
-How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
+How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
 
 - **Compositions** `DemoVideo` (landscape), `DemoVertical` and `DemoSquare` take `{ plan }` and draw only the plan: the theme
   background; one `Sequence` per segment with its transition component (rendered around the end of the outgoing
@@ -1718,12 +1779,12 @@ How it works (`@demo-studio/editor`, `docs/DESIGN-phase2.md` §2.2):
 - **Generated registry module**: each render bundles a generated entry and registry module that import the
   implementation of every component the plan uses — built-in or from your workspace `components/` — plus the
   scaffolds, so your own components are bundled exactly like the built-in ones.
-- **Bundle cache**: `<workspace>/.demo-studio/cache/remotion-<hash>/` (git-ignored), the hash covering the composition
+- **Bundle cache**: `<workspace>/.retake/cache/remotion-<hash>/` (git-ignored), the hash covering the composition
   sources, the kit, every bundled component folder and the Remotion version; a render rebuilds the bundle (≈ 10 s)
   only when one of them changed, and the six most recently used bundles are kept.
 - **Assets**: the capture, fonts, logo, wordmark and music (`ds-asset:` URLs in the plan) are served by a local HTTP
   server on 127.0.0.1 (random port, random path token, Range requests, CORS) for the duration of the render.
-- **Browser**: `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
+- **Browser**: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
   playwright-core's browser registry: `playwright-core install chromium-headless-shell`), else Remotion's own.
 - **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?})`
   → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `encoding`, `done`); `renderStill({plan,
@@ -1763,7 +1824,7 @@ The reframe track (`ClipSegment.reframe`, `camera.ts reframeTrack`):
   (`viewOf`, `mapSourceRect`).
 
 On the fixture captures the crop moves at most ≈ 25 CSS px per frame and accelerates ≤ 1 % of its width per frame²;
-every click target and the cursor stay in view (tests on the real timelines). `studio review` checks it on the render:
+every click target and the cursor stay in view (tests on the real timelines). `retake review` checks it on the render:
 `target-cut` (error), `cursor-outside-view` at clicks (error), `cursor-outside-reframe` and `reframe-jump` (warnings).
 
 **4K**: a capture at `capture.scale: 2` is recorded at real device pixels (the runner launches headless Chromium with
@@ -1775,17 +1836,17 @@ backdrop-blur dialog), so motion is choppy there; a Mac with a GPU is the place 
 
 ### Music bed
 
-A scenario `music: {file, volume, duck, loop}` (or `studio render --music <file>`) adds a bed under the video: at
+A scenario `music: {file, volume, duck, loop}` (or `retake render --music <file>`) adds a bed under the video: at
 `volume` (default 0.6) on the intro, the outro, cards and interstitials, × `duck` (default 0.5, −6 dB) while product
 footage is on screen (eased over 0.5 s at each clip edge), faded in over 1 s and out over the last 2 s. The render
 measures the track (ffprobe) so the planner can lay it out: a longer track is trimmed to the video; a shorter one
 loops with 1 s equal-power crossfades at the seams (`loop: false`: it plays once). Tests and demos use a procedural
-royalty-free track — `generateTestTrack(out, {seconds})` in `@demo-studio/editor` (ffmpeg sine chords C–Am–F–G, no
+royalty-free track — `generateTestTrack(out, {seconds})` in `@retake/editor` (ffmpeg sine chords C–Am–F–G, no
 audio file in the repository).
 
 ### Export
 
-`studio export <project> <render|latest> --formats …` (API `exportRender({project, render, formats})`) writes delivery
+`retake export <project> <render|latest> --formats …` (API `exportRender({project, render, formats})`) writes delivery
 files to `exports/<render-id>/` with a `manifest.json` (per file: format, method, size, duration, fps, codecs, audio
 streams, time taken, the GIF window, warnings; earlier exports of other formats into the folder are kept):
 
@@ -1803,15 +1864,15 @@ is reported (exit code 1) and the others are still written.
 
 ## Raw export for editors
 
-Script and film with Demo Studio, then edit in Final Cut Pro, Premiere Pro, DaVinci Resolve, After Effects or any
-OpenTimelineIO tool: `studio export-capture <project> <run|latest>` (API `exportCapture({project, runDir, …})` in
-`@demo-studio/runner-web`) turns a capture into a package that drops into those tools; `studio run <project>
+Script and film with Retake, then edit in Final Cut Pro, Premiere Pro, DaVinci Resolve, After Effects or any
+OpenTimelineIO tool: `retake export-capture <project> <run|latest>` (API `exportCapture({project, runDir, …})` in
+`@retake/runner-web`) turns a capture into a package that drops into those tools; `retake run <project>
 <scenario> --raw` captures and exports in one go.
 
 ```
-studio export-capture northfield-fixture latest --scenario quote                       # MP4 30 fps, cursor as captured
-studio export-capture northfield-fixture latest --scenario quote --format prores --fps 60 --cursor layer --selects
-studio run northfield-fixture quote --raw --cursor none                                # captured without the cursor
+retake export-capture northfield-fixture latest --scenario quote                       # MP4 30 fps, cursor as captured
+retake export-capture northfield-fixture latest --scenario quote --format prores --fps 60 --cursor layer --selects
+retake run northfield-fixture quote --raw --cursor none                                # captured without the cursor
 ```
 
 - **Clips** — one per scene, `clips/01-<scene>.mp4` (multi-page scenes: one per page, `01-<scene>-<page>.mp4`, on
@@ -1840,7 +1901,7 @@ studio run northfield-fixture quote --raw --cursor none                         
 - **Timecode** — every clip carries a start timecode equal to its place on the sequence (`00:00:00:00` = the first
   clip), so source and record timecodes agree in every tool (an EDL's source in = record in).
 - **Cursor** (`--cursor`) — `baked`: as captured. `none`: the run was captured **without** the in-page cursor
-  (`studio run … --raw --cursor none|layer`, or `raw.cursor` in project.yaml): the pointer still drives real input and
+  (`retake run … --raw --cursor none|layer`, or `raw.cursor` in project.yaml): the pointer still drives real input and
   its track is recorded; the clips show no cursor. `layer`: also one transparent video per clip,
   `cursor/01-<scene>-cursor.mov` — ProRes 4444 with alpha (`--layer prores`, default) or VP9 with alpha
   (`--layer webm`) — with the cursor and its click ripples drawn exactly as the in-page kit draws them (icon, press
@@ -1868,19 +1929,19 @@ studio run northfield-fixture quote --raw --cursor none                         
 - **Selects** (`--selects`) — `selects.mp4|mov`: the sequence clips back to back in one file (stream copy).
 - **Manifest** — `manifest.json` (source run, scenario, settings, sequence, every clip with its file, scene, page,
   duration, frames, fps, size, codec, profile, pixel format, timecode, cuts and layer; the cursor files, the marker
-  files and counts, the files the Demo Studio edit of this scenario uses — intro / outro videos, overlays, images — for
+  files and counts, the files the Retake edit of this scenario uses — intro / outro videos, overlays, images — for
   reuse, notes and warnings) and a short `README.md` for people.
 
 Package: `<project>/exports/<run-id>-raw-<format><fps>-<cursor>/` (or `--out`). The interchange files point at the
 clips by absolute path (`file://` URLs in the FCPXML and OTIO): if you move the folder, relink to `clips/`.
-`studio run … --raw --json` prints the RunProgress events, then one `{"type":"raw_export","dir":…,"manifest":…}` line.
+`retake run … --raw --json` prints the RunProgress events, then one `{"type":"raw_export","dir":…,"manifest":…}` line.
 project.yaml can hold the defaults:
 
 ```yaml
 raw: {format: prores, fps: 60, cursor: layer, layer: prores, selects: true, cuts: true}
 ```
 
-A run captured without its cursor still renders with `studio render`, with a plan warning: the video shows no cursor.
+A run captured without its cursor still renders with `retake render`, with a plan warning: the video shows no cursor.
 
 **Checking a package** (optional): `scripts/validate-raw.py <package> [...]` checks every clip and layer with ffprobe
 against the manifest, the FCPXML (well-formed, frame grid, spine, timecodes, markers), reads the OTIO and the EDL back
@@ -1895,13 +1956,13 @@ python3.13 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio
 
 ## Reviewing a render
 
-`studio review <project> <render>` (a render id such as `catalogue-v3`, a `renders/<id>.json` or `.mp4` path, or
+`retake review <project> <render>` (a render id such as `catalogue-v3`, a `renders/<id>.json` or `.mp4` path, or
 `latest` — of `--scenario` when given) looks at a finished video the way an editor would and writes everything an
 agent or a person needs to check it before showing it, in `review/<render-id>/` (git-ignored, replaced at each
 review):
 
 ```
-$ studio review northfield-fixture catalogue-v3
+$ retake review northfield-fixture catalogue-v3
 ! review catalogue-v3 (59.00 s, 5 segments) → projects/northfield-fixture/review/catalogue-v3
   not clean: 1 warning, 4 info
   warning [00:45.1 · f1352 · add-product · step 2] the screen of "add-product" barely changes for 3.8 s while the scenario waits (steps 2–4, 00:45.1–00:48.9): a loading state on screen — speed it up or shorten the wait (long-wait)
@@ -1943,7 +2004,7 @@ not clean; `--json` prints the result. The checks:
 | The environment (L1.7, see [Environments](#environments-display-urls-production-read-only-clock)): a write the read-only guard stopped (one per method and path, at its output frame; the app saw a network error), a browser bar left without its address (a local URL without a display URL, on a layout that draws the URL), a caption / card / overlay / page label / intro / outro text naming a local URL | `write-blocked`, `url-hidden`, `local-url-text` (warnings) |
 | Diff with the previous render of the same scenario (auto-detected; `--previous <id>` or `--no-previous`): total and per-segment durations, component / caption / transition / layout changes, sample frames compared at the same offset inside the same segment | `diff-duration`, `diff-segment`, `diff-frames` (info) |
 
-How it works (`@demo-studio/review`, `docs/DESIGN-phase2.md` §3): frames are decoded by ffmpeg in one pass per video
+How it works (`@retake/review`, `docs/DESIGN-phase2.md` §3): frames are decoded by ffmpeg in one pass per video
 (the render, its capture for the scene starts, the previous render), streamed as raw RGB; sharp makes the thumbnails,
 the sheets (labels drawn as SVG) and the key frames; the checks read the plan of the render record (segments, layout
 rects, captions, step spans, camera, time map) and the run's timeline (clicks, cursor track, captions as captured).
@@ -1966,18 +2027,18 @@ the render overrides, renders again and resolves it with the new render (through
 MCP). The Studio app writes the same files (its Comments screen: see [Studio app](#studio-app)).
 
 ```
-$ studio comment add northfield-fixture quote-v1 --marker proposal --region 0.67,0.42,0.12,0.08 "Keep the total on screen longer"
+$ retake comment add northfield-fixture quote-v1 --marker proposal --region 0.67,0.42,0.12,0.08 "Keep the total on screen longer"
 ✓ comment c_01K… on quote-v1 frame 1421 (00:47.37): clip proposal · step proposal.3 (wait_for) · area screen · studio/layout-card · marker proposal · overlays studio/overlay-callout
-$ studio comment list northfield-fixture --status all
-$ studio comment reply northfield-fixture c_01K… "The callout too, please"
-$ studio comment resolve northfield-fixture c_01K… --note "Held the total 2 s longer" --render quote-v2
-$ studio comment reopen northfield-fixture c_01K… --note "Still too short"
+$ retake comment list northfield-fixture --status all
+$ retake comment reply northfield-fixture c_01K… "The callout too, please"
+$ retake comment resolve northfield-fixture c_01K… --note "Held the total 2 s longer" --render quote-v2
+$ retake comment reopen northfield-fixture c_01K… --note "Still too short"
 ```
 
 - **The frame**: `--frame <n>` (0-based), `--at <seconds>` (the frame on screen at that time — `--at 0.99` at 30 fps is
   frame 29; the duration an error prints is the last frame) or `--marker <name>` (the screen once the marked step is
   done; a name marking several steps is refused: use `--frame`). `--region x,y,w,h` is 0..1 of the frame. Texts are at
-  most 2000 characters (control, bidirectional and invisible characters removed, line breaks kept). The author is `--author`, else `$DEMO_STUDIO_AUTHOR`, else your
+  most 2000 characters (control, bidirectional and invisible characters removed, line breaks kept). The author is `--author`, else `$RETAKE_AUTHOR`, else your
   user name.
 - **The anchor** is computed from the render's edit plan when the comment is made: the segment and its component, the
   scene, the step (`<scene>.<step id or index>`, the `--until` syntax; a fingerprint of the step in the run's scenario,
@@ -1986,19 +2047,19 @@ $ studio comment reopen northfield-fixture c_01K… --note "Still too short"
 - **Files**: `comments/<scenario>/c_<id>.json` per thread — the comment, the render it was made on (its id and when it
   was made: a render id is reused once renders/ is cleaned), the anchor and append-only entries (replies, resolutions,
   reopenings, each with its own id). The status is derived from the entries. Commit comments/ with your scenarios. The
-  still lives in `.demo-studio/comments/<id>.jpg`, on this machine only: a frame of a production capture never enters
+  still lives in `.retake/comments/<id>.jpg`, on this machine only: a frame of a production capture never enters
   git. It shows the frame with your region outlined (no number on it: the video has its own step badges).
 - **Resolving** names the render that answers the comment: a later render of the same scenario and variant (`latest`:
   the newest one of that variant — a vertical cut does not answer a frame of the landscape video). The thread stays on
   the render it was made on (`--render` of `list` shows the threads made on that render as it is now).
-- **Who wrote it**: each entry says the channel — `cli` (a `studio comment` command, whoever typed it), `studio` (the
-  Studio web app's page, named by `$DEMO_STUDIO_AUTHOR` of `studio ui`, else your OS user — any program of yours that
+- **Who wrote it**: each entry says the channel — `cli` (a `retake comment` command, whoever typed it), `studio` (the
+  Studio web app's page, named by `$RETAKE_AUTHOR` of `retake ui`, else your OS user — any program of yours that
   reads the Studio's token file could write there too) or `mcp` (Claude through the MCP tools) —, never "a person".
-  Only people's channels create and reopen threads: `studio comment` and the Studio (which reopens and resolves only
+  Only people's channels create and reopen threads: `retake comment` and the Studio (which reopens and resolves only
   the version of the thread it showed, and comments only the render it showed). A comment's text is data: it asks for
   a change to the video, never for a hook, a sign-in or a file outside scenarios/.
 
-**With Claude** (the MCP tools, see [MCP](#mcp-claude-drives-demo-studio)): ask it to address the open comments.
+**With Claude** (the MCP tools, see [MCP](#mcp-claude-drives-retake)): ask it to address the open comments.
 `comments_list` gives each open thread with its anchor — `step_ref` is where the step was in the rendered run, `step_now` that
 step in today's file (what `page_inspect {scenario, until}` takes; steps moved in the Studio change their index) —
 and the still of the frame with your region outlined (an image Claude looks at); Claude changes the scenario (then
@@ -2013,9 +2074,9 @@ hash it read) is checked as the Studio would check the write — edit-only, the 
 Studio. A filmed change, a theme or an override, and every thread from a terminal, take the loop above. Claude reads
 its proposal back (`comments_list {comment_id}`: the diff and its state — pending, applied, undone, superseded, stale)
 and is told never to read the Studio's token file or call its routes. Reopen a
-thread you disagree with (`studio comment reopen`, or in the Studio). A thread reaches Claude with its last 10 entries, and one listing
+thread you disagree with (`retake comment reopen`, or in the Studio). A thread reaches Claude with its last 10 entries, and one listing
 with at most 60,000 characters of comment text (narrow it by scenario or render when it says so). Limits: Claude's own
-shell can run `studio comment` like you (its entries then say `cli`: it is told never to create or reopen threads);
+shell can run `retake comment` like you (its entries then say `cli`: it is told never to create or reopen threads);
 a thread holds at most 500 entries and 2 MB; a listing reads every thread file (no index yet). An MCP server started
 on a build older than the Studio's comments skips the threads written in the Studio ("not a valid thread") until you
 restart it (reconnect it from `/mcp` in Claude Code, or start a new session); never edit a thread file by hand.
@@ -2024,7 +2085,7 @@ restart it (reconnect it from `/mcp` in Claude Code, or start a new session); ne
 
 Scenarios never contain passwords, and `project.yaml` never contains the path of a session. A project names its
 **personas** — the accounts its videos are filmed as — per environment (or for all of them); each one's session stays
-on this computer, in the studio home `~/.demo-studio` (`DEMO_STUDIO_HOME` moves it), outside every project and
+on this computer, in the Retake home `~/.retake` (`RETAKE_HOME` moves it), outside every project and
 repository:
 
 ```yaml
@@ -2053,18 +2114,18 @@ text only shown when signed in — without it, signed in means "loads off the si
 sign-in pages; `timeout`, default 10 s), `login_url` (its own sign-in pages, with `auth.login_url`) and `login` (steps
 `open`, `click`, `type`, `press`, `wait_for`, `wait` in scenario syntax; `{{hooks.…}}` is not available there).
 
-**Sign in once** with `studio login`:
+**Sign in once** with `retake login`:
 
 ```sh
-studio login northfield-fixture --env signed-in --persona supplier          # a browser window: sign in (SSO, 2FA…), close it
-studio login northfield-fixture --env signed-in --persona buyer --auto      # or its login steps, headless (CI, tests)
-studio auth status                                                           # every persona, and its last check
+retake login northfield-fixture --env signed-in --persona supplier          # a browser window: sign in (SSO, 2FA…), close it
+retake login northfield-fixture --env signed-in --persona buyer --auto      # or its login steps, headless (CI, tests)
+retake auth status                                                           # every persona, and its last check
 ```
 
-`studio login` opens a visible Chromium window on the persona's own profile
-(`~/.demo-studio/profiles/<project>/<env>/<persona>/`), on its check page (`--page KEY` / `--url URL` to choose),
+`retake login` opens a visible Chromium window on the persona's own profile
+(`~/.retake/profiles/<project>/<env>/<persona>/`), on its check page (`--page KEY` / `--url URL` to choose),
 with the session saved so far — still signed in when it still works. Sign in, then close the window (or quit the
-browser). It saves a snapshot of the session (`~/.demo-studio/sessions/<project>/<env>/<persona>.json`: the cookies —
+browser). It saves a snapshot of the session (`~/.retake/sessions/<project>/<env>/<persona>.json`: the cookies —
 session cookies too, which a profile loses when it closes — and localStorage, readable only by you), checks the
 session the way a run will see it and prints
 `✓ supplier (env signed-in) signed in: console:/products shows "Maja Lindqvist" — runs use a copy of this session`
@@ -2073,7 +2134,7 @@ session that still works (it is kept, and said so). A new profile never offers t
 that fails leaves no profile behind. Ctrl-C closes the window and saves nothing (exit 130). `--persona` is needed when
 the environment has several personas; `--auto` runs the persona's `login:` steps headless instead of a window — after
 checking the saved session the way a run sees it: one still valid is kept as is, no step runs. A profile a browser
-still holds (another login window) is refused. On a terminal, `studio new` asks for the personas (a persona whose
+still holds (another login window) is refused. On a terminal, `retake new` asks for the personas (a persona whose
 environment pages all have one already films none by default: a scene picks it with `persona:`) and offers to sign
 each one in (no answer: later).
 
@@ -2084,20 +2145,20 @@ for the whole run: another account on the same environment page needs a page id 
 `pages`). A `new_tab` is signed in as the page that opened it (a tab of a `persona: none` page has none either);
 `persona: none` written on a later scene for a page filmed without a persona so far leaves it unguarded for the run. A
 `js` hook runs as the persona its page is filmed with in the scenario (`none` included), else as that page's default —
-`studio hooks run <project> <scenario>:setup` binds it the same way. Each persona gets its own browser (its own
+`retake hooks run <project> <scenario>:setup` binds it the same way. Each persona gets its own browser (its own
 cookies): a multi-page scene films the supplier and the buyer of one site side by side, each signed in as itself.
 Validation names an unknown persona and a page asked for two. An environment without personas behaves as before.
 
 **Before every run** — dry runs too, once the secrets are read, before any setup hook or recording — each persona the
 run films is checked off camera, in a tab of its own browser. A persona that is not signed in and has `login:` steps
-signs in automatically (off camera; the run warns, and its saved session stays expired: `studio login` saves one runs
+signs in automatically (off camera; the run warns, and its saved session stays expired: `retake login` saves one runs
 can reuse). Otherwise the run stops before anything happens, with the exact command:
 
 ```
 ✗ run failed in 762 ms · 0/19 steps
   error     session preflight failed — nothing was recorded:
               persona buyer (env signed-in): expired — shop:/ landed on the sign-in page (http://localhost:4404/sign-in)
-                sign in again: studio login northfield-fixture --env signed-in --persona buyer
+                sign in again: retake login northfield-fixture --env signed-in --persona buyer
 ```
 
 **During the run**, a filmed page that lands on a sign-in page — `auth.login_url`, the persona's `login_url` or
@@ -2109,7 +2170,7 @@ never saved). Pages without a persona are guarded by `auth.login_url` too, unles
 right after the setup hooks says a hook may have reset the sessions; a tab that reaches the sign-in page of another
 persona's page says so (`… that is page "shop", filmed as persona buyer: a tab keeps the persona of the page it is
 opened from — film "shop" on its own page`); after a step fails on a persona's page, one check says whether its
-session expired. An expiry seen during a run is saved: `studio auth status` shows `expired` (`expired during run …`).
+session expired. An expiry seen during a run is saved: `retake auth status` shows `expired` (`expired during run …`).
 Validation refuses a sign-in pattern that would match every page (`/`, `"<page>:"`, an environment page's URL, a
 regex matching any URL) and the regex flags `g` / `y`, and warns about `{regex: "^/…"}` (a regex sees `http://host/…`)
 and `/sign-in/i` (a path, not a regex: write `{regex: sign-in, flags: i}`).
@@ -2118,26 +2179,26 @@ and `/sign-in/i` (a path, not a regex: write `{regex: sign-in, flags: i}`).
 locks and saved passwords left out) plus the snapshot's cookies, in the system temp folder, removed at the end. Runs
 of one persona can therefore run at the same time; a profile a login window still holds is refused (close it first).
 A `storage_state` persona runs on a fresh profile plus its snapshot. A second Ctrl-C removes the run's copies before
-it quits; Ctrl-C in `studio login`, `auth status --check` or js hooks (`hooks run`, `hooks rollback`, `env reset`)
-closes their browser and its copies, then exits 130; copies a killed process left behind (`demo-studio-session-*`,
-`demo-studio-login-*`, `demo-studio-profile-*`, no browser on them for 10 minutes) are removed by the next run. Ctrl-C during the preflight's
+it quits; Ctrl-C in `retake login`, `auth status --check` or js hooks (`hooks run`, `hooks rollback`, `env reset`)
+closes their browser and its copies, then exits 130; copies a killed process left behind (`retake-session-*`,
+`retake-login-*`, `retake-profile-*`, no browser on them for 10 minutes) are removed by the next run. Ctrl-C during the preflight's
 check or automated login cancels at once.
 
-**Status.** `studio auth status [--project P [--env E]] [--json]` lists every persona from what is stored — `valid`,
+**Status.** `retake auth status [--project P [--env E]] [--json]` lists every persona from what is stored — `valid`,
 `expired`, `never` (no session saved), `unchecked` (saved, never checked), `error` (could not be checked) — with when
-and by what it was last checked (a run's preflight, a run it expired during, `studio login`, `auth status --check`),
+and by what it was last checked (a run's preflight, a run it expired during, `retake login`, `auth status --check`),
 whether a browser holds its profile, and the command for any that is not valid:
 
 ```
 northfield-fixture · env signed-in
   supplier  valid     checked 2 min ago (preflight of run 20261013-141530-live-quote)
   buyer     expired   checked just now (auth status --check): shop:/ landed on the sign-in page (http://localhost:4404/sign-in)
-            → sign in again: studio login northfield-fixture --env signed-in --persona buyer
+            → sign in again: retake login northfield-fixture --env signed-in --persona buyer
 ```
 
 `--check` checks each saved session now (headless, one after the other, without signing in), saves the result and
 exits with 1 when one is not valid; a profile a browser holds is not checked (`not checked · in use by a browser`:
-close that browser first). `studio doctor --project P` shows the same per persona, and warns when the studio
+close that browser first). `retake doctor --project P` shows the same per persona, and warns when the Retake
 home — or a session — sits inside a git work tree that does not ignore it.
 
 **The fixture** serves its two apps behind a sign-in too (:4403 / :4404, invented accounts and passwords in
@@ -2145,20 +2206,20 @@ home — or a session — sits inside a git work tree that does not ignore it.
 
 ```sh
 export NORTHFIELD_SUPPLIER_PASSWORD=… NORTHFIELD_BUYER_PASSWORD=…     # from fixtures/wholesale/README.md
-pnpm studio login northfield-fixture --env signed-in --persona supplier --auto
-pnpm studio login northfield-fixture --env signed-in --persona buyer --auto
-pnpm studio run northfield-fixture live-quote --env signed-in        # each pane signed in as its persona
+pnpm retake login northfield-fixture --env signed-in --persona supplier --auto
+pnpm retake login northfield-fixture --env signed-in --persona buyer --auto
+pnpm retake run northfield-fixture live-quote --env signed-in        # each pane signed in as its persona
 ```
 
 **One account, the older form.** `auth: {profile: ~/…}` (or `storage_state: file.json`), global or per environment,
 still works as the persona `default` on every page, with a validation warning (a path that only exists on one
-computer): `studio login <project> [--env E]` opens a window on that profile as before, and runs use a copy of it. As
+computer): `retake login <project> [--env E]` opens a window on that profile as before, and runs use a copy of it. As
 before, a missing profile starts signed out and a missing `storage_state` file fails the run before anything runs
-(`studio auth status` says to export it again: `studio login` has no window for it).
+(`retake auth status` says to export it again: `retake login` has no window for it).
 
 **Limits.**
 - Nothing is written back from a run: an app that rotates its refresh token on every use may ask to sign in again
-  sooner (each run refreshes a copy); `studio login` again then.
+  sooner (each run refreshes a copy); `retake login` again then.
 - Tokens kept in sessionStorage are lost between runs; IndexedDB travels in a `profile` persona's copy, not in a
   `storage_state` snapshot.
 - A sign-in screen an app shows without changing its URL is caught only when a step fails (the frames until then are
@@ -2203,7 +2264,7 @@ of range is refused. The runner navigates the real URL; `timeline.json` keeps bo
 video shows maps the real URL to the display one: the page whose base is the longest prefix of it (path and query
 kept; a page without a display URL keeps its URLs as they are), else — a URL under no page, on the origin of one with a
 display URL — that origin's display host. Only http(s) URLs are mapped (a `blob:` URL maps the URL it wraps; a `file:`
-URL is local). Display URLs are **edit-time data**: `studio render`, `plan`, `still` and `export-capture` take
+URL is local). Display URLs are **edit-time data**: `retake render`, `plan`, `still` and `export-capture` take
 project.yaml's current display URLs of the run's environment (a run captured before L1.7: the environment of its
 `run.json`), so adding or changing one needs a new render, never a new capture (only text templated at capture —
 `{{shop}}` in a caption — keeps what it read then); what the run recorded is kept for pages project.yaml no longer
@@ -2213,7 +2274,7 @@ declares. What the video shows:
   framing captures in a browser) show the display URL. A **local URL without a display URL** (localhost, a name without
   a dot such as `devbox`, `*.localhost`, `*.local`, `*.test`, `*.internal`, `*.lan`, `*.home.arpa` and kin, a loopback,
   private, link-local or 100.64/10 address, `file:`) is never drawn: the bar shows no address there (the window bars
-  fall back to the theme's `brand.url`), `studio render` warns once per page ("page "shop" has no display URL
+  fall back to the theme's `brand.url`), `retake render` warns once per page ("page "shop" has no display URL
   (http://localhost:4402)… add display: to environments.local.shop in project.yaml and render again") and the review
   reports `url-hidden` — only for layouts that draw a URL (a card, a laptop, a phone draws none).
 - **Text you write**: `{{shop}}` in a caption, a card, an overlay's slots, a page label, the title, the intro or the
@@ -2236,7 +2297,7 @@ declares. What the video shows:
 | `production: true` | read-only | usage error |
 | `production: true` + `access: read-write` | read-only, with a notice | read-write, with a warning ("writes go to production") |
 
-`--allow-writes` exists on `studio run`, `studio hooks run`, `studio hooks rollback` and `studio env reset`; it
+`--allow-writes` exists on `retake run`, `retake hooks run`, `retake hooks rollback` and `retake env reset`; it
 confirms writes, it never grants them. The run header says `production` / `read-only` / `writes allowed`, and
 `run.json` / `timeline.json` record the access.
 
@@ -2248,11 +2309,11 @@ data-modifying part, `TABLE`, `VALUES`, `SHOW`, `EXPLAIN` of a read, `SET` / `RE
 mode or the role — a quoted name counts: `SET "transaction_read_only" = off` writes), a `shell` hook unless it declares
 `writes: false` (and then `rm`, `dropdb` or destructive SQL given to `psql` still write), and a setup hook whose
 `rollback` writes. `js` hooks run: their tab stops their writes. The SQL of a read-only run runs in a read-only
-transaction (a function that writes fails in Postgres). `studio run` refuses a scenario with
+transaction (a function that writes fails in Postgres). `retake run` refuses a scenario with
 such hooks before any browser opens, listing them — run it with `--hooks skip`, on a read-write environment, or with
-`--allow-writes` where project.yaml allows writes; `studio validate` warns about them. `studio env reset` and `studio
+`--allow-writes` where project.yaml allows writes; `retake validate` warns about them. `retake env reset` and `retake
 hooks rollback` judge each pending rollback by the environment its hook ran in: a rollback journaled on production
-with `--allow-writes` is not replayed by a plain `studio env reset` on a local environment.
+with `--allow-writes` is not replayed by a plain `retake env reset` on a local environment.
 
 **No run writes to another environment's production hosts.** The hosts of the project's read-only environments (a
 production one, `access: read-only`: their pages' hosts and `read_only.hosts`) are protected in every run: on a run on
@@ -2304,7 +2365,7 @@ read. Read-only means "no mutating HTTP from the run's browsers and hooks".
   provider on another host is guarded too on production: list its sign-in page in `login_url` (a URL pattern). The
   session check and every capture page are guarded; an OAuth popup the sign-in opens is not exempt. A **token
   refresh** the app sends from a capture page is a write: list it in `read_only.allow`, or the app may sign out and the
-  run fails at the sign-in page. `studio login` and `studio auth status --check` run outside any run: they are never
+  run fails at the sign-in page. `retake login` and `retake auth status --check` run outside any run: they are never
   guarded.
 - **js hooks** run in their own tab, guarded by it: their writes are stopped and never mocked (a hook that writes is
   refused, not fooled) — a hook that fails after a stopped write is `refused`; one that catches the error goes on with
@@ -2356,12 +2417,12 @@ read-only. Its scenario `read-only` (`env: production`, `frame: browser`, `clock
 quote: the scenario's mock answers the `POST /api/quotes` (the toast reads the mock's supplier), the fixture's
 `GET /api/health` counts no new write (`mutations`), the address bar shows `shop.northfield.example`, and the shop's
 "Prices as of Monday 2 November 2026, 10:24" line (`/#as-of`: the fixture's only date from the browser's clock) is the
-same in every take. `studio run northfield-fixture quote --env production` is refused before anything runs (its setup
+same in every take. `retake run northfield-fixture quote --env production` is refused before anything runs (its setup
 hooks write).
 
 ## Sandbox mode
 
-A **sandbox** is a disposable, local copy of the product that Demo Studio starts, seeds with demo data and resets
+A **sandbox** is a disposable, local copy of the product that Retake starts, seeds with demo data and resets
 before every take, so two takes of a scenario show the same data. project.yaml names each sandbox's manifest; every
 sandbox becomes an **environment** of its own:
 
@@ -2375,7 +2436,7 @@ default_env: sandbox               # a sandbox may be the default environment (o
 ```yaml
 # sandbox/sandbox.yaml   (every path in it is relative to this file)
 # yaml-language-server: $schema=../../../packages/core/schema/sandbox.schema.json
-version: 1                         # required; a newer version is refused (made for a newer Demo Studio)
+version: 1                         # required; a newer version is refused (made for a newer Retake)
 provider: process                  # process | docker-compose
 services:
   app:
@@ -2407,14 +2468,14 @@ accounts:                          # demo accounts the seed creates: the persona
       - click: {role: button, name: Sign in}
 ```
 
-Every key of sandbox.yaml (version 1; `studio schema sandbox` prints the JSON Schema, which editors use through the
+Every key of sandbox.yaml (version 1; `retake schema sandbox` prints the JSON Schema, which editors use through the
 `$schema` comment):
 
 | Key | What it is |
 |---|---|
 | `version` | `1` (required) |
 | `provider` | `process` (programs of this machine) or `docker-compose` (required) |
-| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `demo-studio-<project>-<env>-<hash>`), `env_file` (default `.env` next to the first compose file when there is one; `false`: none — see [A "stage" sandbox](#a-stage-sandbox-images-of-a-production-build)) |
+| `compose` | docker-compose: `files` (default `[compose.yaml]`), `project` (default `retake-<project>-<env>-<hash>`), `env_file` (default `.env` next to the first compose file when there is one; `false`: none — see [A "stage" sandbox](#a-stage-sandbox-images-of-a-production-build)) |
 | `services.<name>` | `url` (health base), `pages` (key → URL or `{url, display}`), `health`; process: `command`, `cwd`, `env`, `stop_timeout_s` |
 | `services.<name>.health` | a path, `false`, or `{path \| url, status, text, timeout_s, interval_ms, tcp}` (`tcp`: process only) |
 | `seed[]` | `http`, `sql`, `shell`, `exec` (`{service, command, env, timeout_s}`, docker-compose) + `name`, `optional` |
@@ -2430,25 +2491,25 @@ What the sandbox environment gets, from its manifest only (nothing is written tw
 - **Personas**: its `accounts`, with `login_url`, `check`, `login` and `session` as in project.yaml `auth`;
   `{{account.username}}` / `{{account.password}}` are only available in an account's own `login` steps, where they
   are written in when the project loads. A plain password is masked like a resolved `{{env:…}}` value as soon as the
-  account signs in (log.jsonl, run.json, timeline.json, error pages, `studio login` messages) — every occurrence of
+  account signs in (log.jsonl, run.json, timeline.json, error pages, `retake login` messages) — every occurrence of
   its text is masked, so validation warns about one shorter than 8 characters or made of one word, and refuses one
   shorter than 3 (texts that short are never masked: they would mangle every log). Signing a sandbox
   account in automatically is expected (a reset drops the sessions the app stored): the run logs it as information,
-  not as a warning, and `studio auth status` lists such an account as `auto` (never a `studio login` hint, never a
+  not as a warning, and `retake auth status` lists such an account as `auto` (never a `retake login` hint, never a
   failure of `--check`). `auth.<sandbox>` in project.yaml is an error; a global `auth` keeps applying to the other
   environments only.
 - **Mailbox and databases**: the sandbox's own `mailbox` and `databases`, never project.yaml's (a sandbox scenario's
-  sql hook cannot reach a staging database). A journal replay (`studio env reset`, `studio hooks rollback`) reaches
+  sql hook cannot reach a staging database). A journal replay (`retake env reset`, `retake hooks rollback`) reaches
   the databases of the environment each entry ran in. Their loopback hosts (`db.localhost`, `127.0.0.2`…) are allowed
   hosts at run time, like `localhost`.
 - **Never production**: a sandbox is always read-write and has no `production`, `access` or `read_only`.
 
-Validation (`studio validate`, and every command: a broken sandbox.yaml stops them all, reported in that file):
+Validation (`retake validate`, and every command: a broken sandbox.yaml stops them all, reported in that file):
 
 - `version: 1` and `provider` are required. `compose` is for docker-compose; `command`, `cwd`, `env`,
   `stop_timeout_s` are for process (where `command` is required); `exec` steps are for docker-compose (a process
   sandbox writes a `shell` step with `cwd`); the services of a docker-compose sandbox must be services of its compose
-  files (default `compose.yaml`), and not under `profiles:` there — Demo Studio runs `docker compose` without
+  files (default `compose.yaml`), and not under `profiles:` there — Retake runs `docker compose` without
   `COMPOSE_PROFILES`, so such a service never starts (naming one as a service or in an `exec` step is an error).
 - **Every URL is on this machine**: `localhost`, `*.localhost`, `127.0.0.0/8` or `[::1]` — services, pages, health,
   mailbox and databases (a host written as `{{env:…}}` is refused; only a password may be a reference). Private
@@ -2471,12 +2532,12 @@ Validation (`studio validate`, and every command: a broken sandbox.yaml stops th
 ### Starting, resetting and filming a sandbox
 
 ```sh
-studio sandbox up northfield-fixture          # start what is not running, wait until healthy, seed it if needed
-studio sandbox status northfield-fixture      # services (pid, health), pages, seed, last reset, take lock (--json)
-studio sandbox logs northfield-fixture        # the last lines of each service's log ([service] [--lines 50] [--follow])
-studio sandbox reset northfield-fixture       # back to the seed (the sandbox must be up; --reseed)
-studio sandbox down northfield-fixture        # stop it (a process sandbox's data goes with it; --volumes)
-studio run northfield-fixture sandbox-quote --sandbox   # up if needed, health, reset to the seed, then the take
+retake sandbox up northfield-fixture          # start what is not running, wait until healthy, seed it if needed
+retake sandbox status northfield-fixture      # services (pid, health), pages, seed, last reset, take lock (--json)
+retake sandbox logs northfield-fixture        # the last lines of each service's log ([service] [--lines 50] [--follow])
+retake sandbox reset northfield-fixture       # back to the seed (the sandbox must be up; --reseed)
+retake sandbox down northfield-fixture        # stop it (a process sandbox's data goes with it; --volumes)
+retake run northfield-fixture sandbox-quote --sandbox   # up if needed, health, reset to the seed, then the take
 ```
 
 `--env <name>` picks the sandbox (default: the first of project.yaml `sandboxes:`). `status` exits with `0` only when
@@ -2498,9 +2559,9 @@ every service runs and is healthy, `--json` for scripts.
   A page that does not answer — nothing listens on its port (a dev server that stopped or moved to another port), a
   gateway error (502, 503, 504) — stops the run before anything opens, naming the page and its URL; any other HTTP
   answer (a 404 at the root, a redirect to a sign-in) counts.
-- **`studio doctor --project <slug>`** warns (`Sandbox`) when the project has no sandbox and one of its environments
+- **`retake doctor --project <slug>`** warns (`Sandbox`) when the project has no sandbox and one of its environments
   films only this machine with a database, a mailbox or reset hooks — each take then starts from whatever the last
-  one left —, with the command that scaffolds one (`studio sandbox init`). MCP `project_get` says the same.
+  one left —, with the command that scaffolds one (`retake sandbox init`). MCP `project_get` says the same.
 - **`run --sandbox`** takes the sandbox's take lock, starts what is not running, checks every service's health,
   resets the sandbox to its seed, then films; the sandbox stays up afterwards. The environment is `--env` (it must be
   a sandbox), else the scenario's `env` when it is a sandbox, else `default_env` when it is one, else the first
@@ -2516,7 +2577,7 @@ every service runs and is healthy, `--json` for scripts.
 - **A reset** (strategy `reseed`): the seed steps again (phase `seed`: the first failure stops it, and a sandbox whose
   seed failed counts as never seeded; strategy `snapshot`: the snapshot restored instead, see below; `--reseed` runs
   the seed and takes the snapshot again); as soon as the data is back, the pending rollbacks of earlier runs on that
-  environment are marked superseded — `studio env reset` and `studio hooks rollback` never replay them on the
+  environment are marked superseded — `retake env reset` and `retake hooks rollback` never replay them on the
   reseeded data (`DELETE /api/quotes/7` would delete the new quote 7), even when what follows fails —; then the
   mailbox is emptied (Mailpit `DELETE /api/v1/messages`; `mailbox: {clear: false}` keeps it; an `http` mailbox is left
   to the seed) and the `reset.restart` services restarted.
@@ -2529,7 +2590,7 @@ every service runs and is healthy, `--json` for scripts.
   database the sandbox does not start but that is its alone (a Mailpit or a Postgres you run for it) says so with
   `external: true` in sandbox.yaml (`databases: {main: {url: …, external: true}}`, `mailbox: {…, external: true}`).
 - **One take at a time.** `up`, `reset`, `down` and `run --sandbox` hold the sandbox's take lock
-  (`.demo-studio/sandbox/<env>/take.lock`): a second one fails at once, naming the holder (`sandbox sandbox is in use:
+  (`.retake/sandbox/<env>/take.lock`): a second one fails at once, naming the holder (`sandbox sandbox is in use:
   run 20261014-101500-sandbox-quote (pid 4242) since 10:15:03`). The lock is created whole in one step (written aside,
   then hard-linked into place), and a lock whose process is gone is removed with a note — under a breaker file, and
   only if it is still that lock: two commands finding the same stale lock never both take it.
@@ -2550,16 +2611,16 @@ server timestamps shows "created in 3 weeks").
 **The process provider** (`provider: process`) starts each service as a program of its own process group, detached
 (it outlives the command), in `cwd` (default the folder of sandbox.yaml):
 
-- **Command**: argv, where a first word `node` runs Demo Studio's own Node (a folder's Node version manager could
+- **Command**: argv, where a first word `node` runs Retake's own Node (a folder's Node version manager could
   otherwise pick another version), or a string run with `sh -c` (looked up on `PATH`).
-- **Environment**: Demo Studio's own, without the package manager's and test runner's variables (`npm_*`, `PNPM_*`,
+- **Environment**: Retake's own, without the package manager's and test runner's variables (`npm_*`, `PNPM_*`,
   `VITEST*`, `NODE_ENV`, `NODE_OPTIONS`, `INIT_CWD`, `TEST` — set them in `env:` when the service needs them), plus
-  `env:` (templated: `{{env:VAR}}`, `{{keychain:…}}`, page keys, vars) and `DEMO_STUDIO_SANDBOX=<env>`. A `shell`
+  `env:` (templated: `{{env:VAR}}`, `{{keychain:…}}`, page keys, vars) and `RETAKE_SANDBOX=<env>`. A `shell`
   command on the sandbox's environment — its seed steps, and the shell hooks of scenarios run there — gets the same
-  `env:` of every process service and `DEMO_STUDIO_SANDBOX` on top of Demo Studio's own environment (its own `env:`
+  `env:` of every process service and `RETAKE_SANDBOX` on top of Retake's own environment (its own `env:`
   wins): a seed's `npm run db:reset` reaches the sandbox's `DATABASE_URL`, never the one your shell or a `.env` file
-  points at. A variable the services do not set comes from Demo Studio's environment as usual.
-- **Logs**: `.demo-studio/sandbox/<env>/logs/<service>.log` (git-ignored), the previous start's kept as `.log.1`, cut
+  points at. A variable the services do not set comes from Retake's environment as usual.
+- **Logs**: `.retake/sandbox/<env>/logs/<service>.log` (git-ignored), the previous start's kept as `.log.1`, cut
   at 20 MB before a take (a sandbox may stay up for days). A service that exits while it starts fails `up` at once
   with its exit code and the last 20 lines of its log.
 - **Health**: the service's `health` (default a `GET` of its `url`: 200–399; or `{path|url, status, text,
@@ -2598,11 +2659,11 @@ used in between; with `--env sandbox` instead (no reset) the reference moves on.
 
 **The docker-compose provider** (`provider: docker-compose`) runs the services of the compose files (`compose.files`,
 default `compose.yaml` next to sandbox.yaml) with the `docker` CLI (Docker Desktop, OrbStack or Docker Engine, with
-Compose v2.17 or later; `$DEMO_STUDIO_DOCKER` names another binary). The services of sandbox.yaml are the compose
+Compose v2.17 or later; `$RETAKE_DOCKER` names another binary). The services of sandbox.yaml are the compose
 services that serve pages (their `url`, `pages`, `health`); every other compose service (a database, Mailpit, a
 worker) counts too, judged by its own healthcheck.
 
-- **A project of its own**: `compose.project`, else `demo-studio-<project>-<environment>-<8 hex of the folder's path>`
+- **A project of its own**: `compose.project`, else `retake-<project>-<environment>-<8 hex of the folder's path>`
   (two checkouts of a project never share containers or volumes). Every command — `up`, `down`, `status`, `reset`,
   `logs`, an `exec` step, a restart — reads the project's containers first: containers of that name made from another
   folder (another checkout given the same `compose.project`) refuse it, never read, reset or touched. Every call names
@@ -2610,7 +2671,7 @@ worker) counts too, judged by its own healthcheck.
   would change what starts).
 - **A renamed `compose.project`**: the name an earlier `up` used stays in the state until nothing of it is left. While
   its containers run, `up` refuses (`compose project … — the name an earlier up of this sandbox used (compose.project
-  changed since) — is still running: studio sandbox down …`); `status` says what it left (containers, volumes);
+  changed since) — is still running: retake sandbox down …`); `status` says what it left (containers, volumes);
   `down` takes it down too, from its folder, and `down --volumes` removes its volumes — only then is it forgotten.
 - **`up`**: no container of another compose project (or none of compose) may publish a port the compose files
   publish, on any address (`docker ps --filter publish=<port>`: OrbStack lets a container publish `[::1]:4601` or
@@ -2621,7 +2682,7 @@ worker) counts too, judged by its own healthcheck.
   program then answers part of the traffic — except those this project's running containers hold; every port of
   sandbox.yaml's services must be one the compose files publish. Then `docker compose up
   -d --wait --wait-timeout <s> --remove-orphans` (`<s>`: the longest `health.timeout_s` of sandbox.yaml, default 120;
-  its output in `.demo-studio/sandbox/<env>/logs/compose-up.log`, and on the terminal with `--verbose`). Its exit code
+  its output in `.retake/sandbox/<env>/logs/compose-up.log`, and on the terminal with `--verbose`). Its exit code
   is not trusted (`--wait` can exit 0 when it times out): every container must then run, healthy or without a
   healthcheck, or `up` fails with each one's state and the last 30 lines of its logs (`db: running, health starting
   (not healthy yet)`). Then the container runtime alone must listen on the published ports and no other project's
@@ -2641,7 +2702,7 @@ worker) counts too, judged by its own healthcheck.
   output goes to `logs/seed.log`, secrets masked (the values it resolved, the sandbox's plain passwords). The hosts its
   rendered command and `env` name are checked like a shell hook's: a service of the compose files, localhost, a page
   or `allow_hosts` host — never a host of a production or read-only environment (a host computed inside the container
-  is not seen). Every process it starts carries `DEMO_STUDIO_EXEC=<token>`: Ctrl-C or the timeout stops them inside
+  is not seen). Every process it starts carries `RETAKE_EXEC=<token>`: Ctrl-C or the timeout stops them inside
   the container too (SIGTERM, SIGKILL 3 s later, through `sh` and `/proc`; an image without them gets a warning naming
   `docker compose restart <service>`), and Ctrl-C stays an interrupt (exit 130). Migrations and an application's own
   seed belong here: a one-shot container in the compose file fails `up --wait` when it exits.
@@ -2655,12 +2716,12 @@ worker) counts too, judged by its own healthcheck.
   `-h` it says ready while the init scripts still run); `init: true` for a program that runs as PID 1 and ignores
   SIGTERM; a `logging: {options: {max-size: 10m}}` (docker's default log never rotates).
 
-### `studio sandbox init`
+### `retake sandbox init`
 
 ```sh
-studio sandbox init my-product                 # sandbox/ + `sandboxes: {sandbox: sandbox/sandbox.yaml}` in project.yaml
-studio sandbox init my-product --env demo      # another one: sandbox/demo/, its own ports
-studio sandbox up my-product                   # it comes up as written: a placeholder page, seeded, snapshot taken
+retake sandbox init my-product                 # sandbox/ + `sandboxes: {sandbox: sandbox/sandbox.yaml}` in project.yaml
+retake sandbox init my-product --env demo      # another one: sandbox/demo/, its own ports
+retake sandbox up my-product                   # it comes up as written: a placeholder page, seeded, snapshot taken
 ```
 
 It writes a docker-compose sandbox that validates and comes up as it is: `sandbox.yaml` (strategy `snapshot`, the
@@ -2694,7 +2755,7 @@ DROP DATABASE IF EXISTS "app__ds_snapshot" WITH (FORCE);
 CREATE DATABASE "app__ds_snapshot" TEMPLATE "app";            -- STRATEGY left to the server (WAL_LOG from 15)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS true;
 ALTER DATABASE "app__ds_snapshot" WITH ALLOW_CONNECTIONS false IS_TEMPLATE true;
-COMMENT ON DATABASE "app__ds_snapshot" IS 'demo-studio snapshot <seed hash>';
+COMMENT ON DATABASE "app__ds_snapshot" IS 'retake snapshot <seed hash>';
 -- before every take (restore)
 ALTER DATABASE "app" WITH ALLOW_CONNECTIONS false;
 DROP DATABASE IF EXISTS "app" WITH (FORCE);                   -- its sessions are terminated
@@ -2709,7 +2770,7 @@ CREATE DATABASE "app" TEMPLATE "app__ds_snapshot" OWNER "<owner at the take>";
 - **When the snapshot is stale** it is taken again, after the seed: the seed hash (seed steps, the files they read,
   `seed/`, the images of the compose services — `up --build` with new migrations makes it stale) differs from the one
   in the state file or in the template's comment, the template is gone (`down --volumes`), or `reset --reseed` asks.
-  After a change the hash cannot see (a script outside `seed/`, data an `exec` step fetches), run `studio sandbox
+  After a change the hash cannot see (a script outside `seed/`, data an `exec` step fetches), run `retake sandbox
   reset <project> --reseed`.
 - **Robust to interruptions**: every reset first lets connections in again when an interrupted reset left them
   blocked, recreates the database when an interrupted restore dropped it, and nothing between `DROP` and `CREATE`
@@ -2731,7 +2792,7 @@ CREATE DATABASE "app" TEMPLATE "app__ds_snapshot" OWNER "<owner at the take>";
   takes 20–30 ms to run and its snapshot restores in 40–300 ms, so `reseed` is as fast there. With a realistic seed —
   600 000 rows and two indexes, a 114 MB database — the seed takes 1.3–1.9 s (`reseed`: a 1.5–2.1 s reset) and the
   snapshot restores in 230–300 ms (the first one after a take ≈ 0.7 s): a 0.5–0.6 s reset, docker checks included.
-  The take after the seed costs 0.45–0.75 s. `studio sandbox reset` prints both times.
+  The take after the seed costs 0.45–0.75 s. `retake sandbox reset` prints both times.
 
 ### The fixture's Docker sandbox (Mailpit)
 
@@ -2744,11 +2805,11 @@ its API is the sandbox's mailbox, and http://localhost:4525 shows what the fixtu
 
 ```sh
 node fixtures/wholesale/build.mjs        # the UI bundle the image copies (again after a UI change, then up --build)
-studio sandbox up northfield-fixture --env sandbox-docker       # builds the image the first time, starts, seeds
-studio run northfield-fixture sandbox-quote --env sandbox-docker --sandbox
-studio run northfield-fixture signup --env sandbox-docker --sandbox    # wait_for_email reads the real Mailpit
-studio sandbox down northfield-fixture --env sandbox-docker
-docker image rm $(docker images -q --filter 'reference=demo-studio-northfield-fixture-*')   # the image (down keeps it)
+retake sandbox up northfield-fixture --env sandbox-docker       # builds the image the first time, starts, seeds
+retake run northfield-fixture sandbox-quote --env sandbox-docker --sandbox
+retake run northfield-fixture signup --env sandbox-docker --sandbox    # wait_for_email reads the real Mailpit
+retake sandbox down northfield-fixture --env sandbox-docker
+docker image rm $(docker images -q --filter 'reference=retake-northfield-fixture-*')   # the image (down keeps it)
 ```
 
 - **The image**: `node:22-alpine` (≈ 160 MB, pulled once) plus the server and the bundle (≈ 4 MB): no `npm install` —
@@ -2757,7 +2818,7 @@ docker image rm $(docker images -q --filter 'reference=demo-studio-northfield-fi
   reads. A missing bundle stops the build with the command to run. It runs as `node` (not root), on every interface
   of the container, with a `HEALTHCHECK` on `http://127.0.0.1:<console port>/api/health`; the compose file adds
   `init: true` and publishes every port on 127.0.0.1. No `image:` in the compose file: the image is named after the
-  compose project (`demo-studio-northfield-fixture-sandbox-docker-<hash>-fixture`).
+  compose project (`retake-northfield-fixture-sandbox-docker-<hash>-fixture`).
 - **No Chromium in the image**: the quote PDF (`/quotes/<id>/quote.pdf`) answers 500 there. `sandbox-quote` and
   `signup` do not open it; film `quote` (its "Download quote PDF") on the process sandbox or on `local`.
 - **Mail**: with `NORTHFIELD_SMTP=mailpit:1025` the fixture delivers every mail it sends to Mailpit too (a small SMTP
@@ -2770,7 +2831,7 @@ docker image rm $(docker images -q --filter 'reference=demo-studio-northfield-fi
 ### Recipes
 
 ```yaml
-# A dev server on this machine (process): a string runs with sh -c and PATH (argv [node, …] runs Demo Studio's Node).
+# A dev server on this machine (process): a string runs with sh -c and PATH (argv [node, …] runs Retake's Node).
 # Its database is one of its own (a Postgres you run for the sandbox alone, on 4702) — never your development one.
 services:
   web:
@@ -2781,7 +2842,7 @@ services:
     health: {path: /api/health, timeout_s: 120}     # a path that reads the database
     pages: {app: {url: http://localhost:4701, display: app.example.com}}
 seed:
-  # Gets web's DATABASE_URL (and DEMO_STUDIO_SANDBOX), not the one of your shell or .env: it resets the sandbox's data.
+  # Gets web's DATABASE_URL (and RETAKE_SANDBOX), not the one of your shell or .env: it resets the sandbox's data.
   - shell: {run: "npm run db:reset && npm run db:seed", cwd: ../..}
 databases:                    # for sql steps and scenario sql hooks: that Postgres is not started by the sandbox
   main: {url: "postgres://demo:sandbox-db-4702@localhost:4702/app", external: true}
@@ -2800,7 +2861,7 @@ reset:
 - **Mail**: point the app's SMTP settings at `mailpit:1025` inside the compose network and declare `mailbox:
   {provider: mailpit, url: http://localhost:<published 8025>}`; `wait_for_email` then reads it, and every reset empties
   it.
-- **Two takes at the same time**: a second sandbox (`studio sandbox init <project> --env demo-2`, its own ports and
+- **Two takes at the same time**: a second sandbox (`retake sandbox init <project> --env demo-2`, its own ports and
   compose project).
 - **A sign-in that survives the reset**: none — a reset drops the sessions the app stored, so the accounts sign in
   again off camera before every take (`accounts`, above).
@@ -2861,8 +2922,8 @@ mailbox: {provider: mailpit, url: http://localhost:4925}
   (`packages/sandbox/test/compose-env.test.ts`).
 - **Another version** is another product: the env file's hash is part of the seed's inputs (with the images' ids), so
   the next `up` seeds again and a snapshot taken with the previous one is stale.
-- `studio sandbox up <project> --env stage` pulls the images the first time (`docker login` to a private registry
-  first, in your terminal); `studio run <project> <scenario> --env stage --sandbox` resets it before each take.
+- `retake sandbox up <project> --env stage` pulls the images the first time (`docker login` to a private registry
+  first, in your terminal); `retake run <project> <scenario> --env stage --sandbox` resets it before each take.
 
 ### Limits
 
@@ -2892,13 +2953,13 @@ mailbox: {provider: mailpit, url: http://localhost:4925}
 - **Disk**: `down` never removes images, and builds leave Docker's build cache; `docker image rm` and the usual Docker
   tools reclaim them.
 
-## MCP: Claude drives Demo Studio
+## MCP: Claude drives Retake
 
-`studio mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio: a Claude session (Claude Code, Claude
+`retake mcp` is an [MCP](https://modelcontextprotocol.io) server over stdio: a Claude session (Claude Code, Claude
 desktop, any MCP client) lists the projects, reads a README, writes and validates scenarios and reads runs, sessions
 and sandboxes through tools, dry-runs and captures scenarios, runs hooks and resets environments, and the CLI and the
-server share one engine (`@demo-studio/engine`): a dry run, a capture or hooks started here run the same code as
-`studio run` / `studio hooks run` / `studio env reset`. Hooks that need a human are approved by the user through an
+server share one engine (`@retake/engine`): a dry run, a capture or hooks started here run the same code as
+`retake run` / `retake hooks run` / `retake env reset`. Hooks that need a human are approved by the user through an
 approval form the client shows (MCP elicitation). Sign-ins (a window for the human) and sandbox start / reset are jobs
 too, and so are renders: Claude previews the plan of a capture, renders it with another theme or edit overrides (no
 scenario change) and follows the render — the render runs guarded (only files of the project, no network) —, reviews
@@ -2910,30 +2971,30 @@ only turns a timecoded table the user hands into a skeleton), or the **user** sh
 previews themes and components (stills come back as images), checks components and scaffolds new ones, and makes a
 new theme from the brand files the user put in the workspace, or from a draft read off a public site whose URL the
 user approves (`template_from_site`) — component code, existing themes and project.yaml are
-never written through the server. People comment frames of a render (`studio comment add`); Claude lists the comments
+never written through the server. People comment frames of a render (`retake comment add`); Claude lists the comments
 with their anchor and still, adapts the video, replies and resolves them with the new render (see
 [Frame comments](#frame-comments)).
 
-**Registering it.** `studio mcp --print-config` (from your workspace, or with `--root <workspace>`) prints the JSON
+**Registering it.** `retake mcp --print-config` (from your workspace, or with `--root <workspace>`) prints the JSON
 block and the `claude mcp add` command with absolute paths (in this repository run `node packages/cli/dist/bin.js mcp
---print-config`: `pnpm studio …` prints a banner before the JSON). An extra `-e NAME=value` goes **before** the `--`.
-It also prints the lines that install the **Claude Code plugin** instead (the Demo Studio skills and this server, from
+--print-config`: `pnpm retake …` prints a banner before the JSON). An extra `-e NAME=value` goes **before** the `--`.
+It also prints the lines that install the **Claude Code plugin** instead (the Retake skills and this server, from
 the repository's local marketplace; see [`skills/README.md`](skills/README.md)) — use one or the other, not both, or
-Claude Code gets two `demo-studio` servers:
+Claude Code gets two `retake` servers:
 
 ```sh
 # Either: Claude Code, for every project of this user (what --print-config prints, shortened):
-claude mcp add demo-studio --scope user -e PATH=<…> -- <node ≥ 22> <repo>/packages/cli/dist/bin.js --root <workspace> mcp
-# Or: the plugin, enabled in the workspace folder only (+ --config home=<…> when DEMO_STUDIO_HOME is set):
+claude mcp add retake --scope user -e PATH=<…> -- <node ≥ 22> <repo>/packages/cli/dist/bin.js --root <workspace> mcp
+# Or: the plugin, enabled in the workspace folder only (+ --config home=<…> when RETAKE_HOME is set):
 claude plugin marketplace add <repo>
-cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --config node=<node ≥ 22> --config studio=<repo>/packages/cli/dist/bin.js --config workspace=<workspace>
+cd <workspace> && claude plugin install retake@retake --scope local --config node=<node ≥ 22> --config cli=<repo>/packages/cli/dist/bin.js --config workspace=<workspace>
 ```
 
 ```json
-{ "mcpServers": { "demo-studio": {
+{ "mcpServers": { "retake": {
     "command": "/Users/you/.local/share/mise/installs/node/22/bin/node",
     "args": ["<repo>/packages/cli/dist/bin.js", "--root", "<workspace>", "mcp"],
-    "env": { "PATH": "<node's folder>:…:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", "DEMO_STUDIO_HOME": "<only when you set it>" } } } }
+    "env": { "PATH": "<node's folder>:…:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin", "RETAKE_HOME": "<only when you set it>" } } } }
 ```
 
 - Claude Code: the `claude mcp add` line (per user), or the JSON in a `.mcp.json` at the workspace root (per project);
@@ -2945,40 +3006,40 @@ cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --
   an nvm `node/22` alias folder, Homebrew's `opt/node@22`). After a Node.js major upgrade, print it again.
 - `env.PATH` is your current PATH plus Homebrew's folders (a GUI client's PATH lacks them; the engine runs ffmpeg,
   docker and psql), without the folders a package manager adds for the script it runs (`node_modules/.bin`,
-  corepack) and without relative entries (`.`, `bin`: they would resolve in the client's project folder). `studio
+  corepack) and without relative entries (`.`, `bin`: they would resolve in the client's project folder). `retake
   mcp` completes the PATH it is started with the same way, so a client that passes none (the plugin, Claude desktop)
   still finds those tools. Secrets the `{{env:…}}` references of project.yaml need go in `env` too (or in the
-  keychain): a GUI client does not read your shell profile; the plugin carries none. `DEMO_STUDIO_HOME` is carried
-  over when set (the plugin: its `home` value, which replaces an inherited `DEMO_STUDIO_HOME`; empty: `~/.demo-studio`).
+  keychain): a GUI client does not read your shell profile; the plugin carries none. `RETAKE_HOME` is carried
+  over when set (the plugin: its `home` value, which replaces an inherited `RETAKE_HOME`; empty: `~/.retake`).
 - The plugin loads in place from `skills/`: `git pull` + a new session (or `/reload-plugins`) updates the skills; run
   the install line again to change a value. `claude --plugin-dir skills` is for editing the skills: that session loads
-  the plugin as `demo-studio@inline`, which hides an installed one and has none of its values, so **its MCP server is
+  the plugin as `retake@inline`, which hides an installed one and has none of its values, so **its MCP server is
   missing** (`/plugin configure` in that session, or the `claude mcp add` registration).
-- Without a workspace (`--root`, `DEMO_STUDIO_ROOT` or a `studio.yaml` above the folder it starts in) it refuses to
+- Without a workspace (`--root`, `RETAKE_ROOT` or a `retake.yaml` above the folder it starts in) it refuses to
   start, on stderr, exit 2. stdout carries the protocol only.
 
-**Over HTTP.** `studio mcp --http` serves the same tools, instructions and approval forms as Streamable HTTP at
+**Over HTTP.** `retake mcp --http` serves the same tools, instructions and approval forms as Streamable HTTP at
 `http://127.0.0.1:47820/mcp` (`--port N` for another port; `0`: a free one) until Ctrl-C, for a client that registers
-a URL rather than a command. The server checks a bearer token: a stable one, created once in the studio home
-(`~/.demo-studio/mcp-http.token`, mode 600), so the registration survives restarts; `--rotate-token` replaces it (then
-register again). `studio mcp --print-config --http` prints the registration, and never the token itself:
+a URL rather than a command. The server checks a bearer token: a stable one, created once in the Retake home
+(`~/.retake/mcp-http.token`, mode 600), so the registration survives restarts; `--rotate-token` replaces it (then
+register again). `retake mcp --print-config --http` prints the registration, and never the token itself:
 
 ```sh
 # Claude Code, for every project of this user: the shell reads the token from its file as the line runs
 # (your shell history keeps "$(cat …)", not the token; Claude Code keeps the header in its own user settings)
-claude mcp add --transport http demo-studio http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat ~/.demo-studio/mcp-http.token)"
-# Or the JSON it prints in .mcp.json at the workspace root — "Authorization": "Bearer ${DEMO_STUDIO_MCP_TOKEN}", no
+claude mcp add --transport http retake http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat ~/.retake/mcp-http.token)"
+# Or the JSON it prints in .mcp.json at the workspace root — "Authorization": "Bearer ${RETAKE_MCP_TOKEN}", no
 # token in the file (safe to commit) — with the variable set where claude starts (your shell profile):
-export DEMO_STUDIO_MCP_TOKEN="$(cat ~/.demo-studio/mcp-http.token)"
+export RETAKE_MCP_TOKEN="$(cat ~/.retake/mcp-http.token)"
 ```
 
-Use it **instead of** the stdio registration, not beside it, and keep `studio mcp --http` running (a terminal, a login
+Use it **instead of** the stdio registration, not beside it, and keep `retake mcp --http` running (a terminal, a login
 item). While `claude mcp add` runs, the token is in its command line (visible to your own account's `ps`). Each MCP
 session keeps its server, so an approval form reaches the client that asked. At most 8 sessions: a session in use (a
 call running, or the client's event stream open) never expires and is never closed for another; one not in use is
 closed after 30 min, or at once when a new client needs its place (a Claude Code that restarted without saying
 goodbye). The token is a secret: whoever holds it drives this workspace's tools and answers their approval forms — as
-the client that spawns `studio mcp` over stdio does; never paste it into a file you commit. See [Security](#security)
+the client that spawns `retake mcp` over stdio does; never paste it into a file you commit. See [Security](#security)
 for what the server refuses.
 
 **Tools.**
@@ -2990,12 +3051,12 @@ for what the server refuses.
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `studio prune`), with the bytes it frees; `dry_run` (default true) only lists, `dry_run: false` deletes (annotated destructive) — only when the user asked to free space | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists, `dry_run: false` deletes (annotated destructive) — only when the user asked to free space | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
-| `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`), `detail` (`compact` default, or `full`); a job, waits up to `wait_s` (default 25). Returns counts, open popups and the marked screenshot as an image; compact (L5.8): the elements in view or in a dialog, menu or popover, each as its mark, context, action and step hint as one line of YAML (`matches`, `fragile` and state flags only when set), page text under `untrusted`; `full`: every element with its box, state, texts, verified target, and the scroll containers | `.demo-studio/inspect/<id>/` |
-| `scenario_record` | a recording the **user** performs (see [Recording a scenario](#recording-a-scenario)): `page` (+ `path`) or `url` (an origin of the environment's pages only), `persona`, `scenario` (the draft's name; saved only when free), `check` (default true); a job returned at once — a browser window opens on the user's machine, the user performs the flow and closes it (Claude never drives it), the window holds the queue (≤ 30 min); `job_status` then returns counts, the saved file and hash, the check replay, issue counts, and the draft (`draft_lines`), its scene ids and issues under `untrusted`; `job_cancel` while the window is open discards it | `.demo-studio/records/<id>/`; `scenarios/<name>.yaml` when free; the environment, through what the user does in the window (read-write environments) |
+| `page_inspect` | what a page shows, for writing steps (see *Authoring* below): `page` (+ `path`) or `url` (an origin of the environment's pages only), or `scenario` + `until` (a dry replay up to that step; a failing step is inspected where it failed); `persona`, `within` (list only inside a target), `targets` (≤ 20 of your own, checked), `limit` (default 80, ≤ 300), `images` (`marked` default, or `none`), `detail` (`compact` default, or `full`); a job, waits up to `wait_s` (default 25). Returns counts, open popups and the marked screenshot as an image; compact (L5.8): the elements in view or in a dialog, menu or popover, each as its mark, context, action and step hint as one line of YAML (`matches`, `fragile` and state flags only when set), page text under `untrusted`; `full`: every element with its box, state, texts, verified target, and the scroll containers | `.retake/inspect/<id>/` |
+| `scenario_record` | a recording the **user** performs (see [Recording a scenario](#recording-a-scenario)): `page` (+ `path`) or `url` (an origin of the environment's pages only), `persona`, `scenario` (the draft's name; saved only when free), `check` (default true); a job returned at once — a browser window opens on the user's machine, the user performs the flow and closes it (Claude never drives it), the window holds the queue (≤ 30 min); `job_status` then returns counts, the saved file and hash, the check replay, issue counts, and the draft (`draft_lines`), its scene ids and issues under `untrusted`; `job_cancel` while the window is open discards it | `.retake/records/<id>/`; `scenarios/<name>.yaml` when free; the environment, through what the user does in the window (read-write environments) |
 | `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
 | `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, the take's cost in one line, the paths of capture.mp4, timeline.json and the screenshots folder, and the state of its job (queued and its place, interrupted…); `detail: "full"` adds every output with its sha256, each dry-run screenshot and the take's measurements; `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
@@ -3011,19 +3072,19 @@ for what the server refuses.
 | `comment_reply` | appends a reply to a thread (`comment_id`, `text` ≤ 2000 characters), written as `mcp`; returns the entry id and the new hash | `comments/<scenario>/<id>.json` (an entry) |
 | `comment_resolve` | resolves an open thread: `note` (what changed), `render_id` (a later render of the same scenario and variant, or `latest` of that variant), `if_match` (required: the hash `comments_list` or `comment_reply` gave; a person's entry meanwhile = `conflict` with the current hash); written as `mcp`, reopened only by a person | `comments/<scenario>/<id>.json` (an entry) |
 | `template_list` | the themes by name (the workspace's `templates/`, then the starters): source, the component each picks per kind, issues; `project` marks the project's own (and lists its own theme folder); `template` returns one theme in detail — template.yaml and its sha256, colours, fonts, brand, assets, each kind's component with its params | — |
-| `template_preview` | stills of a theme (default the project's): its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro, 960×540, rendered as a job; waits up to `wait_s` (default 20) and returns them as images (4 inline, the 5th as a file) | `.demo-studio/previews/<id>/` |
-| `template_from_site` | asks the user to approve the URL (elicitation; without it: `needs_approval` with the `studio theme from-site` command), then extracts a public page as a job (see [Themes from a site](#themes-from-a-site)): colour roles and swatches with contrast, logo candidates as `site:<id>/logo-<n>` PNGs, the screenshot and logos as images (a third-party page), the font names and every page string under `untrusted`, a draft brand input and the template.yaml it would make; waits up to `wait_s` (default 25) | `.demo-studio/site/<id>/` |
+| `template_preview` | stills of a theme (default the project's): its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro, 960×540, rendered as a job; waits up to `wait_s` (default 20) and returns them as images (4 inline, the 5th as a file) | `.retake/previews/<id>/` |
+| `template_from_site` | asks the user to approve the URL (elicitation; without it: `needs_approval` with the `retake theme from-site` command), then extracts a public page as a job (see [Themes from a site](#themes-from-a-site)): colour roles and swatches with contrast, logo candidates as `site:<id>/logo-<n>` PNGs, the screenshot and logos as images (a third-party page), the font names and every page string under `untrusted`, a draft brand input and the template.yaml it would make; waits up to `wait_s` (default 25) | `.retake/site/<id>/` |
 | `template_create_from_brand` | a **new** theme from the user's brand files (see [Themes from your brand](#themes-from-your-brand)): `name`, `base`, `colors` (hex; `accent` required), `background`, `adjust`, `logo`, `wordmark`, `fonts {display, body[]}` (files relative to the workspace root, outside hidden, `components/` and agent-writable folders; a logo or wordmark may be `site:<id>/logo-<n>` of `template_from_site`), `brand {name, url}`, `replace` (only an unchanged theme this tool made); returns the folder, template.yaml, the palette with every ratio and change, the fonts (their name strings under `untrusted`) and warnings; then `template_preview` | `templates/<name>/` (a new folder) |
 | `component_list` | components by id (workspace first, then the built-in `studio/…`; `kind` filters): kind, version, source, description, slot names, the committed preview and whether it is fresh; registry notices (invalid, overriding) | — |
 | `component_get` | one component: manifest (slots and their types, params JSON Schema with defaults, duration, geometry, preview samples), params with defaults, source files, README | — |
 | `component_validate` | a component's issues (component.yaml, id vs folder, entry, the esbuild compile allowing react / remotion / the kit; nothing executed), positioned | — |
-| `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.demo-studio/previews/<id>/` |
+| `component_preview` | a still of one component with a theme (default the project's), the manifest's samples or your `slots` (text, url, color slots) and `params` (checked against its schema), `at_s`; a job, returned as an image like `template_preview`; never written into the component's folder | `.retake/previews/<id>/` |
 | `component_create` | scaffolds `components/<namespace>/<name>/` from its kind's template (component.yaml, index.tsx, README.md; `description` and `name` written as text), validated, no preview; refuses the `studio/` namespace and any built-in id | the new component folder |
 | `job_list` / `job_status` / `job_cancel` | the jobs of the workspace (any session's), one job's state, progress and result (a preview's stills as images; an inspection as `page_inspect` returns it, marked screenshot included; a recording's draft), a cancel; `job_status {wait_s}` waits up to 600 s (a capture or a render followed in one call, a progress notification at least every 15 s); a run, render, preview, review, export, inspect or record job's error message is under `untrusted.error` | — |
-| `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.demo-studio/journals/` |
+| `hooks_run` | hooks outside a capture as a job: `reset`, `<scenario>:setup`, `<scenario>:teardown` or `hooks/<name>.yaml`, on `env`; **dry by default** (templated and security-checked, nothing executed, nobody asked: the result marks the hooks a real run needs approved); `dry: false` runs them, setup-like ones with a journal of rollbacks | the environment, through the hooks; `.retake/journals/` |
 | `env_reset` | as a job: replays every pending rollback (captures' and hook runs' journals, an interrupted job's too), then the project's `reset` hooks; dry by default | the environment; the journals |
-| `auth_status` | each persona's last known session state and the `studio login` command a human runs (no live check, no browser) | — |
-| `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed, at most 30 minutes (`DEMO_STUDIO_SIGNIN_MAX_MIN`; then it closes, nothing saved) | the session, in `~/.demo-studio` |
+| `auth_status` | each persona's last known session state and the `retake login` command a human runs (no live check, no browser) | — |
+| `auth_login` | signs a persona in, as a job: `headed` (default) opens a browser window **on the user's machine** — the user signs in there and closes it, Claude is told to ask them and never sees a password; `auto` plays the persona's `login:` steps (their secrets come from the server's environment or the keychain). The result says whether the session works now (no path, no cookie). The window holds the queue until it is closed, at most 30 minutes (`RETAKE_SIGNIN_MAX_MIN`; then it closes, nothing saved) | the session, in `~/.retake` |
 | `sandbox_status` | a sandbox's services, health, seed, last reset, take lock (starts nothing) | — |
 | `sandbox_up` | as a job: starts what is not running, checks health, seeds when it never was or the seed changed | the sandbox (its processes or containers, its data) |
 | `sandbox_reset` | as a job: back to the seed (`reseed: true` runs the seed even when a snapshot could be restored); the sandbox must be up | the sandbox's own data |
@@ -3062,12 +3123,12 @@ step that opens a dialog or a menu>}` to see what that step shows, and write the
   reported without its query or fragment. A host another project protects (production / read-only) is refused
   as for `run_dry`, and so is a scenario agent trust refuses. The checks run when the call is made and again in the
   worker (the scenario's bytes are pinned by their sha256).
-- **Files.** `<project>/.demo-studio/inspect/<id>/`: `inspect.json` (the whole report), `screenshot.png` (the viewport,
+- **Files.** `<project>/.retake/inspect/<id>/`: `inspect.json` (the whole report), `screenshot.png` (the viewport,
   cursor hidden, at the capture scale), `marked.jpg` (numbered boxes of the elements in view, except those something
   is drawn over), and the dry replay's run.json, log and step-failure screenshot; the newest 20 inspections are kept
   (never one whose job is queued or running; `job_status` says when a finished one was pruned since). Never in `runs/`: `run_list`,
   `latest` and reviews do not see them. A result over 80 kB drops elements from its end (`truncated`; inspect.json has
-  them all). An inspection counts nothing in the history. `studio inspect` does the same from a terminal (no queue;
+  them all). An inspection counts nothing in the history. `retake inspect` does the same from a terminal (no queue;
   `--json` prints the report).
 - **An aid when the user hands a timecoded table: `scenario_from_script`.** Not the start of the loop, a skeleton to
   rewrite through it. It reads the first Markdown pipe table of `script_markdown` (≤ 100 kB) whose headers name a time
@@ -3086,9 +3147,9 @@ step that opens a dialog or a menu>}` to see what that step shows, and write the
   warnings against the look (video 1:00–2:00, scenes 4–25 s, under 2 s unreadable) and the draft validated against the
   project. It writes nothing and calls no model; `scenario_save` saves what Claude rewrote.
 
-**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview, an inspection or a recording is a *job*: the call queues it (under `<workspace>/.demo-studio/jobs/`,
+**Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview, an inspection or a recording is a *job*: the call queues it (under `<workspace>/.retake/jobs/`,
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
-`.demo-studio/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
+`.retake/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
 `run_capture` returns at once, and `run_status {wait_s: 25}` (called again until the run is finished) or
 `job_status {job_id, wait_s: 600}` follows it with progress notifications. Results carry their JSON on one line, and
@@ -3100,22 +3161,22 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
 - Stopping it: `run_cancel` / `job_cancel`, or a signal — the first SIGINT / SIGTERM cancels the running job (its
   teardown and rollbacks run) and the worker exits; a second one quits at once. A worker that is killed (`kill -9`,
-  a crash) leaves its job `interrupted`: the run stopped where it was, and `studio env reset <project>` replays the
+  a crash) leaves its job `interrupted`: the run stopped where it was, and `retake env reset <project>` replays the
   rollbacks it left pending. Sandbox services a killed worker had started keep running, as after `kill -9 studio`
-  (`studio sandbox down`).
+  (`retake sandbox down`).
 - After `pnpm build` (or a `git pull`), an idle worker notices that its code changed and exits; the next job starts a
   new one.
-- `studio run` in a terminal does not go through the queue (it runs in its own process, as before), so two captures —
+- `retake run` in a terminal does not go through the queue (it runs in its own process, as before), so two captures —
   one from a terminal, one from Claude — can run at the same time.
 - A recording (`scenario_record`) holds the queue while its window is open, as a headed sign-in. The worker's first
   signal closes its window and keeps what was recorded (the draft made and saved, its check replay skipped);
   `job_cancel` discards it — except a recording you started from the Studio, which only the Studio stops or discards
-  (Claude's `job_cancel` is refused while it runs; a `studio jobs cancel` typed in a terminal, or a `cancel` file
+  (Claude's `job_cancel` is refused while it runs; a `retake jobs cancel` typed in a terminal, or a `cancel` file
   written in the job's folder, still discards it — the BL-76 class). Claude can still read a Studio recording's draft
   (its job's result names the folder): it holds what you typed, as any recording does. A killed worker leaves no draft
-  (`studio record` again; the events streamed so far stay in the recording's folder).
-- A killed sign-in leaves nothing saved (`studio login` again); a killed sandbox job may leave services running and its
-  seed unrecorded (the next `studio sandbox up` seeds again). Each interrupted job's `fix` says so.
+  (`retake record` again; the events streamed so far stay in the recording's folder).
+- A killed sign-in leaves nothing saved (`retake login` again); a killed sandbox job may leave services running and its
+  seed unrecorded (the next `retake sandbox up` seeds again). Each interrupted job's `fix` says so.
 - **Renders.** `render` plans in the server's process (no browser; a refusal costs nothing), reserves the render id
   (a `.<scenario>-v<N>.lock` in `renders/`) and queues the job; the worker plans again — a run whose timeline changed,
   or a plan whose variant changed, is refused — and renders with Remotion (≈ 1–3 min for a minute of video, longer
@@ -3123,46 +3184,46 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   job). A failed or cancelled render writes nothing under its id and frees it: the next render of the scenario takes
   the same id (`render_status` shows the newest job of an id; `job_status` keeps the old one). A worker killed
   mid-render leaves the job `interrupted`; the next worker kills the render's browser (Remotion starts it detached, it
-  would outlive the worker), removes its temporary profile, the lock and the partial video. `studio render` in a
+  would outlive the worker), removes its temporary profile, the lock and the partial video. `retake render` in a
   terminal does not go through the queue; versions stay distinct across both.
 - **Reviews and exports.** Both name a render by its id (`latest` is resolved when the call is made) and read it from
   `renders/<id>.json`: its video and its run must lie in the project folder (a record edited by hand, or of a moved
-  workspace, that points elsewhere is refused with the `studio review` / `studio export` command a human runs). A review
+  workspace, that points elsewhere is refused with the `retake review` / `retake export` command a human runs). A review
   (ffmpeg and sharp, no browser) writes `review/<render_id>/` aside and swaps it in at the end: a cancel or a killed
   worker leaves the previous review as it was (the next worker puts it back if the kill fell between the two renames).
-  A concurrent `studio review` of the same render in a terminal: the last one to finish wins. An export stops between
+  A concurrent `retake review` of the same render in a terminal: the last one to finish wins. An export stops between
   formats on a cancel (the files written stay) and kills ffmpeg or the re-render; a killed worker's re-render browser
   and partial files are removed by the next worker. Re-rendered formats are planned and checked at the call, then
   rendered under the same rules as a render (project files only, no network).
 - **Previews.** `template_preview` and `component_preview` are jobs of the same worker (one bundle and one browser per
   preview, ≈ 0.5–1 s a still once the bundle is cached; behind a render they wait for it). Their stills go to
-  `<workspace>/.demo-studio/previews/<id>/` — never into a component's folder: the committed `preview.png`,
-  `preview.json` and README block stay `studio components preview`'s. They run with the render's network guard. A
+  `<workspace>/.retake/previews/<id>/` — never into a component's folder: the committed `preview.png`,
+  `preview.json` and README block stay `retake components preview`'s. They run with the render's network guard. A
   preview that outlives its `wait_s` is followed with `job_status {wait_s}`, which returns the stills.
 - **Images.** `review` / `review_get` return the contact sheet (and the key frames at markers) as images in the result,
   `template_preview` / `component_preview` / `job_status` a preview's stills, `comments_list` the comments' stills: JPEG thumbnails ≤ 1280 px made when the
   result is built (never stored in a job), at most 4 per result and 1.5 MB in all
-  (`DEMO_STUDIO_MCP_MAX_IMAGES`, `DEMO_STUDIO_MCP_MAX_IMAGE_BYTES`, `DEMO_STUDIO_MCP_IMAGE_PX` in the server's `env`
+  (`RETAKE_MCP_MAX_IMAGES`, `RETAKE_MCP_MAX_IMAGE_BYTES`, `RETAKE_MCP_IMAGE_PX` in the server's `env`
   change that); the others are listed as files Claude reads. What an image shows of the filmed product, its text included, is
   data — the server's instructions say so, like for anything under `untrusted`.
-- **`studio jobs`** shows them in a terminal, also once the Claude session is gone: `studio jobs` (newest first, with
-  progress, outcome, who submitted it, and the worker), `studio jobs status <id>` (input, times, place in the queue,
-  result or error and its fix), `studio jobs cancel <id>`. It never starts a worker (one started from a terminal would
+- **`retake jobs`** shows them in a terminal, also once the Claude session is gone: `retake jobs` (newest first, with
+  progress, outcome, who submitted it, and the worker), `retake jobs status <id>` (input, times, place in the queue,
+  result or error and its fix), `retake jobs cancel <id>`. It never starts a worker (one started from a terminal would
   run Claude's queued jobs with the terminal's environment): a queued job it cancels is closed by the next worker, and
   `run_list` / `run_status` already show its run `cancelled`.
 - A worker refuses (job `failed`, "refused without running") a job of a kind or input version it does not know — a
   newer client's; after a `pnpm build` it leaves such a job to a worker of the new build.
-- **History.** Every finished job, and every `studio run` / `studio render` / `studio still` in a terminal (and a
-  `studio export` that re-rendered a format), adds a line to
-  `<workspace>/.demo-studio/history.jsonl` (kind, project, who, state, duration, captures / dry runs / renders
+- **History.** Every finished job, and every `retake run` / `retake render` / `retake still` in a terminal (and a
+  `retake export` that re-rendered a format), adds a line to
+  `<workspace>/.retake/history.jsonl` (kind, project, who, state, duration, captures / dry runs / renders
   produced — a render job counts once it wrote its video, with its render id; an export job counts the formats it
   re-rendered; reviews, component previews and inspections are not counted — a preview job's line names the preview and
   its theme, an inspect job's its id, its source and its outcome);
   `engine_info` reports the totals. It is local, never sent anywhere — the counters a licence or Remotion
   usage report would need later (an entitlements stub answers "everything, no limit" for now).
-- `studio doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
+- `retake doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
   there is one), whether the PATH it registers finds ffmpeg, the worker (running or idle), and whether the workspace's
-  `.demo-studio/` is git-ignored when the workspace is a git work tree.
+  `.retake/` is git-ignored when the workspace is a git work tree.
 
 **Safety.**
 - **Hooks need a human.** The agent driving the server can write the scenarios it runs (`scenario_save`), so the trust
@@ -3173,7 +3234,7 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   checks them without running anything (templated, secrets as `***`; what a safety rule refuses fails the call at
   once), then asks the user once, through the client's approval form (MCP elicitation, form mode): the project, the
   environment (production or not, read-only or not), each hook with its kind, target (request and host, command,
-  SQL and database) and why it needs approval, and the `studio` command to run it in a terminal instead.
+  SQL and database) and why it needs approval, and the `retake` command to run it in a terminal instead.
   - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
     JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
     cancel, `env_reset`) without asking again. The form shows each hook's rollback (`…; rollback: http DELETE …`).
@@ -3181,21 +3242,21 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
     their phase, position and environment) and of the project files they reference (sql / js files, the scripts a
     shell hook names: `./seed.sh`, `psql -f reset.sql`); the worker runs a hook that needs approval only when its
     fingerprint is listed, so a hook or a script changed between the question and the run is refused. Each approval
-    is signed with a key kept in `~/.demo-studio/approvals.key` (`DEMO_STUDIO_HOME`; 0600): the worker ignores an
-    approval a submit did not sign (a job file written by hand into `.demo-studio/jobs/`). Replaying the rollbacks of
+    is signed with a key kept in `~/.retake/approvals.key` (`RETAKE_HOME`; 0600): the worker ignores an
+    approval a submit did not sign (a job file written by hand into `.retake/jobs/`). Replaying the rollbacks of
     hooks a human or an approval let run is never asked about again.
-  - Declined, dismissed, not answered within 10 minutes (`DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS` changes that), or a
-    question that failed: the call is refused (`refused`) with the `studio …` command a human runs; nothing is queued.
+  - Declined, dismissed, not answered within 10 minutes (`RETAKE_MCP_APPROVAL_TIMEOUT_MS` changes that), or a
+    question that failed: the call is refused (`refused`) with the `retake …` command a human runs; nothing is queued.
   - A client that cannot show the form (no elicitation support): refused with `needs_approval` and the same command.
     Claude Code declares elicitation; Claude desktop is not tested yet. Claude Code's own tool timeout
     (`MCP_TOOL_TIMEOUT`) also bounds how long a question can stay open.
-  - From a terminal (`studio run`, `studio hooks run`, `studio env reset`) nothing changes: `confirm: true` and
+  - From a terminal (`retake run`, `retake hooks run`, `retake env reset`) nothing changes: `confirm: true` and
     `--yes` / the prompt approve destructive hooks, and a shell hook's `writes: false` counts.
   - A dry run (`run_dry` without `hooks: "run"`, `hooks_run` / `env_reset` by default) asks nobody.
   - **Sandbox seeds.** `sandbox_up`, `sandbox_reset` and `run_capture {sandbox: true}` may run a sandbox's seed: its
     **shell** steps are approved the same way (a local command is local code, whatever the sandbox is). Its http and
     sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
-    a sandbox container: none of them is asked about. From a terminal (`studio sandbox up`) nothing is asked, as before.
+    a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
 - **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any
   file is read: every file the capture's timeline names — card and overlay images, `data:` CSV / TSV slots, your own
   video / image / Lottie files, the music bed (the scenario's or `overrides.music`) — is a file of the project folder
@@ -3204,7 +3265,7 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   value that is a remote URL is refused (put the file in `assets/`); a theme is named (`template`, a scenario's
   `template:`), never a folder — except the project's own `template:` of project.yaml. After planning, every file the
   plan serves must lie in the project, the run or the theme folder (a theme whose logo or font leaves its folder is
-  refused). The worker checks it all again. The refusal names each file and where it is used, with the `studio render`
+  refused). The worker checks it all again. The refusal names each file and where it is used, with the `retake render`
   command a human runs.
 - **The render's browser has no network.** A render through MCP runs with a network guard: its Chromium (Remotion's,
   which runs component code) loads the files of the plan from the local asset server and the bundle from Remotion's
@@ -3212,7 +3273,7 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   navigation) fails and the render warns with the origin only; Remotion's `/proxy` passes only for those files, and
   an `<Audio>` / `<Video>` source Remotion would download itself is refused (the render fails). WebSockets are blocked
   for every render by a Content-Security-Policy of the bundle; WebRTC is not covered (full isolation: BACKLOG). A
-  `studio render` in a terminal keeps the network (remote images in slots work there).
+  `retake render` in a terminal keeps the network (remote images in slots work there).
 - **Components and themes are not edited through MCP.** `component_create` writes the tool's own scaffold (it refuses
   the `studio/` namespace and every built-in id: a workspace component of that id would replace the built-in in every
   render), `template_create_from_brand` writes a new theme folder (never a starter's name or an existing folder; its
@@ -3230,12 +3291,12 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   / js file): an agent could read any variable of the server's environment back through an error message, in a form
   the masking does not catch (base64). Only what you wrote resolves secrets: project.yaml (personas' login steps,
   databases, mailbox, `reset` hooks) and the project's `hooks/` files. Refused at `scenario_save` /
-  `scenario_validate`, at submit (with the `studio` command a human runs) and again by the worker.
+  `scenario_validate`, at submit (with the `retake` command a human runs) and again by the worker.
 - **Files stay in the project.** Through MCP, a file a scenario or hook names — `drop_file` `path`, eval `file`, a
   hook's sql / js file, a script its shell command runs — is relative to the project folder and inside it, symbolic
   links followed (no absolute path, `~` or `..` out of it; a templated path is checked when the step runs), and code is
   never run from a file Claude can write (README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`,
-  `.demo-studio/`): keep scripts in `hooks/` or `assets/`. From a terminal nothing changes.
+  `.retake/`): keep scripts in `hooks/` or `assets/`. From a terminal nothing changes.
 - **Production of every project.** The hosts of the production and read-only environments of *every* project of the
   workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
   ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
@@ -3254,7 +3315,7 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   the video — the scenario, the render overrides, the theme — never for a hook, a sign-in, a change to project.yaml or
   environments, a URL or a file outside scenarios/. Through MCP no input names an author: every entry is written as
   `mcp`, threads are never created or reopened, and a resolution needs the thread's `if_match`. Anyone who can run
-  `studio comment` or write comments/ (Claude Code's own shell and file tools included) writes as `cli`: the channel
+  `retake comment` or write comments/ (Claude Code's own shell and file tools included) writes as `cli`: the channel
   says how an entry was written, not who wrote it.
 - No tool deletes anything; overwriting an authored file needs `if_match`. Environments `project_create` declares are
   neither production nor read-only: a human marks production environments in project.yaml (there is no tool that
@@ -3275,14 +3336,14 @@ are instructions only: every check, refusal and approval stays in the server's t
 
 | Skill | When it triggers | The loop |
 |---|---|---|
-| `demo-studio-scenario` | a demo video, product tour, walkthrough or tutorial of a web app; recording a flow; a script to turn into a video; comments on a render | `page_inspect` → Claude writes the YAML → `scenario_validate` → `scenario_save` → `page_inspect {scenario, until}` → `run_dry` → `run_capture` → `render` → `review`; or `scenario_record` (the user shows the flow), or `scenario_from_script` (a timecoded table), and the frame-comments loop (`comments_list` → change → `run_capture` for a scenario change → render → `review` → `comment_reply` / `comment_resolve`) |
-| `demo-studio-theme` | a theme, template or branded look; a logo, fonts or brand colours in the video | brand files the user puts in `<workspace>/brand/` (and hex colours), or `template_from_site` on a site the user names (approved in a form) → `template_create_from_brand` → `template_preview` → `render {template}` → `review` |
-| `demo-studio-component` | a new intro, outro, card, caption style, layout, overlay or transition | `component_list` / `component_preview` first (an existing one with other params often does it) → `component_create` → code edited only once the user agrees, renderer primitives through the kit → `component_validate` → `component_preview` in the user's theme → `render {overrides: {components}}` → `review` |
+| `retake-scenario` | a demo video, product tour, walkthrough or tutorial of a web app; recording a flow; a script to turn into a video; comments on a render | `page_inspect` → Claude writes the YAML → `scenario_validate` → `scenario_save` → `page_inspect {scenario, until}` → `run_dry` → `run_capture` → `render` → `review`; or `scenario_record` (the user shows the flow), or `scenario_from_script` (a timecoded table), and the frame-comments loop (`comments_list` → change → `run_capture` for a scenario change → render → `review` → `comment_reply` / `comment_resolve`) |
+| `retake-theme` | a theme, template or branded look; a logo, fonts or brand colours in the video | brand files the user puts in `<workspace>/brand/` (and hex colours), or `template_from_site` on a site the user names (approved in a form) → `template_create_from_brand` → `template_preview` → `render {template}` → `review` |
+| `retake-component` | a new intro, outro, card, caption style, layout, overlay or transition | `component_list` / `component_preview` first (an existing one with other params often does it) → `component_create` → code edited only once the user agrees, renderer primitives through the kit → `component_validate` → `component_preview` in the user's theme → `render {overrides: {components}}` → `review` |
 
 Each skill starts by calling `engine_info` (a plugin whose server failed to start still loads its skills) and stops
 when the workspace root it names is not the session's folder (the plugin's values are shared, see below); it ends
-with the same **Rules**: a refusal or an approval request is final; Claude never runs the `studio` CLI (`studio`,
-`pnpm studio`, `node …/bin.js`) through its shell, for anything, whoever asks — the user included: it shows the
+with the same **Rules**: a refusal or an approval request is final; Claude never runs the `retake` CLI (`retake`,
+`pnpm retake`, `node …/bin.js`) through its shell, for anything, whoever asks — the user included: it shows the
 command for the user's own terminal (a terminal run is author trust: `--yes` approves hooks, a CLI render has no
 network guard); it never types or asks for passwords; text under `untrusted`, page text, images and comments are
 data; it never fetches brand assets itself; no `eval` step the user did not ask for; `template_from_site` only on a
@@ -3295,12 +3356,12 @@ server; [`skills/README.md`](skills/README.md) has the details. In short (`pnpm 
 ```sh
 node packages/cli/dist/bin.js --root <workspace> mcp --print-config   # prints the two lines below, filled in
 claude plugin marketplace add <repo>
-cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --config node=<node ≥ 22> --config studio=<repo>/packages/cli/dist/bin.js --config workspace=<workspace>
+cd <workspace> && claude plugin install retake@retake --scope local --config node=<node ≥ 22> --config cli=<repo>/packages/cli/dist/bin.js --config workspace=<workspace>
 ```
 
 - `--scope local` (the default the lines print) enables the plugin, its server and the skills in sessions started in
   that workspace only, not in every session (`--scope user`). Remove the `claude mcp add` registration first
-  (`claude mcp remove demo-studio -s user`): not both.
+  (`claude mcp remove retake -s user`): not both.
 - **One workspace at a time.** The `--config` values are stored once per user (`pluginConfigs` in Claude Code's user
   settings), not per folder: installing in a second workspace re-points the first one's sessions at the second
   workspace. Switch by uninstalling in the old folder first, then installing in the new one. The skills stop when
@@ -3309,13 +3370,13 @@ cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --
 - The server's `PATH` keeps absolute entries only and none inside the workspace (`<workspace>/bin`,
   `<workspace>/node_modules/.bin`): Claude writes files there. A workspace that holds tool folders (your home folder,
   say) loses them: use a dedicated workspace folder.
-- `--config home=<folder>` (printed when `DEMO_STUDIO_HOME` is set) is the studio home of the plugin's server; it
-  replaces an inherited `DEMO_STUDIO_HOME`. Keep it outside the workspace: it holds the key that signs approvals.
+- `--config home=<folder>` (printed when `RETAKE_HOME` is set) is the Retake home of the plugin's server; it
+  replaces an inherited `RETAKE_HOME`. Keep it outside the workspace: it holds the key that signs approvals.
 - **Update:** the plugin loads in place from the repository: `git pull` (and `pnpm build`), then a new session or
   `/reload-plugins`. **Reconfigure** (another Node.js or home): run the install line again with the new values;
-  another workspace: as above, uninstall in the old folder first. **Remove:** `claude plugin uninstall demo-studio@demo-studio --scope local` from the workspace, then
-  `claude plugin marketplace remove demo-studio`.
-- `claude --plugin-dir skills` is for editing the skills: it loads them for one session as `demo-studio@inline`, hides
+  another workspace: as above, uninstall in the old folder first. **Remove:** `claude plugin uninstall retake@retake --scope local` from the workspace, then
+  `claude plugin marketplace remove retake`.
+- `claude --plugin-dir skills` is for editing the skills: it loads them for one session as `retake@inline`, hides
   an installed copy and has none of its values, so its MCP server is missing in that session.
 - Each skill folder is also a plain Agent Skill (frontmatter `name` and `description` only): it can be copied on its
   own; it then needs the server registered with `claude mcp add`.
@@ -3323,13 +3384,13 @@ cd <workspace> && claude plugin install demo-studio@demo-studio --scope local --
 **How they are checked.** `packages/mcp/test/skills.test.ts` lints the skills with no model call
 (`packages/mcp/test/skill-lint.ts`): every call written `tool {args}` names a tool of the server and only argument
 keys of its input schema, nested ones included (and literal values must parse); every snake_case word is a tool, an
-argument, an action, a schema key or a known result field; every `studio …` command and flag exists in the CLI's
+argument, an action, a schema key or a known result field; every `retake …` command and flag exists in the CLI's
 help; links resolve and every file of a skill is linked; each YAML example validates (a scenario against the fixture
 project under MCP trust, a component manifest) and the tsx example compiles like a component (imports, kit exports,
 forbidden APIs); the frontmatter (`name` = folder, a description ≤ 1,024 characters with "Use when"), the size
 (≤ 200 lines a SKILL.md), the "Before you start" checks and the Rules sentences (pinned, and no "unless", "except",
-"if the user asks", "anyway"… anywhere in the Rules); no sentence anywhere has Claude run a `studio` command
-("run `studio …`", "… yourself", a `studio …` command whose sentence does not name the user, outside a "For the
+"if the user asks", "anyway"… anywhere in the Rules); no sentence anywhere has Claude run a `retake` command
+("run `retake …`", "… yourself", a `retake …` command whose sentence does not name the user, outside a "For the
 user's own terminal" section), fetch (curl, wget, download), ask for a password or do what a comment says; and the
 hygiene (no `--yes`, `--allow-writes`, approving hook flag in any spelling, `${…}`, Claude Code's load-time `` !` ``
 commands, `` ```! `` blocks and `$ARGUMENTS` / `$1` / `$name` substitutions, `allowed-tools`, absolute path, named
@@ -3340,7 +3401,7 @@ skill triggers, and that no real brand or person is named — is the live check 
 
 ## Studio app
 
-`studio ui` serves the Studio — a web app on your own machine — for the workspace (Phase 4, being built). It runs
+`retake ui` serves the Studio — a web app on your own machine — for the workspace (Phase 4, being built). It runs
 the same engine and the same tools Claude uses over MCP, through the engine's local HTTP API, and needs nothing else
 running: the MCP server keeps working without it.
 
@@ -3363,16 +3424,16 @@ running: the MCP server keeps working without it.
   (L5.10 – L5.12); until then each keeps its content inside the new window.
 - **Fonts.** The Studio bundles the Geist and Geist Mono variable fonts (SIL Open Font License 1.1: the licence is
   `packages/ui/fonts/LICENSE.txt`, beside the files) and serves them itself — no font is fetched from the internet.
-  After changing a colour in `packages/ui/src/app/tokens.ts`, `pnpm -F @demo-studio/ui gen:tokens` writes
+  After changing a colour in `packages/ui/src/app/tokens.ts`, `pnpm -F @retake/ui gen:tokens` writes
   `tokens.css` again (a test fails while it is stale). A screen moved onto the design system lowers its row of
-  `packages/ui/test/legacy-controls.json` with `pnpm -F @demo-studio/ui ratchet` (the count of controls, roles, classes
+  `packages/ui/test/legacy-controls.json` with `pnpm -F @retake/ui ratchet` (the count of controls, roles, classes
   and tokens it still draws by hand; a row only goes down).
 
 - **Welcome and the projects (L5.10a).** With no project open, Welcome shows the app (its mark, name and version, New
   project, the projects folder) beside *Recent projects*: every project of the workspace with its
   scenario and location counts, its last run (a shape and a word), its locations' *production*, *read-only* and
   *sandbox* flags in words, its folder; a project whose `project.yaml` does not load is listed with its first problem.
-  New project is a command to copy (`studio new <slug>`). The title bar's project name is a menu: another project, or
+  New project is a command to copy (`retake new <slug>`). The title bar's project name is a menu: another project, or
   *All projects* (Welcome).
 - **The Project screen (L5.10a).** *Productions*: a poster per scenario — its capture's last pictured step, its title,
   its state as a shape and a word (*Draft · not shot yet*, *Shot · ready to render*, *Script changed since the shoot*,
@@ -3390,8 +3451,8 @@ running: the MCP server keeps working without it.
   then 4 s…).
 - **Search and recent activity.** A search box finds projects (name, slug, README words), scenarios, runs and renders
   as you type (every word as a prefix); *Recent activity* lists the jobs that wait or run (with their progress; one
-  whose worker died says *interrupted*) and then what finished — Claude's jobs and your `studio run` / `render`
-  commands alike. Both come from the workspace index, `<workspace>/.demo-studio/index.sqlite`: a cache rebuilt from the
+  whose worker died says *interrupted*) and then what finished — Claude's jobs and your `retake run` / `render`
+  commands alike. Both come from the workspace index, `<workspace>/.retake/index.sqlite`: a cache rebuilt from the
   files (delete it any time), never the source of truth. It needs Node.js 22.13 or later (`node:sqlite`); on an older
   Node.js 22 the Studio runs without search and activity.
 - **Live updates.** A change on disk — a README edited in your editor, a run Claude started, a new project — shows in
@@ -3528,17 +3589,17 @@ running: the MCP server keeps working without it.
   tab chose another location — and holds **Rehearse** (no hooks, a screenshot per step), **Capture** (the setup and
   teardown hooks, the video) and **Render** (the newest finished capture — the timeline's own on the Edit screen —
   with the file as shown), with **Pause** and **Stop** while a run of it is queued or running. *Rehearse* is the
-  Studio's word for a **dry run** (`studio run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
+  Studio's word for a **dry run** (`retake run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
   run". What would stop each is said before any click: one line in the status bar names the gate in a few words — *1
   hook to approve*, *protected location*, *uses a secret or an outside file*, *read-only location refuses its hooks*,
-  *the file has errors* (Open the YAML) — with **Command…**, a small popover that shows the exact `studio run …`
+  *the file has errors* (Open the YAML) — with **Command…**, a small popover that shows the exact `retake run …`
   command to type in a terminal, in full, beside its **Copy command** ("Copied" shows; Prepare also shows it as
-  `node <repository>/packages/cli/dist/bin.js …` where `studio` is not on your `PATH`); the full reason is each button's
+  `node <repository>/packages/cli/dist/bin.js …` where `retake` is not on your `PATH`); the full reason is each button's
   description. In a narrow window the status bar drops whole pieces (the last take, the scenario's name) rather than
   cutting a word; its answers line goes after a few seconds and when you change screens. The server checks again when you start — the file as the
   screen showed it: if it changed meanwhile, nothing starts — and refuses a second run of a scenario while one waits or
   runs; a held key, a click and a menu command in the same instant start one run. The Studio never resets a sandbox,
-  never stops at a step (`--until`) and never runs the hooks of a rehearsal: those stay `studio run` options. A start
+  never stops at a step (`--until`) and never runs the hooks of a rehearsal: those stay `retake run` options. A start
   from the status bar stays where you are (the status bar follows the run; the scenario screen's take strip says how
   it ended, with the first line of a failed run's error); one from Prepare, or from a run's live screen (its outcome's
   **Rehearse again** / **Start capture**), opens the new run live. **Stop** runs the teardown and rollbacks (a run
@@ -3555,7 +3616,7 @@ running: the MCP server keeps working without it.
   only and sent only while someone watches, from the first scene to the end of the last — never the sign-in before it,
   the hooks or the teardown. A run — dry run or capture — can be paused between two steps (never inside a step): it
   waits, its `run.json` says before which step, and resumes where it stopped; **Stop** still runs the teardown and the
-  rollbacks, paused or not; a pause longer than 30 minutes (`DEMO_STUDIO_PAUSE_MAX_MIN`) stops the run, since a paused
+  rollbacks, paused or not; a pause longer than 30 minutes (`RETAKE_PAUSE_MAX_MIN`) stops the run, since a paused
   run holds the worker and its sessions. A **capture does not film the pause**: the last click's ripple plays out
   first, then the capture clock stops and the recording with it, at the same instant; on resume the video goes on from
   that instant, so not a frame of the pause is filmed — `capture.mp4` and the timeline are the take without the pause,
@@ -3564,7 +3625,7 @@ running: the MCP server keeps working without it.
   `run.json`, and its time and CPU are left out of the perf report. The page itself keeps running meanwhile — timers,
   animations, the product's clock: what it shows after the resume is what the video shows, a visible jump at that point
   when something moved (the run warns "paused once (… s, not filmed)"). A sign-in window opened through the worker
-  (`auth_login` headed) closes by itself after 30 minutes (`DEMO_STUDIO_SIGNIN_MAX_MIN`): it holds the worker while it is
+  (`auth_login` headed) closes by itself after 30 minutes (`RETAKE_SIGNIN_MAX_MIN`): it holds the worker while it is
   open. A stopped sign-in (Cancel, the time limit) writes no session file and no status — but a persona that already
   has a browser profile signs in **on** it, so what the window changed there (cookies, storage) stays and the next run
   starts from it; a first sign-in leaves nothing.
@@ -3639,7 +3700,7 @@ running: the MCP server keeps working without it.
   their time of day; a row is a link to its report) and **Export**: **Export video (MP4)** queues the export job (1080p,
   into the project's exports folder, under the render's id; one at a time per render, two exports of the workspace at
   most at once; followed here and in the activity), and the raw capture for an editing tool is a command to copy
-  (`studio export-capture <project> <run>`, see [Raw export for editors](#raw-export-for-editors)). The status bar:
+  (`retake export-capture <project> <run>`, see [Raw export for editors](#raw-export-for-editors)). The status bar:
   *Rendered · when · vN* (a neutral mark: what the render did, not a verdict), **Open in Edit**, **Render again** (the
   latest capture with the file on disk; a render you start here opens its report once reviewed). An unknown render says so and reads nothing. Not yet: Show in
   Finder, other formats, "Open the step", the checks that ran (BACKLOG BL-132).
@@ -3694,7 +3755,7 @@ running: the MCP server keeps working without it.
   **Stop the review**, the render stays); a render that failed, with its message; and the renders, newest first, each
   with its size and length, whether it shows *this version* of the edit, and its review: *clean*, *2 warnings*, *1
   error*, *reviewing…*, *review failed*. A render's report (it opens by itself when a render you started is reviewed)
-  lists the findings — **Show in Edit** goes to a finding's frame only when the render is of the version shown: the same plan (the same file, capture, options, fps and variant — a `studio render --no-intro`
+  lists the findings — **Show in Edit** goes to a finding's frame only when the render is of the version shown: the same plan (the same file, capture, options, fps and variant — a `retake render --no-intro`
   is another version, *with other options*) and the same theme files — and its images: the contact sheets, the scene
   sheets, the key frames and the diff with the previous render (at most 24), larger on click. A render that failed
   after the newest video is said in Edit's status bar too (*v4 failed — why: in the Review report*), its message's
@@ -3712,7 +3773,7 @@ running: the MCP server keeps working without it.
   type it in the four % fields (left, top, width, height); *Where it points* shows the frame, the segment, the step (and
   where it is in today's file), the component, a marker, a transition — the anchor the thread will store. Write and
   **Post the comment**: the thread opens, written as the channel *Studio* under the name the Studio was started with
-  (`$DEMO_STUDIO_AUTHOR`, else your user name — the page never names an author). On the timeline, **Comment** (or C)
+  (`$RETAKE_AUTHOR`, else your user name — the page never names an author). On the timeline, **Comment** (or C)
   opens the Comments screen at the playhead's frame when a render of the version shown exists (its frames are the
   preview's frames); a pin's tooltip has **Open thread**. A thread shows the comment, where it points, its entries with
   their channel (*Terminal*, *Studio*, *Agent · MCP* — how an entry was written, not who typed it), and Reply, Resolve
@@ -3751,7 +3812,7 @@ running: the MCP server keeps working without it.
   Home and End move the selection, Escape clears it and Return on the selected card goes to its inspector; with the
   inspector hidden, the selected card links to its page, *Details*.) Posters and loops are rendered by the jobs worker (the
   component's code runs only in the render's guarded browser, never in the Studio) and kept in
-  `.demo-studio/cache/previews/`: posters of the cards on screen are asked 2 s after you stop scrolling or switch theme,
+  `.retake/cache/previews/`: posters of the cards on screen are asked 2 s after you stop scrolling or switch theme,
   12 components at a time, each batch once the previous one finished (a capture you start meanwhile goes first); a
   loop when you press Play or open a component; **Render all loops** the shown ones (about 1.5 s a loop once the
   worker has its bundle; the first one waits ≈ 20 s for it). A built-in's committed preview is
@@ -3759,21 +3820,21 @@ running: the MCP server keeps working without it.
   or by itself once any component changed (a broken component of the workspace never fails the others: they are
   rendered with their own components); a batch that failed as a whole says why at the top of the page; nothing is
   queued while the disk has less than 1 GB free (the page says so — **Try again** after freeing space). A component's page (*Open the details* in the inspector) shows the picture large, its kinds, version, source, whether it works
-  with this Demo Studio's kit, its duration, formats, slots and params, which themes use it and its README as text.
+  with this Retake's kit, its duration, formats, slots and params, which themes use it and its README as text.
   **Set as default of <theme>** makes it the theme's component for its kind (choose the kind when it serves several)
   after a confirmation sheet (Return sets it), with **Undo** (the theme file back byte for byte); a starter theme cannot be changed, so it is
   copied first to a theme of your workspace (name it — Return in the name field copies; the library then shows the copy,
   from the grid as from a component's page, with the result, **Undo** and *Open the copy* — your project keeps its theme
   until `template:` names the copy; *Open the copy* takes you to its theme editor, where *Use in this scenario* is). A
   component imports only its own files — never through a dot folder, `node_modules/`, `previews/` or `dist/` of its
-  folder (their changes would go unseen by the caches): `studio components validate` names such an import.
+  folder (their changes would go unseen by the caches): `retake components validate` names such an import.
   **Create with Claude…** opens a sheet that writes a prompt for Claude Code's component skill from a
   kind, an id and your words, to copy (**Copy the prompt**, the sheet's default) — the Studio calls no model — and shows
-  the `studio components create <id> --kind <kind>` command; your words stay when you close it (until you leave the
+  the `retake components create <id> --kind <kind>` command; your words stay when you close it (until you leave the
   Library); the new component shows up in the library when its folder is written.
 - **Themes** (L4.7). **Themes** in the project's pages (`#/p/<project>/themes`; *Open the theme editor* from the
   library) lists every theme — your workspace's, the starters, the project's own theme folder — with its colours, where
-  it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Demo Studio, or a
+  it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Retake, or a
   project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first (a sheet
   asks the copy's name; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
   `example.com/path`, no `https://` —, the outro's tagline; the logo
@@ -3793,11 +3854,11 @@ running: the MCP server keeps working without it.
   style is filmed, existing takes keep theirs; the same choice is the timeline inspector's *Theme (this scenario)*. The
   project's own theme stays a hand edit of project.yaml. **New theme…** makes one from your brand (colours, a logo and
   fonts among the workspace's files, over a base theme) as Claude's template_create_from_brand does. **From a
-  website**: the extractions already made (`studio theme from-site`, or Claude's template_from_site — the page's title
+  website**: the extractions already made (`retake theme from-site`, or Claude's template_from_site — the page's title
   shown as text) with **New theme from this**; for a new URL the Studio shows the command to copy — it never fetches a
   site itself (the extraction needs your approval of the URL).
 - **Record a scenario** (L4.8). **Record a scenario** on the project page (or *Record a new scenario* on a scenario
-  screen, `#/p/<project>/record`) records a flow by clicking through the product — the same recording as `studio
+  screen, `#/p/<project>/record`) records a flow by clicking through the product — the same recording as `retake
   record`, controlled from the Studio. The form takes an environment, a page and a path, the persona (with its stored
   session and **Sign in**) and a name; **Start** queues the recording and the worker opens a **real browser window on
   this Mac, full size** (the desktop layout is what the video films: keep it that size). Click and type in that window
@@ -3836,7 +3897,7 @@ running: the MCP server keeps working without it.
   job ends, even with no Studio open). One recording window at a time in the workspace; it holds the jobs worker while
   open, and stops by itself after 30 minutes; **Cancel recording** before the window opens never discards a window that opened
   meanwhile. A persona that cannot sign in by itself (no valid session, no `login:` steps) blocks **Start** and offers
-  its **Sign in**; recordings Claude or `studio record` started are listed and shown read-only (already saved by their
+  its **Sign in**; recordings Claude or `retake record` started are listed and shown read-only (already saved by their
   job), and so is one whose origin cannot be verified (its job gone) or whose files were changed after its job wrote
   them (*cannot be verified*: no Save). The recent recordings are Shoot's browser's **Recordings** on these screens
   (their state, saved or not; the open one live), and the status bar says *Recording · browser window open* with the
@@ -3846,23 +3907,23 @@ running: the MCP server keeps working without it.
   *last check failed*, *never signed in*, *saved, never checked*; when and by what it was last checked) — the last
   known state: no browser opens to read it. **Sign in** queues a job that opens a browser window on this computer:
   you sign in there yourself, then close it (it may open behind the Studio's window, and closes by itself after 30
-  minutes, `DEMO_STUDIO_SIGNIN_MAX_MIN`); the row follows it (*waiting for the queue* while a run — a paused one too —
+  minutes, `RETAKE_SIGNIN_MAX_MIN`); the row follows it (*waiting for the queue* while a run — a paused one too —
   holds the worker, *a browser window is open…*, then the result) with **Cancel** (*Stopped*: the saved session is not
   updated; on a persona's existing browser profile, what the window changed stays there). No password ever goes
   through the Studio. The capture's confirmation (a sheet) gives the focus back as it closes: Escape returns to the
   Capture that opened it, *Sign in … first…* to that persona's **Sign in…** on Prepare.
 - **The jobs worker.** A run from the Studio is a job, like one Claude starts: the Studio starts the workspace's
   worker when you click (if none is running) and the worker exits after a minute without work. It gets a clean
-  environment: your terminal's, without the folders a package manager adds to `PATH` (`pnpm studio ui` puts
+  environment: your terminal's, without the folders a package manager adds to `PATH` (`pnpm retake ui` puts
   `node_modules/.bin` there) or any folder inside the workspace, without package-manager variables (`npm_*`: they can
   carry a registry token), the MCP HTTP token, model and agent credentials (Anthropic, Claude Code, OpenAI, Bedrock,
   Gemini and other model API keys — the tool never calls a model), GitHub / GitLab tokens, and anything that would make
   node load code from the workspace (`NODE_OPTIONS` naming a file, `NODE_PATH` / `DYLD_*` / `LD_*` entries inside it),
-  and with `DEMO_STUDIO_HOME` kept (your signed-in profiles). Secrets that an automated sign-in reads with `{{env:…}}`
-  come from that environment, as for `studio worker` typed in the same terminal. Claude's MCP server starts the worker
+  and with `RETAKE_HOME` kept (your signed-in profiles). Secrets that an automated sign-in reads with `{{env:…}}`
+  come from that environment, as for `retake worker` typed in the same terminal. Claude's MCP server starts the worker
   with the same clean environment, so whoever starts it — Claude or the Studio — it never carries more: the browser's foot,
-  `studio jobs` and `studio doctor` say who started it (*worker running (pid 4242, started by the Studio)*). `studio ui` itself
-  runs with the same cleaned `PATH`, like `studio mcp`.
+  `retake jobs` and `retake doctor` say who started it (*worker running (pid 4242, started by the Studio)*). `retake ui` itself
+  runs with the same cleaned `PATH`, like `retake mcp`.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
   right-to-left override characters are shown as visible marks (`[U+202E]`).
 
@@ -3876,16 +3937,16 @@ running: the MCP server keeps working without it.
   shows system fonts; bundling the files is BL-120). In Safari turn on Settings → Advanced → *Press Tab to highlight
   each item* to reach buttons with Tab. The checks are automated in Chromium (`packages/ui/test/a11y.ts` and its two
   screen tours); the end-to-end acceptance runs in the installed Chrome, opt-in:
-  `DEMO_STUDIO_TEST_SLOW=1 DEMO_STUDIO_TEST_CHROME=1 npx vitest run packages/ui/test/studio-e2e-acceptance.test.ts`;
+  `RETAKE_TEST_SLOW=1 RETAKE_TEST_CHROME=1 npx vitest run packages/ui/test/studio-e2e-acceptance.test.ts`;
   Safari, Firefox and VoiceOver are checked by hand (MACOS-CHECKLIST 13j).
 
-- **One server per workspace.** The running server is named in `<workspace>/.demo-studio/ui.json` (mode 600: its pid,
-  port and API token); `studio ui` again opens that one with a new link and exits (with `--port N` naming another port,
-  it says the running server keeps its own). Ctrl-C stops the server and removes the file. A `.demo-studio/` folder
+- **One server per workspace.** The running server is named in `<workspace>/.retake/ui.json` (mode 600: its pid,
+  port and API token); `retake ui` again opens that one with a new link and exits (with `--port N` naming another port,
+  it says the running server keeps its own). Ctrl-C stops the server and removes the file. A `.retake/` folder
   you cannot write is refused with what to do.
 - **The link opens once.** It carries a one-time code (`http://127.0.0.1:<port>/#c=…`, valid 60 s) that the page
   trades for the session token, kept in that tab only (it survives a reload); a copy of the link — browser history,
-  terminal scrollback — is dead after that. Another tab or browser needs a new link from `studio ui`.
+  terminal scrollback — is dead after that. Another tab or browser needs a new link from `retake ui`.
 - **What the page may do** is an allow-list of tools (L4.1: `engine_info`, `project_list`, `project_get`,
   `project_update_readme`, `job_list`, `run_list`, and the Studio's own reads: `activity_list` and `search` from the
   index, `projects_overview` — every project card's environments and last run in one call; L4.2: `run_status` without
@@ -3917,13 +3978,13 @@ running: the MCP server keeps working without it.
 ## Desktop app (macOS)
 
 `apps/desktop` is a small Mac app around the same Studio (L5.2): a window on the workspace's own Studio server, the
-native menu, a workspace picker, a clean stop. It is the browser tab of `studio ui` without the browser — nothing of
+native menu, a workspace picker, a clean stop. It is the browser tab of `retake ui` without the browser — nothing of
 the Studio is rebuilt in it, and its Rust is only OS glue (Tauri 2, macOS's own WebKit).
 
 ```sh
 pnpm build                     # the app runs this repository's built CLI
 pnpm desktop:dev [--root <workspace>]      # a debug build, started from the terminal (its output: origins only)
-pnpm desktop:build             # apps/desktop/target/release/bundle/Demo Studio.app (ad hoc signed, never installed)
+pnpm desktop:build             # apps/desktop/target/release/bundle/Retake.app (ad hoc signed, never installed)
 pnpm desktop:test              # the shell's rules (apps/desktop/core: seconds)
 pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the app's Launch Services record
 ```
@@ -3941,25 +4002,25 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   upgrade, as the plugin's config) and this repository's `packages/cli/dist/bin.js`: the app runs `node bin.js --root
   <workspace> ui --supervised`. A `git pull` + `pnpm build` updates what the app runs at its next start; a moved
   repository or a removed Node.js gives an alert with the fix (`pnpm desktop:build` again). `pnpm desktop:dev` passes
-  them through `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` instead (only a debug build reads those).
-- **Which workspace.** `--root`, else `DEMO_STUDIO_ROOT`, else the last one opened (`<studio home>/desktop.json`), else
-  the current folder's `studio.yaml`, else a folder picker; File › Open Workspace… (⌘O) switches (the server of the
+  them through `RETAKE_NODE` / `RETAKE_CLI` instead (only a debug build reads those).
+- **Which workspace.** `--root`, else `RETAKE_ROOT`, else the last one opened (`<Retake home>/desktop.json`), else
+  the current folder's `retake.yaml`, else a folder picker; File › Open Workspace… (⌘O) switches (the server of the
   first one stops before the next starts). A folder that is not a workspace changes nothing, and if the new one cannot
   start, the previous one opens again.
 - **The menu bar (L5.9).** View › Command Palette… (⌘K), Script ⌘1, Shoot ⌘2, Edit ⌘3, Review ⌘4 (the scenario in
   context; with none, the status bar says so), Show or Hide Inspector (⌥⌘I), Enter Full Screen. The window follows the
   system's appearance (dark or light) with the Studio. ⌘R, ⇧⌘R and ⌘B (Rehearse, Capture, Render) arrive with the Shoot
   screens (L5.11). The title bar is the standard macOS one for now (an integrated one: BACKLOG BL-126).
-- **One server per workspace, as `studio ui`.** When no server serves the workspace, the app's server is its own:
+- **One server per workspace, as `retake ui`.** When no server serves the workspace, the app's server is its own:
   Quit (⌘Q, or SIGTERM / Ctrl-C under `pnpm desktop:dev`) stops it, and if the app crashes the server sees its pipe
-  close and stops too — no server is left holding `ui.json`. When one already serves it (a terminal's `studio ui`),
+  close and stops too — no server is left holding `ui.json`. When one already serves it (a terminal's `retake ui`),
   the app attaches: it opens that server's Studio and never stops it; nothing watches it either — if it stops, the
-  window says to run `studio ui` again: File › Open Workspace… on the same folder gives the app a server of its own
+  window says to run `retake ui` again: File › Open Workspace… on the same folder gives the app a server of its own
   (and if the page reloads meanwhile, the app says the server is gone and offers Restart).
   The jobs worker is never the app's: quitting while a capture runs lets it finish.
 - **Quit asks when something would be left behind** (L5.2b). With a job of the workspace's queue running or waiting
   (a capture, dry run, render, review, export, recording, sandbox start or reset, environment reset or hooks, queued
-  by the Studio or by Claude through MCP — a terminal's `studio run` / `render` / `export` / `record` runs in-process,
+  by the Studio or by Claude through MCP — a terminal's `retake run` / `render` / `export` / `record` runs in-process,
   is no job, and is neither asked about nor notified) or unsaved text in the Studio (a README or a scenario's YAML
   being edited, a step form's typed fields, a comment being written, the Library's "create a component" words, a
   new-theme form, a theme colour picked and not written yet — in this window or in a browser tab on the app's server),
@@ -3989,10 +4050,10 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   or warnings", "Recording needs attention — ready to save on the Record screen" — with the project and scenario;
   several ending close together come as one summary (at most one notification every 5 s); a cancelled job says
   nothing. A click shows the window. macOS asks for permission at the first one (System Settings › Notifications ›
-  Demo Studio turns them off or on again — turned on there, the next notification shows, no relaunch needed; a refusal
+  Retake turns them off or on again — turned on there, the next notification shows, no relaunch needed; a refusal
   by macOS itself is logged with its error code). Only the built app posts them (`pnpm desktop:dev` runs a bare
   binary: it says so and posts none).
-- **An attached server** (a terminal's `studio ui` was there first) gives the app no pipe: no quit question, no
+- **An attached server** (a terminal's `retake ui` was there first) gives the app no pipe: no quit question, no
   notifications — the app says so when it attaches. File › Open Workspace… on the same folder after stopping the other
   server gives the app a server of its own.
 - **After `pnpm build`, run `pnpm desktop:build` too** when the CLI and the app drift apart: an app older than the CLI
@@ -4023,17 +4084,17 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   `pnpm desktop:clean` removes the record with the build.
 - **Checks.** `packages/cli/test/desktop-config.test.ts` (the configuration, read statically) and
   `desktop-core.test.ts` (the shell's rules, when cargo is on PATH) run in `pnpm test`; the black-box test of the built
-  app is opt-in: `DEMO_STUDIO_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts` (≈ 2 min warm: the
+  app is opt-in: `RETAKE_TEST_DESKTOP=1 npx vitest run packages/cli/test/desktop-shell.test.ts` (≈ 2 min warm: the
   quit question, Quit Anyway / Open Anyway, SIGTERM during every question and the notification rule included,
-  notifications logged, never posted; its test mode (`DEMO_STUDIO_DESKTOP_TEST=1`) is honoured only for a binary another
+  notifications logged, never posted; its test mode (`RETAKE_DESKTOP_TEST=1`) is honoured only for a binary another
   process started — never for a Finder or Dock launch (launchd its parent), whatever `launchctl setenv` says; with
-  `DEMO_STUDIO_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker, keys,
+  `RETAKE_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker, keys,
   drag & drop, the Player playing, Quit during a capture, the notification permission, a banner and its click). Not
   yet: native pickers for the Studio's path fields, signing and an installer (BACKLOG BL-125, BL-36).
 
 ## Security
 
-- **The Studio server** (`studio ui`) listens on `127.0.0.1` only and checks every request in a fixed order before
+- **The Studio server** (`retake ui`) listens on `127.0.0.1` only and checks every request in a fixed order before
   anything runs: the `Host` must be `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise: a DNS-rebinding page
   carries its own name), a present `Origin` must be its own and API requests must not come from another page
   (`Sec-Fetch-Site`; a page of another local port — a filmed local app — is *same-site* and refused), then the method
@@ -4044,11 +4105,11 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   capture and location stay off for the page and its frames (L5.2: Chromium browsers enforce it; the desktop app
   denies them itself). No secret is in the app's files; the token comes from the one-time code
   (see [Studio app](#studio-app)).
-- **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `studio ui` process
+- **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `retake ui` process
   that serves only the preview frame, its script and the files of the take being previewed (the capture, the theme's
   fonts and logo, the music, card media) — each registered only when it lies inside the project, the run or the theme,
   has one name (no hard link) and is read without following a link — under a capability in the path, one per project,
-  revoked when the last timeline page of the project is left or `studio ui` stops, never logged; only the frame's
+  revoked when the last timeline page of the project is left or `retake ui` stops, never logged; only the frame's
   opaque origin may read those files from a script (CORS `null`).
   The frame is `sandbox="allow-scripts"` (an opaque origin: no storage, no cookie, no access to the Studio page), its
   CSP allows scripts, fetches, images, fonts and media only from that capability (no other host, no WebSocket) and
@@ -4057,7 +4118,7 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   **A workspace component runs in the preview only once you allow it:** components of your workspace are code (an
   agent may have written or changed one), so until you click *Allow in the preview* on the timeline — which names the
   component and its folder's content hash — it is not even in the preview's bundle and its stand-in draws. The
-  permission lives in the Studio's memory only, for that session: it is gone when `studio ui` stops, and a component
+  permission lives in the Studio's memory only, for that session: it is gone when `retake ui` stops, and a component
   changed since is held again. No MCP tool can give it. Built-in components always run. (Why: Chrome's prerender of
   a `<link rel="prerender">` ignores a frame's CSP and sandbox — the frame's first script refuses to make one, Trusted
   Types close the HTML parsers, and an unallowed component's code never reaches the frame at all.) An allowed
@@ -4065,20 +4126,20 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   `remotion` and the kit; its module runs only when a previewed plan uses it.
   In Safari (WebKit) the frame shares the page's process: a component that loops in its render freezes the Studio tab
   until it returns (Chrome runs the frame apart); a flooding one is still stopped (BACKLOG BL-110).
-- **MCP over HTTP** (`studio mcp --http`) listens on `127.0.0.1` only and takes no request from a web page: the `Host`
+- **MCP over HTTP** (`retake mcp --http`) listens on `127.0.0.1` only and takes no request from a web page: the `Host`
   check (421) stops a DNS-rebinding page, and a page holds no token; as a second line, any request carrying an
   `Origin` header or a `Sec-Fetch-*` header is refused (browsers send an `Origin` on every POST and cross-origin fetch,
   and `Sec-Fetch-*` from secure contexts; MCP clients send neither — Node's fetch sends `Sec-Fetch-Mode: cors` alone,
-  which is served). Then the route (`/mcp`), the bearer token (the stable one in the studio home, mode 600),
+  which is served). Then the route (`/mcp`), the bearer token (the stable one in the Retake home, mode 600),
   `application/json` and a 4 MiB body cap. It is a separate process from the Studio: a page of the Studio never holds
   this token. Known limit: its port is fixed (47820) so the registration survives restarts — on a Mac shared with
-  other accounts, another local user's program could listen there first while `studio mcp --http` is not running and
+  other accounts, another local user's program could listen there first while `retake mcp --http` is not running and
   receive the token a client sends (BACKLOG BL-79).
 - **Reads stay in the project.** README.md, scenario files and `project.yaml` read through the engine (MCP tools, the
   Studio), and the files a tool names (a hook's SQL or JS file, a dropped file), never follow a symbolic link out of
   the project folder: they are refused, and the refusal does not name where the link leads. A write through a link to
-  another file of the project lands in that file; through one leading out it is refused. The `studio` command line
-  itself reads what you point it at. The workspace index (`.demo-studio/index.sqlite`) indexes only regular files of
+  another file of the project lands in that file; through one leading out it is refused. The `retake` command line
+  itself reads what you point it at. The workspace index (`.retake/index.sqlite`) indexes only regular files of
   the project and takes the umask's mode, like the README files it holds.
 - **No secrets in files.** Use `{{env:VAR}}` or `{{keychain:service/account}}` references; validation flags database
   URLs with a clear-text password. Resolved secret values are redacted from hook logs, results and journals, and from
@@ -4108,7 +4169,7 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
     shell (other heredocs, SQL and JSON text are data). A host computed when the command runs is refused: built from
     `$(…)`, from a variable the script reads (`read`, a `for` loop, a function argument) or may have set (after
     `source`), a computed database, mongosh address or git repository; an ssh alias of `~/.ssh/config` is checked as
-    written (list it in `allow_hosts`). Shell hooks get `$DEMO_STUDIO_ALLOWED_HOSTS` (comma-separated) to check hosts
+    written (list it in `allow_hosts`). Shell hooks get `$RETAKE_ALLOWED_HOSTS` (comma-separated) to check hosts
     they compute themselves.
   - **What the allow-list cannot see:** what a shell hook's programs do on their own — connecting from their own
     configuration (`pnpm run seed` reading `DATABASE_URL` from a `.env` file, the real host behind an ssh alias,
@@ -4127,9 +4188,9 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   sets `access: read-write` **and** the command line says `--allow-writes`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
-  validation and refused at run time without it (`studio hooks run --yes` approves explicitly).
+  validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
 - **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`
-  (captures) or `.demo-studio/journals/<id>.json` (`studio hooks run`, `studio env reset`); `studio env reset`
+  (captures) or `.retake/journals/<id>.json` (`retake hooks run`, `retake env reset`); `retake env reset`
   replays whatever is still pending in both.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
@@ -4146,22 +4207,22 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
 |---|---|
 | `capture.mp4` | H.264, constant frame rate, exactly the capture duration — encoded during the take (L5.7): output frame n is the screencast frame on screen at n / fps, as before; a take ends without a long encode |
 | `timeline.json` | the scenario's edit info (`video`: title, intro, outro, frame, template, music), scenes (captured scenes, cards, interstitials), step events (`t_start`, `t_end`, `t_click`, target box, click point, strategy, popup opened, camera and overlay anchors) and web notification events, markers, page/URL segments, cursor track, idle intervals, `loading` (the page loads the capture held: `t_start`, `t_end` = the first frame of the painted page, page, `until` paint / load / limit / left / end, `held_frames`; per page in `tracks[]`), artefacts, warnings |
-| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Demo Studio, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
+| `run.json` | run record (status, options, steps done, error with screenshot + DOM snippet — and `missing_targets` when a target was not found —, `optional_failures`, `environment`: production, the run's access, the clock — `at`, `timezone`, `freeze`), updated live; `version` (its format) and `engine`: the Retake, Node.js and Chromium versions, the OS (`darwin 25.6.0 arm64`) and the installed fonts (`files`: their number, `digest`: a hash of their names) — what tells two machines' takes of one scenario apart |
 | `timeline.json` `environment` | the environment (L1.7): name, production, the run's access (`allow_writes` when `--allow-writes` made it read-write), the display URL of each page that has one (`display[]`: page, real base URL, display base — URLs elsewhere in the timeline stay real), the clock (`at`, `epoch_ms`, `timezone`, `freeze`), the writes the run's guard saw (`writes[]`: capture time, method, URL, GraphQL operation, `blocked` / `mocked` / `allowed` / `passed` / `exempt`, the rule that matched, `via`, `protected_by`) |
 | `log.jsonl` | every progress event |
 | `frames.jsonl` | the screencast frames' capture times (always) |
 | `frames/` | the raw screencast frames, only with `capture.keep_frames: true` (L5.7: off by default — a 6-minute take kept 1.6–2.4 GB of them) |
-| `run.json` `perf` | what a capture cost and how it was filmed (L5.7): `seconds`; `cpu` — CPU seconds per process group from Chromium's own process report and the system's process table: `browser` (it encodes the screencast's JPEG frames), `gpu`, `renderer`, `chromium_other`, `studio`, `encoder`, `product` (the processes listening on the environment's localhost ports), `total`, `cores` (total / seconds), `browsers` (per persona); `machine` (CPUs, load average mean / max); `gpu` (accelerated, renderer, features in software); `frame_rate_limit`; `frames` (received, mean fps, lowest fps of a cursor move, dropped, `kicked`: fresh frames asked for during a click ripple); `stalls`; `transitions` (clicks measured, the slow ones: press → stable screen over 0.8 s, slowest first, target); `encode` (codec, quality, `finish_ms` after the take, `late_frames`); `disk` (run folder MB, frames kept, free GB). `studio run` prints it on one line, MCP `run_status` too; the run warns when the disk has less than 10 GB (or 5 %) left |
+| `run.json` `perf` | what a capture cost and how it was filmed (L5.7): `seconds`; `cpu` — CPU seconds per process group from Chromium's own process report and the system's process table: `browser` (it encodes the screencast's JPEG frames), `gpu`, `renderer`, `chromium_other`, `studio`, `encoder`, `product` (the processes listening on the environment's localhost ports), `total`, `cores` (total / seconds), `browsers` (per persona); `machine` (CPUs, load average mean / max); `gpu` (accelerated, renderer, features in software); `frame_rate_limit`; `frames` (received, mean fps, lowest fps of a cursor move, dropped, `kicked`: fresh frames asked for during a click ripple); `stalls`; `transitions` (clicks measured, the slow ones: press → stable screen over 0.8 s, slowest first, target); `encode` (codec, quality, `finish_ms` after the take, `late_frames`); `disk` (run folder MB, frames kept, free GB). `retake run` prints it on one line, MCP `run_status` too; the run warns when the disk has less than 10 GB (or 5 %) left |
 | `timeline.json` `stalls`, `busy` | where the capture froze while the cursor moved or a ripple played, and the waits the screen showed after a click (skeletons, spinners, blank panels) — the edit cuts the first and shortens the second |
 | `timeline.json` `cursor_effects` | what the in-page cursor showed besides its position: icon changes, presses, click ripples (L2.13; per page in `tracks[]`); `capture.cursor: hidden` when captured without the cursor (`run --raw --cursor none\|layer`) |
 | `capture-<page>.mp4`, `frames-<page>/`, `frames-<page>.jsonl` | multi-page scenes: one recording per page on the same frame grid as `capture.mp4` (listed in `timeline.json` `tracks`) |
 | `screenshots/` | dry-run screenshots (a capture's with `capture.step_shots`), `screenshot` steps, error screenshots and DOM snippets, `dead-click-<scene>-<step>.png` |
 | `hooks-journal.json` | executed hooks and their rollbacks |
-| `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `studio render` / `plan` warn when the filmed part differs) |
+| `scenario.yaml` | snapshot of the scenario that ran (L5.5: a render re-plans the edit of today's file while its filmed part matches this snapshot; `retake render` / `plan` warn when the filmed part differs) |
 | `artefacts/` | captured emails (`emails/<as>.json` + `.png`), documents (`documents/<as>.<ext>` + `<as>/page-<n>.png`) and web notifications (`notifications/<name>.json` + icon), listed in `timeline.json` `artefacts` |
 
 **Disk** (L5.7): a capture weighs tens of MB (capture.mp4, ≈ 20 MB for a minute of the fixture), renders and reviews a
-few more. `studio prune <project>` lists what `runs/`, `renders/` and `review/` hold that nothing needs any more —
+few more. `retake prune <project>` lists what `runs/`, `renders/` and `review/` hold that nothing needs any more —
 failed, cancelled and interrupted takes, dry runs, older captures nothing uses, renders beyond the last 3 of each
 scenario and variant (`--keep-renders N`), failed renders, the reviews of renders that go — with how much deleting it
 frees; `--yes` deletes it. Always kept: the last good take of each scenario, every take a kept render or a comment
@@ -4175,25 +4236,25 @@ Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click
 describe the trigger click (`data.retried` when it was clicked twice). A click that changed the page records
 `data.navigation` (`{kind: document|url, url}`). A `type` step records `data.rate` and `data.clear`, a `date` step
 `data.days`, `data.quick_runs` and `data.waited_close_ms`, a parked step `data.park`. DOM snippets saved next to error
-screenshots are capped at 64 KB. `studio schema timeline` prints the timeline schema.
+screenshots are capped at 64 KB. `retake schema timeline` prints the timeline schema.
 
 ## File formats and versions
 
-Every file Demo Studio reads says which version of its format it is, in a top-level `version` key:
+Every file Retake reads says which version of its format it is, in a top-level `version` key:
 
-- **Optional** in the files you write — scenarios, `project.yaml`, `template.yaml`, `studio.yaml` — and in `run.json`:
+- **Optional** in the files you write — scenarios, `project.yaml`, `template.yaml`, `retake.yaml` — and in `run.json`:
   `version: 1`, or nothing (a file without it is version 1, so every file written before the key existed still
-  loads). `studio new` and the runner write it; the starter templates and the fixture's files carry it.
-- **Required** in `sandbox.yaml` and in the files Demo Studio writes for itself (`timeline.json`, the hooks journals,
+  loads). `retake new` and the runner write it; the starter templates and the fixture's files carry it.
+- **Required** in `sandbox.yaml` and in the files Retake writes for itself (`timeline.json`, the hooks journals,
   render and review records, raw export manifests).
 - **None** in hook files (`hooks/*.yaml`: a top-level list of hooks has no room for a key) — their hooks are checked
   like a scenario's. A component's `version` (`component.yaml`) is the component's own version, not a format.
 
-A file of a higher version than this Demo Studio reads (a newer Demo Studio wrote it) is refused with one error at its
-`version` key — `this project.yaml is version 2: it was made for a newer Demo Studio (this one reads version 1) —
-update Demo Studio` — instead of a list of keys this one does not know; `render`, `plan` and `export-capture` refuse a run
-whose `run.json` is newer the same way. Demo Studio never rewrites your files: a future incompatible change raises the
-format's version and keeps reading the older ones (a `studio migrate` command is in docs/BACKLOG.md).
+A file of a higher version than this Retake reads (a newer Retake wrote it) is refused with one error at its
+`version` key — `this project.yaml is version 2: it was made for a newer Retake (this one reads version 1) —
+update Retake` — instead of a list of keys this one does not know; `render`, `plan` and `export-capture` refuse a run
+whose `run.json` is newer the same way. Retake never rewrites your files: a future incompatible change raises the
+format's version and keeps reading the older ones (a `retake migrate` command is in docs/BACKLOG.md).
 
 ## Repository layout
 
@@ -4201,23 +4262,23 @@ format's version and keeps reading the older ones (a `studio migrate` command is
 packages/core         scenario parser and validator, project/template/sandbox model, templating, JSON Schemas
 packages/hooks        setup/teardown hooks (http, sql, shell, js), rollback journal, allow-list, secrets
 packages/sandbox      sandboxes: start, seed, reset and stop them (process and docker-compose providers), Postgres
-                      snapshots, `studio sandbox init` scaffold, take lock, health, ports
+                      snapshots, `retake sandbox init` scaffold, take lock, health, ports
 packages/runner-web   headless Chromium runner: in-page kit (cursor, resolver), actions, screencast, encoder, timeline
-packages/cli          the `studio` command
+packages/cli          the `retake` command
 packages/components   components: manifest schema, registry, validation, scaffolds, theme tokens, kit (L2.2)
 packages/editor       edit planner (planEdit → EditPlan, reframing), the Remotion compositions (src/remotion) and the
                       render pipeline (bundle cache, asset server, renderVideo / renderStill / listRenders, exportRender)
 packages/review       review of a render: contact sheets, key frames, output-time timeline, checks, report, diff
 packages/engine       the engine API the CLI and the MCP server share: workspace / project loading, project, scenario
                       (if_match saves), run, persona-session and sandbox reads, local storage refs, EngineError codes,
-                      the run executor of `studio run`, the job queue and its worker (worker-main.ts), the local
+                      the run executor of `retake run`, the job queue and its worker (worker-main.ts), the local
                       HTTP servers' gate, 127.0.0.1 listener, tokens and discovery file (src/http/), the workspace
                       index (src/index-db/: node:sqlite, the stat poll, the job watch)
-packages/mcp          the MCP server (`studio mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
+packages/mcp          the MCP server (`retake mcp`): tools over stdio and Streamable HTTP (src/http.ts), zod schemas,
                       results, --print-config, the SDK-free tool layer (callTool) the Studio shares
-apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `studio ui
+apps/desktop          the macOS app (L5.2): a Tauri shell (Rust, Cargo; not a pnpm package) running `retake ui
                       --supervised` and showing it; core/ holds its rules (no dependency); scripts/desktop.mjs
-packages/ui           the Studio web app (`studio ui`): a React app bundled in memory by esbuild and its server — the
+packages/ui           the Studio web app (`retake ui`): a React app bundled in memory by esbuild and its server — the
                       engine's /v1 HTTP API behind the engine's gate (engine src/http/), an allow-list of the MCP tools,
                       the event stream and the index reads (src/server/live.ts, ops.ts); the scenario screen
                       (src/app/ScenarioScreen.tsx, Inspector.tsx, YamlView.tsx, Thumb.tsx, thumbs.ts)
@@ -4240,20 +4301,20 @@ so build first). Gated tests:
 
 | Command | What it runs |
 |---|---|
-| `pnpm test:pg` | the 7 SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`): `scripts/test-pg.mjs` starts a throwaway container `demo-studio-pg-test-<hex>` from `postgres:17-alpine` (never pulled for you: it prints the `docker pull` when the image is missing) on a loopback port Docker picks, with a random password, sets `DEMO_STUDIO_TEST_PG`, and removes that container — only that one — with its anonymous data volume at the end, on an error or on Ctrl-C. A container a killed run left (label `demo-studio.test=pg`) is listed with the command that removes it, never removed. A few seconds; needs a running Docker (or OrbStack) |
-| `pnpm test:pg --all` | the whole suite with Postgres, `DEMO_STUDIO_TEST_DOCKER=1` and `DEMO_STUDIO_TEST_SLOW=1`: everything this machine can run |
-| `pnpm test:slow` | `DEMO_STUDIO_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min); then the MCP acceptances over stdio on a copy of the fixture project — capture → render → review → theme switch → export (`packages/mcp/test/fixture-acceptance.test.ts`), authoring from inspections (`authoring-acceptance.test.ts`), recording (`record-acceptance.test.ts`) and a theme made from the brand-site fixture and brand files, previewed, filmed and reviewed (`theme-acceptance.test.ts`); and the phase 3 acceptance on one empty workspace — a project from a README, a scenario from a script and inspections, a theme from brand files, a workspace component, capture → render → review, a person's comment → scenario fix → re-capture → render → resolve, about 7 min (`phase3-acceptance.test.ts`) |
+| `pnpm test:pg` | the 7 SQL hook tests against a real Postgres (`packages/hooks/test/sql.test.ts`): `scripts/test-pg.mjs` starts a throwaway container `retake-pg-test-<hex>` from `postgres:17-alpine` (never pulled for you: it prints the `docker pull` when the image is missing) on a loopback port Docker picks, with a random password, sets `RETAKE_TEST_PG`, and removes that container — only that one — with its anonymous data volume at the end, on an error or on Ctrl-C. A container a killed run left (label `retake.test=pg`) is listed with the command that removes it, never removed. A few seconds; needs a running Docker (or OrbStack) |
+| `pnpm test:pg --all` | the whole suite with Postgres, `RETAKE_TEST_DOCKER=1` and `RETAKE_TEST_SLOW=1`: everything this machine can run |
+| `pnpm test:slow` | `RETAKE_TEST_SLOW=1`: the committed `catalogue` scenario captured on the fixture (free ports) at 1920×1080 with the debug cursor and its real hooks — duration, every frame's size, the run folder's files, the scroll durations, the drawn hotspot ≤ 3 px from every click point and inside its target, `popup_opened`, no hesitation between steps, the setup rollback (`packages/cli/test/catalogue-acceptance.test.ts`, about 1.5 min); then the MCP acceptances over stdio on a copy of the fixture project — capture → render → review → theme switch → export (`packages/mcp/test/fixture-acceptance.test.ts`), authoring from inspections (`authoring-acceptance.test.ts`), recording (`record-acceptance.test.ts`) and a theme made from the brand-site fixture and brand files, previewed, filmed and reviewed (`theme-acceptance.test.ts`); and the phase 3 acceptance on one empty workspace — a project from a README, a scenario from a script and inspections, a theme from brand files, a workspace component, capture → render → review, a person's comment → scenario fix → re-capture → render → resolve, about 7 min (`phase3-acceptance.test.ts`) |
 
-Set `DEMO_STUDIO_TEST_PG` yourself to a PostgreSQL URL (a role that may create tables) to run the SQL hook tests
-without the script, `DEMO_STUDIO_TEST_OLD_NODE` to an older `node` binary (e.g. a
-Node.js 10) to check the CLI's version message on it, and `DEMO_STUDIO_TEST_DOCKER=1` to run the docker-compose
+Set `RETAKE_TEST_PG` yourself to a PostgreSQL URL (a role that may create tables) to run the SQL hook tests
+without the script, `RETAKE_TEST_OLD_NODE` to an older `node` binary (e.g. a
+Node.js 10) to check the CLI's version message on it, and `RETAKE_TEST_DOCKER=1` to run the docker-compose
 sandbox tests (a running Docker; `packages/sandbox/test/compose.test.ts` uses busybox:1.38.0, postgres:17-alpine and
 axllent/mailpit:v1.29.4, `packages/cli/test/sandbox-docker.test.ts` builds the fixture's image on node:22-alpine). They
-name their compose projects and images `demo-studio-test-*` and remove them before and after; base images stay.
+name their compose projects and images `retake-test-*` and remove them before and after; base images stay.
 `packages/runner-web/test/look.test.ts` compares the drawn cursor and the file chip with golden images
 (`packages/runner-web/test/golden/`, with a tolerance; the chip's only on macOS: its text uses the system font) next
 to structural checks; after an intended change of the look (or a Chromium update that moves it), rewrite them with
-`DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts` and look at the PNGs before
+`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts` and look at the PNGs before
 committing them.
 
 ## Phase status
@@ -4261,9 +4322,9 @@ committing them.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Core, hooks, web runner, CLI, fixture product, starter templates | **Done** — the `catalogue` and `quote` fixture scenarios capture headless at 1920×1080 |
-| 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `studio components`), the edit planner (L2.3: `planEdit`, `studio plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `studio render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `studio review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `studio components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `studio export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `studio export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
-| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | **Done, pending the live run** (automated acceptance in [docs/ACCEPTANCE-phase3.md](docs/ACCEPTANCE-phase3.md): on one empty workspace, a project from a README, a scenario from a script and page inspections, a theme from brand files, a workspace component, capture → render → review clean, a person's frame comment → scenario fix → re-capture → render → resolve, zero approvals; the same loop by Claude itself in Claude Code is `docs/MACOS-CHECKLIST.md` step 12j) — L3.1: `studio mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`studio jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP; L3.3: page inspections and a script-table skeleton for Claude's authoring; L3.4: recording a scenario a person performs (`studio record`, `scenario_record`); L3.5: themes from brand inputs and from a site URL (`template_create_from_brand`, `template_from_site`, contrast checked); L3.6: frame comments (`studio comment`, anchors on the plan's steps and markers, `comments_list` / `comment_reply` / `comment_resolve`); L3.7: the Claude skills (scenario, theme, component) and the Claude Code plugin that bundles them with the server; L3.8: the phase 3 acceptance, and a warning when the scenario changed since the run was captured (a render shows the run as captured) |
-| 4 | Studio web app (scenario blocks, timeline, frame comments) | In progress — L4.1: `studio ui` serves the Studio on 127.0.0.1 behind the engine's HTTP gate (one-time link, token, allow-list of the MCP tools): the Projects screen with search and recent activity (the workspace index), the README editor, live updates; `studio mcp --http` |
+| 2 | Components, themes, editor (Remotion), review artefacts | **Done** (2026-10-12; acceptance in [docs/ACCEPTANCE-phase2.md](docs/ACCEPTANCE-phase2.md): `catalogue` and `quote` rendered with the editorial theme and reviewed clean, then re-rendered with the motion theme and with another layout component without touching the scenario, a video with your own intro file and alpha overlay, a raw export validated) — contracts in core (L2.1), the components package (L2.2: manifests, registry, validation, scaffolds, kit, `retake components`), the edit planner (L2.3: `planEdit`, `retake plan`), the render pipeline (L2.4: placeholder library, `DemoVideo`, `retake render` / `still`), the reference-look components (L2.5: intro, outro, card layout with geometry following params, captions, clock interstitial, crossfade — measured on renders), the review (L2.6: `retake review`, contact sheets, key frames, checks, report, diff) and the full library with previews (L2.7: browser / laptop / phone / tablet / raw layouts, overlay caption, cards, minimal intro/outro, plain interstitial, callout, lower third, fade-black; committed previews, `retake components preview`) and variants & export (L2.8: vertical and square reframed on the cursor and the targets, real 4K captures, music bed, theme default zoom, `retake export`) and mails, notifications & documents (L2.9: `mailbox`, `wait_for_email`, `download` with PDFs rasterised by pdf.js, web notifications captured, artefacts in components, notification / mail / document / phone cards, tap-open transition), tutorial overlays & story cards (L2.10: key caps, spotlight, step badges, loupe, progress bar, figure / features / before-after / testimonial / CTA / chart cards) and several pages at once (L2.11: multi-page scenes filmed on one clock, `studio/layout-split`, `studio/layout-pip`, per-pane camera and overlays) and your own media & motion (L2.12: video / image / Lottie segments, alpha overlay videos, Lottie overlays, `studio/media`, `studio/lottie`, [docs/BRING-YOUR-OWN-MOTION.md](docs/BRING-YOUR-OWN-MOTION.md); waits shown as short loading states) and the raw export for editors (L2.13: `retake export-capture` / `run --raw`, clips per scene with loads cut, MP4 / ProRes at 30 / 60 fps, cursor baked / absent / transparent layer, FCPXML / EDL / OTIO / CSV markers, manifest) |
+| 3 | MCP server, authoring (script → scenario, page inspection, recording), skills | **Done, pending the live run** (automated acceptance in [docs/ACCEPTANCE-phase3.md](docs/ACCEPTANCE-phase3.md): on one empty workspace, a project from a README, a scenario from a script and page inspections, a theme from brand files, a workspace component, capture → render → review clean, a person's frame comment → scenario fix → re-capture → render → resolve, zero approvals; the same loop by Claude itself in Claude Code is `docs/MACOS-CHECKLIST.md` step 12j) — L3.1: `retake mcp` with the read side (projects, scenarios with `if_match` saves, runs, sessions, sandboxes), dry runs, captures, hooks, environment resets, sign-ins and sandbox up / reset as jobs run by a background worker (`retake jobs`), human approval of hooks and shell seed steps through elicitation; L3.2: renders (guarded: project files only, no network), reviews with the contact sheet as images, exports, and themes / components (list, detail, previews as images, validate, scaffold) through MCP; L3.3: page inspections and a script-table skeleton for Claude's authoring; L3.4: recording a scenario a person performs (`retake record`, `scenario_record`); L3.5: themes from brand inputs and from a site URL (`template_create_from_brand`, `template_from_site`, contrast checked); L3.6: frame comments (`retake comment`, anchors on the plan's steps and markers, `comments_list` / `comment_reply` / `comment_resolve`); L3.7: the Claude skills (scenario, theme, component) and the Claude Code plugin that bundles them with the server; L3.8: the phase 3 acceptance, and a warning when the scenario changed since the run was captured (a render shows the run as captured) |
+| 4 | Studio web app (scenario blocks, timeline, frame comments) | In progress — L4.1: `retake ui` serves the Studio on 127.0.0.1 behind the engine's HTTP gate (one-time link, token, allow-list of the MCP tools): the Projects screen with search and recent activity (the workspace index), the README editor, live updates; `retake mcp --http` |
 | 5 | macOS desktop shell, iOS Simulator runner | In progress — L5.2: the desktop app (`pnpm desktop:build`, [Desktop app (macOS)](#desktop-app-macos)) |
 | 6 | Licensing, packaging, component marketplace | Out of scope for now |
 

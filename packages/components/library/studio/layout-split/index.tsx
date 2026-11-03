@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Background, PANE_BAR, PANE_LABEL_ROW, PaneLabel, WindowBar, cardShadow, darkLight, nightTone, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps, LayoutPaneRects, ThemeTokens } from '@demo-studio/components/kit';
+import { Background, PANE_BAR, PANE_LABEL_ROW, PaneLabel, WindowBar, cardShadow, darkLight, nightTone, withAlpha } from '@retake/components/kit';
+import type { ComponentProps, LayoutPaneRects, ThemeTokens } from '@retake/components/kit';
 
 type Params = { margin: number; gap: number; radius: number; shadow: 'none' | 'soft' | 'strong'; chrome: boolean; labels: boolean; emphasis: 'auto' | 'none' | 'dim' };
 

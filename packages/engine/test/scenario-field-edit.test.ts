@@ -10,8 +10,8 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml, stepGuard } from '@demo-studio/core';
-import type { FieldAt, ScenarioEdit } from '@demo-studio/core';
+import { parseYaml, stepGuard } from '@retake/core';
+import type { FieldAt, ScenarioEdit } from '@retake/core';
 import { EngineError, createEngine, fieldFitProblem, fieldOptions, memoRegistry, videoPages } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -21,7 +21,7 @@ const P = 'northfield-fixture';
 let ws: string;
 let dir: string;
 let ui: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const file = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const read = (name: string) => readFile(file(name), 'utf8');
 type Obj = Record<string, unknown>;
@@ -48,7 +48,7 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-field-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   dir = join(ws, 'projects', P);
   // A workspace card written for another kit API (the guard-rail), and one that fits.
@@ -65,8 +65,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -128,7 +128,7 @@ describe('set_field through scenarios.edit (L4.5)', () => {
   it("review B: the video's frame offers split / pip when a scene films several pages; on an all-multi-page video a one-page layout says it changes none", async () => {
     const live = parseYaml(await read('live-quote')).value as { scenes: Obj[] };
     const registry = (await memoRegistry(ui.workspace)).registry;
-    const fit = (await import('@demo-studio/components')).componentFit;
+    const fit = (await import('@retake/components')).componentFit;
     // live-quote films several pages in every scene: a top-level split dresses them (it could not be picked again
     // before), a one-page style is disabled with why (it would change nothing, silently).
     expect(videoPages(live)).toMatchObject({ multi: videoPages(live).scenes });

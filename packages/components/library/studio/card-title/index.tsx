@@ -12,8 +12,8 @@ import {
   roundTo,
   withAlpha,
   formatMetrics,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; rule: boolean; tone: 'paper' | 'dark' };
 

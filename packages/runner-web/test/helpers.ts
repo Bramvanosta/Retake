@@ -6,8 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import type { LoadedProject, LoadedScenario, LoadedTemplate, Pacing, Scenario, Timeline } from '@demo-studio/core';
-import { DEFAULT_CAPTURE } from '@demo-studio/core';
+import type { LoadedProject, LoadedScenario, LoadedTemplate, Pacing, Scenario, Timeline } from '@retake/core';
+import { DEFAULT_CAPTURE } from '@retake/core';
 
 export const execFileP = promisify(execFile);
 

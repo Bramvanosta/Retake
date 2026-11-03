@@ -1,4 +1,4 @@
-import type { ScrollArgs } from '@demo-studio/core';
+import type { ScrollArgs } from '@retake/core';
 import { StepError } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Resolved } from '../resolve.js';

@@ -1,15 +1,16 @@
 /**
- * A run of a scenario, as `studio run` and the jobs worker both start it (L3.1, moved from the CLI's run command):
+ * A run of a scenario, as `retake run` and the jobs worker both start it (L3.1, moved from the CLI's run command):
  * prepare (project, sandbox pick, scenario validated against the environment it runs on, template), then execute (the
  * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@demo-studio/core';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
-import type { ConfirmHook, LiveSink, PauseGate } from '@demo-studio/runner-web';
-import type { SandboxLog, Take } from '@demo-studio/sandbox';
+import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@retake/core';
+import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import type { ConfirmHook, LiveSink, PauseGate } from '@retake/runner-web';
+import type { SandboxLog, Take } from '@retake/sandbox';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
+import { refuseBesideOldHolder } from './legacy.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -146,7 +147,9 @@ export interface ExecuteRunOptions {
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
 async function prepareSandboxTake(project: LoadedProject, env: string, scenario: string, ports: RunPorts, opts: ExecuteRunOptions): Promise<Take> {
-  const { openSandbox } = await import('@demo-studio/sandbox');
+  // L5.13: never beside an old Studio or worker, whose takes lock the old tool folder (engine legacy.ts).
+  await refuseBesideOldHolder(project.root, 'this sandbox take');
+  const { openSandbox } = await import('@retake/sandbox');
   const sb = openSandbox(project, env);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
   let take: Take;
@@ -179,7 +182,7 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
  */
 export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note']): Promise<void> {
   if (!sandboxOf(project, env)) return;
-  const { openSandbox, describeLock } = await import('@demo-studio/sandbox');
+  const { openSandbox, describeLock } = await import('@retake/sandbox');
   const { lock } = await openSandbox(project, env).checkRunning();
   if (lock) note('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
   note('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
@@ -208,7 +211,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
   else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note);
 
-  const { runScenario } = await import('@demo-studio/runner-web');
+  const { runScenario } = await import('@retake/runner-web');
   try {
     return await runScenario({
       project,

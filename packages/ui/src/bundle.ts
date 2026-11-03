@@ -3,7 +3,7 @@
  * module and one stylesheet, minified, for the browsers of the target list; the document is a static string with no
  * inline script or style (the CSP allows neither). Built once per server start, served from memory: no file is read
  * per request, so no request path ever reaches the file system. The sources ship with the package (`files: src`), so
- * the built CLI bundles them too; a broken app source breaks `studio ui` only (the CLI imports this package lazily).
+ * the built CLI bundles them too; a broken app source breaks `retake ui` only (the CLI imports this package lazily).
  * L5.9: the bundled Geist pair (packages/ui/fonts, SIL OFL 1.1 in LICENSE.txt beside them: BL-120) is read once here and
  * served from memory at `/fonts/<file>` (font/woff2) — the Studio's own origin, never a CDN; tokens.css names those
  * two URLs, left to the server (esbuild `external`). The document names its colour schemes (no white flash on a dark

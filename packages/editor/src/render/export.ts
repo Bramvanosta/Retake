@@ -10,9 +10,9 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, insideFolder, loadProject } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { EXPORT_FORMAT_NAMES, insideFolder, loadProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
 import type { PlanTrust } from './plan-run.js';
@@ -135,7 +135,7 @@ export async function findRenderRecord(project: LoadedProject, arg: string, scen
   if (arg === 'latest') {
     const all = (await listRenders(project)).filter((r) => r.status === 'succeeded' && (!scenario || r.scenario === scenario));
     const last = all[all.length - 1];
-    if (!last) throw new ExportError(`no render${scenario ? ` of scenario "${scenario}"` : ''} in ${rendersDir(project)}: render one with \`studio render ${project.slug} ${scenario ?? '<scenario>'}\``);
+    if (!last) throw new ExportError(`no render${scenario ? ` of scenario "${scenario}"` : ''} in ${rendersDir(project)}: render one with \`retake render ${project.slug} ${scenario ?? '<scenario>'}\``);
     return last;
   }
   const byId = join(rendersDir(project), `${arg}.json`);

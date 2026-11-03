@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
-import { parseYaml, stepGuard } from '@demo-studio/core';
+import { parseYaml, stepGuard } from '@retake/core';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
@@ -30,13 +30,13 @@ const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex')
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n';
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(file('short'), SHORT);
   studio = await startStudioServer({ root: ws, pollMs: 100 });
@@ -44,8 +44,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

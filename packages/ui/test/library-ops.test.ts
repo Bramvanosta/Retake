@@ -20,9 +20,9 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LIBRARY_DIR, scaffoldDir } from '@demo-studio/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@demo-studio/engine';
-import type { PreviewBackend } from '@demo-studio/editor';
+import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
+import type { PreviewBackend } from '@retake/editor';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, UI_OPS, startStudioServer } from '../src/index.js';
 import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryRenderAnswer, LibraryViewAnswer, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -33,7 +33,7 @@ const MARK = 'MARKED-LIBRARY-3c9d';
 const HOSTILE = '<img src=x onerror=alert(1)>';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<{ data: T; body: string }> {
   const r = await call(op, args);
@@ -52,7 +52,7 @@ async function seed(key: string, kind: 'poster' | 'loop', component: string, ima
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-library-ops-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   // A workspace card with its own preview.png (never trusted as the library's poster) and an agent's name.
   const comp = join(ws, 'components', 'acme', 'marked');
@@ -67,8 +67,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -258,7 +258,7 @@ describe('failures on the page (L4.7 review A L2 / B H1)', () => {
     const again = (await ok<LibraryRenderAnswer>('library_render', { project: P, theme: 'editorial', items: [{ component: b.component, poster: b.poster.key }] })).data;
     const backend: PreviewBackend = {
       async bundle({ root, components }) {
-        const dir = join(root, '.demo-studio', 'cache', 'remotion-test');
+        const dir = join(root, '.retake', 'cache', 'remotion-test');
         await mkdir(dir, { recursive: true });
         return { serveUrl: dir, hash: components.length.toString(16).padStart(16, '0'), cached: false };
       },

@@ -1,6 +1,6 @@
 /**
- * L3.4 recording acceptance through MCP (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
- * drives `studio mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture pointed at the
+ * L3.4 recording acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client
+ * drives `retake mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture pointed at the
  * fixture product on free ports. No human in CI: the worker that runs the `record` job lives in this process and its
  * injected driver plays the person in a headless "headed" window (Playwright input is trusted, as a person's) — the
  * real window is MACOS-CHECKLIST 12f. Claude's side is scripted with no model:
@@ -18,15 +18,15 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@demo-studio/engine';
-import type { RecordJobTestHooks } from '@demo-studio/engine';
+import { historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
+import type { RecordJobTestHooks } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames']);
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1';
-const KEEP = process.env.DEMO_STUDIO_ACCEPTANCE_KEEP;
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
+const KEEP = process.env.RETAKE_ACCEPTANCE_KEEP;
 const PROJECT = 'northfield-fixture';
 const STEP = 300_000;
 
@@ -44,7 +44,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: STEP })) as Result;
@@ -120,13 +120,13 @@ async function person(page: Page, sentinel: string): Promise<void> {
   await page.close();
 }
 
-describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record → draft → validate → run_dry (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record → draft → validate → run_dry (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-acc-'));
-    process.env.DEMO_STUDIO_HOME = join(root, '.home');
-    await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    process.env.RETAKE_HOME = join(root, '.home');
+    await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', PROJECT);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
@@ -135,16 +135,16 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
       yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')),
     );
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
-    await mkdir(join(root, '.demo-studio'), { recursive: true });
+    await mkdir(join(root, '.retake'), { recursive: true });
     const transport = new StdioClientTransport({
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '5000' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-    client = new Client({ name: 'demo-studio-record', version: '0' }, { capabilities: {} });
+    client = new Client({ name: 'retake-record', version: '0' }, { capabilities: {} });
     await client.connect(transport);
   }, 120_000);
 
@@ -160,8 +160,8 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
     }
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
   });
 
   it('the person records the quote flow; the draft validates and dry-runs; the typed password is nowhere', async () => {
@@ -242,7 +242,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
       ...(await files(jobsDir(root))),
       ...(await files(workersDir(root))),
       historyFile(root),
-      ...(await files(join(root, 'projects', PROJECT, '.demo-studio', 'records'))),
+      ...(await files(join(root, 'projects', PROJECT, '.retake', 'records'))),
       ...(await files(join(root, 'projects', PROJECT, 'scenarios'))),
     ];
     expect(all.length).toBeGreaterThan(5);

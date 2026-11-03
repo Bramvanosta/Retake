@@ -43,7 +43,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 const errors: string[] = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 async function open(ctx: BrowserContext): Promise<Page> {
   const p = await ctx.newPage();
@@ -56,11 +56,11 @@ async function open(ctx: BrowserContext): Promise<Page> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-kit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'projects', P, 'scenarios', `${LONG}.yaml`), 'video: Long\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 1\n');
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   page = await open(context);
@@ -69,8 +69,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

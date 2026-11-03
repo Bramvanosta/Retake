@@ -1,4 +1,4 @@
-// Pro forma invoices (Demo Studio L5.6, capture reliability): a page made of the traps a real take met.
+// Pro forma invoices (Retake L5.6, capture reliability): a page made of the traps a real take met.
 // - The filters above the table have a "Quantity (kg)" field, and so has the dialog: behind an open modal dialog the
 //   page's field is still "visible" but cannot be used (the dialog covers it).
 // - The dialog's body scrolls on its own (the dialog keeps its header and footer): "Quantity (kg)" is below its fold.

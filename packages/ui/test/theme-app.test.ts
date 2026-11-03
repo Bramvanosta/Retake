@@ -14,8 +14,8 @@
  * - ⚑ no Studio op queues a site job (template_from_site is not a UI op), which events re-read what, the themes route.
  */
 import { describe, expect, it } from 'vitest';
-import { HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@demo-studio/core';
-import type { ThemeEditView } from '@demo-studio/engine';
+import { HEX_COLOR_RE, THEME_REMOVABLE_FIELDS, themeValueProblem } from '@retake/core';
+import type { ThemeEditView } from '@retake/engine';
 import { UI_OPS } from '../src/index.js';
 import type { SiteListAnswer } from '../src/index.js';
 import { hrefTo, parseRoute } from '../src/app/route.js';
@@ -79,7 +79,7 @@ const view = (over: Partial<ThemeEditView> = {}): ThemeEditView =>
     untrusted: { fonts: [] },
     ...over,
   }) as ThemeEditView;
-const STARTER = { why: 'editorial is a starter theme shipped with Demo Studio: copy it to edit it' };
+const STARTER = { why: 'editorial is a starter theme shipped with Retake: copy it to edit it' };
 
 describe('mirrors of core', () => {
   it('the hex pattern, the removable fields and the text caps are core\'s', () => {

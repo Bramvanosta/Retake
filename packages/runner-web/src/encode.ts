@@ -78,7 +78,7 @@ function run(bin: string, args: string[], signal?: AbortSignal): Promise<void> {
     signal?.addEventListener('abort', onAbort, { once: true });
     child.on('error', (e: NodeJS.ErrnoException) => {
       signal?.removeEventListener('abort', onAbort);
-      reject(new EncodeError(e.code === 'ENOENT' ? `${bin} not found: install ffmpeg or set "ffmpeg" in studio.yaml` : e.message));
+      reject(new EncodeError(e.code === 'ENOENT' ? `${bin} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message));
     });
     child.on('close', (code) => {
       signal?.removeEventListener('abort', onAbort);

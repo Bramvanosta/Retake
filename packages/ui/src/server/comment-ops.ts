@@ -26,10 +26,10 @@
  * characters per string by the server: every stored text is at most that by construction).
  */
 import { z } from 'zod';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, loadProjectTemplate, parseYaml } from '@demo-studio/core';
-import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@demo-studio/engine';
-import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, loadProjectTemplate, parseYaml } from '@retake/core';
+import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@retake/engine';
+import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 

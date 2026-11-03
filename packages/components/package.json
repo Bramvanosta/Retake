@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/components",
+  "name": "@retake/components",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -31,7 +31,7 @@
     "gen:schema": "tsx scripts/gen-schema.ts"
   },
   "dependencies": {
-    "@demo-studio/core": "workspace:*",
+    "@retake/core": "workspace:*",
     "@remotion/lottie": "4.0.534",
     "esbuild": "0.28.1",
     "lottie-web": "5.13.0",

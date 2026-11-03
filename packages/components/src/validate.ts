@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, resolve } from 'node:path';
-import { hasErrors } from '@demo-studio/core';
+import { hasErrors } from '@retake/core';
 import { checkComponentEntry } from './compile.js';
 import { DEFAULT_ENTRY, MANIFEST_FILE, parseManifest } from './manifest.js';
 import type { ComponentIssue, ComponentManifest } from './types.js';
@@ -30,7 +30,7 @@ export interface ComponentValidation {
 /**
  * Validate a component folder: component.yaml (strict schema, semantic checks, params JSON Schema and defaults,
  * preview samples filling the required slots, layout geometry), id = "<namespace>/<name>" of the folder, entry file
- * present, and the entry compiled with esbuild importing only react, remotion and @demo-studio/components/kit.
+ * present, and the entry compiled with esbuild importing only react, remotion and @retake/components/kit.
  */
 export async function validateComponentDir(dir: string, opts: ValidateComponentOptions = {}): Promise<ComponentValidation> {
   const abs = resolve(dir);

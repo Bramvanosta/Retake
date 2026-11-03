@@ -2,13 +2,13 @@
  * Committed component previews (R-CMP-12/13/14): every built-in component (library/studio/* and the per-kind
  * scaffolds) has a generated preview.png (960×540, editorial theme, ≤ 200 KB), a preview.json sidecar whose source hash
  * matches its sources (manifest + entry + local imports) and a README.md showing it. A component changed without
- * `studio components preview --all --stale` fails here.
+ * `retake components preview --all --stale` fails here.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS } from '@demo-studio/core';
+import { COMPONENT_KINDS } from '@retake/core';
 import {
   LIBRARY_DIR,
   PREVIEW_FILE,
@@ -26,7 +26,7 @@ import {
   previewReadmeBlock,
   previewStatus,
   scaffoldDir,
-} from '@demo-studio/components';
+} from '@retake/components';
 import { tempDir, writeFiles } from './helpers.js';
 
 const BUILTIN = [
@@ -57,7 +57,7 @@ describe('committed previews of the built-in components', () => {
       expect(readme, id).toContain(`\`${id}\``);
       expect(readme, id).toContain(`# ${manifest.name}`);
     }
-    expect(stale, 'stale previews: run `studio components preview --all --stale` (or --all) and commit them').toEqual([]);
+    expect(stale, 'stale previews: run `retake components preview --all --stale` (or --all) and commit them').toEqual([]);
   });
 });
 

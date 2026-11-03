@@ -3,7 +3,7 @@
  * theme), so a starter — read-only — can be edited from the Studio. The source's regular files are copied verbatim
  * (dot entries left out: a source's own provenance file is not the copy's); only `name:` changes (a splice). Like
  * brand/create.ts: the name checks (lower-case, never a starter's, never an existing folder's — without case), refused
- * when templates_dir lies inside the Demo Studio package, the folder built hidden with this tool's provenance file
+ * when templates_dir lies inside the Retake package, the folder built hidden with this tool's provenance file
  * written first (`copy_of`, trust `author`: the person made it in the Studio — never replaced through MCP, L4.7 review
  * A N4), validated (schema, loader, files inside the folder,
  * the registry resolving its components), then renamed into place; a failure removes it. A source holding a symbolic
@@ -13,8 +13,8 @@
 import { randomBytes } from 'node:crypto';
 import { copyFile, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { DEMO_STUDIO_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, loadTemplate, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, loadTemplate, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -81,8 +81,8 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   const now = o.now ?? new Date();
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir)) {
-    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Demo Studio folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
-      fix: 'work in a workspace of your own: set DEMO_STUDIO_ROOT, or a studio.yaml whose templates_dir is outside the Demo Studio folder',
+    throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
+      fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
   }
   let source;
@@ -106,7 +106,7 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   try {
     await mkdir(tmp);
     // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).
-    const provenance = { version: 1, made_by: 'demo-studio', tool_version: DEMO_STUDIO_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
+    const provenance = { version: 1, made_by: 'retake', tool_version: RETAKE_VERSION, created_at: now.toISOString(), name, base: from, copy_of: from, trust: 'author', files: hashes };
     await writeFile(join(tmp, THEME_PROVENANCE_FILE), `${JSON.stringify(provenance, null, 2)}\n`, { flag: 'wx' });
     for (const f of files) {
       const p = join(tmp, ...f.split('/'));

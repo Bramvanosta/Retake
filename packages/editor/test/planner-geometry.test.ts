@@ -7,11 +7,11 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
-import { mapSourceRect, planEdit, urlAt } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
+import { mapSourceRect, planEdit, urlAt } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import { REPO, clip, clips, fixtureProject, realTimeline, template } from './helpers.js';
 
 let registry: ComponentRegistry;
@@ -79,11 +79,11 @@ describe('layout geometry follows params (built-in studio/layout-card)', () => {
   });
 
   it('a geometry that cannot be evaluated or leaves the frame for a use is reported (and falls back)', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'demo-studio-geometry-'));
+    const root = await mkdtemp(join(tmpdir(), 'retake-geometry-'));
     try {
       const dir = join(root, 'components', 'acme', 'odd-card');
       await mkdir(dir, { recursive: true });
-      await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\n');
+      await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\n');
       await writeFile(
         join(dir, 'component.yaml'),
         [

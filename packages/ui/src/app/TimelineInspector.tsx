@@ -26,7 +26,7 @@
  *   new capture. Text from the server is a text node.
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 import { CallError, call, errorText } from './api.js';
 import { Txt, plural } from './bits.js';
 import { SessionEnded } from './session.js';

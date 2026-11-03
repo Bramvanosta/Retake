@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { EXPORT_FORMAT_NAMES } from '@demo-studio/core';
-import type { ExportJobResult, JobRecord } from '@demo-studio/engine';
+import { EXPORT_FORMAT_NAMES } from '@retake/core';
+import type { ExportJobResult, JobRecord } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import { RENDER_JOB, defineTool } from './define.js';

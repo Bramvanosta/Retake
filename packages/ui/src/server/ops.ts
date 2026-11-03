@@ -27,7 +27,7 @@
  *   arguments: the mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a
  *   capture), never a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no
  *   approver, so what the screen showed as a run blocker is refused here too (the submit is the authority) with the
- *   `studio run …` command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409;
+ *   `retake run …` command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409;
  *   a run of the scenario already queued or running makes another a 409 (one submit per scenario at a time). Not an
  *   MCP tool: Claude has run_dry / run_capture. L4.4: a capture whose scenario uses a persona whose stored session is
  *   invalid (expired, error, never) and that no run signs in by itself (no `login:` steps, not a sandbox account, not
@@ -59,11 +59,11 @@
  */
 import { z } from 'zod';
 import { basename, dirname } from 'node:path';
-import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@demo-studio/core';
-import type { ActionName } from '@demo-studio/core';
-import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@demo-studio/engine';
-import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@retake/core';
+import type { ActionName } from '@retake/core';
+import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@retake/engine';
+import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 import type { Live } from './live.js';
 import { COMMENT_OPS } from './comment-ops.js';
 import { LIBRARY_OPS } from './library-ops.js';
@@ -76,7 +76,7 @@ import type { OpChain } from './op-chain.js';
 import type { PlayerServer } from './player.js';
 import { COMPONENT_HASH_RE } from './preview-allow.js';
 import type { PreviewAllowList } from './preview-allow.js';
-import type { ComponentRegistry } from '@demo-studio/components';
+import type { ComponentRegistry } from '@retake/components';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
@@ -404,7 +404,7 @@ export function runOps(): ToolDef[] {
   const run: ToolDef<typeof RunInput> = {
     name: 'scenario_run',
     title: 'Run a scenario from the Studio',
-    description: 'Queue a dry run or a capture of a scenario: default hooks, no sandbox reset, no until; refused (with the studio run command) when a hook needs a person.',
+    description: 'Queue a dry run or a capture of a scenario: default hooks, no sandbox reset, no until; refused (with the retake run command) when a hook needs a person.',
     input: RunInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     async run(a, { engine }) {
@@ -667,7 +667,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
   const heldOf = async (plan: Parameters<PlayerServer['publish']>[0]['plan']): Promise<NonNullable<PreviewHeld['preview_held']>> => {
     if (!o.allow || !o.registry) return [];
-    const { usedComponentIds } = await import('@demo-studio/editor');
+    const { usedComponentIds } = await import('@retake/editor');
     const used = new Set(usedComponentIds(plan));
     const { workspaceComponents } = await import('../player/bundle-player.js');
     return (await workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
@@ -753,7 +753,7 @@ const RenderCancelInput = z.strictObject({ project, job: z.string().regex(JOB_ID
 const RenderReviewInput = z.strictObject({ project, render_id: renderId });
 const ReviewExportInput = z.strictObject({ project, render_id: renderId });
 
-/** L5.12a: the one format the Review report exports (the other formats stay `studio export` / Claude's `export`). */
+/** L5.12a: the one format the Review report exports (the other formats stay `retake export` / Claude's `export`). */
 export const REVIEW_EXPORT_FORMATS = ['mp4_1080p'] as const;
 /** L5.12a fixes: the exports of the workspace queued or running at once that review_export still adds to (CLI and Claude ones count). */
 export const REVIEW_EXPORTS_OPEN = 2;

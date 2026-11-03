@@ -1,9 +1,9 @@
-# The desktop shell (L5.2, DESIGN §4j): a Tauri window on the workspace's own `studio ui --supervised` server.
+# The desktop shell (L5.2, DESIGN §4j): a Tauri window on the workspace's own `retake ui --supervised` server.
 # Not a pnpm package: built by `pnpm desktop:dev` / `pnpm desktop:build` (scripts/desktop.mjs) with `cargo --locked`
 # (`--offline` when CARGO_NET_OFFLINE=true). Rust stays optional for `pnpm build` and `pnpm test`.
 # MSRV 1.90 (tauri 2.12's rust-version). Cargo.lock is committed: the build is reproducible.
 [package]
-name = "demo-studio-desktop"
+name = "retake-desktop"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.90"

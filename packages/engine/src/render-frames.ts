@@ -26,9 +26,9 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, SLUG_RE } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import type { RenderRecord } from '@demo-studio/editor';
+import { RENDER_ID_RE, SLUG_RE } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import type { RenderRecord } from '@retake/editor';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
 import { EngineError } from './errors.js';
 import { renderForWork } from './renders.js';
@@ -134,8 +134,8 @@ export interface RenderFramesOptions {
   comments?: CommentIndex;
 }
 
-type Review = typeof import('@demo-studio/review/thumbs');
-const review = (): Promise<Review> => import('@demo-studio/review/thumbs');
+type Review = typeof import('@retake/review/thumbs');
+const review = (): Promise<Review> => import('@retake/review/thumbs');
 
 /** ffprobe of an open descriptor (the fd protocol only); null when it cannot be read. */
 function probeFd(fd: number, o: { ffprobe?: string; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {

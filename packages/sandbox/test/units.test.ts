@@ -1,5 +1,5 @@
 /**
- * @demo-studio/sandbox, the parts that need no app (L1.8): process identity (ps lstart read with LC_ALL=C, `sh -c`
+ * @retake/sandbox, the parts that need no app (L1.8): process identity (ps lstart read with LC_ALL=C, `sh -c`
  * exec'd, a leader gone with its group alive, a pid that is another program's), group stops (SIGKILL after the timeout,
  * descendants that left the group), the take lock (busy, stale), the state file, ports (probe, lsof owner), health
  * checks (refused → 503 → 200, text, timeout, abort, a process gone), commands and the environment of a service.
@@ -15,7 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import type { LoadedProject, LoadedSandbox, SandboxManifest } from '@demo-studio/core';
+import { withOldOutgoingEnv } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, SandboxManifest } from '@retake/core';
 import {
   BREAKER_STALE_MS,
   SandboxError,
@@ -43,7 +44,7 @@ import {
   stopGroup,
   waitHealthy,
   writeState,
-} from '@demo-studio/sandbox';
+} from '@retake/sandbox';
 
 const posix = process.platform !== 'win32';
 /** The built lock module (`pnpm build`): the race test runs it in separate processes. */
@@ -52,7 +53,7 @@ let tmp = '';
 const children: ChildProcess[] = [];
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-sandbox-units-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-sandbox-units-'));
 });
 afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });
@@ -253,7 +254,7 @@ describe('state file', () => {
     expect(readState(file, 'sandbox', 'process').state).toEqual(state);
     expect(readState(file, 'sandbox', 'docker-compose').note).toMatch(/written for provider process \(sandbox\.yaml now says docker-compose\)/);
     await writeFile(file, '{"version": 2, "services": {}}');
-    expect(readState(file, 'sandbox', 'process').note).toMatch(/not a state file this Demo Studio reads/);
+    expect(readState(file, 'sandbox', 'process').note).toMatch(/not a state file this Retake reads/);
     await writeFile(file, '{oops');
     expect(readState(file, 'sandbox', 'process')).toMatchObject({ state: { services: {} }, note: expect.stringMatching(/not valid JSON/) });
   });
@@ -374,11 +375,11 @@ describe('a service: command and environment', () => {
   it("inherits the CLI's environment without the package manager's and test runner's variables, plus sandbox.yaml's env (templated)", async () => {
     const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, vars: { region: 'eu' } } } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
-    process.env.DEMO_STUDIO_TEST_SECRET = 'from-env-1234';
+    process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     try {
       const env = await serviceEnv(
         { project, sandbox },
-        { env: { API_URL: '{{console}}/api', TOKEN: '{{env:DEMO_STUDIO_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
+        { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
         { PATH: '/usr/bin', HOME: '/home/me', npm_config_cache: 'x', npm_lifecycle_event: 'studio', PNPM_SCRIPT_SRC_DIR: 'y', VITEST: 'true', VITEST_POOL_ID: '1', NODE_ENV: 'test', INIT_CWD: '/x', LANG: 'C' },
       );
       expect(env).toEqual({
@@ -389,10 +390,11 @@ describe('a service: command and environment', () => {
         TOKEN: 'from-env-1234',
         REGION: 'eu',
         NODE_ENV: 'development',
-        DEMO_STUDIO_SANDBOX: 'sandbox',
+        // L5.13: also under its name from before the rename (core legacy.ts; sandbox legacy-env.test.ts names it).
+        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
       });
     } finally {
-      delete process.env.DEMO_STUDIO_TEST_SECRET;
+      delete process.env.RETAKE_TEST_SECRET;
     }
   });
 });

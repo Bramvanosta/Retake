@@ -1,5 +1,5 @@
 /**
- * L3.2 themes and components through `studio mcp` (spawned from the sources over stdio, driven by the SDK client), in a
+ * L3.2 themes and components through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), in a
  * temporary workspace (the repository root is itself one: component_create there would write <repo>/components/):
  * template_list (list, detail), template_preview and component_preview rendered by the worker with their stills inline
  * (JPEG ≤ 1280 px, within the caps, the rest as files) — never into a component folder; job_status returns the stills
@@ -14,8 +14,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { LIBRARY_DIR } from '@demo-studio/components';
-import { readWorkerLock } from '@demo-studio/engine';
+import { LIBRARY_DIR } from '@retake/components';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 
@@ -61,7 +61,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-preview-'));
   await mkdir(join(root, 'templates'), { recursive: true });
   for (const t of ['editorial', 'motion']) await cp(join(TEMPLATES, t), join(root, 'templates', t), { recursive: true });
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects', 'demo'), { recursive: true });
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
   await linkSharedCache(root);
@@ -69,11 +69,11 @@ beforeAll(async () => {
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   await client.connect(transport);
 }, 120_000);
 
@@ -90,7 +90,7 @@ afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
 });
 
-describe.skipIf(!can)('studio mcp: themes and components', () => {
+describe.skipIf(!can)('retake mcp: themes and components', () => {
   it('lists the tools: reads are read only, previews are jobs that never touch the product, create writes files', async () => {
     const { tools } = await client.listTools();
     const by = new Map(tools.map((t) => [t.name, t]));
@@ -113,7 +113,7 @@ describe.skipIf(!can)('studio mcp: themes and components', () => {
     expect(bad.content[0].text).toMatch(/template: a theme name/);
   });
 
-  it('component_preview returns its still inline (JPEG ≤ 1280 px) from .demo-studio/previews/; the built-in folder is unchanged', async () => {
+  it('component_preview returns its still inline (JPEG ≤ 1280 px) from .retake/previews/; the built-in folder is unchanged', async () => {
     const lib = join(LIBRARY_DIR, 'studio', 'card-title');
     const before = await folderHash(lib);
     const r = await call('component_preview', { project: 'demo', component: 'studio/card-title', template: 'motion', slots: { title: 'Quotes in two clicks' }, params: { tone: 'dark' }, wait_s: 25 });
@@ -124,7 +124,7 @@ describe.skipIf(!can)('studio mcp: themes and components', () => {
     const size = jpegSize(Buffer.from(imgs[0].data!, 'base64'));
     expect(size).toEqual({ width: 960, height: 540 });
     const dir = (r.structuredContent as { dir: string }).dir;
-    expect(dir.startsWith(join(root, '.demo-studio', 'previews', 'p_'))).toBe(true);
+    expect(dir.startsWith(join(root, '.retake', 'previews', 'p_'))).toBe(true);
     expect(r.content.find((b) => b.type === 'text' && b.text?.startsWith('image 1/1'))?.text).toContain('studio/card-title (motion theme, at');
     expect(await folderHash(lib)).toBe(before);
   }, LONG);

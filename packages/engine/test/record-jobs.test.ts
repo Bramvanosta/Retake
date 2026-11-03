@@ -7,7 +7,7 @@
  * back from the folder with a {{vars.password_1}} placeholder and the note, the sentinel nowhere; a worker signal stops
  * and KEEPS the recording (draft saved, check skipped); job_cancel while the window is open discards it (folder
  * removed); pruning never removes the folder of a queued or running record job; an interrupted record job says what
- * was lost and names `studio record`.
+ * was lost and names `retake record`.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -43,7 +43,7 @@ const PROJECT = 'northfield-fixture';
 let fixture: Fixture;
 let root: string;
 let engine: Engine;
-const saved = { home: process.env.DEMO_STUDIO_HOME, max: process.env.DEMO_STUDIO_RECORD_MAX_MIN };
+const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
 
 /** The in-process worker, Playwright playing the person; the window closes after `drive`. */
 function work(drive: (page: Page) => Promise<void>): Promise<number> {
@@ -94,8 +94,8 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-jobs-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  process.env.RETAKE_HOME = join(root, '.home');
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(root);
   const projectDir = join(root, 'projects', PROJECT);
   const strip = (u: string) => u.replace(/\/$/, '');
@@ -112,8 +112,8 @@ afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
   for (const [k, v] of [
-    ['DEMO_STUDIO_HOME', saved.home],
-    ['DEMO_STUDIO_RECORD_MAX_MIN', saved.max],
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_RECORD_MAX_MIN', saved.max],
   ] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
@@ -134,7 +134,7 @@ describe('record jobs: refusals at submit', () => {
     expect(await engine.jobs.list()).toEqual([]);
   });
 
-  it('a read-write environment pointing at a host another project protects is refused, with the `studio record` command', async () => {
+  it('a read-write environment pointing at a host another project protects is refused, with the `retake record` command', async () => {
     const other = join(root, 'projects', 'other');
     await mkdir(other, { recursive: true });
     await writeFile(join(other, 'project.yaml'), `name: Other\nenvironments:\n  live:\n    production: true\n    pages: {app: "${fixture.urls.shop}"}\n`);
@@ -249,8 +249,8 @@ describe('record jobs: folders and interruptions', () => {
     expect(await pruneRecords(p, RECORD_KEEP, [], root)).toContain(sub.rec_id);
   });
 
-  it('an interrupted record job says the window closed with it and names `studio record`', async () => {
-    const q = new FileJobQueue(join(root, 'q-int'), 'studio -C /ws');
+  it('an interrupted record job says the window closed with it and names `retake record`', async () => {
+    const q = new FileJobQueue(join(root, 'q-int'), 'retake -C /ws');
     const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: newRecordId(), env: 'local', source: { page: 'shop', path: '/products' }, scenario: 'mine', check: true, submitted_by: 'mcp' });
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
     const running: JobRecord = { ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: dead, host: 'h' } };
@@ -258,15 +258,15 @@ describe('record jobs: folders and interruptions', () => {
     const got = await q.get(job.id);
     expect(got?.state).toBe('interrupted');
     expect(got?.error?.message).toMatch(/The recording stopped with it: no draft was made/);
-    expect(got?.error?.fix).toBe("studio -C /ws record northfield-fixture mine --env local --page shop --path /products");
+    expect(got?.error?.fix).toBe("retake -C /ws record northfield-fixture mine --env local --page shop --path /products");
   });
 
   it('interrupted after the window closed: the message names the draft that was made (check) or being made (draft)', async () => {
     const q = new FileJobQueue(join(root, 'q-int2'), 'studio');
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
     for (const [phase, re] of [
-      ['check', /The recording had ended and its draft was made: \.demo-studio\/records\/rec_\w+\/draft\.yaml .*only its check replay was cut/],
-      ['draft', /its draft was being made: \.demo-studio\/records\/rec_\w+\/draft\.yaml if it was written/],
+      ['check', /The recording had ended and its draft was made: \.retake\/records\/rec_\w+\/draft\.yaml .*only its check replay was cut/],
+      ['draft', /its draft was being made: \.retake\/records\/rec_\w+\/draft\.yaml if it was written/],
       ['recording · 3 actions', /no draft was made/],
     ] as const) {
       const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: newRecordId(), env: 'local', source: { page: 'shop', path: '/' }, check: true, submitted_by: 'mcp' });

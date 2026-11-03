@@ -7,7 +7,7 @@
  * committed); the fonts are the OFL files of templates/ served under invented family names; the PNG logos are drawn
  * here (no binary in the repository).
  *
- * Tests reach it through the unsafe test resolver: `testResolve` (runner-web) or DEMO_STUDIO_UNSAFE_TEST_RESOLVE =
+ * Tests reach it through the unsafe test resolver: `testResolve` (runner-web) or RETAKE_UNSAFE_TEST_RESOLVE =
  * `resolveEnv` (a worker or a CLI process).
  */
 import { execFileSync } from 'node:child_process';
@@ -18,7 +18,7 @@ import { createServer as createTcpServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
-import type { SiteTestTarget } from '@demo-studio/core';
+import type { SiteTestTarget } from '@retake/core';
 
 const HERE = new URL('.', import.meta.url).pathname;
 const REPO = join(HERE, '..', '..', '..');
@@ -110,7 +110,7 @@ export interface BrandSite {
   udpPort: number;
   /** The unsafe test resolver of the fixture's names. */
   testResolve: Map<string, SiteTestTarget>;
-  /** DEMO_STUDIO_UNSAFE_TEST_RESOLVE for a child process. */
+  /** RETAKE_UNSAFE_TEST_RESOLVE for a child process. */
   resolveEnv: string;
   /** Requests the site served ("GET www.brand.test/site.css"). */
   hits: string[];

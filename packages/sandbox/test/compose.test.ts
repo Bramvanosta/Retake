@@ -1,11 +1,11 @@
 /**
- * docker-compose sandboxes for real (L1.8 part C), gated by DEMO_STUDIO_TEST_DOCKER=1 (a running Docker with the
+ * docker-compose sandboxes for real (L1.8 part C), gated by RETAKE_TEST_DOCKER=1 (a running Docker with the
  * images busybox:1.38.0, postgres:17-alpine and axllent/mailpit present). Every compose project and container of a
- * run is named `demo-studio-test-<run token>-*` and removed after (containers, networks, volumes, images it built):
+ * run is named `retake-test-<run token>-*` and removed after (containers, networks, volumes, images it built):
  * another run at the same time (another worktree) and packages/cli/test/sandbox-docker.test.ts keep theirs; shared
  * base images are left alone.
  *
- * - the `studio sandbox init` scaffold (app placeholder, Postgres, Mailpit) with an `exec` seed step and `reset.restart:
+ * - the `retake sandbox init` scaffold (app placeholder, Postgres, Mailpit) with an `exec` seed step and `reset.restart:
  *   [app]`: up (seed + snapshot taken), status, a mutation, reset (snapshot restored, the rows back, the app restarted
  *   and healthy again), reset --reseed (taken again), a
  *   take prepared (prepareTake, snapshot strategy), a seed change making the snapshot stale, logs, down --volumes
@@ -25,15 +25,15 @@ import type { Server } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@demo-studio/sandbox';
-import type { SandboxLog } from '@demo-studio/sandbox';
+import { loadProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@retake/sandbox';
+import type { SandboxLog } from '@retake/sandbox';
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_DOCKER === '1';
+const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';
 /** This run's names: a token of its own, so a run never removes another's (another worktree, sandbox-docker.test.ts). */
-const PREFIX = `demo-studio-test-${randomBytes(3).toString('hex')}-`;
+const PREFIX = `retake-test-${randomBytes(3).toString('hex')}-`;
 const ours = (name: string) => name.startsWith(PREFIX);
 const require = createRequire(import.meta.url);
 
@@ -74,7 +74,7 @@ const log: SandboxLog = (level, message) => logs.push(`${level}: ${message}`);
 
 beforeAll(async () => {
   if (!ENABLED) return;
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-compose-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-compose-'));
 });
 afterAll(async () => {
   if (!ENABLED) return;
@@ -147,7 +147,7 @@ async function webSandbox(slug: string, project: string, port: number, healthche
   return loadProject(dir);
 }
 
-describe.skipIf(!ENABLED)('docker-compose sandboxes for real (DEMO_STUDIO_TEST_DOCKER=1)', () => {
+describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER=1)', () => {
   it('the init scaffold: up seeds and takes a snapshot, reset restores it, --reseed retakes it, a take restores it, a seed change makes it stale, down --volumes leaves nothing', async () => {
     const name = `${PREFIX}scaffold-${rand()}`;
     const dir = await newProject('scaffold');
@@ -213,7 +213,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (DEMO_STUDIO_TEST_D
     expect(r3).toMatchObject({ restored: false, snapshot: { action: 'taken' } });
     expect(await count()).toBe(7);
     const tpl = await query(url.replace(/\/app$/, '/postgres'), "SELECT shobj_description(oid, 'pg_database') AS c, datistemplate AS t, datallowconn AS a FROM pg_database WHERE datname = 'app__ds_snapshot'");
-    expect(tpl).toEqual([{ c: `demo-studio snapshot ${r3.hash}`, t: true, a: false }]);
+    expect(tpl).toEqual([{ c: `retake snapshot ${r3.hash}`, t: true, a: false }]);
 
     const dbLogs = await changed.logs({ service: 'db', lines: 5 });
     expect(dbLogs[0].source).toBe(`docker compose -p ${name} logs db`);

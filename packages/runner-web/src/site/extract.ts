@@ -2,7 +2,7 @@
  * A site extraction (L3.5, R-MCP-12): open one public page in a clean, ephemeral Chromium whose only network is the
  * worker's CONNECT proxy (proxy.ts), and read what a theme needs — colour swatches by role, font family names, logo
  * candidates converted to transparent PNGs, a viewport screenshot. The caller (the engine's `site` job, or
- * `studio theme from-site`) checked the URL (core parseSiteUrl) and, through MCP, a human approved it.
+ * `retake theme from-site`) checked the URL (core parseSiteUrl) and, through MCP, a human approved it.
  *
  * The browser: no profile, no stored state, nothing persisted (cookies the site sets live in the ephemeral context
  * and die with it); JavaScript on (most sites render client-side); no click, no typing, no consent button. Escapes are
@@ -40,8 +40,8 @@ import { isIP } from 'node:net';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-core';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@demo-studio/core';
-import type { BrowserConfig, SiteTestTarget } from '@demo-studio/core';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core';
+import type { BrowserConfig, SiteTestTarget } from '@retake/core';
 import { CancelledError, RunnerError } from '../errors.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { mergeSamples, sitePalette } from './palette.js';
@@ -77,7 +77,7 @@ const LOGO_MAX_HEIGHT = 1024;
 const LOGO_MIN_HEIGHT = 128;
 const LOGO_MAX_WIDTH = 2048;
 const SVG_LOGO_HEIGHT = 512;
-const WORLD = 'demo-studio-site';
+const WORLD = 'retake-site';
 
 /** Refuses service-worker registration on the prototype (every frame, before the page's scripts). */
 export const SERVICE_WORKER_BLOCK = `(() => { const P = globalThis.ServiceWorkerContainer && globalThis.ServiceWorkerContainer.prototype; if (!P) return; const register = function register() { return Promise.reject(new DOMException('Service workers are blocked', 'SecurityError')); }; try { Object.defineProperty(P, 'register', { value: register, writable: false, configurable: false }); } catch {} })();`;
@@ -389,7 +389,7 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
   };
   if (test.size) {
     report.warnings.push(
-      `the unsafe test resolver is set (DEMO_STUDIO_UNSAFE_TEST_RESOLVE: ${[...test.keys()].join(', ')}): those names reach loopback ports, and the browser accepts any certificate for every host of this extraction — never set it outside tests`,
+      `the unsafe test resolver is set (RETAKE_UNSAFE_TEST_RESOLVE: ${[...test.keys()].join(', ')}): those names reach loopback ports, and the browser accepts any certificate for every host of this extraction — never set it outside tests`,
     );
   }
   const out = await lstat(o.outDir).catch(() => null);

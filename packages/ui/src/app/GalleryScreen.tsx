@@ -269,7 +269,7 @@ function Column({ appearance }: { appearance: Appearance }) {
           info="Idle"
           actions={
             <>
-              <Blocker compact word="Capture blocked: 1 hook" fix={{ copy: 'studio run northfield-fixture quote' }} testId={`gallery-compact-${appearance}`} />
+              <Blocker compact word="Capture blocked: 1 hook" fix={{ copy: 'retake run northfield-fixture quote' }} testId={`gallery-compact-${appearance}`} />
               <Button size="sm" kbd={['⌘', 'R']}>
                 Rehearse
               </Button>

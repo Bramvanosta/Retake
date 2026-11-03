@@ -14,7 +14,7 @@
  * only (a byte-bounded LRU keyed by the run folder, the run's file signatures and the run's step key): never written.
  */
 import { closeSync } from 'node:fs';
-import type { TimelineEvent } from '@demo-studio/core';
+import type { TimelineEvent } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RunDataCache, errorScreenshotName, fileSlug, frameAt, gridFrame, seekTime, stepScreenshotName } from './run-data.js';
 import type { PageSource, RunData } from './run-data.js';
@@ -59,7 +59,7 @@ export interface RunThumbsView {
   missing: Array<{ key: string; reason: ThumbMissingReason }>;
 }
 
-const review = () => import('@demo-studio/review/thumbs');
+const review = () => import('@retake/review/thumbs');
 
 /** A counting semaphore; a waiter whose signal aborts leaves the queue. */
 export class Semaphore {

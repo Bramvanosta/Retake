@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Background, backgroundCss, cardShadow, deviceTones, mixColors, roundTo } from '@demo-studio/components/kit';
-import type { ComponentProps, LayoutRects } from '@demo-studio/components/kit';
+import { Background, backgroundCss, cardShadow, deviceTones, mixColors, roundTo } from '@retake/components/kit';
+import type { ComponentProps, LayoutRects } from '@retake/components/kit';
 
 type Params = { height: number; width: number; finish: 'dark' | 'light'; shadow: 'none' | 'soft' | 'strong' };
 

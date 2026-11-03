@@ -14,7 +14,7 @@ import {
   resolveScenePages,
   sceneId,
   templateSceneEntry,
-} from '@demo-studio/core';
+} from '@retake/core';
 import type {
   CameraHint,
   CaptionSpec,
@@ -30,7 +30,7 @@ import type {
   TargetSpec,
   TimelineEvent,
   TimelineScene,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { ACTIONS, primaryTarget } from './actions/index.js';
 import type { ActionResult } from './actions/types.js';
 import { approach, settleLatePopup } from './actions/click.js';
@@ -275,7 +275,7 @@ async function errorFiles(rt: Runtime, scene: string, step: number, e: unknown, 
     // twice the size, the final cut is made here.
     const html = trimSnippet(rt.secrets.redactText(await rt.kit.snapshot(ref, ERROR_DOM_MAX * 2)), ERROR_DOM_MAX);
     const header = [
-      '<!-- Demo Studio step failure',
+      '<!-- Retake step failure',
       `  scene: ${scene}  step: ${step}`,
       `  url: ${rt.secrets.redactText(rt.page.url())}`,
       `  error: ${rt.secrets.redactText(errorMessage(e)).replace(/--/g, '—')}`,

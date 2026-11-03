@@ -13,7 +13,7 @@ let dir: string;
 let ramp: string;
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'demo-studio-ffmpeg-'));
+  dir = await mkdtemp(join(tmpdir(), 'retake-ffmpeg-'));
   ramp = join(dir, 'ramp.mkv');
   // Lossless 64×36 video, 750 frames at 30 fps: every pixel of frame n is grey n mod 256.
   execFileSync('ffmpeg', [

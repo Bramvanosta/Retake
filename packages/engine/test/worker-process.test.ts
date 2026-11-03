@@ -12,15 +12,15 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, loadProject, loadScenario, reserveRunId } from '@demo-studio/core';
-import { hookFingerprint } from '@demo-studio/hooks';
-import type { RunRecord } from '@demo-studio/core';
+import { RunRecordSchema, loadProject, loadScenario, reserveRunId } from '@retake/core';
+import { hookFingerprint } from '@retake/hooks';
+import type { RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -73,7 +73,7 @@ scenes:
 let fixture: Fixture;
 let ws: string;
 let home: string;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 /** A human who approves (LONG's setup has a rollback DELETE: it needs an approval through MCP). */
 const YES = { approve: async () => ({ approved: true as const }) };
 let engine: Engine;
@@ -90,7 +90,7 @@ interface Worker {
 function startWorker(root: string, ...args: string[]): Worker {
   const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
     cwd: REPO,
-    env: { ...process.env, DEMO_STUDIO_HOME: home },
+    env: { ...process.env, RETAKE_HOME: home },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   workers.push(child);
@@ -140,9 +140,9 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'studio-worker-'));
     home = join(ws, '.home');
-    // Approvals are signed at enqueue with the key of the studio home: the worker (same home) verifies them.
-    process.env.DEMO_STUDIO_HOME = home;
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    // Approvals are signed at enqueue with the key of the Retake home: the worker (same home) verifies them.
+    process.env.RETAKE_HOME = home;
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
@@ -157,8 +157,8 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   afterAll(async () => {
     for (const w of workers) if (w.exitCode === null && w.signalCode === null) w.kill('SIGKILL');
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     await fixture?.close();
     if (ws) await rm(ws, { recursive: true, force: true });
   });
@@ -251,7 +251,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
       return j?.state === 'interrupted' ? j : undefined;
     }, 10_000);
     expect(job.error?.message).toContain('stopped while the job ran');
-    expect((await engine.jobs.get(killed.job.id)).error?.fix).toBe(`studio -C ${ws} env reset w`);
+    expect((await engine.jobs.get(killed.job.id)).error?.fix).toBe(`retake -C ${ws} env reset w`);
     expect((await runRecord(killed.run_id)).status).toBe('running');
     expect(await engine.runs.status('w', killed.run_id)).toMatchObject({ status: 'interrupted', finished: true, job: { state: 'interrupted' } });
     for (const id of queued) expect((await queue.get(id))?.state).toBe('succeeded');
@@ -330,7 +330,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
       approvals: [{ fingerprint, by: 'test', at: new Date().toISOString() }],
     });
     // Signed by the enqueue; a forger without the key writes the same approval without (or with a wrong) signature.
-    const jobFile = join(ws, '.demo-studio', 'jobs', job.id, 'job.json');
+    const jobFile = join(ws, '.retake', 'jobs', job.id, 'job.json');
     const stored = JSON.parse(await readFile(jobFile, 'utf8')) as JobRecord;
     expect(stored.input.approvals?.[0].sig).toMatch(/^[0-9a-f]{64}$/);
     stored.input.approvals![0].sig = '0'.repeat(64);
@@ -347,7 +347,7 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     const ids = [] as string[];
     for (const input of [{ version: 1, kind: 'comments_sync', project: 'w', submitted_by: 'mcp' }, { version: 2, kind: 'run', project: 'w', submitted_by: 'mcp' }]) {
       const rec = await queue.enqueue({ version: 1, kind: 'hooks', project: 'w', source: 'reset', dry: true, journal_id: 'x', submitted_by: 'test' });
-      const jobFile = join(ws, '.demo-studio', 'jobs', rec.id, 'job.json');
+      const jobFile = join(ws, '.retake', 'jobs', rec.id, 'job.json');
       await writeFile(jobFile, JSON.stringify({ ...rec, kind: input.kind, input }));
       ids.push(rec.id);
     }
@@ -362,8 +362,8 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
 
   it('exits when its workspace disappears', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'studio-worker-gone-'));
-    await writeFile(join(tmp, 'studio.yaml'), 'projects_dir: projects\n');
-    await mkdir(join(tmp, '.demo-studio', 'jobs'), { recursive: true });
+    await writeFile(join(tmp, 'retake.yaml'), 'projects_dir: projects\n');
+    await mkdir(join(tmp, '.retake', 'jobs'), { recursive: true });
     const w = startWorker(tmp, '--idle-exit', '60000');
     await waitFor('the worker to serve', async () => w.err().includes('serving'), 15_000);
     await rm(tmp, { recursive: true, force: true });

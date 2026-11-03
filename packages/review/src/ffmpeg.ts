@@ -4,7 +4,7 @@
  * callback resolved). Frame numbers are exact for the CFR videos the renderer and the runner write.
  */
 import { spawn } from 'node:child_process';
-import { probeMedia } from '@demo-studio/editor';
+import { probeMedia } from '@retake/editor';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
 

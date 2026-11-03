@@ -88,7 +88,7 @@
         "kit"
       ],
       "additionalProperties": false,
-      "description": "What the component needs from Demo Studio (absent: kit API 1)."
+      "description": "What the component needs from Retake (absent: kit API 1)."
     },
     "slots": {
       "type": "object",
@@ -249,7 +249,7 @@
     "description"
   ],
   "additionalProperties": false,
-  "title": "Demo Studio component",
+  "title": "Retake component",
   "description": "component.yaml",
   "$defs": {
     "SlotSpec": {

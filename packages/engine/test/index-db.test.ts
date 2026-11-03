@@ -1,5 +1,5 @@
 /**
- * L4.1 part 3: the workspace index (node:sqlite, .demo-studio/index.sqlite) — built from a scratch copy of the fixture
+ * L4.1 part 3: the workspace index (node:sqlite, .retake/index.sqlite) — built from a scratch copy of the fixture
  * project, reconciled incrementally from a stat poll, history.jsonl read from its last whole line (appended, torn,
  * truncated, replaced), rebuilt when missing / garbage / truncated / of another schema (with its -wal and -shm), absent
  * on a Node.js without node:sqlite, FTS queries that cannot carry FTS syntax, and the activity feed: unfinished jobs
@@ -14,8 +14,8 @@ import { appendFile, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadWorkspaceConfig } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { loadWorkspaceConfig } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
@@ -23,18 +23,18 @@ let ws: string;
 let cfg: WorkspaceConfig;
 const P = 'northfield-fixture';
 const project = () => join(ws, 'projects', P);
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const line = (o: Record<string, unknown>) => `${JSON.stringify({ v: 1, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 0 }, ...o })}\n`;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-index-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'README.md'), '# Northfield\n\nA wholesale console for coffee importers and their roasters.\n');
   await mkdir(join(project(), 'renders'), { recursive: true });
   await writeFile(join(project(), 'renders', 'quote-v1.json'), JSON.stringify({ version: 1, id: 'quote-v1', scenario: 'quote', run_id: '20261016-090000-catalogue', status: 'succeeded', template: 'editorial', created_at: '2026-10-16T08:00:00.000Z', plan: {} }));
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
+  await mkdir(join(ws, '.retake'), { recursive: true });
   await writeFile(
     historyFile(ws),
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
@@ -44,8 +44,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -221,7 +221,7 @@ describe('the workspace index', () => {
       await fixtureWorkspace(dir);
       const c = await loadWorkspaceConfig(dir);
       const file = indexFile(dir);
-      await mkdir(join(dir, '.demo-studio'), { recursive: true });
+      await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');
       await symlink(target, file);
       let ix = await WorkspaceIndex.open(c);

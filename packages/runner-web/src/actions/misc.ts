@@ -2,8 +2,8 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
-import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@demo-studio/core';
+import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@retake/core';
+import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
@@ -67,7 +67,7 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
 
 /** Desktop notification: osascript on macOS, notify-send on Linux when present; always logged. */
 export async function notify(ctx: StepContext, args: NotifyArgs): Promise<ActionResult> {
-  const title = args.title ?? 'Demo Studio';
+  const title = args.title ?? 'Retake';
   ctx.rt.log('info', `notify: ${title}: ${args.message}`);
   const cmd: [string, string[]] | null =
     process.platform === 'darwin'

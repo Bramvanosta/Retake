@@ -18,8 +18,8 @@ import {
   shortcutPlateBox,
   shortcutPlateLayout,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, KeyPlatform } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, KeyPlatform } from '@retake/components/kit';
 
 type Params = { platform: KeyPlatform; position: 'bottom' | 'top'; size: number; tone: 'dark' | 'light'; hints: boolean };
 

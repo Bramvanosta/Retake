@@ -35,7 +35,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const readme = (slug: string) => join(ws, 'projects', slug, 'README.md');
 const textarea = (p: Page = page) => p.locator('#readme-text');
 const state = (p: Page = page) => p.getByTestId('save-state').innerText();
@@ -74,7 +74,7 @@ function holdStream(): Promise<ClientRequest> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-editor-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await project('crlf', CRLF);
   await project('latin', LATIN1);
@@ -88,7 +88,7 @@ beforeAll(async () => {
   const out = await project('out-link');
   await symlink('../../outside/secret.md', join(out, 'README.md'));
   studio = await startStudioServer({ root: ws });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   page = await context.newPage();
@@ -99,8 +99,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/runner-web",
+  "name": "@retake/runner-web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,8 +17,8 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/hooks": "workspace:*",
     "pdfjs-dist": "5.4.296",
     "playwright-core": "1.56.1"
   }

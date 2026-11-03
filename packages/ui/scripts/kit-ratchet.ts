@@ -1,5 +1,5 @@
 /**
- * L5.9 (review A-M3): the kit-only lint and its ratchet, shared by app-source.test.ts and `pnpm -F @demo-studio/ui ratchet`
+ * L5.9 (review A-M3): the kit-only lint and its ratchet, shared by app-source.test.ts and `pnpm -F @retake/ui ratchet`
  * (scripts/ratchet.ts). A TypeScript-parser pass over a screen's source finds what only the kit may draw:
  * - a native control or disclosure (`<button>`, `<input>`, `<select>`, `<textarea>`, `<dialog>`, `<progress>`, `<meter>`,
  *   `<details>`, `<summary>`, `<label>`);

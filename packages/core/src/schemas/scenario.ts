@@ -259,4 +259,4 @@ export const ScenarioSchema = z
       .optional(),
     scenes: z.array(SceneEntrySchema).min(1).describe('Scenes, cards and interstitials, in order.'),
   })
-  .meta({ id: 'Scenario', title: 'Demo Studio scenario', description: 'A product video: hooks, scenes and steps.' });
+  .meta({ id: 'Scenario', title: 'Retake scenario', description: 'A product video: hooks, scenes and steps.' });

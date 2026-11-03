@@ -59,34 +59,34 @@ importers:
 
   packages/cli:
     dependencies:
-      '@demo-studio/components':
+      '@retake/components':
         specifier: workspace:*
         version: link:../components
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/editor':
+      '@retake/editor':
         specifier: workspace:*
         version: link:../editor
-      '@demo-studio/engine':
+      '@retake/engine':
         specifier: workspace:*
         version: link:../engine
-      '@demo-studio/hooks':
+      '@retake/hooks':
         specifier: workspace:*
         version: link:../hooks
-      '@demo-studio/mcp':
+      '@retake/mcp':
         specifier: workspace:*
         version: link:../mcp
-      '@demo-studio/review':
+      '@retake/review':
         specifier: workspace:*
         version: link:../review
-      '@demo-studio/runner-web':
+      '@retake/runner-web':
         specifier: workspace:*
         version: link:../runner-web
-      '@demo-studio/sandbox':
+      '@retake/sandbox':
         specifier: workspace:*
         version: link:../sandbox
-      '@demo-studio/ui':
+      '@retake/ui':
         specifier: workspace:*
         version: link:../ui
       commander:
@@ -98,12 +98,12 @@ importers:
 
   packages/components:
     dependencies:
-      '@demo-studio/core':
-        specifier: workspace:*
-        version: link:../core
       '@remotion/lottie':
         specifier: 4.0.534
         version: 4.0.534(lottie-web@5.13.0)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
@@ -147,12 +147,6 @@ importers:
 
   packages/editor:
     dependencies:
-      '@demo-studio/components':
-        specifier: workspace:*
-        version: link:../components
-      '@demo-studio/core':
-        specifier: workspace:*
-        version: link:../core
       '@remotion/bundler':
         specifier: 4.0.534
         version: 4.0.534(postcss@8.5.29)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
@@ -165,6 +159,12 @@ importers:
       '@remotion/renderer':
         specifier: 4.0.534
         version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@retake/components':
+        specifier: workspace:*
+        version: link:../components
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
       playwright-core:
         specifier: 1.56.1
         version: 1.56.1
@@ -187,31 +187,31 @@ importers:
 
   packages/engine:
     dependencies:
-      '@demo-studio/components':
+      '@retake/components':
         specifier: workspace:*
         version: link:../components
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/editor':
+      '@retake/editor':
         specifier: workspace:*
         version: link:../editor
-      '@demo-studio/hooks':
+      '@retake/hooks':
         specifier: workspace:*
         version: link:../hooks
-      '@demo-studio/review':
+      '@retake/review':
         specifier: workspace:*
         version: link:../review
-      '@demo-studio/runner-web':
+      '@retake/runner-web':
         specifier: workspace:*
         version: link:../runner-web
-      '@demo-studio/sandbox':
+      '@retake/sandbox':
         specifier: workspace:*
         version: link:../sandbox
 
   packages/hooks:
     dependencies:
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
       pg:
@@ -224,28 +224,28 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@demo-studio/core':
-        specifier: workspace:*
-        version: link:../core
-      '@demo-studio/engine':
-        specifier: workspace:*
-        version: link:../engine
       '@modelcontextprotocol/sdk':
         specifier: 1.32.1
         version: 1.32.1(zod@4.6.5)
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
+      '@retake/engine':
+        specifier: workspace:*
+        version: link:../engine
       zod:
         specifier: ^4.1.0
         version: 4.6.5
 
   packages/review:
     dependencies:
-      '@demo-studio/components':
+      '@retake/components':
         specifier: workspace:*
         version: link:../components
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/editor':
+      '@retake/editor':
         specifier: workspace:*
         version: link:../editor
       sharp:
@@ -254,10 +254,10 @@ importers:
 
   packages/runner-web:
     dependencies:
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/hooks':
+      '@retake/hooks':
         specifier: workspace:*
         version: link:../hooks
       pdfjs-dist:
@@ -269,10 +269,10 @@ importers:
 
   packages/sandbox:
     dependencies:
-      '@demo-studio/core':
+      '@retake/core':
         specifier: workspace:*
         version: link:../core
-      '@demo-studio/hooks':
+      '@retake/hooks':
         specifier: workspace:*
         version: link:../hooks
       pg:
@@ -285,24 +285,24 @@ importers:
 
   packages/ui:
     dependencies:
-      '@demo-studio/components':
-        specifier: workspace:*
-        version: link:../components
-      '@demo-studio/core':
-        specifier: workspace:*
-        version: link:../core
-      '@demo-studio/editor':
-        specifier: workspace:*
-        version: link:../editor
-      '@demo-studio/engine':
-        specifier: workspace:*
-        version: link:../engine
-      '@demo-studio/mcp':
-        specifier: workspace:*
-        version: link:../mcp
       '@remotion/player':
         specifier: 4.0.534
         version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@retake/components':
+        specifier: workspace:*
+        version: link:../components
+      '@retake/core':
+        specifier: workspace:*
+        version: link:../core
+      '@retake/editor':
+        specifier: workspace:*
+        version: link:../editor
+      '@retake/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@retake/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       esbuild:
         specifier: 0.28.1
         version: 0.28.1

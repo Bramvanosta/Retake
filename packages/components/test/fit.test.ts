@@ -5,8 +5,8 @@
  * is not loaded (a registry notice), so its uses fall back.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { KIT_API_VERSION, componentFit, kitMajorOf, loadComponentRegistry, parseManifest } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { KIT_API_VERSION, componentFit, kitMajorOf, loadComponentRegistry, parseManifest } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
 import { CARD_TSX, cardManifest, tempDir, writeFiles } from './helpers.js';
 
 let root: string;
@@ -77,7 +77,7 @@ describe('engines.kit (the guard-rail "engines / kit-API version")', () => {
     expect(registry.has('acme/same-card')).toBe(true);
     expect(registry.has('acme/next-card')).toBe(false);
     const notice = registry.notices.find((n) => n.id === 'acme/next-card');
-    expect(notice?.message).toBe('component acme/next-card needs kit API 2 (engines.kit "^2"): this Demo Studio provides kit API 1 — use a version of the component written for it');
+    expect(notice?.message).toBe('component acme/next-card needs kit API 2 (engines.kit "^2"): this Retake provides kit API 1 — use a version of the component written for it');
     expect(() => registry.resolve('acme/next-card', 'card')).toThrow(/needs kit API 2/);
     expect(why('acme/next-card', { kind: 'card', slots: { title: 'x' } })).toMatch(/needs kit API 2/);
     expect(registry.list('card').map((i) => i.manifest.id)).not.toContain('acme/next-card');

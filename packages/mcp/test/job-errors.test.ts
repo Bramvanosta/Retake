@@ -5,7 +5,7 @@
  * the other kinds' messages are shown as before. Tools run on a stub engine.
  */
 import { describe, expect, it } from 'vitest';
-import type { Engine, JobRecord } from '@demo-studio/engine';
+import type { Engine, JobRecord } from '@retake/engine';
 import { TOOLS } from '../src/index.js';
 import type { ToolContext } from '../src/index.js';
 
@@ -30,7 +30,7 @@ function job(kind: 'run' | 'review' | 'export' | 'render' | 'hooks', state: JobR
     state,
     created_at: '2026-10-17T10:00:00.000Z',
     finished_at: '2026-10-17T10:01:00.000Z',
-    error: { code: state === 'cancelled' ? 'cancelled' : 'failed', message, fix: 'studio review demo quote-v1' },
+    error: { code: state === 'cancelled' ? 'cancelled' : 'failed', message, fix: 'retake review demo quote-v1' },
   } as unknown as JobRecord;
 }
 

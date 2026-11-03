@@ -32,10 +32,10 @@
  * stays under `untrusted`, which the HTTP layer caps and the app renders as text only.
  */
 import { z } from 'zod';
-import { JOB_ID_RE, PROJECT_SLUG_RE, RECORD_ID_RE, RecordAnnotationChangeSchema, SLUG_RE, resolveRunAccess } from '@demo-studio/core';
-import { RECORD_LIST_MAX, defaultRecordName, openProjectBySlug, recordMaxMs, recordStart } from '@demo-studio/engine';
-import type { AuthStatusItem, Engine, RecordListItem, RecordState, RecordView } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { JOB_ID_RE, PROJECT_SLUG_RE, RECORD_ID_RE, RecordAnnotationChangeSchema, SLUG_RE, resolveRunAccess } from '@retake/core';
+import { RECORD_LIST_MAX, defaultRecordName, openProjectBySlug, recordMaxMs, recordStart } from '@retake/engine';
+import type { AuthStatusItem, Engine, RecordListItem, RecordState, RecordView } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 import { pathFree } from './comment-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
@@ -115,7 +115,7 @@ function cutRoot(text: string, root: string): string {
 /**
  * An answer made path-free: withoutPathsDeep's rule (pathFree: the workspace's part cut, any other absolute path
  * shortened) on every string of the trusted fields — `job.error.fix` and `job.error.message` included (a refused
- * preflight's `studio -C <workspace> …`) — and on the check replay's failure text under `untrusted.check`. Elsewhere
+ * preflight's `retake -C <workspace> …`) — and on the check replay's failure text under `untrusted.check`. Elsewhere
  * under `untrusted` (the draft: typed text, page paths) and in a URL `path`, only the workspace's own path is cut: a
  * page path such as /orders/new is the recording's content, never shortened. No depth cap below 64 levels (a draft's
  * blocks are deeper than withoutPathsDeep's 8, which would drop them).
@@ -228,7 +228,7 @@ function envWarnings(o: { production: boolean; access: 'read-only' | 'read-write
   const w: string[] = [];
   if (o.production) w.push('A production environment: the Studio never allows writes there — what the window writes is stopped or answered by a mock.');
   else if (o.access === 'read-only') w.push('A read-only environment: what the window writes is stopped or answered by a mock, as in a rehearsal.');
-  if (o.sandbox) w.push('A sandbox environment: it must be up (studio sandbox up) — the recording uses it as it is, without a reset.');
+  if (o.sandbox) w.push('A sandbox environment: it must be up (retake sandbox up) — the recording uses it as it is, without a reset.');
   w.push(`The window holds the worker: captures, renders and previews wait until you stop (at most ${o.maxMinutes} min).`);
   return w;
 }

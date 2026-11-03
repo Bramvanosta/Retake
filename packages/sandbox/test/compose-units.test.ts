@@ -4,7 +4,7 @@
  * after), exec / down / status / logs / hash inputs / snapshot ownership on a fake docker, the own-folder check of every
  * command, a renamed compose.project, other projects' containers publishing a sandbox port (docker ps) and the
  * published address health checks / the mailbox clear connect to, the version and daemon checks, the snapshot helpers,
- * `studio sandbox init` (files, ports, project.yaml edited in place, existing files, validation) and core
+ * `retake sandbox init` (files, ports, project.yaml edited in place, existing files, validation) and core
  * addSandboxEntry.
  */
 import { existsSync } from 'node:fs';
@@ -15,8 +15,8 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addSandboxEntry, loadProject } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { addSandboxEntry, loadProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import {
   ComposeProvider,
   SandboxError,
@@ -53,13 +53,13 @@ import {
   snapshotTarget,
   versionAtLeast,
   waitTimeoutS,
-} from '@demo-studio/sandbox';
-import type { DockerExec, DockerResult, Listener, ProviderContext, PsEntry } from '@demo-studio/sandbox';
+} from '@retake/sandbox';
+import type { DockerExec, DockerResult, Listener, ProviderContext, PsEntry } from '@retake/sandbox';
 
 let tmp = '';
 const afterAllClose: Server[] = [];
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-compose-units-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-compose-units-'));
 });
 afterAll(async () => {
   for (const s of afterAllClose) s.close();
@@ -148,22 +148,22 @@ async function httpServer(): Promise<{ server: Server; port: number }> {
 }
 
 describe('compose project, argv and output parsing', () => {
-  it('names a project demo-studio-<slug>-<env>-<hash of the folder>, at most 63 characters, distinct per folder', () => {
+  it('names a project retake-<slug>-<env>-<hash of the folder>, at most 63 characters, distinct per folder', () => {
     const a = composeProjectName('northfield-fixture', 'sandbox', '/work/a/northfield-fixture/sandbox');
     const b = composeProjectName('northfield-fixture', 'sandbox', '/work/b/northfield-fixture/sandbox');
-    expect(a).toMatch(/^demo-studio-northfield-fixture-sandbox-[0-9a-f]{8}$/);
+    expect(a).toMatch(/^retake-northfield-fixture-sandbox-[0-9a-f]{8}$/);
     expect(a).not.toBe(b);
     expect(composeProjectName('northfield-fixture', 'sandbox', '/work/a/northfield-fixture/sandbox')).toBe(a);
     const long = composeProjectName('A Very Long Project Name With Spaces And Ünïcode'.repeat(3), 'Sandbox_Docker', '/x');
     expect(long.length).toBeLessThanOrEqual(63);
-    expect(long).toMatch(/^demo-studio-[a-z0-9][a-z0-9_-]*-[0-9a-f]{8}$/);
+    expect(long).toMatch(/^retake-[a-z0-9][a-z0-9_-]*-[0-9a-f]{8}$/);
   });
 
   it('builds every compose call with --ansi never, the project name, its folder and its files', async () => {
-    const project = await composeProjectDir('argv', ['compose: {files: [compose.yaml], project: demo-studio-test-argv}', 'services:', '  app: {url: "http://localhost:4600", pages: {app: "http://localhost:4600"}}']);
+    const project = await composeProjectDir('argv', ['compose: {files: [compose.yaml], project: retake-test-argv}', 'services:', '  app: {url: "http://localhost:4600", pages: {app: "http://localhost:4600"}}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
-    expect(ref.name).toBe('demo-studio-test-argv');
-    expect(composeArgs(ref)).toEqual(['compose', '--ansi', 'never', '-p', 'demo-studio-test-argv', '--project-directory', ref.dir, '-f', join(ref.dir, 'compose.yaml')]);
+    expect(ref.name).toBe('retake-test-argv');
+    expect(composeArgs(ref)).toEqual(['compose', '--ansi', 'never', '-p', 'retake-test-argv', '--project-directory', ref.dir, '-f', join(ref.dir, 'compose.yaml')]);
   });
 
   it('parses ps --format json as NDJSON (Compose 2.21+) and as one array (older); labels with commas in values; one-off containers left out', () => {
@@ -242,7 +242,7 @@ describe('compose project, argv and output parsing', () => {
     expect(versionAtLeast([5, 1, 2], [2, 17, 0])).toBe(true);
     expect(versionAtLeast([2, 16, 9], [2, 17, 0])).toBe(false);
     expect(versionAtLeast([2, 17, 0], [2, 17, 0])).toBe(true);
-    expect(findDocker({ DEMO_STUDIO_DOCKER: '/opt/x/docker', PATH: '/bin' }, () => false)).toBe('/opt/x/docker');
+    expect(findDocker({ RETAKE_DOCKER: '/opt/x/docker', PATH: '/bin' }, () => false)).toBe('/opt/x/docker');
     expect(findDocker({ PATH: '/nowhere' }, (p) => p === '/home/u/.orbstack/bin/docker', '/home/u')).toBe('/home/u/.orbstack/bin/docker');
     expect(findDocker({ PATH: '/nowhere' }, () => false, '/home/u')).toBeNull();
     const env = dockerEnv({ PATH: '/bin', COMPOSE_PROFILES: 'extra', COMPOSE_FILE: 'x.yaml', compose_project_name: 'y', DOCKER_HOST: 'unix:///x' });
@@ -350,11 +350,11 @@ describe('the compose provider on a fake docker', () => {
   });
 
   it('up and down refuse a compose project of the same name made from another folder (another checkout)', async () => {
-    const project = await composeProjectDir('other-dir', ['compose: {project: demo-studio-test-shared}', 'services:', '  app: {url: "http://localhost:47392", pages: {app: "http://localhost:47392"}}']);
+    const project = await composeProjectDir('other-dir', ['compose: {project: retake-test-shared}', 'services:', '  app: {url: "http://localhost:47392", pages: {app: "http://localhost:47392"}}']);
     const ps = psLine({ service: 'app', wd: '/somewhere/else/sandbox' });
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47392], db: [] }))], [/ ps --all --format json$/, ok(ps)]]);
     const provider = new ComposeProvider({ exec });
-    await expect(provider.up(ctxOf(project))).rejects.toThrow(/compose project demo-studio-test-shared belongs to another folder \(\/somewhere\/else\/sandbox\): give this sandbox its own name \(compose\.project in/);
+    await expect(provider.up(ctxOf(project))).rejects.toThrow(/compose project retake-test-shared belongs to another folder \(\/somewhere\/else\/sandbox\): give this sandbox its own name \(compose\.project in/);
     await expect(provider.down(ctxOf(project))).rejects.toThrow(/belongs to another folder/);
     expect(calls.some((c) => c.includes('up') || c.includes('down'))).toBe(false);
   });
@@ -379,14 +379,14 @@ describe('the compose provider on a fake docker', () => {
   });
 
   it('a renamed compose.project: up refuses while the old name runs, status names what it left, down takes it down from its folder and forgets it once its volumes are gone (K9)', async () => {
-    const project = await composeProjectDir('renamed', ['compose: {project: demo-studio-test-new}', 'services:', '  app: {url: "http://localhost:47408", pages: {app: "http://localhost:47408"}}']);
+    const project = await composeProjectDir('renamed', ['compose: {project: retake-test-new}', 'services:', '  app: {url: "http://localhost:47408", pages: {app: "http://localhost:47408"}}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
     let oldPs = psLine({ service: 'app', ports: [47408], wd: ref.dir });
-    let oldVolumes = 'demo-studio-test-old_data\n';
+    let oldVolumes = 'retake-test-old_data\n';
     const { exec, calls } = fakeDocker([
-      [/ -p demo-studio-test-old .* ps --all --format json$/, () => ok(oldPs)],
-      [/^volume ls --filter label=com\.docker\.compose\.project=demo-studio-test-old /, () => ok(oldVolumes)],
-      [/ -p demo-studio-test-old .* down /, () => ((oldPs = ''), ok())],
+      [/ -p retake-test-old .* ps --all --format json$/, () => ok(oldPs)],
+      [/^volume ls --filter label=com\.docker\.compose\.project=retake-test-old /, () => ok(oldVolumes)],
+      [/ -p retake-test-old .* down /, () => ((oldPs = ''), ok())],
       ...READY,
       [/ config --format json$/, ok(configJson({ app: [47408], db: [] }))],
       [/ ps --all --format json$/, ok('')],
@@ -394,19 +394,19 @@ describe('the compose provider on a fake docker', () => {
     ]);
     const provider = new ComposeProvider({ exec, listeners: async () => [] });
     const ctx = ctxOf(project);
-    ctx.state.provider_state = { compose: { project: 'demo-studio-test-old', dir: ref.dir } };
+    ctx.state.provider_state = { compose: { project: 'retake-test-old', dir: ref.dir } };
     await expect(provider.up(ctx)).rejects.toMatchObject({
-      message: expect.stringMatching(/compose project demo-studio-test-old — the name an earlier up of this sandbox used \(compose\.project changed since\) — is still running: studio sandbox down renamed takes it down/),
+      message: expect.stringMatching(/compose project retake-test-old — the name an earlier up of this sandbox used \(compose\.project changed since\) — is still running: retake sandbox down renamed takes it down/),
     });
     expect(calls.some((c) => c.includes('up'))).toBe(false);
     const st = await provider.status(ctx);
     expect(st.map((x) => x.name)).toEqual(['app', 'db']);
-    expect(ctx.logs).toContain('compose project demo-studio-test-old — the name an earlier up of this sandbox used (compose.project changed since) — still has 1 container (running) and its volumes (demo-studio-test-old_data): studio sandbox down renamed --volumes removes them');
+    expect(ctx.logs).toContain('compose project retake-test-old — the name an earlier up of this sandbox used (compose.project changed since) — still has 1 container (running) and its volumes (retake-test-old_data): retake sandbox down renamed --volumes removes them');
     // down: the old name too (from its folder); its volume stays, so does its name.
     await provider.down(ctx);
-    expect(calls.some((c) => c.join(' ') === `compose --ansi never -p demo-studio-test-old --project-directory ${ref.dir} down --remove-orphans`)).toBe(true);
-    expect(ctx.state.provider_state?.compose).toEqual({ project: 'demo-studio-test-new', dir: ref.dir, previous: [{ project: 'demo-studio-test-old', dir: ref.dir }] });
-    expect(ctx.logs.at(-1)).toMatch(/compose project demo-studio-test-old .* still has its volumes \(demo-studio-test-old_data\): studio sandbox down renamed --volumes removes them/);
+    expect(calls.some((c) => c.join(' ') === `compose --ansi never -p retake-test-old --project-directory ${ref.dir} down --remove-orphans`)).toBe(true);
+    expect(ctx.state.provider_state?.compose).toEqual({ project: 'retake-test-new', dir: ref.dir, previous: [{ project: 'retake-test-old', dir: ref.dir }] });
+    expect(ctx.logs.at(-1)).toMatch(/compose project retake-test-old .* still has its volumes \(retake-test-old_data\): retake sandbox down renamed --volumes removes them/);
     // down --volumes: nothing of it left — forgotten.
     oldVolumes = '';
     await provider.down(ctx, { volumes: true });
@@ -414,11 +414,11 @@ describe('the compose provider on a fake docker', () => {
   });
 
   it('every command reads the project first: status, publishedBy, exec, restart and logs refuse a compose project of the same name made from another folder (K2)', async () => {
-    const project = await composeProjectDir('other-dir-all', ['compose: {project: demo-studio-test-shared2}', 'services:', '  app: {url: "http://localhost:47404", pages: {app: "http://localhost:47404"}}']);
+    const project = await composeProjectDir('other-dir-all', ['compose: {project: retake-test-shared2}', 'services:', '  app: {url: "http://localhost:47404", pages: {app: "http://localhost:47404"}}']);
     const ps = psLine({ service: 'db', ports: [47405], wd: '/somewhere/else/sandbox' });
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47404], db: [47405] }))], [/ ps --all --format json$/, ok(ps)], [/ (exec|restart|logs) /, ok('done\n')]]);
     const provider = new ComposeProvider({ exec, listeners: async () => [] });
-    const other = /compose project demo-studio-test-shared2 belongs to another folder \(\/somewhere\/else\/sandbox\)/;
+    const other = /compose project retake-test-shared2 belongs to another folder \(\/somewhere\/else\/sandbox\)/;
     await expect(provider.status(ctxOf(project))).rejects.toThrow(other);
     await expect(provider.publishedBy(ctxOf(project), 47405)).rejects.toThrow(other);
     await expect(provider.servedBy(ctxOf(project), 47405, { what: 'the mailbox', why: 'x' })).rejects.toThrow(other);
@@ -544,9 +544,9 @@ describe('the compose provider on a fake docker', () => {
       ...READY,
       [/ config --format json$/, ok(configJson({ app: [47394], db: [] }))],
       [/ ps --all --format json$/, ok('')],
-      [/ exec -T -e DEMO_STUDIO_EXEC -e PGUSER db sh -c psql -c 'select 1'$/, ok(' ?column?\n        1\n')],
-      [/ exec -T -e DEMO_STUDIO_EXEC -e TOKEN db sh -c echo/, ok('token is from-env-token-7\n')],
-      [/ exec -T -e DEMO_STUDIO_EXEC db false$/, { code: 3, stderr: 'boom\n' }],
+      [/ exec -T -e RETAKE_EXEC -e PGUSER db sh -c psql -c 'select 1'$/, ok(' ?column?\n        1\n')],
+      [/ exec -T -e RETAKE_EXEC -e TOKEN db sh -c echo/, ok('token is from-env-token-7\n')],
+      [/ exec -T -e RETAKE_EXEC db false$/, { code: 3, stderr: 'boom\n' }],
     ]);
     const wrapped: DockerExec = (args, opts) => {
       if (args.includes('exec')) env = opts?.env;
@@ -555,16 +555,16 @@ describe('the compose provider on a fake docker', () => {
     const provider = new ComposeProvider({ exec: wrapped });
     const ctx = ctxOf(project);
     expect(await provider.exec(ctx, { service: 'db', command: "psql -c 'select 1'", env: { PGUSER: 'demo' } })).toContain('?column?');
-    expect(env).toEqual({ PGUSER: 'demo', DEMO_STUDIO_EXEC: expect.stringMatching(/^[0-9a-f]{16}$/) });
+    expect(env).toEqual({ PGUSER: 'demo', RETAKE_EXEC: expect.stringMatching(/^[0-9a-f]{16}$/) });
     expect(calls.some((c) => c.join(' ').includes('PGUSER=demo'))).toBe(false);
     await expect(provider.exec(ctx, { service: 'db', command: ['false'] })).rejects.toThrow(/exited with code 3 — last lines:\n {4}boom/);
     expect(await readFile(join(ctx.paths.logs, 'seed.log'), 'utf8')).toMatch(/exec in db: psql -c 'select 1'\n \?column\?/);
     // A resolved secret is masked in what the step prints (seed.log, the returned output).
-    process.env.DEMO_STUDIO_TEST_EXEC_TOKEN = 'from-env-token-7';
+    process.env.RETAKE_TEST_EXEC_TOKEN = 'from-env-token-7';
     try {
-      expect(await provider.exec(ctx, { service: 'db', command: 'echo "token is $TOKEN"', env: { TOKEN: '{{env:DEMO_STUDIO_TEST_EXEC_TOKEN}}' } })).toBe('token is ***\n');
+      expect(await provider.exec(ctx, { service: 'db', command: 'echo "token is $TOKEN"', env: { TOKEN: '{{env:RETAKE_TEST_EXEC_TOKEN}}' } })).toBe('token is ***\n');
     } finally {
-      delete process.env.DEMO_STUDIO_TEST_EXEC_TOKEN;
+      delete process.env.RETAKE_TEST_EXEC_TOKEN;
     }
     const log = await readFile(join(ctx.paths.logs, 'seed.log'), 'utf8');
     expect(log).toContain('token is ***');
@@ -645,7 +645,7 @@ describe('the compose provider on a fake docker', () => {
     expect(st[1].health).toBe('running, health starting (not healthy yet)');
     expect(st[2].note).toBe('exited (exit code 137)');
     expect(await provider.logs(ctxOf(project), { lines: 5 })).toEqual([
-      { service: 'app', source: expect.stringMatching(/^docker compose -p demo-studio-status-sandbox-[0-9a-f]{8} logs app$/), text: 'GET /' },
+      { service: 'app', source: expect.stringMatching(/^docker compose -p retake-status-sandbox-[0-9a-f]{8} logs app$/), text: 'GET /' },
       { service: 'db', source: expect.stringMatching(/logs db$/), text: 'ready' },
     ]);
     await expect(provider.logs(ctxOf(project), { service: 'nope', lines: 5 })).rejects.toThrow(/unknown service "nope" \(sandbox sandbox: app, db\)/);
@@ -662,7 +662,7 @@ describe('the compose provider on a fake docker', () => {
     const provider = new ComposeProvider({ exec, listeners: async () => [] });
     expect(await provider.hashInputs(ctxOf(project))).toEqual(['image app=sha256:aaa', 'image db=sha256:bbb']);
     expect(await provider.publishedBy(ctxOf(project), 47397)).toBe('db');
-    await expect(provider.publishedBy(ctxOf(project), 5432)).rejects.toThrow(/port 5432 \(the snapshot's database\) is not published by a running service of compose project demo-studio-hash-sandbox-[0-9a-f]{8}/);
+    await expect(provider.publishedBy(ctxOf(project), 5432)).rejects.toThrow(/port 5432 \(the snapshot's database\) is not published by a running service of compose project retake-hash-sandbox-[0-9a-f]{8}/);
     // servedBy (the mailbox, a seed's database): the same rule, its own words.
     await expect(provider.servedBy(ctxOf(project), 8025, { what: 'the mailbox http://localhost:8025', why: 'every reset empties it' })).rejects.toThrow(
       /port 8025 \(the mailbox http:\/\/localhost:8025\) is not published by a running service of compose project .* — every reset empties it$/,
@@ -687,7 +687,7 @@ describe('snapshot helpers', () => {
     expect(quoteIdent('app')).toBe('"app"');
     expect(quoteIdent('we"ird')).toBe('"we""ird"');
     expect(quoteLiteral("it's")).toBe("'it''s'");
-    expect(snapshotComment('abc')).toBe('demo-studio snapshot abc');
+    expect(snapshotComment('abc')).toBe('retake snapshot abc');
     expect(parsePostgresUrl('postgres://demo:pw@localhost:4601/app')).toEqual({ host: 'localhost', port: 4601, database: 'app' });
     expect(parsePostgresUrl('postgresql://u@[::1]/my%20db')).toEqual({ host: '::1', port: 5432, database: 'my db' });
     const project = await composeProjectDir('snap', [
@@ -696,9 +696,9 @@ describe('snapshot helpers', () => {
       'reset: {strategy: snapshot, snapshot: {database: second}}',
       'databases:',
       '  main: {url: "postgres://demo:sandbox-pass-1@localhost:47400/app"}',
-      '  second: {url: "postgres://demo:{{env:DEMO_STUDIO_TEST_SNAP_PW}}@localhost:47401/shop"}',
+      '  second: {url: "postgres://demo:{{env:RETAKE_TEST_SNAP_PW}}@localhost:47401/shop"}',
     ]);
-    process.env.DEMO_STUDIO_TEST_SNAP_PW = 'from-env-pass';
+    process.env.RETAKE_TEST_SNAP_PW = 'from-env-pass';
     try {
       const t = await snapshotTarget(project, project.sandboxes!.sandbox);
       expect(t).toEqual({
@@ -712,7 +712,7 @@ describe('snapshot helpers', () => {
         template: 'shop__ds_snapshot',
       });
     } finally {
-      delete process.env.DEMO_STUDIO_TEST_SNAP_PW;
+      delete process.env.RETAKE_TEST_SNAP_PW;
     }
   });
 
@@ -728,7 +728,7 @@ describe('snapshot helpers', () => {
   });
 });
 
-describe('studio sandbox init', () => {
+describe('retake sandbox init', () => {
   async function bareProject(name: string, yaml: string): Promise<LoadedProject> {
     const dir = join(tmp, name);
     await mkdir(dir, { recursive: true });
@@ -766,7 +766,7 @@ describe('studio sandbox init', () => {
     // 4601 is free now; 4602–4604 are the first sandbox's.
     expect(second.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
     expect(await readFile(project.file, 'utf8')).toBe(`${yaml}sandboxes:\n  sandbox: sandbox/sandbox.yaml\n  demo: sandbox/demo/sandbox.yaml\n`);
-    expect(await readFile(join(second.dir, 'README.md'), 'utf8')).toContain('studio sandbox up init --env demo');
+    expect(await readFile(join(second.dir, 'README.md'), 'utf8')).toContain('retake sandbox up init --env demo');
     const both = await loadProject(project.dir);
     expect(Object.keys(both.sandboxes!)).toEqual(['sandbox', 'demo']);
 
@@ -795,8 +795,8 @@ describe('studio sandbox init', () => {
   });
 
   it('names the schema relatively inside one top-level folder, else with a file:// URL', () => {
-    expect(schemaRef('/Users/me/ws/projects/p/sandbox', '/Users/me/demo-studio/packages/core/schema/sandbox.schema.json')).toBe('../../../../demo-studio/packages/core/schema/sandbox.schema.json');
-    expect(schemaRef('/private/tmp/ws/p/sandbox', '/Users/me/demo-studio/packages/core/schema/sandbox.schema.json')).toBe('file:///Users/me/demo-studio/packages/core/schema/sandbox.schema.json');
+    expect(schemaRef('/Users/me/ws/projects/p/sandbox', '/Users/me/retake/packages/core/schema/sandbox.schema.json')).toBe('../../../../retake/packages/core/schema/sandbox.schema.json');
+    expect(schemaRef('/private/tmp/ws/p/sandbox', '/Users/me/retake/packages/core/schema/sandbox.schema.json')).toBe('file:///Users/me/retake/packages/core/schema/sandbox.schema.json');
   });
 
   it('core addSandboxEntry: appended, after the last entry of a block mapping, inside a one-line flow mapping — nothing else of the text changes (K8); refused when taken', () => {

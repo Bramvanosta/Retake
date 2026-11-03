@@ -6,8 +6,8 @@
  * ("Apply it to the new version": a form's step by its fingerprint, a new step after the same step by its guard).
  */
 import { describe, expect, it } from 'vitest';
-import { scenarioBlocks, stepForms } from '@demo-studio/core';
-import type { SceneBlock } from '@demo-studio/core';
+import { scenarioBlocks, stepForms } from '@retake/core';
+import type { SceneBlock } from '@retake/core';
 import { anchorOf, editAgain, fieldsOf, formChanges, issueField, readInput, readInputs } from '../src/app/forms.js';
 import type { View } from '../src/app/scenario-words.js';
 

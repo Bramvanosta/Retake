@@ -1,8 +1,8 @@
 import { readFile, stat } from 'node:fs/promises';
 import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
-import { isPoint, projectFileProblem } from '@demo-studio/core';
-import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@demo-studio/core';
+import { isPoint, projectFileProblem } from '@retake/core';
+import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';
 import { resolveTarget } from '../resolve.js';
@@ -104,7 +104,7 @@ function entryPoint(side: NonNullable<DropFileArgs['from']>, zone: PointSpec, w:
 
 async function elementHandle(ctx: StepContext, ref: string): Promise<ElementHandle<Element>> {
   const h = await ctx.rt.page.evaluateHandle((r) => {
-    const k = (window as unknown as { __demoStudio?: { el(r: string): Element | null } }).__demoStudio;
+    const k = (window as unknown as { __retake?: { el(r: string): Element | null } }).__retake;
     return k ? k.el(r) : null;
   }, ref);
   const el = h.asElement();

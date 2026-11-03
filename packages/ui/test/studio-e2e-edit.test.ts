@@ -10,7 +10,7 @@
  * version" applies the edit, a step that moved meanwhile is refused as stale; an outside write clears the undo history;
  * editing off while a YAML draft is open and for a file the Studio does not write (no request sent); hardened drop
  * handlers (a foreign drag carrying the step type, a file from the Finder: nothing sent, no navigation).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots.
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page, Request, Route } from 'playwright-core';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml } from '@demo-studio/core';
+import { parseYaml } from '@retake/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -29,7 +29,7 @@ import type { Rgb } from '../../engine/test/synthetic-runs.js';
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const CAPTURE = '20261020-100000-blocks';
 const EMPTY = 'video: empty\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      # the only step\n      - click: Alone\n  - id: b\n    steps: []  # nothing yet\n';
 const KEYS = 'video: keys\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - click: A1\n      - click: A2\n  - card: {slots: {title: Between}, duration: 1}\n  - id: b\n    steps:\n      - click: B1\n      - hold: 0.5\n';
@@ -38,7 +38,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const requests: Array<{ op: string; at: number; body: Record<string, unknown> }> = [];
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 const value = (text: string) => parseYaml(text).value as { scenes: Array<{ id?: string; steps?: unknown[] }> };
@@ -138,7 +138,7 @@ async function dragRow(from: string, to: string, side: 'left' | 'right'): Promis
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   const dir = join(ws, 'projects', P);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -148,7 +148,7 @@ beforeAll(async () => {
   await writeFile(file('crlf'), KEYS.replace(/\n/g, '\r\n').replace(/\r\n$/, ''));
   await writeFile(file('owned'), KEYS.replace('      - click: B1', '      - type: {into: {label: Name}, text: "{{env:SHOP_TOKEN}}"}'));
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   page = await context.newPage();
@@ -186,8 +186,8 @@ afterEach(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -268,7 +268,7 @@ describe('drag & drop', () => {
           w.__dt ??= {};
           if (!w.__dt[kind]) {
             const dt = new DataTransfer();
-            if (kind === 'foreign') dt.setData('application/x-demo-studio-step', 'a.0');
+            if (kind === 'foreign') dt.setData('application/x-retake-step', 'a.0');
             else dt.items.add(new File(['x'], 'evil.yaml', { type: 'text/yaml' }));
             w.__dt[kind] = dt;
           }

@@ -8,7 +8,7 @@
  * refused "from the Studio"; an outside write with no draft loads, with a draft shows the banner, then the save's 409
  * opens the conflict panel and "Save mine over it" wins; a CR LF file without a final line break keeps CR LF; while a
  * YAML draft is open the Blocks tab says block editing is off (critique B7); a file holding a secret reference opens
- * read-only with why and its line, no Edit button (critique B3). `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots.
+ * read-only with why and its line, no Edit button (critique B3). `RETAKE_UI_SHOTS=<folder>` saves screenshots.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml } from '@demo-studio/core';
+import { parseYaml } from '@retake/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -25,14 +25,14 @@ import { fixtureWorkspace } from '../../engine/test/helpers.js';
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: shop\n    open: /\n    caption: {kicker: One, text: First scene}\n    steps:\n      # a pause\n      - hold: 0.2\n';
 
 let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 const textarea = () => page.locator('#yaml-text');
 const state = () => page.getByTestId('yaml-state').innerText();
@@ -71,13 +71,13 @@ async function retype(text: string): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-yaml-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(file('short'), SHORT);
   await writeFile(file('crlf'), SHORT.replace(/\n/g, '\r\n').replace(/\r\n$/, ''));
   await writeFile(file('owned'), SHORT.replace('      - hold: 0.2', '      - type: {into: {label: Name}, text: "{{env:SHOP_TOKEN}}"}'));
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   page = await context.newPage();
@@ -89,8 +89,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

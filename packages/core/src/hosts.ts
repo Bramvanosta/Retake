@@ -1,7 +1,7 @@
 /**
  * The host allow-list (pure helpers): hooks, the mailbox of `wait_for_email` and other outbound requests of a run may
  * only contact localhost, the hosts of the project's environments and `project.allow_hosts` entries. Shared by core
- * validation (project.yaml `mailbox`) and @demo-studio/hooks (which re-exports them and adds the refusals).
+ * validation (project.yaml `mailbox`) and @retake/hooks (which re-exports them and adds the refusals).
  */
 import { environmentHosts } from './env.js';
 import type { LoadedProject } from './types.js';
@@ -134,7 +134,7 @@ export function hostRefusalMessage(host: string, project: Pick<LoadedProject, 'c
 
 /**
  * A host outside the allow-list was refused by the runner's guarded js hook tab (runner-web hook-page.ts).
- * @demo-studio/hooks turns it into a `HookSecurityError` (status `refused`). `detail` is appended to the message.
+ * @retake/hooks turns it into a `HookSecurityError` (status `refused`). `detail` is appended to the message.
  */
 export class HostRefusedError extends Error {
   readonly hosts: string[];

@@ -45,7 +45,7 @@
  *   (the source lint pins them here), the state, the keys and the seek loop.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 import type { TimelineViewAnswer } from '../server/ops.js';
 import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';

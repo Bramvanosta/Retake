@@ -1,6 +1,6 @@
 /**
- * L4.9 part D, the R-ACC4-01 acceptance (SPEC §14.4), gated by BOTH `DEMO_STUDIO_TEST_SLOW=1` and the installed-Chrome
- * opt-in `DEMO_STUDIO_TEST_CHROME=1` (skipped when Google Chrome is not installed or ffmpeg is missing): the Studio end
+ * L4.9 part D, the R-ACC4-01 acceptance (SPEC §14.4), gated by BOTH `RETAKE_TEST_SLOW=1` and the installed-Chrome
+ * opt-in `RETAKE_TEST_CHROME=1` (skipped when Google Chrome is not installed or ffmpeg is missing): the Studio end
  * to end through its screens on the fixture product, in the installed Google Chrome (Playwright `channel: 'chrome'`, a
  * temporary profile Playwright creates and deletes — never the person's own; captures are H.264, which Playwright's
  * Chromium cannot play), on a copy of projects/northfield-fixture whose environments point at the fixture started on
@@ -21,7 +21,7 @@
  *    the thread → Apply → the file holds exactly the proposed bytes → Resolve.
  * The checker (a11y.ts, every rule but the Tab walk — the tours walk) runs on each of the 11 stages at 1280, and at 1440
  * on six (projects, blocks-edited, timeline, rendered, comment-composer, proposal): 17 audits.
- * Timings logged; no CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves a screenshot of every
+ * Timings logged; no CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves a screenshot of every
  * stage, the preview before / after the switch and a frame of the render cut on the switched segment.
  */
 import { createHash } from 'node:crypto';
@@ -33,10 +33,10 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CommentThread } from '@demo-studio/core';
-import { createEngine, liveWorker } from '@demo-studio/engine';
-import type { Engine } from '@demo-studio/engine';
-import type { RenderRecord } from '@demo-studio/editor';
+import type { CommentThread } from '@retake/core';
+import { createEngine, liveWorker } from '@retake/engine';
+import type { Engine } from '@retake/engine';
+import type { RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
@@ -44,12 +44,12 @@ import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { auditPage, formatFindings, settle } from './a11y.js';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
-const gated = process.env.DEMO_STUDIO_TEST_SLOW === '1' && process.env.DEMO_STUDIO_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const gated = process.env.RETAKE_TEST_SLOW === '1' && process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
 const S = 'highlights';
 const FIXTURE_PROJECT = join(REPO, 'projects', P);
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames', 'comments']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
 const POLL = { timeout: 60_000 };
 const LONG = { timeout: 600_000, interval: 250 };
 /** The render + review wait: its bound, and how long the job may show the same phase before the wait gives up. */
@@ -72,7 +72,7 @@ let studio: StudioServer;
 let mcp: Engine;
 let browser: Browser;
 let page: Page;
-const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR, disk: process.env.DEMO_STUDIO_DISK_WARN };
+const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR, disk: process.env.RETAKE_DISK_WARN };
 const consoleErrors: string[] = [];
 const timings: string[] = [];
 const audits: string[] = [];
@@ -127,10 +127,10 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-ui-acceptance-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  process.env.DEMO_STUDIO_AUTHOR = AUTHOR;
-  process.env.DEMO_STUDIO_DISK_WARN = 'off';
-  await writeFile(join(root, 'studio.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  process.env.RETAKE_AUTHOR = AUTHOR;
+  process.env.RETAKE_DISK_WARN = 'off';
+  await writeFile(join(root, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   dir = join(root, 'projects', P);
   await cp(FIXTURE_PROJECT, dir, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
   const strip = (u: string) => u.replace(/\/$/, '');
@@ -176,7 +176,7 @@ afterAll(async () => {
     }
   }
   await fixture?.close();
-  for (const [k, val] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author], ['DEMO_STUDIO_DISK_WARN', saved.disk]] as const) {
+  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author], ['RETAKE_DISK_WARN', saved.disk]] as const) {
     if (val === undefined) delete process.env[k];
     else process.env[k] = val;
   }

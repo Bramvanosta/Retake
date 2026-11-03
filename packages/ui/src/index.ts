@@ -1,5 +1,5 @@
 /**
- * @demo-studio/ui — the Studio web app and its server (L4.1, R-UI-01): `studio ui` serves a React app, bundled in memory
+ * @retake/ui — the Studio web app and its server (L4.1, R-UI-01): `retake ui` serves a React app, bundled in memory
  * by esbuild, and the engine's `/v1` HTTP API of one workspace on 127.0.0.1 behind the engine's gate; the app calls an
  * allow-list of the MCP server's tools through the same SDK-free tool layer (`callTool`). The MCP server never depends
  * on this package: it keeps working without it.

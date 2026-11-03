@@ -192,7 +192,7 @@ const projectShape = {
       selects: z.boolean().describe('Also write one continuous selects file of the clips (default false).').optional(),
       cuts: z.boolean().describe('Cut the loading inside scenes (default true).').optional(),
     })
-    .describe('Defaults of the raw capture export for editors (studio export-capture, studio run --raw).')
+    .describe('Defaults of the raw capture export for editors (retake export-capture, retake run --raw).')
     .optional(),
   sandboxes: z
     .record(z.string(), nonEmpty())
@@ -205,7 +205,7 @@ const projectShape = {
 /** project.yaml as written (defaults not applied). */
 export const ProjectFileSchema = z
   .strictObject(projectShape)
-  .meta({ id: 'Project', title: 'Demo Studio project', description: 'projects/<slug>/project.yaml' });
+  .meta({ id: 'Project', title: 'Retake project', description: 'projects/<slug>/project.yaml' });
 
 /** ProjectConfig after defaults (what loadProject returns). */
 export const ProjectConfigSchema = z.strictObject({
@@ -218,7 +218,7 @@ export const ProjectConfigSchema = z.strictObject({
   template: nonEmpty(),
 });
 
-/** studio.yaml at the workspace root. */
+/** retake.yaml at the workspace root. */
 export const WorkspaceFileSchema = z
   .strictObject({
     version: fileVersion(),
@@ -230,4 +230,4 @@ export const WorkspaceFileSchema = z
     browser: BrowserConfigSchema.optional(),
     ffmpeg: nonEmpty().describe('ffmpeg binary (default: "ffmpeg" on PATH).').optional(),
   })
-  .meta({ id: 'Workspace', title: 'Demo Studio workspace', description: 'studio.yaml' });
+  .meta({ id: 'Workspace', title: 'Retake workspace', description: 'retake.yaml' });

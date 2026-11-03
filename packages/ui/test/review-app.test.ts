@@ -15,7 +15,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RENDER_ID_RE } from '@demo-studio/core';
+import { RENDER_ID_RE } from '@retake/core';
 import { FINDING_CODES } from '../../review/src/types.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { CHECK_FAMILIES, NOTHING_ELSE, agoWords, clockWords, countWords, exportReadsOn, familyOf, groupFindings, rawExportCommand, reportHint, sharedWhen, severityMark, stepKeyOf, whereWords } from '../src/app/review-words.js';
@@ -68,7 +68,7 @@ describe('the Review report (L5.12a)', () => {
   });
 
   it('⚑ export commands only from ids that pass their rules', () => {
-    expect(rawExportCommand('northfield-fixture', '20261028-083853-quote')).toBe('studio export-capture northfield-fixture 20261028-083853-quote');
+    expect(rawExportCommand('northfield-fixture', '20261028-083853-quote')).toBe('retake export-capture northfield-fixture 20261028-083853-quote');
     for (const [slug, run] of [
       ['demo', 'a b'],
       ['demo', 'x;rm -rf ~'],

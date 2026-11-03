@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/review",
+  "name": "@retake/review",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,9 +11,9 @@
   },
   "files": ["dist", "src"],
   "dependencies": {
-    "@demo-studio/components": "workspace:*",
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/editor": "workspace:*",
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/editor": "workspace:*",
     "sharp": "^0.34.4"
   }
 }

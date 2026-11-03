@@ -1,5 +1,5 @@
-import { sqlSource } from '@demo-studio/core';
-import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@demo-studio/core';
+import { sqlSource } from '@retake/core';
+import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core';
 import { HookError } from './errors.js';
 import { oneLine } from './util.js';
 

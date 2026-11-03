@@ -12,8 +12,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
-import { RecordedEventSchema, resolveEnvironment } from '@demo-studio/core';
-import type { RecordedEvent } from '@demo-studio/core';
+import { RecordedEventSchema, resolveEnvironment } from '@retake/core';
+import type { RecordedEvent } from '@retake/core';
 import { kitConfigFor, kitSource, recordSession } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
 import { makeProject, tempDir } from './helpers.js';
@@ -31,7 +31,7 @@ let home: string;
 
 beforeAll(async () => {
   home = await tempDir('ds-record-alt-home-');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
     startFixture(o: { consolePort: number; shopPort: number; host: string; auth: { consolePort: number; shopPort: number } }): Promise<Fixture>;
   };
@@ -111,7 +111,7 @@ describe('recordSession: alternative targets (L4.8)', () => {
       await page.evaluate(kitSource({ ...kitConfigFor(undefined, { hidden: true }), passive: true }));
       const pairs = seen.flatMap((e) => ('el' in e && e.el?.target && e.el.alternatives?.length ? [{ seq: e.seq, main: e.el.target, alts: e.el.alternatives.map((a) => a.target) }] : []));
       checks = await page.evaluate((list) => {
-        const kit = (window as unknown as { __demoStudio: { find(t: object, o: object): { count: number; ref?: string }; el(ref: string): Element | null } }).__demoStudio;
+        const kit = (window as unknown as { __retake: { find(t: object, o: object): { count: number; ref?: string }; el(ref: string): Element | null } }).__retake;
         const one = (t: object) => {
           const f = kit.find(t, {});
           return f.count === 1 && f.ref !== undefined ? kit.el(f.ref) : null;

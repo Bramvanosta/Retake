@@ -1,7 +1,7 @@
 /**
  * Component registry: every component a workspace can use, by id.
  *
- * Resolution order (SPEC §11): the workspace `components/` folder (studio.yaml `components_dir`) → the built-in
+ * Resolution order (SPEC §11): the workspace `components/` folder (retake.yaml `components_dir`) → the built-in
  * library (packages/components/library) → (V2) the marketplace cache. A workspace component with the id of a built-in
  * one overrides it (with a warning).
  */
@@ -17,8 +17,8 @@ import {
   normalizeComponentRef,
   resolveThemeComponents,
   suggestion,
-} from '@demo-studio/core';
-import type { ComponentKind, ComponentRef, Template } from '@demo-studio/core';
+} from '@retake/core';
+import type { ComponentKind, ComponentRef, Template } from '@retake/core';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { applyParamDefaults, validateParamValue } from './json-schema.js';
 import type { JsonSchemaNode } from './json-schema.js';
@@ -32,7 +32,7 @@ export function usableAs(m: Pick<ComponentManifest, 'kind' | 'kinds'>, kind: Com
 }
 
 export interface LoadComponentRegistryOptions {
-  /** Workspace root (studio.yaml `components_dir`, default `<root>/components`). */
+  /** Workspace root (retake.yaml `components_dir`, default `<root>/components`). */
   root: string;
   /** Override the workspace components directory. */
   componentsDir?: string;
@@ -110,7 +110,7 @@ export async function loadComponentDir(dir: string, source: ComponentSource, fol
     return {
       broken: {
         severity: 'error',
-        message: `invalid component ${folderId}: ${errors.length} error${errors.length === 1 ? '' : 's'} in ${MANIFEST_FILE} (studio components validate ${folderId})`,
+        message: `invalid component ${folderId}: ${errors.length} error${errors.length === 1 ? '' : 's'} in ${MANIFEST_FILE} (retake components validate ${folderId})`,
         source,
         dir,
         id: folderId,
@@ -129,11 +129,11 @@ export async function loadComponentDir(dir: string, source: ComponentSource, fol
   // render as `missing` when nothing else resolves.
   const kit = kitMajorOf(manifest);
   if (kit !== KIT_API_VERSION) {
-    const issue: ComponentIssue = { severity: 'error', path: ['engines', 'kit'], message: `needs kit API ${kit}: this Demo Studio provides kit API ${KIT_API_VERSION}`, file: MANIFEST_FILE };
+    const issue: ComponentIssue = { severity: 'error', path: ['engines', 'kit'], message: `needs kit API ${kit}: this Retake provides kit API ${KIT_API_VERSION}`, file: MANIFEST_FILE };
     return {
       broken: {
         severity: 'error',
-        message: `component ${folderId} needs kit API ${kit} (engines.kit "${manifest.engines?.kit}"): this Demo Studio provides kit API ${KIT_API_VERSION} — use a version of the component written for it`,
+        message: `component ${folderId} needs kit API ${kit} (engines.kit "${manifest.engines?.kit}"): this Retake provides kit API ${KIT_API_VERSION} — use a version of the component written for it`,
         source,
         dir,
         id: folderId,

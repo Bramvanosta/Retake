@@ -9,7 +9,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cp, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { Timeline } from '@demo-studio/core';
+import type { Timeline } from '@retake/core';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { REPO } from '../../editor/test/render-helpers.js';
 
@@ -82,7 +82,7 @@ export interface Take {
 export async function takeWorkspace(ws: string, project = 'demo'): Promise<string> {
   await mkdir(join(ws, 'templates'), { recursive: true });
   await cp(join(REPO, 'templates', 'editorial'), join(ws, 'templates', 'editorial'), { recursive: true });
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   const dir = join(ws, 'projects', project);
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await mkdir(join(dir, 'assets'), { recursive: true });

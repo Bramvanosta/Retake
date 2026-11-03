@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import type { BBox, CursorSample, PointSpec, Scenario, Timeline, TimelineEvent } from '@demo-studio/core';
+import type { BBox, CursorSample, PointSpec, Scenario, Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { KEEP_NEAR_PX, cursorCovers, firstPointerStep } from '../src/scene-cursor.js';
 import type { SceneCursorRecord } from '../src/scene-cursor.js';
-import { normalizeStep } from '@demo-studio/core';
+import { normalizeStep } from '@retake/core';
 import { CURSOR_DIALOG_PAGE, CURSOR_PAGE, CURSOR_TALL_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';

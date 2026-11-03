@@ -21,8 +21,8 @@
  * after the hours (review B N4).
  */
 import { describe, expect, it } from 'vitest';
-import { PROPOSAL_REWRITE_NOTE_PCT, firstHiddenChar, regionProblem } from '@demo-studio/core';
-import type { FrameCommentAnchor } from '@demo-studio/core';
+import { PROPOSAL_REWRITE_NOTE_PCT, firstHiddenChar, regionProblem } from '@retake/core';
+import type { FrameCommentAnchor } from '@retake/core';
 import {
   BACKOFF_MAX_MS,
   CHANNEL_NOTE,

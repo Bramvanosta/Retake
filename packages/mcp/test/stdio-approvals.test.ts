@@ -1,5 +1,5 @@
 /**
- * Human approval of hooks through MCP elicitation (L3.1, R-MCP-33/34/35): `studio mcp` spawned from the sources over
+ * Human approval of hooks through MCP elicitation (L3.1, R-MCP-33/34/35): `retake mcp` spawned from the sources over
  * stdio, driven by SDK clients that answer elicitation (accept, decline, never) or do not declare it. hooks_run and
  * env_reset are jobs the workspace's worker (a separate process) runs, with the approvals taken at submit; the fixture
  * product runs on free ports (no browser is needed).
@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { readWorkerLock } from '@demo-studio/engine';
+import { readWorkerLock } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
@@ -40,14 +40,14 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: Array<
     env: {
       PATH: process.env.PATH ?? '',
       HOME: process.env.HOME ?? '',
-      DEMO_STUDIO_HOME: home,
-      DEMO_STUDIO_WORKER_IDLE_MS: '1500',
+      RETAKE_HOME: home,
+      RETAKE_WORKER_IDLE_MS: '1500',
       // A human who never answers: refused after 1.5 s here (10 min by default).
-      DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS: '1500',
+      RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500',
     },
     stderr: 'pipe',
   });
-  const client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
+  const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
   const asked: Array<{ message: string; requestedSchema: unknown }> = [];
   if (answer) {
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
@@ -72,7 +72,7 @@ function errorOf(r: Result): { code: string; message: string; fix?: string } {
   return (r.structuredContent as { error: { code: string; message: string; fix?: string } }).error;
 }
 
-describe('studio mcp: hooks need a human, asked through elicitation', () => {
+describe('retake mcp: hooks need a human, asked through elicitation', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
@@ -123,7 +123,7 @@ describe('studio mcp: hooks need a human, asked through elicitation', () => {
     expect(msg).toContain('the agent asks to run hooks catalogue:setup in project northfield-fixture, environment local, read-write');
     expect(msg).toContain(`1. setup hook 2 "free-registry-ref": free-registry-ref: http DELETE ${fixture.urls.console}/api/products/finca-quenaro/refs; rollback: http POST ${fixture.urls.console}/api/products/finca-quenaro/refs — HTTP DELETE`);
     expect(msg).toContain('"confirm: true" in a file written through MCP does not count');
-    expect(msg).toContain(`studio -C ${ws} hooks run northfield-fixture catalogue:setup`);
+    expect(msg).toContain(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     expect(asked[0].requestedSchema).toMatchObject({ type: 'object', properties: { approve: { type: 'boolean' } }, required: ['approve'] });
     const job = r.structuredContent as { state: string; input: { approvals: Array<{ by: string }> }; result: { ok: boolean; results: Array<{ name: string; status: string }>; journal: { pending: number } } };
     expect(job.state).toBe('succeeded');
@@ -144,7 +144,7 @@ describe('studio mcp: hooks need a human, asked through elicitation', () => {
       expect(asked).toHaveLength(1);
       expect(e.code).toBe('refused');
       expect(e.message).toContain(answer === 'decline' ? 'the user declined' : 'the user did not answer in time');
-      expect(e.fix).toBe(`studio -C ${ws} hooks run northfield-fixture catalogue:setup`);
+      expect(e.fix).toBe(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
       expect(((await call(client, 'job_list', {})).structuredContent as { jobs: unknown[] }).jobs.length).toBe(before);
     }
   });
@@ -154,10 +154,10 @@ describe('studio mcp: hooks need a human, asked through elicitation', () => {
     const h = errorOf(await call(client, 'hooks_run', { project: 'northfield-fixture', source: 'hooks/post.yaml', dry: false }));
     expect(h.code).toBe('needs_approval');
     expect(h.message).toContain('setup hook 1 "post" (a shell command (runs local code))');
-    expect(h.fix).toBe(`studio -C ${ws} hooks run northfield-fixture hooks/post.yaml`);
+    expect(h.fix).toBe(`retake -C ${ws} hooks run northfield-fixture hooks/post.yaml`);
     const c = errorOf(await call(client, 'run_capture', { project: 'northfield-fixture', scenario: 'catalogue' }));
     expect(c.code).toBe('needs_approval');
-    expect(c.fix).toBe(`studio -C ${ws} run northfield-fixture catalogue`);
+    expect(c.fix).toBe(`retake -C ${ws} run northfield-fixture catalogue`);
   });
 
   it('a shell hook declared `writes: false` on production: refused before the user is asked', async () => {

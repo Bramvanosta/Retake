@@ -7,12 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate, parseScenario, stepFingerprint } from '@demo-studio/core';
-import type { Scene, Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { brandmarkRect, planEdit } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
+import { loadProject, loadTemplate, parseScenario, stepFingerprint } from '@retake/core';
+import type { Scene, Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { brandmarkRect, planEdit } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
 import { REPO, synthTimeline } from './helpers.js';
 

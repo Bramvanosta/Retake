@@ -10,9 +10,9 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadScenario } from '@demo-studio/core';
-import type { HookStep, HooksJobInput, EnvResetJobInput } from '@demo-studio/core';
-import { hookFingerprint } from '@demo-studio/hooks';
+import { loadScenario } from '@retake/core';
+import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
+import { hookFingerprint } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
@@ -27,7 +27,7 @@ let fixture: Fixture;
 let ws: string;
 let engine: Engine;
 let project: string;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 /** An approver that answers `outcome` and records what it was asked. */
 function approver(outcome: ApprovalOutcome | (() => Promise<ApprovalOutcome>)): Approver & { asked: ApprovalRequest[] } {
@@ -54,7 +54,7 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 async function execHooks(input: HooksJobInput, signal = new AbortController().signal) {
   const events: JobEventBody[] = [];
-  const result = await executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: `studio -C ${ws}`, input, signal, event: (e) => events.push(e) });
+  const result = await executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
   return { result, events };
 }
 
@@ -64,7 +64,7 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-approvals-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   project = join(ws, 'projects', 'northfield-fixture');
   const yaml = (await readFile(join(project, 'project.yaml'), 'utf8'))
@@ -77,8 +77,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
 });
@@ -89,7 +89,7 @@ describe('approvals at submit', () => {
     const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'catalogue', mode: 'capture' }, { approver: a });
     expect(a.asked).toHaveLength(1);
     const req = a.asked[0];
-    expect(req).toMatchObject({ what: 'the capture of scenario catalogue', project: 'northfield-fixture', env: { name: 'local', production: false, access: 'read-write' }, fix: `studio -C ${ws} run northfield-fixture catalogue` });
+    expect(req).toMatchObject({ what: 'the capture of scenario catalogue', project: 'northfield-fixture', env: { name: 'local', production: false, access: 'read-write' }, fix: `retake -C ${ws} run northfield-fixture catalogue` });
     // `confirm: true` in the file does not count: the DELETE is listed, with its real target.
     expect(req.items).toEqual([
       // Its rollback is shown too: approving the hook approves it (it runs later without asking).
@@ -105,7 +105,7 @@ describe('approvals at submit', () => {
     ]);
     const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'catalogue')).scenario;
     const fp = hookFingerprint(sc.setup![1], { phase: 'setup', index: 1, env: 'local' });
-    // Signed at enqueue with the studio home's key (the worker ignores an approval without a valid signature).
+    // Signed at enqueue with the Retake home's key (the worker ignores an approval without a valid signature).
     expect(sub.job.input.approvals).toEqual([{ fingerprint: fp, by: 'human-elicitation', at: expect.any(String), sig: expect.stringMatching(/^[0-9a-f]{64}$/) }]);
     await engine.runs.cancel('northfield-fixture', sub.run_id);
   });
@@ -137,12 +137,12 @@ describe('approvals at submit', () => {
       expect(e.code, why).toBe('refused');
       expect(e.message).toContain(why);
       expect(e.message).toContain('Do not retry on your own');
-      expect(e.fix).toBe(`studio -C ${ws} hooks run northfield-fixture catalogue:setup`);
+      expect(e.fix).toBe(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     }
     const none = await refusal(engine.env.reset({ project: 'northfield-fixture', dry: false }).then(() => engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup', dry: false })));
     expect(none.code).toBe('needs_approval');
     expect(none.message).toContain('cannot ask its user (no elicitation support)');
-    expect(none.fix).toBe(`studio -C ${ws} hooks run northfield-fixture catalogue:setup`);
+    expect(none.fix).toBe(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     // The reset (no hook needing a human) was queued without asking; nothing else.
     expect((await engine.jobs.list()).length).toBe(before + 1);
   });
@@ -191,7 +191,7 @@ describe('hooks executed by the worker (trust mcp)', () => {
     expect(result.journal).toEqual({ id: sub.journal_id, pending: 1 });
 
     const reset = await engine.env.reset({ project: 'northfield-fixture', dry: false }, { approver: accept() });
-    const r = await executeEnvResetJob({ ws: await openWorkspace({ root: ws }), cli: 'studio', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
+    const r = await executeEnvResetJob({ ws: await openWorkspace({ root: ws }), cli: 'retake', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
     expect(r.ok).toBe(true);
     expect(r.rollbacks.find((j) => j.journal === sub.journal_id)?.results.map((x) => x.status)).toEqual(['ok']);
     expect(r.reset?.map((x) => [x.name, x.status])).toEqual([['reset-fixture', 'ok']]);
@@ -246,14 +246,14 @@ describe('hooks executed by the worker (trust mcp)', () => {
 });
 
 describe('the CLI keeps its trust rules', () => {
-  it('`studio hooks run` honours `confirm: true` (no prompt, no --yes) and a shell hook\'s `writes: false`', async () => {
+  it('`retake hooks run` honours `confirm: true` (no prompt, no --yes) and a shell hook\'s `writes: false`', async () => {
     const io = memoryIo();
-    expect(await main(['node', 'studio', '--root', ws, 'hooks', 'run', 'northfield-fixture', 'catalogue:setup'], io), io.stdout() + io.stderr()).toBe(EXIT.ok);
+    expect(await main(['node', 'retake', '--root', ws, 'hooks', 'run', 'northfield-fixture', 'catalogue:setup'], io), io.stdout() + io.stderr()).toBe(EXIT.ok);
     expect(io.stdout() + io.stderr()).toContain('catalogue-setup: done');
     const prod = memoryIo();
-    expect(await main(['node', 'studio', '--root', ws, 'hooks', 'run', 'northfield-fixture', 'hooks/echo.yaml', '--env', 'production'], prod), prod.stdout() + prod.stderr()).toBe(EXIT.ok);
+    expect(await main(['node', 'retake', '--root', ws, 'hooks', 'run', 'northfield-fixture', 'hooks/echo.yaml', '--env', 'production'], prod), prod.stdout() + prod.stderr()).toBe(EXIT.ok);
     expect(prod.stdout() + prod.stderr()).toContain('echo: done');
     const reset = memoryIo();
-    expect(await main(['node', 'studio', '--root', ws, 'env', 'reset', 'northfield-fixture'], reset)).toBe(EXIT.ok);
+    expect(await main(['node', 'retake', '--root', ws, 'env', 'reset', 'northfield-fixture'], reset)).toBe(EXIT.ok);
   });
 });

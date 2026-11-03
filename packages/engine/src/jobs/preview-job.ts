@@ -4,8 +4,8 @@
  * layout with its caption over a sample screen, card, interstitial and outro), rendered by the jobs worker with the
  * editor's `renderComponentPreviews` — one bundle, one browser, guarded like a render (network-guard.ts).
  *
- * The images go to <workspace>/.demo-studio/previews/<preview_id>/ only (`outDir`): a component folder (its committed
- * preview.png, preview.json, README block) is never written — that stays `studio components preview`. Checked at submit
+ * The images go to <workspace>/.retake/previews/<preview_id>/ only (`outDir`): a component folder (its committed
+ * preview.png, preview.json, README block) is never written — that stays `retake components preview`. Checked at submit
  * and again by the worker: the theme is a name (or the project's own), its files lie in its folder; the component is
  * one of the registry; slot values only for text slots (text, url, color — file and media slots keep their samples);
  * params valid against the component's schema. A preview counts nothing in the history. The editor is imported lazily.
@@ -19,10 +19,10 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, PreviewJobInputSchema } from '@demo-studio/core';
-import type { ComponentKind, LoadedTemplate, PreviewJobInput, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@demo-studio/editor';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema } from '@retake/core';
+import type { ComponentKind, LoadedTemplate, PreviewJobInput, WorkspaceConfig } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
+import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
@@ -66,12 +66,12 @@ export interface PreviewRequest {
   target: PreviewJobInput['target'];
 }
 
-/** <workspace>/.demo-studio/previews/<preview_id>/ */
+/** <workspace>/.retake/previews/<preview_id>/ */
 export function previewDir(ws: WorkspaceConfig, previewId: string): string {
-  return join(ws.root, '.demo-studio', 'previews', previewId);
+  return join(ws.root, '.retake', 'previews', previewId);
 }
 
-/** The `studio components preview` command a human runs for (about) the same component preview. */
+/** The `retake components preview` command a human runs for (about) the same component preview. */
 export function previewCommandLine(cli: string, r: { component: string; template?: string }): string {
   return [cli, 'components', 'preview', r.component, ...(r.template ? ['--theme', r.template] : []), '--out', '<folder>'].join(' ');
 }
@@ -181,7 +181,7 @@ async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'p
   return { template, registry, targets, skipped };
 }
 
-/** Check and queue a `preview` job (images in .demo-studio/previews/<preview_id>/). */
+/** Check and queue a `preview` job (images in .retake/previews/<preview_id>/). */
 export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest): Promise<{ job: JobRecord; preview_id: string; theme: string; targets: string[]; skipped: ComponentKind[] }> {
   const previewId = `p_${newJobId().slice(2)}`;
   const input: PreviewJobInput = {

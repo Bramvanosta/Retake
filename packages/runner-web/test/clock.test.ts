@@ -238,14 +238,14 @@ describe('the kit keeps its own time sources (L1.7 hardening)', () => {
       expect(Date.now() - t).toBeLessThan(1500);
       expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(1500);
       const p0 = Date.now();
-      await page.evaluate(() => (window as unknown as { __demoStudio: { afterPaint(): Promise<void> } }).__demoStudio.afterPaint());
+      await page.evaluate(() => (window as unknown as { __retake: { afterPaint(): Promise<void> } }).__retake.afterPaint());
       expect(Date.now() - p0).toBeLessThan(1000);
       // The kit injected again into a document that already has the clock (KitClient.install) takes the real Date the
       // clock kept: its effects still carry the real time.
       await page.goto(`${A}/`);
       await page.evaluate(() => {
-        (window as unknown as { __demoStudio?: { dispose(): void } }).__demoStudio?.dispose();
-        delete (window as unknown as { __demoStudio?: unknown }).__demoStudio;
+        (window as unknown as { __retake?: { dispose(): void } }).__retake?.dispose();
+        delete (window as unknown as { __retake?: unknown }).__retake;
       });
       effects.length = 0;
       await kit.cursorSet(300, 300, true);

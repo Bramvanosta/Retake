@@ -1,4 +1,4 @@
-import { formatPath } from '@demo-studio/core';
+import { formatPath } from '@retake/core';
 import type { ComponentIssue } from './types.js';
 
 /** A component that cannot be found, resolved, created or validated. The message is written for the user. */

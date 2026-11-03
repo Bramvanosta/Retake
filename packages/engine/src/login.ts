@@ -1,12 +1,12 @@
 /**
- * Signing a persona in (`studio login`, `studio new`, the `auth_login` job), moved from the CLI (L3.1): which persona a
+ * Signing a persona in (`retake login`, `retake new`, the `auth_login` job), moved from the CLI (L3.1): which persona a
  * sign-in is for, and the sign-in itself under an interrupt port — a headed window a human signs in to and closes, or
  * the persona's login steps, headless. Native errors with the CLI's messages (LoginOptionError says which ones are
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.
  */
-import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
-import type { LoadedProject, ResolvedEnvironment, ResolvedPersona } from '@demo-studio/core';
-import type { SignInResult } from '@demo-studio/runner-web';
+import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
+import type { LoadedProject, ResolvedEnvironment, ResolvedPersona } from '@retake/core';
+import type { SignInResult } from '@retake/runner-web';
 import type { InterruptPort } from './interrupts.js';
 
 /** A sign-in that cannot be made as asked (`usage`: the CLI reports it as a usage error, exit 2; else exit 1). */
@@ -41,7 +41,7 @@ function pickPersona(project: LoadedProject, envName: string, personas: Resolved
 }
 
 /**
- * The environment and the persona `studio login [--env] [--persona] [--auto]` signs in (the single-account
+ * The environment and the persona `retake login [--env] [--persona] [--auto]` signs in (the single-account
  * `auth.profile` form included). LoginOptionError when it cannot be signed in as asked.
  */
 export function loginTarget(project: LoadedProject, opts: { env?: string; persona?: string; auto?: boolean }): { env: ResolvedEnvironment; persona: ResolvedPersona } {
@@ -93,11 +93,11 @@ export async function signInPersona(
 ): Promise<SignInOutcome> {
   if (opts.mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
     throw new LoginOptionError(
-      `studio login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ': add --auto to use the persona\'s login steps' : ''}`,
+      `retake login opens a browser window and no display is available (DISPLAY / WAYLAND_DISPLAY are not set)${persona.login?.length ? ': add --auto to use the persona\'s login steps' : ''}`,
       false,
     );
   }
-  const { signIn } = await import('@demo-studio/runner-web');
+  const { signIn } = await import('@retake/runner-web');
   const stop = await ports.interrupts.open();
   let result: SignInResult;
   try {

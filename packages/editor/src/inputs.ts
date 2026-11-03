@@ -16,8 +16,8 @@ import {
   probeVideoFile,
   readLottieMeta,
   resolveThemeComponents,
-} from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@demo-studio/core';
+} from '@retake/core';
+import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core';
 import type { PlanInputFile } from './plan.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;

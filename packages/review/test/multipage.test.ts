@@ -7,12 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { insetRectAt, mapPaneRect, planEdit } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@demo-studio/editor';
+import { loadProject, loadTemplate } from '@retake/core';
+import type { Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { insetRectAt, mapPaneRect, planEdit } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
 import { DEFAULT_RULES, checkCursor, checkOverlayCover, checkTutorial, fontFileMeasurer, outputClicks, planFontFiles, segmentSpans, transitionSpans } from '../src/index.js';
 import type { CheckContext } from '../src/index.js';
 import { REPO } from './helpers.js';

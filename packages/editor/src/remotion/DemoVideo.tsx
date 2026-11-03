@@ -9,8 +9,8 @@
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from 'remotion';
-import { Logo, Wordmark, backgroundCss } from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components';
+import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
 import { viewOf } from '../layout.js';
 import type { SourceView } from '../layout.js';

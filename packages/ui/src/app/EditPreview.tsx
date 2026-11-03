@@ -14,7 +14,7 @@
  * Targets are at least 24 px (the kit's small controls are 26).
  */
 import type { ReactNode } from 'react';
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 import { Txt, plural, shown } from './bits.js';
 import { codecWords, timecode } from './timeline-words.js';
 import { Button, IconButton, LinkButton, Select, Toolbar } from './ui-kit/index.js';

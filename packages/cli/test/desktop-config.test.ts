@@ -27,7 +27,7 @@
  * launch (A L2), and the pipe's enum lists the same in TypeScript and Rust (B L8).
  * L5.12d: the quit question asked in the page — the detail's keys, the events and the id rule compared between the
  * shell (guard_flow.rs), the page (shell/quit.ts) and the server (desktop.ts); no TerminateLater; the page only for a
- * plain Quit on the Studio's origin (test mode's DEMO_STUDIO_DESKTOP_TEST_QUIT=native aside); every exit closes it.
+ * plain Quit on the Studio's origin (test mode's RETAKE_DESKTOP_TEST_QUIT=native aside); every exit closes it.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
@@ -69,8 +69,8 @@ function section(toml: string, name: string): Map<string, string> {
 describe('desktop shell configuration (L5.2, static)', () => {
   it('tauri.conf.json: no window, no dev URL or frontend folder, no inline capability, no asset protocol, no plugin config; generic id', () => {
     const conf = JSON.parse(read('tauri.conf.json')) as Record<string, any>;
-    expect(conf.identifier).toBe('local.demo-studio.desktop');
-    expect(conf.productName).toBe('Demo Studio');
+    expect(conf.identifier).toBe('local.retake.desktop');
+    expect(conf.productName).toBe('Retake');
     expect(conf.app.windows).toEqual([]);
     expect(conf.app.withGlobalTauri).not.toBe(true);
     expect(conf.build).toEqual({});
@@ -234,8 +234,8 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(guard).toMatch(/fn decide\(\) -> NSApplicationTerminateReply \{\n\s*let other_modal = GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| crate::macos::modal_up\(\);/);
     expect(main).toMatch(/fn open_other\(app: &AppHandle\) \{\n(?:\s*\/\/[^\n]*\n)*\s*if guard::GUARD_OPEN\.load\(Ordering::SeqCst\) \|\| macos::modal_up\(\) \{/);
     // Review A L2: test mode only with its variable and a parent other than launchd, decided at launch.
-    expect(main).toContain('*MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))');
-    expect(src.match(/std::env::var\("DEMO_STUDIO_DESKTOP_TEST"\)/g)).toHaveLength(1);
+    expect(main).toContain('*MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("RETAKE_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))');
+    expect(src.match(/std::env::var\("RETAKE_DESKTOP_TEST"\)/g)).toHaveLength(1);
     // The guard's facts are an owned server's pipe only (an attached one has none: never its stale snapshot).
     expect(read('src/child.rs')).toContain('self.proc.as_ref().map(|_| lock(&self.pending).clone())');
   });
@@ -270,7 +270,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(guard).toMatch(/Effect::Terminate => \{\n(?:\s*\/\/[^\n]*\n)*\s*let _ = app\.run_on_main_thread\(request_terminate\);/);
     // The page is asked for a plain Quit only, on the Studio's own origin, unless test mode keeps the native alert.
     expect(guard).toContain('let page = question.is_some() && action == Action::Quit && page_question_on() && crate::window_on_studio(app);');
-    expect(guard).toMatch(/fn page_question_on\(\) -> bool \{\n\s*!\(crate::test_mode\(\) && std::env::var\("DEMO_STUDIO_DESKTOP_TEST_QUIT"\)/);
+    expect(guard).toMatch(/fn page_question_on\(\) -> bool \{\n\s*!\(crate::test_mode\(\) && std::env::var\("RETAKE_DESKTOP_TEST_QUIT"\)/);
     expect(main).toMatch(/fn window_on_studio\([\s\S]{0,400}dc::loopback_port\(url\.as_str\(\)\)\.is_some_and\(\|\(p, _\)\| p == studio\)/);
     // The window is shown before the dispatch (the flow's effects in order: guard_flow tests), the id logged in test mode only.
     expect(guard).toMatch(/if crate::test_mode\(\) \{\n[^\n]*\n\s*log\(&format!\("\(test mode\) page question \{id\}"\)\);/);
@@ -325,7 +325,7 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(signs).toEqual(["'--force', '--sign', '-', app"]);
     const { infoPlist, BUNDLE_ID } = (await import(join(APP, 'scripts', 'desktop.mjs'))) as { infoPlist: (id: string, v: string) => string; BUNDLE_ID: string };
     const plist = infoPlist(BUNDLE_ID, '0.1.0');
-    expect(plist).toContain('<key>CFBundleIdentifier</key>\n\t<string>local.demo-studio.desktop</string>');
+    expect(plist).toContain('<key>CFBundleIdentifier</key>\n\t<string>local.retake.desktop</string>');
     expect(plist).toContain('<key>NSLocalNetworkUsageDescription</key>');
     expect(plist).not.toMatch(/NSAppTransportSecurity|NSAllowsArbitraryLoads|entitlements/i);
     // Review A L2: no camera, microphone or location use declared (WebKit then exposes no capture device).
@@ -367,9 +367,9 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(src).not.toMatch(/\.theme\(/);
     const code = (text: string) => text.split('\n').filter((l) => !/^\s*(?:\/\/|\*|\/\*)/.test(l)).join('\n');
     for (const f of [...readdirSync(join(APP, 'src')).map((x) => join('src', x)), 'scripts/desktop.mjs']) {
-      expect(code(read(f)), f).not.toMatch(/Demo Studio|local\.demo-studio|demo-studio-desktop/);
+      expect(code(read(f)), f).not.toMatch(/Retake|local\.retake|retake-desktop/);
     }
-    expect(read('Cargo.toml')).toMatch(/^name = "demo-studio-desktop"$/m);
+    expect(read('Cargo.toml')).toMatch(/^name = "retake-desktop"$/m);
     expect(read('src/main.rs')).toContain('pub const BIN: &str = env!("CARGO_PKG_NAME");');
   });
 

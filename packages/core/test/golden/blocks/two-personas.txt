@@ -1,6 +1,6 @@
 # Both sides, one persona each (`--env signed-in`: the supplier's console and the buyer's shop run in two browsers), one page filmed at a time: the roaster's quote list stays open in its own browser while the café asks for a quote, the request arrives there live, the roaster answers, the café gets the proposal.
 # 
-# Demo Studio L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list keeps polling for new requests) and, with the fixture's NORTHFIELD_QUOTES_MS, the skeleton rows the edit shortens (R-FLD-26).
+# Retake L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list keeps polling for new requests) and, with the fixture's NORTHFIELD_QUOTES_MS, the skeleton rows the edit shortens (R-FLD-26).
 video two-personas · title “Both sides” / “A quote between a café and its roaster” · intro {"mode":"theme"} · outro {"mode":"custom","tagline":"Cafés and roasters, on the same page."}
   env signed-in
   setup 1 L16-17 http reset: POST {{console}}/api/reset

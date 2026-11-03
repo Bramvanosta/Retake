@@ -3,7 +3,7 @@
  * The desktop shell's commands (L5.2; README "Desktop app (macOS)") — `pnpm desktop:<command>`:
  *
  * - `dev [--root <workspace>] [--route '#/p/…']` — a debug build, run with this Node.js and the repository's built CLI
- *   (DEMO_STUDIO_NODE / DEMO_STUDIO_CLI: a debug build honours them).
+ *   (RETAKE_NODE / RETAKE_CLI: a debug build honours them).
  * - `build [--out <folder>]` — a release build assembled into `<productName>.app` (Info.plist, icon, launch.json naming
  *   this Node.js and the repository's CLI), signed ad hoc (`codesign -s -`): a local app, never installed anywhere —
  *   move it yourself if you want it in Applications. `--id` (tests only) gives it another bundle id under the
@@ -117,7 +117,7 @@ function run(cmd, args) {
 
 /** icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). */
 function icns(out) {
-  const work = mkdtempSync(join(tmpdir(), 'demo-studio-icon-'));
+  const work = mkdtempSync(join(tmpdir(), 'retake-icon-'));
   try {
     const set = join(work, 'icon.iconset');
     mkdirSync(set);
@@ -160,7 +160,7 @@ function dev() {
   needMac();
   needCli();
   cargo(['build']);
-  const child = spawn(join(target, 'debug', BIN), rest, { stdio: 'inherit', env: { ...process.env, DEMO_STUDIO_NODE: process.execPath, DEMO_STUDIO_CLI: CLI } });
+  const child = spawn(join(target, 'debug', BIN), rest, { stdio: 'inherit', env: { ...process.env, RETAKE_NODE: process.execPath, RETAKE_CLI: CLI } });
   for (const s of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(s, () => child.kill(s));
   child.on('exit', (code, signal) => process.exit(code ?? (signal ? 1 : 0)));
 }

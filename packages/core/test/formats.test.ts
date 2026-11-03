@@ -1,6 +1,6 @@
 /**
- * Versioned file formats (R-PRIN-13): scenarios, project.yaml, template.yaml, studio.yaml and run.json take an optional
- * `version: 1` (absent = 1); a higher version is one positioned error — the file was made for a newer Demo Studio —
+ * Versioned file formats (R-PRIN-13): scenarios, project.yaml, template.yaml, retake.yaml and run.json take an optional
+ * `version: 1` (absent = 1); a higher version is one positioned error — the file was made for a newer Retake —
  * instead of the unknown keys of a format this one does not know; 0, "1" or 1.5 are plain schema errors.
  */
 import { writeFile } from 'node:fs/promises';
@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   ConfigError,
-  DEMO_STUDIO_VERSION,
+  RETAKE_VERSION,
   FORMAT_VERSIONS,
   RunRecordSchema,
   loadWorkspaceConfig,
@@ -18,12 +18,12 @@ import {
   parseScenario,
   parseTemplateYaml,
   validateScenario,
-} from '@demo-studio/core';
-import type { ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
 import { tempDir, writeFiles } from './helpers.js';
 
 const msgs = (issues: ValidationIssue[]) => issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
-const newer = (file: string, v = 2) => `this ${file} is version ${v}: it was made for a newer Demo Studio (this one reads version 1) — update Demo Studio`;
+const newer = (file: string, v = 2) => `this ${file} is version ${v}: it was made for a newer Retake (this one reads version 1) — update Retake`;
 
 const SCENARIO = 'video: demo\nscenes:\n  - id: a\n    steps:\n      - hold: 1\n';
 
@@ -33,9 +33,9 @@ afterEach(async () => {
 });
 
 describe('file format versions (R-PRIN-13)', () => {
-  it('every format this Demo Studio reads is version 1', () => {
+  it('every format this Retake reads is version 1', () => {
     expect(FORMAT_VERSIONS).toEqual({ scenario: 1, project: 1, template: 1, workspace: 1, run: 1 });
-    expect(DEMO_STUDIO_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(RETAKE_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
   it('project.yaml: 1 or absent loads; 2 is one error at the version, whatever else the file holds', () => {
@@ -57,7 +57,7 @@ describe('file format versions (R-PRIN-13)', () => {
       const m = msgs(r.issues).filter((x) => x.startsWith('error'));
       expect(m, v).toHaveLength(1);
       expect(m[0], v).toMatch(/^error 1:10 version: expected 1/);
-      expect(m[0], v).not.toContain('newer Demo Studio');
+      expect(m[0], v).not.toContain('newer Retake');
     }
     expect(newerFormatMessage({ version: 2 }, { file: 'x.yaml', supported: 1 })).toBe(newer('x.yaml'));
     expect(newerFormatMessage({ version: 1 }, { file: 'x.yaml', supported: 1 })).toBeUndefined();
@@ -84,15 +84,15 @@ describe('file format versions (R-PRIN-13)', () => {
     expect(msgs(two.issues)).toEqual([`error 1:10 version: ${newer('template.yaml')}`]);
   });
 
-  it('studio.yaml: a newer workspace file stops every command with the one message', async () => {
+  it('retake.yaml: a newer workspace file stops every command with the one message', async () => {
     const ws = await tempDir();
     cleanups.push(ws.cleanup);
-    await writeFiles(ws.dir, { 'studio.yaml': 'version: 1\nprojects_dir: work\n' });
+    await writeFiles(ws.dir, { 'retake.yaml': 'version: 1\nprojects_dir: work\n' });
     expect((await loadWorkspaceConfig(ws.dir)).projectsDir).toBe(join(ws.dir, 'work'));
-    await writeFile(join(ws.dir, 'studio.yaml'), 'projects_dir: work\nversion: 2\nsync: {remote: x}\n');
+    await writeFile(join(ws.dir, 'retake.yaml'), 'projects_dir: work\nversion: 2\nsync: {remote: x}\n');
     const err = await loadWorkspaceConfig(ws.dir).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
-    expect((err as ConfigError).issues.map((i) => `${i.line}:${i.col} ${i.message}`)).toEqual([`2:10 ${newer('studio.yaml')}`]);
+    expect((err as ConfigError).issues.map((i) => `${i.line}:${i.col} ${i.message}`)).toEqual([`2:10 ${newer('retake.yaml')}`]);
   });
 
   it('run.json: absent or 1 is read, a newer one refused; the schema takes version and engine', async () => {
@@ -108,7 +108,7 @@ describe('file format versions (R-PRIN-13)', () => {
       options: { hooks: 'run', headed: false }, steps_total: 0, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [],
     };
     expect(RunRecordSchema.safeParse(base).success).toBe(true);
-    const engine = { demo_studio: '0.1.0', node: '22.1.0', chromium: '141.0.7390.37', os: 'darwin 25.6.0 arm64', fonts: { files: 3, digest: 'abcdef012345' } };
+    const engine = { retake: '0.1.0', node: '22.1.0', chromium: '141.0.7390.37', os: 'darwin 25.6.0 arm64', fonts: { files: 3, digest: 'abcdef012345' } };
     expect(RunRecordSchema.safeParse({ version: 1, ...base, engine }).success).toBe(true);
     expect(RunRecordSchema.safeParse({ version: 2, ...base }).success).toBe(false);
   });

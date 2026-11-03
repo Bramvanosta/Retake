@@ -8,8 +8,8 @@
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
-import { realPathOf } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { realPathOf } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { EngineError } from '../errors.js';
 import { FONT_EXTENSIONS, FONT_MAX_BYTES, IMAGE_MAX_BYTES, LOGO_EXTENSIONS, SVG_MAX_BYTES, brandSourceProblem } from './files.js';
 

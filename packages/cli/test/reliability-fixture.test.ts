@@ -1,6 +1,6 @@
 /**
  * L5.6 acceptance cases on the fixture product (R-FLD-10 – R-FLD-16): the committed `proforma` scenario and variants
- * of it, dry-run through the `studio` CLI against the fixture on free ports (environment `local`, the personas' mail
+ * of it, dry-run through the `retake` CLI against the fixture on free ports (environment `local`, the personas' mail
  * addresses declared there). The page is the fixture's "Pro forma invoices": a modal dialog whose body scrolls over a
  * page that has a "Quantity (kg)" field too, a calendar that covers the fields under it, a "Preview" button wired to
  * nothing, a PDF whose second transfer breaks, a pro forma mailed to the café's accounts address and the supplier.
@@ -13,13 +13,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { EmailArtefact, RunProgress, RunRecord, Timeline } from '@demo-studio/core';
+import type { EmailArtefact, RunProgress, RunRecord, Timeline } from '@retake/core';
 import { main, memoryIo } from '../src/index.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -38,9 +38,9 @@ let fixture: Fixture;
 let ws: string;
 let committed: string;
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -48,7 +48,7 @@ async function studio(...args: string[]) {
 async function variant(name: string, edit: (yaml: string) => string): Promise<{ run: RunRecord; tl: Timeline | null; out: string }> {
   const text = edit(committed.replace(/^env: signed-in\n/m, '').replace(/^\s+- hold: [\d.]+\n/gm, ''));
   await writeFile(join(ws, 'projects', 'fx', 'scenarios', `${name}.yaml`), `${text}\npacing: {scene_start_still: 0.2, after_click_ms: 120, after_popup_ms: 350, after_navigation_ms: 500, settle_ms: 800, move_max_ms: 450}\n`);
-  const r = await studio('run', 'fx', name, '--dry', '--hooks', 'run', '--json');
+  const r = await retake('run', 'fx', name, '--dry', '--hooks', 'run', '--json');
   const end = JSON.parse(r.out.trim().split('\n').pop()!) as RunProgress;
   expect(end.type, r.err).toBe('run_end');
   const run = (end as { run: RunRecord }).run;
@@ -63,7 +63,7 @@ describe.skipIf(!chromiumAvailable())('capture reliability on the fixture (L5.6)
     };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'studio-reliability-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'fx');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(

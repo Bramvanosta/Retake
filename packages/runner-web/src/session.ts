@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import type { BrowserConfig, ResolvedClock } from '@demo-studio/core';
+import type { BrowserConfig, ResolvedClock } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
@@ -36,7 +36,7 @@ import type {
   ScrollInfo,
   ScrollOp,
 } from './kit/types.js';
-import type { BBox, NearElement, PointSpec, TargetObject } from '@demo-studio/core';
+import type { BBox, NearElement, PointSpec, TargetObject } from '@retake/core';
 
 export interface SessionOptions {
   width: number;
@@ -151,13 +151,13 @@ export interface NotificationPayload {
 }
 
 /** Name of the binding the kit calls for each web notification the page shows. */
-export const NOTIFICATION_BINDING = '__demoStudioNotification';
+export const NOTIFICATION_BINDING = '__retakeNotification';
 /** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples (L2.13). */
-export const CURSOR_BINDING = '__demoStudioCursor';
+export const CURSOR_BINDING = '__retakeCursor';
 
 /** playwright-core launch target for a browser config: an executable, else a channel (new headless by default). */
 export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; channel?: string } {
-  const executablePath = b.executable ?? process.env.DEMO_STUDIO_CHROMIUM ?? undefined;
+  const executablePath = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
   const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
   return { executablePath, channel };
 }
@@ -210,7 +210,7 @@ export class KitClient {
       try {
         const res = await this.page.evaluate(
           async ([p, a]): Promise<{ missing: boolean; value?: unknown }> => {
-            const k = (window as unknown as { __demoStudio?: Record<string, unknown> }).__demoStudio;
+            const k = (window as unknown as { __retake?: Record<string, unknown> }).__retake;
             if (!k) return { missing: true };
             const parts = p.split('.');
             let owner = k;
@@ -850,7 +850,7 @@ export interface SystemInfoReply {
   };
 }
 
-/** The capture browser's GPU status (run.json `perf.gpu`, `studio doctor`). */
+/** The capture browser's GPU status (run.json `perf.gpu`, `retake doctor`). */
 export interface GpuInfo {
   accelerated: boolean;
   renderer?: string;
@@ -879,7 +879,7 @@ export function gpuInfoOf(info: SystemInfoReply): GpuInfo | undefined {
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
   const b = opts.browser ?? {};
-  const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'demo-studio-profile-'));
+  const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'retake-profile-'));
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
   const { executablePath, channel } = launchTarget(b);

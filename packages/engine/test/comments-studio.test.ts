@@ -1,7 +1,7 @@
 /**
  * L4.6 part A1: the Studio channel of frame comments (engine comments.ts / engine.ts) on synthetic renders (the review
  * tests' helpers; empty videos — no still is made, a warning says so). Trust (T1): client `ui` creates, replies,
- * resolves and reopens as `{via: studio, name: the Studio process's $DEMO_STUDIO_AUTHOR}` — never a name from the page;
+ * resolves and reopens as `{via: studio, name: the Studio process's $RETAKE_AUTHOR}` — never a name from the page;
  * `mcp` and `test` never create or reopen (nothing written); every client but `cli` reopens and resolves on the hash
  * it read (if_match: missing → invalid, stale → conflict naming the current hash); the Studio comments the render it
  * showed (`render_created_at`: missing → invalid, a reused id → conflict). The thread is written before its still
@@ -14,7 +14,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, open, readFile, readdir, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CommentThread, LoadedProject } from '@demo-studio/core';
+import type { CommentThread, LoadedProject } from '@retake/core';
 import { CommentIndex, EngineError, addComment, anchorAt, createEngine, diffSources, scanSources, workspaceChanges } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
@@ -31,7 +31,7 @@ let ui: Engine;
 let mcp: Engine;
 let tester: Engine;
 let cli: Engine;
-const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR };
+const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
 
 const threadFile = (id: string) => join(project.dir, 'comments', 'quote', `${id}.json`);
 const readThreadFile = async (id: string) => JSON.parse(await readFile(threadFile(id), 'utf8')) as CommentThread;
@@ -49,7 +49,7 @@ const uiAdd = (o: Record<string, unknown> = {}) => ui.comments.add('demo', { ren
 beforeAll(async () => {
   ws = await workspace();
   project = ws.project;
-  process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
+  process.env.RETAKE_HOME = join(ws.root, '.home');
   const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
   v1 = await makeCase(ws, 'quote', tl, { noVideo: true });
   await writeFile(join(v1.run.dir, 'scenario.yaml'), SCENARIO);
@@ -62,7 +62,7 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  for (const [k, v] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author]] as const) {
+  for (const [k, v] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
@@ -70,8 +70,8 @@ afterAll(async () => {
 });
 
 describe('the Studio channel (T1)', () => {
-  it("ui creates, replies, resolves and reopens as studio, named by the Studio process's $DEMO_STUDIO_AUTHOR (never by the page)", async () => {
-    process.env.DEMO_STUDIO_AUTHOR = 'Studio Person';
+  it("ui creates, replies, resolves and reopens as studio, named by the Studio process's $RETAKE_AUTHOR (never by the page)", async () => {
+    process.env.RETAKE_AUTHOR = 'Studio Person';
     // A page-chosen author is not an argument the engine reads: the stored author is the channel's.
     const { thread } = await uiAdd({ author: { via: 'cli', name: 'Someone Else' }, via: 'cli' });
     const stored = await readThreadFile(thread.id);
@@ -86,8 +86,8 @@ describe('the Studio channel (T1)', () => {
       ['resolve', 'studio', 'Studio Person'],
       ['reopen', 'studio', 'Studio Person'],
     ]);
-    // Without $DEMO_STUDIO_AUTHOR: the OS user (the CLI's rule), still the studio channel.
-    delete process.env.DEMO_STUDIO_AUTHOR;
+    // Without $RETAKE_AUTHOR: the OS user (the CLI's rule), still the studio channel.
+    delete process.env.RETAKE_AUTHOR;
     const r2 = await ui.comments.reply('demo', thread.id, 'Again.');
     expect((await readThreadFile(thread.id)).entries.at(-1)?.author).toEqual({ via: 'studio', name: expect.any(String) });
     expect(r2.thread.entries.at(-1)?.via).toBe('studio');

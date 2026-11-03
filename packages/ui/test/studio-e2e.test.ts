@@ -7,7 +7,7 @@
  * + BroadcastChannel), every call answers, a change reaches a follower tab, the stream passes on when its tab closes →
  * hostile project names, URLs, errors and README text shown as inert text (no script ran, no CSP report) → a tab
  * without a code ends → a cross-origin page holding the token is refused and runs no op → a DNS-rebinding navigation
- * gets 421. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots of the screens there.
+ * gets 421. `RETAKE_UI_SHOTS=<folder>` saves screenshots of the screens there.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
@@ -23,7 +23,7 @@ import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 /** DOM-state waits, generous for a loaded machine (the editor re-reads its file every 3 s). */
 const POLL = { timeout: 15_000 };
 const FIXTURE = 'northfield-fixture';
@@ -44,7 +44,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const dialogs: string[] = [];
 const consoleErrors: string[] = [];
 const readmeFile = (slug = FIXTURE) => join(ws, 'projects', slug, 'README.md');
@@ -88,11 +88,11 @@ async function toWelcome(p: Page): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
+  await mkdir(join(ws, '.retake'), { recursive: true });
   await writeFile(
-    join(ws, '.demo-studio', 'history.jsonl'),
+    join(ws, '.retake', 'history.jsonl'),
     `${JSON.stringify({ v: 1, at: new Date(Date.now() - 120_000).toISOString(), kind: 'run', project: FIXTURE, submitted_by: 'mcp', state: 'succeeded', run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' }, counted: { captures: 1, dry_runs: 0, renders: 0 } })}\n`,
   );
   const hostile = join(ws, 'projects', 'hostile');
@@ -120,7 +120,7 @@ beforeAll(async () => {
   await mkdir(broken, { recursive: true });
   await writeFile(join(broken, 'project.yaml'), `version: 1\nname: Broken project\nenvironments:\n  local: "<iframe src=javascript:window.__pwned='error'>"\n`);
   studio = await startStudioServer({ root: ws });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({
     headless: true,
     ...(executablePath ? { executablePath } : { channel: 'chromium' }),
@@ -134,8 +134,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -145,7 +145,7 @@ describe('the Studio in Chromium', () => {
     await page.goto(url);
     await page.getByRole('heading', { level: 2, name: 'Projects' }).waitFor();
     expect(page.url()).toBe(studio.url);
-    expect(await page.evaluate(() => sessionStorage.getItem('demo-studio.token'))).toBe(studio.token);
+    expect(await page.evaluate(() => sessionStorage.getItem('retake.token'))).toBe(studio.token);
     // The same link in another tab: already spent, and the new tab holds no token.
     const other = await context.newPage();
     await other.goto(url);
@@ -153,7 +153,7 @@ describe('the Studio in Chromium', () => {
     // A tab with no code at all.
     await other.goto(studio.url);
     await other.getByTestId('session-ended').waitFor();
-    expect(await other.evaluate(() => sessionStorage.getItem('demo-studio.token'))).toBeNull();
+    expect(await other.evaluate(() => sessionStorage.getItem('retake.token'))).toBeNull();
     await shot('00-session-ended', other);
     await other.close();
   });
@@ -287,7 +287,7 @@ describe('the Studio in Chromium', () => {
     for (const t of tabs) {
       const [status, ms] = await t.evaluate(async () => {
         const t0 = performance.now();
-        const r = await fetch('/v1/info', { headers: { Authorization: `Bearer ${sessionStorage.getItem('demo-studio.token')}` } });
+        const r = await fetch('/v1/info', { headers: { Authorization: `Bearer ${sessionStorage.getItem('retake.token')}` } });
         return [r.status, performance.now() - t0];
       });
       expect(status).toBe(200);
@@ -372,7 +372,7 @@ describe('the Studio in Chromium', () => {
 
   it('a cross-origin page holding the token is refused and runs no op; a DNS-rebinding navigation gets 421', async () => {
     // Close the Studio's own tab first: its polling would count as ops.
-    const token = await page.evaluate(() => sessionStorage.getItem('demo-studio.token'));
+    const token = await page.evaluate(() => sessionStorage.getItem('retake.token'));
     expect(token).toBe(studio.token);
     await page.close();
     const before = await readFile(readmeFile());

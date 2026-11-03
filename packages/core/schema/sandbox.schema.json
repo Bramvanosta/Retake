@@ -14,7 +14,7 @@
         "docker-compose",
         "process"
       ],
-      "description": "docker-compose: `docker compose` on the compose files; process: local processes started by Demo Studio."
+      "description": "docker-compose: `docker compose` on the compose files; process: local processes started by Retake."
     },
     "compose": {
       "type": "object",
@@ -31,7 +31,7 @@
         "project": {
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$",
-          "description": "Compose project name (default demo-studio-<project>-<environment>-<hash of the folder>)."
+          "description": "Compose project name (default retake-<project>-<environment>-<hash of the folder>)."
         },
         "env_file": {
           "anyOf": [
@@ -379,7 +379,7 @@
               "profile",
               "storage_state"
             ],
-            "description": "profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only."
+            "description": "profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only."
           },
           "check": {
             "$ref": "#/$defs/PersonaCheck"
@@ -420,7 +420,7 @@
     "services"
   ],
   "additionalProperties": false,
-  "title": "Demo Studio sandbox",
+  "title": "Retake sandbox",
   "description": "sandbox.yaml (version 1): a disposable, local copy of the product, seeded and reset before each take.",
   "$defs": {
     "SeedStep": {

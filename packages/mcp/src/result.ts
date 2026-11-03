@@ -3,7 +3,7 @@
  * the data as JSON — also as `structuredContent`. Text the filmed site controls only ever appears inside the data,
  * under an `untrusted` key, truncated; never in the summary. Errors are tool errors (`isError`) with a typed code.
  */
-import { toEngineError } from '@demo-studio/engine';
+import { toEngineError } from '@retake/engine';
 import type { CallResult, ContentBlock } from './server.js';
 
 /** An image a tool result shows (a contact sheet, a key frame): a label and its file. */
@@ -37,9 +37,9 @@ function envInt(name: string, def: number, min: number, max: number): number {
 /** ≤ 4 images and ≤ 1.5 MB of base64 per result, thumbnails ≤ 1280 px (environment overrides, for tests and tuning). */
 export function imageCaps(): ImageCaps {
   return {
-    count: envInt('DEMO_STUDIO_MCP_MAX_IMAGES', 4, 0, 16),
-    base64: envInt('DEMO_STUDIO_MCP_MAX_IMAGE_BYTES', 1_500_000, 1_000, 8_000_000),
-    px: envInt('DEMO_STUDIO_MCP_IMAGE_PX', 1280, 64, 1280),
+    count: envInt('RETAKE_MCP_MAX_IMAGES', 4, 0, 16),
+    base64: envInt('RETAKE_MCP_MAX_IMAGE_BYTES', 1_500_000, 1_000, 8_000_000),
+    px: envInt('RETAKE_MCP_IMAGE_PX', 1280, 64, 1280),
   };
 }
 

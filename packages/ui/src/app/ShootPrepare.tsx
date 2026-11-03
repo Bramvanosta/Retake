@@ -8,7 +8,7 @@
  * - Centre: a checklist — the Location (its flags in words, its pages and what the video shows instead); the Sessions
  *   this run signs in with (Sessions.tsx SessionRows: state, last check, Sign in… for each; the issues; "a capture asks
  *   first" when one must be confirmed); what would stop a run (one kit Blocker per refusal, in the gate's words with its
- *   message and its command to copy — the command through node for a person without `studio` on their PATH in a
+ *   message and its command to copy — the command through node for a person without `retake` on their PATH in a
  *   disclosure; a rehearsal that is not affected said so); the live picture during a capture (a per-tab switch, off by
  *   default). Then Start rehearsal and ● Start capture, each with what stops it beside a disabled one, the mapping line
  *   "Rehearse = a dry run" (critique M6), a run of the scenario already going (Watch), a refusal with its command.
@@ -18,7 +18,7 @@
  *   run of the scenario is unfinished (critique M7: one Stop, visible).
  */
 import { useEffect, useRef } from 'react';
-import type { BoardScenario, RunBlocker } from '@demo-studio/engine';
+import type { BoardScenario, RunBlocker } from '@retake/engine';
 import { call, useCall } from './api.js';
 import { Txt, When, plural, shown } from './bits.js';
 import { envFlagWords, lastTakeWords, lengthWords } from './board-words.js';
@@ -85,7 +85,7 @@ function BlockerList({ list, testId, slug, name }: { list: RunBlocker[]; testId:
               </Callout>
             )}
             {b.fix_node && (
-              <Disclosure summary="Without studio on your PATH">
+              <Disclosure summary="Without retake on your PATH">
                 <TerminalCommands fix={b.fix ?? ''} fixNode={b.fix_node} />
               </Disclosure>
             )}

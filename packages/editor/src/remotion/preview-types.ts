@@ -3,8 +3,8 @@
  * content — built in Node by `buildComponentPreview` (../preview.ts), rendered by `renderComponentPreviews`
  * (../render/preview.ts). Every URL is already served (asset server).
  */
-import type { ComponentKind } from '@demo-studio/core';
-import type { CaptionCue, LayoutRects, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
+import type { ComponentKind } from '@retake/core';
+import type { CaptionCue, LayoutRects, MediaValue, ProgressChapter, ThemeTokens } from '@retake/components';
 
 export interface PreviewRect {
   x: number;

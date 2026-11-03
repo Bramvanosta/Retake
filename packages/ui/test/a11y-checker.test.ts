@@ -1,7 +1,7 @@
 /**
  * L4.9 part A: the accessibility checker's own tests (headless Chromium, `page.setContent`): each rule fires on its
  * planted case and stays silent on its clean twin, and its contrast maths is `contrastRatio`'s
- * (`@demo-studio/components/kit`). The planted cases are the regressions the critique named: text over a picture whose
+ * (`@retake/components/kit`). The planted cases are the regressions the critique named: text over a picture whose
  * overlay is too thin (only visible when the picture is dark), a chip whose visible ring rule is gone (the invisible
  * input still carries the global outline), text of a disabled container that is not itself a control — and the review's
  * probes (L4.9 fixes): a faded dark card, an unreadable colour space, pseudo-element and submit text, status colour on a
@@ -13,7 +13,7 @@
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { contrastRatio } from '@demo-studio/components/kit';
+import { contrastRatio } from '@retake/components/kit';
 import { auditPage, dialogCheck, familyWalk, formatFindings, pageRatio, settle, tabWalk } from './a11y.js';
 import type { Finding, Rule } from './a11y.js';
 
@@ -33,7 +33,7 @@ async function audit(html: string, width?: number) {
 }
 
 beforeAll(async () => {
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   page = await browser.newPage();
 });

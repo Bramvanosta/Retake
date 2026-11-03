@@ -5,7 +5,7 @@
  */
 import { useEffect, useState } from 'react';
 import { cancelRender, continueRender, delayRender } from 'remotion';
-import type { ThemeFontFace } from '@demo-studio/components';
+import type { ThemeFontFace } from '@retake/components';
 import { usePreviewMode } from './preview-mode.js';
 
 const loaded = new Map<string, Promise<void>>();

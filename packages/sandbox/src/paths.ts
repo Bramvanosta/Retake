@@ -1,9 +1,9 @@
 import { join, relative } from 'node:path';
 
-/** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.demo-studio/`). */
-export const SANDBOX_STATE_DIR = join('.demo-studio', 'sandbox');
+/** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.retake/`). */
+export const SANDBOX_STATE_DIR = join('.retake', 'sandbox');
 
-/** The files of one sandbox: `<project>/.demo-studio/sandbox/<env>/…`. */
+/** The files of one sandbox: `<project>/.retake/sandbox/<env>/…`. */
 export interface SandboxPaths {
   dir: string;
   state: string;

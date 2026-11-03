@@ -12,7 +12,7 @@
 //! - Only a real bundle calls UN (`desktop:dev` runs a bare binary: UN would raise) — said once otherwise.
 //! - Test mode never calls UN (no prompt, nothing in the person's notification settings): it logs
 //!   `(test mode) notification: <title> — <body>` and `(test mode) notification dropped (window in front): <n>`;
-//!   DEMO_STUDIO_DESKTOP_TEST_FRONT=0|1 says whether the window counts as in front.
+//!   RETAKE_DESKTOP_TEST_FRONT=0|1 says whether the window counts as in front.
 //! - An attached server has no pipe: no notifications (main.rs says so at attach).
 
 use crate::{lock, log, test_mode};
@@ -103,12 +103,12 @@ pub fn install(app: &AppHandle) {
     });
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST_FRONT (test mode only).
+/// RETAKE_DESKTOP_TEST_FRONT (test mode only).
 fn test_front() -> Option<bool> {
     if !test_mode() {
         return None;
     }
-    match std::env::var("DEMO_STUDIO_DESKTOP_TEST_FRONT").as_deref() {
+    match std::env::var("RETAKE_DESKTOP_TEST_FRONT").as_deref() {
         Ok("1") => Some(true),
         Ok("0") => Some(false),
         _ => None,

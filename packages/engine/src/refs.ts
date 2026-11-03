@@ -2,7 +2,7 @@
  * The names a client outside the CLI may use (the MCP server): slugs and ids, never a path. They are checked here,
  * before anything reaches core — core's loaders also accept absolute and cwd-relative paths, which only the CLI may use.
  */
-import { PROJECT_SLUG_RE, SLUG_RE } from '@demo-studio/core';
+import { PROJECT_SLUG_RE, SLUG_RE } from '@retake/core';
 import { EngineError } from './errors.js';
 
 /** "20261017-142233-quote" (and any other folder name of runs/ made of letters, digits, ".", "_" and "-"). */

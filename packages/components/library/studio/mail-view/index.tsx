@@ -16,8 +16,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, EmailMedia } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, EmailMedia } from '@retake/components/kit';
 
 type Params = { width: number; sidebar: boolean; scroll: 'auto' | 'none'; shadow: 'none' | 'soft' | 'strong' };
 

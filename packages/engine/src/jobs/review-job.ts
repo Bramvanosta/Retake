@@ -9,9 +9,9 @@
  * data goes into job.json: review_get makes thumbnails when it is read. The review package is imported lazily.
  */
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, RENDER_ID_RE } from '@demo-studio/core';
-import type { ReviewJobInput, WorkspaceConfig } from '@demo-studio/core';
-import type { ReviewProgress } from '@demo-studio/review';
+import { JOB_INPUT_VERSION, RENDER_ID_RE } from '@retake/core';
+import type { ReviewJobInput, WorkspaceConfig } from '@retake/core';
+import type { ReviewProgress } from '@retake/review';
 import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
@@ -20,8 +20,8 @@ import { editor } from './render-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 
-/** Lazy: @demo-studio/review pulls in sharp and the editor. */
-export const review = () => import('@demo-studio/review');
+/** Lazy: @retake/review pulls in sharp and the editor. */
+export const review = () => import('@retake/review');
 
 export interface ReviewRequest {
   project: string;
@@ -34,7 +34,7 @@ export interface ReviewRequest {
   previous?: string | false;
 }
 
-/** The `studio review` command a human runs for the same review. */
+/** The `retake review` command a human runs for the same review. */
 export function reviewCommandLine(cli: string, r: { project: string; render_id: string; fps?: number; previous?: string | false }): string {
   return [cli, 'review', r.project, r.render_id, ...(r.fps && r.fps !== 1 ? ['--fps', String(r.fps)] : []), ...(r.previous === false ? ['--no-previous'] : r.previous ? ['--previous', r.previous] : [])].join(' ');
 }

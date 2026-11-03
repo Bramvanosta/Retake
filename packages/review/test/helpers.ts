@@ -10,12 +10,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject, loadTemplate } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { planEdit } from '@demo-studio/editor';
-import type { EditOverrides, EditPlan, RenderRecord } from '@demo-studio/editor';
+import { loadProject, loadTemplate } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { planEdit } from '@retake/editor';
+import type { EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
 import { segmentSpans } from '../src/spans.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import type { SceneSpec } from '../../editor/test/helpers.js';
@@ -36,8 +36,8 @@ export interface Workspace {
 }
 
 export async function workspace(): Promise<Workspace> {
-  const root = await mkdtemp(join(tmpdir(), 'demo-studio-review-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  const root = await mkdtemp(join(tmpdir(), 'retake-review-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(root, 'projects', 'demo');
   await mkdir(join(dir, 'renders'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');

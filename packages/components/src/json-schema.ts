@@ -3,11 +3,11 @@
  *
  * A component declares its params as a JSON Schema object with defaults; themes and scenarios pass partial params,
  * the registry merges the defaults under them and validates the result. Only a well-understood subset is accepted
- * (anything else is an error rather than being silently ignored), and — like every Demo Studio format — objects are
+ * (anything else is an error rather than being silently ignored), and — like every Retake format — objects are
  * CLOSED unless they set `additionalProperties`: an unknown param is a typo until proven otherwise.
  */
-import { describeValue, didYouMean } from '@demo-studio/core';
-import type { LocatedIssue } from '@demo-studio/core';
+import { describeValue, didYouMean } from '@retake/core';
+import type { LocatedIssue } from '@retake/core';
 
 export type JsonSchemaNode = Record<string, unknown>;
 type Path = Array<string | number>;

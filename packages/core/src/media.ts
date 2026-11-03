@@ -153,9 +153,9 @@ function ratio(v: unknown): number {
   return b ? a / b : Number(a) || 0;
 }
 
-/** The ffprobe of the environment: $DEMO_STUDIO_FFPROBE, else `ffprobe` on PATH. */
+/** The ffprobe of the environment: $RETAKE_FFPROBE, else `ffprobe` on PATH. */
 export function ffprobeCommand(): string {
-  return process.env.DEMO_STUDIO_FFPROBE || 'ffprobe';
+  return process.env.RETAKE_FFPROBE || 'ffprobe';
 }
 
 /** Interpret ffprobe's JSON (`-show_streams -show_format`) — pure, exported for tests. */

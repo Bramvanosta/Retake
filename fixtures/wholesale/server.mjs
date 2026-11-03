@@ -9,7 +9,7 @@
 //        NORTHFIELD_ENRICH_MS (default 4000), NORTHFIELD_IMPORT_MS (default 2000),
 //        NORTHFIELD_REPORT_MS (default 400), NORTHFIELD_REPORT_DATA_MS (default 1200),
 //        NORTHFIELD_QUOTES_MS (default 0: GET /api/quotes answered after it — the console's quote list shows its
-//        skeleton rows that long, Demo Studio L5.7)
+//        skeleton rows that long, Retake L5.7)
 //
 // The same two apps also run on a signed-in side (:4403 / :4404 by default, same store): every page there needs an
 // account (server/auth.mjs). Also importable: `const fx = await startFixture({ consolePort: 0, shopPort: 0,
@@ -108,7 +108,7 @@ function appHandler(appKey, ctx) {
     if (path === '/app-icon.svg') return sendText(res, 200, 'image/svg+xml', FAVICON);
     if (ctx.signIn && !signedIn(req, ctx.sessions, appKey)) return redirectToSignIn(res, url);
     if (appKey === 'console') {
-      // A pro forma's PDF, inline (Demo Studio L5.6). `?flaky=1`: the second transfer of each one since the reset (after
+      // A pro forma's PDF, inline (Retake L5.6). `?flaky=1`: the second transfer of each one since the reset (after
       // the new tab's own) breaks after its headers and half its bytes — a server busy for a moment: a transient
       // network failure the runner must try again, not lose a take on.
       const proforma = /^\/proforma\/(PF-\d+)\.pdf$/.exec(path);

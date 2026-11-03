@@ -41,9 +41,9 @@ import {
   toSeconds,
   withAlpha,
   wrapText,
-} from '@demo-studio/components/kit';
-import type { TextMeasurer } from '@demo-studio/components/kit';
-import { addressParts, captionBandBox, cardShadow, contrastRatio as contrast, deviceTones, liftToContrast } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { TextMeasurer } from '@retake/components/kit';
+import { addressParts, captionBandBox, cardShadow, contrastRatio as contrast, deviceTones, liftToContrast } from '@retake/components/kit';
 import { DARK, LIGHT } from './helpers.js';
 
 // remotion's <Img> needs a composition context; outside one, render a plain <img>.
@@ -312,7 +312,7 @@ describe('kit React elements (render-tested)', () => {
 
 describe('kit renderer primitives (BACKLOG L3.7: components import the renderer through the kit)', () => {
   it('re-exports useCurrentFrame, useVideoConfig, Img, AbsoluteFill, Sequence and random from remotion itself', async () => {
-    const kit = (await import('@demo-studio/components/kit')) as Record<string, unknown>;
+    const kit = (await import('@retake/components/kit')) as Record<string, unknown>;
     const remotion = (await import('remotion')) as Record<string, unknown>;
     for (const name of ['useCurrentFrame', 'useVideoConfig', 'Img', 'AbsoluteFill', 'Sequence', 'random']) {
       expect(kit[name], name).toBeDefined();

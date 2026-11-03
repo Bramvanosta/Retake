@@ -1,8 +1,8 @@
 /**
- * L3.2 renders through `studio mcp` (spawned from the sources over stdio, driven by the SDK client), on a synthetic
+ * L3.2 renders through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), on a synthetic
  * capture (no fixture product): plan_preview plans in the server's process (text the scenario controls under
  * `untrusted` only), render returns the reserved render id at once and the workspace's worker renders it, render_status
- * long-polls it with percent progress, job_list shows it, a file outside the project is refused with the `studio`
+ * long-polls it with percent progress, job_list shows it, a file outside the project is refused with the `retake`
  * command a human runs; plan_preview and render say, in their summary, when the scenario file changed since the capture
  * (L3.8). Needs ffmpeg and a headless shell.
  */
@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { editReplannedMessage, scenarioChangedMessage } from '@demo-studio/core';
-import { readWorkerLock } from '@demo-studio/engine';
+import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
@@ -38,7 +38,7 @@ async function call(name: string, args: Record<string, unknown>, onprogress?: (p
 beforeAll(async () => {
   if (!canRender) return;
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-render-'));
-  await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const project = join(ws, 'projects', 'demo');
   const runDir = join(project, 'runs', '20260101-120000-synthetic');
   await mkdir(runDir, { recursive: true });
@@ -64,10 +64,10 @@ beforeAll(async () => {
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', ws, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(ws, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(ws, '.home'), RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
 }, 120_000);
@@ -85,7 +85,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!canRender)('studio mcp: renders as jobs', () => {
+describe.skipIf(!canRender)('retake mcp: renders as jobs', () => {
   it('plan_preview: the plan in the summary, what the scenario says only under untrusted', async () => {
     const r = await call('plan_preview', { project: 'demo', scenario: 'synthetic', overrides: { scale: 0.5 } });
     expect(r.isError, JSON.stringify(r)).toBeFalsy();
@@ -156,7 +156,7 @@ describe.skipIf(!canRender)('studio mcp: renders as jobs', () => {
     const refused = await call('render', { project: 'demo', scenario: 'synthetic', overrides: { music: 'assets/link/bed.mp3' } });
     expect(refused.isError).toBe(true);
     expect(refused.structuredContent).toMatchObject({
-      error: { code: 'refused', fix: `studio -C ${ws} render demo synthetic`, message: expect.stringContaining('the music of the overrides: assets/link/bed.mp3 resolves outside the project folder') },
+      error: { code: 'refused', fix: `retake -C ${ws} render demo synthetic`, message: expect.stringContaining('the music of the overrides: assets/link/bed.mp3 resolves outside the project folder') },
     });
     for (const [tool, args] of [
       ['render', { project: 'demo', scenario: 'synthetic', template: '../x' }],

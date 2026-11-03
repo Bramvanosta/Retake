@@ -2,8 +2,8 @@
  * Sessions & personas at run time (L1.6), in a real Chromium against a small cookie sign-in app (auth-server.ts): the
  * preflight before anything runs (R-AUTH-03), the guard that fails a run landing on a sign-in page and keeps nothing of
  * it (R-AUTH-04), the automated login with injected secrets (R-AUTH-05), per-run copies of a persona's session —
- * concurrent runs, a held master (R-AUTH-07) — and one browser per persona (R-AUTH-01). Every test has its own studio
- * home (DEMO_STUDIO_HOME, a temp folder): nothing touches ~/.demo-studio, and no secret comes from the real Keychain.
+ * concurrent runs, a held master (R-AUTH-07) — and one browser per persona (R-AUTH-01). Every test has its own Retake
+ * home (RETAKE_HOME, a temp folder): nothing touches ~/.retake, and no secret comes from the real Keychain.
  */
 import { existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, symlink, utimes, writeFile } from 'node:fs/promises';
@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
-import { personaPaths } from '@demo-studio/core';
-import type { AuthConfig, LoadedProject, RunProgress, RunRecord, Scenario } from '@demo-studio/core';
+import { personaPaths } from '@retake/core';
+import type { AuthConfig, LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import {
   copyProfile,
   kitConfigFor,
@@ -44,7 +44,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   home = await tempDir('ds-home-');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
 });
 
 const ENV = 'test';
@@ -91,7 +91,7 @@ const logs = (events: RunProgress[]) => events.flatMap((e) => (e.type === 'log' 
 
 /** Session copies of a run still in the system temp folder. */
 async function copiesOf(runId: string): Promise<string[]> {
-  return (await readdir(tmpdir())).filter((n) => n.startsWith(`demo-studio-session-${runId}`));
+  return (await readdir(tmpdir())).filter((n) => n.startsWith(`retake-session-${runId}`));
 }
 
 describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
@@ -142,9 +142,9 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
       [
         'session preflight failed — nothing was recorded:',
         `  persona supplier (env test): expired — app:/home landed on the sign-in page (${srv.url}/sign-in)`,
-        '    sign in again: studio login northfield --env test --persona supplier',
+        '    sign in again: retake login northfield --env test --persona supplier',
         '  persona buyer (env test): never signed in',
-        '    sign in once: studio login northfield --env test --persona buyer',
+        '    sign in once: retake login northfield --env test --persona buyer',
       ].join('\n'),
     );
     expect(srv.pings()).toBe(before);
@@ -194,7 +194,7 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
       const p = await project();
       const { rec } = await run(p, 'held', { scenes: [{ id: 'a', page: 'store', open: '/home', steps: [{ wait: 0.1 }] }] });
       expect(rec.status).toBe('failed');
-      expect(rec.error?.message).toMatch(/^session preflight failed — nothing was recorded:\n {2}persona buyer \(env test\): its profile is open in another browser \(pid \d+\) — the `studio login` window\? Close it, then run again\n {4}profile: /);
+      expect(rec.error?.message).toMatch(/^session preflight failed — nothing was recorded:\n {2}persona buyer \(env test\): its profile is open in another browser \(pid \d+\) — the `retake login` window\? Close it, then run again\n {4}profile: /);
       expect(await copiesOf(rec.id)).toEqual([]);
     } finally {
       await held.close();
@@ -223,7 +223,7 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
       [
         'session preflight failed — nothing was recorded:',
         `  persona default (env test): its auth.storage_state file does not exist: ${file}`,
-        '    export it again, or name the account in auth.personas and sign it in with `studio login`',
+        '    export it again, or name the account in auth.personas and sign it in with `retake login`',
       ].join('\n'),
     );
   });
@@ -294,7 +294,7 @@ describe('automated login (R-AUTH-05)', () => {
     expect(rec.status).toBe('succeeded');
     expect(asked).toEqual(['keychain:demo-test/supplier']);
     expect(logs(events).find((l) => l.includes('signed in automatically'))).toBe(
-      'warn: persona supplier (env test): signed in automatically, off camera (never signed in) — `studio login northfield --env test --persona supplier` saves a session runs can reuse',
+      'warn: persona supplier (env test): signed in automatically, off camera (never signed in) — `retake login northfield --env test --persona supplier` saves a session runs can reuse',
     );
     expect(existsSync(join(dir, 'capture.mp4'))).toBe(true);
     const status = await readStatus(files('supplier').statusFile);
@@ -315,14 +315,14 @@ describe('automated login (R-AUTH-05)', () => {
       [
         'session preflight failed — nothing was recorded:',
         `  persona supplier (env test): never signed in; automated login failed: login step 5 (wait_for text ${JSON.stringify(ACCOUNTS.supplier.name)}): timed out after 3.0 s: text ${JSON.stringify(ACCOUNTS.supplier.name)} is not visible`,
-        '    sign in once: studio login northfield --env test --persona supplier',
+        '    sign in once: retake login northfield --env test --persona supplier',
       ].join('\n'),
     );
     for (const f of ['run.json', 'log.jsonl']) expect(await readFile(join(dir, f), 'utf8')).not.toContain('wrong-literal-pw-77');
-    const missing = await run(await project(authConfig({ supplier: login('{{env:DEMO_STUDIO_TEST_UNSET_PW}}') })), 'auto-missing', {
+    const missing = await run(await project(authConfig({ supplier: login('{{env:RETAKE_TEST_UNSET_PW}}') })), 'auto-missing', {
       scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ wait: 0.1 }] }],
     });
-    expect(missing.rec.error?.message).toContain('persona supplier (env test): never signed in; its automated login cannot run: environment variable DEMO_STUDIO_TEST_UNSET_PW is not set');
+    expect(missing.rec.error?.message).toContain('persona supplier (env test): never signed in; its automated login cannot run: environment variable RETAKE_TEST_UNSET_PW is not set');
   });
 
   it('a sandbox account (L1.8): its plain password is a secret once its login runs (masked everywhere); signing in is info, not a warning', async () => {
@@ -346,7 +346,7 @@ describe('automated login (R-AUTH-05)', () => {
   });
 
   it('nothing a run writes or emits holds a secret (L4.4: outline, session, pause events included) — a sandbox account signed in by the run or by a saved session, and a secret written as is in a step', async () => {
-    const VAR = 'DEMO_STUDIO_TEST_L44_SECRET';
+    const VAR = 'RETAKE_TEST_L44_SECRET';
     const literal = 'l44-literal-secret-5531';
     process.env[VAR] = literal;
     /**
@@ -566,14 +566,14 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     );
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toBe(
-      `${landing(`${srv.url}/sign-in`)} — the session expired during the run; nothing of the capture was kept. Sign in again: studio login northfield --env test --persona supplier`,
+      `${landing(`${srv.url}/sign-in`)} — the session expired during the run; nothing of the capture was kept. Sign in again: retake login northfield --env test --persona supplier`,
     );
     // It did film (three steps ran) before the landing; nothing of it is left.
     expect(rec.steps_done).toBeGreaterThanOrEqual(4);
     expect(await pictures(dir)).toEqual([]);
     expect(rec.capture).toBeUndefined();
     expect(rec.timeline).toBeUndefined();
-    // `studio auth status` says so: the session expired during this run.
+    // `retake auth status` says so: the session expired during this run.
     expect(await readStatus(files('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'run', run: rec.id, at: `${srv.url}/sign-in`, detail: `page app landed on the sign-in page during run ${rec.id}` });
   });
 
@@ -586,7 +586,7 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     );
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toBe(
-      `the document of download "doc" on ${landing(`${srv.url}/sign-in`)} — the session expired during the run; nothing of the capture was kept. Sign in again: studio login northfield --env test --persona supplier`,
+      `the document of download "doc" on ${landing(`${srv.url}/sign-in`)} — the session expired during the run; nothing of the capture was kept. Sign in again: retake login northfield --env test --persona supplier`,
     );
     expect(await pictures(dir)).toEqual([]);
     expect(existsSync(join(dir, 'artefacts'))).toBe(false);
@@ -689,7 +689,7 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
     const { rec } = await run(q, 'diagnose', { scenes: [{ id: 'a', page: 'app', open: '/home', steps: [{ click: 'Expire' }, { wait_for: 'expired' }, { click: 'Quotes' }, { click: 'Quotes', timeout: 1 }] }] });
     expect(rec.status).toBe('failed');
     expect(rec.error?.message).toMatch(
-      /^scene a, step 3 \(click text="Quotes"\): no visible element matches .* — the session of persona supplier is no longer valid \(app:\/home does not show "Ada Supplier" within 2 s \(at http:\/\/127\.0\.0\.1:\d+\/sign-in\)\): sign in again: studio login northfield --env test --persona supplier$/,
+      /^scene a, step 3 \(click text="Quotes"\): no visible element matches .* — the session of persona supplier is no longer valid \(app:\/home does not show "Ada Supplier" within 2 s \(at http:\/\/127\.0\.0\.1:\d+\/sign-in\)\): sign in again: retake login northfield --env test --persona supplier$/,
     );
     expect(await readStatus(files('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'run', run: rec.id, at: `${srv.url}/sign-in` });
   });
@@ -708,7 +708,7 @@ describe('the sign-in guard (R-AUTH-04): a run that lands on a sign-in page fail
       { hooks: 'run' },
     );
     expect(rec.status).toBe('failed');
-    expect(rec.error?.message).toContain(`js hook page "app" (persona supplier) landed on the sign-in page (${srv.url}/sign-in): its session expired — sign in again: studio login northfield --env test --persona supplier`);
+    expect(rec.error?.message).toContain(`js hook page "app" (persona supplier) landed on the sign-in page (${srv.url}/sign-in): its session expired — sign in again: retake login northfield --env test --persona supplier`);
   });
 
   it('a later js hook reusing a tab left on the sign-in page is refused too', async () => {
@@ -772,25 +772,25 @@ describe('session copies (R-AUTH-07, units)', () => {
       if (live) await symlink(`${hostname()}-${process.pid}`, join(dir, name, 'SingletonLock'));
       if (age === 'old') await utimes(join(dir, name), old, old);
     };
-    await make('demo-studio-session-r1-supplier-aaaa', 'old');
-    await make('demo-studio-session-check-1-buyer-bbbb', 'old');
-    await make('demo-studio-login-cccc', 'old');
-    await make('demo-studio-session-r2-supplier-dddd', 'new');
-    await make('demo-studio-session-r3-buyer-eeee', 'old', true);
-    await make('demo-studio-profile-ffff', 'old');
+    await make('retake-session-r1-supplier-aaaa', 'old');
+    await make('retake-session-check-1-buyer-bbbb', 'old');
+    await make('retake-login-cccc', 'old');
+    await make('retake-session-r2-supplier-dddd', 'new');
+    await make('retake-session-r3-buyer-eeee', 'old', true);
+    await make('retake-profile-ffff', 'old');
     await make('other-gggg', 'old');
     const removed = await sweepStaleSessionCopies({ dir });
     // A throwaway profile (no persona profile: a storage_state persona's cookies end up there) is swept too.
     expect(removed.map((d) => d.slice(dir.length + 1)).sort()).toEqual([
-      'demo-studio-login-cccc',
-      'demo-studio-profile-ffff',
-      'demo-studio-session-check-1-buyer-bbbb',
-      'demo-studio-session-r1-supplier-aaaa',
+      'retake-login-cccc',
+      'retake-profile-ffff',
+      'retake-session-check-1-buyer-bbbb',
+      'retake-session-r1-supplier-aaaa',
     ]);
-    expect((await readdir(dir)).sort()).toEqual(['demo-studio-session-r2-supplier-dddd', 'demo-studio-session-r3-buyer-eeee', 'other-gggg']);
+    expect((await readdir(dir)).sort()).toEqual(['other-gggg', 'retake-session-r2-supplier-dddd', 'retake-session-r3-buyer-eeee']);
     // A copy of this process is never swept; removeSessionCopiesSync (a second Ctrl-C) removes it at once.
-    const mine = join(dir, 'demo-studio-session-r4-buyer-hhhh');
-    await make('demo-studio-session-r4-buyer-hhhh', 'old');
+    const mine = join(dir, 'retake-session-r4-buyer-hhhh');
+    await make('retake-session-r4-buyer-hhhh', 'old');
     registerSessionCopy(mine);
     expect(await sweepStaleSessionCopies({ dir })).toEqual([]);
     expect(removeSessionCopiesSync()).toBe(1);

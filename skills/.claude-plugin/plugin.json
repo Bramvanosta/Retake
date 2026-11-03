@@ -1,34 +1,34 @@
 {
- "name": "demo-studio",
+ "name": "retake",
  "version": "0.1.0",
- "description": "Claude skills for authoring scenarios, themes and components with Demo Studio, and the Demo Studio MCP server on one workspace.",
+ "description": "Claude skills for authoring scenarios, themes and components with Retake, and the Retake MCP server on one workspace.",
  "author": {
-  "name": "Demo Studio"
+  "name": "Retake"
  },
  "skills": "./",
  "userConfig": {
   "node": {
    "type": "file",
    "title": "Node.js 22 or later",
-   "description": "Absolute path of the node binary that runs the server (studio mcp --print-config prints one).",
+   "description": "Absolute path of the node binary that runs the server (retake mcp --print-config prints one).",
    "required": true
   },
-  "studio": {
+  "cli": {
    "type": "file",
-   "title": "Demo Studio entry point",
-   "description": "Absolute path of packages/cli/dist/bin.js in the Demo Studio repository (built with pnpm build).",
+   "title": "Retake entry point",
+   "description": "Absolute path of packages/cli/dist/bin.js in the Retake repository (built with pnpm build).",
    "required": true
   },
   "workspace": {
    "type": "directory",
    "title": "Workspace",
-   "description": "Absolute path of the workspace folder the server works on (its studio.yaml or projects/ folder).",
+   "description": "Absolute path of the workspace folder the server works on (its retake.yaml or projects/ folder).",
    "required": true
   },
   "home": {
    "type": "directory",
-   "title": "Studio home (optional)",
-   "description": "Absolute path of the studio home (signed-in profiles, approval key). Empty: ~/.demo-studio.",
+   "title": "Retake home (optional)",
+   "description": "Absolute path of the Retake home (signed-in profiles, approval key). Empty: ~/.retake.",
    "default": ""
   }
  }

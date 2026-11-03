@@ -9,7 +9,7 @@
  *   says `submitted_by: 'ui'`, `check: true`, a page and a path; no author / submitted_by in an annotate or a save.
  * - record_options: environments, personas with their stored state and a path-free sign-in command, defaults, warnings,
  *   the open recording (one window at a time: a second start is 409) and the recent list.
- * - Path-free answers: a failed job's error (message and `fix`: `studio -C <workspace> …`) path-free in record_view; the
+ * - Path-free answers: a failed job's error (message and `fix`: `retake -C <workspace> …`) path-free in record_view; the
  *   check replay's failure text under `untrusted.check` path-free; URL paths and the draft kept as written.
  * - A real recording: the live view while the window is open, a `workspace {records}` event for it, a caption "at the
  *   end", Stop and keep (the check runs), the draft as `untrusted.yaml_lines` (page and typed text under `untrusted`
@@ -25,8 +25,8 @@ import type { ClientRequest } from 'node:http';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@demo-studio/engine';
-import type { JobRecord, RecordJobTestHooks } from '@demo-studio/engine';
+import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engine';
+import type { JobRecord, RecordJobTestHooks } from '@retake/engine';
 import { OWN_OPS, RECORD_OPS, UI_OPS, recordPathFree, startStudioServer } from '../src/index.js';
 import type { RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -42,7 +42,7 @@ interface Fixture {
 
 const P = 'northfield-fixture';
 const SENTINEL = `Sentinel-${randomBytes(6).toString('hex')}`;
-const saved = { home: process.env.DEMO_STUDIO_HOME, max: process.env.DEMO_STUDIO_RECORD_MAX_MIN };
+const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
 let fixture: Fixture;
 let ws: string;
 let studio: StudioServer;
@@ -63,8 +63,8 @@ const ok = async <T>(op: string, args: unknown): Promise<T> => {
   expect(r.status, `${op}: ${r.body}`).toBe(200);
   return r.json<{ data: T }>().data;
 };
-const jobIds = async () => (await readdir(join(ws, '.demo-studio', 'jobs')).catch(() => [] as string[])).sort();
-const recDir = (id: string) => join(ws, 'projects', P, '.demo-studio', 'records', id);
+const jobIds = async () => (await readdir(join(ws, '.retake', 'jobs')).catch(() => [] as string[])).sort();
+const recDir = (id: string) => join(ws, 'projects', P, '.retake', 'records', id);
 
 interface Fail {
   ok: false;
@@ -154,13 +154,13 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-ops-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  process.env.RETAKE_HOME = join(ws, '.home');
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
   const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
   await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
-  // The Studio's stderr (`studio ui` passes `log` to it), and anything else written there meanwhile.
+  // The Studio's stderr (`retake ui` passes `log` to it), and anything else written there meanwhile.
   process.stderr.write = ((chunk: string | Uint8Array, ...rest: unknown[]) => {
     stderr.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8'));
     return (writeErr as (c: string | Uint8Array, ...r: unknown[]) => boolean)(chunk, ...rest);
@@ -183,8 +183,8 @@ afterAll(async () => {
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
   for (const [k, v] of [
-    ['DEMO_STUDIO_HOME', saved.home],
-    ['DEMO_STUDIO_RECORD_MAX_MIN', saved.max],
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_RECORD_MAX_MIN', saved.max],
   ] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
@@ -271,7 +271,7 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(signed.default).toEqual({ page: 'console', path: '/', persona: 'supplier' });
     const supplier = signed.personas.find((p) => p.name === 'supplier')!;
     expect(supplier).toMatchObject({ pages: ['console'], login_steps: true, status: 'never', in_use: false });
-    // The sign-in command, path-free: `studio -C <workspace> login …` with the workspace cut.
+    // The sign-in command, path-free: `retake -C <workspace> login …` with the workspace cut.
     expect(supplier.command).toMatch(/login northfield-fixture --env signed-in --persona supplier/);
     expect(o.notes.join(' ')).toMatch(/full size/);
   });
@@ -292,32 +292,32 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(o.recent[0]).toMatchObject({ rec_id: first.rec_id, state: 'queued', job: first.job, started_by: 'ui', name: 'ops-first', page: 'shop', path: '/record-lab/a/b', steps: null, saved: null, studio: true });
   });
 
-  it("a failed job's error in record_view: message and fix path-free (a refused preflight's studio -C <workspace> …)", async () => {
+  it("a failed job's error in record_view: message and fix path-free (a refused preflight's retake -C <workspace> …)", async () => {
     await failJob(first.job, {
       code: 'refused',
-      message: `persona not signed in (profile ${ws}/.home/profiles/x): sign it in first — studio -C ${ws} login ${P} --env local`,
-      fix: `studio -C ${ws} record ${P} ops-first --page shop --path /record-lab/a/b`,
+      message: `persona not signed in (profile ${ws}/.home/profiles/x): sign it in first — retake -C ${ws} login ${P} --env local`,
+      fix: `retake -C ${ws} record ${P} ops-first --page shop --path /record-lab/a/b`,
     });
     const r = await call('record_view', { project: P, rec_id: first.rec_id, job: first.job });
     expect(r.status, r.body).toBe(200);
     expect(r.body).not.toContain(ws);
     const v = r.json<{ data: RecordViewAnswer }>().data;
     expect(v).toMatchObject({ state: 'failed', job: { state: 'failed', error: { code: 'refused' } }, can: { stop: false } });
-    expect(v.job!.error!.fix).toMatch(/^studio -C \. record northfield-fixture ops-first/);
+    expect(v.job!.error!.fix).toMatch(/^retake -C \. record northfield-fixture ops-first/);
   });
 
-  it('the records watch never looks through a link (review A-L3): a project whose records or .demo-studio folder is one is skipped', async () => {
+  it('the records watch never looks through a link (review A-L3): a project whose records or .retake folder is one is skipped', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-record-watch-'));
     try {
       const id = newRecordId();
       const outside = join(dir, 'outside');
       await mkdir(join(outside, 'records', id), { recursive: true });
       await writeFile(join(outside, 'records', id, 'events.jsonl'), '');
-      await mkdir(join(dir, 'projects', 'real', '.demo-studio', 'records', id), { recursive: true });
-      await mkdir(join(dir, 'projects', 'linked-records', '.demo-studio'), { recursive: true });
-      await symlink(join(outside, 'records'), join(dir, 'projects', 'linked-records', '.demo-studio', 'records'));
+      await mkdir(join(dir, 'projects', 'real', '.retake', 'records', id), { recursive: true });
+      await mkdir(join(dir, 'projects', 'linked-records', '.retake'), { recursive: true });
+      await symlink(join(outside, 'records'), join(dir, 'projects', 'linked-records', '.retake', 'records'));
       await mkdir(join(dir, 'projects', 'linked-home'), { recursive: true });
-      await symlink(outside, join(dir, 'projects', 'linked-home', '.demo-studio'));
+      await symlink(outside, join(dir, 'projects', 'linked-home', '.retake'));
       expect([...recordsWatchScan(join(dir, 'projects')).keys()]).toEqual([`real/${id}`]);
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -334,7 +334,7 @@ describe('the start form, one window at a time, path-free answers', () => {
         // N1: any other `path` is a trusted string like the others (an absolute file path never passes).
         result: { saved: { path: '/opt/elsewhere/deep/file.yaml' } },
         problem: `cannot read ${root}/projects/p/x and /opt/elsewhere/deep/file.txt`,
-        job: { error: { message: 'failed at /var/lib/thing/deep/file', fix: `studio -C ${root} record p` } },
+        job: { error: { message: 'failed at /var/lib/thing/deep/file', fix: `retake -C ${root} record p` } },
         untrusted: { yaml_lines: ['    open: /orders/new/42', `  - type: {text: "${root}/notes"}`], check: { error: 'no element; screenshot /private/var/folders/x/y/shot.png' } },
       },
       root,
@@ -346,7 +346,7 @@ describe('the start form, one window at a time, path-free answers', () => {
     expect(out.problem).not.toContain('/opt/elsewhere/deep');
     expect(out.problem).not.toContain(root);
     expect(out.job.error.message).not.toContain('/var/lib/thing/deep');
-    expect(out.job.error.fix).toBe('studio -C . record p');
+    expect(out.job.error.fix).toBe('retake -C . record p');
     expect(out.untrusted.yaml_lines).toEqual(['    open: /orders/new/42', '  - type: {text: "notes"}']);
     expect(out.untrusted.check.error).not.toContain('/private/var/folders/x/y');
   });

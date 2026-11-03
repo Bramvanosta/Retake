@@ -291,7 +291,7 @@ mod tests {
     use super::*;
     use crate::pipe::{parse_pipe_line, PipeMsg};
 
-    const APP: &str = "Demo Studio";
+    const APP: &str = "Retake";
 
     fn pending(line: &str) -> Pending {
         match parse_pipe_line(line) {
@@ -341,7 +341,7 @@ mod tests {
     fn the_quit_question_names_unsaved_text_and_jobs_with_the_safe_default() {
         let p = pending(r#"{"type":"pending","jobs":[{"kind":"capture","state":"running","project":"shop","scenario":"quote"},{"kind":"render","state":"queued","project":"shop","scenario":"quote"}],"jobs_total":4,"unsaved":[{"kind":"readme","project":"shop"},{"kind":"yaml_draft","project":"shop","scenario":"quote"}],"unsaved_total":2}"#);
         let q = guard_question(&p, Action::Quit, APP).unwrap();
-        assert_eq!(q.title, "Quit Demo Studio?");
+        assert_eq!(q.title, "Quit Retake?");
         assert_eq!(
             q.text,
             "Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of shop\n• Scenario quote of shop (YAML)\n\nThese jobs keep running after the app quits, but it will not tell you when they end:\n• Capture of shop · quote (running)\n• Render of shop · quote (queued)\n…and 2 more"

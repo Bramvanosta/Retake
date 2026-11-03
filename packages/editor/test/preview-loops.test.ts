@@ -13,12 +13,12 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@demo-studio/core';
-import type { LoadedTemplate } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { RenderCancelledError, RenderDiskFullError, bundleHash, isDiskFullError, renderComponentLoops, renderComponentPreviews } from '@demo-studio/editor';
-import type { BundleComponent, ComponentPreviewSpec, LoopItem, PreviewBackend, PreviewComponentTarget } from '@demo-studio/editor';
+import { loadTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { RenderCancelledError, RenderDiskFullError, bundleHash, isDiskFullError, renderComponentLoops, renderComponentPreviews } from '@retake/editor';
+import type { BundleComponent, ComponentPreviewSpec, LoopItem, PreviewBackend, PreviewComponentTarget } from '@retake/editor';
 import { REPO } from './render-helpers.js';
 
 let root: string;
@@ -27,8 +27,8 @@ let registry: ComponentRegistry;
 let editorial: LoadedTemplate;
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-preview-loops-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  root = await mkdtemp(join(tmpdir(), 'retake-preview-loops-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
   editorial = await loadTemplate('editorial', root);
   out = join(root, 'out');

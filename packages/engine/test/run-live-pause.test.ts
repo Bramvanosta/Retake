@@ -2,9 +2,9 @@
  * L4.4: a `run` job watched and paused through the worker (in-process, real Chromium, the fixture product on free ports).
  * The worker opens the job's live channel (live.json) and polls its `pause` marker with the cancel marker: engine
  * runs.pause asks, the dry run pauses before its next step (run.json and the job's progress say so), resumes, records
- * the pause; a cancel while paused still runs the teardown; DEMO_STUDIO_PAUSE_MAX_MIN stops a long pause. Live frames
+ * the pause; a cancel while paused still runs the teardown; RETAKE_PAUSE_MAX_MIN stops a long pause. Live frames
  * reach a reader of the channel and are never written anywhere (B6: every file of the run, the workspace state, the
- * studio home and the worker's temporary folder scanned for the frames' bytes). runs.pause refuses a run of the CLI, a
+ * Retake home and the worker's temporary folder scanned for the frames' bytes). runs.pause refuses a run of the CLI, a
  * queued or a finished run, writing no marker — a capture is no exception since part D (it does not film the pause).
  * Skipped without Chromium.
  */
@@ -15,13 +15,13 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RunRecord } from '@demo-studio/core';
+import type { RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, openLiveFeed, readLiveChannel, runWorker } from '../src/index.js';
 import type { Engine, EngineError, JobRecord, LiveFeedFrame } from '../src/index.js';
 import { REPO } from './helpers.js';
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -66,7 +66,7 @@ scenes:
 `;
 
 const YES = { approve: async () => ({ approved: true as const }) };
-const saved = { home: process.env.DEMO_STUDIO_HOME, tmp: process.env.TMPDIR, max: process.env.DEMO_STUDIO_PAUSE_MAX_MIN };
+const saved = { home: process.env.RETAKE_HOME, tmp: process.env.TMPDIR, max: process.env.RETAKE_PAUSE_MAX_MIN };
 let fixture: Fixture;
 let ws: string;
 let scratch: string;
@@ -123,12 +123,12 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'ds-live-pause-'));
-    process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+    process.env.RETAKE_HOME = join(ws, '.home');
     // The worker's temporary folder (Chromium's profiles, the runner's copies): scanned for frames afterwards.
     scratch = join(ws, '.tmp');
     await mkdir(scratch, { recursive: true });
     process.env.TMPDIR = scratch;
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'w');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
@@ -142,7 +142,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
   });
 
   afterAll(async () => {
-    for (const [k, v] of [['DEMO_STUDIO_HOME', saved.home], ['TMPDIR', saved.tmp], ['DEMO_STUDIO_PAUSE_MAX_MIN', saved.max]] as const) {
+    for (const [k, v] of [['RETAKE_HOME', saved.home], ['TMPDIR', saved.tmp], ['RETAKE_PAUSE_MAX_MIN', saved.max]] as const) {
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
@@ -198,13 +198,13 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     expect(events.findIndex((e) => e.type === 'step_start')).toBeGreaterThan(outlineAt);
     expect((events.find((e) => e.type === 'pause' && e.state === 'paused') as { max_ms?: number } | undefined)?.max_ms).toBe(30 * 60_000);
 
-    // B6: frames came, and not one of them is in any file the run, the workspace, the studio home or the worker's
+    // B6: frames came, and not one of them is in any file the run, the workspace, the Retake home or the worker's
     // temporary folder holds — as a file, inside a file, or in base64.
     expect(frames.length).toBeGreaterThan(0);
     const hashes = new Set(frames.map((f) => createHash('sha256').update(f.data).digest('hex')));
     const probes = frames.map((f) => f.data.subarray(16, 16 + 1024));
     const probes64 = frames.map((f) => f.data.subarray(15, 15 + 768).toString('base64'));
-    const all = [...(await files(join(ws, 'projects', 'w', 'runs', sub.run_id))), ...(await files(join(ws, '.demo-studio'))), ...(await files(join(ws, '.home'))), ...(await files(scratch))];
+    const all = [...(await files(join(ws, 'projects', 'w', 'runs', sub.run_id))), ...(await files(join(ws, '.retake'))), ...(await files(join(ws, '.home'))), ...(await files(scratch))];
     expect(all.length).toBeGreaterThan(3);
     const found: string[] = [];
     for (const file of all) {
@@ -237,8 +237,8 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     expect(rec.pauses).toHaveLength(1);
   });
 
-  it('DEMO_STUDIO_PAUSE_MAX_MIN: a pause longer than it stops the run with the reason', async () => {
-    process.env.DEMO_STUDIO_PAUSE_MAX_MIN = '0.02';
+  it('RETAKE_PAUSE_MAX_MIN: a pause longer than it stops the run with the reason', async () => {
+    process.env.RETAKE_PAUSE_MAX_MIN = '0.02';
     try {
       const sub = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'dry' });
       const worker = work();
@@ -250,7 +250,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
       expect(done.error?.message).toMatch(/^paused longer than 1\.2 s before step imports\.0/);
       expect((await runJson(sub.run_id)).status).toBe('cancelled');
     } finally {
-      delete process.env.DEMO_STUDIO_PAUSE_MAX_MIN;
+      delete process.env.RETAKE_PAUSE_MAX_MIN;
     }
   });
 
@@ -264,7 +264,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     );
     const e1 = await refusal(engine.runs.pause('w', '20261026-100000-steps', true));
     expect(e1.code).toBe('refused');
-    expect(e1.message).toContain('studio run');
+    expect(e1.message).toContain('retake run');
     expect((await refusal(engine.runs.pause('w', 'nope', true))).code).toBe('not_found');
     // A queued dry run: not yet.
     const queued = await engine.runs.submit({ project: 'w', scenario: 'steps', mode: 'dry' });

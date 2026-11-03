@@ -1,10 +1,10 @@
 {
  "mcpServers": {
-  "demo-studio": {
+  "retake": {
    "command": "${user_config.node}",
-   "args": ["${user_config.studio}", "--root", "${user_config.workspace}", "mcp"],
+   "args": ["${user_config.cli}", "--root", "${user_config.workspace}", "mcp"],
    "env": {
-    "DEMO_STUDIO_HOME": "${user_config.home}"
+    "RETAKE_HOME": "${user_config.home}"
    }
   }
  }

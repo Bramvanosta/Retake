@@ -257,7 +257,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "Defaults of the raw capture export for editors (studio export-capture, studio run --raw)."
+      "description": "Defaults of the raw capture export for editors (retake export-capture, retake run --raw)."
     },
     "sandboxes": {
       "type": "object",
@@ -275,7 +275,7 @@
     "name"
   ],
   "additionalProperties": false,
-  "title": "Demo Studio project",
+  "title": "Retake project",
   "description": "projects/<slug>/project.yaml",
   "$defs": {
     "Environment": {
@@ -565,7 +565,7 @@
             "profile",
             "storage_state"
           ],
-          "description": "profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only."
+          "description": "profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only."
         },
         "check": {
           "$ref": "#/$defs/PersonaCheck"
@@ -595,7 +595,7 @@
         }
       },
       "additionalProperties": false,
-      "description": "One account the videos are filmed as. Its session lives in ~/.demo-studio (DEMO_STUDIO_HOME), never in the project: no path here."
+      "description": "One account the videos are filmed as. Its session lives in ~/.retake (RETAKE_HOME), never in the project: no path here."
     },
     "PersonaCheck": {
       "type": "object",

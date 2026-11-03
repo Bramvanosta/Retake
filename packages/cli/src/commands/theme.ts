@@ -1,6 +1,6 @@
-import { printableText } from '@demo-studio/core';
-import { EngineError, createThemeFromBrand, extractSiteForAuthor } from '@demo-studio/engine';
-import type { SiteJobResult, ThemeCreated } from '@demo-studio/engine';
+import { printableText } from '@retake/core';
+import { EngineError, createThemeFromBrand, extractSiteForAuthor } from '@retake/engine';
+import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -45,10 +45,10 @@ function printCreated(ui: Ui, c: ThemeCreated): void {
   ui.line(`  fonts: ${c.fonts.map((f) => `${f.file} (${f.role} ${f.weight}${f.italic ? ' italic' : ''})`).join(', ')}`);
   for (const f of c.untrusted.fonts) ui.line(k.dim(`  ${f.file}: ${f.family ?? '?'}${f.licence_url ? `, ${f.licence_url}` : ''}`));
   for (const w of c.warnings) ui.warn(w);
-  ui.line(`next: ${k.bold(`studio render <project> <scenario> --theme ${c.name}`)} (or template_preview through MCP); change it with --replace while nobody edited it`);
+  ui.line(`next: ${k.bold(`retake render <project> <scenario> --theme ${c.name}`)} (or template_preview through MCP); change it with --replace while nobody edited it`);
 }
 
-/** `studio theme create <name> --accent <hex> --logo <file> …`: a new workspace theme from brand files (trust author). */
+/** `retake theme create <name> --accent <hex> --logo <file> …`: a new workspace theme from brand files (trust author). */
 export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: string, opts: ThemeCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const input = {
@@ -113,13 +113,13 @@ function printSite(ui: Ui, r: SiteJobResult): void {
     const c = d.colors;
     ui.line(
       `next: ${k.bold(
-        `studio theme create ${d.name} --base ${d.base} --accent '${c.accent}' --text '${c.text}' --paper '${c.paper}'${c.dark ? ` --dark '${c.dark}'` : ''} --logo ${d.logo ?? '<file>'}${d.brand?.url ? ` --brand-url ${d.brand.url}` : ''}`,
+        `retake theme create ${d.name} --base ${d.base} --accent '${c.accent}' --text '${c.text}' --paper '${c.paper}'${c.dark ? ` --dark '${c.dark}'` : ''} --logo ${d.logo ?? '<file>'}${d.brand?.url ? ` --brand-url ${d.brand.url}` : ''}`,
       )} (change any value; check the logo first)`,
     );
   }
 }
 
-/** `studio theme from-site <url>`: a site extraction in-process (trust author: no approval, the same network rules). */
+/** `retake theme from-site <url>`: a site extraction in-process (trust author: no approval, the same network rules). */
 export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: string, opts: { json?: boolean }): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   let r: SiteJobResult;

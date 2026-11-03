@@ -10,7 +10,7 @@
  *   file of the project folder: relative, never `..` out of it, never through a symbolic link that leaves it;
  * - a file it runs as code (eval.file, a hook's sql / js file, a script its shell command names) is not one the agent
  *   can write itself (README.md, scenarios/, comments/ — L3.6: an agent appends replies and resolutions to frame comment
- *   threads —, and the folders runs and the tools write: runs/, renders/, review/, exports/, .demo-studio/), nor a
+ *   threads —, and the folders runs and the tools write: runs/, renders/, review/, exports/, .retake/), nor a
  *   brand source of a theme (engine brand files).
  *
  * L3.2, renders: every file a render reads (card / overlay images, `data:` CSV slots, own media, music) is a file of the
@@ -19,11 +19,12 @@
  * templateRefProblem; the editor's planRun applies them before any file is read, then checks every file the plan
  * serves).
  *
- * A `studio` command typed by a human (trust `author`) is not concerned.
+ * A `retake` command typed by a human (trust `author`) is not concerned.
  */
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
+import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
@@ -42,8 +43,11 @@ export function channelWords(via: AgentChannel | undefined): string {
   return via === 'studio' ? 'from the Studio' : 'through MCP';
 }
 
-/** Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`). */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.demo-studio/'];
+/**
+ * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`) — with the
+ * tool folder's name from before L5.13: its files (page dumps, drafts) are never run as code either (critique H1).
+ */
+export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/', ...OLD_AGENT_WRITABLE_PATHS];
 
 /**
  * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared

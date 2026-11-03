@@ -1,14 +1,14 @@
 /**
- * The fixture's Docker sandbox for real (L1.8, environment sandbox-docker), gated by DEMO_STUDIO_TEST_DOCKER=1: a
+ * The fixture's Docker sandbox for real (L1.8, environment sandbox-docker), gated by RETAKE_TEST_DOCKER=1: a
  * running Docker with axllent/mailpit:v1.29.4 present and node:22-alpine present or pullable. The committed
  * sandbox.yaml + compose.yaml are copied to a temp project, moved to free ports, built from fixtures/wholesale, under
- * a compose project `demo-studio-test-fixture-<run token>-*`; this run's compose projects and images are removed after
+ * a compose project `retake-test-fixture-<run token>-*`; this run's compose projects and images are removed after
  * (shared base images are left alone; another run, and packages/sandbox/test/compose.test.ts, keep theirs: both files
  * may run at the same time).
  *
- * `studio sandbox up` builds the image and starts the fixture and Mailpit (seeded); a sign-up's confirmation mail is
+ * `retake sandbox up` builds the image and starts the fixture and Mailpit (seeded); a sign-up's confirmation mail is
  * relayed over SMTP to the real Mailpit and read with runner-web's MailboxClient (list, get, the cid: logo as an
- * inline part); the image prints no PDF (no Chromium); `studio sandbox reset` empties Mailpit (DELETE all); logs show
+ * inline part); the image prints no PDF (no Chromium); `retake sandbox reset` empties Mailpit (DELETE all); logs show
  * the relay; `down --volumes` leaves nothing with the project's label.
  */
 import { execFileSync } from 'node:child_process';
@@ -18,15 +18,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import { MailboxClient, inlineCids } from '@demo-studio/runner-web';
-import { dockerEnv, findDocker, openSandbox, probePort } from '@demo-studio/sandbox';
+import { loadProject } from '@retake/core';
+import { MailboxClient, inlineCids } from '@retake/runner-web';
+import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_DOCKER === '1';
+const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';
 /** This run's compose projects and images: a token of its own (compose.test.ts and another run leave them alone). */
-const PREFIX = `demo-studio-test-fixture-${randomBytes(3).toString('hex')}-`;
+const PREFIX = `retake-test-fixture-${randomBytes(3).toString('hex')}-`;
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE = join(REPO, 'fixtures/wholesale');
 const SOURCE = join(REPO, 'projects/northfield-fixture/sandbox/docker');
@@ -46,7 +46,7 @@ function labelled(kind: 'container' | 'volume' | 'network', project: string): st
     .filter(Boolean);
 }
 
-/** Images built by this run (`demo-studio-test-fixture-<token>-*`), as repository:tag. */
+/** Images built by this run (`retake-test-fixture-<token>-*`), as repository:tag. */
 function testImages(): string[] {
   return docker(['images', '--filter', `reference=${PREFIX}*`, '--format', '{{.Repository}}:{{.Tag}}'])
     .split('\n')
@@ -84,26 +84,28 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
+let savedHome: string | undefined;
 let dir = '';
 let ports: number[] = [];
 const name = `${PREFIX}${randomBytes(3).toString('hex')}`;
 
-async function studio(args: string[]) {
+async function retake(args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
-describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TEST_DOCKER=1)", () => {
+describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (RETAKE_TEST_DOCKER=1)", () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-docker-home-'));
-    process.env.DEMO_STUDIO_HOME = home;
+    savedHome = process.env.RETAKE_HOME;
+    process.env.RETAKE_HOME = home;
     // The image copies the UI bundle built on this machine.
     const build = (await import(join(FIXTURE, 'build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
     ports = await freePorts(5);
     ws = await mkdtemp(join(tmpdir(), 'studio-docker-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     dir = join(ws, 'projects', PROJECT);
     await mkdir(join(dir, 'sandbox', 'docker'), { recursive: true });
     await writeFile(
@@ -128,7 +130,9 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TE
       /* not started */
     }
     sweep();
-    delete process.env.DEMO_STUDIO_HOME;
+    // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });
@@ -136,7 +140,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TE
   it('up builds the image and starts the fixture and Mailpit; a sign-up mail reaches the real Mailpit over SMTP and MailboxClient reads it; reset empties Mailpit; down --volumes leaves nothing', async () => {
     const [consolePort, shopPort, , , mailPort] = ports;
     const t0 = Date.now();
-    const up = await studio(['sandbox', 'up', PROJECT, '--env', ENV]);
+    const up = await retake(['sandbox', 'up', PROJECT, '--env', ENV]);
     expect(up.code, up.err).toBe(EXIT.ok);
     expect(up.err).toMatch(/services {2}started fixture, mailpit · healthy 2\/2/);
     expect(up.err).toMatch(/seed {6}reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);
@@ -144,7 +148,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TE
     const image = `${name}-fixture`;
     expect(testImages()).toEqual([`${image}:latest`]);
     const size = Number(docker(['image', 'inspect', '--format', '{{.Size}}', image]).trim());
-    const st = await studio(['sandbox', 'status', PROJECT, '--env', ENV, '--json']);
+    const st = await retake(['sandbox', 'status', PROJECT, '--env', ENV, '--json']);
     expect(st.code, st.err).toBe(EXIT.ok);
     expect(JSON.parse(st.out)).toMatchObject({
       state: 'up',
@@ -187,7 +191,7 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TE
     expect(await pdf.text()).toContain('The PDF could not be printed');
 
     // The fixture's log shows the relay.
-    const logs = await studio(['sandbox', 'logs', PROJECT, 'fixture', '--env', ENV, '--lines', '40']);
+    const logs = await retake(['sandbox', 'logs', PROJECT, 'fixture', '--env', ENV, '--lines', '40']);
     expect(logs.code, logs.err).toBe(EXIT.ok);
     expect(logs.out).toContain('Northfield fixture is running');
     expect(logs.out).toContain('SMTP     every mail is also delivered to mailpit:1025');
@@ -195,14 +199,14 @@ describe.skipIf(!ENABLED)("the fixture's Docker sandbox for real (DEMO_STUDIO_TE
 
     // A reset empties Mailpit (DELETE /api/v1/messages) and the fixture's own mailbox (its reset API).
     const t1 = Date.now();
-    const reset = await studio(['sandbox', 'reset', PROJECT, '--env', ENV]);
+    const reset = await retake(['sandbox', 'reset', PROJECT, '--env', ENV]);
     expect(reset.code, reset.err).toBe(EXIT.ok);
     expect(reset.err).toMatch(/sandbox sandbox-docker reset: reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);
     const resetMs = Date.now() - t1;
     expect(await mailbox.list()).toEqual([]);
     expect(((await (await fetch(`http://localhost:${consolePort}/mailbox/api/v1/messages`)).json()) as { total: number }).total).toBe(0);
 
-    const down = await studio(['sandbox', 'down', PROJECT, '--env', ENV, '--volumes']);
+    const down = await retake(['sandbox', 'down', PROJECT, '--env', ENV, '--volumes']);
     expect(down.code, down.err).toBe(EXIT.ok);
     expect(down.err).toMatch(/sandbox sandbox-docker stopped: (fixture, mailpit|mailpit, fixture)/);
     expect(labelled('container', name)).toEqual([]);

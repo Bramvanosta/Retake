@@ -2,8 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Journal, databaseTarget, maskSql, runHooks, transactionControl } from '@demo-studio/hooks';
-import type { HookStep, ProjectConfig } from '@demo-studio/core';
+import { Journal, databaseTarget, maskSql, runHooks, transactionControl } from '@retake/hooks';
+import type { HookStep, ProjectConfig } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -85,10 +85,10 @@ describe('sql hooks without a server', () => {
 });
 
 /**
- * Real Postgres: set DEMO_STUDIO_TEST_PG to a connection URL whose role may create tables, e.g.
- * postgres://demo_studio:demo_studio_pw@127.0.0.1:5432/demo_studio_test
+ * Real Postgres: set RETAKE_TEST_PG to a connection URL whose role may create tables, e.g.
+ * postgres://retake:retake_pw@127.0.0.1:5432/retake_test
  */
-const PG = process.env.DEMO_STUDIO_TEST_PG;
+const PG = process.env.RETAKE_TEST_PG;
 
 describe.skipIf(!PG)('sql hooks against Postgres', () => {
   const table = `nf_replies_${process.pid}_${Date.now() % 100000}`;
@@ -115,7 +115,7 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
 
   const texts = async () => (await admin.query(`SELECT text FROM ${table} ORDER BY id`)).rows.map((r: { text: string }) => r.text);
 
-  function context(url = '{{env:DEMO_STUDIO_TEST_PG}}') {
+  function context(url = '{{env:RETAKE_TEST_PG}}') {
     const project = makeProject(tmp.dir, {}, { databases: { main: { url } } });
     return makeContext(project, { vars: { table } });
   }
@@ -134,7 +134,7 @@ describe.skipIf(!PG)('sql hooks against Postgres', () => {
     expect(await texts()).toEqual(['Sample requested', 'Order shipped']);
     expect(journal.pending()[0].rollback).toMatchObject({ kind: 'sql', db: 'main', file: 'hooks/unseed.sql', data: { vars: { table } } });
 
-    const rolled = await (await journalAt()).rollbackAll(makeContext(makeProject(tmp.dir, {}, { databases: { main: { url: '{{env:DEMO_STUDIO_TEST_PG}}' } } })).ctx);
+    const rolled = await (await journalAt()).rollbackAll(makeContext(makeProject(tmp.dir, {}, { databases: { main: { url: '{{env:RETAKE_TEST_PG}}' } } })).ctx);
     expect(rolled).toMatchObject([{ status: 'ok', message: '1 statement, 2 rows affected' }]);
     expect(await texts()).toEqual([]);
   });

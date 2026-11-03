@@ -10,7 +10,7 @@
  * take) re-renders none of this.
  */
 import { memo } from 'react';
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 import { Txt } from './bits.js';
 import { hrefTo } from './route.js';
 import { cutWords, landingOf, segmentWords, timecode } from './timeline-words.js';

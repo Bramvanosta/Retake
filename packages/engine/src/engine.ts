@@ -6,8 +6,8 @@
  * workspace's worker runs in a process of its own.
  */
 import { hostname } from 'node:os';
-import { DEMO_STUDIO_VERSION, listProjects, loginCommand as coreLoginCommand, parseScenario } from '@demo-studio/core';
-import type { CommentAuthor, RunMode, WorkspaceConfig } from '@demo-studio/core';
+import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario } from '@retake/core';
+import type { CommentAuthor, LegacyInfo, RunMode, WorkspaceConfig } from '@retake/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -62,10 +62,10 @@ import type { InspectSubmitRequest } from './jobs/inspect-job.js';
 import { readRecording, submitRecordJob } from './jobs/record-job.js';
 import { checkAgentCancel, recordAnnotate, recordDiscard, recordList, recordSave, recordStop, recordView } from './record-studio.js';
 import type { RecordAnnotated, RecordDiscarded, RecordListItem, RecordSaved, RecordStopped, RecordView } from './record-studio.js';
-import type { RecordAnnotationChange } from '@demo-studio/core';
+import type { RecordAnnotationChange } from '@retake/core';
 import type { RecordSubmitRequest } from './jobs/record-job.js';
-import type { InspectJobInput } from '@demo-studio/core';
-import type { InspectReport } from '@demo-studio/runner-web';
+import type { InspectJobInput } from '@retake/core';
+import type { InspectReport } from '@retake/runner-web';
 import type { PreviewRequest } from './jobs/preview-job.js';
 import type { LibraryStatesView } from './library.js';
 import { componentCreate, componentGet, componentList, componentValidate } from './components.js';
@@ -84,7 +84,7 @@ import { readSite, submitSiteJob } from './jobs/site-job.js';
 import type { SiteSubmitted } from './jobs/site-job.js';
 import type { ThemeCreated } from './brand/create.js';
 import type { TemplateDetail, TemplateListView } from './templates.js';
-import type { ComponentKind } from '@demo-studio/core';
+import type { ComponentKind } from '@retake/core';
 import type { ReviewImageView, ReviewImagesMode, ReviewView } from './reviews.js';
 import type { PlanPreviewView, RenderStatusView, ScenarioRendersView } from './renders.js';
 import type { SandboxSubmitRequest } from './jobs/sandbox-job.js';
@@ -124,7 +124,7 @@ export function agentTrust(client: EngineClient): boolean {
 }
 
 export interface EngineOptions {
-  /** Workspace root; default $DEMO_STUDIO_ROOT, else the studio.yaml lookup from the cwd. */
+  /** Workspace root; default $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
   root?: string;
   /** Who drives it: recorded with what it starts (jobs) and shapes the safety defaults. */
   client: EngineClient;
@@ -182,6 +182,12 @@ export interface EngineInfo {
   features: string[];
   /** What this installation may do (a parked commercial hook: everything, no limit). */
   entitlements: Entitlements;
+  /**
+   * L5.13: what is left from before the rename and not read — `old_home`: the old home still holds the sign-ins
+   * (`retake doctor` gives the move); `old_vars`: old variables set whose `RETAKE_*` twin is not (an MCP client never
+   * shows the CLI's stderr line). Absent when nothing is.
+   */
+  legacy?: LegacyInfo;
 }
 
 export interface AuthStatusItem extends Omit<PersonaStateView, 'detail' | 'at'> {
@@ -218,7 +224,7 @@ export interface ScenarioCheck extends ScenarioText, ValidateResult {
 export interface Engine {
   readonly root: string;
   readonly workspace: WorkspaceConfig;
-  /** `studio -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
+  /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;
   info(): EngineInfo;
   /** What the workspace produced, from its job history (history.jsonl: jobs and CLI runs). */
@@ -283,14 +289,14 @@ export interface Engine {
     /**
      * Queue a dry run or a capture for the worker (it returns at once, with the reserved run id). Its hooks that need a
      * human (trust `mcp`: destructive ones whatever `confirm` says, every shell hook) are asked through `approver`;
-     * without one, or when not approved, the submit is refused with the `studio` command a human runs.
+     * without one, or when not approved, the submit is refused with the `retake` command a human runs.
      */
     submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean } }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
      * Pause (`paused: true`) or resume a running run of a job (L4.4): the job's `pause` marker; the run pauses before its
-     * next step (at most DEMO_STUDIO_PAUSE_MAX_MIN, default 30 min, then it stops) — a capture does not film the pause.
+     * next step (at most RETAKE_PAUSE_MAX_MIN, default 30 min, then it stops) — a capture does not film the pause.
      * Refused: a run started from the CLI; a queued, stopping or finished run (conflict). Resuming always removes the marker.
      */
     pause(project: string, runId: string, paused: boolean): Promise<RunStatusWithJob>;
@@ -391,17 +397,17 @@ export interface Engine {
     list(o?: { project?: string }): Promise<TemplateListView>;
     /** One theme in detail: template.yaml, colours, fonts, assets, components with params. */
     get(o: { template?: string; project?: string }): Promise<TemplateDetail>;
-    /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .demo-studio/previews/. */
+    /** Queue stills of a theme (intro, layout + caption, card, interstitial, outro) into .retake/previews/. */
     preview(req: { project: string; template?: string }): Promise<PreviewSubmitted>;
     /**
      * A new workspace theme from brand inputs (L3.5; core BrandInputSchema), under trust `mcp`: brand files are
      * workspace files outside agent-writable, hidden and components folders; never an existing theme, except `replace`
-     * of one this tool made that nobody changed. `studio theme create` calls createThemeFromBrand with trust `author`.
+     * of one this tool made that nobody changed. `retake theme create` calls createThemeFromBrand with trust `author`.
      */
     create(input: unknown): Promise<ThemeCreated>;
     /**
      * Queue a site extraction (L3.5, R-MCP-12) after asking the human (through `approver`) to approve the exact URL:
-     * colours, font names, logo PNGs and a screenshot into .demo-studio/site/<id>/, and a draft brand input. Refused
+     * colours, font names, logo PNGs and a screenshot into .retake/site/<id>/, and a draft brand input. Refused
      * for an environment page or a protected host; needs_approval when the client cannot ask anyone.
      */
     fromSite(req: { url: string }, o?: { approver?: Approver }): Promise<SiteSubmitted & { worker?: { pid?: number; spawned: boolean } }>;
@@ -417,7 +423,7 @@ export interface Engine {
      * its folder only, the registry, the write lock; `restore` of a version shown or written). Refused for MCP.
      */
     edit(name: string, req: ThemeEditRequest): Promise<ThemeEditResult>;
-    /** L4.7: a new workspace theme copied from a listed one ("Copy to edit"; refused inside the Demo Studio package). */
+    /** L4.7: a new workspace theme copied from a listed one ("Copy to edit"; refused inside the Retake package). */
     copy(req: { from: string; name: string }): Promise<ThemeCopied>;
     /** L4.7: the workspace's image or font files a new theme may take (names and sizes; brand source rules). */
     files(kind: 'image' | 'font'): Promise<BrandFileList>;
@@ -431,7 +437,7 @@ export interface Engine {
     validate(id: string): Promise<ComponentValidationView>;
     /** Scaffold a workspace component (refuses the built-in namespace and built-in ids; no preview rendered). */
     create(req: ComponentCreateRequest): Promise<ComponentCreated>;
-    /** Queue a still of a component with a theme, slot values and params into .demo-studio/previews/ (never its folder). */
+    /** Queue a still of a component with a theme, slot values and params into .retake/previews/ (never its folder). */
     preview(req: { project: string; template?: string; component: string; slots?: Record<string, string>; params?: Record<string, unknown>; at_s?: number }): Promise<PreviewSubmitted>;
     /**
      * L4.7, the Studio library: the poster and loop keys of `components` (default: the whole registry) in a theme (a
@@ -448,7 +454,7 @@ export interface Engine {
   inspect: {
     /**
      * Queue an inspection (L3.3): a dry replay of a page (page key + path, or a URL of the environment's own origins) or
-     * of a saved scenario up to a step, then the page inventoried into <project>/.demo-studio/inspect/<id>/ — run_dry's
+     * of a saved scenario up to a step, then the page inventoried into <project>/.retake/inspect/<id>/ — run_dry's
      * trust rules (agent trust, protected hosts, production read-only, no hook, no template).
      */
     submit(req: InspectSubmitRequest): Promise<InspectSubmitted>;
@@ -488,7 +494,7 @@ export interface Engine {
   thumbnail(file: string, maxPx?: number): Promise<{ base64: string; width: number; height: number; bytes: number }>;
   /**
    * Frame comments (L3.6, L4.6): threads on frames of renders. Entries are written as the channel `cli` for client
-   * `cli`, `studio` for client `ui` (the Studio web app; its name the Studio process's $DEMO_STUDIO_AUTHOR, else the OS
+   * `cli`, `studio` for client `ui` (the Studio web app; its name the Studio process's $RETAKE_AUTHOR, else the OS
    * user — never a name from the page), `mcp` for any other client (`test` included: fail-safe). Only the person
    * channels (`cli`, `ui`) create and reopen threads and apply proposals. Every client but `cli` needs `if_match` to
    * resolve, to reopen and to apply; `ui` names the render it showed (`render_created_at`) to create. Proposals (L4.6)
@@ -565,12 +571,18 @@ function shellQuote(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
+/** engine_info's `legacy` field, when something from before the rename is left unread (core legacyInfo). */
+function legacyField(): { legacy?: LegacyInfo } {
+  const legacy = legacyInfo();
+  return legacy ? { legacy } : {};
+}
+
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const ws = await openWorkspace({ root: opts.root });
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
-  const studio = `studio -C ${shellQuote(ws.root)}`;
-  const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^studio /, `${studio} `);
+  const studio = `retake -C ${shellQuote(ws.root)}`;
+  const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
   const queue = new FileJobQueue(ws.root, studio);
   // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
@@ -578,7 +590,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const commentAuthor = (): CommentAuthor =>
     opts.client === 'cli' ? { via: 'cli', name: defaultAuthorName() } : opts.client === 'ui' ? { via: 'studio', name: defaultAuthorName() } : { via: 'mcp', name: MCP_AUTHOR_NAME };
   // What only a person channel does (a terminal, the Studio): create and reopen threads.
-  const personChannel = (what: string, where = `studio comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
+  const personChannel = (what: string, where = `retake comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
     if (opts.client !== 'cli' && opts.client !== 'ui') {
       throw new EngineError('refused', `${what} is for a person (${where}): an agent replies to and resolves comments`);
     }
@@ -595,7 +607,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const recordCtx = { queue, client: opts.client };
   let recordChain: Promise<unknown> = Promise.resolve();
   const studioOnly = (what: string) => {
-    if (opts.client !== 'ui' && opts.client !== 'test') throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${opts.client === 'mcp' ? 'scenario_record starts a recording and job_status reads its draft' : 'studio record records in a terminal'}`);
+    if (opts.client !== 'ui' && opts.client !== 'test') throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${opts.client === 'mcp' ? 'scenario_record starts a recording and job_status reads its draft' : 'retake record records in a terminal'}`);
   };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
@@ -694,7 +706,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     cli: studio,
     info: () => ({
       api: ENGINE_API_VERSION,
-      version: DEMO_STUDIO_VERSION,
+      version: RETAKE_VERSION,
       node: process.versions.node,
       client: opts.client,
       root: ws.root,
@@ -755,6 +767,9 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'history',
       ],
       entitlements: entitlements(),
+      // L5.13: the sign-ins and the variables of before the rename, not read (critique H3, reviews A M4 / B M4: told
+      // where the person is — the Studio, Claude).
+      ...legacyField(),
     }),
     usage: () => usageCounts(ws.root),
     projects: {
@@ -810,7 +825,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const job = await queue.ofRun(slug, runId);
         if (!job) {
           await runStatus(await project(slug), runId); // not_found when there is no such run
-          throw new EngineError('refused', `run ${runId} was not started through a job (a \`studio run\` in a terminal): it is stopped with Ctrl-C there`);
+          throw new EngineError('refused', `run ${runId} was not started through a job (a \`retake run\` in a terminal): it is stopped with Ctrl-C there`);
         }
         const rec = await queue.cancel(job.id, opts.client);
         await startWorker();
@@ -821,7 +836,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const job = await queue.ofRun(slug, runId);
         if (!job) {
           await runStatus(p, runId); // not_found when there is no such run
-          throw new EngineError('refused', `run ${runId} was not started through a job (a \`studio run\` in a terminal): it cannot be paused from here`);
+          throw new EngineError('refused', `run ${runId} was not started through a job (a \`retake run\` in a terminal): it cannot be paused from here`);
         }
         if (paused) {
           if (job.state === 'queued') throw new EngineError('conflict', `run ${runId} has not started yet: it can be paused once it runs (between steps)`);

@@ -2,8 +2,8 @@
  * L3.5 a new theme from brand inputs (engine src/brand/create.ts, `engine.templates.create`) in a temporary workspace:
  * the folder written (template.yaml loading as a workspace theme, logo / wordmark / fonts copied and renamed by role
  * and weight, LICENSES.md, the provenance file with the sha256 of every file), its names refused (a starter's in any
- * case, an existing folder of any type and case, an empty folder, a dangling link), templates_dir inside the Demo
- * Studio folder refused, `replace` of an unchanged tool-made theme allowed and refused once a file was changed, added
+ * case, an existing folder of any type and case, an empty folder, a dangling link), templates_dir inside the Retake
+ * folder refused, `replace` of an unchanged tool-made theme allowed and refused once a file was changed, added
  * or removed (or for a human's theme, or — through MCP — for a theme a human made with the CLI), font rules (same
  * weight twice, a caption weight missing, licence bits, WOFF weights from the file name's style token), font name
  * strings made printable and escaped in LICENSES.md, a crash's leftovers removed (only this tool's) and the base
@@ -15,8 +15,8 @@ import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig } from '@demo-studio/core';
-import { fontFileFace } from '@demo-studio/components';
+import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig } from '@retake/core';
+import { fontFileFace } from '@retake/components';
 import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace } from '../src/index.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
 import { REPO } from './helpers.js';
@@ -82,7 +82,7 @@ const WOFF2 = (() => {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-theme-create-'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'brand'), { recursive: true });
   await cp(join(T, 'editorial', 'logo.svg'), join(root, 'brand', 'logo.svg'));
   await cp(join(T, 'editorial', 'wordmark.svg'), join(root, 'brand', 'wordmark.svg'));
@@ -134,7 +134,7 @@ describe('template_create_from_brand (engine)', () => {
     expect(await readFile(join(dir, 'fonts', 'display-Bold.ttf'))).toEqual(await readFile(join(root, 'brand', 'Grotesk.ttf')));
     // Provenance: the sha256 of every file written.
     const prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8')) as { files: Record<string, string>; made_by: string; inputs: { logo: string } };
-    expect(prov.made_by).toBe('demo-studio');
+    expect(prov.made_by).toBe('retake');
     expect(prov.inputs.logo).toBe('brand/logo.svg');
     expect(Object.keys(prov.files).sort()).toEqual(made.files.filter((f) => f !== THEME_PROVENANCE_FILE).sort());
     for (const [f, h] of Object.entries(prov.files)) expect(sha(await readFile(join(dir, f))), f).toBe(h);
@@ -191,14 +191,14 @@ describe('template_create_from_brand (engine)', () => {
     expect(await readFile(join(tdir, 'afile'), 'utf8')).toBe('x');
   });
 
-  it('refuses a templates_dir inside the Demo Studio folder: the repository as workspace, or a folder inside it', async () => {
+  it('refuses a templates_dir inside the Retake folder: the repository as workspace, or a folder inside it', async () => {
     for (const td of [join(REPO, 'templates'), join(REPO, 'projects', 'northfield-fixture', 'themes')]) {
       const ws = await mkdtemp(join(tmpdir(), 'studio-theme-repo-'));
       await mkdir(join(ws, 'brand'));
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
-      await writeFile(join(ws, 'studio.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
+      await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
       const e = await refusal(createThemeFromBrand(await loadWorkspaceConfig(ws), input(), { trust: 'mcp' }));
-      expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Demo Studio folder/), fix: expect.stringMatching(/DEMO_STUDIO_ROOT/) });
+      expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Retake folder/), fix: expect.stringMatching(/RETAKE_ROOT/) });
       await rm(ws, { recursive: true, force: true });
     }
     expect(existsSync(join(REPO, 'projects', 'northfield-fixture', 'themes'))).toBe(false);
@@ -339,7 +339,7 @@ describe('template_create_from_brand (engine)', () => {
     await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root });
     expect(await refusal(engine.templates.create(input({ name: 'bob', colors: { accent: '#00aa00' }, replace: true })))).toMatchObject({
       code: 'refused',
-      message: expect.stringMatching(/was made by a human with studio theme create: through MCP only a theme made through MCP is replaced/),
+      message: expect.stringMatching(/was made by a human with retake theme create: through MCP only a theme made through MCP is replaced/),
     });
     expect((await loadTemplate('bob', root)).template.colors.accent).toBe('#0e7c66');
     await engine.templates.create(input({ name: 'carol' }));
@@ -349,7 +349,7 @@ describe('template_create_from_brand (engine)', () => {
   it("a crash's leftovers: only this tool's .tmp- / .old-<name>-<12 hex> folders older than an hour go", async () => {
     const tpl = join(root, 'templates');
     const old = new Date(Date.now() - 2 * 3600_000);
-    const prov = JSON.stringify({ version: 1, made_by: 'demo-studio', files: {} });
+    const prov = JSON.stringify({ version: 1, made_by: 'retake', files: {} });
     const make = async (name: string, files: Record<string, string>, aged = true) => {
       await mkdir(join(tpl, name));
       for (const [f, t] of Object.entries(files)) await writeFile(join(tpl, name, f), t);

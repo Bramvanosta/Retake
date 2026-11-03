@@ -16,8 +16,8 @@ import { cp, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, indexFile, newJobId } from '@demo-studio/engine';
-import { scaffoldDir } from '@demo-studio/components';
+import { FileJobQueue, indexFile, newJobId } from '@retake/engine';
+import { scaffoldDir } from '@retake/components';
 import { EVENT_STREAMS_MAX, startStudioServer } from '../src/index.js';
 import type { LibraryViewAnswer, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -90,7 +90,7 @@ function stream(port: number, headers: Record<string, string>): Promise<Stream> 
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const P = 'northfield-fixture';
 const auth = () => ({ authorization: `Bearer ${studio.token}` });
 const json = { 'content-type': 'application/json' };
@@ -103,12 +103,12 @@ const until = async (f: () => boolean, ms = 3000) => {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-events-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(ws, 'projects', P, 'README.md'), '# Northfield\n\nGreen coffee for roasters.\n');
-  await mkdir(join(ws, '.demo-studio'), { recursive: true });
+  await mkdir(join(ws, '.retake'), { recursive: true });
   await writeFile(
-    join(ws, '.demo-studio', 'history.jsonl'),
+    join(ws, '.retake', 'history.jsonl'),
     `${JSON.stringify({ v: 1, at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, submitted_by: 'cli', state: 'succeeded', run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' }, counted: { captures: 1, dry_runs: 0, renders: 0 } })}\n`,
   );
   studio = await startStudioServer({ root: ws, pollMs: 200 });
@@ -116,8 +116,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -260,9 +260,9 @@ describe('library events (L4.7, critique B5)', () => {
       expect(await Promise.all([join(ws, 'components'), join(ws, 'components', 'acme'), comp].map(async (d) => (await stat(d)).mtimeMs))).toEqual(folders);
       const after = await posterKey('acme/evented');
       expect(after).not.toBe(before);
-      // A site extraction written (as `studio theme from-site` does): site: true.
+      // A site extraction written (as `retake theme from-site` does): site: true.
       changed = s.next('workspace');
-      const site = join(ws, '.demo-studio', 'site', 's_01JQ4000000000000000000001');
+      const site = join(ws, '.retake', 'site', 's_01JQ4000000000000000000001');
       await mkdir(site, { recursive: true });
       await writeFile(join(site, 'site.json'), '{}\n');
       expect(await changed).toEqual({ projects: [], readme: [], files: [], site: true });

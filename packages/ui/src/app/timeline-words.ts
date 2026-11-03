@@ -3,7 +3,7 @@
  * capture's codec as a media type and in words, what a key does, and the words of a frame (the scrubber's value text).
  * No DOM here (unit-tested in Node); TimelineScreen.tsx and PreviewFrame.tsx use them.
  */
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 
 type Model = TimelineView['model'];
 

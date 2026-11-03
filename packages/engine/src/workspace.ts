@@ -1,19 +1,19 @@
 import { resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, loadWorkspaceConfig } from '@demo-studio/core';
-import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
+import { findWorkspaceRoot, loadProject, loadWorkspaceConfig } from '@retake/core';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
 
-/** Where a workspace is: `root` (the CLI's `--root`), else $DEMO_STUDIO_ROOT, else the studio.yaml lookup from the cwd. */
+/** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export interface WorkspaceOptions {
   root?: string;
 }
 
-/** The workspace a command works in: `root`, else $DEMO_STUDIO_ROOT, else the studio.yaml lookup from the cwd. */
+/** The workspace a command works in: `root`, else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<WorkspaceConfig> {
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
   return loadWorkspaceConfig(root);
 }
 
-/** studio.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */
+/** retake.yaml `browser` ← project.yaml `browser` (the project wins; args from both are kept). */
 function mergeBrowserConfig(ws?: BrowserConfig, project?: BrowserConfig): BrowserConfig | undefined {
   if (!ws) return project;
   if (!project) return { ...ws };

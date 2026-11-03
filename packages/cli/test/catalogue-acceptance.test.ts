@@ -1,5 +1,5 @@
 /**
- * Automated fixture acceptance (R-ACC-05, slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`, about 1.5 min).
+ * Automated fixture acceptance (R-ACC-05, slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, about 1.5 min).
  * The committed `catalogue` scenario of projects/northfield-fixture, unchanged, captured on the fixture product (free
  * ports, in case `pnpm fixture` runs) at 1920×1080 with the debug cursor (a 6×6 magenta square on the hotspot), with
  * its real setup / teardown hooks. Checked: the run and its files, every frame's size, the duration, the scroll
@@ -15,9 +15,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, TimelineSchema, loadProject, loadScenario } from '@demo-studio/core';
-import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@demo-studio/core';
-import { runScenario } from '@demo-studio/runner-web';
+import { RunRecordSchema, TimelineSchema, loadProject, loadScenario } from '@retake/core';
+import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
+import { runScenario } from '@retake/runner-web';
 import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '../../runner-web/test/helpers.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
@@ -25,7 +25,7 @@ const W = 1920;
 const H = 1080;
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -36,7 +36,7 @@ function chromiumAvailable(): boolean {
 }
 
 const ENABLED =
-  process.env.DEMO_STUDIO_TEST_SLOW === '1' &&
+  process.env.RETAKE_TEST_SLOW === '1' &&
   chromiumAvailable() &&
   spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0 &&
   spawnSync('ffprobe', ['-version'], { stdio: 'ignore' }).status === 0;
@@ -70,17 +70,17 @@ function clicksOf(tl: Timeline): Click[] {
   return out;
 }
 
-describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug cursor (R-ACC-05, DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug cursor (R-ACC-05, RETAKE_TEST_SLOW=1)', () => {
   let fixture: Fixture;
   let tmp: string;
-  const savedHome = process.env.DEMO_STUDIO_HOME;
+  const savedHome = process.env.RETAKE_HOME;
   let rec: RunRecord;
   let tl: Timeline;
   const events: RunProgress[] = [];
 
   beforeAll(async () => {
     tmp = await mkdtemp(join(tmpdir(), 'studio-catalogue-'));
-    process.env.DEMO_STUDIO_HOME = join(tmp, 'home'); // never the user's ~/.demo-studio
+    process.env.RETAKE_HOME = join(tmp, 'home'); // never the user's ~/.retake
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
     };
@@ -89,8 +89,8 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
 
   afterAll(async () => {
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     if (tmp) await rm(tmp, { recursive: true, force: true });
   });
 

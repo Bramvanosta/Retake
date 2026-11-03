@@ -1211,7 +1211,7 @@ tr[data-status='paused'] .chip {
   vertical-align: 1px;
 }
 
-/* ── Pro forma invoices (Demo Studio L5.6: a dialog whose body scrolls, a calendar over the fields) ── */
+/* ── Pro forma invoices (Retake L5.6: a dialog whose body scrolls, a calendar over the fields) ── */
 .pf-filters {
   gap: 16px;
   align-items: flex-end;

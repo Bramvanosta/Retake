@@ -13,8 +13,8 @@ import {
   roundTo,
   withAlpha,
   formatMetrics,
-} from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { logo_size: number; stagger: number };
 

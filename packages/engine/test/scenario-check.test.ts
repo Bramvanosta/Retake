@@ -23,7 +23,7 @@ let ws: string;
 let ui: Engine;
 let mcp: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const PERSON = 'video: person\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - type: {into: {label: Token}, text: "{{env:API_KEY}}"}\n';
 
 async function refusal(p: Promise<unknown>): Promise<EngineError> {
@@ -34,15 +34,15 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-check-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
   mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -60,7 +60,7 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
       for (const b of c.run_blockers.capture) {
         expect(b.message, name).not.toMatch(/MCP|elicitation/);
         expect(b.message, name).toContain('The Studio cannot approve hooks yet: run it in a terminal');
-        expect(b.fix, name).toMatch(new RegExp(`^studio -C .* run ${P} ${name}$`));
+        expect(b.fix, name).toMatch(new RegExp(`^retake -C .* run ${P} ${name}$`));
       }
     }
     // off-camera (L5.8): its named hook's shell entry needs a person, like a setup hook's.

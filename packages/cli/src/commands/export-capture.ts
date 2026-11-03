@@ -1,9 +1,9 @@
 import { isAbsolute, join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, loadProjectTemplate } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, WorkspaceConfig } from '@demo-studio/core';
-import { RenderError, findRun, planFileRefs, themeFileRefs } from '@demo-studio/editor';
-import type { RawExportProgress, RawExportResult } from '@demo-studio/runner-web';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, loadProjectTemplate } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, WorkspaceConfig } from '@retake/core';
+import { RenderError, findRun, planFileRefs, themeFileRefs } from '@retake/editor';
+import type { RawExportProgress, RawExportResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -12,7 +12,7 @@ import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
 
-/** The raw export flags shared by `studio export-capture` and `studio run --raw`. */
+/** The raw export flags shared by `retake export-capture` and `retake run --raw`. */
 export interface RawFlags {
   format?: string;
   fps?: string;
@@ -55,7 +55,7 @@ async function runTemplate(project: LoadedProject, timeline: Timeline): Promise<
   }
 }
 
-/** The line `studio run --raw --json` prints after its RunProgress events (one JSON object per line). */
+/** The line `retake run --raw --json` prints after its RunProgress events (one JSON object per line). */
 export interface RawExportEvent {
   type: 'raw_export';
   dir: string;
@@ -75,7 +75,7 @@ export async function rawExportOfRun(
   flags: ReturnType<typeof parseRawFlags>,
   opts: { json?: boolean; jsonLines?: boolean; signal?: AbortSignal },
 ): Promise<RawExportResult> {
-  const { exportCapture, RawExportError } = await import('@demo-studio/runner-web');
+  const { exportCapture, RawExportError } = await import('@retake/runner-web');
   let timeline: Timeline;
   try {
     timeline = JSON.parse(await readFile(join(runDir, 'timeline.json'), 'utf8')) as Timeline;
@@ -136,7 +136,7 @@ export function printRawExport(ui: Ui, r: RawExportResult, ms: number): void {
 }
 
 /**
- * `studio export-capture <project> <run|latest>`: the raw package of a run for another editing tool — a clip per scene
+ * `retake export-capture <project> <run|latest>`: the raw package of a run for another editing tool — a clip per scene
  * (page loads and loading cut), cursor data or layer, FCPXML / EDL / OTIO / CSV markers, manifest + README.
  */
 export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projectArg: string, runArg: string, opts: ExportCaptureCommandOptions): Promise<ExitCode> {

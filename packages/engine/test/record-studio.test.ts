@@ -27,8 +27,8 @@ import { copyFile, cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { firstHiddenChar } from '@demo-studio/core';
-import { TakeLock } from '@demo-studio/sandbox';
+import { firstHiddenChar } from '@retake/core';
+import { TakeLock } from '@retake/sandbox';
 import {
   FileJobQueue,
   RECORD_KEEP,
@@ -62,7 +62,7 @@ let ui: Engine;
 let mcp: Engine;
 const logs: string[] = [];
 const answers: unknown[] = [];
-const saved = { home: process.env.DEMO_STUDIO_HOME, max: process.env.DEMO_STUDIO_RECORD_MAX_MIN, tmp: process.env.TMPDIR };
+const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, tmp: process.env.TMPDIR };
 
 /** Keep every answer for the sentinel scan. */
 function keep<T>(x: T): T {
@@ -136,7 +136,7 @@ const mode = (f: string) => statSync(f).mode & 0o777;
 
 /** A `record` job of the Studio (or `by`) for a recording, in a final or running state (no worker runs it). */
 async function fakeJob(rec: string, state: 'succeeded' | 'running' | 'queued', by: 'ui' | 'mcp' = 'ui') {
-  const q = new FileJobQueue(root, 'studio');
+  const q = new FileJobQueue(root, 'retake');
   const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: rec, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: by });
   const now = new Date().toISOString();
   if (state === 'succeeded') await q.write({ ...job, state, started_at: now, finished_at: now });
@@ -195,11 +195,11 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-studio-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
+  process.env.RETAKE_HOME = join(root, '.home');
   // The window's session copies land here: the sentinel scan reads them, and none may stay (review A-N4).
   await mkdir(join(root, '.tmp'), { recursive: true });
   process.env.TMPDIR = join(root, '.tmp');
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(root);
   const projectDir = join(root, 'projects', PROJECT);
   const strip = (u: string) => u.replace(/\/$/, '');
@@ -217,8 +217,8 @@ afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
   for (const [k, v] of [
-    ['DEMO_STUDIO_HOME', saved.home],
-    ['DEMO_STUDIO_RECORD_MAX_MIN', saved.max],
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_RECORD_MAX_MIN', saved.max],
     ['TMPDIR', saved.tmp],
   ] as const) {
     if (v === undefined) delete process.env[k];
@@ -465,7 +465,7 @@ describe('discard, cancel and one window at a time', () => {
   }, 180_000);
 
   it('an interrupted Studio recording (B6): unchecked, annotated, saved from its events', async () => {
-    const q = new FileJobQueue(root, 'studio');
+    const q = new FileJobQueue(root, 'retake');
     const id = newRecordId();
     const job = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: id, source: { page: 'shop', path: '/record-lab' }, check: true, submitted_by: 'ui' });
     const dead = spawnSync(process.execPath, ['-e', '0']).pid!;
@@ -498,7 +498,7 @@ describe('discard, cancel and one window at a time', () => {
   it('B-L8: Stop once the worker has the job, before the window: the stop marker, a clean cancel — never a discard race', async () => {
     // Stop on a job the worker runs but whose window is not open yet: the stop marker only (no cancel marker).
     const pre = newRecordId();
-    const q = new FileJobQueue(root, 'studio');
+    const q = new FileJobQueue(root, 'retake');
     const job0 = await q.enqueue({ version: 1, kind: 'record', project: PROJECT, rec_id: pre, source: { page: 'shop', path: '/' }, check: true, submitted_by: 'ui' });
     const now = new Date().toISOString();
     await q.write({ ...job0, state: 'running', started_at: now, worker: { pid: process.pid, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: now } });
@@ -638,9 +638,9 @@ describe('after the reviews (trust)', () => {
     expect((await readdir(join(p.dir, 'scenarios'))).filter((f) => f.startsWith('forged-'))).toEqual([]);
   });
 
-  it('A-L3: reads never follow a link — a records folder (or .demo-studio) that is one: no draft, no list item, the reason said', async () => {
+  it('A-L3: reads never follow a link — a records folder (or .retake) that is one: no draft, no list item, the reason said', async () => {
     const ws = await openWorkspace({ root });
-    for (const which of ['records', '.demo-studio'] as const) {
+    for (const which of ['records', '.retake'] as const) {
       const slug = which === 'records' ? 'linky-read' : 'linky-read-2';
       const dir = join(root, 'projects', slug);
       const outside = join(root, `outside-${slug}`);
@@ -653,9 +653,9 @@ describe('after the reviews (trust)', () => {
       await writeFile(join(recs, 'events.jsonl'), lines);
       await writeFile(join(recs, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'cli', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: 1 } }));
       if (which === 'records') {
-        await mkdir(join(dir, '.demo-studio'), { recursive: true });
-        await symlink(outside, join(dir, '.demo-studio', 'records'));
-      } else await symlink(outside, join(dir, '.demo-studio'));
+        await mkdir(join(dir, '.retake'), { recursive: true });
+        await symlink(outside, join(dir, '.retake', 'records'));
+      } else await symlink(outside, join(dir, '.retake'));
       await openProject(ws, slug);
       const v = keep(await ui.record.view(slug, id));
       expect(v.untrusted, which).toBeNull();
@@ -744,14 +744,14 @@ describe('folders', () => {
   it('the records folder a symbolic link: Discard removes nothing through it', async () => {
     const ws = await openWorkspace({ root });
     const linky = join(root, 'projects', 'linky');
-    await mkdir(join(linky, '.demo-studio'), { recursive: true });
+    await mkdir(join(linky, '.retake'), { recursive: true });
     await writeFile(join(linky, 'project.yaml'), 'name: Linky\nenvironments:\n  local:\n    pages: {app: "http://localhost:1/"}\n');
     const outside = join(root, 'outside-records');
     const id = newRecordId();
     await mkdir(join(outside, id), { recursive: true });
     await writeFile(join(outside, id, 'meta.json'), JSON.stringify({ v: 1, rec_id: id, job_id: null, submitted_by: 'ui', name: 'x', env: 'local', persona: null, access: 'read-write', page: 'app', path: '/', started_at: new Date().toISOString(), max_ms: null, owner: { pid: spawnSync(process.execPath, ['-e', '0']).pid! } }));
     await writeFile(join(outside, id, 'events.jsonl'), '');
-    await symlink(outside, join(linky, '.demo-studio', 'records'));
+    await symlink(outside, join(linky, '.retake', 'records'));
     await openProject(ws, 'linky');
     const e = await refusal(ui.record.discard('linky', id));
     expect(e.code).toBe('refused');
@@ -766,8 +766,8 @@ describe('secrets', () => {
   it('the password sentinel is in no job file, recording file, history, worker log, saved scenario or answer', async () => {
     const p = await project();
     // None of the window's session copies stays (the browser's last writes are removed a moment after it closed).
-    await until(async () => (await readdir(join(root, '.tmp'))).every((n) => !n.startsWith('demo-studio-session-record-')), 'the session copies removed', 10_000);
-    // A-N4: the studio home (the profile the window ran on) and the temporary folder (the window's session copies) too.
+    await until(async () => (await readdir(join(root, '.tmp'))).every((n) => !n.startsWith('retake-session-record-')), 'the session copies removed', 10_000);
+    // A-N4: the Retake home (the profile the window ran on) and the temporary folder (the window's session copies) too.
     const scanned = [
       ...(await files(jobsDir(root))),
       ...(await files(recordsRoot(p))),

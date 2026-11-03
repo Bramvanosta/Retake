@@ -12,8 +12,8 @@ import {
   geometryIsDynamic,
   geometryScope,
   parseManifest,
-} from '@demo-studio/components';
-import type { LayoutGeometrySpec } from '@demo-studio/components';
+} from '@retake/components';
+import type { LayoutGeometrySpec } from '@retake/components';
 
 const fmt = (issues: Array<{ line?: number; col?: number; severity: string; path: Array<string | number>; message: string }>) =>
   issues.map((i) => `${i.line}:${i.col} ${i.severity} ${i.path.join('.')}: ${i.message}`).join('\n');

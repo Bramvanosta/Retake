@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { filmedChanges, parseScenario, replanEdit } from '@demo-studio/core';
-import type { Scenario, Timeline, TimelineEvent } from '@demo-studio/core';
+import { filmedChanges, parseScenario, replanEdit } from '@retake/core';
+import type { Scenario, Timeline, TimelineEvent } from '@retake/core';
 
 /** A scenario text: a setup hook, two scenes, a card between them. */
 const BASE = `video: Quote

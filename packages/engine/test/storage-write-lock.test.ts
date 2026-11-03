@@ -1,9 +1,9 @@
 /**
  * L4.3 (critique B1, B11): `writeText`'s `if_match` is check-then-rename, so two writers that read the same version
  * both passed their check and the last rename silently won (221 of 300 concurrent pairs in the critique's probe). A
- * write that checks a hash now holds the target's lock (`.demo-studio/locks/write-*.lock`, the L3.6 TakeLock) from the
+ * write that checks a hash now holds the target's lock (`.retake/locks/write-*.lock`, the L3.6 TakeLock) from the
  * check to the rename: of two writers of one version exactly one succeeds and the other gets its `conflict` — in one
- * process (the Studio's own ops, MCP over HTTP) and across processes (`studio mcp` beside `studio ui`). And a save keeps
+ * process (the Studio's own ops, MCP over HTTP) and across processes (`retake mcp` beside `retake ui`). And a save keeps
  * the replaced file's permissions, set explicitly (writeFile's `mode` is masked by the umask: 0664 became 0644).
  */
 import { spawn } from 'node:child_process';
@@ -54,7 +54,7 @@ describe('two writers of one version (critique B1)', () => {
     }
     expect(tally).toEqual({ both: 0, one: 100, none: 0 });
     expect((await readdir(join(dir, 'scenarios'))).filter((f) => f.endsWith('.tmp'))).toEqual([]);
-    expect((await readdir(join(dir, '.demo-studio', 'locks'))).filter((f) => !f.endsWith('.tmp'))).toEqual([]);
+    expect((await readdir(join(dir, '.retake', 'locks'))).filter((f) => !f.endsWith('.tmp'))).toEqual([]);
   }, LONG);
 
   it('review A M1: two spellings of one file on a case-insensitive disk share one lock — exactly one succeeds, 50 times', async () => {

@@ -1,9 +1,9 @@
 //! The two native dialogs of the shell, on the main thread: the workspace folder picker (NSOpenPanel, folders only)
-//! and an alert with buttons (NSAlert). Under DEMO_STUDIO_DESKTOP_TEST=1 neither is shown (a test never waits on a
-//! modal): the picker answers the folders of DEMO_STUDIO_DESKTOP_TEST_PICK (a `:` list, each once: the gated test's
+//! and an alert with buttons (NSAlert). Under RETAKE_DESKTOP_TEST=1 neither is shown (a test never waits on a
+//! modal): the picker answers the folders of RETAKE_DESKTOP_TEST_PICK (a `:` list, each once: the gated test's
 //! File › Open Workspace…), then Cancel, and an alert prints its text and its buttons' keys and answers its cancel
-//! button (`alert`: the last; `ask`: the one it names) — or, L5.2b, the next index of DEMO_STUDIO_DESKTOP_TEST_ANSWERS
-//! (a `,` list, one per alert). DEMO_STUDIO_DESKTOP_TEST_MODAL_MS=<ms> (test mode only) shows the alert for real and
+//! button (`alert`: the last; `ask`: the one it names) — or, L5.2b, the next index of RETAKE_DESKTOP_TEST_ANSWERS
+//! (a `,` list, one per alert). RETAKE_DESKTOP_TEST_MODAL_MS=<ms> (test mode only) shows the alert for real and
 //! aborts it after that delay: the gated test's proof that a question is a real window that goes away, and that SIGTERM
 //! ends it.
 //!
@@ -48,7 +48,7 @@ static TEST_ANSWERED: AtomicUsize = AtomicUsize::new(0);
 /// The shell's modals up now, innermost last (their sequence numbers).
 static MODALS: Mutex<Vec<u64>> = Mutex::new(Vec::new());
 static MODAL_SEQ: AtomicU64 = AtomicU64::new(0);
-/// Modals the test asked to abort (DEMO_STUDIO_DESKTOP_TEST_MODAL_MS).
+/// Modals the test asked to abort (RETAKE_DESKTOP_TEST_MODAL_MS).
 static TEST_ABORTS: Mutex<Vec<u64>> = Mutex::new(Vec::new());
 
 thread_local! {
@@ -135,7 +135,7 @@ pub fn end_modals() {
     }
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: abort modal `n` after `ms` (asked again every 100 ms until it is gone: a modal
+/// RETAKE_DESKTOP_TEST_MODAL_MS: abort modal `n` after `ms` (asked again every 100 ms until it is gone: a modal
 /// nested in it ends first).
 fn test_abort_after(n: u64, ms: u64) {
     std::thread::spawn(move || {
@@ -155,7 +155,7 @@ pub fn pick_folder(message: &str) -> Option<PathBuf> {
         return None;
     }
     if headless() {
-        let picks = std::env::var_os("DEMO_STUDIO_DESKTOP_TEST_PICK").map(|v| std::env::split_paths(&v).collect::<Vec<_>>()).unwrap_or_default();
+        let picks = std::env::var_os("RETAKE_DESKTOP_TEST_PICK").map(|v| std::env::split_paths(&v).collect::<Vec<_>>()).unwrap_or_default();
         if let Some(p) = picks.get(TEST_PICKED.fetch_add(1, Ordering::SeqCst)) {
             crate::log(&format!("(test mode) folder picker: {message} → {}", p.display()));
             return Some(p.clone());
@@ -195,16 +195,16 @@ pub fn alert(title: &str, text: &str, buttons: &[&str]) -> usize {
     ask(title, text, buttons, last, &[]).unwrap_or(last)
 }
 
-/// The test answer of the next alert (DEMO_STUDIO_DESKTOP_TEST_ANSWERS), if it names a button.
+/// The test answer of the next alert (RETAKE_DESKTOP_TEST_ANSWERS), if it names a button.
 fn test_answer(buttons: usize) -> Option<usize> {
-    let list = std::env::var("DEMO_STUDIO_DESKTOP_TEST_ANSWERS").ok()?;
+    let list = std::env::var("RETAKE_DESKTOP_TEST_ANSWERS").ok()?;
     let n = TEST_ANSWERED.fetch_add(1, Ordering::SeqCst);
     list.split(',').nth(n)?.trim().parse::<usize>().ok().filter(|i| *i < buttons)
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST_MODAL_MS (test mode only).
+/// RETAKE_DESKTOP_TEST_MODAL_MS (test mode only).
 fn test_modal_ms() -> Option<u64> {
-    std::env::var("DEMO_STUDIO_DESKTOP_TEST_MODAL_MS").ok()?.parse().ok().filter(|ms| (100..=60_000).contains(ms))
+    std::env::var("RETAKE_DESKTOP_TEST_MODAL_MS").ok()?.parse().ok().filter(|ms| (100..=60_000).contains(ms))
 }
 
 /// What Return and Escape do on each button (AppKit's own: the first button takes Return, one titled Cancel takes

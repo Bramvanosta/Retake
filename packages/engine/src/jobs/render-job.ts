@@ -18,10 +18,10 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, readPlainFile } from '@demo-studio/core';
-import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@demo-studio/editor';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
+import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
+import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
@@ -32,8 +32,8 @@ import type { SubmitContext } from './run-job.js';
 import type { FileJobQueue } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-/** Lazy: @demo-studio/editor pulls in Remotion's renderer and bundler. */
-export const editor = () => import('@demo-studio/editor');
+/** Lazy: @retake/editor pulls in Remotion's renderer and bundler. */
+export const editor = () => import('@retake/editor');
 
 export interface RenderRequest {
   project: string;
@@ -61,7 +61,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio render` command a human runs for (about) the same render (overrides other than the theme are not carried). */
+/** The `retake render` command a human runs for (about) the same render (overrides other than the theme are not carried). */
 export function renderCommandLine(cli: string, r: { project: string; scenario: string; run_id?: string; template?: string }): string {
   return [cli, 'render', r.project, r.scenario, ...(r.run_id ? ['--run', q(r.run_id)] : []), ...(r.template ? ['--theme', q(r.template)] : [])].join(' ');
 }
@@ -113,7 +113,7 @@ export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSourc
 
 /**
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
- * refusal is EngineError `refused` with the `studio render` command a human runs. The plan's edit comes from today's
+ * refusal is EngineError `refused` with the `retake render` command a human runs. The plan's edit comes from today's
  * scenario file when its filmed part is unchanged since the run, else from the run as captured (L5.5, editor planRun):
  * `source` says which and what changed. `editText` (L4.6): a text read instead of today's file (a proposal's preview).
  */
@@ -363,7 +363,7 @@ export async function reviewInline(
       return { review: { state: 'cancelled' } };
     }
     const message = (e as Error).message.slice(0, 2000);
-    ctx.event({ type: 'log', level: 'warn', message: `the review of ${renderId} did not finish: the render is done (review it again: MCP review, or studio review)` });
+    ctx.event({ type: 'log', level: 'warn', message: `the review of ${renderId} did not finish: the render is done (review it again: MCP review, or retake review)` });
     return { review: { state: 'failed' }, error: message };
   }
 }

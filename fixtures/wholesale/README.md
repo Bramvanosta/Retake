@@ -1,6 +1,6 @@
 # Northfield — fixture product
 
-A local stand-in for a real SaaS product so Demo Studio can be tested end to end without any
+A local stand-in for a real SaaS product so Retake can be tested end to end without any
 staging access. *Northfield* is a fictional B2B specialty-coffee wholesale platform: roasters sell
 coffee lots to cafés. Everything in it is fictional: companies, people, cafés, competitions, the lot registry and
 every farm, washing station and producer name (invented on purpose — never borrow a real lot or producer).
@@ -36,7 +36,7 @@ works whichever address a client resolves first. Programmatic use:
 is and whether it is fresh, esbuild is loaded only when a build runs (`--no-build`: never), playwright-core only when
 a PDF is printed — so the Docker image below runs it on Node alone.
 
-## Signed-in side (sessions & personas, Demo Studio L1.6)
+## Signed-in side (sessions & personas, Retake L1.6)
 
 The same process also serves both apps behind a sign-in — same store, same API, same mailbox:
 
@@ -50,7 +50,7 @@ The same process also serves both apps behind a sign-in — same store, same API
   working). `/sign-in` is a server-rendered form (labelled **Email** and **Password**, a **Sign in** button) that
   comes back to `next`; `/sign-out` ends the session.
 - Both apps use one cookie name (`northfield_session`) on one host: a browser holds one account at a time, so a scene
-  that films the supplier and the buyer side by side needs two browsers — what Demo Studio's personas give.
+  that films the supplier and the buyer side by side needs two browsers — what Retake's personas give.
 - Sessions live in memory: a restart signs everyone out. `POST /api/auth/expire` (`{persona: supplier | buyer}`, or no
   body for every session) ends them on purpose, e.g. `curl -X POST localhost:4403/api/auth/expire` — tests and demos of
   an expired session. `POST /api/reset` restores the data but never touches sessions.
@@ -64,11 +64,11 @@ export NORTHFIELD_SUPPLIER_PASSWORD=roast-lot-2026 NORTHFIELD_BUYER_PASSWORD=fil
 node packages/cli/dist/bin.js run northfield-fixture live-quote --env signed-in
 ```
 
-## As a Demo Studio sandbox (L1.8)
+## As a Retake sandbox (L1.8)
 
 The fixture project's environment `sandbox` (`projects/northfield-fixture/sandbox/sandbox.yaml`, provider `process`)
-is this server started by Demo Studio itself — `node server.mjs --console-port 4501 --shop-port 4502
---auth-console-port 4503 --auth-shop-port 4504`, with Demo Studio's own Node — seeded and reset before every take with
+is this server started by Retake itself — `node server.mjs --console-port 4501 --shop-port 4502
+--auth-console-port 4503 --auth-shop-port 4504`, with Retake's own Node — seeded and reset before every take with
 `POST /api/reset`, its signed-in side filmed with the accounts above (written in the manifest: they are invented):
 
 ```sh
@@ -77,7 +77,7 @@ node packages/cli/dist/bin.js sandbox status northfield-fixture                #
 ```
 
 It stops on SIGTERM (closing the PDF browser it may have launched); its output goes to
-`projects/northfield-fixture/.demo-studio/sandbox/sandbox/logs/fixture.log`.
+`projects/northfield-fixture/.retake/sandbox/sandbox/logs/fixture.log`.
 
 **In Docker, with a real Mailpit** — environment `sandbox-docker` (`projects/northfield-fixture/sandbox/docker/`,
 provider docker-compose): this server in a container built from `Dockerfile` (`node:22-alpine`, no `npm install`:
@@ -94,8 +94,8 @@ node packages/cli/dist/bin.js run northfield-fixture signup --env sandbox-docker
 node packages/cli/dist/bin.js sandbox down northfield-fixture --env sandbox-docker
 ```
 
-The image alone: `docker build -t demo-studio-northfield-fixture fixtures/wholesale`, then `docker run --rm -p
-127.0.0.1:4401:4401 -p 127.0.0.1:4402:4402 demo-studio-northfield-fixture` (the open side; `NORTHFIELD_*` variables
+The image alone: `docker build -t retake-northfield-fixture fixtures/wholesale`, then `docker run --rm -p
+127.0.0.1:4401:4401 -p 127.0.0.1:4402:4402 retake-northfield-fixture` (the open side; `NORTHFIELD_*` variables
 move the ports, `NORTHFIELD_SMTP` relays the mails). Remove it with `docker image rm` when done.
 
 ## Why real Radix UI *and* Base UI
@@ -122,7 +122,7 @@ Console: `/imports` (New import dialog: organisation select, drag & drop zone wi
 `<input type=file>`, progress, "921 offers created"), `/products` (catalogue, "Add a coffee" registry
 search → `/products/<slug>` with ~4 s "Enrichment in progress" then a staggered reveal down to
 **Awards**), `/availability/products/<slug>` (delivery-window overview + table by market, row menu
-Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"), `/proforma` (**Pro forma invoices**, Demo Studio L5.6 — capture
+Edit / Pause / Archive), `/quotes` (quote requests, "Send proposal"), `/proforma` (**Pro forma invoices**, Retake L5.6 — capture
 reliability: a "Quantity (kg)" filter above the table; "New pro forma" opens a modal dialog whose body scrolls (its
 "Quantity (kg)" field below the fold) and whose "Delivery date" opens a calendar that keeps the focus in the field and
 covers the fields under it until a click outside; "Preview" is wired to nothing; "Download PDF" opens
@@ -135,7 +135,7 @@ shell first; `/reports/<yyyy-mm>` answers after `NORTHFIELD_REPORT_MS` and paint
 while its script fetches `/reports/<yyyy-mm>/data`, answered after `NORTHFIELD_REPORT_DATA_MS`, then shows the month's
 "Total sales" and sales by market; figures in `server/reports.mjs`). While open, the console polls the quote list and
 shows a **web notification** (Notification API, tag `quote-request`, icon `/app-icon.svg`) for every new quote request
-(it asks for the permission once; Demo Studio's runner grants it).
+(it asks for the permission once; Retake's runner grants it).
 
 Shop: `/` (highlight rows), `/coffees`, `/products/<slug>` ("Request a quote"), `/quotes`,
 `/quotes/<id>` (proposal, "Download quote PDF" → `/quotes/<id>/quote.pdf` in a new tab: a **real PDF**, printed by
@@ -162,7 +162,7 @@ menu trigger, an open shadow root, a same-origin frame and a cross-origin frame 
 dialog with its own "Save"; `?rows=N` (at most 5,000) a long table. The page makes no request that writes.
 
 **Recording lab** (`/record-lab` on the shop, `src/shop/pages/RecordLab.jsx`): a page for the tests of the recorder
-(`studio record`, L3.4) — an account form whose password field can be shown as text, re-mounted as a new plain field
+(`retake record`, L3.4) — an account form whose password field can be shown as text, re-mounted as a new plain field
 holding its value or printed as page text, six one-time-code boxes, a card number, an "Integration" key field, a GET
 form with a password (`/record-lab/results`); a native select, a Radix select, a Radix dialog, a table of lots whose
 rows have a Radix menu (Archive asks to confirm), a file drop zone, a textarea, a contenteditable, an in-app link and
@@ -172,7 +172,7 @@ window function that looks like a binding, on load and by "Run the forgery scrip
 At its bottom, below a tall spacer: "Far away" (reached by scrolling) and "Unlock the last step", which shows "Delayed control"
 (the recorder's own scroll and wait before a press).
 
-**Mailbox.** A Mailpit-compatible API on both ports (the subset Demo Studio reads): `GET /mailbox/api/v1/messages`,
+**Mailbox.** A Mailpit-compatible API on both ports (the subset Retake reads): `GET /mailbox/api/v1/messages`,
 `GET /mailbox/api/v1/message/:id` (`Text`, `HTML`, `Inline` parts), `GET /mailbox/api/v1/message/:id/part/:partId`,
 `DELETE /mailbox/api/v1/messages`. The confirmation email is a 600 px table layout with the logo as an inline `cid:`
 image, delivered 0.6 s after the sign-up. `POST /api/reset` empties the mailbox.
@@ -187,7 +187,7 @@ be delivered over SMTP to mailpit:1025: …`), never thrown; a delivered one is 
 
 **Dates.** Every date the apps show comes from the server's demo clock (2 Nov 2026 at 10:24 after a reset, then
 running) — except one line: `/#as-of` adds **Prices as of Monday 2 November 2026, 10:24** under the shop's hero
-(`data-testid="prices-as-of"`), read from the *browser's* clock in its time zone. It shows Demo Studio's product clock
+(`data-testid="prices-as-of"`), read from the *browser's* clock in its time zone. It shows Retake's product clock
 (`clock:`, L1.7): the `read-only` scenario sets that clock, so every take shows the same line; `/` without the flag
 (what the other scenarios film) never shows it.
 

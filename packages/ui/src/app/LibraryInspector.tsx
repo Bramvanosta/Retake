@@ -15,7 +15,7 @@
  * Nothing selected: the theme's summary.
  */
 import { useId, useState } from 'react';
-import type { ThemeEditResult, ThemeEditView } from '@demo-studio/engine';
+import type { ThemeEditResult, ThemeEditView } from '@retake/engine';
 import type { LibraryComponentAnswer, LibraryItem, LibraryViewAnswer } from '../server/library-ops.js';
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';

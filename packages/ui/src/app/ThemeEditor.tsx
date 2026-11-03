@@ -21,7 +21,7 @@
  *   `visibleControls`; the frame runs workspace component code only on the player origin, in the sandbox.
  */
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ThemeEditResult, ThemeEditView } from '@demo-studio/engine';
+import type { ThemeEditResult, ThemeEditView } from '@retake/engine';
 import type { ThemeListAnswer, ThemePreviewAnswer } from '../server/theme-ops.js';
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';

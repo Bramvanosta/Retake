@@ -18,7 +18,7 @@ without the font installed; that embedded copy is covered by the same licence.
 
 ## Artwork
 
-`logo.svg` (a geometric mark) and `wordmark.svg` are placeholder artwork for "Demo Studio", the
+`logo.svg` (a geometric mark) and `wordmark.svg` are placeholder artwork for "Retake", the
 stand-in brand of the starter templates. Replace them with your own brand assets.
 
 When you swap the fonts of a template derived from this one, replace this file with the licences of

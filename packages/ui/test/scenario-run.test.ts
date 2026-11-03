@@ -5,12 +5,12 @@
  * - pinned: a sandbox reset, `until`, `hooks`, `wait_s`, another mode → 400 before anything is read or queued;
  *   `run_dry` / `run_capture` stay outside the allow-list;
  * - blocker-first (B2): quote's capture is refused (403 needs_approval) exactly as scenario_blocks showed it before any
- *   click, worded for the Studio, with the `studio run …` command; nothing queued, no run id reserved;
+ *   click, worded for the Studio, with the `retake run …` command; nothing queued, no run id reserved;
  * - a dry run queues a job `submitted_by: ui`; `run_cancel` cancels it;
  * - wording raised deeper (hooks package, core shellAlwaysWrites): a shell hook refused on a read-only environment says
  *   "from the Studio", never MCP;
  * - the worker (B5): the Studio starts it on submit with a clean environment (spawn injected: PATH sanitised, no
- *   package-manager / LLM / MCP-token variables, DEMO_STUDIO_HOME kept absolute, sign-in secrets kept) and
+ *   package-manager / LLM / MCP-token variables, RETAKE_HOME kept absolute, sign-in secrets kept) and
  *   `--started-by ui`; a real one records `started_by: ui` in its lock and exits once idle (no orphan; killed by pid in
  *   any case).
  */
@@ -21,15 +21,15 @@ import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readWorkerLock, workerLockFile } from '@demo-studio/engine';
-import type { WorkerSpawnFn } from '@demo-studio/engine';
+import { readWorkerLock, workerLockFile } from '@retake/engine';
+import type { WorkerSpawnFn } from '@retake/engine';
 import { UI_OPS, startStudioServer, studioWorkerEnv } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 let ws: string;
 let studio: StudioServer;
 const project = () => join(ws, 'projects', P);
@@ -52,7 +52,7 @@ const READ_ONLY_SHELL = [
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-run-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'ro-shell.yaml'), READ_ONLY_SHELL);
   studio = await startStudioServer({ root: ws, startWorker: false });
@@ -60,8 +60,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -78,7 +78,7 @@ interface Queued {
   data: { run_id: string; job: string; state: string; mode: string; worker?: { pid?: number; spawned: boolean } };
 }
 
-const jobFiles = async () => (await readdir(join(ws, '.demo-studio', 'jobs')).catch(() => [] as string[])).sort();
+const jobFiles = async () => (await readdir(join(ws, '.retake', 'jobs')).catch(() => [] as string[])).sort();
 const runDirs = async () => (await readdir(join(project(), 'runs'))).sort();
 
 describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
@@ -115,10 +115,10 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     const { fix_node, kind, count, ...shown } = view.run_blockers.capture[0] as typeof view.run_blockers.capture[0] & { kind?: string; count?: number };
     expect([kind, count]).toEqual(['needs_approval', 1]);
     expect({ code: e.code, message: e.message, fix: e.fix }).toEqual(shown);
-    // The same command for a person without `studio` on their PATH (review B L6).
+    // The same command for a person without `retake` on their PATH (review B L6).
     expect(fix_node).toBe(`${process.execPath} ${join(fileURLToPath(new URL('../../..', import.meta.url)), 'packages/cli/dist/bin.js')} -C ${ws} run ${P} quote`);
     expect(e.message).toContain('The Studio cannot approve hooks yet: run it in a terminal');
-    expect(e.fix).toBe(`studio -C ${ws} run ${P} quote`);
+    expect(e.fix).toBe(`retake -C ${ws} run ${P} quote`);
     expect(r.body).not.toMatch(/MCP|elicitation/);
     expect(await jobFiles()).toEqual(jobs);
     expect(await runDirs()).toEqual(runs);
@@ -133,7 +133,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
     const rec = JSON.parse(await readFile(join(project(), 'runs', q.run_id, 'run.json'), 'utf8')) as { status: string; mode: string; options: Record<string, unknown> };
     expect(rec).toMatchObject({ status: 'queued', mode: 'dry', options: { hooks: 'skip', headed: false } });
     expect(rec.options.until).toBeUndefined();
-    const job = JSON.parse(await readFile(join(ws, '.demo-studio', 'jobs', q.job, 'job.json'), 'utf8')) as { input: Record<string, unknown> };
+    const job = JSON.parse(await readFile(join(ws, '.retake', 'jobs', q.job, 'job.json'), 'utf8')) as { input: Record<string, unknown> };
     expect(job.input).toMatchObject({ kind: 'run', scenario: 'quote', mode: 'dry', submitted_by: 'ui' });
     for (const k of ['sandbox', 'until', 'hooks', 'env', 'approvals']) expect(job.input[k], k).toBeUndefined();
     const c = await call('run_cancel', { project: P, run_id: q.run_id });
@@ -190,7 +190,7 @@ describe('scenario_run: the scenario screen’s Dry run and Capture', () => {
 });
 
 describe('the worker the Studio starts (critique B5)', () => {
-  it('studioWorkerEnv: PATH like studio mcp’s, no package-manager / LLM / MCP-token variables, DEMO_STUDIO_HOME absolute, the rest kept', () => {
+  it('studioWorkerEnv: PATH like retake mcp’s, no package-manager / LLM / MCP-token variables, RETAKE_HOME absolute, the rest kept', () => {
     const root = '/work/space';
     const env = studioWorkerEnv(
       {
@@ -201,8 +201,8 @@ describe('the worker the Studio starts (critique B5)', () => {
         INIT_CWD: '/repo',
         ANTHROPIC_API_KEY: 'sk-x',
         CLAUDE_CODE_OAUTH_TOKEN: 'oauth-x',
-        DEMO_STUDIO_MCP_TOKEN: 'mcp-x',
-        DEMO_STUDIO_HOME: 'rel/home',
+        RETAKE_MCP_TOKEN: 'mcp-x',
+        RETAKE_HOME: 'rel/home',
         NORTHFIELD_SUPPLIER_PASSWORD: 'kept',
         HOME: '/Users/someone',
       },
@@ -211,8 +211,8 @@ describe('the worker the Studio starts (critique B5)', () => {
       () => false,
     );
     expect(env.PATH).toBe(['/node/bin', '/usr/local/bin', '/opt/tools/bin'].join(delimiter));
-    for (const k of ['npm_config__authToken', 'npm_lifecycle_event', 'PNPM_SCRIPT_SRC_DIR', 'INIT_CWD', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'DEMO_STUDIO_MCP_TOKEN']) expect(env[k], k).toBeUndefined();
-    expect(env.DEMO_STUDIO_HOME).toBe(join(process.cwd(), 'rel/home'));
+    for (const k of ['npm_config__authToken', 'npm_lifecycle_event', 'PNPM_SCRIPT_SRC_DIR', 'INIT_CWD', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN', 'RETAKE_MCP_TOKEN']) expect(env[k], k).toBeUndefined();
+    expect(env.RETAKE_HOME).toBe(join(process.cwd(), 'rel/home'));
     expect(env.NORTHFIELD_SUPPLIER_PASSWORD).toBe('kept');
     expect(env.HOME).toBe('/Users/someone');
   });
@@ -223,10 +223,10 @@ describe('the worker the Studio starts (critique B5)', () => {
       seen.push({ command, args, env: options.env ?? {}, cwd: options.cwd, detached: options.detached });
       return { pid: 4242, on: () => undefined, unref: () => undefined } as unknown as ReturnType<WorkerSpawnFn>;
     };
-    const saved = { PATH: process.env.PATH, npm_config__authToken: process.env.npm_config__authToken, DEMO_STUDIO_MCP_TOKEN: process.env.DEMO_STUDIO_MCP_TOKEN, NORTHFIELD_SUPPLIER_PASSWORD: process.env.NORTHFIELD_SUPPLIER_PASSWORD };
+    const saved = { PATH: process.env.PATH, npm_config__authToken: process.env.npm_config__authToken, RETAKE_MCP_TOKEN: process.env.RETAKE_MCP_TOKEN, NORTHFIELD_SUPPLIER_PASSWORD: process.env.NORTHFIELD_SUPPLIER_PASSWORD };
     process.env.PATH = [join(ws, 'node_modules', '.bin'), join(ws, 'bin'), process.env.PATH ?? ''].join(delimiter);
     process.env.npm_config__authToken = 'npm-secret';
-    process.env.DEMO_STUDIO_MCP_TOKEN = 'mcp-secret';
+    process.env.RETAKE_MCP_TOKEN = 'mcp-secret';
     process.env.NORTHFIELD_SUPPLIER_PASSWORD = 'for-the-sign-in';
     let s2: StudioServer | undefined;
     try {
@@ -252,8 +252,8 @@ describe('the worker the Studio starts (critique B5)', () => {
       expect(path[0]).toBe(join(process.execPath, '..'));
       expect(path.some((p) => p.includes('node_modules') || p.startsWith(ws))).toBe(false);
       expect(w.env.npm_config__authToken).toBeUndefined();
-      expect(w.env.DEMO_STUDIO_MCP_TOKEN).toBeUndefined();
-      expect(w.env.DEMO_STUDIO_HOME).toBe(join(ws, '.home'));
+      expect(w.env.RETAKE_MCP_TOKEN).toBeUndefined();
+      expect(w.env.RETAKE_HOME).toBe(join(ws, '.home'));
       expect(w.env.NORTHFIELD_SUPPLIER_PASSWORD).toBe('for-the-sign-in');
       await callOn(s2, 'run_cancel', { project: P, run_id: q.run_id });
     } finally {
@@ -287,13 +287,13 @@ describe('the worker the Studio starts (critique B5)', () => {
         await new Promise((res) => setTimeout(res, 50));
         lock = readWorkerLock(ws);
       }
-      const log = await readFile(join(ws, '.demo-studio', 'workers', 'worker.log'), 'utf8').catch(() => '');
+      const log = await readFile(join(ws, '.retake', 'workers', 'worker.log'), 'utf8').catch(() => '');
       expect(lock, log).toMatchObject({ started_by: 'ui' });
       pids.add(lock!.pid);
       if (process.platform === 'darwin' && alive(lock!.pid)) {
         // The live process's own environment (ps -E: same user): the Studio's home, no package-manager variable.
         const out = execFileSync('ps', ['-wwE', '-p', String(lock!.pid), '-o', 'command='], { encoding: 'utf8' });
-        expect(out).toContain(`DEMO_STUDIO_HOME=${join(ws, '.home')}`);
+        expect(out).toContain(`RETAKE_HOME=${join(ws, '.home')}`);
         expect(out).not.toMatch(/\bnpm_config_/);
       }
       for (let t = 0; t < 300 && [...pids].some(alive); t++) await new Promise((res) => setTimeout(res, 50));

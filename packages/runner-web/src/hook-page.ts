@@ -14,14 +14,14 @@
  * On a read-only run (L1.7, `writes`) the tab also stops every write to the environment's guarded hosts that no
  * `read_only.allow` entry lets through — never answered by a mock: a hook that writes is refused, not fooled — and on
  * any run with a write policy, every write to a host of the project's other read-only environments. A hook that failed
- * after such a write throws core `WriteRefusedError` (@demo-studio/hooks: refused, reason `read-only`); one that caught
+ * after such a write throws core `WriteRefusedError` (@retake/hooks: refused, reason `read-only`); one that caught
  * it and went on succeeds with a warning. Writes are named `POST shop:/api/x` (no query); the context's own write guard
  * (write-guard.ts) leaves the tab's requests to this one. `fetchLater` and `SharedWorker` do not exist in the tab
  * (write-guard.ts UNGUARDED_APIS_SCRIPT): a shared worker's requests would escape both guards.
  */
 import type { CDPSession, Page } from 'playwright-core';
-import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@demo-studio/core';
-import type { LoadedProject, WritePolicy } from '@demo-studio/core';
+import { HostRefusedError, WriteRefusedError, classifyRequest, describeWriteRequest, isHostAllowed, networkHost } from '@retake/core';
+import type { LoadedProject, WritePolicy } from '@retake/core';
 import { evalInPage } from './actions/misc.js';
 import { LoginPageError, RunnerError, errorMessage } from './errors.js';
 import type { BrowserSession } from './session.js';

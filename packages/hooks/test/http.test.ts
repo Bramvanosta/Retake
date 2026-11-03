@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Journal, runHooks } from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+import { Journal, runHooks } from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 import { closedPort, makeContext, makeProject, startApi, tempProject } from './helpers.js';
 
 let api: Awaited<ReturnType<typeof startApi>>;
@@ -80,7 +80,7 @@ describe('http hooks', () => {
       data: { pages: { console: api.base }, extra: { response: { json: { id: 42 } } } },
     });
 
-    // Rollback from a fresh journal instance, as `studio hooks rollback` would do.
+    // Rollback from a fresh journal instance, as `retake hooks rollback` would do.
     const reopened = await Journal.open(journal.file);
     const fresh = makeContext(makeProject(tmp.dir, { console: api.base })).ctx;
     const rolled = await reopened.rollbackAll(fresh);

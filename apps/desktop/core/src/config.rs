@@ -1,5 +1,5 @@
 //! Which Node runs which CLI (`launch.json`, written by `pnpm desktop:build`) with which environment, which workspace
-//! opens, and the remembered one (`<studio home>/desktop.json`).
+//! opens, and the remembered one (`<Retake home>/desktop.json`).
 
 use crate::json::{self, Json};
 use std::fs;
@@ -20,7 +20,7 @@ pub enum ConfigError {
     Invalid(String),
     /// A path that is not absolute, or not a regular file (`what`: node / cli).
     BadPath { what: &'static str, path: String, why: &'static str },
-    /// Only one of DEMO_STUDIO_NODE / DEMO_STUDIO_CLI.
+    /// Only one of RETAKE_NODE / RETAKE_CLI.
     HalfEnv,
 }
 
@@ -33,7 +33,7 @@ impl std::fmt::Display for ConfigError {
                 f,
                 "the {what} this app runs ({path}) {why}: run pnpm build and pnpm desktop:build again in the repository (the Node.js that builds it is the one the app runs)"
             ),
-            ConfigError::HalfEnv => write!(f, "set both DEMO_STUDIO_NODE and DEMO_STUDIO_CLI, or neither"),
+            ConfigError::HalfEnv => write!(f, "set both RETAKE_NODE and RETAKE_CLI, or neither"),
         }
     }
 }
@@ -51,7 +51,7 @@ fn check(what: &'static str, p: &str) -> Result<PathBuf, ConfigError> {
     }
 }
 
-/// The launch config: the environment's `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` when `allow_env` (debug builds only:
+/// The launch config: the environment's `RETAKE_NODE` / `RETAKE_CLI` when `allow_env` (debug builds only:
 /// a Finder-launched release app never takes them from `launchctl setenv`), else `launch_json`
 /// (`{"version":1,"node":…,"cli":…}`). Both paths absolute, regular files.
 pub fn launch_config(env_node: Option<&str>, env_cli: Option<&str>, allow_env: bool, launch_json: &Path) -> Result<LaunchConfig, ConfigError> {
@@ -78,7 +78,7 @@ pub fn launch_config(env_node: Option<&str>, env_cli: Option<&str>, allow_env: b
     Ok(LaunchConfig { node: check("node", node)?, cli: check("cli", cli)? })
 }
 
-/// Whether DEMO_STUDIO_DESKTOP_TEST (its value `var`) puts the shell in test mode (L5.2b review A L2): `1`, and a parent
+/// Whether RETAKE_DESKTOP_TEST (its value `var`) puts the shell in test mode (L5.2b review A L2): `1`, and a parent
 /// other than launchd (`parent_pid` 1: a Finder or Dock launch, which `launchctl setenv` could otherwise arm — no
 /// question asked, notifications never posted, SIGUSR2 a quit). A test or a terminal starts the binary itself.
 pub fn test_mode_allowed(var: Option<&str>, parent_pid: i32) -> bool {
@@ -88,15 +88,30 @@ pub fn test_mode_allowed(var: Option<&str>, parent_pid: i32) -> bool {
 /// Whether a release build drops this variable from the child's environment (review A L4): what makes Node.js or the
 /// dynamic linker load code — `NODE_OPTIONS` (`--require`, `--import`…), `NODE_PATH`, `NODE_REPL_EXTERNAL_MODULE`,
 /// `DYLD_*`, `LD_PRELOAD` / `LD_LIBRARY_PATH` / `LD_AUDIT` — which a Finder launch would otherwise take from
-/// `launchctl setenv`. Not an allow-list: the rest stays, as for `studio ui` in a terminal (an automated sign-in's
+/// `launchctl setenv`. Not an allow-list: the rest stays, as for `retake ui` in a terminal (an automated sign-in's
 /// `{{env:NAME}}` secrets come from the environment the worker inherits).
 pub fn child_env_dropped(name: &str) -> bool {
     matches!(name, "NODE_OPTIONS" | "NODE_PATH" | "NODE_REPL_EXTERNAL_MODULE" | "LD_PRELOAD" | "LD_LIBRARY_PATH" | "LD_AUDIT") || name.starts_with("DYLD_")
 }
 
-/// The CLI's own rule (`workspaceRoot`): a `studio.yaml`, or a `projects/` folder.
+/// The CLI's own rule (`workspaceRoot`): a `retake.yaml`, or a `projects/` folder.
 pub fn is_workspace(dir: &Path) -> bool {
-    dir.join("studio.yaml").exists() || dir.join("projects").is_dir()
+    dir.join("retake.yaml").exists() || dir.join("projects").is_dir()
+}
+
+/// The workspace file before L5.13 (the CLI's core legacy.ts names it too): only named in the hint below.
+const OLD_WORKSPACE_FILE: &str = "studio.yaml"; // old-name: the hint of a folder whose workspace file is the old one
+
+/// The alert of File › Open Workspace… for a folder that is no workspace (L5.13a review A L6): one that holds the old
+/// workspace file is told to rename it, as the CLI says.
+pub fn not_workspace_text(dir: &Path) -> String {
+    let d = dir.display();
+    if dir.join(OLD_WORKSPACE_FILE).is_file() {
+        return format!(
+            "{d} has no retake.yaml or projects/ folder. Its {OLD_WORKSPACE_FILE}, if it is this tool's workspace file from before the rename, is not read any more: rename it retake.yaml, then open the folder again. The workspace open now stays open."
+        );
+    }
+    format!("{d} has no retake.yaml or projects/ folder. The workspace open now stays open.")
 }
 
 /// Where the workspace came from.
@@ -113,7 +128,7 @@ impl Source {
     pub fn label(self) -> &'static str {
         match self {
             Source::Arg => "--root",
-            Source::Env => "DEMO_STUDIO_ROOT",
+            Source::Env => "RETAKE_ROOT",
             Source::Remembered => "the last one opened",
             Source::Cwd => "the current folder",
             Source::Picker => "chosen",
@@ -121,8 +136,8 @@ impl Source {
     }
 }
 
-/// The workspace to open first: `--root`, else `DEMO_STUDIO_ROOT`, else the remembered one (still a folder), else the
-/// current folder when it holds a `studio.yaml`; None: ask with the folder picker. The CLI decides whether it is a
+/// The workspace to open first: `--root`, else `RETAKE_ROOT`, else the remembered one (still a folder), else the
+/// current folder when it holds a `retake.yaml`; None: ask with the folder picker. The CLI decides whether it is a
 /// workspace (`{"type":"error","code":"no_workspace"}`, exit 2 otherwise); File › Open Workspace… checks
 /// `is_workspace` before it stops anything.
 pub fn choose_workspace(arg: Option<&str>, env: Option<&str>, remembered: Option<PathBuf>, cwd: Option<&Path>) -> Option<(PathBuf, Source)> {
@@ -135,15 +150,15 @@ pub fn choose_workspace(arg: Option<&str>, env: Option<&str>, remembered: Option
     if let Some(r) = remembered.filter(|r| r.is_dir()) {
         return Some((r, Source::Remembered));
     }
-    if let Some(c) = cwd.filter(|c| c.join("studio.yaml").is_file()) {
+    if let Some(c) = cwd.filter(|c| c.join("retake.yaml").is_file()) {
         return Some((c.to_path_buf(), Source::Cwd));
     }
     None
 }
 
-/// The studio home, as the CLI computes it: `DEMO_STUDIO_HOME` (trimmed, `~` expanded, made absolute), else
-/// `~/.demo-studio`.
-pub fn studio_home(env_home: Option<&str>, home: Option<&str>, cwd: Option<&Path>) -> Option<PathBuf> {
+/// The Retake home, as the CLI computes it: `RETAKE_HOME` (trimmed, `~` expanded, made absolute), else
+/// `~/.retake`.
+pub fn retake_home(env_home: Option<&str>, home: Option<&str>, cwd: Option<&Path>) -> Option<PathBuf> {
     let home = home.filter(|h| !h.is_empty()).map(PathBuf::from);
     match env_home.map(str::trim).filter(|v| !v.is_empty()) {
         Some(v) => {
@@ -160,7 +175,7 @@ pub fn studio_home(env_home: Option<&str>, home: Option<&str>, cwd: Option<&Path
                 Some(cwd?.join(p))
             }
         }
-        None => Some(home?.join(".demo-studio")),
+        None => Some(home?.join(".retake")),
     }
 }
 
@@ -248,7 +263,7 @@ mod tests {
         let (rem, cwd) = (d.join("rem"), d.join("cwd"));
         fs::create_dir_all(&rem).unwrap();
         fs::create_dir_all(&cwd).unwrap();
-        fs::write(cwd.join("studio.yaml"), "").unwrap();
+        fs::write(cwd.join("retake.yaml"), "").unwrap();
         let r = || Some(rem.clone());
         assert_eq!(choose_workspace(Some("/a"), Some("/b"), r(), Some(&cwd)), Some((PathBuf::from("/a"), Source::Arg)));
         assert_eq!(choose_workspace(Some(" "), Some("/b"), r(), Some(&cwd)), Some((PathBuf::from("/b"), Source::Env)));
@@ -260,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn a_workspace_has_studio_yaml_or_projects_like_the_cli() {
+    fn a_workspace_has_retake_yaml_or_projects_like_the_cli() {
         let d = test_dir("is-ws");
         assert!(!is_workspace(&d));
         fs::write(d.join("projects"), "").unwrap();
@@ -270,9 +285,20 @@ mod tests {
         assert!(is_workspace(&d));
         let y = d.join("y");
         fs::create_dir(&y).unwrap();
-        fs::write(y.join("studio.yaml"), "").unwrap();
+        fs::write(y.join("retake.yaml"), "").unwrap();
         assert!(is_workspace(&y));
         assert!(!is_workspace(&d.join("missing")));
+        fs::remove_dir_all(&d).unwrap();
+    }
+
+    #[test]
+    fn a_folder_with_the_old_workspace_file_is_told_to_rename_it() {
+        let d = test_dir("old-ws");
+        assert_eq!(not_workspace_text(&d), format!("{} has no retake.yaml or projects/ folder. The workspace open now stays open.", d.display()));
+        fs::write(d.join(OLD_WORKSPACE_FILE), "version: 1\n").unwrap();
+        assert!(!is_workspace(&d), "the old file alone is no workspace: nothing reads it");
+        let text = not_workspace_text(&d);
+        assert!(text.contains(&format!("Its {OLD_WORKSPACE_FILE}, if it is this tool's workspace file from before the rename, is not read any more: rename it retake.yaml")), "{text}");
         fs::remove_dir_all(&d).unwrap();
     }
 
@@ -281,20 +307,20 @@ mod tests {
         for v in ["NODE_OPTIONS", "NODE_PATH", "NODE_REPL_EXTERNAL_MODULE", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "LD_AUDIT"] {
             assert!(child_env_dropped(v), "{v}");
         }
-        for v in ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "USER", "DEMO_STUDIO_HOME", "DEMO_STUDIO_ROOT", "SHOP_TOKEN", "NODE_ENV", "node_options"] {
+        for v in ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "USER", "RETAKE_HOME", "RETAKE_ROOT", "SHOP_TOKEN", "NODE_ENV", "node_options"] {
             assert!(!child_env_dropped(v), "{v}");
         }
     }
 
     #[test]
-    fn studio_home_like_the_cli() {
+    fn retake_home_like_the_cli() {
         let cwd = Path::new("/w");
-        assert_eq!(studio_home(None, Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/.demo-studio")));
-        assert_eq!(studio_home(Some("  "), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/.demo-studio")));
-        assert_eq!(studio_home(Some("~/h"), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/h")));
-        assert_eq!(studio_home(Some("/abs/h "), None, None), Some(PathBuf::from("/abs/h")));
-        assert_eq!(studio_home(Some("rel"), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/w/rel")));
-        assert_eq!(studio_home(None, None, Some(cwd)), None);
+        assert_eq!(retake_home(None, Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/.retake")));
+        assert_eq!(retake_home(Some("  "), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/.retake")));
+        assert_eq!(retake_home(Some("~/h"), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/Users/u/h")));
+        assert_eq!(retake_home(Some("/abs/h "), None, None), Some(PathBuf::from("/abs/h")));
+        assert_eq!(retake_home(Some("rel"), Some("/Users/u"), Some(cwd)), Some(PathBuf::from("/w/rel")));
+        assert_eq!(retake_home(None, None, Some(cwd)), None);
     }
 
     #[test]

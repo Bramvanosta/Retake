@@ -1,5 +1,5 @@
 /**
- * A human summary of an EditPlan (CLI `studio plan`, MCP later): segments with their components and transitions,
+ * A human summary of an EditPlan (CLI `retake plan`, MCP later): segments with their components and transitions,
  * per clip the source range, speeds, trims, zooms, overlays and captions, then captions, markers, notes, warnings.
  */
 import type { ClipSegment, EditPlan, PlanSegment, ResolvedComponent } from './plan-types.js';

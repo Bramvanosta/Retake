@@ -6,7 +6,7 @@
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Scenario } from '@demo-studio/core';
+import type { Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';

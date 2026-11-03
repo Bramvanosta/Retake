@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate raw capture packages written by `studio export-capture` / `studio run --raw` (lot L2.13).
+"""Validate raw capture packages written by `retake export-capture` / `retake run --raw` (lot L2.13).
 
 Optional tool, not part of the build or the test suite. Each package folder is checked against its own
 `manifest.json`:
@@ -17,7 +17,7 @@ Optional tool, not part of the build or the test suite. Each package folder is c
   5. the FCPXML again through OpenTimelineIO's fcpx_xml adapter (best effort);
   6. markers.csv = markers.json, sequence frames and timecodes consistent.
 
-Needs ffprobe on PATH (or $DEMO_STUDIO_FFPROBE) and, for steps 3–5, the `opentimelineio` package with its EDL and
+Needs ffprobe on PATH (or $RETAKE_FFPROBE) and, for steps 3–5, the `opentimelineio` package with its EDL and
 FCPXML adapter plugins (OpenTimelineIO ≥ 0.17 ships them separately) — not repository dependencies. Without them those
 steps are skipped with a note. Set them up once in a virtual environment, e.g.:
 
@@ -42,7 +42,7 @@ try:
 except ImportError:  # optional: steps 3–5 are skipped
     otio = None
 
-FFPROBE = os.environ.get('DEMO_STUDIO_FFPROBE', 'ffprobe')
+FFPROBE = os.environ.get('RETAKE_FFPROBE', 'ffprobe')
 EXPECTED_CODEC = {'mp4': ('h264', 'High', 'yuv420p'), 'prores': ('prores', 'HQ', 'yuv422p10le')}
 ALPHA_PIX_FMTS = ('yuva444p10le', 'yuva444p12le', 'yuva420p', 'yuv420p')
 
@@ -334,7 +334,7 @@ class Package:
 
 
 def main(argv):
-    ap = argparse.ArgumentParser(description='Validate Demo Studio raw capture packages (studio export-capture).')
+    ap = argparse.ArgumentParser(description='Validate Retake raw capture packages (retake export-capture).')
     ap.add_argument('packages', nargs='+', help='package folders (exports/<run>-raw-<format><fps>-<cursor>/)')
     ap.add_argument('-q', '--quiet', action='store_true', help='print only the verdict and the errors')
     args = ap.parse_args(argv)

@@ -14,7 +14,7 @@ import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ScenarioError } from '@demo-studio/core';
+import { ScenarioError } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
@@ -29,7 +29,7 @@ let dir: string;
 let ui: Engine;
 let mcp: Engine;
 let cli: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const PROJECT = 'name: W\nenvironments:\n  local:\n    console: http://127.0.0.1:4997\ncapture: {width: 1280, height: 720, scale: 1, fps: 30}\ntemplate: default\n';
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      # first a pause\n      - hold: 0.2\n';
@@ -55,8 +55,8 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-scenario-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\n');
+  process.env.RETAKE_HOME = join(ws, '.home');
+  await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await writeFile(join(dir, 'project.yaml'), PROJECT);
@@ -69,8 +69,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -161,7 +161,7 @@ describe('replace_text and restore (the YAML tab, undo / redo)', () => {
     await ui.scenarios.edit('w', 'private', { hash: h0, edit: { kind: 'replace_text', text: SHORT.replace('0.2', '0.6') } });
     expect((await stat(file('private.yaml'))).mode & 0o777).toBe(0o600);
     expect((await readdir(join(dir, 'scenarios'))).filter((f) => f.endsWith('.tmp'))).toEqual([]);
-    expect((await readdir(join(dir, '.demo-studio', 'locks'))).filter((f) => f.startsWith('write-'))).toEqual([]);
+    expect((await readdir(join(dir, '.retake', 'locks'))).filter((f) => f.startsWith('write-'))).toEqual([]);
   });
 });
 

@@ -10,7 +10,7 @@
   "persona": null,
   "access": "read-write"
  },
- "yaml": "# Recorded with studio record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: products\n    page: console\n    open: /products\n    steps:\n      - click: Add a coffee\n      - type: {into: {placeholder: \"Coffee, farm, producer or registry reference\"}, text: Finca Quenaro}\n      - click: {text: Finca Quenaro, in: listbox, nth: 0}\n        note: sends POST console:/api/products\n",
+ "yaml": "# Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: products\n    page: console\n    open: /products\n    steps:\n      - click: Add a coffee\n      - type: {into: {placeholder: \"Coffee, farm, producer or registry reference\"}, text: Finca Quenaro}\n      - click: {text: Finca Quenaro, in: listbox, nth: 0}\n        note: sends POST console:/api/products\n",
  "issues": [
   {
    "severity": "info",

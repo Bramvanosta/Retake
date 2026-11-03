@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/cli",
+  "name": "@retake/cli",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,20 +17,20 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/components": "workspace:*",
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/editor": "workspace:*",
-    "@demo-studio/engine": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
-    "@demo-studio/mcp": "workspace:*",
-    "@demo-studio/review": "workspace:*",
-    "@demo-studio/runner-web": "workspace:*",
-    "@demo-studio/sandbox": "workspace:*",
-    "@demo-studio/ui": "workspace:*",
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/editor": "workspace:*",
+    "@retake/engine": "workspace:*",
+    "@retake/hooks": "workspace:*",
+    "@retake/mcp": "workspace:*",
+    "@retake/review": "workspace:*",
+    "@retake/runner-web": "workspace:*",
+    "@retake/sandbox": "workspace:*",
+    "@retake/ui": "workspace:*",
     "commander": "^14.0.0",
     "picocolors": "^1.1.1"
   },
   "bin": {
-    "studio": "./dist/bin.js"
+    "retake": "./dist/bin.js"
   }
 }

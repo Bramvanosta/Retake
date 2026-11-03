@@ -19,16 +19,16 @@
  * - `plan_sha256` and `theme_sha256`: the plan's signature and the theme folder's content hash, the ones a render
  *   record carries (renders.ts): a render shows "this version" only when both match (Studio "from this version",
  *   findings that seek the preview, comment pins at their own frame).
- * - A trust refusal (a file outside the project, a remote slot) is the view's `blocked`, with the `studio render`
+ * - A trust refusal (a file outside the project, a remote slot) is the view's `blocked`, with the `retake render`
  *   command a person types — never an exception the screen cannot show.
  */
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@demo-studio/core';
-import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { EditPlan, PlacedPin, TimelineModel } from '@demo-studio/editor';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@retake/core';
+import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
+import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
 import { listComments, proposalForPreview } from './comments.js';
 import type { ProposalPreview } from './comments.js';
 import { components } from './components.js';
@@ -542,7 +542,7 @@ function depsOf(ed: Awaited<ReturnType<typeof editor>>, r: TimelineViewResult): 
  * The timeline view of a scenario's take (see the module comment). The same key (file, run, timeline, components)
  * returns the memoised view: a click's write and the event it raises plan once.
  */
-export async function timelineView(ws: WorkspaceConfig, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@demo-studio/core').AgentChannel }): Promise<TimelineViewResult> {
+export async function timelineView(ws: WorkspaceConfig, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@retake/core').AgentChannel }): Promise<TimelineViewResult> {
   const t0 = performance.now();
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);

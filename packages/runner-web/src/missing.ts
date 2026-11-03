@@ -3,8 +3,8 @@
  * scene's later steps are looked up on the same page, without acting, and those that do not resolve either are listed
  * with the visible elements closest to each — five renamed labels show in one failed take, not in five.
  */
-import { describeTarget, hasLocator, normalizeStep, normalizeTarget, pickTarget } from '@demo-studio/core';
-import type { MissingTarget, NearElement, NormalizedStep, Scene, TargetObject, TargetSpec } from '@demo-studio/core';
+import { describeTarget, hasLocator, normalizeStep, normalizeTarget, pickTarget } from '@retake/core';
+import type { MissingTarget, NearElement, NormalizedStep, Scene, TargetObject, TargetSpec } from '@retake/core';
 import { StepError } from './errors.js';
 import type { Runtime } from './runtime.js';
 

@@ -1,5 +1,5 @@
 /**
- * A recording session (L3.4, `studio record` / `scenario_record`, part 1: capture): a HEADED window — like `studio
+ * A recording session (L3.4, `retake record` / `scenario_record`, part 1: capture): a HEADED window — like `retake
  * login`'s — on a copy of the persona's session, where a person performs a flow once; every action is streamed to
  * `events.jsonl` (core RecordedEvent) for the draft generator. Claude may start a recording, never drive it.
  *
@@ -43,8 +43,8 @@ import {
   pageOrigins,
   resolveRunAccess,
   urlOriginPath,
-} from '@demo-studio/core';
-import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunAccess } from '@demo-studio/core';
+} from '@retake/core';
+import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunAccess } from '@retake/core';
 import { ensurePrivateDir, prepareSessions, registerSessionCopy, signInMatchers } from './auth.js';
 import { projectBrowser } from './config.js';
 import { CancelledError, RunnerError } from './errors.js';
@@ -64,7 +64,7 @@ export const RECORD_BUDGET_MS = 150;
 /** In-page time budget of its alternative targets (ms, inside RECORD_BUDGET_MS): a press waits for them (L4.8). */
 export const RECORD_ALT_BUDGET_MS = 10;
 /** The isolated world the recorder runs in. */
-const WORLD = 'demo-studio-record';
+const WORLD = 'retake-record';
 /** Query keys a typed navigation never keeps (they may carry a token). */
 const SENSITIVE_QUERY_KEY = /token|code|state|session|sig|auth|key|pass|secret|otp|pwd|nonce|ticket|jwt|saml|credential/i;
 
@@ -75,7 +75,7 @@ export interface RecordSessionOptions {
   persona?: ResolvedPersona | null;
   /** The page the window opens (an environment page's URL; the caller checks it). */
   url: string;
-  /** `--allow-writes` (a production environment that allows writes), as `studio run`. */
+  /** `--allow-writes` (a production environment that allows writes), as `retake run`. */
   allowWrites?: boolean;
   browser?: BrowserConfig;
   /** Events are appended here as they come (0600; the folder must exist). */
@@ -130,7 +130,7 @@ interface WorldContext {
 }
 
 /**
- * The recording window's Preferences: no password manager, no autofill (a persona master saved during a headed `studio
+ * The recording window's Preferences: no password manager, no autofill (a persona master saved during a headed `retake
  * login` may hold a saved address or card; their values would arrive as typing).
  */
 export async function disableAutofill(userDataDir: string): Promise<void> {
@@ -306,7 +306,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     userDataDir = prepared.realm.userDataDir ?? '';
   } else userDataDir = '';
   if (!userDataDir) {
-    userDataDir = await mkdtemp(join(tmpdir(), 'demo-studio-session-record-'));
+    userDataDir = await mkdtemp(join(tmpdir(), 'retake-session-record-'));
     registerSessionCopy(userDataDir);
     cleanup.push(userDataDir);
   }

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { ResolvedPersona, RunRecord, Timeline, TimelineEvent } from '@demo-studio/core';
+import type { ResolvedPersona, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { RunSecrets, autoLogin, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { DOC_PAGE, DRY_PAGE, OPTIONS_PAGE, SHOP_PAGE, STRATEGY_PAGE, WIDGETS_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';

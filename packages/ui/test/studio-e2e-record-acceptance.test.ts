@@ -1,17 +1,17 @@
 /**
- * L4.8 acceptance (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
+ * L4.8 acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the Record screen, then the scenario it
  * saved filmed and rendered. The built-in Studio server on a clean copy of projects/northfield-fixture (its local
  * environment pointed at the fixture product on free ports), headless Chromium on the Studio app, and every job run by
  * a worker IN THIS PROCESS — the `record` job's window played by Playwright (`recordTest.drive`: a worker process cannot
  * receive it; the real window with a person switching to the Studio is MACOS-CHECKLIST 13i). The window is headless;
- * `DEMO_STUDIO_TEST_HEADED=1` shows it.
+ * `RETAKE_TEST_HEADED=1` shows it.
  *
  * Record (the shop's quote flow) → a caption with a kicker and a zoom (the theme's max_zoom, 1.4×) waiting in the Studio, taken by the next
  * action (Request a quote) → a pick among that click's verified alternatives → Increase twice → a mark, taken by the bag
  * size → a message typed, committed by a Studio visit → a wait for a text and a hold 2 s at the end → Stop and keep →
  * the check replay passed → Save → a dry run and a capture of the saved scenario from the Studio (`scenario_run`) → a
  * render and its review (`scenario_render`): the plan holds the caption, the zoom and the marker on the steps they were
- * placed on, and the frames at those moments are cut (`DEMO_STUDIO_UI_SHOTS=<folder>`: screenshots, the frames and the
+ * placed on, and the frames at those moments are cut (`RETAKE_UI_SHOTS=<folder>`: screenshots, the frames and the
  * timings there). Every stage is timed.
  */
 import { execFileSync } from 'node:child_process';
@@ -22,11 +22,11 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml } from '@demo-studio/core';
-import { runWorker } from '@demo-studio/engine';
-import type { RecordJobTestHooks } from '@demo-studio/engine';
-import { timelineOf } from '@demo-studio/editor';
-import type { EditPlan } from '@demo-studio/editor';
+import { parseYaml } from '@retake/core';
+import { runWorker } from '@retake/engine';
+import type { RecordJobTestHooks } from '@retake/engine';
+import { timelineOf } from '@retake/editor';
+import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
@@ -39,13 +39,13 @@ interface Fixture {
   close(): Promise<void>;
 }
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1';
-const HEADED = process.env.DEMO_STUDIO_TEST_HEADED === '1';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
+const HEADED = process.env.RETAKE_TEST_HEADED === '1';
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
 const S = 'recorded-quote';
 const FIXTURE_PROJECT = join(REPO, 'projects', P);
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames', 'comments']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
 const POLL = { timeout: 20_000, interval: 150 };
 const CAPTION = 'Ask for a quote';
 const KICKER = 'Wholesale';
@@ -55,7 +55,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const workerLogs: string[] = [];
 const consoleErrors: string[] = [];
 const timings: Record<string, number> = {};
@@ -158,20 +158,20 @@ let recordStart = 0;
 let stopAt = 0;
 let runId = '';
 
-describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rendered, with an in-process worker on the fixture (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rendered, with an in-process worker on the fixture (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-record-acceptance-'));
-    process.env.DEMO_STUDIO_HOME = join(root, '.home');
-    await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    process.env.RETAKE_HOME = join(root, '.home');
+    await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
     await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console.replace(/\/$/, '')).replaceAll('http://localhost:4402', fixture.urls.shop.replace(/\/$/, '')));
     await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
     studio = await startStudioServer({ root, startWorker: false, pollMs: 150, log: () => undefined });
-    const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+    const executablePath = process.env.RETAKE_CHROMIUM;
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
     page = await (await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' })).newPage();
     page.on('console', (m) => {
@@ -190,8 +190,8 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     await studio?.close();
     await fixture?.close();
     if (root) await rm(root, { recursive: true, force: true });
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
   });
 
   it('record → inserts and a pick → Stop → the check → Save: the scenario holds them where they were placed', async () => {

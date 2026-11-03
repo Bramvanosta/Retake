@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { ValidationIssue } from '@demo-studio/core';
+import type { ValidationIssue } from '@retake/core';
 import { envName, ifMatch, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
@@ -27,7 +27,7 @@ export const scenarioValidate = defineTool({
   name: 'scenario_validate',
   title: 'Validate scenario YAML',
   description:
-    'Validate scenario YAML text against the project (page keys, personas, template) without saving it. Every issue has line and col in the given text. `studio schema scenario` / the README describe the scenario language.',
+    'Validate scenario YAML text against the project (page keys, personas, template) without saving it. Every issue has line and col in the given text. `retake schema scenario` / the README describe the scenario language.',
   input: z.strictObject({
     project: projectSlug,
     yaml: z.string().max(500_000).describe('The scenario YAML text.'),

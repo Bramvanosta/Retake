@@ -29,7 +29,7 @@ let ws: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const EXPECTED: Record<string, Rgb> = { 'one.0': RED, 'one.1': GREEN, 'one.2': GREEN, 'two.0': YELLOW, 'two.1': MAGENTA };
 const KEYS = Object.keys(EXPECTED);
@@ -49,7 +49,7 @@ function expectColours(v: RunThumbsView, want: Record<string, Rgb>, from?: strin
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-run-thumbs-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
   await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -57,8 +57,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -518,8 +518,8 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
     expect(imports.sort()).toEqual(['node:child_process', 'node:stream', 'sharp']);
     for (const f of ['run-thumbs.ts', 'run-data.ts', 'run-files.ts', 'scenario-view.ts']) {
       const src = await readFile(join(REPO, 'packages/engine/src', f), 'utf8');
-      expect(src, f).not.toMatch(/['"]@demo-studio\/(review|editor)['"]/);
+      expect(src, f).not.toMatch(/['"]@retake\/(review|editor)['"]/);
     }
-    expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).toContain("import('@demo-studio/review/thumbs')");
+    expect(await readFile(join(REPO, 'packages/engine/src/run-thumbs.ts'), 'utf8')).toContain("import('@retake/review/thumbs')");
   });
 });

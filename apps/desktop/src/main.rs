@@ -1,4 +1,4 @@
-//! Demo Studio's desktop shell (L5.2, DESIGN §4j): a macOS window on the workspace's own Studio server — nothing in
+//! Retake's desktop shell (L5.2, DESIGN §4j): a macOS window on the workspace's own Studio server — nothing in
 //! Rust but OS glue. It runs `node <cli> --root <workspace> ui --supervised` (the Node.js and CLI pinned by
 //! `pnpm desktop:build` in launch.json), opens a WKWebView window on the one-time URL that prints, and holds no token:
 //! the page redeems its code and keeps its token in its own sessionStorage, as in a browser.
@@ -12,8 +12,8 @@
 //!   workspace): never stopped, not watched. The shared jobs worker is never the app's: it finishes its jobs.
 //! - Closing the window hides it (the page and its event stream stay alive); the Dock icon or Window › Show Studio
 //!   Window (⌘0) shows it again.
-//! - Workspace: `--root`, DEMO_STUDIO_ROOT, the last one opened (`<studio home>/desktop.json`), the current folder's
-//!   studio.yaml, else the folder picker; File › Open Workspace… switches (a folder that is no workspace changes
+//! - Workspace: `--root`, RETAKE_ROOT, the last one opened (`<Retake home>/desktop.json`), the current folder's
+//!   retake.yaml, else the folder picker; File › Open Workspace… switches (a folder that is no workspace changes
 //!   nothing; the owned server stops first; a start that fails reopens the previous workspace — never a quit).
 //! - Printed: origins only — never the one-time URL, a capability path or the token (log filter, desktop_core::redact).
 //! - L5.2b: job notifications (notify.rs) and the quit guard (guard.rs) from the owned server's pipe lines (child.rs):
@@ -50,20 +50,20 @@ pub fn app_name() -> &'static str {
 }
 
 fn pick_message() -> String {
-    format!("Choose the folder of a {} workspace (it holds studio.yaml or a projects/ folder).", app_name())
+    format!("Choose the folder of a {} workspace (it holds retake.yaml or a projects/ folder).", app_name())
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST=1: no modal dialog ever (tests), `--route` is honoured in a release build, SIGUSR1 is
-/// File › Open Workspace… (the picker answers DEMO_STUDIO_DESKTOP_TEST_PICK once: macos.rs), SIGUSR2 is Quit (a real
+/// RETAKE_DESKTOP_TEST=1: no modal dialog ever (tests), `--route` is honoured in a release build, SIGUSR1 is
+/// File › Open Workspace… (the picker answers RETAKE_DESKTOP_TEST_PICK once: macos.rs), SIGUSR2 is Quit (a real
 /// `terminate:`, L5.2b) and notifications are logged, never posted (notify.rs). Review A L2: honoured only when the
 /// process was started by another one (a test, a terminal) — never by launchd (`getppid() == 1`: a Finder or Dock
 /// launch, which a `launchctl setenv` could otherwise arm). Decided once, at launch (a parent that dies later makes
 /// launchd the parent: the mode does not change mid-run). L5.12d: the quit question's id is logged (the gated test
-/// answers with it through `desktop_answer`, as the page would) and DEMO_STUDIO_DESKTOP_TEST_QUIT=native keeps the
-/// native alert (the L5.2b tests that answer it with DEMO_STUDIO_DESKTOP_TEST_ANSWERS / MODAL_MS).
+/// answers with it through `desktop_answer`, as the page would) and RETAKE_DESKTOP_TEST_QUIT=native keeps the
+/// native alert (the L5.2b tests that answer it with RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS).
 pub fn test_mode() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
-    *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("DEMO_STUDIO_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
+    *MODE.get_or_init(|| dc::test_mode_allowed(std::env::var("RETAKE_DESKTOP_TEST").ok().as_deref(), unsafe { libc::getppid() }))
 }
 
 pub fn log(msg: &str) {
@@ -151,7 +151,7 @@ fn open(shell: &Shell, mut candidate: Option<(PathBuf, dc::Source)>, mut note: O
             }
             Err(child::StartError::NotWorkspace(_)) => {
                 log(&format!("{} is not a workspace", ws.display()));
-                note = Some(format!("{} is not a {} workspace (no studio.yaml or projects/ folder). Choose another folder.", ws.display(), app_name()));
+                note = Some(format!("{} is not a {} workspace (no retake.yaml or projects/ folder). Choose another folder.", ws.display(), app_name()));
             }
             Err(e) => {
                 log("the Studio server did not start");
@@ -432,7 +432,7 @@ fn open_other(app: &AppHandle) {
     let folder = std::fs::canonicalize(&folder).unwrap_or(folder);
     if !dc::is_workspace(&folder) {
         log(&format!("{} is not a workspace: the current one stays open", folder.display()));
-        let text = format!("{} has no studio.yaml or projects/ folder. The workspace open now stays open.", folder.display());
+        let text = dc::not_workspace_text(&folder);
         macos::alert(&format!("Not a {} workspace", app_name()), &text, &["OK"]);
         return;
     }
@@ -482,7 +482,7 @@ extern "C" fn on_signal(sig: libc::c_int) {
 
 /// SIGTERM / SIGINT / SIGHUP quit through the event loop (critique M4): the owned server is stopped like on ⌘Q — and
 /// with no question (L5.2b: `app.exit` never reaches the quit guard; whichever modal of the shell is up is ended —
-/// review B M1 — so a callback waiting on it returns and the queued exit runs). Under DEMO_STUDIO_DESKTOP_TEST=1,
+/// review B M1 — so a callback waiting on it returns and the queued exit runs). Under RETAKE_DESKTOP_TEST=1,
 /// SIGUSR1 is File › Open Workspace… (the gated test's way to the menu) and SIGUSR2 is Quit through `terminate:`, the
 /// path of ⌘Q (sent from this thread, never from a Tauri callback: guard.rs), ignored while a question is up.
 fn install_signals(app: AppHandle) {
@@ -541,7 +541,7 @@ fn install_signals(app: AppHandle) {
 }
 
 fn launch_json() -> PathBuf {
-    // <App>.app/Contents/MacOS/demo-studio-desktop → <App>.app/Contents/Resources/launch.json
+    // <App>.app/Contents/MacOS/retake-desktop → <App>.app/Contents/Resources/launch.json
     let exe = std::env::current_exe().unwrap_or_default();
     exe.parent().and_then(Path::parent).map(|c| c.join("Resources").join("launch.json")).unwrap_or_else(|| PathBuf::from("launch.json"))
 }
@@ -559,10 +559,10 @@ fn main() {
     let _ = test_mode();
     let args = parse_args();
     let env = |k: &str| std::env::var(k).ok();
-    let cfg = dc::launch_config(env("DEMO_STUDIO_NODE").as_deref(), env("DEMO_STUDIO_CLI").as_deref(), cfg!(debug_assertions), &launch_json());
+    let cfg = dc::launch_config(env("RETAKE_NODE").as_deref(), env("RETAKE_CLI").as_deref(), cfg!(debug_assertions), &launch_json());
     let cwd = std::env::current_dir().ok();
-    let home = dc::studio_home(env("DEMO_STUDIO_HOME").as_deref(), env("HOME").as_deref(), cwd.as_deref());
-    let first = dc::choose_workspace(args.root.as_deref(), env("DEMO_STUDIO_ROOT").as_deref(), home.as_deref().and_then(dc::read_remembered), cwd.as_deref());
+    let home = dc::retake_home(env("RETAKE_HOME").as_deref(), env("HOME").as_deref(), cwd.as_deref());
+    let first = dc::choose_workspace(args.root.as_deref(), env("RETAKE_ROOT").as_deref(), home.as_deref().and_then(dc::read_remembered), cwd.as_deref());
     let route = args.route.clone();
 
     let context = tauri::generate_context!();

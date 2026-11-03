@@ -1,6 +1,6 @@
 /**
  * L4.7 looping previews rendered for real (Remotion, guarded, one whole-registry bundle in a temporary cache) —
- * gated slow (DEMO_STUDIO_TEST_SLOW=1): GIF89a 640×360 looping forever (NETSCAPE2.0, count 0) at 15 fps over the
+ * gated slow (RETAKE_TEST_SLOW=1): GIF89a 640×360 looping forever (NETSCAPE2.0, count 0) at 15 fps over the
  * spec's length, a poster beside it; a transition's loop opens on the outgoing scene (the theme layout's own first
  * frame) and ends on the settled card (the card's still); a workspace component that throws while rendering fails
  * alone. Review fixes: a component that throws at module load, then one that does not compile, in the registry bundle —
@@ -13,21 +13,21 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@demo-studio/core';
-import { PREVIEW_SIZE, createComponent, loadComponentRegistry, pngSize } from '@demo-studio/components';
-import { ensureBundle, renderComponentLoops, scaffoldComponents } from '@demo-studio/editor';
-import type { LoopItem, PreviewComponentTarget } from '@demo-studio/editor';
+import { loadTemplate } from '@retake/core';
+import { PREVIEW_SIZE, createComponent, loadComponentRegistry, pngSize } from '@retake/components';
+import { ensureBundle, renderComponentLoops, scaffoldComponents } from '@retake/editor';
+import type { LoopItem, PreviewComponentTarget } from '@retake/editor';
 import { REPO, hasTool } from './render-helpers.js';
 
-const GATED = process.env.DEMO_STUDIO_TEST_SLOW === '1' && hasTool('ffmpeg');
+const GATED = process.env.RETAKE_TEST_SLOW === '1' && hasTool('ffmpeg');
 const LONG = 600_000;
 
 let root: string;
 
 beforeAll(async () => {
   if (!GATED) return;
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-loop-real-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  root = await mkdtemp(join(tmpdir(), 'retake-loop-real-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
 });
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
@@ -79,7 +79,7 @@ function diff(a: Buffer, b: Buffer): number {
   return s / a.length;
 }
 
-describe.skipIf(!GATED)('looping previews rendered with Remotion (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!GATED)('looping previews rendered with Remotion (RETAKE_TEST_SLOW=1)', () => {
   it(
     'GIF loops and posters in one guarded registry bundle; a transition from the scene to the card; a throwing component alone',
     async () => {
@@ -130,7 +130,7 @@ describe.skipIf(!GATED)('looping previews rendered with Remotion (DEMO_STUDIO_TE
     async () => {
       const ws = join(root, 'broken-ws');
       await mkdir(ws, { recursive: true });
-      await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+      await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
       const cacheDir = join(ws, 'cache');
       const boom = await createComponent(ws, { id: 'acme/load-boom', kind: 'card', description: 'Throws while its module loads.' });
       await writeFile(boom.entry, "throw new Error('boom at load');\nexport default function Boom() {\n  return null;\n}\n");

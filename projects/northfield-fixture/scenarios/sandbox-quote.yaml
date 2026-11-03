@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../../packages/core/schema/scenario.schema.json
-# Sandbox mode (L1.8): `studio run northfield-fixture sandbox-quote --sandbox` starts the fixture's sandbox when it is
+# Sandbox mode (L1.8): `retake run northfield-fixture sandbox-quote --sandbox` starts the fixture's sandbox when it is
 # not running, resets it to its seed and films — as the buyer, signed in off camera by the sandbox's account. No setup
 # or teardown hook on purpose: only the sandbox reset makes every take start from the same data, so each take shows the
 # same latest quote, the same new reference and the same "requested" time (the fixture's demo clock restarts at the

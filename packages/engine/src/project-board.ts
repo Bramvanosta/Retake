@@ -5,7 +5,7 @@
  *
  * - File facts (parsed, errors, warnings, title, content counts, environment, theme): core validation + scenarioBlocks
  *   without run blockers or bindings, in a memo of its own keyed by the file's stat (inode, size, mtime) and the project
- *   files' signatures (project.yaml, sandbox.yaml, hooks/, studio.yaml, the project theme's folder and template.yaml),
+ *   files' signatures (project.yaml, sandbox.yaml, hooks/, retake.yaml, the project theme's folder and template.yaml),
  *   sized past BOARD_SCENARIOS_MAX. An entry also holds the files its checks looked for (own media, data, SQL…: core
  *   CheckContext.filesRead), re-statted before it is trusted, and expires after FILE_FACTS_TTL_MS (the scenario view's
  *   text TTL) — review A-M1: an asset removed shows at once, anything else within the minute.
@@ -29,9 +29,9 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@demo-studio/core';
-import type { LoadedProject, RunRecord, WorkspaceConfig } from '@demo-studio/core';
-import type { RenderRecord } from '@demo-studio/editor';
+import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core';
+import type { LoadedProject, RunRecord, WorkspaceConfig } from '@retake/core';
+import type { RenderRecord } from '@retake/editor';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue.js';
@@ -380,7 +380,7 @@ export class ProjectBoards {
     // The project's theme as validation loads it (templateOf): its folder (a file added or gone) and its template.yaml.
     const ref = p.config.template;
     const theme = SLUG_RE.test(ref) ? join(this.ctx.ws.templatesDir, ref) : resolve(p.dir, ref);
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'studio.yaml'), theme, join(theme, 'template.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 

@@ -1,4 +1,4 @@
-import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@retake/core';
 
 /**
  * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed` (L1.8): the steps
@@ -24,7 +24,7 @@ export interface HookContext {
   vars: Record<string, unknown>;
   /** `{{run.id}}`; also stored in journal entries. */
   runId?: string;
-  /** `{{run.dir}}`: the run folder of a capture (absent for `studio hooks run`, which has no run folder). */
+  /** `{{run.dir}}`: the run folder of a capture (absent for `retake hooks run`, which has no run folder). */
   runDir?: string;
   /**
    * The folder hook files (sql `file`) and shell working directories are relative to (default `project.dir`): a sandbox
@@ -67,7 +67,7 @@ export interface HookContext {
    */
   access?: HookAccess;
   /**
-   * The access of another environment of the project, by name: a journal replay (`studio env reset`, `studio hooks
+   * The access of another environment of the project, by name: a journal replay (`retake env reset`, `retake hooks
    * rollback`) checks each entry against the environment it ran in, not the command's. Undefined (an environment no
    * longer in project.yaml): `access`.
    */

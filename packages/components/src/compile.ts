@@ -1,7 +1,7 @@
 /**
  * Compile check of a component implementation with esbuild (bundled in memory, JSX automatic runtime).
  *
- * A component may import only `react`, `remotion` and `@demo-studio/components/kit` (plus its own files inside its
+ * A component may import only `react`, `remotion` and `@retake/components/kit` (plus its own files inside its
  * folder). The kit is bundled from source, and `react` / `remotion` are replaced by stubs listing their real exports,
  * so a misspelt import (`useCurrentFrme`) is an error too. Sources are also scanned for non-deterministic or
  * networked APIs (Math.random, Date.now, fetch…): a component must render the same frame the same way every time.
@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import type { Message, Plugin } from 'esbuild';
-import { didYouMean } from '@demo-studio/core';
+import { didYouMean, oldKitImportMessage } from '@retake/core';
 import { KIT_MODULE, kitEntry } from './paths.js';
 import type { ComponentIssue } from './types.js';
 
@@ -21,7 +21,7 @@ export const ALLOWED_IMPORTS = ['react', 'react/jsx-runtime', 'react/jsx-dev-run
 /** Local files a component may import (inside its folder). */
 const CODE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.json']);
 
-const STUB_NS = 'demo-studio-stub';
+const STUB_NS = 'retake-stub';
 /** Packages the kit itself may use (left out of the compile check of a component). */
 const KIT_EXTERNALS = ['@remotion/lottie', 'lottie-web'] as const;
 const STUBBED = ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion'] as const;
@@ -217,6 +217,8 @@ export function importProblem(spec: string, resolveDir: string, componentDir: st
     return undefined;
   }
   if ((ALLOWED_IMPORTS as readonly string[]).includes(spec)) return undefined;
+  const renamed = oldKitImportMessage(spec, KIT_MODULE);
+  if (renamed) return renamed;
   const s = didYouMean(spec, ALLOWED_IMPORTS);
   return `import "${spec}" is not allowed${s ? ` (did you mean "${s}"?)` : ''}: a component may import only react, remotion and ${KIT_MODULE}`;
 }
@@ -357,7 +359,7 @@ export async function checkComponentEntry(dir: string, entry: string): Promise<E
   const imports = new Set<string>();
   const seen: Array<{ importer: string; problem: string }> = [];
   const plugin: Plugin = {
-    name: 'demo-studio-component-imports',
+    name: 'retake-component-imports',
     setup(b) {
       b.onResolve({ filter: /.*/ }, (args) => {
         if (args.kind === 'entry-point') return undefined;

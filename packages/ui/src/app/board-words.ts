@@ -5,7 +5,7 @@
  * file bytes, the theme a render would use today (L5.10a fixes, review B-L2), landscape, no override — critique M3),
  * "the capture" the board's (the newest succeeded capture with its video). First match wins; every row of the table has a test (board-words.test.ts).
  */
-import type { AuthStatusItem, BoardRun, BoardScenario, RenderReviewSummary } from '@demo-studio/engine';
+import type { AuthStatusItem, BoardRun, BoardScenario, RenderReviewSummary } from '@retake/engine';
 import type { MarkState } from './ui-kit/index.js';
 import { sameVersion } from './render-words.js';
 import { STORED_WORDS } from './shoot-words.js';

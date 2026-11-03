@@ -1,5 +1,5 @@
 /**
- * The in-page recorder (L3.4, `studio record`): serialised like the kit and evaluated, after a passive copy of the kit,
+ * The in-page recorder (L3.4, `retake record`): serialised like the kit and evaluated, after a passive copy of the kit,
  * in an ISOLATED WORLD of the recording window's page (record-session.ts: CDP `Page.addScriptToEvaluateOnNewDocument`
  * with a world name, a binding scoped to that world). The page's own scripts share the DOM but not this world's
  * globals or prototypes: they cannot see the recorder, its kit, its binding or its memory, nor call any of them.
@@ -25,7 +25,7 @@
  * - nothing on an origin that is not one of the environment's (the recorder does not even install there); in a
  *   sub-frame only a content-free notice; on a page the runner says is a sign-in page, nothing (held until it answers).
  */
-import type { SecretFieldKind } from '@demo-studio/core';
+import type { SecretFieldKind } from '@retake/core';
 import type { InventoryElement, KitApi } from './types.js';
 
 export interface RecorderConfig {
@@ -86,7 +86,7 @@ export function demoRecorder(cfg: RecorderConfig): void {
   if (g.__dsrecInstalled) return;
   g.__dsrecInstalled = true;
   const send0 = g[cfg.binding] as ((payload: string) => void) | undefined;
-  const kit = g.__demoStudio as KitApi | undefined;
+  const kit = g.__retake as KitApi | undefined;
   if (typeof send0 !== 'function' || !kit) return;
   if (!cfg.origins.includes(location.origin)) return;
   const MASK = '•••';

@@ -1,5 +1,5 @@
 /** Small text helpers shared by the CLI's output and the engine's messages (one wording for both). */
-import type { UpResult } from '@demo-studio/sandbox';
+import type { UpResult } from '@retake/sandbox';
 
 /** 850 → "850 ms", 4210 → "4.2 s", 75000 → "1 m 15 s". */
 export function formatMs(ms: number): string {

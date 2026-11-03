@@ -19,8 +19,8 @@ import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { studioCsp } from '@demo-studio/engine';
-import type { EditPlan } from '@demo-studio/editor';
+import { studioCsp } from '@retake/engine';
+import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import { frameCsp, startPlayerServer } from '../src/server/player.js';
 import type { PlayerServer } from '../src/server/player.js';
@@ -243,7 +243,7 @@ describe('the player origin', () => {
     expect(r.status).toBe(500);
     expect(logs.length).toBeGreaterThan(0);
     for (const line of logs) {
-      expect(line).toBe('studio player: a frame request failed: Error');
+      expect(line).toBe('retake player: a frame request failed: Error');
       expect(line).not.toContain(capOf(url));
       expect(line).not.toContain(root);
     }
@@ -295,9 +295,9 @@ describe('the player origin', () => {
 describe('the Studio and its player origin', () => {
   it('⚑ the Studio frames exactly its player origin, never sends Access-Control-*, and closes the player with it', async () => {
     const ws = await mkdtemp(join(tmpdir(), 'ds-player-studio-'));
-    const saved = process.env.DEMO_STUDIO_HOME;
-    process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-    await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\n');
+    const saved = process.env.RETAKE_HOME;
+    process.env.RETAKE_HOME = join(ws, '.home');
+    await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
     const studio = await startStudioServer({ root: ws, startWorker: false });
     try {
       expect(studio.player.origin).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
@@ -316,8 +316,8 @@ describe('the Studio and its player origin', () => {
       expect(r.headers['content-security-policy']).toContain(`frame-ancestors http://127.0.0.1:${studio.port} http://localhost:${studio.port};`);
     } finally {
       await studio.close();
-      if (saved === undefined) delete process.env.DEMO_STUDIO_HOME;
-      else process.env.DEMO_STUDIO_HOME = saved;
+      if (saved === undefined) delete process.env.RETAKE_HOME;
+      else process.env.RETAKE_HOME = saved;
     }
     await expect(raw(studio.player.port, 'GET', '/')).rejects.toThrow(/ECONNREFUSED/);
     await rm(ws, { recursive: true, force: true });

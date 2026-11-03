@@ -1,6 +1,6 @@
 /**
  * A sandbox of a project (L1.8): `openSandbox(project, env?)` → `up`, `down`, `reset`, `status`, `logs`,
- * `prepareTake` — the API the CLI's `studio sandbox …` / `studio run --sandbox` and L3.1's MCP tools call.
+ * `prepareTake` — the API the CLI's `retake sandbox …` / `retake run --sandbox` and L3.1's MCP tools call.
  *
  * - up: start what is not running (health checked, ports owned), then seed when it was never seeded, when the seed
  *   changed (core seedHash) or when it started a service (a restarted process lost its in-memory data); `seed: 'never'`
@@ -17,8 +17,8 @@
  */
 import { copyFileSync, existsSync, statSync, truncateSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { sandboxNames, seedHash } from '@demo-studio/core';
-import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@demo-studio/core';
+import { sandboxNames, seedHash } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, RunSandbox, SandboxResetStrategy } from '@retake/core';
 import { SandboxError, interrupted } from './errors.js';
 import { TakeLock, lockAlive, readLock } from './lock.js';
 import type { LockRecord } from './lock.js';
@@ -358,7 +358,7 @@ export class Sandbox {
     const bad = services.filter((s) => !s.orphan && (s.state === 'stopped' || s.healthy === false));
     if (bad.length) {
       const what = bad.map((s) => (s.state === 'stopped' ? `${s.name} is not running` : `${s.name} is not healthy (${s.health})`)).join(', ');
-      throw new SandboxError(`sandbox ${this.env} is not running (${what}): studio sandbox up ${this.project.slug} --env ${this.env}, or run with --sandbox`, 'down');
+      throw new SandboxError(`sandbox ${this.env} is not running (${what}): retake sandbox up ${this.project.slug} --env ${this.env}, or run with --sandbox`, 'down');
     }
     return services;
   }

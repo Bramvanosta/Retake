@@ -15,11 +15,11 @@ the skills deterministically (see "What only the live run proves").
 
 ## The scripted acceptance
 
-`packages/mcp/test/phase3-acceptance.test.ts`, in `pnpm test:slow` (gated by `DEMO_STUDIO_TEST_SLOW=1` and ffmpeg /
-ffprobe). An SDK `Client` drives `studio mcp` over stdio, started from the sources with the workspace as its folder
-(`engine_info.started_outside_workspace` is false). The workspace is empty: a `studio.yaml`, an empty `templates/` (the
+`packages/mcp/test/phase3-acceptance.test.ts`, in `pnpm test:slow` (gated by `RETAKE_TEST_SLOW=1` and ffmpeg /
+ffprobe). An SDK `Client` drives `retake mcp` over stdio, started from the sources with the workspace as its folder
+(`engine_info.started_outside_workspace` is false). The workspace is empty: a `retake.yaml`, an empty `templates/` (the
 starters still resolve), and a `brand/` folder with an invented plain-SVG mark and four font files (the starters' OFL
-fonts under other names). The fixture product runs on free ports, and `DEMO_STUDIO_HOME` is a scratch folder. The
+fonts under other names). The fixture product runs on free ports, and `RETAKE_HOME` is a scratch folder. The
 client declares `elicitation.form`, records every request and declines it. Alone, the file takes 7:06–7:20 on the Mac
 (scenario ≈ 140 s, film ≈ 140 s, comment loop ≈ 150 s, theme + component ≈ 6 s); inside `pnpm test:slow` (7 files,
 42 tests, 9:44 wall) it took 518 s. The numbers below are from the kept run of part 2 (renders 64.20 s / 66.23 s); the
@@ -45,7 +45,7 @@ The checker itself is tested on synthetic call logs without the slow gate (13 ca
 | **R-ACC3-03** theme from brand files | `template_list` (default, editorial, motion) → `template_create_from_brand {name: roastery, colors: the README's five, logo and fonts from brand/, brand name and address}` → `template_list` → `template_preview` | `roastery (workspace, real)`, based on editorial; every contrast check ok and nothing lifted (the README colours were chosen to pass text 7:1, muted 4.5:1 and accent 3:1 on the paper **and** the dark tone); 5 stills, pixel checks: interstitial = the dark tone, outro = the paper |
 | **R-ACC3-04** component through the skill | look first: `component_list {kind: intro}`, `component_get studio/intro-stack`, its preview in roastery → `component_create northfield/intro-split` → the kit reference's `component.yaml` and `index.tsx` written into the folder (standing for Claude's file tools once the user agreed) → `component_validate` → preview A → **a code iteration** (the logo 96 → 150 px) → `component_validate` → preview B → one preview in editorial | validate clean both times; still A on the roastery paper; still B's bytes differ from A's (the code change shows); the editorial still adapts (its paper, fonts and mark) |
 | **R-ACC3-05** capture, render, review | `run_capture` → `plan_preview {template: roastery, overrides.components.intro: northfield/intro-split}` → `render` (same arguments) → `review` | capture succeeded, `sent` hold 1.0 s on the timeline; plan **≥ 60 s** checked before rendering (it prints the segments when it fails), segment 0 = the workspace component, `scenario_changed: false`; render **quote-tour-v1 = 64.20 s**, template roastery, nothing blocked; review **clean** (no error, no warning), key frames include `intro-hold` (on the paper), `sent`, `outro-hold` |
-| **R-ACC3-06** comment → fix → re-render | the person, in their own terminal: `studio comment add northfield quote-tour-v1 --marker sent --region 0.72,0.73,0.18,0.11 "Keep the confirmation on screen longer"` → `comments_list` → `scenario_get` → hold 1 → 3 → `scenario_validate` → `scenario_save` (if_match) → `plan_preview` on run 1 → `run_capture` → `plan_preview` on run 2 → `render` → `review` → `comment_reply` → `comment_resolve {render_id: quote-tour-v2, if_match: the reply's hash}` → `comments_list` | anchor `delivery.7` (`wait_for`, marker `sent`), the still as an image, the comment's text only under `untrusted`; the trusted summary says a scenario change needs `run_capture`. `plan_preview` on the old run: `scenario_changed: true` and the exact trusted line `scenario quote-tour changed since run … was captured: a render shows the run as captured — …: run_capture {project: "northfield", scenario: "quote-tour"}, then render`. Run 2: `sent` hold 3.0 s, the delivery clip ≥ 1.5 s longer, `scenario_changed: false`; render **quote-tour-v2 = 66.23 s**, review **clean**, `diff.previous` = quote-tour-v1; resolved via `mcp` on quote-tour-v2, no open thread left |
+| **R-ACC3-06** comment → fix → re-render | the person, in their own terminal: `retake comment add northfield quote-tour-v1 --marker sent --region 0.72,0.73,0.18,0.11 "Keep the confirmation on screen longer"` → `comments_list` → `scenario_get` → hold 1 → 3 → `scenario_validate` → `scenario_save` (if_match) → `plan_preview` on run 1 → `run_capture` → `plan_preview` on run 2 → `render` → `review` → `comment_reply` → `comment_resolve {render_id: quote-tour-v2, if_match: the reply's hash}` → `comments_list` | anchor `delivery.7` (`wait_for`, marker `sent`), the still as an image, the comment's text only under `untrusted`; the trusted summary says a scenario change needs `run_capture`. `plan_preview` on the old run: `scenario_changed: true` and the exact trusted line `scenario quote-tour changed since run … was captured: a render shows the run as captured — …: run_capture {project: "northfield", scenario: "quote-tour"}, then render`. Run 2: `sent` hold 3.0 s, the delivery clip ≥ 1.5 s longer, `scenario_changed: false`; render **quote-tour-v2 = 66.23 s**, review **clean**, `diff.previous` = quote-tour-v1; resolved via `mcp` on quote-tour-v2, no open thread left |
 
 End of the story: **zero approval requests** (`asked = []`, with elicitation declared, so the server would have
 asked), `templates/` holds only roastery and `components/` only `northfield/intro-split`, nothing written into the
@@ -58,7 +58,7 @@ guard, not a proof of the approval path. That path stays covered by `fixture-acc
 
 ## The frames looked at
 
-A run with `DEMO_STUDIO_ACCEPTANCE_KEEP=<folder>` copies the marked inspections, the theme and component stills, both
+A run with `RETAKE_ACCEPTANCE_KEEP=<folder>` copies the marked inspections, the theme and component stills, both
 renders' contact sheets, key frames and videos, the comment's still, the diff sheet and the scenario before and after.
 Read as an agent reads them, against `docs/reference/look.md`:
 
@@ -112,7 +112,7 @@ frame with an empty right half; that is the component's `align: left` default (l
    - `plan_preview` and `render` return `scenario_changed` and a trusted summary line naming `run_capture`; after the
      review, `plan_preview`'s last line says "capture first" instead of offering to render the old run, and the files
      are compared by their data (a comment-only edit is no change; a link, a FIFO or a huge file is not read);
-   - `studio plan` and `studio render` warn on stderr;
+   - `retake plan` and `retake render` warn on stderr;
    - the INSTRUCTIONS, the three skills, README and MACOS-CHECKLIST 12h now say "A change to the scenario (steps,
      captions, timing, title, intro/outro, template) shows only in a new capture: `run_capture`, then render."
    Tests in core, engine, CLI and MCP, each mutation-checked.
@@ -149,8 +149,8 @@ optional deep checks.
 ## Reproduce
 ```sh
 pnpm build
-DEMO_STUDIO_TEST_SLOW=1 DEMO_STUDIO_ACCEPTANCE_KEEP=/tmp/phase3-keep npx vitest run packages/mcp/test/phase3-acceptance.test.ts
-# or the whole slow suite: DEMO_STUDIO_ACCEPTANCE_KEEP=/tmp/phase3-keep pnpm test:slow
+RETAKE_TEST_SLOW=1 RETAKE_ACCEPTANCE_KEEP=/tmp/phase3-keep npx vitest run packages/mcp/test/phase3-acceptance.test.ts
+# or the whole slow suite: RETAKE_ACCEPTANCE_KEEP=/tmp/phase3-keep pnpm test:slow
 ```
 The test starts and stops its own fixture and workspace; the kept folder holds `inspect/`, `theme/`, `component/`,
 `render1/`, `render2/` (with `diff_quote-tour-v1.jpg` and both mp4s), `comment/` and `quote-tour-1.yaml` /

@@ -1,5 +1,5 @@
 /**
- * `studio sandbox init` (L1.8): a docker-compose sandbox scaffold in a project — `sandbox.yaml` (snapshot strategy),
+ * `retake sandbox init` (L1.8): a docker-compose sandbox scaffold in a project — `sandbox.yaml` (snapshot strategy),
  * `compose.yaml` (an `app` placeholder page, Postgres 17, Mailpit; ports on 127.0.0.1), `seed/01-demo-data.sql`,
  * `app/index.html` and a README saying how to put the application in it — plus `sandboxes: {<env>: <folder>/sandbox.yaml}`
  * in project.yaml (comments kept). Ports are picked free from 4600 upward (not used by the project's other sandboxes,
@@ -9,8 +9,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
 

@@ -1,11 +1,11 @@
 /**
  * The process provider: each service of sandbox.yaml is a local program started detached in a process group of its own
- * (it outlives the CLI), its output appended to `.demo-studio/sandbox/<env>/logs/<service>.log` (the previous run's
+ * (it outlives the CLI), its output appended to `.retake/sandbox/<env>/logs/<service>.log` (the previous run's
  * kept as `.log.1`). Its state entry (pid + start time) is written right after the spawn, before anything waits. A
  * first word `node` runs the CLI's own Node (`process.execPath`: a folder's Node version manager could pick another
  * one); a string command runs with `sh -c` (PATH lookup). Services inherit the CLI's environment without the package
  * manager's and test runner's variables (npm_*, PNPM_*, VITEST*, NODE_ENV…) unless sandbox.yaml sets them, plus
- * DEMO_STUDIO_SANDBOX=<env>. Starting one drops the sandbox's seed record (what it held in memory is gone: the next up
+ * RETAKE_SANDBOX=<env>. Starting one drops the sandbox's seed record (what it held in memory is gone: the next up
  * seeds). Stopping sends SIGTERM to the group, SIGKILL after `stop_timeout_s` (default 10), then stops the descendants
  * that had left the group (a browser Playwright launched detached) and checks the ports are free.
  */
@@ -14,8 +14,8 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { interpolateDeep, prefetchSecrets, resolveEnvironment } from '@demo-studio/core';
-import type { SandboxService } from '@demo-studio/core';
+import { interpolateDeep, prefetchSecrets, resolveEnvironment, withOldOutgoingEnv } from '@retake/core';
+import type { SandboxService } from '@retake/core';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { healthNow, serviceHealth, waitHealthy } from './health.js';
 import { serviceLog, shownPath } from './paths.js';
@@ -52,7 +52,7 @@ export function serviceHash(svc: SandboxService): string {
     .slice(0, 16);
 }
 
-/** The environment of a service: the CLI's (filtered), sandbox.yaml's `env` (templated) and DEMO_STUDIO_SANDBOX. */
+/** The environment of a service: the CLI's (filtered), sandbox.yaml's `env` (templated) and RETAKE_SANDBOX. */
 export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox'>, svc: SandboxService, base: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
   const out: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(base)) if (v !== undefined && !DROPPED_ENV.test(k) && !DROPPED_EXACT.has(k)) out[k] = v;
@@ -61,7 +61,8 @@ export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox
     const pages = resolveEnvironment(ctx.project, ctx.sandbox.env).pages;
     Object.assign(out, interpolateDeep(svc.env, { pages, vars: ctx.project.config.vars ?? {}, secrets: resolver }));
   }
-  out.DEMO_STUDIO_SANDBOX = ctx.sandbox.env;
+  // Also under its name from before L5.13: a product's server may still switch on it (legacy.ts, critique H2).
+  Object.assign(out, withOldOutgoingEnv({ RETAKE_SANDBOX: ctx.sandbox.env }));
   return out;
 }
 
@@ -192,7 +193,7 @@ export class ProcessProvider implements Provider {
     const fd = openSync(log, 'a');
     let child: ChildProcess;
     try {
-      writeSync(fd, `── ${new Date().toISOString()} · demo-studio sandbox ${ctx.sandbox.env} · ${display} (in ${cwd})\n`);
+      writeSync(fd, `── ${new Date().toISOString()} · retake sandbox ${ctx.sandbox.env} · ${display} (in ${cwd})\n`);
       child = spawn(file, args, { cwd, env, detached: true, stdio: ['ignore', fd, fd] });
     } finally {
       closeSync(fd);
@@ -274,7 +275,7 @@ export class ProcessProvider implements Provider {
         if (id === 'ours') {
           if (entry.hash !== serviceHash(svc)) {
             out.changed.push(name);
-            ctx.log('warn', `service ${name} changed in sandbox.yaml since it started (pid ${entry.pid}): it keeps running as it was — studio sandbox down, then up, to apply the change`);
+            ctx.log('warn', `service ${name} changed in sandbox.yaml since it started (pid ${entry.pid}): it keeps running as it was — retake sandbox down, then up, to apply the change`);
           }
           try {
             const gone = () => (signalState(-entry.pid) !== 'alive' ? 'stopped while its health was checked' : null);
@@ -365,7 +366,7 @@ export class ProcessProvider implements Provider {
             s.health = why ?? 'ok';
             s.healthy = why === null;
           }
-        } else if (id === 'reused') s.note = `its recorded pid ${entry.pid} is not its process any more (another program's, or a group Demo Studio cannot recognise)`;
+        } else if (id === 'reused') s.note = `its recorded pid ${entry.pid} is not its process any more (another program's, or a group Retake cannot recognise)`;
       }
       out.push(s);
     }

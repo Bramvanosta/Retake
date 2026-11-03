@@ -1,11 +1,11 @@
 # The Northfield fixture as an image, for its Docker sandbox (projects/northfield-fixture/sandbox/docker/) and for
 # trying a docker-compose sandbox end to end. Node alone, no npm install: the server needs no npm package at run time
 # (bundle.mjs), and the UI bundle is the one built on this machine (public/build/: run `node build.mjs`, or start the
-# fixture once, before `studio sandbox up … --build`). Build context: this folder (.dockerignore keeps only what the
+# fixture once, before `retake sandbox up … --build`). Build context: this folder (.dockerignore keeps only what the
 # server reads). No Chromium in the image: the quote PDF route (/quotes/<id>/quote.pdf) answers 500 here.
 #
-#   docker build -t demo-studio-northfield-fixture fixtures/wholesale
-#   docker run --rm -p 127.0.0.1:4401:4401 -p 127.0.0.1:4402:4402 demo-studio-northfield-fixture
+#   docker build -t retake-northfield-fixture fixtures/wholesale
+#   docker run --rm -p 127.0.0.1:4401:4401 -p 127.0.0.1:4402:4402 retake-northfield-fixture
 FROM node:22-alpine
 
 WORKDIR /fixture

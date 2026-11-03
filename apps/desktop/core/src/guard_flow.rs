@@ -282,7 +282,7 @@ mod tests {
 
     fn q(destructive: bool) -> Question {
         let (buttons, proceed, cancel) = if destructive { (["Cancel", "Quit Anyway"], 1, 0) } else { (["Quit Anyway", "Cancel"], 0, 1) };
-        Question { title: "Quit Demo Studio?".into(), text: "Unsaved \"text\"\n• README.md of shop\u{2028}</script>".into(), buttons, proceed, cancel, destructive }
+        Question { title: "Quit Retake?".into(), text: "Unsaved \"text\"\n• README.md of shop\u{2028}</script>".into(), buttons, proceed, cancel, destructive }
     }
 
     const ID: &str = "AAAAAAAAAAAAAAAAAAAAAA";

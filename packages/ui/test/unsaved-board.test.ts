@@ -19,20 +19,20 @@ import { raw } from './http.js';
 const P = 'northfield-fixture';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const tab = (n: number) => `tab${String(n).padStart(19, '0')}`;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-unsaved-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

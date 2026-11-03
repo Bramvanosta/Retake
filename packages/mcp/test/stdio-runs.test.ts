@@ -1,5 +1,5 @@
 /**
- * Dry runs and captures through `studio mcp` (spawned from the sources over stdio, driven by the SDK client): the run is
+ * Dry runs and captures through `retake mcp` (spawned from the sources over stdio, driven by the SDK client): the run is
  * a job the workspace's worker — a separate, detached process — runs; run_dry / run_status long-poll it with progress
  * notifications; the worker finishes a capture after the session that submitted it is gone, then exits once idle.
  * The fixture product runs on free ports. Skipped when Chromium or ffmpeg is not available.
@@ -13,14 +13,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { FileJobQueue, liveWorker, readWorkerLock } from '@demo-studio/engine';
+import { FileJobQueue, liveWorker, readWorkerLock } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -50,10 +50,10 @@ async function connect(): Promise<Client> {
     args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
     cwd: REPO,
     // The worker this server starts inherits its environment: a short idle exit for the test.
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: home, DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
-  const client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
   sessions.push(client);
@@ -74,7 +74,7 @@ scenes:
       - hold: 0.6
 `;
 
-describe.skipIf(!AVAILABLE)('studio mcp: dry runs and captures as jobs', () => {
+describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
@@ -170,7 +170,7 @@ describe.skipIf(!AVAILABLE)('studio mcp: dry runs and captures as jobs', () => {
   it('stdout carries JSON-RPC lines only while a job runs (the worker writes to its log, never to the server\'s stdout)', async () => {
     const child = spawn(process.execPath, [...SOURCE_ARGS, '--root', ws, 'mcp'], {
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: home, DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';
@@ -204,6 +204,6 @@ describe.skipIf(!AVAILABLE)('studio mcp: dry runs and captures as jobs', () => {
     expect(run?.result?.structuredContent?.id).toMatch(/-short$/);
     // The call was open while the job ran: its progress notifications are among the lines.
     expect(lines.some((l) => l.includes('"method":"notifications/progress"'))).toBe(true);
-    expect(existsSync(join(ws, '.demo-studio', 'workers', 'worker.log'))).toBe(true);
+    expect(existsSync(join(ws, '.retake', 'workers', 'worker.log'))).toBe(true);
   });
 });

@@ -1,5 +1,5 @@
 /**
- * The supervised server's lines to the desktop shell (L5.2b, DESIGN §4j): after the `ui` line, `studio ui --supervised`
+ * The supervised server's lines to the desktop shell (L5.2b, DESIGN §4j): after the `ui` line, `retake ui --supervised`
  * writes on stdout, one JSON object per line, at most PIPE_LINE_MAX bytes each, each line framed by a newline before
  * and after (review A L3: a stray partial write of another module on stdout becomes a line of its own, which the shell
  * ignores, never glued to the next state):
@@ -19,7 +19,7 @@
  * The job watch (engine JobsWatch, polled every PIPE_POLL_MS for the server's life, nudged after a Studio write op)
  * takes stock first: jobs finished before the server started never give a `job_end`. Jobs of the workspace's queue
  * count — the guard and the notifications alike — whoever queued them: the Studio (any window or tab on this server)
- * or Claude through MCP. A terminal's `studio run` / `render` / `export` / `record` runs in-process, writes no job and
+ * or Claude through MCP. A terminal's `retake run` / `render` / `export` / `record` runs in-process, writes no job and
  * is neither asked about nor notified (review B L1). Kinds that count: captures and dry runs, renders, reviews,
  * exports, recordings (`studio_recording` when the Studio started it: its controls are on the Record screen, review B
  * L5), sandbox starts and resets, environment resets and hooks that are not dry. A queued job with no live worker is
@@ -29,8 +29,8 @@
  */
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { FileJobQueue, JobsWatch, liveWorker } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
+import { FileJobQueue, JobsWatch, liveWorker } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
 
@@ -419,7 +419,7 @@ export class Supervisor {
 }
 
 /**
- * The supervisor of a Studio server (`studio ui --supervised`, owned): writes the lines on `out`, polls until
+ * The supervisor of a Studio server (`retake ui --supervised`, owned): writes the lines on `out`, polls until
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {

@@ -4,9 +4,9 @@
  * failure — this process ignores it (as the jobs worker does), the test runner would count it.
  * Args: <workspace root> <component id> <open|guard> <out.mp4>. Prints one JSON line: {ok, error?, warnings}.
  */
-import { loadProject } from '@demo-studio/core';
-import { planRun, renderPlan } from '@demo-studio/editor';
-import type { RenderNetwork } from '@demo-studio/editor';
+import { loadProject } from '@retake/core';
+import { planRun, renderPlan } from '@retake/editor';
+import type { RenderNetwork } from '@retake/editor';
 
 process.on('unhandledRejection', (e) => {
   if ((e as NodeJS.ErrnoException)?.code !== 'EPIPE') throw e;

@@ -10,9 +10,9 @@
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
 import { join } from 'node:path';
-import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION } from '@demo-studio/core';
-import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@demo-studio/core';
-import type { BrowserProcessInfo, ExportProgress } from '@demo-studio/editor';
+import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION } from '@retake/core';
+import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@retake/core';
+import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
@@ -34,7 +34,7 @@ export interface ExportRequest {
   gif?: { start_s?: number; duration_s?: number };
 }
 
-/** The `studio export` command a human runs for the same export. */
+/** The `retake export` command a human runs for the same export. */
 export function exportCommandLine(cli: string, r: { project: string; render_id: string; formats?: readonly string[] }): string {
   return [cli, 'export', r.project, r.render_id, ...(r.formats?.length ? ['--formats', r.formats.join(',')] : [])].join(' ');
 }

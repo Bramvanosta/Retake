@@ -3,18 +3,18 @@
  * component change), renderVideo (record, version, duration, fps, size, an audio track, faststart, yuv420p) with
  * every rendered capture frame checked against the plan's source frame (the capture's frames are colour-coded),
  * cancellation through an AbortSignal (nothing left under the final names) and renderStill.
- * Needs ffmpeg/ffprobe and a Chromium headless shell (Playwright's or $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL).
+ * Needs ffmpeg/ffprobe and a Chromium headless shell (Playwright's or $RETAKE_CHROMIUM_HEADLESS_SHELL).
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { cp, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProjectTemplate, readJson } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
-import { loadComponentRegistry, scaffoldDir } from '@demo-studio/components';
-import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill, renderVideo } from '@demo-studio/editor';
-import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@demo-studio/editor';
+import { loadProjectTemplate, readJson } from '@retake/core';
+import type { Timeline } from '@retake/core';
+import { loadComponentRegistry, scaffoldDir } from '@retake/components';
+import { RenderCancelledError, bundleComponentsFor, ensureBundle, listRenders, planEdit, renderStill, renderVideo } from '@retake/editor';
+import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameColour, frameOfColour, hasTool, pixelAt, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
 

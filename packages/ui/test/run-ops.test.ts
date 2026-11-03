@@ -16,17 +16,17 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { personaPaths } from '@demo-studio/core';
-import { FileJobQueue, selfIdentity } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
-import { writeStatus } from '@demo-studio/runner-web';
+import { personaPaths } from '@retake/core';
+import { FileJobQueue, selfIdentity } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
+import { writeStatus } from '@retake/runner-web';
 import { LIVE_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const savedBuyer = process.env.NORTHFIELD_BUYER_PASSWORD;
 let ws: string;
 let home: string;
@@ -44,7 +44,7 @@ const SUPPLIER_LOGIN = [
   '',
 ].join('\n');
 
-const UNSET = 'DEMO_STUDIO_TEST_UNSET_PW';
+const UNSET = 'RETAKE_TEST_UNSET_PW';
 
 const plain = (video: string, env?: string) =>
   [`video: ${video}`, ...(env ? [`env: ${env}`] : []), 'scenes:', '  - id: a', '    page: console', '    open: /', '    steps:', '      - hold: 1', ''].join('\n');
@@ -52,7 +52,7 @@ const plain = (video: string, env?: string) =>
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-runops-'));
   home = join(ws, '.home');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
   await fixtureWorkspace(ws);
   // The supplier's login steps use a variable the worker's environment lacks: no run signs it in by itself. The buyer's
   // is set (the Studio reads the worker's environment when it starts).
@@ -71,15 +71,15 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (savedBuyer === undefined) delete process.env.NORTHFIELD_BUYER_PASSWORD;
   else process.env.NORTHFIELD_BUYER_PASSWORD = savedBuyer;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
 const call = (op: string, args: unknown) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
-const jobIds = async () => (await readdir(join(ws, '.demo-studio', 'jobs')).catch(() => [] as string[])).sort();
+const jobIds = async () => (await readdir(join(ws, '.retake', 'jobs')).catch(() => [] as string[])).sort();
 interface Fail {
   ok: false;
   error: { code: string; message: string; details?: Record<string, unknown> };

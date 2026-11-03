@@ -5,8 +5,8 @@
  */
 import { createContext, useContext } from 'react';
 import type { ComponentType } from 'react';
-import type { ComponentKind } from '@demo-studio/core';
-import type { ComponentProps } from '@demo-studio/components';
+import type { ComponentKind } from '@retake/core';
+import type { ComponentProps } from '@retake/components';
 import type { ResolvedComponent } from '../plan-types.js';
 import { standInParams } from './frames.js';
 

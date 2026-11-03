@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Background } from '@demo-studio/components/kit';
-import type { ComponentProps, LayoutRects } from '@demo-studio/components/kit';
+import { Background } from '@retake/components/kit';
+import type { ComponentProps, LayoutRects } from '@retake/components/kit';
 
 /** The default rects (design px × unit) — only outside a plan (unit tests); mirrors component.yaml. */
 export function defaultRects(variant: 'landscape' | 'vertical' | 'square', unit: number): LayoutRects {

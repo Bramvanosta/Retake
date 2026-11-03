@@ -11,7 +11,7 @@
  * Nothing here builds YAML or HTML. Names that reach a prompt or an address are checked against their patterns
  * (library-words.ts); every other string from the server is shown through `Txt`.
  */
-import type { ThemeEditView } from '@demo-studio/engine';
+import type { ThemeEditView } from '@retake/engine';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
 import { visibleControls } from './bits.js';
 import type { StudioEvent } from './events.js';

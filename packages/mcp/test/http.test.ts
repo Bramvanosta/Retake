@@ -17,7 +17,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@demo-studio/engine';
+import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from '../../ui/test/http.js';
 import { MCP_HTTP_BODY_MAX, TOOLS, claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport, startMcpHttpServer } from '../src/index.js';
@@ -39,14 +39,14 @@ async function closeAll(): Promise<void> {
 }
 /** End a session opened by a raw initialize. */
 const endRaw = (id: unknown) => raw(server.port, 'DELETE', '/mcp', { authorization: `Bearer ${token}`, 'mcp-session-id': String(id) });
-const saved = { home: process.env.DEMO_STUDIO_HOME, idle: process.env.DEMO_STUDIO_WORKER_IDLE_MS };
+const saved = { home: process.env.RETAKE_HOME, idle: process.env.RETAKE_WORKER_IDLE_MS };
 const P = 'northfield-fixture';
 
 const INIT = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'raw', version: '0' } } });
 const MCP_ACCEPT = { accept: 'application/json, text/event-stream', 'content-type': 'application/json' };
 
 async function connect(answer?: 'accept' | 'decline'): Promise<{ client: Client; transport: StreamableHTTPClientTransport; asked: string[] }> {
-  const client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
+  const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
   const asked: string[] = [];
   if (answer) {
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
@@ -65,8 +65,8 @@ const call = async (c: Client, name: string, args: Record<string, unknown> = {})
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-http-'));
   home = join(ws, '.home');
-  process.env.DEMO_STUDIO_HOME = home;
-  process.env.DEMO_STUDIO_WORKER_IDLE_MS = '1500';
+  process.env.RETAKE_HOME = home;
+  process.env.RETAKE_WORKER_IDLE_MS = '1500';
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'projects', P, 'hooks'), { recursive: true });
   await writeFile(join(ws, 'projects', P, 'hooks', 'ok.yaml'), '- name: ok\n  shell: {run: "true"}\n  writes: false\n');
@@ -85,10 +85,10 @@ afterAll(async () => {
       // gone
     }
   }
-  if (saved.home === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = saved.home;
-  if (saved.idle === undefined) delete process.env.DEMO_STUDIO_WORKER_IDLE_MS;
-  else process.env.DEMO_STUDIO_WORKER_IDLE_MS = saved.idle;
+  if (saved.home === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = saved.home;
+  if (saved.idle === undefined) delete process.env.RETAKE_WORKER_IDLE_MS;
+  else process.env.RETAKE_WORKER_IDLE_MS = saved.idle;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -97,13 +97,13 @@ describe('MCP over HTTP: the same server as stdio', () => {
     const { client } = await connect();
     const http = (await client.listTools()).tools;
     expect(http).toHaveLength(TOOLS.length);
-    const stdio = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+    const stdio = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
     await stdio.connect(
       new StdioClientTransport({
         command: process.execPath,
         args: ['--conditions=source', '--import', 'tsx', join(REPO, 'packages', 'cli', 'src', 'bin.ts'), '--root', ws, 'mcp'],
         cwd: REPO,
-        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: home },
+        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home },
         stderr: 'pipe',
       }),
     );
@@ -339,7 +339,7 @@ describe('MCP over HTTP: the gate, each check with the valid token and a valid i
   });
 });
 
-describe('the stable token (studio home, 0600)', () => {
+describe('the stable token (Retake home, 0600)', () => {
   it('created once (0600, atomic), the same at every start; --rotate-token replaces it; a non-private file is refused', async () => {
     const file = mcpHttpTokenFile();
     expect(file).toBe(join(home, 'mcp-http.token'));
@@ -370,11 +370,11 @@ describe('the stable token (studio home, 0600)', () => {
     // The registration printers: the URL and the bearer header by reference only (review A M1) — an environment
     // variable in the .mcp.json block, the token file read by the shell in the command.
     const url = 'http://127.0.0.1:47820/mcp';
-    expect(mcpHttpConfigJson({ url })).toEqual({ mcpServers: { 'demo-studio': { type: 'http', url, headers: { Authorization: 'Bearer ${DEMO_STUDIO_MCP_TOKEN}' } } } });
-    expect(claudeCodeHttpCommand({ url, tokenFile: '/home/x/.demo-studio/mcp-http.token' })).toBe(
-      'claude mcp add --transport http demo-studio http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat /home/x/.demo-studio/mcp-http.token)"',
+    expect(mcpHttpConfigJson({ url })).toEqual({ mcpServers: { 'retake': { type: 'http', url, headers: { Authorization: 'Bearer ${RETAKE_MCP_TOKEN}' } } } });
+    expect(claudeCodeHttpCommand({ url, tokenFile: '/home/x/.retake/mcp-http.token' })).toBe(
+      'claude mcp add --transport http retake http://127.0.0.1:47820/mcp --scope user --header "Authorization: Bearer $(cat /home/x/.retake/mcp-http.token)"',
     );
     expect(claudeCodeHttpCommand({ url, tokenFile: "/a b/it's.token" })).toContain(`$(cat '/a b/it'\\''s.token')`);
-    expect(mcpHttpTokenExport('/home/x/t')).toBe('export DEMO_STUDIO_MCP_TOKEN="$(cat /home/x/t)"');
+    expect(mcpHttpTokenExport('/home/x/t')).toBe('export RETAKE_MCP_TOKEN="$(cat /home/x/t)"');
   });
 });

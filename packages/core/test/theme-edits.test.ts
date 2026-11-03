@@ -453,7 +453,7 @@ describe('theme edits: fuzz', () => {
     const kinds = Object.keys(IDS) as ComponentKind[];
     for (const s of STARTERS) {
       let text = starter(s);
-      const comments = commentsOf(text).filter((c) => !/placeholder brand|consistent with the legacy/.test(c));
+      const comments = commentsOf(text).filter((c) => !/placeholder brand|sample brand|consistent with the legacy/.test(c));
       for (let i = 0; i < 500; i++) {
         const pick = rnd(10);
         let edit: Edit;

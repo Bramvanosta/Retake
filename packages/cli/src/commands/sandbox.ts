@@ -1,13 +1,13 @@
 /**
- * `studio sandbox init | up | down | reset | status | logs` (L1.8) and the sandbox side of `studio run`: `--sandbox` (up if
+ * `retake sandbox init | up | down | reset | status | logs` (L1.8) and the sandbox side of `retake run`: `--sandbox` (up if
  * needed, health, reset to the seed, then the capture; the sandbox stays up) and a run on a sandbox environment without
- * it (no reset: the sandbox must be up). The work is @demo-studio/sandbox's; these commands print it.
+ * it (no reset: the sandbox must be up). The work is @retake/sandbox's; these commands print it.
  */
 import { join } from 'node:path';
-import { resolveEnvironment, sandboxNames } from '@demo-studio/core';
-import type { LoadedProject, RunRecord } from '@demo-studio/core';
-import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@demo-studio/sandbox';
-import { sandboxUpText } from '@demo-studio/engine';
+import { resolveEnvironment, sandboxNames } from '@retake/core';
+import type { LoadedProject, RunRecord } from '@retake/core';
+import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@retake/sandbox';
+import { refuseBesideOldHolder, sandboxUpText } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -35,7 +35,7 @@ export interface SandboxCommandOptions {
 }
 
 async function sandboxModule() {
-  return import('@demo-studio/sandbox');
+  return import('@retake/sandbox');
 }
 
 /** The project and its sandbox (`--env`, default the first one declared). */
@@ -102,6 +102,7 @@ async function interruptible<T>(ui: Ui, sb: Sandbox, fn: (signal: AbortSignal) =
 
 export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
+  await refuseBesideOldHolder((await openWorkspace(global)).root, 'sandbox up');
   if (opts.build) composeOnly(sb, '--build', 'its services are programs of this machine');
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
@@ -111,7 +112,7 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
     else if (opts.seed === false) ui.line(`  ${c.dim('seed')}      skipped (--no-seed)`);
     ui.line(`  ${c.dim('pages')}     ${pagesLine(project, sb.env)}`);
-    ui.ok(`sandbox ${sb.env} is up — studio run ${project.slug} <scenario> --sandbox${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`} resets it before each take`);
+    ui.ok(`sandbox ${sb.env} is up — retake run ${project.slug} <scenario> --sandbox${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`} resets it before each take`);
     return EXIT.ok;
   } catch (e) {
     ui.error(errorMessage(e));
@@ -136,6 +137,7 @@ export async function sandboxDownCommand(ui: Ui, global: GlobalOptions, projectA
 
 export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
+  await refuseBesideOldHolder((await openWorkspace(global)).root, 'sandbox reset');
   try {
     const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), reseed: opts.reseed }));
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);
@@ -166,7 +168,7 @@ function serviceLine(ui: Ui, s: ServiceStatus): string {
   return parts.filter(Boolean).join(' · ');
 }
 
-/** `studio sandbox status`: exit 0 when up and healthy, 1 otherwise (scripts). */
+/** `retake sandbox status`: exit 0 when up and healthy, 1 otherwise (scripts). */
 export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
   const st: SandboxStatus = await sb.status();
@@ -189,7 +191,7 @@ export async function sandboxStatusCommand(ui: Ui, global: GlobalOptions, projec
   ui.line(`  ${c.dim('lock'.padEnd(width))} ${st.lock ? c.yellow(`in use: ${describeLock(st.lock)}`) : 'free'}`);
   ui.line(`  ${c.dim('logs'.padEnd(width))} ${ui.path(st.logs)}`);
   for (const n of st.notes) ui.warn(n);
-  if (st.state !== 'up') ui.line(c.dim(`  → studio sandbox up ${project.slug}${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`}`));
+  if (st.state !== 'up') ui.line(c.dim(`  → retake sandbox up ${project.slug}${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`}`));
   return st.state === 'up' ? EXIT.ok : EXIT.failure;
 }
 
@@ -228,7 +230,7 @@ export async function sandboxLogsCommand(ui: Ui, global: GlobalOptions, projectA
   return EXIT.ok;
 }
 
-/** `studio sandbox init`: a docker-compose sandbox scaffold in the project, declared in project.yaml. */
+/** `retake sandbox init`: a docker-compose sandbox scaffold in the project, declared in project.yaml. */
 export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
   const { initSandbox, SandboxError } = await sandboxModule();
@@ -240,7 +242,7 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
     throw e;
   }
   // The result must load as written: the project with its new sandbox.
-  const { loadProject } = await import('@demo-studio/core');
+  const { loadProject } = await import('@retake/core');
   const reloaded = await loadProject(project.dir);
   const warnings = reloaded.sandboxes?.[res.env]?.issues ?? [];
   const envFlag = sandboxNames(reloaded)[0] === res.env ? '' : ` --env ${res.env}`;
@@ -254,11 +256,11 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
   ui.line(`  ${c.dim('project')}   ${ui.path(project.file)}: ${res.projectYaml === 'added' ? `sandboxes.${res.env} added` : `sandboxes.${res.env} already there`}`);
   ui.line(`  ${c.dim('ports')}     app ${res.ports.app} · Postgres ${res.ports.db} · Mailpit ${res.ports.mailpit} (127.0.0.1)`);
   for (const w of warnings) ui.warn(ui.issue(w, res.manifest));
-  ui.ok(`sandbox ${res.env} scaffolded — try it: studio sandbox up ${project.slug}${envFlag}; then put your application in it (${ui.path(join(res.dir, 'README.md'))})`);
+  ui.ok(`sandbox ${res.env} scaffolded — try it: retake sandbox up ${project.slug}${envFlag}; then put your application in it (${ui.path(join(res.dir, 'README.md'))})`);
   return EXIT.ok;
 }
 
-// ── studio run ─────────────────────────────────────────────────────────────────────────────────────────────────
+// ── retake run ─────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** The run summary's sandbox line, or undefined. */
 export function sandboxSummary(r: RunRecord): string | undefined {

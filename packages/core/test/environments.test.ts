@@ -51,8 +51,8 @@ import {
   WriteRefusedError,
   writingHooks,
   zodIssues,
-} from '@demo-studio/core';
-import type { HookStep, LoadedProject, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { HookStep, LoadedProject, ValidationIssue } from '@retake/core';
 import { errors, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
 
 const msgs = (issues: ValidationIssue[]) => issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);

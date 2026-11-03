@@ -58,7 +58,7 @@ export interface PauseRow {
   scene: string;
   step: number;
   ms?: number;
-  /** The longest the pause may last before the run stops (the worker's DEMO_STUDIO_PAUSE_MAX_MIN). */
+  /** The longest the pause may last before the run stops (the worker's RETAKE_PAUSE_MAX_MIN). */
   max_ms?: number;
   reason?: string;
   ts?: string;

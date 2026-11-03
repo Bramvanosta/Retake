@@ -16,9 +16,9 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createComponent } from '@demo-studio/components';
-import { bundleHash } from '@demo-studio/editor';
-import type { ComponentPreviewSpec, PreviewBackend } from '@demo-studio/editor';
+import { createComponent } from '@retake/components';
+import { bundleHash } from '@retake/editor';
+import type { ComponentPreviewSpec, PreviewBackend } from '@retake/editor';
 import { LIBRARY_FILES, createEngine, libraryCacheDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord, LibraryStatesView, PreviewJobResult, PreviewJobTestHooks } from '../src/index.js';
 import { REPO } from './helpers.js';
@@ -28,14 +28,14 @@ const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-library-job-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
+  process.env.RETAKE_HOME = join(root, '.home');
   await mkdir(join(root, 'templates'), { recursive: true });
   for (const t of ['editorial', 'motion', 'default']) await cp(join(REPO, 'templates', t), join(root, 'templates', t), { recursive: true });
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const dir = join(root, 'projects', 'demo');
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
@@ -46,8 +46,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -62,7 +62,7 @@ function fake(o: { fail?: (spec: ComponentPreviewSpec, what: 'still' | 'gif') =>
     calls,
     async bundle({ root: r, components }) {
       const hash = await bundleHash(components);
-      const dir = join(r, '.demo-studio', 'cache', `remotion-${hash}`);
+      const dir = join(r, '.retake', 'cache', `remotion-${hash}`);
       await mkdir(dir, { recursive: true });
       return { serveUrl: dir, hash, cached: false };
     },
@@ -109,13 +109,13 @@ const cache = () => libraryCacheDir({ root });
 describe('library preview jobs (injected backend)', () => {
   it("the Studio's keys are the worker's for every component in three themes; committed posters by real path only", async () => {
     // A copy of the editorial starter (same files, so the same keys) is not the starter: no committed poster.
-    await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+    await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
     try {
       const copy = await engine.components.library({ project: 'demo', template: 'editorial', components: ['studio/card-title'] });
       expect(copy.theme.editorial_starter).toBe(false);
       expect(copy.items[0].poster.state).toBe('missing');
     } finally {
-      await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+      await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     }
     for (const template of ['editorial', 'motion', 'default']) {
       const states = await engine.components.library({ project: 'demo', template });
@@ -145,14 +145,14 @@ describe('library preview jobs (injected backend)', () => {
   });
 
   it('two jobs over disjoint components share one whole-registry bundle', async () => {
-    await rm(join(root, '.demo-studio', 'cache'), { recursive: true, force: true });
+    await rm(join(root, '.retake', 'cache'), { recursive: true, force: true });
     const states = await engine.components.library({ project: 'demo', template: 'motion' });
     const backend = fake();
     const a = await renderLibrary(states, ['studio/intro-stack'], { backend, freeBytes: plenty }, { template: 'motion', what: 'poster' });
     const b = await renderLibrary(states, ['studio/overlay-callout'], { backend, freeBytes: plenty }, { template: 'motion', what: 'loop' });
     expect([a.job.state, b.job.state]).toEqual(['succeeded', 'succeeded']);
     expect(a.result.library!.bundle!.hash).toBe(b.result.library!.bundle!.hash);
-    const bundles = (await readdir(join(root, '.demo-studio', 'cache'))).filter((n) => n.startsWith('remotion-'));
+    const bundles = (await readdir(join(root, '.retake', 'cache'))).filter((n) => n.startsWith('remotion-'));
     expect(bundles).toHaveLength(1);
     expect(backend.calls).toEqual(['still studio/intro-stack', 'gif studio/overlay-callout']);
   });
@@ -199,7 +199,7 @@ describe('library preview jobs (injected backend)', () => {
     const page: PreviewBackend = {
       async bundle({ root: r, components }) {
         const hash = await bundleHash(components);
-        const dir = join(r, '.demo-studio', 'cache', `remotion-${hash}`);
+        const dir = join(r, '.retake', 'cache', `remotion-${hash}`);
         await mkdir(dir, { recursive: true });
         pages.set(dir, components.map((c) => c.id));
         return { serveUrl: dir, hash, cached: false };
@@ -246,7 +246,7 @@ describe('library preview jobs (injected backend)', () => {
     expect([fixed.items[0].poster.state, fixed.items[0].loop.state]).toEqual(['missing', 'missing']);
     const again = await renderLibrary(fixed, ['acme/thrower'], { backend: page, freeBytes: plenty }, { template: 'motion' });
     expect(again.result.library!.entries.map((e) => e.state)).toEqual(['written', 'written']);
-    // A failure recorded under another registry (or by an older Demo Studio, without one) is never kept.
+    // A failure recorded under another registry (or by an older Retake, without one) is never kept.
     const stalePoster = (await engine.components.library({ project: 'demo', template: 'motion', components: ['studio/outro-stack'] })).items[0];
     const dir = join(cache(), stalePoster.poster.key);
     await mkdir(dir, { recursive: true });

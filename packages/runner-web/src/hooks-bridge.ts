@@ -1,6 +1,6 @@
-import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@demo-studio/core';
+import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@retake/core';
 
-/** What a hook's approval is asked about (@demo-studio/hooks HookApprovalRequest, structurally). */
+/** What a hook's approval is asked about (@retake/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
   hook: HookStep;
   phase: string;
@@ -13,7 +13,7 @@ export interface HookApprovalRequestLike {
 export type ConfirmHook = (description: string, reason: string, request: HookApprovalRequestLike) => boolean | Promise<boolean>;
 import { RunnerError, errorMessage } from './errors.js';
 
-/** The part of @demo-studio/hooks the runner uses (docs/DESIGN.md §2). */
+/** The part of @retake/hooks the runner uses (docs/DESIGN.md §2). */
 export interface HookContextLike {
   project: LoadedProject;
   env: ResolvedEnvironment;
@@ -66,7 +66,7 @@ export interface HooksModule {
 
 /** Loaded on demand: scenarios without hooks never touch the hooks package (or its pg dependency). */
 export async function loadHooksModule(): Promise<HooksModule> {
-  const specifier = '@demo-studio/hooks';
+  const specifier = '@retake/hooks';
   try {
     const mod = (await import(specifier)) as Partial<HooksModule>;
     if (typeof mod.runHooks !== 'function' || typeof mod.Journal?.open !== 'function') {
@@ -74,7 +74,7 @@ export async function loadHooksModule(): Promise<HooksModule> {
     }
     return mod as HooksModule;
   } catch (e) {
-    throw new RunnerError(`this scenario has hooks (setup, teardown or hook steps) but @demo-studio/hooks could not be loaded: ${errorMessage(e)}`);
+    throw new RunnerError(`this scenario has hooks (setup, teardown or hook steps) but @retake/hooks could not be loaded: ${errorMessage(e)}`);
   }
 }
 

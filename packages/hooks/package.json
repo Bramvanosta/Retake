@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/hooks",
+  "name": "@retake/hooks",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/core": "workspace:*",
+    "@retake/core": "workspace:*",
     "pg": "^8.16.0"
   },
   "devDependencies": {

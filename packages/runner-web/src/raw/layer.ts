@@ -10,7 +10,7 @@
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@demo-studio/core';
+import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@retake/core';
 import { EncodeError } from '../errors.js';
 import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
@@ -103,7 +103,7 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
     await page.addScriptTag({ content: kitSource({ ...opts.kit, cursor: { ...opts.kit.cursor, hidden: false } }) });
     await page.evaluate(
       ({ specs, cell, hot, columns }) => {
-        const api = (window as unknown as { __demoStudio: { cursorLook: { css: string; html: string }; cursor: { hide(): void } } }).__demoStudio;
+        const api = (window as unknown as { __retake: { cursorLook: { css: string; html: string }; cursor: { hide(): void } } }).__retake;
         api.cursor.hide();
         const { css, html } = api.cursorLook;
         specs.forEach((s, i) => {

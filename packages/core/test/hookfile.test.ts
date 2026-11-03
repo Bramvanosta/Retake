@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseHookFile } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import { DEFAULT_CAPTURE } from '@demo-studio/core';
+import { parseHookFile } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import { DEFAULT_CAPTURE } from '@retake/core';
 
 const project: LoadedProject = {
   slug: 'demo',

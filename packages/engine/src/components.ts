@@ -5,19 +5,19 @@
  *
  * Inputs are ids ("namespace/name"), never folders. Nothing here writes component code: `componentCreate` writes the
  * tool's own scaffold, refuses the built-in namespace and any built-in id (a workspace component of that id would
- * replace the built-in in every render), and renders no preview (component_preview does, into .demo-studio/previews/).
+ * replace the built-in in every render), and renders no preview (component_preview does, into .retake/previews/).
  * The components package (esbuild) is imported lazily.
  */
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@demo-studio/core';
-import type { ComponentKind, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentInfo, ComponentManifest, ComponentRegistry } from '@demo-studio/components';
+import { COMPONENT_ID_RE, COMPONENT_KINDS } from '@retake/core';
+import type { ComponentKind, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import type { ComponentInfo, ComponentManifest, ComponentRegistry } from '@retake/components';
 import { EngineError, toEngineError } from './errors.js';
 
-/** Lazy: @demo-studio/components pulls in esbuild (compile checks). */
-export const components = () => import('@demo-studio/components');
+/** Lazy: @retake/components pulls in esbuild (compile checks). */
+export const components = () => import('@retake/components');
 
 /** Longest README text component_get returns. */
 const README_MAX = 8000;

@@ -24,7 +24,7 @@
  * - an info note is a status, not an alert (review A-L5);
  * - a narrow centre (900 px): a row's aside goes under its text, a word is never broken (review A-L2).
  *
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (a live recording: 1440 dark, 900 dark, the inspector hidden,
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (a live recording: 1440 dark, 900 dark, the inspector hidden,
  * 1280 light).
  */
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -39,8 +39,8 @@ import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const P = 'northfield-fixture';
 const POLL = { timeout: 15_000, interval: 100 };
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
+const savedHome = process.env.RETAKE_HOME;
 
 let ws: string;
 let studio: StudioServer;
@@ -181,10 +181,10 @@ async function shot(name: string): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-keys-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 150 });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   page = await context.newPage();
@@ -233,8 +233,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

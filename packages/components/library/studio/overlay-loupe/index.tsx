@@ -1,7 +1,7 @@
 import { useCurrentFrame } from 'remotion';
 import type { ReactNode } from 'react';
-import { biasMotion, clamp, darkLight, fadeOut, loupeLens, progress, roundTo, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps, LoupePlacement } from '@demo-studio/components/kit';
+import { biasMotion, clamp, darkLight, fadeOut, loupeLens, progress, roundTo, withAlpha } from '@retake/components/kit';
+import type { ComponentProps, LoupePlacement } from '@retake/components/kit';
 
 type Params = { zoom: number; max_width: number; placement: LoupePlacement; ring: boolean };
 

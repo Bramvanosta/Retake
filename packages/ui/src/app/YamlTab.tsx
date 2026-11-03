@@ -23,7 +23,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ValidationIssue } from '@demo-studio/core';
+import type { ValidationIssue } from '@retake/core';
 import { CallError, call, errorText } from './api.js';
 import { Txt, plural, shown } from './bits.js';
 import { crlfToLf, detectEol, getDraft, isDirty, scenarioKey, setDraft, toEol, useDirty } from './drafts.js';

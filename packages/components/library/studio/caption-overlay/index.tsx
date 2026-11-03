@@ -15,8 +15,8 @@ import {
   rise,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { CaptionCue, ComponentProps, ThemeTextStyle, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { CaptionCue, ComponentProps, ThemeTextStyle, ThemeTokens } from '@retake/components/kit';
 
 type Params = { position: 'over' | 'area'; align: 'center' | 'left'; opacity: number; max_width: number; max_lines: number };
 

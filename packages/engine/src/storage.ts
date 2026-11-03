@@ -9,8 +9,8 @@ import { isUtf8 } from 'node:buffer';
 import { createReadStream } from 'node:fs';
 import { chmod, link, lstat, mkdir, realpath, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, readPlainFile } from '@demo-studio/core';
-import type { TakeLock } from '@demo-studio/sandbox';
+import { SCENARIO_COMPARE_MAX_BYTES, readPlainFile } from '@retake/core';
+import type { TakeLock } from '@retake/sandbox';
 import { EngineError } from './errors.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
 
@@ -56,7 +56,7 @@ export interface Storage {
    * check. A mismatch is an EngineError `conflict` with `details.current` (the current hash, or null). A file that is a
    * symbolic link to another file of the project is written through it (the link stays a link); a link leading out of
    * the project, or to nothing, is refused. L4.3: a write with an `ifMatch` hash holds the target's write lock
-   * (`.demo-studio/locks/write-*.lock`, shared across processes) from the check to the rename — unless `locked`: the
+   * (`.retake/locks/write-*.lock`, shared across processes) from the check to the rename — unless `locked`: the
    * caller holds a lock that serialises every write of that file (a comment thread's) —; a replaced file keeps its mode.
    */
   writeText(ref: string, text: string, opts?: { ifMatch?: string | null; locked?: boolean }): Promise<WriteResult>;
@@ -227,7 +227,7 @@ export class LocalStorage implements Storage {
       busy: (lockRef, held) => {
         const { pid } = lockHolder(held);
         return new EngineError('busy', `${ref} is being written by another command${pid ? ` (pid ${pid})` : ''}: try again`, {
-          fix: `try again in a moment; if no studio command is running, remove ${lockRef}`,
+          fix: `try again in a moment; if no retake command is running, remove ${lockRef}`,
         });
       },
     });

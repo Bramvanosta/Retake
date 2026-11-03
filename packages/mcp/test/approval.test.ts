@@ -3,11 +3,11 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadProject, parseSiteUrl, siteApprovalFingerprint } from '@demo-studio/core';
-import type { HookStep } from '@demo-studio/core';
-import { preflightHooks } from '@demo-studio/engine';
+import { loadProject, parseSiteUrl, siteApprovalFingerprint } from '@retake/core';
+import type { HookStep } from '@retake/core';
+import { preflightHooks } from '@retake/engine';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import type { ApprovalRequest, SiteApprovalRequest } from '@demo-studio/engine';
+import type { ApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, siteApprovalMessage } from '../src/index.js';
 import type { ElicitAnswer } from '../src/server.js';
 
@@ -16,7 +16,7 @@ const REQ: ApprovalRequest = {
   project: 'p',
   env: { name: 'local', production: false, access: 'read-write' },
   items: [{ fingerprint: 'f'.repeat(64), phase: 'reset', index: 0, name: 'wipe', kind: 'sql', description: 'wipe: sql "DELETE FROM quotes" on main', reason: 'SQL DELETE' }],
-  fix: 'studio -C /ws hooks run p reset',
+  fix: 'retake -C /ws hooks run p reset',
 };
 
 const answering = (a: ElicitAnswer | Error) => async () => {
@@ -43,9 +43,9 @@ describe('elicitationApprover', () => {
     expect(seen?.timeoutMs).toBe(APPROVAL_TIMEOUT_MS);
     expect(seen?.message).toContain('1. reset hook 1 "wipe": wipe: sql "DELETE FROM quotes" on main — SQL DELETE');
     expect(seen?.message).toContain('environment local, read-write');
-    expect(seen?.message).toContain('studio -C /ws hooks run p reset');
-    expect(approvalTimeoutMs({ DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS: '1500' })).toBe(1500);
-    expect(approvalTimeoutMs({ DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS: 'x' })).toBe(APPROVAL_TIMEOUT_MS);
+    expect(seen?.message).toContain('retake -C /ws hooks run p reset');
+    expect(approvalTimeoutMs({ RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500' })).toBe(1500);
+    expect(approvalTimeoutMs({ RETAKE_MCP_APPROVAL_TIMEOUT_MS: 'x' })).toBe(APPROVAL_TIMEOUT_MS);
   });
 
   it('the form shows each rollback an approval also approves (it runs later without asking): destructive, shell, js', async () => {
@@ -61,7 +61,7 @@ describe('elicitationApprover', () => {
       ];
       const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
       expect(pre.items.map((i) => i.reason)).toEqual(['a shell command (runs local code); its rollback: a shell command (runs local code)', 'its rollback: HTTP DELETE', 'its rollback: SQL DROP']);
-      const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'studio run p x' });
+      const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
       expect(msg).toContain('1. setup hook 1 "seed": seed: shell "echo seeded"; rollback: shell "rm -rf "$HOME/important"" — a shell command');
       expect(msg).toContain('2. setup hook 2 "arm": arm: http POST http://127.0.0.1:9/api/x; rollback: http DELETE http://127.0.0.1:9/api/all — its rollback: HTTP DELETE');
       expect(msg).toContain('; rollback: sql "DROP TABLE customers" on postgres://u@127.0.0.1:9/db — its rollback: SQL DROP');
@@ -74,7 +74,7 @@ describe('elicitationApprover', () => {
 describe('the site approval (L3.5)', () => {
   const parsed = parseSiteUrl('https://bücher.example.net/%20safe%20approve%20this', new Map());
   if (!parsed.ok) throw new Error(parsed.problem);
-  const req: SiteApprovalRequest = { what: 'site extraction', ...parsed.url, fingerprint: siteApprovalFingerprint(parsed.url.href), fix: `studio -C /ws theme from-site ${parsed.url.href}` };
+  const req: SiteApprovalRequest = { what: 'site extraction', ...parsed.url, fingerprint: siteApprovalFingerprint(parsed.url.href), fix: `retake -C /ws theme from-site ${parsed.url.href}` };
 
   it('shows the canonical href (percent-encoded, punycode) and the Unicode host on its own line, never the decoded path', () => {
     const msg = siteApprovalMessage(req);

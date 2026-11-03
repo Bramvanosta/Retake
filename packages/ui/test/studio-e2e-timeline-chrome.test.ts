@@ -1,14 +1,14 @@
 /**
- * L4.5 part C, gated (`DEMO_STUDIO_TEST_CHROME=1`; skipped when Google Chrome is not installed): the timeline screen in
+ * L4.5 part C, gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the timeline screen in
  * the installed Google Chrome (Playwright `channel: 'chrome'`, a temporary profile Playwright creates and deletes — never
  * the person's own; Playwright's mock keychain, no `ignoreDefaultArgs`), which plays H.264 like the person's browser:
  * - takes encoded as the capture encodes — VideoToolbox (keyframes every 12 frames, no B-frames; when this Mac's ffmpeg
  *   has it) and the libx264 fallback (a 250-frame GOP, B-frames) — of the self-numbering synthetic take: no "cannot play"
  *   message, every seek shows exactly the plan's source frame, and the numbers (critique B14): seek → settled latency
  *   (median, p95, max) per encoder, playback (output frames per second of wall time);
- * - with `DEMO_STUDIO_TEST_REAL=<workspace>:<project>:<scenario>`, also a real capture of the fixture product in that
+ * - with `RETAKE_TEST_REAL=<workspace>:<project>:<scenario>`, also a real capture of the fixture product in that
  *   workspace (opened read-only: nothing is written there but the Studio's own state folder): it loads, seeks settle,
- *   it plays — the same numbers. `DEMO_STUDIO_UI_SHOTS=<folder>` saves a screenshot of it there.
+ *   it plays — the same numbers. `RETAKE_UI_SHOTS=<folder>` saves a screenshot of it there.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TimelineViewResult } from '@demo-studio/engine';
+import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
@@ -25,11 +25,11 @@ import { BITS_TEXT, bitsTimeline, hasEncoder, readBits, takeWorkspace, writeTake
 import type { TakeCodec } from './timeline-take.js';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
-const gated = process.env.DEMO_STUDIO_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
-const REAL = process.env.DEMO_STUDIO_TEST_REAL;
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
+const REAL = process.env.RETAKE_TEST_REAL;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 let ws: string;
 let browser: Browser;
@@ -98,15 +98,15 @@ async function playback(page: Page, ms: number, fps: number): Promise<{ fps: num
 beforeAll(async () => {
   if (!gated) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-chrome-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   browser = await chromium.launch({ channel: 'chrome', headless: true });
 }, 120_000);
 
 afterAll(async () => {
   await browser?.close();
   for (const s of servers) await s.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -148,7 +148,7 @@ describe.skipIf(!gated)('the timeline in the installed Google Chrome (H.264)', (
     }
   }, 300_000);
 
-  it.skipIf(!REAL)('a real capture of the fixture product (DEMO_STUDIO_TEST_REAL): loads, seeks settle, plays', async () => {
+  it.skipIf(!REAL)('a real capture of the fixture product (RETAKE_TEST_REAL): loads, seeks settle, plays', async () => {
     const [root, project, scenario] = (REAL ?? '').split(':');
     const studio = await startStudioServer({ root, startWorker: false });
     servers.push(studio);

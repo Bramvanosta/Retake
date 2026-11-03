@@ -18,8 +18,8 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scaffoldDir } from '@demo-studio/components';
-import { TOOLS } from '@demo-studio/mcp';
+import { scaffoldDir } from '@retake/components';
+import { TOOLS } from '@retake/mcp';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer, TimelineViewAnswer } from '../src/index.js';
 import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
@@ -47,7 +47,7 @@ scenes:
 let ws: string;
 let dir: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const MARK = 'MARKED-COMPONENT-5e2b';
 const LEASE_A = 'leaseAAAAAAAAAAAAAAAAA';
@@ -66,7 +66,7 @@ async function viewOf(args: Record<string, unknown>): Promise<Ok> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-timeline-ops-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 3,
@@ -97,8 +97,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

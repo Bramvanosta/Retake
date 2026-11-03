@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@demo-studio/core';
-import type { ComponentKind } from '@demo-studio/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@retake/core';
+import type { ComponentKind } from '@retake/core';
 import {
   PREVIEW_FILE,
   PREVIEW_THEME,
@@ -11,10 +11,10 @@ import {
   previewStatus,
   scaffoldDir,
   validateComponentDir,
-} from '@demo-studio/components';
-import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@demo-studio/components';
-import { loadPreviewTheme, renderComponentPreviews } from '@demo-studio/editor';
-import type { PreviewComponentTarget, RenderedPreview } from '@demo-studio/editor';
+} from '@retake/components';
+import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@retake/components';
+import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
+import type { PreviewComponentTarget, RenderedPreview } from '@retake/editor';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -56,7 +56,7 @@ function printNotices(ui: Ui, notices: readonly RegistryNotice[]): void {
   }
 }
 
-/** `studio components list [--kind K] [--json]`: workspace components, then the built-in library. */
+/** `retake components list [--kind K] [--json]`: workspace components, then the built-in library. */
 export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts: ComponentsListOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const reg = await loadComponentRegistry({ root: ws.root });
@@ -83,8 +83,8 @@ export async function componentsListCommand(ui: Ui, global: GlobalOptions, opts:
     ui.result(
       c.dim(
         opts.kind
-          ? `  no ${opts.kind} component yet — create one with \`studio components create <namespace/name> --kind ${opts.kind}\``
-          : '  none yet — create one with `studio components create <namespace/name> --kind <kind>`',
+          ? `  no ${opts.kind} component yet — create one with \`retake components create <namespace/name> --kind ${opts.kind}\``
+          : '  none yet — create one with `retake components create <namespace/name> --kind <kind>`',
       ),
     );
   }
@@ -132,7 +132,7 @@ function targetOf(reg: ComponentRegistry, arg: string): Target {
 }
 
 /**
- * `studio components validate [<id|dir>] [--json]`: manifest, entry and compile check of one component — or of every
+ * `retake components validate [<id|dir>] [--json]`: manifest, entry and compile check of one component — or of every
  * workspace component when none is given. Exit 1 on any error.
  */
 export async function componentsValidateCommand(
@@ -186,7 +186,7 @@ export interface ComponentsCreateOptions {
   preview?: boolean;
 }
 
-/** `studio components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
+/** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name });
@@ -231,11 +231,11 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   ui.line(c.dim('  index.tsx       implementation: theme tokens + unit, frame-driven, imports react / remotion / the kit'));
   ui.line(c.dim('  README.md       notes for whoever edits it (+ the generated preview block)'));
   if (preview) ui.line(c.dim(`  preview.png     generated preview (${preview.meta?.theme ?? PREVIEW_THEME} theme, at ${preview.at} s): ${ui.path(preview.file)}`));
-  if (previewError) ui.warn(`no preview rendered (${previewError}): run \`studio components preview ${created.manifest.id}\` when a browser is available`);
+  if (previewError) ui.warn(`no preview rendered (${previewError}): run \`retake components preview ${created.manifest.id}\` when a browser is available`);
   if (created.overrides) ui.warn(`${created.manifest.id} overrides the built-in component of the same id`);
   for (const i of created.issues) ui.line(`  ${ui.issue(i, join(created.dir, i.file))}`);
   ui.line(
-    `next: edit index.tsx, then ${c.bold(`studio components validate ${created.manifest.id}`)} and ${c.bold(`studio components preview ${created.manifest.id}`)}; ` +
+    `next: edit index.tsx, then ${c.bold(`retake components validate ${created.manifest.id}`)} and ${c.bold(`retake components preview ${created.manifest.id}`)}; ` +
       `use it from a template (components: {${opts.kind}: ${created.manifest.id}}) or a scenario`,
   );
   return EXIT.ok;
@@ -271,7 +271,7 @@ async function scaffoldTargets(): Promise<PreviewComponentTarget[]> {
 }
 
 /**
- * `studio components preview [<id|dir>] [--all] [--stale] [--theme T] [--out DIR] [--json]`: render each component
+ * `retake components preview [<id|dir>] [--all] [--stale] [--theme T] [--out DIR] [--json]`: render each component
  * with its manifest preview samples into <component dir>/preview.png (960×540) + preview.json + the README block —
  * or only the images into --out. --all: every component (workspace, built-in library and the per-kind scaffolds).
  */

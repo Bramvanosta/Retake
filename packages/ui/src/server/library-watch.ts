@@ -9,7 +9,7 @@
  *   content) reads; an in-place rewrite moves it.
  * - `themes`: one signature per real folder of templates_dir (the editor's themeStatSignature walk: the files the
  *   theme content hash covers).
- * - `site`: one signature of `.demo-studio/site/` (the folder and each extraction's site.json).
+ * - `site`: one signature of `.retake/site/` (the folder and each extraction's site.json).
  *
  * The library view's memo (library-ops.ts) is keyed on the same walks; the event stream (live.ts) diffs them each poll
  * and says which themes / namespaces changed, and that an extraction appeared.
@@ -118,7 +118,7 @@ export function componentNamespaceSignatures(componentsDir: string, budget: Watc
 
 /** One signature per real theme folder of templates_dir (themeStatSignature: the files of the theme content hash). */
 export async function themeSignatures(templatesDir: string, budget: WatchBudget = watchBudget()): Promise<Map<string, string>> {
-  const { themeStatSignature } = await import('@demo-studio/editor');
+  const { themeStatSignature } = await import('@retake/editor');
   const out = new Map<string, string>();
   for (const name of realFolders(templatesDir)) {
     const dir = join(templatesDir, name);
@@ -141,10 +141,10 @@ const statSig = (p: string): string => {
   }
 };
 
-/** The signature of `.demo-studio/site/`: the folder, and each extraction folder's own stat and site.json's. */
+/** The signature of `.retake/site/`: the folder, and each extraction folder's own stat and site.json's. */
 export function siteSignature(root: string): string {
-  const dir = join(root, '.demo-studio', 'site');
-  const parts = [statSig(join(root, '.demo-studio')), statSig(dir)];
+  const dir = join(root, '.retake', 'site');
+  const parts = [statSig(join(root, '.retake')), statSig(dir)];
   for (const id of realFolders(dir)) parts.push(`${id}=${statSig(join(dir, id))}|${statSig(join(dir, id, 'site.json'))}`);
   return createHash('sha256').update(parts.join('\n')).digest('hex').slice(0, 16);
 }

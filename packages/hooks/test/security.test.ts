@@ -13,8 +13,8 @@ import {
   isHostAllowed,
   runHooks,
   shellWords,
-} from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+} from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -229,9 +229,9 @@ describe('shell hosts (R-SEC-06)', () => {
     expect(existsSync(join(tmp.dir, 'ran.txt'))).toBe(false);
   });
 
-  it('gives shell hooks $DEMO_STUDIO_ALLOWED_HOSTS', async () => {
+  it('gives shell hooks $RETAKE_ALLOWED_HOSTS', async () => {
     const project = makeProject(tmp.dir, {}, { allow_hosts: ['api.partner.example.net'] });
-    const res = await runHooks([{ shell: 'echo "$DEMO_STUDIO_ALLOWED_HOSTS" > hosts.txt' }], makeContext(project).ctx, {
+    const res = await runHooks([{ shell: 'echo "$RETAKE_ALLOWED_HOSTS" > hosts.txt' }], makeContext(project).ctx, {
       phase: 'teardown',
       journal: await journalAt(),
     });

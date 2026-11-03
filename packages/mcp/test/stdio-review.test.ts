@@ -1,5 +1,5 @@
 /**
- * L3.2 reviews and exports through `studio mcp` (spawned from the sources over stdio, driven by the SDK client), on
+ * L3.2 reviews and exports through `retake mcp` (spawned from the sources over stdio, driven by the SDK client), on
  * synthetic renders drawn with ffmpeg (the review tests' helpers: no fixture product, no browser for the reviews):
  * review returns review_get's result with the contact sheet as inline JPEG images when it finishes within its wait,
  * else review_get follows it; images obey the caps (count, base64 bytes, ≤ 1280 px) and the rest are listed as files;
@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { readWorkerLock } from '@demo-studio/engine';
+import { readWorkerLock } from '@retake/engine';
 import { imageResult } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
@@ -60,11 +60,11 @@ beforeAll(async () => {
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', ws.root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(ws.root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(ws.root, '.home'), RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
 }, 120_000);
@@ -82,7 +82,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe.skipIf(!can)('studio mcp: reviews and exports as jobs, images inline', () => {
+describe.skipIf(!can)('retake mcp: reviews and exports as jobs, images inline', () => {
   it('lists review, review_get and export: jobs that write files but never touch the product', async () => {
     const { tools } = await client.listTools();
     const by = new Map(tools.map((t) => [t.name, t]));

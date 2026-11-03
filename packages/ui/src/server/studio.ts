@@ -6,14 +6,14 @@
  * Routes: `/`, `/app.js`, `/app.css`, `/fonts/<file>` (L5.9: the bundled Geist pair) (static, from memory, no token); `POST /v1/session` (a one-time bootstrap code →
  * the session token); `GET /v1/info` (engine info + `http_api` + the allowed ops + L5.2's `counters`: sessions
  * redeemed, event streams open, player media bytes read and range requests — numbers only, what the desktop shell's
- * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `studio ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
+ * acceptance asserts); `POST /v1/bootstrap` (a new code, for a second `retake ui`, with the player origin: L5.2); `GET /v1/events` (the event stream: live.ts); `POST /v1/live` (L4.4: one run's steps, log
  * and live picture: run-live.ts); `POST /v1/call/<op>` — the MCP tool of
  * that name, or one of the Studio's own reads (ops.ts: activity_list, search, projects_overview), run through the
  * same SDK-free `callTool` the MCP server uses (zod parse, trust, untrusted caps, typed errors), for the ops of
  * `UI_OPS` only.
  *
  * Trust: the engine client is `ui` — the ops L4.1 allows run under the agent's trust, with no approver (a page's
- * script cannot be told from a person's click): a run whose hooks need a person is refused with the `studio run …`
+ * script cannot be told from a person's click): a run whose hooks need a person is refused with the `retake run …`
  * command to type in a terminal, and the scenario screen shows that before any click (scenario_blocks `run_blockers`).
  * L4.5: a second loopback listener in the same process, the player origin (player.ts), serves the sandboxed preview
  * frame; the Studio's CSP names it in `frame-src` (the one origin a Studio page may frame). The timeline screen's read
@@ -38,10 +38,10 @@ import {
   newSecret,
   readBody,
   securityHeaders,
-} from '@demo-studio/engine';
-import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@demo-studio/engine';
-import { TOOLS, callTool, capUntrusted } from '@demo-studio/mcp';
-import type { ToolDef } from '@demo-studio/mcp';
+} from '@retake/engine';
+import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
+import { TOOLS, callTool, capUntrusted } from '@retake/mcp';
+import type { ToolDef } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -102,7 +102,7 @@ export type UiOp = (typeof UI_OPS)[number];
  * never long-polls from a page (`wait_s` absent or 0 — a page waiting 25 s holds one of the browser's 6 connections).
  * `auth_login` (L4.4) opens only the headed window where the PERSON signs in (`mode: 'headed'`; `auto` is what every
  * run's preflight does by itself) and never waits (`wait_s` 0: the Sessions panel follows the job): a page script can
- * do no more than open a window the person sees (it closes by itself after DEMO_STUDIO_SIGNIN_MAX_MIN).
+ * do no more than open a window the person sees (it closes by itself after RETAKE_SIGNIN_MAX_MIN).
  */
 const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
   run_status: (t) => ({ ...t, input: (t.input as z.ZodObject).extend({ wait_s: z.literal(0).optional().describe('Always 0 from the Studio (no long-poll).') }) }),
@@ -374,7 +374,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
         sessions++;
         send(res, 200, { ok: true, token });
       }
-      else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run studio ui again');
+      else fail(res, 401, 'unauthorized', 'this link was already used or has expired: run retake ui again');
       return;
     }
     if (g.path === '/v1/bootstrap') {
@@ -406,7 +406,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
       // Every error's words are path-free (review A L1): the workspace's part cut off, any other absolute path shortened —
       // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
-      // The `fix` is kept as it is: a command the person copies into a terminal (`studio -C <workspace> …`), the same
+      // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.
       const root = engine.workspace.root;
       const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
@@ -419,7 +419,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
 
   const server: Server = createServer((req, res) => {
     handle(req, res).catch((e: unknown) => {
-      log(`studio ui: ${req.method ?? ''} ${(req.url ?? '').split('?')[0]} failed: ${e instanceof Error ? e.name : 'error'}`);
+      log(`retake ui: ${req.method ?? ''} ${(req.url ?? '').split('?')[0]} failed: ${e instanceof Error ? e.name : 'error'}`);
       if (!res.headersSent) fail(res, 500, 'internal', 'internal error');
       else res.destroy();
     });

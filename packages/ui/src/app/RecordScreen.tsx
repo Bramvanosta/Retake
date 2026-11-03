@@ -37,8 +37,8 @@
  */
 import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { FocusEvent as ReactFocusEvent, FormEvent, KeyboardEvent, ReactNode, RefObject } from 'react';
-import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt, StepBlock } from '@demo-studio/core';
-import type { RecordListItem, RecordState } from '@demo-studio/engine';
+import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt, StepBlock } from '@retake/core';
+import type { RecordListItem, RecordState } from '@retake/engine';
 import type { RecordEnvironmentOption, RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer } from '../server/record-ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import { Txt, When, plural, shown, visibleControls } from './bits.js';

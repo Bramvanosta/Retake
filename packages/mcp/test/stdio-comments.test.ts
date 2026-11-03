@@ -1,7 +1,7 @@
 /**
- * L3.6 frame comments through `studio mcp` (spawned from the sources over stdio, driven by the SDK client) on synthetic
+ * L3.6 frame comments through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on synthetic
  * renders (the review tests' helpers; drawn with ffmpeg when it is installed, else empty files — only the test of the
- * stills needs it): a person comments a frame with `studio comment add` (the CLI,
+ * stills needs it): a person comments a frame with `retake comment add` (the CLI,
  * spawned from the sources); comments_list returns the thread with its anchor (the marked 2 ms wait, its marker) and
  * the still as an inline JPEG labelled from trusted fields; every free text (the comment carrying an injection, the
  * author name) only under `untrusted`, never in prose. Forgery refusals: no tool creates or reopens a thread, no input
@@ -20,9 +20,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { CommentThread } from '@demo-studio/core';
-import { createEngine } from '@demo-studio/engine';
-import type { CommentListView, CommentProposalView, CommentView, Engine } from '@demo-studio/engine';
+import type { CommentThread } from '@retake/core';
+import { createEngine } from '@retake/engine';
+import type { CommentListView, CommentProposalView, CommentView, Engine } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Workspace } from '../../review/test/helpers.js';
@@ -59,11 +59,11 @@ const imagesOf = (r: Result) => r.content.filter((b) => b.type === 'image');
 const prose = (r: Result) => r.content.filter((b, i) => b.type === 'text' && i !== 1).map((b) => b.text ?? '');
 const list = (r: Result) => r.structuredContent as unknown as CommentListView;
 
-/** `studio comment …` as a person runs it (the CLI from the sources, its own process). */
-function studio(...args: string[]): string {
+/** `retake comment …` as a person runs it (the CLI from the sources, its own process). */
+function retake(...args: string[]): string {
   return execFileSync(process.execPath, [...SOURCE_ARGS, '--root', ws.root, '--no-color', 'comment', ...args], {
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(ws.root, '.home'), DEMO_STUDIO_AUTHOR: AUTHOR },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: AUTHOR },
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -76,17 +76,17 @@ beforeAll(async () => {
   const v1 = await makeCase(ws, 'quote', scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } }), { noVideo: !can });
   await writeFile(join(v1.run.dir, 'scenario.yaml'), 'scenes:\n  - id: s1\n    steps: [{click: Go}, {hold: 2.4}]\n  - id: s2\n    steps: [{click: Go}, {wait_for: Proposal ready, mark: proposal}, {hold: 2.4}]\n');
   await makeCase(ws, 'quote', v1.timeline, { version: 2, run: v1.run, noVideo: !can });
-  ids.marked = (JSON.parse(studio('add', 'demo', 'quote-v1', '--marker', 'proposal', '--region', '0.6,0.3,0.2,0.2', '--json', `Keep the total on screen longer. ${INJECTION}`)) as { thread: CommentView }).thread.id;
-  ids.plain = (JSON.parse(studio('add', 'demo', 'quote-v1', '--frame', '20', '--json', 'The intro is too long')) as { thread: CommentView }).thread.id;
+  ids.marked = (JSON.parse(retake('add', 'demo', 'quote-v1', '--marker', 'proposal', '--region', '0.6,0.3,0.2,0.2', '--json', `Keep the total on screen longer. ${INJECTION}`)) as { thread: CommentView }).thread.id;
+  ids.plain = (JSON.parse(retake('add', 'demo', 'quote-v1', '--frame', '20', '--json', 'The intro is too long')) as { thread: CommentView }).thread.id;
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [...SOURCE_ARGS, '--root', ws.root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(ws.root, '.home'), DEMO_STUDIO_AUTHOR: 'Not The Agent', DEMO_STUDIO_MCP_MAX_IMAGES: '1' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: 'Not The Agent', RETAKE_MCP_MAX_IMAGES: '1' },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
 }, LONG);
@@ -96,7 +96,7 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe('studio mcp: frame comments', () => {
+describe('retake mcp: frame comments', () => {
   it('lists comments_list (read), comment_reply and comment_resolve (write files, never destructive): no create, no reopen, no author argument', async () => {
     const { tools } = await client.listTools();
     const by = new Map(tools.map((t) => [t.name, t]));
@@ -148,7 +148,7 @@ describe('studio mcp: frame comments', () => {
     expect(Buffer.from(imgs[0].data!, 'base64').subarray(0, 2).toString('hex')).toBe('ffd8');
     const at = r.content.findIndex((b) => b.type === 'image');
     const first = v.threads[0];
-    expect(r.content[at - 1].text).toMatch(new RegExp(`^image 1/1: comment ${first.id} at \\d\\d:\\d\\d\\.\\d\\d · [\\w.-]+( \\(region outlined\\))? \\(\\d+×\\d+\\) — .*/\\.demo-studio/comments/${first.id}\\.jpg$`));
+    expect(r.content[at - 1].text).toMatch(new RegExp(`^image 1/1: comment ${first.id} at \\d\\d:\\d\\d\\.\\d\\d · [\\w.-]+( \\(region outlined\\))? \\(\\d+×\\d+\\) — .*/\\.retake/comments/${first.id}\\.jpg$`));
     const images = (r.structuredContent as { images: { inline: unknown[]; files: Array<{ file: string }> } }).images;
     expect(images.inline).toHaveLength(1);
     expect(images.files).toHaveLength(1);
@@ -187,7 +187,7 @@ describe('studio mcp: frame comments', () => {
     expect(missing.message).toContain('if_match');
     expect(errorOf(await call('comment_resolve', { project: 'demo', comment_id: ids.marked, note: 'Done.', if_match: null })).code).toBe('invalid');
     // A person replies meanwhile: the hash Claude holds is stale.
-    studio('reply', 'demo', ids.marked!, 'Also the callout.');
+    retake('reply', 'demo', ids.marked!, 'Also the callout.');
     const stale = errorOf(await call('comment_resolve', { project: 'demo', comment_id: ids.marked, note: 'Done.', render_id: 'quote-v2', if_match: before.hash }));
     expect(stale.code).toBe('conflict');
     const current = list(ok(await call('comments_list', { project: 'demo' }))).threads.find((t) => t.id === ids.marked)!;
@@ -252,11 +252,11 @@ scenes:
 const SHORTER = TOUR.replace('The intro caption says far too much', 'A short intro');
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 
-describe('studio mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
+describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
   let ui: Engine;
   let studioId: string;
   const scenarioFile = () => join(ws.project.dir, 'scenarios', 'quote.yaml');
-  const savedHome = process.env.DEMO_STUDIO_HOME;
+  const savedHome = process.env.RETAKE_HOME;
   /** The thread's and the scenario's bytes: unchanged after a refusal. */
   const bytes = async () => [await readFile(threadPath(studioId), 'utf8'), await readFile(scenarioFile(), 'utf8')];
   const reply = (proposal: Record<string, unknown>, id = studioId) => call('comment_reply', { project: 'demo', comment_id: id, text: 'Proposed a shorter caption.', proposal });
@@ -265,15 +265,15 @@ describe('studio mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
     await writeFile(scenarioFile(), TOUR);
     // The person at the Studio: the Studio's own engine client writes the thread as `studio`.
-    process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
+    process.env.RETAKE_HOME = join(ws.root, '.home');
     ui = await createEngine({ root: ws.root, client: 'ui', autoStartWorker: false });
     const record = JSON.parse(await readFile(join(ws.project.dir, 'renders', 'quote-v1.json'), 'utf8')) as { created_at: string };
     studioId = (await ui.comments.add('demo', { render: 'quote-v1', render_created_at: record.created_at, frame: 20, text: 'The intro caption says too much.' })).thread.id;
   }, LONG);
 
   afterAll(() => {
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
   });
 
   it('the INSTRUCTIONS: the proposal loop for an edit-only change on a Studio thread, the direct loop otherwise, the Studio never Claude\'s (Q1 as amended, critique B6)', () => {
@@ -284,7 +284,7 @@ describe('studio mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     expect(line).toContain('Every other thread — by cli, or a change to the filmed part, a theme (template:) or a render override — takes the direct loop');
     expect(line).toContain('comments_list {project, comment_id} reads it back with its state');
     expect(line).toContain('Only people create and reopen threads and apply proposals');
-    expect(line).toContain("The Studio is the person's: never read its token file (.demo-studio/ui.json) or call its /v1 routes.");
+    expect(line).toContain("The Studio is the person's: never read its token file (.retake/ui.json) or call its /v1 routes.");
   });
 
   it('comment_reply {proposal}: strict (an extra key, an author inside, a bad hash are argument errors); its description keeps Claude off the Studio\'s token and routes', async () => {
@@ -292,7 +292,7 @@ describe('studio mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     const { tools } = await client.listTools();
     const description = tools.find((t) => t.name === 'comment_reply')!.description ?? '';
     expect(description).toContain('the whole file with every unchanged line byte for byte, never re-serialised');
-    expect(description).toContain("Only a person applies it: never through the Studio's token (.demo-studio/ui.json) or its routes.");
+    expect(description).toContain("Only a person applies it: never through the Studio's token (.retake/ui.json) or its routes.");
     const hash = sha(TOUR);
     for (const [extra, problem] of [
       [{ scenario_yaml: SHORTER, scenario_hash: hash, via: 'studio' }, /proposal: unknown argument via/],

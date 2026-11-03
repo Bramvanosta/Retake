@@ -32,7 +32,7 @@
  * - Discard while the window is open: a neutral "discarded", no danger notice, the note gone (review B-M5);
  * - a recording Claude started: read-only; a preflight refusal (a persona not signed in): the Sessions panel's Sign in.
  *
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide).
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide).
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -42,9 +42,9 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { applyStepEdit, firstHiddenChar, parseScenario, stepGuard } from '@demo-studio/core';
-import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@demo-studio/engine';
-import type { JobRecord, RecordJobTestHooks } from '@demo-studio/engine';
+import { applyStepEdit, firstHiddenChar, parseScenario, stepGuard } from '@retake/core';
+import { FileJobQueue, newRecordId, runWorker, selfIdentity } from '@retake/engine';
+import type { JobRecord, RecordJobTestHooks } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { RecordViewAnswer, StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -58,10 +58,10 @@ interface Fixture {
 }
 
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const SENTINEL = `Sentinel-${randomBytes(6).toString('hex')}`;
 const POLL = { timeout: 20_000, interval: 150 };
-const saved = { home: process.env.DEMO_STUDIO_HOME, max: process.env.DEMO_STUDIO_RECORD_MAX_MIN };
+const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN };
 let fixture: Fixture;
 let ws: string;
 let studio: StudioServer;
@@ -83,7 +83,7 @@ async function shot(name: string): Promise<void> {
   await page.screenshot({ path: join(SHOTS, `${name}.png`), fullPage: true });
 }
 
-const recDir = (id: string) => join(ws, 'projects', P, '.demo-studio', 'records', id);
+const recDir = (id: string) => join(ws, 'projects', P, '.retake', 'records', id);
 const recOf = () => /#\/p\/[^/]+\/record\/([^/]+)$/.exec(page.url())?.[1] ?? '';
 const stateOf = () => page.getByTestId('record-state').first().getAttribute('data-state');
 const said = () => page.locator('.sh-said').innerText();
@@ -169,8 +169,8 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 4551, shopPort: 4552, host: '127.0.0.1', auth: { consolePort: 4553, shopPort: 4554 } });
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-record-e2e-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  process.env.RETAKE_HOME = join(ws, '.home');
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   await fixtureWorkspace(ws);
   const project = join(ws, 'projects', P);
   const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
@@ -197,7 +197,7 @@ beforeAll(async () => {
     },
   });
   queue = new FileJobQueue(ws);
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' });
   page = await context.newPage();
@@ -222,8 +222,8 @@ afterAll(async () => {
   await fixture?.close();
   if (ws) await rm(ws, { recursive: true, force: true });
   for (const [k, v] of [
-    ['DEMO_STUDIO_HOME', saved.home],
-    ['DEMO_STUDIO_RECORD_MAX_MIN', saved.max],
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_RECORD_MAX_MIN', saved.max],
   ] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
@@ -631,7 +631,7 @@ describe('the hostile page, Discard of an open window, read-only and sign-in', (
       started_at: now,
       finished_at: now,
       worker: { ...me, host: hostname() },
-      error: { code: 'refused', message: `persona supplier is not signed in on signed-in (never): sign it in first — studio -C ${ws} login ${P} --env signed-in --persona supplier`, fix: `studio -C ${ws} login ${P} --env signed-in --persona supplier` },
+      error: { code: 'refused', message: `persona supplier is not signed in on signed-in (never): sign it in first — retake -C ${ws} login ${P} --env signed-in --persona supplier`, fix: `retake -C ${ws} login ${P} --env signed-in --persona supplier` },
     } as JobRecord);
     await expect.poll(stateOf, POLL).toBe('failed');
     await page.getByTestId('record-sign-in').waitFor();

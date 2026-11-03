@@ -19,7 +19,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import type { AuthStatus, ProjectBoardView, ProjectSummary, ProjectView } from '@demo-studio/engine';
+import type { AuthStatus, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
 import { call, useConnection } from '../api.js';
 import type { Connection, Loaded } from '../api.js';
 import { Txt } from '../bits.js';
@@ -54,6 +54,8 @@ interface EngineInfoData {
   version: string;
   root: string;
   worker: { pid: number; started_by?: string } | null;
+  /** L5.13: the sign-ins of before the rename are left in the old home; old variables are set — neither is read. */
+  legacy?: { old_home?: string; old_vars?: string[] };
 }
 
 const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
@@ -481,6 +483,18 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           {claims.browser === 0 && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
           <div className="sh-slot-browser" ref={slotRefs.browser} hidden={claims.browser === 0} />
           <div className="sh-browser-foot">
+            {info?.legacy?.old_home && (
+              <p className="sh-foot-line sh-foot-legacy" role="note" data-testid="legacy-home">
+                {/* old-name:begin — the old home, in our own words (L5.13, critique H3) */}
+                Sign-ins from before the rename are in <span className="k-mono">~/.demo-studio</span> and not read: <span className="k-mono">retake doctor</span> shows the command to move them.
+                {/* old-name:end */}
+              </p>
+            )}
+            {info?.legacy?.old_vars && (
+              <p className="sh-foot-line sh-foot-legacy" role="note" data-testid="legacy-vars">
+                Variables from before the rename are set but not read: <Txt className="k-mono" text={info.legacy.old_vars.join(', ')} /> — rename them <span className="k-mono">RETAKE_…</span> where they are set (shell profile, the MCP registration&apos;s env).
+              </p>
+            )}
             <p className="sh-foot-line">
               <span className="sh-foot-label">Workspace</span>
               <Txt className="sh-foot-path k-mono" text={info?.root ?? (list.state === 'ready' ? list.data.root : '')} />

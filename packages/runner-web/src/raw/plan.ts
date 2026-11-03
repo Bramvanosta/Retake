@@ -9,9 +9,9 @@
  * (R-ISS-08: the previous frame frozen from the commit until the new page painted). Frames sit on the export grid:
  * frame n shows capture time n / fps, the screencast frame on screen then (never interpolated).
  */
-import { LOADING_CUT_MIN_S } from '@demo-studio/core';
+import { LOADING_CUT_MIN_S } from '@retake/core';
 import { fileSlug } from '../util.js';
-import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@demo-studio/core';
+import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@retake/core';
 
 /** Steps that wait for the product (their waiting is a loading state). */
 export const RAW_WAIT_ACTIONS: ReadonlySet<string> = new Set(['wait_for', 'wait_for_email']);

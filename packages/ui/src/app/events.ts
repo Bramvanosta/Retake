@@ -3,7 +3,7 @@
  * EventSource cannot send one) — ONE stream per browser, not per tab (critique B1: over HTTP/1.1 every stream holds
  * one of the browser's 6 connections to this server; at 6 tabs every call would hang, and a 7th tab would not load).
  *
- * - The tab that holds the Web Lock `demo-studio.events` reads the stream and relays each event to the other tabs over
+ * - The tab that holds the Web Lock `retake.events` reads the stream and relays each event to the other tabs over
  *   the BroadcastChannel of the same name; when it closes, the lock passes to another tab, which opens the stream.
  * - Without Web Locks (an old browser) every tab reads its own stream; the server serves 4 at most and answers the
  *   next 503: that tab — or a leader refused for the same reason — re-reads what it shows every 3 s instead, for 30 s,
@@ -54,7 +54,7 @@ export type StudioEvent =
 /** How this tab learns about changes. */
 export type EventMode = 'connecting' | 'stream' | 'relay' | 'polling' | 'off';
 
-const NAME = 'demo-studio.events';
+const NAME = 'retake.events';
 export const POLL_FALLBACK_MS = 3000;
 
 const listeners = new Set<(e: StudioEvent) => void>();

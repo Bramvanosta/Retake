@@ -1,6 +1,6 @@
 /**
  * L5.9: the Studio's tokens, the ONE file for both appearances (docs/reference/studio-ui.md, DESIGN §4k). Pure data;
- * `tokensCss()` writes `tokens.css` from it (`pnpm -F @demo-studio/ui gen:tokens`; a test fails when the committed file
+ * `tokensCss()` writes `tokens.css` from it (`pnpm -F @retake/ui gen:tokens`; a test fails when the committed file
  * differs). Dark is the default and follows the system: no preference or `dark` → dark, `prefers-color-scheme: light` →
  * light; a `data-appearance` scope (the gallery's columns) forces one inside the page.
  * - `UI_COLOURS` — the design system's semantic set (`--ui-*`), read by the kit (`ui-kit/`), the shell, the screens and
@@ -148,7 +148,7 @@ export function tokensCss(): string {
   const fonts = FONT_FILES.map((f) => `@font-face {\n  font-family: '${f.family}';\n  src: url('/fonts/${f.file}') format('woff2');\n  font-weight: 100 900;\n  font-style: normal;\n  font-display: swap;\n}\n`).join('');
   const statics = Object.entries(UI_STATIC).map(([k, v]) => `  --ui-${k}: ${v};`).join('\n');
   return [
-    '/* Generated from src/app/tokens.ts by scripts/gen-tokens.ts (pnpm -F @demo-studio/ui gen:tokens): do not edit. */\n',
+    '/* Generated from src/app/tokens.ts by scripts/gen-tokens.ts (pnpm -F @retake/ui gen:tokens): do not edit. */\n',
     fonts,
     `:root {\n${statics}\n}\n`,
     "html[data-titlebar='overlay'] {\n" + `  --ui-titlebar-inset: ${TITLEBAR_INSET_OVERLAY};\n}\n`,

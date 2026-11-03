@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Demo Studio">
-<title>Demo Studio</title>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="Retake">
+<title>Retake</title>
 <defs><linearGradient id="motion-logo-tile" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7a3d"/><stop offset="1" stop-color="#ff3d5e"/></linearGradient><mask id="motion-logo-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="120" height="120">
 <path d="M38 30H57A30 30 0 0 1 57 90H38A5 5 0 0 1 33 85V35A5 5 0 0 1 38 30Z" fill="#fff"/>
 <path d="M49 46L49 74L71 60Z" fill="#000" stroke="#000" stroke-width="5" stroke-linejoin="round"/>

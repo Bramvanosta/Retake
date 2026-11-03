@@ -1,5 +1,5 @@
-import { collectSecretRefs, redact, resolveSecretRef, secretForms } from '@demo-studio/core';
-import type { SecretResolver } from '@demo-studio/core';
+import { collectSecretRefs, redact, resolveSecretRef, secretForms } from '@retake/core';
+import type { SecretResolver } from '@retake/core';
 import type { HookContext, HookLogLevel } from './types.js';
 import { isRecord } from './util.js';
 

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { Background, darkLight, scaleRect, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
+import { Background, darkLight, scaleRect, withAlpha } from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Params = { radius: number; shadow: 'none' | 'soft' | 'strong' };
 

@@ -15,47 +15,47 @@ import {
   parseProjectYaml,
   saveScenario,
   updateReadme,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, errors, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
-const savedRoot = process.env.DEMO_STUDIO_ROOT;
+const savedRoot = process.env.RETAKE_ROOT;
 
 beforeEach(async () => {
-  delete process.env.DEMO_STUDIO_ROOT;
+  delete process.env.RETAKE_ROOT;
   ws = await tempDir();
 });
 afterEach(async () => {
-  if (savedRoot === undefined) delete process.env.DEMO_STUDIO_ROOT;
-  else process.env.DEMO_STUDIO_ROOT = savedRoot;
+  if (savedRoot === undefined) delete process.env.RETAKE_ROOT;
+  else process.env.RETAKE_ROOT = savedRoot;
   await ws.cleanup();
 });
 
 describe('workspace', () => {
-  it('findWorkspaceRoot: env override, studio.yaml, projects/ or templates/, else start', async () => {
-    await writeFiles(ws.dir, { 'a/studio.yaml': 'projects_dir: work\n', 'a/b/c/.keep': '', 'd/templates/.keep': '', 'd/e/.keep': '' });
+  it('findWorkspaceRoot: env override, retake.yaml, projects/ or templates/, else start', async () => {
+    await writeFiles(ws.dir, { 'a/retake.yaml': 'projects_dir: work\n', 'a/b/c/.keep': '', 'd/templates/.keep': '', 'd/e/.keep': '' });
     expect(findWorkspaceRoot(join(ws.dir, 'a/b/c'))).toBe(join(ws.dir, 'a'));
     expect(findWorkspaceRoot(join(ws.dir, 'd/e'))).toBe(join(ws.dir, 'd'));
-    process.env.DEMO_STUDIO_ROOT = join(ws.dir, 'd');
+    process.env.RETAKE_ROOT = join(ws.dir, 'd');
     expect(findWorkspaceRoot(join(ws.dir, 'a/b/c'))).toBe(join(ws.dir, 'd'));
   });
 
-  it('loadWorkspaceConfig resolves dirs and validates studio.yaml', async () => {
+  it('loadWorkspaceConfig resolves dirs and validates retake.yaml', async () => {
     expect(await loadWorkspaceConfig(ws.dir)).toEqual({
       root: ws.dir,
       projectsDir: join(ws.dir, 'projects'),
       templatesDir: join(ws.dir, 'templates'),
       componentsDir: join(ws.dir, 'components'),
     });
-    await writeFiles(ws.dir, { 'studio.yaml': 'projects_dir: work/projects\nffmpeg: /opt/ffmpeg\ncomponents_dir: ui/components\n' });
+    await writeFiles(ws.dir, { 'retake.yaml': 'projects_dir: work/projects\nffmpeg: /opt/ffmpeg\ncomponents_dir: ui/components\n' });
     expect(await loadWorkspaceConfig(ws.dir)).toMatchObject({
       projectsDir: join(ws.dir, 'work/projects'),
       componentsDir: join(ws.dir, 'ui/components'),
       ffmpeg: '/opt/ffmpeg',
     });
-    await writeFiles(ws.dir, { 'studio.yaml': 'project_dir: x\n' });
+    await writeFiles(ws.dir, { 'retake.yaml': 'project_dir: x\n' });
     await expect(loadWorkspaceConfig(ws.dir)).rejects.toThrow(
-      /studio\.yaml:1:1 error: unknown key "project_dir" \(did you mean "projects_dir"\?\)/,
+      /retake\.yaml:1:1 error: unknown key "project_dir" \(did you mean "projects_dir"\?\)/,
     );
   });
 });
@@ -75,7 +75,7 @@ describe('projects', () => {
       expect(existsSync(join(dir, f)), f).toBe(true);
     }
     expect((await readFile(join(dir, '.gitignore'), 'utf8')).split('\n')).toEqual(
-      expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/', '.demo-studio/']),
+      expect.arrayContaining(['runs/', 'renders/', 'review/', 'exports/', '.retake/']),
     );
     const readme = await readFile(join(dir, 'README.md'), 'utf8');
     for (const h of ['# Northfield Wholesale', '## Product', '## Audience', '## Goals', '## Tone', '## Environments & links', '## Accounts (by reference — never passwords)', "## Do / Don't"]) {
@@ -89,8 +89,8 @@ describe('projects', () => {
     expect(loaded.readme).toBe(readme);
     expect(loaded.scenarios).toEqual([]);
     expect(loaded.issues).toEqual([]);
-    // `studio new` writes the format version first (R-PRIN-13).
-    expect((await readFile(join(dir, 'project.yaml'), 'utf8')).split('\n').slice(0, 2)).toEqual(['# Demo Studio project "northfield-wholesale"', 'version: 1']);
+    // `retake new` writes the format version first (R-PRIN-13).
+    expect((await readFile(join(dir, 'project.yaml'), 'utf8')).split('\n').slice(0, 2)).toEqual(['# Retake project "northfield-wholesale"', 'version: 1']);
     expect(loaded.config).toEqual({
       version: 1,
       name: 'Northfield Wholesale',
@@ -196,7 +196,7 @@ describe('parseProjectYaml semantic checks', () => {
       '    console: https://console.staging.example.com',
       '    vars: https://x.example.com',
       'auth:',
-      '  stagin: {profile: ~/.demo-studio/profiles/northfield}',
+      '  stagin: {profile: ~/.retake/profiles/northfield}',
       'databases:',
       '  main: {url: "postgres://app:hunter2@db.staging.example.com/app"}',
       '  local: {url: "postgres://app:{{env:PGPASSWORD}}@db.staging.example.com/app"}',

@@ -1,8 +1,8 @@
-/** Workspace and project loading: moved into @demo-studio/engine (L3.1), shared with the MCP server. */
-export { openWorkspace, openProject } from '@demo-studio/engine';
+/** Workspace and project loading: moved into @retake/engine (L3.1), shared with the MCP server. */
+export { openWorkspace, openProject } from '@retake/engine';
 
 export interface GlobalOptions {
-  /** Workspace root (overrides $DEMO_STUDIO_ROOT and the studio.yaml lookup). */
+  /** Workspace root (overrides $RETAKE_ROOT and the retake.yaml lookup). */
   root?: string;
   verbose?: boolean;
   color?: boolean;

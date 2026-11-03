@@ -1,7 +1,7 @@
 /**
  * The discovery file of a workspace's Studio server (L4.1; BACKLOG guard-rail "/v1 + capabilities + discovery file"):
- * `<workspace>/.demo-studio/ui.json` says which process serves the workspace, on which port, with which token — so a
- * second `studio ui` reopens the running one instead of starting another, and the macOS shell (L5.2) finds it.
+ * `<workspace>/.retake/ui.json` says which process serves the workspace, on which port, with which token — so a
+ * second `retake ui` reopens the running one instead of starting another, and the macOS shell (L5.2) finds it.
  *
  * Critique B8: the file is claimed after the server is bound, exclusively — a 0600 temporary file (chmod: the umask
  * never widens it) hard-linked into place, so two servers starting together never both win; on EEXIST the holder is
@@ -37,7 +37,7 @@ export interface DiscoveryRecord {
   build?: string;
 }
 
-/** `<workspace>/.demo-studio/ui.json`. */
+/** `<workspace>/.retake/ui.json`. */
 export function discoveryFile(root: string): string {
   return join(stateDir(root), 'ui.json');
 }
@@ -84,7 +84,7 @@ export async function readDiscovery(file: string): Promise<DiscoveryRecord | nul
   }
   const uid = process.getuid?.();
   const unsafe = !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
-  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix: `remove ${file} (no Studio server is using it safely), then run studio ui again` });
+  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix: `remove ${file} (no Studio server is using it safely), then run retake ui again` });
   return parseRecord(await readFile(file, 'utf8'));
 }
 
@@ -98,7 +98,7 @@ export type DiscoveryClaim = { claimed: true } | { claimed: false; holder: Disco
 /**
  * Claim the discovery file for `record` (the caller already listens on its port). `{claimed: false, holder}` when a
  * live server holds it (the caller closes its own listener and reuses that one); a stale or broken file is replaced
- * once. Never chmods the shared `.demo-studio/` folder. Known residue: two servers replacing the same stale file at
+ * once. Never chmods the shared `.retake/` folder. Known residue: two servers replacing the same stale file at
  * the same instant can both win (one unlinks the other's fresh file) — two servers, no corruption.
  */
 export async function claimDiscovery(file: string, record: DiscoveryRecord): Promise<DiscoveryClaim> {
@@ -110,8 +110,8 @@ export async function claimDiscovery(file: string, record: DiscoveryRecord): Pro
     const code = (e as NodeJS.ErrnoException).code;
     // A workspace state folder this user cannot write (review B L3): a refusal that says what to do, not a stack.
     if (code === 'EACCES' || code === 'EPERM' || code === 'EROFS') {
-      throw new EngineError('refused', `${dirname(file)} is not writable (${code}): studio ui records the server it starts there`, {
-        fix: code === 'EROFS' ? 'run studio ui on a workspace on a writable disk' : `make it writable for you (chmod u+w ${dirname(file)}), or run studio ui as the user who owns the workspace`,
+      throw new EngineError('refused', `${dirname(file)} is not writable (${code}): retake ui records the server it starts there`, {
+        fix: code === 'EROFS' ? 'run retake ui on a workspace on a writable disk' : `make it writable for you (chmod u+w ${dirname(file)}), or run retake ui as the user who owns the workspace`,
       });
     }
     throw e;
@@ -131,7 +131,7 @@ export async function claimDiscovery(file: string, record: DiscoveryRecord): Pro
         if (e.code !== 'ENOENT') throw e;
       });
     }
-    throw new EngineError('busy', `${file}: another Studio server claimed it at the same time`, { fix: 'run studio ui again' });
+    throw new EngineError('busy', `${file}: another Studio server claimed it at the same time`, { fix: 'run retake ui again' });
   } finally {
     await unlink(tmp).catch(() => undefined);
   }

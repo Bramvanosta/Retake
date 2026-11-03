@@ -7,7 +7,7 @@
 import { connect, createServer } from 'node:net';
 import type { Server, Socket } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { classifyAddress } from '@demo-studio/core';
+import { classifyAddress } from '@retake/core';
 import { SiteProxy } from '../src/index.js';
 import type { SiteProxyOptions } from '../src/index.js';
 

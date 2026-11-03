@@ -1,11 +1,11 @@
 /**
  * L3.7 Claude Code plugin and registration: the local marketplace at the repository root, the `skills/` plugin (its
- * manifest, userConfig and the .mcp.json that starts `studio mcp` from those values), the plugin lines of
- * `studio mcp --print-config`, and the PATH `studio mcp` serves with (absolute entries only).
+ * manifest, userConfig and the .mcp.json that starts `retake mcp` from those values), the plugin lines of
+ * `retake mcp --print-config`, and the PATH `retake mcp` serves with (absolute entries only).
  *
- * The last block runs the real Claude Code CLI (gated: DEMO_STUDIO_TEST_CLAUDE=1 or DEMO_STUDIO_TEST_SLOW=1 — `pnpm
+ * The last block runs the real Claude Code CLI (gated: RETAKE_TEST_CLAUDE=1 or RETAKE_TEST_SLOW=1 — `pnpm
  * test:slow` — and `claude` on the PATH; `pnpm build` first): `claude plugin validate` on both manifests, `plugin details`
- * and `mcp list` (the server connected through `${user_config.*}`), with CLAUDE_CONFIG_DIR and DEMO_STUDIO_HOME in a
+ * and `mcp list` (the server connected through `${user_config.*}`), with CLAUDE_CONFIG_DIR and RETAKE_HOME in a
  * temporary folder. It never installs, adds a marketplace or signs in; no model is called.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -14,7 +14,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEMO_STUDIO_VERSION } from '@demo-studio/core';
+import { RETAKE_VERSION } from '@retake/core';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { PLUGIN_ID, claudeCodeCommand, clientPath, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '../src/index.js';
@@ -23,7 +23,7 @@ const REPO = resolve(REPO_URL);
 const PLUGIN = join(REPO, 'skills');
 const DIST_BIN = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', join(REPO, 'packages', 'cli', 'src', 'bin.ts')];
-const SKILLS = ['demo-studio-component', 'demo-studio-scenario', 'demo-studio-theme'];
+const SKILLS = ['retake-component', 'retake-scenario', 'retake-theme'];
 
 const json = (p: string) => JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>;
 
@@ -39,23 +39,23 @@ afterAll(async () => {
 });
 
 describe('the Claude Code plugin in skills/ and its local marketplace', () => {
-  it('marketplace.json at the repository root lists one plugin, demo-studio, from ./skills', () => {
+  it('marketplace.json at the repository root lists one plugin, retake, from ./skills', () => {
     const m = json(join(REPO, '.claude-plugin', 'marketplace.json'));
-    expect(m.name).toBe('demo-studio');
-    expect(m.plugins).toEqual([expect.objectContaining({ name: 'demo-studio', source: './skills' })]);
+    expect(m.name).toBe('retake');
+    expect(m.plugins).toEqual([expect.objectContaining({ name: 'retake', source: './skills' })]);
     expect(Object.keys((m.plugins as object[])[0]).sort()).toEqual(['description', 'name', 'source']);
   });
 
-  it("plugin.json: the tool's version, skills from the plugin root, userConfig node / studio / workspace (required) and home (optional)", () => {
+  it("plugin.json: the tool's version, skills from the plugin root, userConfig node / cli / workspace (required) and home (optional)", () => {
     const p = json(join(PLUGIN, '.claude-plugin', 'plugin.json'));
-    expect(p.name).toBe('demo-studio');
-    expect(p.version).toBe(DEMO_STUDIO_VERSION);
+    expect(p.name).toBe('retake');
+    expect(p.version).toBe(RETAKE_VERSION);
     expect(p.skills).toBe('./');
     const uc = p.userConfig as Record<string, { type: string; required?: boolean; default?: string; sensitive?: boolean }>;
-    expect(Object.keys(uc)).toEqual(['node', 'studio', 'workspace', 'home']);
+    expect(Object.keys(uc)).toEqual(['node', 'cli', 'workspace', 'home']);
     expect(Object.fromEntries(Object.entries(uc).map(([k, v]) => [k, [v.type, v.required ?? false]]))).toEqual({
       node: ['file', true],
-      studio: ['file', true],
+      cli: ['file', true],
       workspace: ['directory', true],
       home: ['directory', false],
     });
@@ -63,14 +63,14 @@ describe('the Claude Code plugin in skills/ and its local marketplace', () => {
     expect(Object.values(uc).some((v) => v.sensitive)).toBe(false); // nothing secret goes through the plugin
   });
 
-  it('.mcp.json starts `studio mcp` on the workspace from the userConfig values, DEMO_STUDIO_HOME from home, nothing else', () => {
+  it('.mcp.json starts `retake mcp` on the workspace from the userConfig values, RETAKE_HOME from home, nothing else', () => {
     const m = json(join(PLUGIN, '.mcp.json')) as { mcpServers: Record<string, Record<string, unknown>> };
     expect(Object.keys(m)).toEqual(['mcpServers']);
     expect(m.mcpServers).toEqual({
-      'demo-studio': {
+      'retake': {
         command: '${user_config.node}',
-        args: ['${user_config.studio}', '--root', '${user_config.workspace}', 'mcp'],
-        env: { DEMO_STUDIO_HOME: '${user_config.home}' },
+        args: ['${user_config.cli}', '--root', '${user_config.workspace}', 'mcp'],
+        env: { RETAKE_HOME: '${user_config.home}' },
       },
     });
   });
@@ -82,28 +82,28 @@ describe('the Claude Code plugin in skills/ and its local marketplace', () => {
   });
 });
 
-describe('studio mcp: the plugin registration and the serving PATH', () => {
+describe('retake mcp: the plugin registration and the serving PATH', () => {
   it('--print-config: either `claude mcp add` or the plugin lines (marketplace add, install --scope local from the workspace)', async () => {
     const io = memoryIo();
-    expect(await main(['node', 'studio', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
+    expect(await main(['node', 'retake', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
     const err = io.stderr();
-    const node = (JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string }> }).mcpServers['demo-studio'].command;
-    expect(err).toMatch(/Either .*\n {2}claude mcp add demo-studio --scope user /);
+    const node = (JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string }> }).mcpServers['retake'].command;
+    expect(err).toMatch(/Either .*\n {2}claude mcp add retake --scope user /);
     expect(err).toContain('not both');
     expect(err).toContain(`\n  claude plugin marketplace add ${REPO}\n`);
-    const home = process.env.DEMO_STUDIO_HOME?.trim() ? ` --config home=${resolve(process.env.DEMO_STUDIO_HOME.trim())}` : '';
-    expect(err).toContain(`\n  cd ${ws} && claude plugin install ${PLUGIN_ID} --scope local --config node=${node} --config studio=${DIST_BIN} --config workspace=${ws}${home}\n`);
+    const home = process.env.RETAKE_HOME?.trim() ? ` --config home=${resolve(process.env.RETAKE_HOME.trim())}` : '';
+    expect(err).toContain(`\n  cd ${ws} && claude plugin install ${PLUGIN_ID} --scope local --config node=${node} --config cli=${DIST_BIN} --config workspace=${ws}${home}\n`);
     expect(err).toContain('--plugin-dir');
   });
 
-  it('the plugin lines: shell-quoted values, home only when DEMO_STUDIO_HOME is set (absolute), the marketplace found above the entry point', () => {
+  it('the plugin lines: shell-quoted values, home only when RETAKE_HOME is set (absolute), the marketplace found above the entry point', () => {
     const o = { root: "/w/my ws/it's", bin: '/r/packages/cli/dist/bin.js', node: '/n/22/bin/node', repo: '/r/a b' };
     expect(pluginInstallCommands({ ...o, env: {} })).toEqual([
       "claude plugin marketplace add '/r/a b'",
-      `cd '/w/my ws/it'\\''s' && claude plugin install demo-studio@demo-studio --scope local --config node=/n/22/bin/node --config studio=/r/packages/cli/dist/bin.js --config 'workspace=/w/my ws/it'\\''s'`,
+      `cd '/w/my ws/it'\\''s' && claude plugin install retake@retake --scope local --config node=/n/22/bin/node --config cli=/r/packages/cli/dist/bin.js --config 'workspace=/w/my ws/it'\\''s'`,
     ]);
-    expect(pluginInstallCommands({ ...o, env: { DEMO_STUDIO_HOME: '  ' } })[1]).not.toContain('home=');
-    expect(pluginInstallCommands({ ...o, env: { DEMO_STUDIO_HOME: '~/scratch home' } })[1]).toMatch(new RegExp(` --config 'home=${homedir()}/scratch home'$`));
+    expect(pluginInstallCommands({ ...o, env: { RETAKE_HOME: '  ' } })[1]).not.toContain('home=');
+    expect(pluginInstallCommands({ ...o, env: { RETAKE_HOME: '~/scratch home' } })[1]).toMatch(new RegExp(` --config 'home=${homedir()}/scratch home'$`));
     expect(pluginMarketplaceRoot(DIST_BIN)).toBe(REPO);
     expect(pluginMarketplaceRoot(join(ws, 'packages', 'cli', 'dist', 'bin.js'))).toBeUndefined(); // no marketplace above it
   });
@@ -131,24 +131,24 @@ describe('studio mcp: the plugin registration and the serving PATH', () => {
     expect(entry.env.PATH.split(delimiter)).not.toContain(join(ws, 'bin'));
   });
 
-  it('the `claude mcp add` route prints an absolute DEMO_STUDIO_HOME, like the plugin route (review L7)', () => {
+  it('the `claude mcp add` route prints an absolute RETAKE_HOME, like the plugin route (review L7)', () => {
     const o = { root: '/w/ws', bin: '/r/packages/cli/dist/bin.js', node: '/n/22/bin/node' };
     for (const v of ['rel/home', '~/scratch-home']) {
       const abs = v.startsWith('~') ? join(homedir(), v.slice(2)) : resolve(v);
-      expect(mcpServerEntry({ ...o, env: { DEMO_STUDIO_HOME: v } }).env.DEMO_STUDIO_HOME).toBe(abs);
-      expect(claudeCodeCommand({ ...o, env: { DEMO_STUDIO_HOME: v } })).toContain(` -e DEMO_STUDIO_HOME=${abs} `);
-      expect(pluginInstallCommands({ ...o, repo: '/r', env: { DEMO_STUDIO_HOME: v } })[1]).toContain(` --config home=${abs}`);
+      expect(mcpServerEntry({ ...o, env: { RETAKE_HOME: v } }).env.RETAKE_HOME).toBe(abs);
+      expect(claudeCodeCommand({ ...o, env: { RETAKE_HOME: v } })).toContain(` -e RETAKE_HOME=${abs} `);
+      expect(pluginInstallCommands({ ...o, repo: '/r', env: { RETAKE_HOME: v } })[1]).toContain(` --config home=${abs}`);
     }
-    expect(mcpServerEntry({ ...o, env: { DEMO_STUDIO_HOME: ' ' } }).env).not.toHaveProperty('DEMO_STUDIO_HOME');
+    expect(mcpServerEntry({ ...o, env: { RETAKE_HOME: ' ' } }).env).not.toHaveProperty('RETAKE_HOME');
   });
 
-  it('`studio mcp` serves with that PATH: the node folder first, relative and workspace entries dropped, system folders present', async () => {
+  it('`retake mcp` serves with that PATH: the node folder first, relative and workspace entries dropped, system folders present', async () => {
     const out = join(ws, 'served-path.txt');
     const probe = `data:text/javascript,import{writeFileSync}from'node:fs';process.on('exit',()=>writeFileSync(${JSON.stringify(out)},process.env.PATH??''))`;
     const given = ['bin', '.', join(ws, 'bin'), '/usr/bin', '/bin'].join(delimiter);
     const child = spawn(process.execPath, ['--import', probe, ...SOURCE_ARGS, '--root', ws, 'mcp'], {
       cwd: REPO, // where `--import tsx` resolves
-      env: { HOME: process.env.HOME ?? '', PATH: given, DEMO_STUDIO_HOME: join(ws, '.home') },
+      env: { HOME: process.env.HOME ?? '', PATH: given, RETAKE_HOME: join(ws, '.home') },
       stdio: ['pipe', 'ignore', 'pipe'],
     });
     let stderr = '';
@@ -175,9 +175,9 @@ function claudeBin(): string | undefined {
 }
 
 const CLAUDE = claudeBin();
-const GATED = (process.env.DEMO_STUDIO_TEST_CLAUDE === '1' || process.env.DEMO_STUDIO_TEST_SLOW === '1') && !!CLAUDE;
+const GATED = (process.env.RETAKE_TEST_CLAUDE === '1' || process.env.RETAKE_TEST_SLOW === '1') && !!CLAUDE;
 
-describe.skipIf(!GATED)('the plugin in Claude Code (DEMO_STUDIO_TEST_CLAUDE=1 or DEMO_STUDIO_TEST_SLOW=1, `claude` on the PATH)', () => {
+describe.skipIf(!GATED)('the plugin in Claude Code (RETAKE_TEST_CLAUDE=1 or RETAKE_TEST_SLOW=1, `claude` on the PATH)', () => {
   let scratch: string;
   let env: NodeJS.ProcessEnv;
   let home: string;
@@ -192,7 +192,7 @@ describe.skipIf(!GATED)('the plugin in Claude Code (DEMO_STUDIO_TEST_CLAUDE=1 or
   beforeAll(async () => {
     expect(existsSync(DIST_BIN), 'pnpm build first').toBe(true);
     scratch = await mkdtemp(join(tmpdir(), 'studio-claude-'));
-    home = join(scratch, 'studio-home');
+    home = join(scratch, 'retake-home');
     inherited = join(scratch, 'inherited-home');
     wrapper = join(scratch, 'node-wrapper.sh');
     seen = join(scratch, 'server-saw.txt');
@@ -200,16 +200,16 @@ describe.skipIf(!GATED)('the plugin in Claude Code (DEMO_STUDIO_TEST_CLAUDE=1 or
     await mkdir(config);
     await mkdir(home);
     await mkdir(inherited);
-    // The node value is a wrapper that writes down the server's DEMO_STUDIO_HOME and working directory, then runs node.
+    // The node value is a wrapper that writes down the server's RETAKE_HOME and working directory, then runs node.
     const q = (p: string) => `'${p.replace(/'/g, `'\\''`)}'`;
-    await writeFile(wrapper, `#!/bin/sh\nprintf '%s\\n%s\\n' "$DEMO_STUDIO_HOME" "$(pwd -P)" > ${q(seen)}\nexec ${q(process.execPath)} "$@"\n`, { mode: 0o755 });
-    // `--plugin-dir` loads the plugin as demo-studio@inline: its userConfig values are read under that id.
-    const options = { node: wrapper, studio: DIST_BIN, workspace: ws, home };
-    await writeFile(join(config, 'settings.json'), JSON.stringify({ pluginConfigs: { 'demo-studio@inline': { options } } }, null, 2));
+    await writeFile(wrapper, `#!/bin/sh\nprintf '%s\\n%s\\n' "$RETAKE_HOME" "$(pwd -P)" > ${q(seen)}\nexec ${q(process.execPath)} "$@"\n`, { mode: 0o755 });
+    // `--plugin-dir` loads the plugin as retake@inline: its userConfig values are read under that id.
+    const options = { node: wrapper, cli: DIST_BIN, workspace: ws, home };
+    await writeFile(join(config, 'settings.json'), JSON.stringify({ pluginConfigs: { 'retake@inline': { options } } }, null, 2));
     env = {
       ...process.env,
       CLAUDE_CONFIG_DIR: config,
-      DEMO_STUDIO_HOME: inherited, // another folder: the server must get `home` from .mcp.json, not this one
+      RETAKE_HOME: inherited, // another folder: the server must get `home` from .mcp.json, not this one
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
       DISABLE_AUTOUPDATER: '1',
     };
@@ -227,21 +227,21 @@ describe.skipIf(!GATED)('the plugin in Claude Code (DEMO_STUDIO_TEST_CLAUDE=1 or
     }
   });
 
-  it('plugin details lists the three skills and the demo-studio MCP server', () => {
-    const r = claude(['--plugin-dir', PLUGIN, 'plugin', 'details', 'demo-studio']);
+  it('plugin details lists the three skills and the retake MCP server', () => {
+    const r = claude(['--plugin-dir', PLUGIN, 'plugin', 'details', 'retake']);
     expect(r.code, r.out).toBe(0);
     expect(r.out).toMatch(new RegExp(`Skills \\(3\\)\\s+${SKILLS.join(', ')}`));
-    expect(r.out).toMatch(/MCP servers \(1\)\s+demo-studio\b/);
+    expect(r.out).toMatch(/MCP servers \(1\)\s+retake\b/);
   });
 
-  it('mcp list: the plugin server, started from the userConfig values (DEMO_STUDIO_HOME from home, not inherited), is connected', async () => {
+  it('mcp list: the plugin server, started from the userConfig values (RETAKE_HOME from home, not inherited), is connected', async () => {
     const r = claude(['--plugin-dir', PLUGIN, 'mcp', 'list']);
     expect(r.code, r.out).toBe(0);
-    const line = r.out.split('\n').find((l) => l.startsWith('plugin:demo-studio:demo-studio:'));
+    const line = r.out.split('\n').find((l) => l.startsWith('plugin:retake:retake:'));
     expect(line, r.out).toBeDefined();
     expect(line).toContain(`${wrapper} ${DIST_BIN} --root ${ws} mcp`);
     expect(line).toContain('✔ Connected');
-    // what the server process got: the `home` value (not the inherited DEMO_STUDIO_HOME), and the session folder as its
+    // what the server process got: the `home` value (not the inherited RETAKE_HOME), and the session folder as its
     // working directory (what the skills compare with engine_info's root)
     const [gotHome, gotCwd] = (await readFile(seen, 'utf8')).split('\n');
     expect(gotHome).toBe(home);

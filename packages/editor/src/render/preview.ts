@@ -3,7 +3,7 @@
  * each component with a theme (the editorial theme for the committed previews) — one bundle, one asset server and one
  * browser for all of them (≈ 0.5 s per preview once the bundle is cached) — into `<component dir>/preview.png`
  * (960×540: the 1920×1080 frame at half scale; palette-quantised when the full-colour PNG would exceed 200 KB), its
- * sidecar `preview.json` (source hash: see @demo-studio/components `previewStatus`) and the generated block of the
+ * sidecar `preview.json` (source hash: see @retake/components `previewStatus`) and the generated block of the
  * component's README.md. With `outDir`, only the images are written there (`<outDir>/<namespace>/<name>.png`).
  *
  * Previews of the jobs worker (MCP `component_preview` / `template_preview`) take `outDir` (never a component folder),
@@ -23,8 +23,8 @@ import { randomBytes } from 'node:crypto';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { STARTER_TEMPLATES_DIR, loadTemplate } from '@demo-studio/core';
-import type { LoadedTemplate } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR, loadTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -37,8 +37,8 @@ import {
   paramDefaults,
   themeTokens,
   writePreviewReadme,
-} from '@demo-studio/components';
-import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@demo-studio/components';
+} from '@retake/components';
+import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
 import { startAssetServer } from './asset-server.js';
@@ -50,12 +50,12 @@ import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
 import type { RenderNetwork } from './render.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
 
-/** The starter templates shipped with Demo Studio (default, editorial, motion). */
+/** The starter templates shipped with Retake (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
 
 /**
  * The theme of previews: a template of the workspace (name or path), else — for a bare name — the starter template of
- * that name shipped with Demo Studio (the committed previews use the starter `editorial`): `loadTemplate` falls back
+ * that name shipped with Retake (the committed previews use the starter `editorial`): `loadTemplate` falls back
  * to the starters itself.
  */
 export async function loadPreviewTheme(nameOrDir: string, root: string): Promise<LoadedTemplate> {
@@ -236,8 +236,14 @@ function bundleComponentOf(t: Pick<PreviewComponentTarget, 'id' | 'dir' | 'entry
   return { id: t.id, kind: t.manifest.kind, dir: t.dir, entry: t.entry, defaults: paramDefaults(t.manifest.params as JsonSchemaNode | undefined) };
 }
 
-/** The bundle components of the previews: every component shown (targets + context) and the per-kind scaffolds. */
-async function previewBundleComponents(targets: readonly PreviewComponentTarget[], ids: readonly string[], registry: ComponentRegistry): Promise<BundleComponent[]> {
+/**
+ * The bundle components of the previews: every component shown (targets + context) and the per-kind scaffolds. A target
+ * that IS a package scaffold (same id, same folder) is bundled once, as the scaffold (flagged: the bundle guard's
+ * "belongs to no component" holder check does not apply to the package's own kit imports); any other target — a
+ * workspace component reusing a scaffold's id from another folder — stays unflagged, under the holder check. Exported
+ * for its test (editor preview-scaffold.test.ts, L5.13a review B M3).
+ */
+export async function previewBundleComponents(targets: readonly PreviewComponentTarget[], ids: readonly string[], registry: ComponentRegistry): Promise<BundleComponent[]> {
   const out = new Map<string, BundleComponent>();
   for (const t of targets) out.set(t.id, bundleComponentOf(t));
   for (const id of ids) {
@@ -245,7 +251,11 @@ async function previewBundleComponents(targets: readonly PreviewComponentTarget[
     const info = registry.get(id);
     out.set(id, bundleComponentOf({ id, dir: info.dir, entry: info.entry, manifest: info.manifest }));
   }
-  return [...out.values(), ...(await scaffoldComponents())];
+  // A scaffold shown as a target is the scaffold itself: once, flagged (its kit imports are the package's own — L5.13a,
+  // the first run that previewed every scaffold at once met the bundle guard's "belongs to no component").
+  const scaffolds = await scaffoldComponents();
+  for (const s of scaffolds) if (out.has(s.id) && resolve(out.get(s.id)!.dir) === resolve(s.dir)) out.delete(s.id);
+  return [...out.values(), ...scaffolds];
 }
 
 /**
@@ -459,7 +469,7 @@ async function previewSession<J extends SessionJob, R>(
     return { results, failed, bundle: null, warnings: [] };
   }
   let renderer: PreviewRenderer | undefined;
-  const scratch = join(tmpdir(), `demo-studio-preview-${process.pid}-${randomBytes(4).toString('hex')}`);
+  const scratch = join(tmpdir(), `retake-preview-${process.pid}-${randomBytes(4).toString('hex')}`);
   try {
     const targets = built.map((b) => b.job.target);
     const components =

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { biasMotion, clamp, easing, nightTone, roundTo } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { biasMotion, clamp, easing, nightTone, roundTo } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { duration: number; through: 'black' | 'night'; color?: string };
 

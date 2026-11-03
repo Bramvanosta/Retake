@@ -4,7 +4,7 @@
  * Every value here is a trusted word (ids, phases, numbers); untrusted text (a failure's message, a finding's message)
  * stays with the caller, shown through Txt.
  */
-import type { RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@demo-studio/engine';
+import type { RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
 
 /** Why Render is off on a proposal's preview (Edit and the status bar say it the same, in every state of Edit). */

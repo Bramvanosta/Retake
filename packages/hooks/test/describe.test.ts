@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { describeHook, hookKindOf } from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+import { describeHook, hookKindOf } from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 
 describe('describeHook', () => {
   it.each<[HookStep, string]>([

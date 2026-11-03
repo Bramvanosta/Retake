@@ -2,10 +2,9 @@
 
 The Studio's look and its design system, exported from the design canvas the founder validated in four rounds
 (2026-10-29; BACKLOG BL-124 records the decisions and where the canvas lives). L5.9 built the foundations — the tokens,
-the components, the shell, the gallery; L5.10 – L5.12 rebuild the screens from them; L5.13 renames the product (the
-canvas says "Retake"; the repository says "Demo Studio" until then — the page writes it in one place,
-`packages/ui/src/app/brand.ts`, every screen included (a lint over the app's sources; the server's comments and the preview
-bundle's generated header still name it, for L5.13).
+the components, the shell, the gallery; L5.10 – L5.12 rebuild the screens from them; L5.13 renames the product (done in
+L5.13a; the page writes the name in one place, `packages/ui/src/app/brand.ts`, every screen included — a lint over the
+app's sources).
 Contracts and tests: DESIGN §4k. The gallery (`#/ui`, or ⌘K › UI gallery) shows every component below in both
 appearances.
 
@@ -31,7 +30,7 @@ appearances.
 ## Tokens
 
 One file, `packages/ui/src/app/tokens.ts`, for both appearances; `tokens.css` is generated from it
-(`pnpm -F @demo-studio/ui gen:tokens`; a test fails when they differ). Every token is a `--ui-*` one (L5.12d: the L4.9
+(`pnpm -F @retake/ui gen:tokens`; a test fails when they differ). Every token is a `--ui-*` one (L5.12d: the L4.9
 palette — `--bg`, `--fg` … — went with the last legacy screen and app.css); the kit, the shell, the screens and the
 page's base (`base.css`: element defaults only, no class) read them.
 
@@ -139,7 +138,7 @@ flight with their own dashed edge, no fade.)
 
 ```
 ┌ title bar 48 ─────────────────────────────────────────────────────────────────────────────┐
-│ [inset] ■ Demo Studio › Project › scenario      ⟨ Script · Shoot · Edit · Review ⟩  [ctx] [◫] │
+│ [inset] ■ Retake › Project › scenario      ⟨ Script · Shoot · Edit · Review ⟩  [ctx] [◫] │
 ├ browser 240 ─┬ centre (the one scroller) ──────────────────────────┬ inspector 320 (optional) ┤
 │ Projects     │ the current screen                                   │ sections, label column 96 │
 │  › project   │                                                      │                           │
@@ -263,7 +262,7 @@ Studio keeps `APP_NAME` (L5.13 renames).
   there). A screen may claim the slot (Prepare, the live screen while its run goes, a live recording): the buttons hide,
   the commands stay. The polite line says command answers and a run's start, stop or refusal — never a step's progress;
   it is text, one line at a time, gone after 6 s and when the screen changes. ⌘. always answers (with the palette open
-  it closes it first). "Rehearse" is the Studio's word for a dry run (`studio run … --dry`, MCP `run_dry`); Prepare
+  it closes it first). "Rehearse" is the Studio's word for a dry run (`retake run … --dry`, MCP `run_dry`); Prepare
   shows that mapping once. A stopped run is "stopped" everywhere.
 - **Project** (B32-Projet) — built in L5.10a: h1 "Productions" (or the smart group) and its count; search, Sort (Last
   activity · Name · Length), New scenario (the Record screen); the poster grid (one listbox; each poster its capture's

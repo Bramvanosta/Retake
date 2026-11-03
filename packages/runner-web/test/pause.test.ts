@@ -10,7 +10,7 @@
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RunProgress, RunRecord, Scenario } from '@demo-studio/core';
+import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { DRY_PAGE } from './pages.js';

@@ -1,6 +1,6 @@
 # Sandbox __ENV__
 
-A disposable, local copy of the product for Demo Studio: `studio sandbox init` wrote this folder. Demo Studio starts it
+A disposable, local copy of the product for Retake: `retake sandbox init` wrote this folder. Retake starts it
 with `docker compose`, seeds it with demo data, takes a snapshot of the seeded database, and restores that snapshot
 before every take — so two takes of a scenario show the same data.
 
@@ -16,11 +16,11 @@ Ports (all on 127.0.0.1): app __APP_PORT__, Postgres __DB_PORT__, Mailpit __MAIL
 ## Try it as it is
 
 ```sh
-studio sandbox up __PROJECT____ENV_FLAG__        # compose up, health, seed, snapshot
-studio sandbox status __PROJECT____ENV_FLAG__    # services, pages, seed, last reset
-studio sandbox reset __PROJECT____ENV_FLAG__     # restore the snapshot (the time it took is printed)
-studio sandbox logs __PROJECT____ENV_FLAG__      # each service's last log lines (--follow to keep reading)
-studio sandbox down __PROJECT____ENV_FLAG__      # stop (--volumes also removes the database and its snapshot)
+retake sandbox up __PROJECT____ENV_FLAG__        # compose up, health, seed, snapshot
+retake sandbox status __PROJECT____ENV_FLAG__    # services, pages, seed, last reset
+retake sandbox reset __PROJECT____ENV_FLAG__     # restore the snapshot (the time it took is printed)
+retake sandbox logs __PROJECT____ENV_FLAG__      # each service's last log lines (--follow to keep reading)
+retake sandbox down __PROJECT____ENV_FLAG__      # stop (--volumes also removes the database and its snapshot)
 ```
 
 ## Put your application in it
@@ -44,5 +44,5 @@ studio sandbox down __PROJECT____ENV_FLAG__      # stop (--volumes also removes 
    the idle connection the reset kills crashes the process.
 
 The snapshot is taken again by itself when the seed changes (its steps, `seed/`, the images of the services). After
-changes it cannot see (a script elsewhere), run `studio sandbox reset __PROJECT____ENV_FLAG__ --reseed`. Rebuild the app with
-`studio sandbox up __PROJECT____ENV_FLAG__ --build`.
+changes it cannot see (a script elsewhere), run `retake sandbox reset __PROJECT____ENV_FLAG__ --reseed`. Rebuild the app with
+`retake sandbox up __PROJECT____ENV_FLAG__ --build`.

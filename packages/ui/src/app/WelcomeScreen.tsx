@@ -10,7 +10,7 @@
  * folder) beside "Recent projects", one column in a narrow centre (review B-L6); a step of a take re-reads nothing here
  * (review A-L5: `onlyRunProgress`); with the inspector hidden, the workspace and Claude show under Lately.
  */
-import type { RunListItem } from '@demo-studio/engine';
+import type { RunListItem } from '@retake/engine';
 import { useCall } from './api.js';
 import type { Loaded } from './api.js';
 import { Lately, SearchBox } from './Activity.js';
@@ -134,7 +134,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
           </h1>
           {info.state === 'ready' && <p className="wl-version">{shown(`Version ${info.data.version}`)}</p>}
           <p className="wl-lede">Write a scenario: the Studio films your product, edits the video and films it again when the product changes.</p>
-          <Blocker fix={{ copy: 'studio new <slug>' }}>
+          <Blocker fix={{ copy: 'retake new <slug>' }}>
             New project: create one in a terminal; it shows here at once.
           </Blocker>
           {projectsDir && (
@@ -157,7 +157,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
           )}
           {list.state === 'ready' && list.data.projects.length === 0 && (
             <EmptyState title="No project yet" level={3}>
-              Create one with studio new in a terminal, or ask Claude (project_create).
+              Create one with retake new in a terminal, or ask Claude (project_create).
             </EmptyState>
           )}
           {list.state === 'ready' && list.data.projects.length > 0 && (
@@ -189,7 +189,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
         </InspectorSection>
         <InspectorSection title="Claude">
           <p className="sc-quiet">Claude writes scenarios, runs them and reads the review through the MCP server; what it does shows up here too.</p>
-          <Blocker fix={{ copy: 'studio mcp --print-config', label: 'Copy command' }}>
+          <Blocker fix={{ copy: 'retake mcp --print-config', label: 'Copy command' }}>
             Register the MCP server with Claude.
           </Blocker>
         </InspectorSection>

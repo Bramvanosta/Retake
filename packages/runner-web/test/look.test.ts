@@ -15,10 +15,10 @@ import type { RgbImage, TestServer } from './helpers.js';
  * assertion (fill, outline, size, shadow, the ripple's colour and alpha, the chip's card, badge colour and tilt), and
  * a golden image compared with a tolerance (a Chromium update or another rasteriser moves a few pixels, not the look).
  * The chip's golden is compared on macOS only: its text uses the system UI font. Goldens are written only on request:
- * DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts — then look at the PNGs.
+ * RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts — then look at the PNGs.
  */
 const GOLDEN = fileURLToPath(new URL('./golden/', import.meta.url));
-const UPDATE = process.env.DEMO_STUDIO_UPDATE_GOLDEN === '1';
+const UPDATE = process.env.RETAKE_UPDATE_GOLDEN === '1';
 /** The default template's ripple (templates/default/template.yaml): the accent at alpha .45. */
 const RIPPLE = 'rgba(59, 94, 201, 0.45)';
 const ACCENT = [59, 94, 201];
@@ -91,7 +91,7 @@ function bbox(img: RgbImage, test: (c: [number, number, number], x: number, y: n
 
 /**
  * Compare with a committed golden PNG: mean |Δ| ≤ 3 levels and at most 1 % of the channel values more than 48 levels
- * apart. A missing golden fails (written only with DEMO_STUDIO_UPDATE_GOLDEN=1).
+ * apart. A missing golden fails (written only with RETAKE_UPDATE_GOLDEN=1).
  */
 async function matchesGolden(name: string, png: Buffer, img: RgbImage): Promise<void> {
   const file = join(GOLDEN, name);
@@ -101,7 +101,7 @@ async function matchesGolden(name: string, png: Buffer, img: RgbImage): Promise<
     return;
   }
   if (!existsSync(file)) {
-    throw new Error(`golden image ${name} is missing: run \`DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts\` and look at the PNGs in ${GOLDEN}`);
+    throw new Error(`golden image ${name} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts\` and look at the PNGs in ${GOLDEN}`);
   }
   const want = await decodePng(await readFile(file));
   expect([img.w, img.h], `${name}: size`).toEqual([want.w, want.h]);

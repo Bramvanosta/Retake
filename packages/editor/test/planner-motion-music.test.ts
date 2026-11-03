@@ -4,9 +4,9 @@
  * bed (R-ED-17: fades, ducking under footage, loop with crossfaded seams or trim to the video, the volume curve).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { LoadedTemplate } from '@demo-studio/core';
-import { DEFAULT_ZOOM, MUSIC_DEFAULTS, musicPlayGain, musicPlays, musicVolumeAt, planEdit } from '@demo-studio/editor';
-import type { EditOverrides, EditPlan } from '@demo-studio/editor';
+import type { LoadedTemplate } from '@retake/core';
+import { DEFAULT_ZOOM, MUSIC_DEFAULTS, musicPlayGain, musicPlays, musicVolumeAt, planEdit } from '@retake/editor';
+import type { EditOverrides, EditPlan } from '@retake/editor';
 import { clip, clips, fixtureProject, realTimeline, studioWorkspace, synthTimeline, template } from './helpers.js';
 import type { EntrySpec, Workspace } from './helpers.js';
 

@@ -22,7 +22,7 @@
  * slot); page text stays in boxes titled "From the page".
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { EntryBlock, SceneBlock, StepForms } from '@demo-studio/core';
+import type { EntryBlock, SceneBlock, StepForms } from '@retake/core';
 import { call, useCall } from './api.js';
 import { Txt, plural } from './bits.js';
 import { envFlagWords } from './board-words.js';

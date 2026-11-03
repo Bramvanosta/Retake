@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 /**
- * The Postgres tests (packages/hooks/test/sql.test.ts, skipped without DEMO_STUDIO_TEST_PG) against a throwaway
+ * The Postgres tests (packages/hooks/test/sql.test.ts, skipped without RETAKE_TEST_PG) against a throwaway
  * Postgres in Docker — `pnpm test:pg`:
  *   1. checks that Docker runs and that the image postgres:17-alpine is present (it never pulls: it prints the
  *      `docker pull` to run);
- *   2. starts its own container `demo-studio-pg-test-<hex>` (label demo-studio.test=pg) with a random password, on a
+ *   2. starts its own container `retake-pg-test-<hex>` (label retake.test=pg) with a random password, on a
  *      loopback port Docker picks (5432 may belong to another stack of the machine);
  *   3. waits until Postgres answers over TCP with password authentication (what the connection-failure test needs);
- *   4. runs the tests with DEMO_STUDIO_TEST_PG set, and exits with their exit code;
+ *   4. runs the tests with RETAKE_TEST_PG set, and exits with their exit code;
  *   5. removes its own container — and only it — with its anonymous data volume (the image declares one; `--rm` does
  *      not drop it when the container is removed by name), at the end, on an error, on Ctrl-C or SIGTERM.
  * A container left by a killed run (SIGKILL) is printed with the command that removes it, never removed by this script.
  *
  *   node scripts/test-pg.mjs            # the Postgres tests only (a few seconds)
- *   node scripts/test-pg.mjs --all      # the whole suite with Postgres, Docker (DEMO_STUDIO_TEST_DOCKER=1) and the slow
- *                                       # tests (DEMO_STUDIO_TEST_SLOW=1): everything this machine can run
+ *   node scripts/test-pg.mjs --all      # the whole suite with Postgres, Docker (RETAKE_TEST_DOCKER=1) and the slow
+ *                                       # tests (RETAKE_TEST_SLOW=1): everything this machine can run
  * Other arguments go to vitest (e.g. `-t "rolls back"`).
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -25,9 +25,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGE = 'postgres:17-alpine';
-const LABEL = 'demo-studio.test=pg';
-const USER = 'demo_studio';
-const DATABASE = 'demo_studio_test';
+const LABEL = 'retake.test=pg';
+const USER = 'retake';
+const DATABASE = 'retake_test';
 const READY_TIMEOUT_MS = 30_000;
 
 const args = process.argv.slice(2);
@@ -59,7 +59,7 @@ if (leftovers.length) {
   console.error(`  remove them with: docker rm -f -v ${leftovers.map((l) => l.split(' ')[0]).join(' ')}`);
 }
 
-const name = `demo-studio-pg-test-${randomBytes(3).toString('hex')}`;
+const name = `retake-pg-test-${randomBytes(3).toString('hex')}`;
 const password = randomBytes(12).toString('hex');
 let started = false;
 let removed = false;
@@ -127,8 +127,8 @@ try {
 
   const env = {
     ...process.env,
-    DEMO_STUDIO_TEST_PG: `postgres://${USER}:${password}@127.0.0.1:${port}/${DATABASE}`,
-    ...(all ? { DEMO_STUDIO_TEST_DOCKER: '1', DEMO_STUDIO_TEST_SLOW: '1' } : {}),
+    RETAKE_TEST_PG: `postgres://${USER}:${password}@127.0.0.1:${port}/${DATABASE}`,
+    ...(all ? { RETAKE_TEST_DOCKER: '1', RETAKE_TEST_SLOW: '1' } : {}),
   };
   const vitest = createRequire(join(ROOT, 'package.json')).resolve('vitest/vitest.mjs');
   const files = all ? [] : ['packages/hooks/test/sql.test.ts'];

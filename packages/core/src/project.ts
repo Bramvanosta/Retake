@@ -26,36 +26,36 @@ export const PROJECT_SLUG_RE = /^[a-z0-9][a-z0-9-]*$/;
 export const DEFAULT_FRAME: FrameStyle = 'card';
 export const DEFAULT_TEMPLATE_NAME = 'default';
 /**
- * Every file Demo Studio reads or writes in a workspace, in three classes (L3.1 guard-rail): `authored` (what a person
+ * Every file Retake reads or writes in a workspace, in three classes (L3.1 guard-rail): `authored` (what a person
  * or Claude writes and keeps in git), `generated` (outputs, rebuilt from the authored files and a capture) and
  * `machine` (tool state of this machine: hook journals, sandbox state, the job queue and its history — never shared).
- * One list for the .gitignore written into a new project, for what `studio doctor` expects a workspace's own
+ * One list for the .gitignore written into a new project, for what `retake doctor` expects a workspace's own
  * .gitignore to name (nothing writes that one), and later for what a sync leaves out.
- * Sessions and secrets are not here: they live outside the workspace (~/.demo-studio, the keychain).
+ * Sessions and secrets are not here: they live outside the workspace (~/.retake, the keychain).
  */
 export const WORKSPACE_FILES = {
   workspace: {
-    authored: ['studio.yaml', 'templates/', 'components/'],
+    authored: ['retake.yaml', 'templates/', 'components/'],
     generated: [] as string[],
     /** jobs/<id>/ (the queue), workers/worker.lock, history.jsonl. */
-    machine: ['.demo-studio/'],
+    machine: ['.retake/'],
   },
   project: {
-    /** comments/: frame comment threads (L3.6; their stills live in .demo-studio/comments/, machine-local). */
+    /** comments/: frame comment threads (L3.6; their stills live in .retake/comments/, machine-local). */
     authored: ['project.yaml', 'README.md', 'scenarios/', 'hooks/', 'assets/', 'data/', 'sandbox/', 'comments/', '.gitignore'],
     generated: ['runs/', 'renders/', 'review/', 'exports/', 'frames/'],
     /** journals/ (hooks outside a capture), sandbox/ (sandbox state and logs). */
-    machine: ['.demo-studio/'],
+    machine: ['.retake/'],
   },
 } as const;
 
 /**
- * Generated folders of a project and its tool state (`.demo-studio/`: hook journals, the state of its sandboxes) —
+ * Generated folders of a project and its tool state (`.retake/`: hook journals, the state of its sandboxes) —
  * WORKSPACE_FILES' project `generated` + `machine`.
  */
 export const PROJECT_GITIGNORE: readonly string[] = [...WORKSPACE_FILES.project.generated, ...WORKSPACE_FILES.project.machine];
 
-/** What a workspace's own .gitignore names: its `.demo-studio/` (the job queue and history of this machine). */
+/** What a workspace's own .gitignore names: its `.retake/` (the job queue and history of this machine). */
 export const WORKSPACE_GITIGNORE: readonly string[] = [...WORKSPACE_FILES.workspace.generated, ...WORKSPACE_FILES.workspace.machine];
 
 /** project.yaml as written (before defaults). */
@@ -244,7 +244,7 @@ export function readmeSkeleton(
     '## Accounts (by reference — never passwords)',
     '',
     '<!-- Which account each scenario uses (the personas of project.yaml) and where its credentials live: password',
-    '     manager entry or keychain item (keychain:service/account). `studio login` keeps sessions in ~/.demo-studio. -->',
+    '     manager entry or keychain item (keychain:service/account). `retake login` keeps sessions in ~/.retake. -->',
     '',
     "## Do / Don't",
     '',
@@ -266,13 +266,13 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
     template: input.template ?? DEFAULT_TEMPLATE_NAME,
   };
   return [
-    `# Demo Studio project "${slug}"`,
+    `# Retake project "${slug}"`,
     stringify(data, { lineWidth: 0 }).trimEnd(),
     ...(input.auth
       ? []
       : [
           '# auth:              # the accounts the videos are filmed as (global, or keyed by environment); never a password or a path:',
-          `#   personas:         # \`studio login ${slug} --persona admin\` keeps a session in ~/.demo-studio`,
+          `#   personas:         # \`retake login ${slug} --persona admin\` keeps a session in ~/.retake`,
           '#     admin: {pages: [app], check: {url: "app:/", expect_text: Your account name}}',
         ]),
     '',
@@ -298,7 +298,7 @@ async function newProjectPlan(root: string, input: CreateProjectInput): Promise<
   return { wsRoot: ws.root, dir, file, yamlText };
 }
 
-/** Throws what createProject would refuse, writing nothing (`studio new` checks before asking its questions). */
+/** Throws what createProject would refuse, writing nothing (`retake new` checks before asking its questions). */
 export async function checkNewProject(root: string, input: CreateProjectInput): Promise<void> {
   await newProjectPlan(root, input);
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/engine",
+  "name": "@retake/engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,12 +17,12 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/components": "workspace:*",
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/editor": "workspace:*",
-    "@demo-studio/hooks": "workspace:*",
-    "@demo-studio/review": "workspace:*",
-    "@demo-studio/runner-web": "workspace:*",
-    "@demo-studio/sandbox": "workspace:*"
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/editor": "workspace:*",
+    "@retake/hooks": "workspace:*",
+    "@retake/review": "workspace:*",
+    "@retake/runner-web": "workspace:*",
+    "@retake/sandbox": "workspace:*"
   }
 }

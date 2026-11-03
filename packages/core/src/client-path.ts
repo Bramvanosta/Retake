@@ -1,5 +1,5 @@
 /**
- * The PATH a process the tool starts for a client gets (L3.x `studio mcp`, L4.1 `studio ui`, L4.2 the jobs worker a
+ * The PATH a process the tool starts for a client gets (L3.x `retake mcp`, L4.1 `retake ui`, L4.2 the jobs worker a
  * client starts): the node that runs it first, the current PATH without what a package manager added for the script it
  * runs and without anything inside the workspace, plus the Homebrew / system folders GUI clients lack.
  */
@@ -10,7 +10,7 @@ import { delimiter, dirname, isAbsolute, resolve, sep } from 'node:path';
 const EXTRA_PATH = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 
 /**
- * Folders a package manager puts on the PATH of the script it runs (`pnpm studio …`): a project's node_modules/.bin, its
+ * Folders a package manager puts on the PATH of the script it runs (`pnpm retake …`): a project's node_modules/.bin, its
  * own versioned install (corepack, node-gyp-bin). Not for a registration: they move or vanish with the next install.
  */
 const TRANSIENT_PATH = /(?:^|[\\/])node_modules[\\/]\.bin(?:[\\/]|$)|[\\/]corepack[\\/]|[\\/]node-gyp-bin(?:[\\/]|$)/;

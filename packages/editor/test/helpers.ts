@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject, loadTemplate } from '@demo-studio/core';
+import { loadProject, loadTemplate } from '@retake/core';
 import type {
   ComponentKind,
   LoadedProject,
@@ -17,11 +17,11 @@ import type {
   Timeline,
   TimelineEvent,
   TimelineScene,
-} from '@demo-studio/core';
-import { createComponent, loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { planEdit } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan, PlanSegment } from '@demo-studio/editor';
+} from '@retake/core';
+import { createComponent, loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { planEdit } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 export const FIXTURES = fileURLToPath(new URL('./fixtures/', import.meta.url));
@@ -69,8 +69,8 @@ export async function studioWorkspace(
   patch: Record<string, (yaml: string) => string> = {},
   opts: { extra?: Array<[string, ComponentKind]>; omit?: string[] } = {},
 ): Promise<Workspace> {
-  const root = await mkdtemp(join(tmpdir(), 'demo-studio-editor-'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  const root = await mkdtemp(join(tmpdir(), 'retake-editor-'));
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   const componentsDir = join(root, 'components');
   const all = [...STUDIO_COMPONENTS.filter(([id]) => !(opts.omit ?? []).includes(id)), ...(opts.extra ?? [])];
   for (const [id, kind] of all) {

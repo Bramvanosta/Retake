@@ -6,9 +6,9 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { HookSecurityError, Journal, runHooks } from '@demo-studio/hooks';
-import { WriteRefusedError } from '@demo-studio/core';
-import type { HookAccess, HookStep } from '@demo-studio/core';
+import { HookSecurityError, Journal, runHooks } from '@retake/hooks';
+import { WriteRefusedError } from '@retake/core';
+import type { HookAccess, HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;

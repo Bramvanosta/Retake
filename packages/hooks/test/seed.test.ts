@@ -11,8 +11,8 @@ import { createServer as createNetServer } from 'node:net';
 import type { AddressInfo, Server as NetServer } from 'node:net';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Journal, SEED_NO_JS, findPendingJournals, rollbackPendingJournals, runHooks, standaloneJournalFile, supersedePendingJournals } from '@demo-studio/hooks';
-import type { HookStep, LoadedProject } from '@demo-studio/core';
+import { Journal, SEED_NO_JS, findPendingJournals, rollbackPendingJournals, runHooks, standaloneJournalFile, supersedePendingJournals } from '@retake/hooks';
+import type { HookStep, LoadedProject } from '@retake/core';
 import { closedPort, makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -25,7 +25,7 @@ afterAll(async () => {
   await api.close();
 });
 beforeEach(async () => {
-  tmp = await tempProject('demo-studio-seed-');
+  tmp = await tempProject('retake-seed-');
   api.requests.length = 0;
 });
 afterEach(async () => {
@@ -46,7 +46,7 @@ function seedContext(project: LoadedProject, over: Parameters<typeof makeContext
   return makeContext(project, { env: { name: 'sandbox', pages: { ...project.config.environments.sandbox }, sandbox: { file: join(tmp.dir, 'sandbox', 'sandbox.yaml'), provider: 'process' } }, runId: 'seed-1', baseDir: join(tmp.dir, 'sandbox'), ...over });
 }
 
-const journalFile = () => join(tmp.dir, '.demo-studio', 'sandbox', 'sandbox', 'seed-journal.json');
+const journalFile = () => join(tmp.dir, '.retake', 'sandbox', 'sandbox', 'seed-journal.json');
 
 describe('runHooks: seed (L1.8)', () => {
   it('stops at the first failure, rolls nothing back, journals phase seed (and the journal reopens)', async () => {
@@ -159,7 +159,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
     return p;
   }
 
-  it("a shell step gets the env of the sandbox's process services and DEMO_STUDIO_SANDBOX over the CLI's own; its own env wins (I3)", async () => {
+  it("a shell step gets the env of the sandbox's process services and RETAKE_SANDBOX over the CLI's own; its own env wins (I3)", async () => {
     await writeFiles(tmp.dir, { 'sandbox/.keep': '' });
     const before = process.env.DATABASE_URL;
     process.env.DATABASE_URL = 'postgres://me@localhost:5432/my_own_dev_db';
@@ -169,7 +169,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
       const journal = await Journal.open(journalFile());
       const res = await runHooks(
         [
-          { shell: 'echo "$DATABASE_URL $DEMO_STUDIO_SANDBOX $API" > env.txt' },
+          { shell: 'echo "$DATABASE_URL $RETAKE_SANDBOX $API" > env.txt' },
           { shell: { run: 'echo "$DATABASE_URL" > own.txt', env: { DATABASE_URL: 'postgres://demo:sandbox-db-4702@localhost:4702/other' } } },
         ],
         ctx,
@@ -182,7 +182,7 @@ describe('shell commands on a sandbox and interrupts (L1.8 review)', () => {
       const conflict = withServices({ web: { DATABASE_URL: 'postgres://a@localhost:4702/app' }, worker: { DATABASE_URL: 'postgres://a@localhost:4702/jobs' } });
       const bad = await runHooks([{ shell: 'echo x' }], seedContext(conflict).ctx, { phase: 'seed', journal });
       expect(bad.results[0]).toMatchObject({ status: 'failed', error: 'services web and worker of sandbox sandbox set DATABASE_URL differently: set DATABASE_URL in the shell command\'s own `env`' });
-      // Another environment: Demo Studio's own environment, as before.
+      // Another environment: Retake's own environment, as before.
       const local = await runHooks([{ shell: 'echo "$DATABASE_URL" > local.txt' }], makeContext(project, { baseDir: join(tmp.dir, 'sandbox') }).ctx, { phase: 'setup', journal });
       expect(local.ok).toBe(true);
       expect((await readFile(join(tmp.dir, 'sandbox', 'local.txt'), 'utf8')).trim()).toBe('postgres://me@localhost:5432/my_own_dev_db');
@@ -323,7 +323,7 @@ describe('journal replays after sandboxes (L1.8, critique 9)', () => {
     ]);
     expect(reread.pending().map((e) => e.env)).toEqual(['local']);
     expect(await findPendingJournals(tmp.dir)).toEqual([join(tmp.dir, 'runs', '20261013-100000-quote', 'hooks-journal.json')]);
-    // `studio env reset` replays only the local one: reply 7 (reseeded data) is never deleted.
+    // `retake env reset` replays only the local one: reply 7 (reseeded data) is never deleted.
     const { ctx } = makeContext(project);
     const outcomes = await rollbackPendingJournals(tmp.dir, ctx);
     expect(api.requests.map((r) => `${r.method} ${r.url}`)).toEqual(['DELETE /api/replies/8']);

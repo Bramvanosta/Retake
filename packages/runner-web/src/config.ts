@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from 'node:path';
-import { DEFAULT_CAPTURE, DEFAULT_PACING, authFor, expandHome } from '@demo-studio/core';
-import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@demo-studio/core';
+import { DEFAULT_CAPTURE, DEFAULT_PACING, authFor, expandHome } from '@retake/core';
+import type { BrowserConfig, CaptureSettings, LoadedProject, Pacing } from '@retake/core';
 
 function defined<T extends object>(o: Partial<T> | undefined): Partial<T> {
   const out: Partial<T> = {};
@@ -43,7 +43,7 @@ function projectPath(project: LoadedProject, p: string): string {
 
 /**
  * The legacy single-account profile / storage state of an environment (`auth` global, or keyed by environment name).
- * Runs use personas (core resolvePersonas: the legacy form is persona "default"); kept for `studio login` and hooks.
+ * Runs use personas (core resolvePersonas: the legacy form is persona "default"); kept for `retake login` and hooks.
  */
 export function resolveAuth(project: LoadedProject, envName: string): { profileDir?: string; storageState?: string } {
   const cfg = authFor(project.config, envName);

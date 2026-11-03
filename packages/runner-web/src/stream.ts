@@ -10,7 +10,7 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
-import type { CaptureEncoder } from '@demo-studio/core';
+import type { CaptureEncoder } from '@retake/core';
 import { EncodeError } from './errors.js';
 
 /** How far behind the capture clock the encoder's ticks stay (s): later frames are counted `late`. */
@@ -236,7 +236,7 @@ export class StreamEncoder {
     });
     this.exited = new Promise((resolve) => {
       child.on('error', (e: NodeJS.ErrnoException) => {
-        this.failed ??= e.code === 'ENOENT' ? `${this.opts.ffmpeg ?? 'ffmpeg'} not found: install ffmpeg or set "ffmpeg" in studio.yaml` : e.message;
+        this.failed ??= e.code === 'ENOENT' ? `${this.opts.ffmpeg ?? 'ffmpeg'} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
         resolve(null);
       });
       child.on('close', (code) => resolve(code));

@@ -8,12 +8,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@demo-studio/core';
-import type { LoadedTemplate } from '@demo-studio/core';
-import { loadComponentRegistry, themeTokens } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { LOOP_FORMAT, PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples, loopFrames } from '@demo-studio/editor';
-import type { PreviewSamples } from '@demo-studio/editor';
+import { loadTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core';
+import { loadComponentRegistry, themeTokens } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { LOOP_FORMAT, PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples, loopFrames } from '@retake/editor';
+import type { PreviewSamples } from '@retake/editor';
 import { REPO } from './render-helpers.js';
 
 let root: string;
@@ -22,8 +22,8 @@ let samples: PreviewSamples;
 const themes: Record<string, LoadedTemplate> = {};
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-preview-motion-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  root = await mkdtemp(join(tmpdir(), 'retake-preview-motion-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
   samples = loadPreviewSamples();
   for (const name of ['editorial', 'motion', 'default']) themes[name] = await loadTemplate(name, root);

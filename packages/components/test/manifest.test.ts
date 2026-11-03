@@ -1,14 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS, formatIssues } from '@demo-studio/core';
+import { COMPONENT_KINDS, formatIssues } from '@retake/core';
 import {
   ComponentManifestFileSchema,
   PACKAGE_DIR,
   componentJsonSchema,
   parseManifest,
-} from '@demo-studio/components';
-import type { ComponentIssue } from '@demo-studio/components';
+} from '@retake/components';
+import type { ComponentIssue } from '@retake/components';
 import { cardManifest } from './helpers.js';
 
 const fmt = (issues: ComponentIssue[]) => formatIssues(issues, 'component.yaml');
@@ -174,7 +174,7 @@ describe('parseManifest (R-CMP-04)', () => {
 });
 
 describe('component.schema.json (editor autocompletion)', () => {
-  it('is up to date (pnpm -F @demo-studio/components gen:schema)', () => {
+  it('is up to date (pnpm -F @retake/components gen:schema)', () => {
     const onDisk = JSON.parse(readFileSync(join(PACKAGE_DIR, 'schema', 'component.schema.json'), 'utf8'));
     expect(onDisk).toEqual(componentJsonSchema());
   });

@@ -14,8 +14,8 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFile, link, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { LoadedProject } from '@demo-studio/core';
-import type { RenderRecord } from '@demo-studio/editor';
+import type { LoadedProject } from '@retake/core';
+import type { RenderRecord } from '@retake/editor';
 import { EngineError, RenderFrames, Semaphore, addComment, createEngine } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
@@ -29,7 +29,7 @@ let ws: Workspace;
 let project: LoadedProject;
 let v1: Case;
 let savedRecord: Buffer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 async function engineError(p: Promise<unknown>): Promise<EngineError> {
   const e = await p.then(() => undefined, (x: unknown) => x);
@@ -70,7 +70,7 @@ beforeAll(async () => {
   if (!can) return;
   ws = await workspace();
   project = ws.project;
-  process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
+  process.env.RETAKE_HOME = join(ws.root, '.home');
   v1 = await makeCase(ws, 'quote', scenesTimeline([3, 3]), { noVideo: true });
   await writeFile(join(v1.run.dir, 'scenario.yaml'), 'scenes:\n  - id: s1\n    steps: [{click: Go}, {hold: 1}]\n  - id: s2\n    steps: [{click: Go}, {hold: 1}]\n');
   bitsRender(v1.record.file, v1.record.frames, v1.record.width, v1.record.height, v1.record.fps);
@@ -83,8 +83,8 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await ws?.cleanup();
 });
 

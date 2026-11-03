@@ -1,5 +1,5 @@
 /**
- * @demo-studio/editor — the edit planner (`planEdit`: timeline + theme + components → EditPlan, pure and
+ * @retake/editor — the edit planner (`planEdit`: timeline + theme + components → EditPlan, pure and
  * deterministic), the EditPlan contract shared with the compositions and the review, and the render pipeline
  * (`renderVideo` / `renderStill` / `listRenders`: Remotion bundle cache, local asset server) — docs/DESIGN-phase2.md
  * §2. The compositions themselves (src/remotion, React) are only loaded by the render bundle.

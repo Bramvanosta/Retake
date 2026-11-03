@@ -25,7 +25,7 @@ let renders: string;
 let timelineFile: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 /** The worker, in this process, for one job (or none). */
 const work = () => runWorker({ root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
@@ -37,8 +37,8 @@ async function rendersFiles(): Promise<string[]> {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-jobs-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
@@ -68,8 +68,8 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (root) {
     await chmod(jobsDir(root), 0o755).catch(() => undefined);
     await rm(root, { recursive: true, force: true });
@@ -173,7 +173,7 @@ describe.skipIf(!canRender)('render jobs', () => {
       expect(e?.message, JSON.stringify(extra)).toMatch(re);
       if (/refused/.test(String(e?.message))) {
         expect(e?.code).toBe('refused');
-        expect(e?.fix).toBe(`studio -C ${root} render demo ${SCENARIO}`);
+        expect(e?.fix).toBe(`retake -C ${root} render demo ${SCENARIO}`);
       }
     }
     expect((await queue.ids()).length).toBe(before);

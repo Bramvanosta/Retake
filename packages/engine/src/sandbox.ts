@@ -1,6 +1,6 @@
 /** A sandbox's status for clients outside the CLI (the MCP `sandbox_status` tool): read-only, starts nothing. */
-import { resolveEnvironment } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { resolveEnvironment } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { LocalStorage } from './storage.js';
 
 export interface SandboxStatusView {
@@ -24,7 +24,7 @@ export interface SandboxStatusView {
 }
 
 export async function sandboxStatus(project: LoadedProject, env?: string): Promise<SandboxStatusView> {
-  const { openSandbox } = await import('@demo-studio/sandbox');
+  const { openSandbox } = await import('@retake/sandbox');
   const sb = openSandbox(project, env);
   const st = await sb.status();
   const storage = new LocalStorage(project.dir);

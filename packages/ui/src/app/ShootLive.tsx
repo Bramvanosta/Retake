@@ -205,7 +205,7 @@ function Controls({ slug, name, runId, s, fb, mode, finished }: { slug: string; 
           ? 'Stopping now: the step in progress is interrupted; its teardown hooks and pending rollbacks still run — their result shows in the steps.'
           : paused
             ? `Paused before ${s.paused ? stepWords(s.paused.scene, s.paused.step) : fb?.paused ? stepWords(fb.paused.scene, fb.paused.step) : 'the next step'}.${mode === 'capture' ? ' The video does not show the pause; the page keeps running, so what changes on it meanwhile shows as a jump when the capture goes on.' : ''} ${
-                s.paused?.max_ms ? `A pause longer than ${pauseMaxWords(s.paused.max_ms)} stops the run` : 'A pause longer than its limit (DEMO_STUDIO_PAUSE_MAX_MIN, 30 minutes by default) stops the run'
+                s.paused?.max_ms ? `A pause longer than ${pauseMaxWords(s.paused.max_ms)} stops the run` : 'A pause longer than its limit (RETAKE_PAUSE_MAX_MIN, 30 minutes by default) stops the run'
               }; its teardown runs.`
             : pauseAsked
               ? 'Pausing before the next step: the current step finishes first.'

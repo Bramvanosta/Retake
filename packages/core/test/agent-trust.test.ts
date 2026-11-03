@@ -43,8 +43,8 @@ describe('projectFileProblem', () => {
     expect(projectFileProblem(project, 'assets/up/missing/x.js')).toContain('resolves outside the project folder');
   });
 
-  it('code: never from a file an agent can write (README.md, scenarios/, runs/, renders/, review/, exports/, .demo-studio/)', () => {
-    for (const ref of ['README.md', 'readme.md', 'scenarios/x.yaml', 'runs/r1/artefacts/doc.txt', '.demo-studio/journals/a.json', 'exports/a/b.js']) {
+  it('code: never from a file an agent can write (README.md, scenarios/, runs/, renders/, review/, exports/, .retake/)', () => {
+    for (const ref of ['README.md', 'readme.md', 'scenarios/x.yaml', 'runs/r1/artefacts/doc.txt', '.retake/journals/a.json', 'exports/a/b.js']) {
       expect(agentWritable(ref), ref).toBe(true);
       expect(projectFileProblem(project, ref, { code: true }), ref).toContain('a file an agent can write through MCP');
       expect(projectFileProblem(project, ref), ref).toBeNull();
@@ -149,7 +149,7 @@ describe('render trust rules (L3.2)', () => {
     await writeFile(join(project, 'runs', 'r1', 'artefacts', 'anim.json'), '{}');
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(join(project, 'hooks', 'reset.sql'), 'select 1');
-    for (const ref of ['RUNS/r1/artefacts/anim.json', 'Runs/r1/artefacts/anim.json', './runs/../Runs/r1/artefacts/anim.json', 'Scenarios/x.json', '.Demo-Studio/a.json']) {
+    for (const ref of ['RUNS/r1/artefacts/anim.json', 'Runs/r1/artefacts/anim.json', './runs/../Runs/r1/artefacts/anim.json', 'Scenarios/x.json', '.Retake/a.json']) {
       expect(agentWritable(ref.replace(/^\.\/runs\/\.\.\//, '')), ref).toBe(true);
       expect(renderFileProblems(project, [{ ref, where: 'video intro (lottie file)' }])[0], ref).toContain('a Lottie file is code');
       expect(projectFileProblem(project, ref, { code: true }), ref).toContain('a file an agent can write through MCP');

@@ -2,7 +2,7 @@
  * Lowers test/legacy-controls.json to the legacy screens' current kit-only findings (L5.9, review A-M3: scripts/kit-ratchet.ts).
  * A row only ever goes DOWN: one that dropped is lowered, one at 0 or of a file gone is removed; a file above its row (or
  * a new file with any finding) is reported and nothing is written — move it onto the kit instead.
- * `pnpm -F @demo-studio/ui ratchet`
+ * `pnpm -F @retake/ui ratchet`
  */
 import { writeFile } from 'node:fs/promises';
 import { relative } from 'node:path';

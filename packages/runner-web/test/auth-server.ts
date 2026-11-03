@@ -163,7 +163,7 @@ export async function startAuthServer(): Promise<AuthServer> {
 }
 
 /**
- * What `studio login` leaves behind, made headless: a master profile signed in as `persona` (its session cookie, if
+ * What `retake login` leaves behind, made headless: a master profile signed in as `persona` (its session cookie, if
  * any, is lost when it closes — as with a real browser) and the snapshot of that session (session cookies included).
  */
 export async function signInMaster(opts: { url: string; persona: string; profileDir?: string; snapshot: string; project: string; env: string }): Promise<void> {

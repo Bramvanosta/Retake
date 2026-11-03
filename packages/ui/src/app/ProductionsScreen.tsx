@@ -13,7 +13,7 @@
  * inspector hidden, what it holds is shown under the grid (ShellSlot inline).
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { BoardScenario, ProjectBoardView, ProjectView, RunListItem, RunStatusWithJob } from '@demo-studio/engine';
+import type { BoardScenario, ProjectBoardView, ProjectView, RunListItem, RunStatusWithJob } from '@retake/engine';
 import { call, useCall } from './api.js';
 import { Lately } from './Activity.js';
 import { Txt, When, plural, shown } from './bits.js';

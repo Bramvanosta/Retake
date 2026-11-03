@@ -1,5 +1,5 @@
 /**
- * L4.6 part E, gated (`DEMO_STUDIO_TEST_CHROME=1`; skipped when Google Chrome is not installed): the frame-comments loop
+ * L4.6 part E, gated (`RETAKE_TEST_CHROME=1`; skipped when Google Chrome is not installed): the frame-comments loop
  * on the real fixture product, in the installed Google Chrome (Playwright `channel: 'chrome'`, a temporary profile
  * Playwright creates and deletes — never the person's own), on a copy of projects/northfield-fixture whose local
  * environment points at the fixture product started on free ports (never 4401–4404), the worker run in this process:
@@ -14,7 +14,7 @@
  *   holds exactly the proposed bytes, v2 rendered and reviewed, Resolve with v2 → resolved by the channel `studio`;
  * - the viewer's frame latency (render_frame request → the frame shown) on the real render and on a 4K copy of it (x264
  *   with its default GOP and B-frames): first / median / worst, logged; and the sticky sidebar in a real viewport scroll.
- * No CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (viewport-sized).
+ * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves screenshots there (viewport-sized).
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -25,22 +25,22 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CommentThread } from '@demo-studio/core';
-import { createEngine, runWorker } from '@demo-studio/engine';
-import type { Engine } from '@demo-studio/engine';
-import type { RenderRecord } from '@demo-studio/editor';
+import type { CommentThread } from '@retake/core';
+import { createEngine, runWorker } from '@retake/engine';
+import type { Engine } from '@retake/engine';
+import type { RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
 import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const CHROME_APP = '/Applications/Google Chrome.app';
-const gated = process.env.DEMO_STUDIO_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const gated = process.env.RETAKE_TEST_CHROME === '1' && hasTool('ffmpeg') && hasTool('ffprobe') && (process.platform !== 'darwin' || existsSync(CHROME_APP));
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
 const S = 'highlights';
 const FIXTURE_PROJECT = join(REPO, 'projects', P);
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames', 'comments']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
 const POLL = { timeout: 60_000 };
 const AUTHOR = 'Studio Person';
 const CAPTION = 'caption: {kicker: Quotes, text: "Every request and every proposal, in one list."}';
@@ -59,7 +59,7 @@ let studio: StudioServer;
 let mcp: Engine;
 let browser: Browser;
 let page: Page;
-const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR };
+const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
 const consoleErrors: string[] = [];
 /** The capture, the thread and its frame (each test goes on from the one before). */
 const ids = { run: '', thread: '', frame: 0, entry: '' };
@@ -154,9 +154,9 @@ beforeAll(async () => {
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
   for (const u of Object.values(fixture.urls)) expect([4401, 4402, 4403, 4404]).not.toContain(Number(new URL(u).port));
   root = await mkdtemp(join(tmpdir(), 'ds-e2e-comments-chrome-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  process.env.DEMO_STUDIO_AUTHOR = AUTHOR;
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  process.env.RETAKE_AUTHOR = AUTHOR;
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   dir = join(root, 'projects', P);
   await cp(FIXTURE_PROJECT, dir, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
   const yaml = await readFile(join(dir, 'project.yaml'), 'utf8');
@@ -183,7 +183,7 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  for (const [k, val] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author]] as const) {
+  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
     if (val === undefined) delete process.env[k];
     else process.env[k] = val;
   }

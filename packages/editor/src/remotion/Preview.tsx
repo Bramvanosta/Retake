@@ -7,8 +7,8 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 import { AbsoluteFill, Img, Sequence, useCurrentFrame } from 'remotion';
-import { Logo, Wordmark, backgroundCss } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components';
+import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components';
 import { useThemeFonts } from './fonts.js';
 import { useModules } from './modules.js';
 import type { ComponentPreviewSpec, PreviewScene, PreviewUse } from './preview-types.js';

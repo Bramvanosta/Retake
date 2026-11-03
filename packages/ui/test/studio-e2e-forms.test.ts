@@ -9,7 +9,7 @@
  * new row "New since this run". Critique B2: a caption changed outside while the screen showed the old version → 409 →
  * "Apply it to the new version" applies the typed text and keeps the outside caption. Part 4: the inspector folds the
  * empty optional fields ("More: …", a set target's other keys) by the file's values; a hold step's seconds come first.
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots.
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots.
  */
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page, Request, Route } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml } from '@demo-studio/core';
+import { parseYaml } from '@retake/core';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -27,7 +27,7 @@ import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const CAPTURE = '20261020-100000-blocks';
 const FORMS = `video: forms
 scenes:
@@ -45,7 +45,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const requests: Array<{ op: string; at: number; body: Record<string, unknown> }> = [];
 const file = (name: string) => join(ws, 'projects', P, 'scenarios', `${name}.yaml`);
 const value = (text: string) => parseYaml(text).value as { scenes: Array<{ id?: string; steps?: Array<Record<string, unknown>> }> };
@@ -81,13 +81,13 @@ async function settled(name: string): Promise<string> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-forms-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(file('forms'), FORMS);
   await writeFile(file('blocks'), BLOCKS_YAML);
   await writeRun(join(ws, 'projects', P), capture(CAPTURE, { video: false }));
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1360, height: 1000 } });
   page = await context.newPage();
@@ -110,8 +110,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

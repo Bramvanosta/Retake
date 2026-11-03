@@ -7,8 +7,8 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AccessError, RunRecordSchema, TimelineSchema, applyProjectDefaults, zodIssues } from '@demo-studio/core';
-import type { LoadedProject, RunProgress, RunRecord, Scenario } from '@demo-studio/core';
+import { AccessError, RunRecordSchema, TimelineSchema, applyProjectDefaults, zodIssues } from '@retake/core';
+import type { LoadedProject, RunProgress, RunRecord, Scenario } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
@@ -51,7 +51,7 @@ const WRITING: Omit<Scenario, 'video'> = {
   setup: [{ name: 'reset', http: { method: 'POST', url: '{{app}}/api/reset' } }, { name: 'health', http: { url: '{{app}}/home.html' } }],
   teardown: [{ optional: true, shell: 'echo done' }],
   // A secret no environment holds: the refusal comes before the secrets are read.
-  scenes: [{ id: 'home', page: 'app', open: '/home.html', steps: [{ type: { text: '{{env:DEMO_STUDIO_L17_NOT_SET}}', into: { css: 'h1' } } }] }],
+  scenes: [{ id: 'home', page: 'app', open: '/home.html', steps: [{ type: { text: '{{env:RETAKE_L17_NOT_SET}}', into: { css: 'h1' } } }] }],
 };
 
 describe('a read-only run refuses its writing hooks before anything runs (R-ENV-04)', () => {

@@ -1,7 +1,7 @@
-# Design brief — Demo Studio (for a design session)
+# Design brief — Retake (for a design session)
 
 ## Product
-Demo Studio turns a written scenario into a professional product video: it drives a real web app headless with an
+Retake turns a written scenario into a professional product video: it drives a real web app headless with an
 in-page cursor, records a clean capture, then edits it automatically with themeable components (intro, outro,
 captions, layouts, waiting screens, overlays). Generic and product-agnostic, sold as a licence later (V2). Users:
 product marketers, founders, designers — and Claude, which operates everything through an MCP server.
@@ -44,5 +44,5 @@ overlay caption band. Reference measurements: `docs/reference/look.md`.
 - Show adaptability: the same component must look native in a warm editorial theme and in a dark "Night" theme.
 
 ## Current mock-ups
-Canvas "Demo Studio — maquettes" (11 artboards): app screens 1–5 and the video frames for the Editorial and Night
+Canvas "Retake — maquettes" (11 artboards): app screens 1–5 and the video frames for the Editorial and Night
 themes. Iterate from it rather than from scratch.

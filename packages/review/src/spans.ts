@@ -2,8 +2,8 @@
  * Output-time geometry of a plan (pure): the visible span of every segment, the transition windows, the segment /
  * step at a frame, the output frame where a capture frame is shown, mean clip speeds.
  */
-import { transitionWindows } from '@demo-studio/editor';
-import type { ClipSegment, EditPlan, PlanSegment, StepSpan } from '@demo-studio/editor';
+import { transitionWindows } from '@retake/editor';
+import type { ClipSegment, EditPlan, PlanSegment, StepSpan } from '@retake/editor';
 
 export interface SegmentSpan {
   index: number;

@@ -2,7 +2,7 @@
  * The job input contract (L3.1, ADR-1 amendment): what a client hands the jobs worker. Serialisable and validated here:
  * a project is a slug, a scenario a name with the sha256 of its bytes at submit (what was checked is what runs), a run a
  * pre-reserved id. Never a secret value, a session or an absolute path: the worker resolves `{{env:…}}` /
- * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.demo-studio.
+ * `{{keychain:…}}` references and persona sessions itself, from its own environment and ~/.retake.
  */
 import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
@@ -50,11 +50,11 @@ const SLUG_BODY = SLUG_RE.source.replace(/^\^/, '').replace(/\$$/, '');
 export const RENDER_ID_RE = new RegExp(`^${SLUG_BODY}-v\\d+(?:-vertical|-square)?$`);
 /** A theme (template) name: a folder of the workspace's templates_dir or a starter template, never a path. */
 export const TEMPLATE_NAME_RE = SLUG_RE;
-/** A preview id, the folder <workspace>/.demo-studio/previews/<id>/: "p_" + 26 Crockford base32 characters. */
+/** A preview id, the folder <workspace>/.retake/previews/<id>/: "p_" + 26 Crockford base32 characters. */
 export const PREVIEW_ID_RE = /^p_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** An inspection id, the folder <project>/.demo-studio/inspect/<id>/: "i_" + 26 Crockford base32 characters. */
+/** An inspection id, the folder <project>/.retake/inspect/<id>/: "i_" + 26 Crockford base32 characters. */
 export const INSPECT_ID_RE = /^i_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** A site extraction id, the folder <workspace>/.demo-studio/site/<id>/: "s_" + 26 Crockford base32 characters. */
+/** A site extraction id, the folder <workspace>/.retake/site/<id>/: "s_" + 26 Crockford base32 characters. */
 export const SITE_ID_RE = /^s_[0-9A-HJKMNP-TV-Z]{26}$/;
 /** Targets an inspection checks, at most; elements it lists, at most. */
 export const INSPECT_JOB_TARGETS_MAX = 20;
@@ -64,7 +64,7 @@ const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex c
 
 /**
  * A human approval of one hook (L3.1, R-MCP-35), taken at submit (MCP elicitation) and written once with the job: the
- * fingerprint of the raw hook as its file declares it, with its phase, position and environment (@demo-studio/hooks
+ * fingerprint of the raw hook as its file declares it, with its phase, position and environment (@retake/hooks
  * hookFingerprint). The worker runs a hook that needs approval only when its fingerprint is listed: a hook changed
  * between submit and run is refused.
  */
@@ -74,7 +74,7 @@ export const JobApprovalSchema = z.strictObject({
   by: z.enum(['human-elicitation', 'test']),
   at: z.string().max(40),
   /**
-   * HMAC-SHA256 of the job input and the approval with the key of the studio home (engine signing.ts), added when the
+   * HMAC-SHA256 of the job input and the approval with the key of the Retake home (engine signing.ts), added when the
    * job is queued: the worker ignores an approval without a valid one (a job file not written by a submit).
    */
   sig: sha256.optional(),
@@ -84,7 +84,7 @@ export type JobApproval = z.output<typeof JobApprovalSchema>;
 const approvals = z.array(JobApprovalSchema).max(200).optional();
 const projectSlug = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug, never a path');
 const envName = z.string().max(100).regex(ENV_NAME_RE, 'an environment name, never a path');
-/** A journal id of <project>/.demo-studio/journals/ (reserved at submit: `hooks-<label>` / `env-reset` run ids). */
+/** A journal id of <project>/.retake/journals/ (reserved at submit: `hooks-<label>` / `env-reset` run ids). */
 const journalId = z.string().max(200).regex(RUN_FOLDER_RE, 'a journal id, never a path');
 
 export const RunJobInputSchema = z.strictObject({
@@ -106,7 +106,7 @@ export const RunJobInputSchema = z.strictObject({
   approvals,
 });
 
-/** Hooks outside a capture (`studio hooks run`): describe and security-check them (dry), or run them with a journal. */
+/** Hooks outside a capture (`retake hooks run`): describe and security-check them (dry), or run them with a journal. */
 export const HooksJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
   kind: z.literal('hooks'),
@@ -120,7 +120,7 @@ export const HooksJobInputSchema = z.strictObject({
   approvals,
 });
 
-/** `studio env reset`: replay the pending rollbacks of every journal, then the project's `reset` hooks. */
+/** `retake env reset`: replay the pending rollbacks of every journal, then the project's `reset` hooks. */
 export const EnvResetJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
   kind: z.literal('env_reset'),
@@ -136,7 +136,7 @@ export const EnvResetJobInputSchema = z.strictObject({
 const personaName = z.string().max(100).regex(SLUG_RE, 'a persona name of project.yaml, never a path');
 
 /**
- * `studio login`: sign one persona in and save its session in the worker's ~/.demo-studio. `headed` opens a visible
+ * `retake login`: sign one persona in and save its session in the worker's ~/.retake. `headed` opens a visible
  * window on the machine the worker runs on, for a HUMAN to sign in (the job waits until the window is closed); `auto`
  * plays the persona's `login:` steps of project.yaml, headless. A job never carries a credential: there is no field for
  * one, and the steps' `{{env:…}}` / `{{keychain:…}}` refs are resolved by the worker.
@@ -154,7 +154,7 @@ export const AuthLoginJobInputSchema = z.strictObject({
 });
 
 /**
- * `studio sandbox up`: start what is not running, health, and seed when needed. Seed steps of a job run with trust
+ * `retake sandbox up`: start what is not running, health, and seed when needed. Seed steps of a job run with trust
  * `mcp`: a shell seed step needs a human approval (`approvals`), like a hook.
  */
 export const SandboxUpJobInputSchema = z.strictObject({
@@ -167,7 +167,7 @@ export const SandboxUpJobInputSchema = z.strictObject({
   approvals,
 });
 
-/** `studio sandbox reset`: back to the seed (the sandbox must be up). Seed steps as for `sandbox_up`. */
+/** `retake sandbox reset`: back to the seed (the sandbox must be up). Seed steps as for `sandbox_up`. */
 export const SandboxResetJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
   kind: z.literal('sandbox_reset'),
@@ -321,7 +321,7 @@ const libraryKey = z.string().regex(LIBRARY_PREVIEW_KEY_RE, 'a library preview k
 
 /**
  * L4.7, the Studio library: posters and / or loops of up to 12 registry components in the job's theme, written into the
- * workspace's preview cache (.demo-studio/cache/previews/<key>/). Each item names the keys the client computed (B18): the
+ * workspace's preview cache (.retake/cache/previews/<key>/). Each item names the keys the client computed (B18): the
  * worker computes its own, writes under them and reports a difference — never a path, never a slot value or a param.
  */
 const PreviewLibraryTargetSchema = z.strictObject({
@@ -347,8 +347,8 @@ const PreviewLibraryTargetSchema = z.strictObject({
 
 /**
  * A preview (L3.2): stills of a component or of a theme, rendered by the worker (guarded, like a render) into
- * <workspace>/.demo-studio/previews/<preview_id>/ — never into a component folder (preview.png of the library and of
- * workspace components stay a `studio components preview` matter). No output location: the folder is fixed.
+ * <workspace>/.retake/previews/<preview_id>/ — never into a component folder (preview.png of the library and of
+ * workspace components stay a `retake components preview` matter). No output location: the folder is fixed.
  */
 export const PreviewJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
@@ -383,7 +383,7 @@ const inspectPath = z
 /**
  * An inspection (L3.3, R-MCP-23): a dry replay — of a one-scene scenario opening `path` on the environment page `page`,
  * or of a saved scenario (its bytes' sha256 at submit) up to `until` — then the page it shows inventoried for an author
- * into <project>/.demo-studio/inspect/<inspect_id>/ (inspect.json, screenshot.png, marked.jpg). Run_dry semantics: the
+ * into <project>/.retake/inspect/<inspect_id>/ (inspect.json, screenshot.png, marked.jpg). Run_dry semantics: the
  * environment's own access, hooks never run, production read-only. No URL: a URL given to the client is resolved at
  * submit to a page key and a path of the environment (same origin), and the runner re-checks the page's final origin.
  */
@@ -419,10 +419,10 @@ export const InspectJobInputSchema = z.strictObject({
 /**
  * A recording (L3.4, R-MCP-24): a HEADED browser window opens on the machine the worker runs on, at `path` of the
  * environment page `page`, for a HUMAN to perform a flow and close the window — the job waits for it (it holds the queue
- * like a headed sign-in; at most DEMO_STUDIO_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
+ * like a headed sign-in; at most RETAKE_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
  * no field carries a step, a URL or typed text. A draft scenario is made from what the person did, saved as
  * scenarios/<scenario>.yaml when the name is free (under agent trust), and checked by a headless dry replay. The
- * recording's folder <project>/.demo-studio/records/<rec_id>/ is reserved by its id at submit. The environment's own
+ * recording's folder <project>/.retake/records/<rec_id>/ is reserved by its id at submit. The environment's own
  * access (production read-only: writes stopped or mocked), never --allow-writes; hooks never run.
  */
 export const RecordJobInputSchema = z.strictObject({
@@ -448,9 +448,9 @@ export const RecordJobInputSchema = z.strictObject({
 /**
  * A site extraction (L3.5, R-MCP-12): a clean ephemeral browser opens `url` through the worker's CONNECT proxy (public
  * addresses only, GET / HEAD only, caps) and the page's colours, font family names, logo candidates (made PNG by the
- * worker) and a screenshot are written to <workspace>/.demo-studio/site/<site_id>/. Workspace-level: no project.
+ * worker) and a screenshot are written to <workspace>/.retake/site/<site_id>/. Workspace-level: no project.
  * A job of this kind runs ONLY with a human's approval of exactly this URL, signed at submit (engine signing.ts):
- * fingerprint sha256("site\n" + canonical href). The CLI never queues one (`studio theme from-site` runs in-process),
+ * fingerprint sha256("site\n" + canonical href). The CLI never queues one (`retake theme from-site` runs in-process),
  * so the worker refuses the whole job without it, whoever `submitted_by` names.
  */
 export const SiteJobInputSchema = z.strictObject({

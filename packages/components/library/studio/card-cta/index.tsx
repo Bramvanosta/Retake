@@ -16,8 +16,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, QrLevel, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, QrLevel, ThemeTokens } from '@retake/components/kit';
 
 type Params = { tone: 'paper' | 'dark'; show_qr: boolean; qr_level: QrLevel };
 

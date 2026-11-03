@@ -9,7 +9,7 @@
  * Text the scenario or the filmed product wrote (caption text, marker names, step labels, page labels) is only under
  * `untrusted`, by index or key; everything else is numbers, ids (slugs) and component ids.
  */
-import type { Timeline } from '@demo-studio/core';
+import type { Timeline } from '@retake/core';
 import type { EditPlan, PlanSegment, ResolvedComponent } from './plan-types.js';
 
 /** A component use as the timeline shows it (where it came from: the theme, the scenario, an override). */

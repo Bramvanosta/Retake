@@ -1,4 +1,4 @@
-import type { PressArgs, TypeArgs } from '@demo-studio/core';
+import type { PressArgs, TypeArgs } from '@retake/core';
 import type { FieldKind } from '../kit/types.js';
 import type { StepContext } from '../runtime.js';
 import { sleepUntil, wallNow } from '../util.js';
@@ -184,7 +184,7 @@ export async function type(ctx: StepContext, args: TypeArgs): Promise<ActionResu
     if (field && field.input_type !== 'password') {
       rt.warn(
         `${ctx.scene.id}.${ctx.step.index}: types the value of a secret reference into a visible field (${field.desc}): the capture shows it — ` +
-          'type it into a password field, sign in beforehand (studio login, auth.storage_state), or use {{vars.…}} for a value that may show',
+          'type it into a password field, sign in beforehand (retake login, auth.storage_state), or use {{vars.…}} for a value that may show',
       );
     }
   }

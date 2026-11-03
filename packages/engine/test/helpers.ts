@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const FIXTURE = join(REPO, 'projects', 'northfield-fixture');
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
 
 /** A workspace with a copy of the fixture project (its authored files only) and two runs written by hand. */
 export async function fixtureWorkspace(dir: string): Promise<void> {
-  await writeFile(join(dir, 'studio.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  await writeFile(join(dir, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const project = join(dir, 'projects', 'northfield-fixture');
   await cp(FIXTURE, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE.length + 1).split('/')[0]) });
   // The fixture's sandboxes run the fixture product from the repository (sandbox.yaml: cwd ../../../fixtures/wholesale).

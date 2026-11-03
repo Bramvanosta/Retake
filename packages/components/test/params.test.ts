@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { formatIssues } from '@demo-studio/core';
-import { applyParamDefaults, checkParamsSchema, paramDefaults, validateParamValue } from '@demo-studio/components';
-import type { JsonSchemaNode } from '@demo-studio/components';
+import { formatIssues } from '@retake/core';
+import { applyParamDefaults, checkParamsSchema, paramDefaults, validateParamValue } from '@retake/components';
+import type { JsonSchemaNode } from '@retake/components';
 
 const SCHEMA: JsonSchemaNode = {
   type: 'object',

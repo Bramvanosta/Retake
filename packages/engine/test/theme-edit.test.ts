@@ -17,7 +17,7 @@ import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core';
 import { THEME_USES_STATS, createEngine, openWorkspace, templateView } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from './helpers.js';
@@ -26,7 +26,7 @@ const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex')
 let root: string;
 let engine: Engine;
 let mcp: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const themeDir = () => join(root, 'templates', 'brand');
 const themeFile = () => join(themeDir(), 'template.yaml');
 const ORIGINAL = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8').replace('name: editorial', 'name: brand');
@@ -55,8 +55,8 @@ async function reset(): Promise<string> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), themeDir(), { recursive: true });
   await writeFile(themeFile(), ORIGINAL);
   const project = join(root, 'projects', 'demo');
@@ -69,8 +69,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -118,12 +118,12 @@ describe('theme view (L4.7)', () => {
   });
 
   it('⚑ editable by real path (critique B15): starters, the repository\'s starters, links and hard links are read-only with why', async () => {
-    expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Demo Studio: copy it to edit it/) });
+    expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
     const repoWs = await openWorkspace({ root: REPO });
     const rv = await templateView(repoWs, 'editorial');
     expect(rv.source).toBe('workspace');
-    expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Demo Studio \(its folder lies in the Demo Studio package\)/) });
+    expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Retake \(its folder lies in the Retake package\)/) });
     // A theme folder that is a link to another folder is not even listed (core listTemplates takes real folders).
     await cp(themeDir(), join(root, 'elsewhere', 'real'), { recursive: true });
     await symlink(join(root, 'elsewhere', 'real'), join(root, 'templates', 'linked'));

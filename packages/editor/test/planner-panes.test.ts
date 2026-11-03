@@ -8,8 +8,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
 import {
   ACTING_EASE_S,
   actingWeights,
@@ -27,9 +27,9 @@ import {
   planEdit,
   planInsetTrack,
   stepBoxes,
-} from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
-import type { Timeline, TimelineEvent } from '@demo-studio/core';
+} from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
+import type { Timeline, TimelineEvent } from '@retake/core';
 import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
 
 const RUN = '/virtual/runs/r';

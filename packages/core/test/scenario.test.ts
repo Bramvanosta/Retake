@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { SCENARIO_COMPARE_MAX_BYTES, formatIssues, formatPath, parseScenario, scenarioChangedMessage, scenarioChangedSinceRun, validateScenario } from '@demo-studio/core';
-import type { ValidationIssue } from '@demo-studio/core';
+import { SCENARIO_COMPARE_MAX_BYTES, formatIssues, formatPath, parseScenario, scenarioChangedMessage, scenarioChangedSinceRun, validateScenario } from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
 /** A staging project whose directory holds the hook files of the SPEC example. */
@@ -652,8 +652,8 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
   });
 
   it('the message names the scenario, the run, the filmed parts that changed and what films them (L5.5)', () => {
-    expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`studio run demo quote`', ['scene a: step a.2 changed'])).toBe(
-      'the filmed part of scenario quote changed since run 20260101-120000-quote was captured (scene a: step a.2 changed): a render shows that take as it was captured, its edit included — a change to what the browser does (steps, pages, hooks, capture settings) shows only in a new capture: `studio run demo quote`, then render; a change to the edit alone (captions, cards, overlays, durations, title, intro/outro, template) renders on the existing take',
+    expect(scenarioChangedMessage('quote', '20260101-120000-quote', '`retake run demo quote`', ['scene a: step a.2 changed'])).toBe(
+      'the filmed part of scenario quote changed since run 20260101-120000-quote was captured (scene a: step a.2 changed): a render shows that take as it was captured, its edit included — a change to what the browser does (steps, pages, hooks, capture settings) shows only in a new capture: `retake run demo quote`, then render; a change to the edit alone (captions, cards, overlays, durations, title, intro/outro, template) renders on the existing take',
     );
     expect(scenarioChangedMessage('quote', 'r', 'x')).toContain('(the file no longer reads as YAML)');
     const many = Array.from({ length: 10 }, (_v, i) => `scene s${i} added`);

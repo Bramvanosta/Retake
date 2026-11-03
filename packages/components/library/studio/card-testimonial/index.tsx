@@ -13,8 +13,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Params = { tone: 'paper' | 'dark'; align: 'center' | 'left'; marks: boolean };
 

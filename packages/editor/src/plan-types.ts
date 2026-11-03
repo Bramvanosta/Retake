@@ -5,8 +5,8 @@
  * All times are OUTPUT FRAMES unless the field name says seconds (`_s`) or source frames (`src`).
  * Layout rectangles are in output pixels.
  */
-import type { BBox, DisplayEntry, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@demo-studio/core';
-import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@demo-studio/components';
+import type { BBox, DisplayEntry, FrameSpec, OverlayAnchor, PointSpec, TransitionKind, Template, TutorialFeatureName, TutorialSwitch } from '@retake/core';
+import type { CaptionCue, ComponentManifest, MediaValue, ProgressChapter, ThemeTokens } from '@retake/components';
 
 export type { CaptionCue };
 
@@ -548,7 +548,7 @@ export interface EditOverrides {
    * Component switches without touching the scenario: by kind ("intro", "layout", "caption"…) for the whole video,
    * or by segment id ("intro", "<scene id>", "interstitial-3") for one segment. Theme defaults apply otherwise.
    */
-  components?: Record<string, import('@demo-studio/components').ComponentRef>;
+  components?: Record<string, import('@retake/components').ComponentRef>;
   /** Use another theme (template) for this render. */
   theme?: string;
   music?: string | false;

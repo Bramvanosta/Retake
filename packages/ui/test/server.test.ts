@@ -9,8 +9,8 @@ import { readFile, readdir, rm, stat, mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { discoveryFile, readDiscovery, sha256Hex, studioCsp } from '@demo-studio/engine';
-import { TOOLS } from '@demo-studio/mcp';
+import { discoveryFile, readDiscovery, sha256Hex, studioCsp } from '@retake/engine';
+import { TOOLS } from '@retake/mcp';
 import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -18,20 +18,20 @@ import { raw } from './http.js';
 
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const README = () => join(ws, 'projects', 'northfield-fixture', 'README.md');
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-server-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws });
 });
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -76,7 +76,7 @@ describe('static app from memory', () => {
     const css = (await buildUi()).get('/app.css')!.bytes.toString('utf8');
     expect([...css.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1].replace(/["']/g, ''))).toEqual(['/fonts/Geist-Variable.woff2', '/fonts/GeistMono-Variable.woff2']);
     expect(INDEX_HTML).toContain('<meta name="color-scheme" content="dark light">');
-    expect(INDEX_HTML).toContain('<title>Demo Studio</title>');
+    expect(INDEX_HTML).toContain('<title>Retake</title>');
   });
 
   it('the bundle: no eval, no node built-in, under 800 KB; the document has no inline script or style', async () => {
@@ -293,10 +293,10 @@ describe('one server per workspace (discovery file)', () => {
 });
 
 describe('the MCP server does not depend on the Studio (R-UI-01)', () => {
-  it('packages/mcp names no @demo-studio/ui, in its manifest or its sources', async () => {
+  it('packages/mcp names no @retake/ui, in its manifest or its sources', async () => {
     const pkg = JSON.parse(await readFile(join(REPO, 'packages', 'mcp', 'package.json'), 'utf8')) as Record<string, Record<string, string> | undefined>;
-    expect({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }).not.toHaveProperty('@demo-studio/ui');
+    expect({ ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }).not.toHaveProperty('@retake/ui');
     const files = (await readdir(join(REPO, 'packages', 'mcp', 'src'), { recursive: true })).filter((f) => f.endsWith('.ts'));
-    for (const f of files) expect(await readFile(join(REPO, 'packages', 'mcp', 'src', f), 'utf8'), f).not.toContain('@demo-studio/ui');
+    for (const f of files) expect(await readFile(join(REPO, 'packages', 'mcp', 'src', f), 'utf8'), f).not.toContain('@retake/ui');
   });
 });

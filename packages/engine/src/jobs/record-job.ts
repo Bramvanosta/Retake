@@ -1,5 +1,5 @@
 /**
- * `record` jobs (L3.4, R-MCP-24): `studio record` submitted by a client outside the CLI (the MCP server's
+ * `record` jobs (L3.4, R-MCP-24): `retake record` submitted by a client outside the CLI (the MCP server's
  * scenario_record) and run by the jobs worker with the same engine code (record.ts). A HEADED window opens on the
  * machine the worker runs on, for a HUMAN to perform the flow and close the window — the job waits for it, holding the
  * queue like a headed sign-in. Nothing in the job drives the window: its input names a page, a path, a persona and a
@@ -21,8 +21,8 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@demo-studio/core';
-import type { RecordJobInput, RecordedEvent, WorkspaceConfig } from '@demo-studio/core';
+import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
+import type { RecordJobInput, RecordedEvent, WorkspaceConfig } from '@retake/core';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
@@ -56,7 +56,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio record` command a human runs for the same recording. */
+/** The `retake record` command a human runs for the same recording. */
 export function recordCommandLine(cli: string, r: { project: string; scenario?: string; env?: string; persona?: string; page?: string; path?: string }): string {
   return [
     cli,

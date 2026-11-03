@@ -1,8 +1,8 @@
 import { resolve } from 'node:path';
-import { InspectTargetSchema, parseYaml, resolveEnvironment } from '@demo-studio/core';
-import type { TargetSpec } from '@demo-studio/core';
-import { INSPECT_KEEP, appendHistory, inspectRoot, newInspectId, pageOfUrl, prepareInspect, pruneInspections, runInspection } from '@demo-studio/engine';
-import type { InspectSourceDraft } from '@demo-studio/engine';
+import { InspectTargetSchema, parseYaml, resolveEnvironment } from '@retake/core';
+import type { TargetSpec } from '@retake/core';
+import { INSPECT_KEEP, appendHistory, inspectRoot, newInspectId, pageOfUrl, prepareInspect, pruneInspections, runInspection } from '@retake/engine';
+import type { InspectSourceDraft } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -34,10 +34,10 @@ function targetArg(flag: string, text: string): TargetSpec {
 }
 
 /**
- * `studio inspect <project> <page|scenario|url>` (L3.3): replay a page (an environment page key, with --path, or a URL
+ * `retake inspect <project> <page|scenario|url>` (L3.3): replay a page (an environment page key, with --path, or a URL
  * of one of the environment's origins) or a saved scenario (up to --until) as a dry run, then list the page's visible
  * interactive elements with a target the runner resolves to each — what page_inspect gives an MCP client, in a
- * terminal. The files go to <project>/.demo-studio/inspect/<id>/ (or --out). Exit 1 unless the page was inspected.
+ * terminal. The files go to <project>/.retake/inspect/<id>/ (or --out). Exit 1 unless the page was inspected.
  */
 export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: string, what: string, opts: InspectCommandOptions): Promise<ExitCode> {
   const limit = opts.limit === undefined ? undefined : Number(opts.limit);

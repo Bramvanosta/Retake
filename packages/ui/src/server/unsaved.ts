@@ -20,9 +20,9 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { PROJECT_SLUG_RE, SLUG_RE } from '@demo-studio/core';
-import { EngineError } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { PROJECT_SLUG_RE, SLUG_RE } from '@retake/core';
+import { EngineError } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 
 export const UNSAVED_KINDS = ['readme', 'yaml_draft', 'step_form', 'comment', 'component_brief', 'new_theme', 'theme_draft'] as const;
 export type UnsavedKind = (typeof UNSAVED_KINDS)[number];

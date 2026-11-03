@@ -1,5 +1,5 @@
-/** Job records and events as stored under <workspace>/.demo-studio/jobs/<id>/ (L3.1). */
-import type { ComponentKind, JobInput, JobKind, JobState, RunProgress, RunRecord, RunStatus } from '@demo-studio/core';
+/** Job records and events as stored under <workspace>/.retake/jobs/<id>/ (L3.1). */
+import type { ComponentKind, JobInput, JobKind, JobState, RunProgress, RunRecord, RunStatus } from '@retake/core';
 import type { EngineErrorCode } from '../errors.js';
 import type { ProcessIdentity } from './proc.js';
 
@@ -104,7 +104,7 @@ export interface AuthLoginJobResult {
   /** headed: the window ended signed out while the session saved before still works: that one was kept. */
   kept?: true;
   cookies: number;
-  /** The `studio login` command a human runs to sign it in again. */
+  /** The `retake login` command a human runs to sign it in again. */
   command: string;
   /** A cancel (or a signal) closed the window: no session file or status written (see `profile_kept`). */
   interrupted?: true;
@@ -216,7 +216,7 @@ export interface PreviewImageView {
   component: string;
   /** The kind it shows (a theme preview: the theme's intro, layout, card, interstitial, outro). */
   kind: ComponentKind;
-  /** Absolute path in <workspace>/.demo-studio/previews/<preview_id>/ (960×540 PNG). */
+  /** Absolute path in <workspace>/.retake/previews/<preview_id>/ (960×540 PNG). */
   file: string;
   /** Second of the component shown. */
   at: number;
@@ -225,7 +225,7 @@ export interface PreviewImageView {
   screen?: string;
 }
 
-/** What a `preview` job wrote: stills in <workspace>/.demo-studio/previews/<preview_id>/ (never a component folder). */
+/** What a `preview` job wrote: stills in <workspace>/.retake/previews/<preview_id>/ (never a component folder). */
 export interface PreviewJobResult {
   kind: 'preview';
   preview_id: string;
@@ -269,7 +269,7 @@ export interface LibraryJobView {
 }
 
 /**
- * What an `inspect` job did (L3.3): its folder <project>/.demo-studio/inspect/<id>/ with inspect.json (the report),
+ * What an `inspect` job did (L3.3): its folder <project>/.retake/inspect/<id>/ with inspect.json (the report),
  * screenshot.png and marked.jpg. Counts, booleans and enums only here; the page's text stays in the report, under
  * `untrusted`. `reported: false`: the replay ended before the page could be inspected (a preflight or sign-in failure, a
  * refused scenario): the run's error is under `untrusted.error`, `sign_in` names the persona that must sign in.
@@ -307,7 +307,7 @@ export interface InspectJobResult {
 }
 
 /**
- * What a `record` job did (L3.4): its folder <project>/.demo-studio/records/<rec_id>/ (draft.yaml, record.json,
+ * What a `record` job did (L3.4): its folder <project>/.retake/records/<rec_id>/ (draft.yaml, record.json,
  * events.jsonl, check/). Counts, enums and file paths only: typed text and page text stay in that folder (the draft is
  * read from draft.yaml, never from here). Scene ids are made from the product's paths, issue messages point at them,
  * the check replay's failure is page text: under `untrusted`.

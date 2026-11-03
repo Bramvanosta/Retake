@@ -712,7 +712,7 @@
     }
   },
   "additionalProperties": false,
-  "title": "Demo Studio template",
+  "title": "Retake template",
   "description": "Brand & motion style (templates/<name>/template.yaml), merged over the default template.",
   "$defs": {
     "ComponentRef": {

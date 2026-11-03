@@ -7,8 +7,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry, PictureMedia, TableMedia, TextMedia } from '@demo-studio/components';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry, PictureMedia, TableMedia, TextMedia } from '@retake/components';
 import {
   PLAN_ASSET_SCHEME,
   TUTORIAL_TIMING,
@@ -26,9 +26,9 @@ import {
   stepNavigates,
   trackBoxAt,
   imageFileSize,
-} from '@demo-studio/editor';
-import type { CardSegment, ClipSegment, EditOverrides, EditPlan, OverlayUse, PlanInputFile } from '@demo-studio/editor';
-import type { Timeline } from '@demo-studio/core';
+} from '@retake/editor';
+import type { CardSegment, ClipSegment, EditOverrides, EditPlan, OverlayUse, PlanInputFile } from '@retake/editor';
+import type { Timeline } from '@retake/core';
 import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
 
 const RUN = '/virtual/runs/r';

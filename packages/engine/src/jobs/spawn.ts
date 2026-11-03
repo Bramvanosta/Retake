@@ -1,7 +1,7 @@
 /**
  * Starting the jobs worker of a workspace (L3.1): `ensureWorker` after each submit — nothing when the worker lock's
  * holder is alive, else a detached `node …/engine/worker-main.js --root <ws>` whose output goes to
- * .demo-studio/workers/worker.log. It outlives the client that started it (a capture finishes with its teardown even
+ * .retake/workers/worker.log. It outlives the client that started it (a capture finishes with its teardown even
  * when the MCP session closes) and exits once idle. Run from the sources (tests), the same entry is started as
  * TypeScript through tsx with the packages' `source` export condition.
  */
@@ -21,7 +21,7 @@ export interface WorkerSpawnOptions {
   idleExitMs?: number;
   /**
    * The worker's environment (default this process's). The Studio passes a clean one (L4.2, critique B5): the PATH
-   * sanitised like `studio mcp`'s, no package-manager or LLM variables, DEMO_STUDIO_HOME kept.
+   * sanitised like `retake mcp`'s, no package-manager or LLM variables, RETAKE_HOME kept.
    */
   env?: NodeJS.ProcessEnv;
   /** The client starting it, recorded in the worker lock (`started_by`). */

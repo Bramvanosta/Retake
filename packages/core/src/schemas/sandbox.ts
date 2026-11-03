@@ -103,14 +103,14 @@ const SandboxDatabasesSchema = z.record(
 export const SandboxFileSchema = z
   .strictObject({
     version: z.literal(1).describe('Version of this file\'s format (1).'),
-    provider: z.enum(SANDBOX_PROVIDERS).describe('docker-compose: `docker compose` on the compose files; process: local processes started by Demo Studio.'),
+    provider: z.enum(SANDBOX_PROVIDERS).describe('docker-compose: `docker compose` on the compose files; process: local processes started by Retake.'),
     compose: z
       .strictObject({
         files: z.array(nonEmpty()).min(1).describe('Compose files, relative to sandbox.yaml (default [compose.yaml]).').optional(),
         project: z
           .string()
           .regex(/^[a-z0-9][a-z0-9_-]{0,62}$/, { error: 'a compose project name is lower-case letters, digits, "_" or "-" (at most 63)' })
-          .describe('Compose project name (default demo-studio-<project>-<environment>-<hash of the folder>).')
+          .describe('Compose project name (default retake-<project>-<environment>-<hash of the folder>).')
           .optional(),
         env_file: z
           .union([nonEmpty(), z.literal(false)])
@@ -153,4 +153,4 @@ export const SandboxFileSchema = z
       .describe('Demo accounts the seed creates, each one the persona of the same name on this environment.')
       .optional(),
   })
-  .meta({ id: 'Sandbox', title: 'Demo Studio sandbox', description: 'sandbox.yaml (version 1): a disposable, local copy of the product, seeded and reset before each take.' });
+  .meta({ id: 'Sandbox', title: 'Retake sandbox', description: 'sandbox.yaml (version 1): a disposable, local copy of the product, seeded and reset before each take.' });

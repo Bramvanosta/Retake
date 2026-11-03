@@ -16,19 +16,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import { Journal } from '@demo-studio/hooks';
-import type { NewJournalEntry } from '@demo-studio/hooks';
-import { SandboxError, groupTree, openSandbox, probePort, processStart, processTable, readState, sandboxPaths, signalState, writeState } from '@demo-studio/sandbox';
-import type { Sandbox } from '@demo-studio/sandbox';
+import { loadProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import { Journal } from '@retake/hooks';
+import type { NewJournalEntry } from '@retake/hooks';
+import { SandboxError, groupTree, openSandbox, probePort, processStart, processTable, readState, sandboxPaths, signalState, writeState } from '@retake/sandbox';
+import type { Sandbox } from '@retake/sandbox';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const SERVER = join(REPO, 'fixtures/wholesale/server.mjs');
 const posix = process.platform !== 'win32';
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'fixtures/wholesale/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -105,7 +105,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     // Build the fixture's bundle once (the sandboxes start it with --no-build: parallel forks would race on it).
     const build = (await import(join(REPO, 'fixtures/wholesale/build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
-    root = await mkdtemp(join(tmpdir(), 'demo-studio-sandbox-proc-'));
+    root = await mkdtemp(join(tmpdir(), 'retake-sandbox-proc-'));
     ports = await freePorts(4);
     project = await makeProject(root, 'p1', fixtureManifest(ports));
     sb = openSandbox(project);
@@ -148,7 +148,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     for (let i = 0; i < 50 && (await json(api('/mailbox/api/v1/messages'))).total === 0; i++) await sleep(100);
     expect((await json(api('/mailbox/api/v1/messages'))).total).toBe(1);
     // Pending rollbacks of an earlier run: the sandbox's are superseded by the reset, another environment's are not.
-    const journal = await Journal.open(join(project.dir, '.demo-studio', 'journals', 'hooks-20261013-120000.json'));
+    const journal = await Journal.open(join(project.dir, '.retake', 'journals', 'hooks-20261013-120000.json'));
     const at = new Date().toISOString();
     const entry = (env: string): NewJournalEntry => ({
       kind: 'http',
@@ -249,7 +249,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     expect(Date.now() - t0).toBeLessThan(10_000);
     expect(e).toBeInstanceOf(SandboxError);
     expect(e.code).toBe('unhealthy');
-    expect(e.message).toMatch(/^sandbox sandbox: service app exited with code 3 — last lines of \/.*\/p3\/\.demo-studio\/sandbox\/sandbox\/logs\/app\.log:\n/);
+    expect(e.message).toMatch(/^sandbox sandbox: service app exited with code 3 — last lines of \/.*\/p3\/\.retake\/sandbox\/sandbox\/logs\/app\.log:\n/);
     expect(e.message).toContain('boom: no database at localhost:5999');
     expect(readState(sandboxPaths(p.dir, 'sandbox').state, 'sandbox', 'process').state.services).toEqual({});
   });
@@ -308,7 +308,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
   const say = (level: string, msg: string) => lines.push(`${level} ${msg}`);
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'demo-studio-sandbox-review-'));
+    dir = await mkdtemp(join(tmpdir(), 'retake-sandbox-review-'));
     await writeFile(join(dir, 'svc.mjs'), SVC);
   });
   afterAll(async () => {
@@ -431,7 +431,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
       `mailbox: {provider: mailpit, url: "http://localhost:${mail}", external: true}`,
     ]);
     await sb.up({ log: say, seed: 'never' });
-    const journal = await Journal.open(join(project.dir, '.demo-studio', 'journals', 'hooks-20261014-090000.json'));
+    const journal = await Journal.open(join(project.dir, '.retake', 'journals', 'hooks-20261014-090000.json'));
     const at = new Date().toISOString();
     await journal.record({ kind: 'http', phase: 'setup', description: 'POST x', env: 'sandbox', started_at: at, finished_at: at, status: 'ok', rollback: { kind: 'http', request: { method: 'DELETE', url: `http://localhost:${a}/x` }, description: 'DELETE x', data: {} } });
     const e = await sb.reset({ log: say, by: 'p9 reset' }).catch((x) => x);

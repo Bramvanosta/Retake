@@ -5,7 +5,7 @@
  * caller validates the text against the template schema (core parseTemplateYaml) before writing it.
  */
 import { Document, isMap, isPair, isScalar, isSeq } from 'yaml';
-import type { TemplateFile } from '@demo-studio/core';
+import type { TemplateFile } from '@retake/core';
 import type { Palette } from './palette.js';
 
 export interface ThemeFileInput {
@@ -64,8 +64,8 @@ export function generateThemeFile(i: ThemeFileInput): ThemeFile {
 
   const doc = new Document(out);
   doc.commentBefore = [
-    ` Demo Studio theme "${i.name}", made from brand inputs on ${i.date} over the "${i.baseName}" theme`,
-    ' (template_create_from_brand / studio theme create): colours from the palette rules, fonts and logo copied into',
+    ` Retake theme "${i.name}", made from brand inputs on ${i.date} over the "${i.baseName}" theme`,
+    ' (template_create_from_brand / retake theme create): colours from the palette rules, fonts and logo copied into',
     ' this folder (see LICENSES.md). Edit it freely — once a file of this folder changes, the tool no longer replaces it.',
   ].join('\n');
   // The starters' style: flow collections for short sections, block maps for colours, fonts and components.

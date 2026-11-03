@@ -12,7 +12,7 @@ import type { Engine } from '../src/index.js';
 
 let root: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 async function put(rel: string, body = 'x'): Promise<void> {
   const p = join(root, ...rel.split('/'));
@@ -22,8 +22,8 @@ async function put(rel: string, body = 'x'): Promise<void> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-brand-list-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await put('projects/demo/project.yaml', 'version: 1\nname: Demo\nenvironments:\n  local: {app: "http://app.test"}\n');
   await put('brand/logo.svg', '<svg/>');
   await put('brand/Logo Dark.PNG', 'png');
@@ -36,7 +36,7 @@ beforeAll(async () => {
   await put('projects/demo/review/r/sheet.jpg');
   await put('projects/demo/exports/e/cover.png');
   await put('components/acme/badge/logo.png');
-  await put('.demo-studio/site/s_x/logo-1.png');
+  await put('.retake/site/s_x/logo-1.png');
   await put('.git/logo.png');
   await put('brand/.hidden.png');
   await put('node_modules/pkg/logo.png');
@@ -48,8 +48,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 

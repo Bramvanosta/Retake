@@ -13,7 +13,7 @@ pub mod rules;
 pub mod stop;
 pub mod words;
 
-pub use config::{child_env_dropped, choose_workspace, test_mode_allowed, is_workspace, launch_config, read_remembered, studio_home, write_remembered, ConfigError, LaunchConfig, Source};
+pub use config::{child_env_dropped, choose_workspace, test_mode_allowed, is_workspace, launch_config, not_workspace_text, read_remembered, retake_home, write_remembered, ConfigError, LaunchConfig, Source};
 pub use rules::{is_ipc_noise, loopback_port, navigation_allowed, navigation_decision, origin, parse_ui_line, redact, route_ok, sanitize, Admit, Allowed, LineError, Navigation, RateLimit, UiLine};
 pub use guard_flow::{Ask, Effect, Flow, Reply};
 pub use notify::{Auth, AuthAnswer, AuthStep, Decision, Notifier, Permission};

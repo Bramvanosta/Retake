@@ -10,10 +10,10 @@ import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { COMPONENT_KINDS } from '@demo-studio/core';
-import type { ComponentKind } from '@demo-studio/core';
-import { KIT_MODULE, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@demo-studio/components';
-import type { ComponentManifest, ComponentProps, ThemeTokens } from '@demo-studio/components';
+import { COMPONENT_KINDS } from '@retake/core';
+import type { ComponentKind } from '@retake/core';
+import { KIT_MODULE, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@retake/components';
+import type { ComponentManifest, ComponentProps, ThemeTokens } from '@retake/components';
 import { DARK, LIGHT } from './helpers.js';
 
 const frame = vi.hoisted(() => ({ current: 0 }));
@@ -244,8 +244,8 @@ describe('scaffolds typecheck against the kit (strict TypeScript)', () => {
       lib: ['lib.es2023.d.ts', 'lib.dom.d.ts'],
       baseUrl: PACKAGE_DIR,
       paths: {
-        '@demo-studio/components/kit': ['src/kit/index.ts'],
-        '@demo-studio/core': ['../core/src/index.ts'],
+        '@retake/components/kit': ['src/kit/index.ts'],
+        '@retake/core': ['../core/src/index.ts'],
       },
     });
     const diagnostics = ts.getPreEmitDiagnostics(program).map((d) => {

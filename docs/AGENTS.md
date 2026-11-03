@@ -31,9 +31,11 @@ and the decisions already taken. The working agreement itself is in `CLAUDE.md`.
   `HEAD`); each decrease is explained in the lot's notes or fixed.
 - Use your own ports for the fixture product and any Studio server (the brief gives a range; 4401–4404 belong to other
   sessions). Stop what you started with `kill <pid>` of its listener, never `pkill -f`.
-- `DEMO_STUDIO_HOME` always points at a scratch folder, never the real `~/.demo-studio` (the person's signed-in
-  profiles). Never touch the macOS Keychain, Docker objects not named `demo-studio-*`, `~/.claude` (use a scratch
-  `CLAUDE_CONFIG_DIR` if the claude CLI is needed) or the person's other projects.
+- `RETAKE_HOME` always points at a scratch folder, never the real `~/.retake` (the person's signed-in
+  profiles): export it for every command you run (vitest.config.ts gives a test run a temp one when it is unset and
+  refuses `~/.retake`; the CLI and the Studio have no such default). Never touch the macOS Keychain, Docker objects
+  not named `retake-*`, `~/.claude` (use a scratch `CLAUDE_CONFIG_DIR` if the claude CLI is needed) or the person's
+  other projects.
 - No downloads (packages, browsers, crates) unless the brief says the person approved one; Rust builds run offline with
   `--locked` and a scratch `CARGO_TARGET_DIR`. The desktop app is never installed or opened through LaunchServices by
   tooling, and `~/Library` / `~/Downloads` are left as found.

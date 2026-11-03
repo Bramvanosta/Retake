@@ -1,5 +1,5 @@
 /**
- * L3.4 scenario_record through `studio mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy
+ * L3.4 scenario_record through `retake mcp` (spawned from the sources over stdio, driven by the SDK client) on a copy
  * of projects/northfield-fixture pointed at the fixture product on free ports. No real window opens here: the worker
  * lock is held by this process (so the server spawns no worker), first by a bare lock (a job that stays queued), then
  * by an in-process worker whose injected driver plays the person (Playwright in a headless "headed" window).
@@ -21,12 +21,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@demo-studio/engine';
+import { WorkerLock, buildStamp, historyFile, jobsDir, readWorkerLock, runWorker, workersDir } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
 const PROJECT = 'northfield-fixture';
 
 type Block = { type: string; text?: string };
@@ -42,7 +42,7 @@ let root: string;
 let client: Client;
 let stderr = '';
 const outputs: string[] = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 async function call(name: string, args: Record<string, unknown>): Promise<Result> {
   const r = (await client.callTool({ name, arguments: args }, undefined, { timeout: 180_000 })) as Result;
@@ -77,8 +77,8 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-record-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   const project = join(root, 'projects', PROJECT);
   await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
   const strip = (u: string) => u.replace(/\/$/, '');
@@ -89,16 +89,16 @@ beforeAll(async () => {
     .replaceAll('http://localhost:4404', strip(fixture.urls.signedIn!.shop));
   await writeFile(join(project, 'project.yaml'), yaml);
   await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
+  await mkdir(join(root, '.retake'), { recursive: true });
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '5000' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   await client.connect(transport);
 }, 180_000);
 
@@ -115,11 +115,11 @@ afterAll(async () => {
   }
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
 });
 
-describe('studio mcp: scenario_record', () => {
+describe('retake mcp: scenario_record', () => {
   it('lists scenario_record (a job against the product, not destructive) and says the USER performs the flow, never Claude', async () => {
     const { tools } = await client.listTools();
     const t = tools.find((x) => x.name === 'scenario_record');
@@ -238,7 +238,7 @@ describe('studio mcp: scenario_record', () => {
     expect(data<{ ok: boolean }>(v).ok, summary(v)).toBe(true);
 
     // The sentinel: in no tool output, job file, worker log, history line or recording file.
-    const all = [...(await files(jobsDir(root))), ...(await files(workersDir(root))), historyFile(root), ...(await files(join(root, 'projects', PROJECT, '.demo-studio', 'records')))];
+    const all = [...(await files(jobsDir(root))), ...(await files(workersDir(root))), historyFile(root), ...(await files(join(root, 'projects', PROJECT, '.retake', 'records')))];
     for (const f of all.filter((x) => existsSync(x))) expect((await readFile(f)).includes(sentinel), f).toBe(false);
     expect(outputs.join('\n')).not.toContain(sentinel);
     expect(stderr).not.toContain(sentinel);

@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/mcp",
+  "name": "@retake/mcp",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,8 +17,8 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/engine": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/engine": "workspace:*",
     "@modelcontextprotocol/sdk": "1.32.1",
     "zod": "^4.1.0"
   }

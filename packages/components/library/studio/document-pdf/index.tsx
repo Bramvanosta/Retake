@@ -15,8 +15,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, DocumentMedia } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, DocumentMedia } from '@retake/components/kit';
 
 type Params = { motion: 'zoom' | 'scroll' | 'static'; pages: string; focus: 'top' | 'center' | 'bottom'; zoom: number; shadow: 'soft' | 'strong' };
 

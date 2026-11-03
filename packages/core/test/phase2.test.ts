@@ -26,9 +26,9 @@ import {
   templateJsonSchema,
   timelineJsonSchema,
   timelineVideo,
-} from '@demo-studio/core';
-import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus } from '@demo-studio/core';
-import type { CommentThread, Scenario, Template, Timeline, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus } from '@retake/core';
+import type { CommentThread, Scenario, Template, Timeline, ValidationIssue } from '@retake/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
 type Json = Record<string, any>;

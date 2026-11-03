@@ -14,8 +14,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
-import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
-import type { LoadedProject, RecordedEvent } from '@demo-studio/core';
+import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePersonas } from '@retake/core';
+import type { LoadedProject, RecordedEvent } from '@retake/core';
 import { CancelledError, disableAutofill, looksLikeSecretSegment, looksLikeToken, maskPathSecrets, recordSession, secretHash, signIn } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
 import { makeProject, startServer, tempDir } from './helpers.js';
@@ -41,7 +41,7 @@ let csv: string;
 
 beforeAll(async () => {
   home = await tempDir('ds-record-home-');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
     startFixture(o: { consolePort: number; shopPort: number; host: string; auth: { consolePort: number; shopPort: number } }): Promise<Fixture>;
   };
@@ -240,9 +240,9 @@ describe('recordSession: the page cannot see or feed the recorder', () => {
         const w = window as unknown as Record<string, unknown>;
         return {
           names: Object.getOwnPropertyNames(window).filter((n) => /dsrec|__demo|playwright__binding/i.test(n)),
-          kit: typeof w.__demoStudio,
-          cursor: document.querySelectorAll('demo-studio-cursor').length,
-          patched: typeof w.__demoStudioNotifyPatched,
+          kit: typeof w.__retake,
+          cursor: document.querySelectorAll('retake-cursor').length,
+          patched: typeof w.__retakeNotifyPatched,
         };
       });
     });

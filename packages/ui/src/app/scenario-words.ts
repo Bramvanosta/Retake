@@ -2,7 +2,7 @@
  * Words of the scenario screen (L4.2): a step's state in the source run, why it has no picture, durations — said in
  * words, never by colour alone.
  */
-import type { ScenarioView, StepBinding } from '@demo-studio/engine';
+import type { ScenarioView, StepBinding } from '@retake/engine';
 
 export type View = ScenarioView & { hints?: Record<string, string> };
 

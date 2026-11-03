@@ -4,9 +4,9 @@
  * registry's components of that kind — each `usable` or disabled with why (components package `componentFit`: kind,
  * slots, params, pages, files); and the same check refusing a `set_field` the inspector would have shown disabled.
  */
-import { fieldComponentKind, fieldKindOf } from '@demo-studio/core';
-import type { ComponentKind, FieldAt, FieldEdit, FieldValue } from '@demo-studio/core';
-import type { ComponentRegistry, ComponentUse } from '@demo-studio/components';
+import { fieldComponentKind, fieldKindOf } from '@retake/core';
+import type { ComponentKind, FieldAt, FieldEdit, FieldValue } from '@retake/core';
+import type { ComponentRegistry, ComponentUse } from '@retake/components';
 import { components } from './components.js';
 
 /** One value offered for a field: `value` null = the theme's default (the key removed). */
@@ -95,7 +95,7 @@ export function componentUseOf(entry: Obj | undefined, field: string): Component
  * Why a `set_field` value does not fit (critique B7: the inspector shows it disabled with this reason), or null. Only
  * what needs the registry or the scenario is checked here (the value's kind and range: core fieldValueProblem).
  */
-export function fieldFitProblem(registry: ComponentRegistry, componentFit: typeof import('@demo-studio/components').componentFit, root: unknown, edit: Pick<FieldEdit, 'at' | 'field' | 'to'>): string | null {
+export function fieldFitProblem(registry: ComponentRegistry, componentFit: typeof import('@retake/components').componentFit, root: unknown, edit: Pick<FieldEdit, 'at' | 'field' | 'to'>): string | null {
   const to = edit.to;
   if (to === undefined || typeof to !== 'string') return null;
   const entry = entryOf(root, edit.at);

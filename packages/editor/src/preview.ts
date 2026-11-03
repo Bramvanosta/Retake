@@ -6,7 +6,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LoadedTemplate } from '@demo-studio/core';
+import type { LoadedTemplate } from '@retake/core';
 import {
   PREVIEW_SAMPLES_DIR,
   applyParamDefaults,
@@ -14,11 +14,11 @@ import {
   fillSlots,
   isMultiPaneGeometry,
   previewMoment,
-} from '@demo-studio/components';
-import type { LayoutPaneRects } from '@demo-studio/components';
+} from '@retake/components';
+import type { LayoutPaneRects } from '@retake/components';
 import { planPaneLayout } from './panes.js';
-import { MEDIA_SLOT_TYPES } from '@demo-studio/components';
-import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@demo-studio/components';
+import { MEDIA_SLOT_TYPES } from '@retake/components';
+import type { CaptionCue, ComponentManifest, ComponentRegistry, JsonSchemaNode, MediaValue, ResolvedComponentRef, ThemeTokens } from '@retake/components';
 import { FALLBACK_GEOMETRY, planLayout } from './layout.js';
 import { brandmarkRect, layoutRects } from './remotion/frames.js';
 import type { ComponentPreviewSpec, PreviewRect, PreviewScene, PreviewUse } from './remotion/preview-types.js';

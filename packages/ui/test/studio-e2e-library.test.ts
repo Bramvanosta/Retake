@@ -1,7 +1,7 @@
 /**
  * L4.7 part D1: the component library screen end to end in headless Chromium, against a real Studio server (no worker:
  * a queued library job stays queued; the test plays the worker by writing cache entries into a real
- * `.demo-studio/cache/previews/` folder and cancelling the job — critique B18: no render here) on a scratch workspace
+ * `.retake/cache/previews/` folder and cancelling the job — critique B18: no render here) on a scratch workspace
  * whose templates_dir is its own folder (the starters stay starters) with the fixture project (theme: editorial):
  * - the project page's link → the grid by kind; committed posters of built-ins (editorial starter), a workspace
  *   component's cached poster; source badges in words (never "made with Claude");
@@ -22,7 +22,7 @@
  * Theme select, the selected card's inspector (its facts, Play in the theme, Open the details), the status bar (Idle ·
  * Render all loops · Open the theme editor); Play is a toggle with one name ("Play <name>", aria-pressed); Create with
  * Claude and the set-default confirmations are kit Sheets (Escape closes; the person's words kept across a close).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
  */
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -30,15 +30,15 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LIBRARY_DIR, scaffoldDir } from '@demo-studio/components';
-import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@demo-studio/engine';
+import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
+import { LIBRARY_FILES, LIBRARY_PREVIEW_FORMAT, libraryCacheDir, libraryRegistryHash, memoRegistry, runWorker } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { createPrompt } from '../src/app/library-words.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 20_000 };
 const RLO = String.fromCharCode(0x202e);
 const HOSTILE = '<img src=x onerror=alert(1)>';
@@ -51,7 +51,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const consoleErrors: string[] = [];
 const foreign: string[] = [];
 const dialogs: string[] = [];
@@ -86,9 +86,9 @@ const libraryJobs = async () =>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-library-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
   // A workspace card an agent wrote: an HTML name, a prompt-injection description, a README with a direction override.
   const comp = join(ws, 'components', 'acme', 'hostile');
@@ -108,7 +108,7 @@ beforeAll(async () => {
   await seed(h.loop.key, 'loop', 'acme/hostile', GIF);
   const cta = items.find((i) => i.component === 'studio/card-cta')!;
   await seedFailed(cta.loop.key, 'loop', 'studio/card-cta', REASON);
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: 'light' });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: studio.url.replace(/\/$/, '') });
@@ -135,8 +135,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -146,7 +146,7 @@ describe('the component library in Chromium', () => {
     await page.getByTestId('library-link').click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/library`);
     await page.getByRole('heading', { level: 1, name: 'Components' }).waitFor();
-    expect(await page.title()).toBe('Components · Demo Studio');
+    expect(await page.title()).toBe('Components · Retake');
     expect(await page.getByTestId('library').getAttribute('data-theme')).toBe('editorial');
     const headings = await page.getByTestId('lib-section-title').allInnerTexts();
     expect(headings[0]).toMatch(/^Intros \(\d+\)$/);
@@ -280,7 +280,7 @@ describe('the component library in Chromium', () => {
     await page.getByTestId('lib-detail').waitFor();
     await page.getByTestId('lib-facts').waitFor();
     expect(await page.locator('[data-testid="lib-detail"] h1').innerText()).toBe(HOSTILE);
-    expect(await page.getByTestId('lib-kit').innerText()).toMatch(/^Kit API 1: works with this Demo Studio/);
+    expect(await page.getByTestId('lib-kit').innerText()).toMatch(/^Kit API 1: works with this Retake/);
     expect(await page.getByTestId('lib-slots').locator('tbody tr').count()).toBe(3);
     expect(await page.getByTestId('lib-params').innerText()).toContain('center | left');
     expect(await page.getByTestId('lib-readme').innerText()).toBe(README.replace(RLO, '[U+202E]'));
@@ -610,7 +610,7 @@ describe('the component library in Chromium', () => {
     expect(await page.getByTestId('lib-create-prompt').inputValue()).toBe(expected.prompt);
     expect(expected.prompt).not.toContain(RLO);
     expect(expected.prompt).not.toMatch(/Ignore previous|img src/);
-    expect(await page.getByTestId('lib-create-command').innerText()).toBe('studio components create acme/intro-split --kind intro');
+    expect(await page.getByTestId('lib-create-command').innerText()).toBe('retake components create acme/intro-split --kind intro');
     await shot('library-create', 1280);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.getByTestId('lib-create-copy').click();

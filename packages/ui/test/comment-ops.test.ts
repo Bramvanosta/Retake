@@ -27,11 +27,11 @@ import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { diffLines, textLines } from '@demo-studio/core';
-import type { CommentThread } from '@demo-studio/core';
-import { createEngine } from '@demo-studio/engine';
-import type { Engine } from '@demo-studio/engine';
-import { scaffoldDir } from '@demo-studio/components';
+import { diffLines, textLines } from '@retake/core';
+import type { CommentThread } from '@retake/core';
+import { createEngine } from '@retake/engine';
+import type { Engine } from '@retake/engine';
+import { scaffoldDir } from '@retake/components';
 import { COMMENT_OPS, UI_OPS, pathFree, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThreadAnswer, ThreadApplyAnswer, ThreadGetAnswer, ThreadsListAnswer, TimelineViewAnswer } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
@@ -67,7 +67,7 @@ let v1: Case;
 let studio: StudioServer;
 let mcp: Engine;
 let savedRecord: string;
-const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR };
+const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
 const bodies: string[] = [];
 
 const call = async (op: string, args: unknown = {}) => {
@@ -105,8 +105,8 @@ beforeAll(async () => {
   if (!canRun) return;
   ws = await workspace();
   dir = ws.project.dir;
-  process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
-  process.env.DEMO_STUDIO_AUTHOR = 'Studio Person';
+  process.env.RETAKE_HOME = join(ws.root, '.home');
+  process.env.RETAKE_AUTHOR = 'Studio Person';
   const tl = scenesTimeline([6, 6], { steps: { 1: [{ action: 'wait_for', t_start: 9.11, t_end: 9.112, mark: 'proposal' }] } });
   v1 = await makeCase(ws, 'quote', tl);
   await writeFile(join(v1.run.dir, 'scenario.yaml'), TEXT);
@@ -119,7 +119,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  for (const [k, v] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author]] as const) {
+  for (const [k, v] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }

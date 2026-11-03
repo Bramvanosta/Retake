@@ -485,7 +485,7 @@ export function describeWriteRequest(method: string, url: string, pages: Record<
 
 /**
  * A js hook's write stopped by its tab on a read-only run (runner-web hook-page.ts): the hook failed after it.
- * @demo-studio/hooks turns it into a `HookSecurityError` (reason `read-only`, status `refused`). `writes` are
+ * @retake/hooks turns it into a `HookSecurityError` (reason `read-only`, status `refused`). `writes` are
  * described by describeWriteRequest; `detail` is appended to the message.
  */
 export class WriteRefusedError extends Error {

@@ -1,7 +1,7 @@
-import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage, shellHostRefs } from '@demo-studio/core';
-import type { HookAccess, LoadedProject } from '@demo-studio/core';
+import { LOCAL_HOSTS, allowedHosts, hostRefusalMessage, isHostAllowed, normalizeAllowEntry, normalizeHost, protectedBy, protectedHostMessage, shellHostRefs } from '@retake/core';
+import type { HookAccess, LoadedProject } from '@retake/core';
 
-/** The pure allow-list helpers live in @demo-studio/core (project validation uses them too). */
+/** The pure allow-list helpers live in @retake/core (project validation uses them too). */
 export { LOCAL_HOSTS, allowedHosts, isHostAllowed, normalizeAllowEntry, normalizeHost };
 import { databaseTarget, isDatabaseUrl } from './db-url.js';
 import { HookSecurityError } from './errors.js';

@@ -1,6 +1,6 @@
 import pg from 'pg';
-import { collectSecretRefs, databasesFor, databasesSource, sandboxOf, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@demo-studio/core';
-import type { SqlHookSpec, TemplateContext } from '@demo-studio/core';
+import { collectSecretRefs, databasesFor, databasesSource, sandboxOf, sqlDestructiveKeyword, sqlSource, sqlWriteStatement } from '@retake/core';
+import type { SqlHookSpec, TemplateContext } from '@retake/core';
 import { checkHostAllowed } from '../allow-list.js';
 import { databaseTarget, describeTarget, sandboxDatabaseProblem } from '../db-url.js';
 import type { DatabaseTarget } from '../db-url.js';
@@ -113,7 +113,7 @@ async function runSql(
     connectionString: db.connectionString,
     connectionTimeoutMillis: SQL_CONNECT_TIMEOUT_MS,
     statement_timeout: SQL_STATEMENT_TIMEOUT_MS,
-    application_name: 'demo-studio-hooks',
+    application_name: 'retake-hooks',
   });
   // Connection-level errors also reject the pending query; this only prevents an unhandled 'error' event.
   client.on('error', () => undefined);

@@ -1,16 +1,16 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig } from '@demo-studio/core';
+import type { BrowserConfig } from '@retake/core';
 import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
 import type { GpuInfo, SystemInfoReply } from './session.js';
 import { wallNow } from './util.js';
 
-/** What `studio doctor` learns about the browser the runner would launch. */
+/** What `retake doctor` learns about the browser the runner would launch. */
 export interface ChromiumProbe {
   /** Executable the runner launches (null when Playwright knows none). */
   path: string | null;
   /** Where the path comes from. */
-  source: 'browser.executable' | 'DEMO_STUDIO_CHROMIUM' | 'playwright';
+  source: 'browser.executable' | 'RETAKE_CHROMIUM' | 'playwright';
   exists: boolean;
   /** Browser version reported after a successful launch. */
   version?: string;
@@ -27,7 +27,7 @@ export interface ChromiumProbe {
 /** The executable the runner would use, and where that choice comes from. */
 export function chromiumExecutable(browser?: BrowserConfig): { path: string | null; source: ChromiumProbe['source'] } {
   if (browser?.executable) return { path: browser.executable, source: 'browser.executable' };
-  if (process.env.DEMO_STUDIO_CHROMIUM) return { path: process.env.DEMO_STUDIO_CHROMIUM, source: 'DEMO_STUDIO_CHROMIUM' };
+  if (process.env.RETAKE_CHROMIUM) return { path: process.env.RETAKE_CHROMIUM, source: 'RETAKE_CHROMIUM' };
   try {
     return { path: chromium.executablePath() || null, source: 'playwright' };
   } catch {

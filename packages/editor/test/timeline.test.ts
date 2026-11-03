@@ -9,11 +9,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { placePins, planEdit, reasonOf, timelineOf } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
-import type { Timeline } from '@demo-studio/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { placePins, planEdit, reasonOf, timelineOf } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
+import type { Timeline } from '@retake/core';
 import { FIXTURES, REPO, fixtureProject, synthTimeline, template } from './helpers.js';
 
 let registry: ComponentRegistry;

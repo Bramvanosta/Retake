@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import type { Timeline, TimelineEvent } from '@demo-studio/core';
+import type { Timeline, TimelineEvent } from '@retake/core';
 import {
   CURSOR_LOOK,
   RAW_CUT,

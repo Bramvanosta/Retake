@@ -37,7 +37,7 @@ async function look(file: string, x = 0, y = 0): Promise<{ mean: number; width: 
 }
 
 beforeAll(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'demo-studio-still-'));
+  dir = await mkdtemp(join(tmpdir(), 'retake-still-'));
 });
 afterAll(async () => rm(dir, { recursive: true, force: true }));
 

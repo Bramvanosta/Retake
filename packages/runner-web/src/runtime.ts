@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Page } from 'playwright-core';
-import { LOADING_CUT_MIN_S, displayPages, isDesktopViewport, resolvePageUrl } from '@demo-studio/core';
+import { LOADING_CUT_MIN_S, displayPages, isDesktopViewport, resolvePageUrl } from '@retake/core';
 import type {
   ResolvedScenePage,
   ResolvedViewport,
@@ -13,8 +13,8 @@ import type {
   PointSpec,
   ResolvedEnvironment,
   RunMode,
-} from '@demo-studio/core';
-import type { TemplateContext } from '@demo-studio/core';
+} from '@retake/core';
+import type { TemplateContext } from '@retake/core';
 import type { BrowserSession, KitClient } from './session.js';
 import type { CursorEffectPayload } from './kit/types.js';
 import { HOLD_MAX_MS } from './hold.js';
@@ -641,8 +641,8 @@ export class Runtime {
   async painted(page: Page = this.page): Promise<void> {
     await page
       .evaluate(() => {
-        const g = globalThis as unknown as { __demoStudio?: { afterPaint?: () => Promise<void> } };
-        if (typeof g.__demoStudio?.afterPaint === 'function') return g.__demoStudio.afterPaint();
+        const g = globalThis as unknown as { __retake?: { afterPaint?: () => Promise<void> } };
+        if (typeof g.__retake?.afterPaint === 'function') return g.__retake.afterPaint();
         return new Promise<void>((resolve) => {
           setTimeout(() => resolve(), 150);
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));

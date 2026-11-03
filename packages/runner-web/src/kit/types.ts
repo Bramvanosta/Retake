@@ -1,11 +1,11 @@
 /**
- * Contract between the node-side runner and the in-page kit (`window.__demoStudio`).
+ * Contract between the node-side runner and the in-page kit (`window.__retake`).
  * Everything crossing the boundary is JSON-serialisable; elements are referred to by `ref` ids
  * that the kit keeps in a WeakRef map. A ref may designate an element inside an open shadow root or a same-origin
  * frame (R-ISS-07); every box and point crossing the boundary, both ways, is in top-level viewport CSS px (an element
  * in a frame is offset by the frames' positions).
  */
-import type { BBox, NearElement, PointSpec, SecretFieldKind, TargetObject } from '@demo-studio/core';
+import type { BBox, NearElement, PointSpec, SecretFieldKind, TargetObject } from '@retake/core';
 
 export type CursorStyle = 'arrow-dark' | 'arrow-light' | 'debug';
 export type CursorKind = 'arrow' | 'hand' | 'ibeam';
@@ -17,8 +17,8 @@ export interface KitConfig {
     size: number;
     ripple_color: string;
     /**
-     * Raw capture without the cursor (L2.13, `studio run --raw --cursor none|layer`): the cursor and its ripples are
-     * not drawn; real input, icon, presses and ripples are still reported (binding `__demoStudioCursor`).
+     * Raw capture without the cursor (L2.13, `retake run --raw --cursor none|layer`): the cursor and its ripples are
+     * not drawn; real input, icon, presses and ripples are still reported (binding `__retakeCursor`).
      */
     hidden?: boolean;
   };
@@ -194,7 +194,7 @@ export interface DropOutcome {
   target: string;
 }
 
-/** What the kit reports to the runner about its cursor (binding `__demoStudioCursor`, L2.13). */
+/** What the kit reports to the runner about its cursor (binding `__retakeCursor`, L2.13). */
 export interface CursorEffectPayload {
   type: 'icon' | 'press' | 'release' | 'ripple';
   /** Wall-clock epoch ms. */
@@ -372,7 +372,7 @@ export interface KitTargetCheck {
 }
 
 /** A visible element close to a target the kit did not find (role, accessible name, text). */
-export type { NearElement } from '@demo-studio/core';
+export type { NearElement } from '@retake/core';
 
 /** `checkTargets`' answer, with the document's `location.origin` (the runner checks it). */
 export interface KitTargetChecks {

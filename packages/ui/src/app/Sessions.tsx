@@ -10,7 +10,7 @@
  * `SessionsSheet`, the kit's sheet): one sheet for the status bar's Capture, ⇧⌘R and Prepare's Start capture.
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import type { AuthStatusItem, EnvironmentView } from '@demo-studio/engine';
+import type { AuthStatusItem, EnvironmentView } from '@retake/engine';
 import { call, errorText } from './api.js';
 import { Txt, When, plural, shown, visibleControls } from './bits.js';
 import { castState, envFlagWords } from './board-words.js';
@@ -123,7 +123,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
             <p>
               {job.cancel_requested_at
                 ? 'Stopping: the window closes; the saved session is not updated.'
-                : 'A browser window is open on this computer: sign in there yourself, then close it. It may be behind this window. It closes by itself after its time limit (30 min unless DEMO_STUDIO_SIGNIN_MAX_MIN says otherwise).'}
+                : 'A browser window is open on this computer: sign in there yourself, then close it. It may be behind this window. It closes by itself after its time limit (30 min unless RETAKE_SIGNIN_MAX_MIN says otherwise).'}
               {job.started_at && (
                 <>
                   {' '}

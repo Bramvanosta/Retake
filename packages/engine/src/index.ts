@@ -1,8 +1,8 @@
 /**
- * @demo-studio/engine — the typed, in-process API shared by the CLI and the MCP server (L3.1). Part A: workspace and
+ * @retake/engine — the typed, in-process API shared by the CLI and the MCP server (L3.1). Part A: workspace and
  * project loading (moved from the CLI), projects / scenarios / runs / auth / sandbox reads, `if_match` saves, a local
  * storage abstraction and typed EngineError codes for clients outside the CLI. Part B: the run executor shared by
- * `studio run` and the jobs worker, the job queue under <workspace>/.demo-studio/jobs and the worker. Part C: hooks
+ * `retake run` and the jobs worker, the job queue under <workspace>/.retake/jobs and the worker. Part C: hooks
  * outside a capture (moved from the CLI), `hooks` / `env_reset` jobs, and human approvals of hooks for work submitted
  * through MCP (trust `mcp`, fingerprints taken at submit and checked by the worker). Part D: sign-ins and sandbox
  * up / reset as jobs (login moved from the CLI; shell seed steps approved like hooks), the job history and an
@@ -284,6 +284,8 @@ export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';
 export { LOOPBACK, isLoopbackAddress, listenLoopback } from './http/listen.js';
 export { ERROR_STATUS } from './http/status.js';
+export { OLD_HOLDER_MAX_BYTES, oldLiveHolder, refuseBesideOldHolder } from './legacy.js';
+export type { OldHolder } from './legacy.js';
 export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, releaseDiscovery } from './http/discovery.js';
 export type { DiscoveryClaim, DiscoveryRecord } from './http/discovery.js';
 export { INDEX_SCHEMA, RUNS_INDEX_MAX, WorkspaceIndex, ftsQuery, indexFile } from './index-db/index-db.js';

@@ -1,6 +1,6 @@
 import { STATUS_CODES } from 'node:http';
-import { httpWriteReason } from '@demo-studio/core';
-import type { HttpHookSpec } from '@demo-studio/core';
+import { httpWriteReason } from '@retake/core';
+import type { HttpHookSpec } from '@retake/core';
 import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, errorMessage } from '../errors.js';

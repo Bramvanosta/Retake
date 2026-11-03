@@ -6,7 +6,7 @@
  * are not drawn (BL-129).
  */
 import { useEffect, useMemo, useRef } from 'react';
-import type { ValidationIssue } from '@demo-studio/core';
+import type { ValidationIssue } from '@retake/core';
 import { Txt, shown } from './bits.js';
 import { IssueLines } from './StepEditing.js';
 import type { View } from './scenario-words.js';

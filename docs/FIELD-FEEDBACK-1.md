@@ -1,6 +1,6 @@
 # Field feedback 1 — the first real use (2026-10-26)
 
-The first use of Demo Studio on a real product, outside the fixture: three internal videos of about four minutes
+The first use of Retake on a real product, outside the fixture: three internal videos of about four minutes
 each, written first in one language and then remade in another after a redesign of the product and a database
 change. The product is a B2B web app with two sides (a customer app and an admin back office, one persona each), a
 Postgres database, a Redis job queue, local object storage and a Mailpit mailbox, run from its own dev servers on the
@@ -30,7 +30,7 @@ Three real captures of the same scenario with a per-process CPU sampler (cumulat
 the script is easy to rebuild: it groups Chromium's browser, GPU, renderer and other helpers, the studio's node
 process, ffmpeg and the fixture server).
 
-| Setting | Chromium (browser + GPU + renderer + other) | studio node | ffmpeg (end encode) | Total | `frames/` |
+| Setting | Chromium (browser + GPU + renderer + other) | retake node | ffmpeg (end encode) | Total | `frames/` |
 |---|---|---|---|---|---|
 | Default (frame-rate limiter on, JPEG quality 100) | 31 cpu-s (23 + 4.5 + 2.9 + 0.5) | 10.5 | 29 | 71 cpu-s | 528 MB (1,563 frames, 344 KB each) |
 | `browser.frame_rate_limit: false` (what the field project set) | **86 cpu-s** (31.5 + 32 + 21 + 0.5) | 11 | 29 | 125 cpu-s | 498 MB |
@@ -69,12 +69,12 @@ the edit; page pre-warming; pruning of runs and renders.
 ## After L5.7 — measurements (2026-10-26, Apple M4, same sampler)
 
 The same per-process sampler (cumulative CPU time from `ps` every 500 ms, Chromium browser / GPU / renderer / other,
-studio node, ffmpeg, fixture), on the code before L5.7 (commit 2f1813a, built in a scratch worktree) and after it,
+retake node, ffmpeg, fixture), on the code before L5.7 (commit 2f1813a, built in a scratch worktree) and after it,
 **alternated** take by take on a quiet machine (1-minute load 2.3 – 5.2): fixture `quote` three times each (46.6 s of
 video), and the new two-persona fixture scenario `two-personas` (`--env signed-in`: the supplier's console and the
 buyer's shop in two browsers, `NORTHFIELD_QUOTES_MS=1500`) twice each (42 s of video). Means:
 
-| Take | Chromium (browser + GPU + renderer) | studio node | ffmpeg | Total | Wall (command) | Run folder | Freezes in a ripple |
+| Take | Chromium (browser + GPU + renderer) | retake node | ffmpeg | Total | Wall (command) | Run folder | Freezes in a ripple |
 |---|---|---|---|---|---|---|---|
 | `quote` before (limiter on, JPEG 100, frames kept, x264 medium at the end) | 31.4 cpu-s (24.3 + 4.6 + 2.0) | 11.8 | 29.1 | **72.3 cpu-s** | 55.0 s | 570 MB (frames 566 MB) | 2 in 3 takes |
 | `quote` after (limiter on, JPEG 90, no frames, VideoToolbox during the take) | 26.1 cpu-s (18.2 + 4.6 + 2.9) | 6.8 | 6.8 | **39.7 cpu-s (−45 %)** | 49.0 s | **20 MB** | 0 in 3 takes (8 – 10 fresh frames asked a take) |
@@ -107,7 +107,7 @@ Findings:
 
 ## After L5.8 — MCP result sizes (2026-10-26, fixture)
 
-What a client receives (the summary and the JSON text blocks), measured through `studio mcp` over stdio on the fixture
+What a client receives (the summary and the JSON text blocks), measured through `retake mcp` over stdio on the fixture
 (`quote` take and render of L5.8's acceptance), before (main e74fc2e: JSON pretty-printed, every field) and after
 (compact by default, one-line JSON). Tokens ≈ characters / 4 (the estimate Claude Code's size limit uses); images
 (`images: "none"` here) are not counted.
@@ -128,10 +128,10 @@ findings: compact keeps every error and at most 30 warnings with their messages 
 
 ## Quick wins on a field project (no code)
 - Remove `browser: {frame_rate_limit: false}` (since L5.7 the dialog-close freeze is handled with the limiter on) and
-  drop `capture: {keep_frames: …}` (L5.7: no frames by default). `studio prune <project>` frees what older takes and
+  drop `capture: {keep_frames: …}` (L5.7: no frames by default). `retake prune <project>` frees what older takes and
   renders hold.
 - Write a `sandbox.yaml` (docker-compose or process provider) for the Postgres snapshot, the mailbox and the seed,
-  and film with `studio run … --sandbox` (since L5.8 `studio doctor --project` says when one is missing; README "A
+  and film with `retake run … --sandbox` (since L5.8 `retake doctor --project` says when one is missing; README "A
   stage sandbox" for a product shipped as images).
 - Replace the side script that polled the database with named hooks and `hook:` steps (L5.8, README "Hooks during
   the take").

@@ -1,5 +1,5 @@
 /**
- * The browser Remotion renders with: `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
+ * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
  * (looked up through playwright-core's browser registry, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
  * revision), else none (Remotion then downloads its own headless shell).
  */
@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-export const HEADLESS_SHELL_ENV = 'DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL';
+export const HEADLESS_SHELL_ENV = 'RETAKE_CHROMIUM_HEADLESS_SHELL';
 
 export interface RenderBrowser {
   /** Executable path, or null to let Remotion use its own. */
@@ -47,7 +47,7 @@ export function renderBrowser(env: NodeJS.ProcessEnv = process.env): RenderBrows
 }
 
 /**
- * Which browser renders (pure but for a stat): Playwright's headless shell or `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` by
+ * Which browser renders (pure but for a stat): Playwright's headless shell or `$RETAKE_CHROMIUM_HEADLESS_SHELL` by
  * its real path (the revision is in Playwright's folder name), size and date; Remotion's own by @remotion/renderer's
  * version. A library preview's key covers it (L4.7 review A L3): a browser update is a new picture.
  */

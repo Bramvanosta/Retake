@@ -14,7 +14,7 @@ import { rm } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
-import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, TimelineEvent } from '@demo-studio/core';
+import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';

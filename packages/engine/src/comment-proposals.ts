@@ -36,9 +36,9 @@ import {
   sameHunks,
   textEol,
   textLines,
-} from '@demo-studio/core';
-import type { CommentProposal, LoadedProject, ValidationIssue } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
+} from '@retake/core';
+import type { CommentProposal, LoadedProject, ValidationIssue } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
 import type { ScenarioText } from './scenarios.js';

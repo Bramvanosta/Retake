@@ -19,7 +19,7 @@
  * - Renders: the queue with Cancel, the newest failure, the renders (newest five, Show all) — a row opens its report.
  * - Export: Export video (MP4) queues the engine's export job through the Studio's own `review_export` (one format, the
  *   project's exports folder, one at a time per render; followed in the activity) and the raw capture for an editing tool
- *   is a command to copy (`studio export-capture …`, built only from ids that pass their rules). Show in Finder: BL-132.
+ *   is a command to copy (`retake export-capture …`, built only from ids that pass their rules). Show in Finder: BL-132.
  * - Status bar (ReviewChrome, shared with Review › Comments: review B-M3 of L5.12b): "Rendered · when · vN · n open · n
  *   resolved", Open in Edit, and Render — re-render this scenario: its latest capture with the file on disk (no file is
  *   shown here), through useRenders (the same refusals; one render at a time; a render queued from here opens its report
@@ -29,7 +29,7 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { ReviewFindingView, ScenarioRenderView } from '@demo-studio/engine';
+import type { ReviewFindingView, ScenarioRenderView } from '@retake/engine';
 import type { RenderReviewAnswer, ReviewExportAnswer } from '../server/ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import { Txt, When } from './bits.js';
@@ -411,7 +411,7 @@ function ReviewPending({ review, reviewing }: { review: RenderReviewAnswer; revi
   }
   return (
     <Callout state="idle" role="note" title="Note: this render has no review" testId="review-none">
-      A render from the Studio reviews itself; one rendered elsewhere is reviewed with studio review.
+      A render from the Studio reviews itself; one rendered elsewhere is reviewed with retake review.
     </Callout>
   );
 }
@@ -701,7 +701,7 @@ function ExportPart({ slug, x }: { slug: string; x: ScenarioRenderView }) {
         </Blocker>
       ) : (
         <p className="rv-quiet" data-testid="review-export-raw-off">
-          The raw capture of this render cannot be named in a command here: export it with studio export-capture in a terminal.
+          The raw capture of this render cannot be named in a command here: export it with retake export-capture in a terminal.
         </p>
       )}
     </div>

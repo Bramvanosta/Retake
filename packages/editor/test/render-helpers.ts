@@ -8,24 +8,24 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject } from '@demo-studio/core';
-import type { LoadedProject, Timeline } from '@demo-studio/core';
+import { loadProject } from '@retake/core';
+import type { LoadedProject, Timeline } from '@retake/core';
 import { synthTimeline } from './helpers.js';
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 export const TEMPLATES = join(REPO, 'templates');
 /** Bundles shared by the render tests and real renders of the repo (git-ignored). */
-export const SHARED_CACHE = join(REPO, '.demo-studio', 'cache');
+export const SHARED_CACHE = join(REPO, '.retake', 'cache');
 
 /**
- * Links a test workspace's render cache (`<root>/.demo-studio/cache`) to SHARED_CACHE (no rebundle per test file). The
+ * Links a test workspace's render cache (`<root>/.retake/cache`) to SHARED_CACHE (no rebundle per test file). The
  * target is made first: a fresh clone or worktree has none, and the bundler cannot make a folder through a dangling link
  * (a test file linking it must not depend on another having run first).
  */
 export async function linkSharedCache(root: string): Promise<void> {
   await mkdir(SHARED_CACHE, { recursive: true });
-  await mkdir(join(root, '.demo-studio'), { recursive: true });
-  await symlink(SHARED_CACHE, join(root, '.demo-studio', 'cache'));
+  await mkdir(join(root, '.retake'), { recursive: true });
+  await symlink(SHARED_CACHE, join(root, '.retake', 'cache'));
 }
 
 export const RUN_ID = '20260101-120000-synthetic';
@@ -94,8 +94,8 @@ export interface RenderWorkspace {
 
 /** A temp workspace with project "demo" and the synthetic run (timeline + colour-coded capture). */
 export async function renderWorkspace(): Promise<RenderWorkspace> {
-  const root = await mkdtemp(join(tmpdir(), 'demo-studio-render-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  const root = await mkdtemp(join(tmpdir(), 'retake-render-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN_ID);
   await mkdir(runDir, { recursive: true });

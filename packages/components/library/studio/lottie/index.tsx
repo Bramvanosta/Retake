@@ -1,6 +1,6 @@
 import { AbsoluteFill } from 'remotion';
-import { LottieFile, mediaBackground, themeColorMap } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { LottieFile, mediaBackground, themeColorMap } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { fit: 'contain' | 'cover'; background: string; size: number; loop: boolean; colors: Record<string, string> };
 

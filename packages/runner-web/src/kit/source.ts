@@ -1,10 +1,10 @@
-import type { LoadedTemplate } from '@demo-studio/core';
+import type { LoadedTemplate } from '@retake/core';
 import { demoKit } from './kit.js';
 import type { CursorStyle, KitConfig } from './types.js';
 
 export const DEFAULT_CURSOR_SIZE = 26;
 export const DEFAULT_RIPPLE_COLOR = 'rgba(0,0,0,.25)';
-export const CURSOR_STORAGE_KEY = 'demo-studio:cursor';
+export const CURSOR_STORAGE_KEY = 'retake:cursor';
 
 /** Kit configuration from a template's cursor settings (arrow-dark, neutral ripple by default). */
 export function kitConfigFor(template?: LoadedTemplate, override?: Partial<KitConfig['cursor']>): KitConfig {

@@ -1,4 +1,4 @@
-//! The child `studio ui --supervised`: started with its three pipes, its first stdout line read (≤ 30 s) and checked,
+//! The child `retake ui --supervised`: started with its three pipes, its first stdout line read (≤ 30 s) and checked,
 //! its stderr forwarded line by line (through the log filter) and its last 8 KB kept for an alert. Owned (it serves):
 //! the shell holds the only write end of its stdin — the shell's death is its EOF, so no orphan — and stops it on
 //! Quit (desktop_core::stop_child). Attached (`reused`: another process serves the workspace): it exits at once and
@@ -77,11 +77,11 @@ impl StartError {
             StartError::NotWorkspace(t) => t.clone(),
             StartError::Spawn(e) => format!("Node.js could not be started: {e}"),
             StartError::Exited(Some(EXIT_USAGE), tail) => format!(
-                "studio ui refused its arguments (exit {EXIT_USAGE}) — a CLI older than this app, without `ui --supervised`? Run pnpm build and pnpm desktop:build in the repository.\n\n{tail}"
+                "retake ui refused its arguments (exit {EXIT_USAGE}) — a CLI older than this app, without `ui --supervised`? Run pnpm build and pnpm desktop:build in the repository.\n\n{tail}"
             ),
-            StartError::Exited(code, tail) => format!("studio ui exited ({}) before serving.\n\n{tail}", code.map_or("signal".into(), |c| format!("exit {c}"))),
+            StartError::Exited(code, tail) => format!("retake ui exited ({}) before serving.\n\n{tail}", code.map_or("signal".into(), |c| format!("exit {c}"))),
             StartError::BadLine(e) => e.clone(),
-            StartError::Timeout => format!("studio ui did not answer within {} s.", LINE_TIMEOUT.as_secs()),
+            StartError::Timeout => format!("retake ui did not answer within {} s.", LINE_TIMEOUT.as_secs()),
         }
     }
 }
@@ -198,7 +198,7 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
             for line in BufReader::new(stderr).split(b'\n') {
                 let Ok(bytes) = line else { break };
                 let text = sanitize(&String::from_utf8_lossy(&bytes));
-                eprintln!("studio: {text}");
+                eprintln!("retake: {text}");
                 tail.lock().unwrap_or_else(|e| e.into_inner()).push(text);
             }
             let _ = err_done_tx.send(());

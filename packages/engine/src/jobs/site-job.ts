@@ -1,7 +1,7 @@
 /**
  * `site` jobs (L3.5, R-MCP-12): template_from_site through the worker. A clean ephemeral Chromium opens one public
  * page through the worker's CONNECT proxy (runner-web site/), and the colours by role, font family names, logo
- * candidates (PNGs made by Chromium) and a screenshot go to <workspace>/.demo-studio/site/<site_id>/ (site.json,
+ * candidates (PNGs made by Chromium) and a screenshot go to <workspace>/.retake/site/<site_id>/ (site.json,
  * screenshot.jpg, logo-<n>.png; the newest 10 kept). The result carries a draft brand input for
  * template_create_from_brand (`logo: site:<id>/logo-1`) and the template.yaml it would make — nothing is written to
  * templates/ here.
@@ -11,10 +11,10 @@
  * (filmed through runs and page_inspect, with their access rules) nor a protected host. Through MCP a human approves
  * the exact canonical URL (elicitation); the approval — fingerprint sha256("site\n" + href) — is signed at enqueue
  * (signing.ts) over the whole input. The worker refuses the WHOLE job unless a verified approval of that fingerprint
- * is there, whoever `submitted_by` names: `studio theme from-site` runs in-process and never queues one, so a site job
+ * is there, whoever `submitted_by` names: `retake theme from-site` runs in-process and never queues one, so a site job
  * without it is a forgery (a job.json written by something else, or an input edited after it was signed).
  *
- * The folder: the worker makes <id>/ itself, new (an existing one — planted — is refused), with `.demo-studio/` and
+ * The folder: the worker makes <id>/ itself, new (an existing one — planted — is refused), with `.retake/` and
  * `site/` real folders of the workspace (never links); the extraction writes each file under a temporary name and
  * renames it into place, so nothing is written through a link.
  *
@@ -42,9 +42,9 @@ import {
   siteApprovalFingerprint,
   siteThemeName,
   unsafeTestResolve,
-} from '@demo-studio/core';
-import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile, WorkspaceConfig } from '@demo-studio/core';
-import type { SiteReport } from '@demo-studio/runner-web';
+} from '@retake/core';
+import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile, WorkspaceConfig } from '@retake/core';
+import type { SiteReport } from '@retake/runner-web';
 import { takeSiteApproval } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { components } from '../components.js';
@@ -65,12 +65,12 @@ const SOURCES = ['header-img', 'header-svg', 'page-img', 'page-svg', 'icon', 'og
 /** A screenshot read back, at most (a 1440×900 JPEG at quality 80 is far below). */
 const SCREENSHOT_MAX_BYTES = 8 * 1024 * 1024;
 
-/** <workspace>/.demo-studio/site */
+/** <workspace>/.retake/site */
 export function siteRoot(ws: WorkspaceConfig): string {
-  return join(ws.root, '.demo-studio', 'site');
+  return join(ws.root, '.retake', 'site');
 }
 
-/** <workspace>/.demo-studio/site/<id> (the id checked: never a path). */
+/** <workspace>/.retake/site/<id> (the id checked: never a path). */
 export function siteDir(ws: WorkspaceConfig, id: string): string {
   if (typeof id !== 'string' || !SITE_ID_RE.test(id)) throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
   return join(siteRoot(ws), id);
@@ -81,14 +81,14 @@ export function newSiteId(): string {
 }
 
 /**
- * Make <workspace>/.demo-studio/site/<id>/ for one extraction: `.demo-studio` and `site` made when missing and required
+ * Make <workspace>/.retake/site/<id>/ for one extraction: `.retake` and `site` made when missing and required
  * to be real folders (a link or a file there is refused), inside the workspace once links are followed, and <id> made
  * NEW (non-recursive: an existing one was planted, refused). Returns the folder.
  */
 export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<string> {
   const dir = siteDir(ws, id);
   let parent = ws.root;
-  for (const seg of ['.demo-studio', 'site']) {
+  for (const seg of ['.retake', 'site']) {
     parent = join(parent, seg);
     await mkdir(parent).catch((e: NodeJS.ErrnoException) => {
       if (e.code !== 'EEXIST') throw e;
@@ -106,10 +106,10 @@ export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<stri
   return dir;
 }
 
-/** Whether `.demo-studio/`, `site/` and <id>/ are real folders (no link on the way to the extraction's files). */
+/** Whether `.retake/`, `site/` and <id>/ are real folders (no link on the way to the extraction's files). */
 function plainSiteFolders(ws: WorkspaceConfig, id: string): boolean {
   let p = ws.root;
-  for (const seg of ['.demo-studio', 'site', id]) {
+  for (const seg of ['.retake', 'site', id]) {
     p = join(p, seg);
     try {
       if (!lstatSync(p).isDirectory()) return false;
@@ -142,7 +142,7 @@ const JPEG_MAGIC = Buffer.from('ffd8ff', 'hex');
 
 /** The tool's own warning sentences of a site report (anything else in a job.json is data). */
 const SITE_WARNINGS: RegExp[] = [
-  /^the unsafe test resolver is set \(DEMO_STUDIO_UNSAFE_TEST_RESOLVE: [a-z0-9.-]+(?:, [a-z0-9.-]+)*\): those names reach loopback ports, and the browser accepts any certificate for every host of this extraction — never set it outside tests$/,
+  /^the unsafe test resolver is set \(RETAKE_UNSAFE_TEST_RESOLVE: [a-z0-9.-]+(?:, [a-z0-9.-]+)*\): those names reach loopback ports, and the browser accepts any certificate for every host of this extraction — never set it outside tests$/,
   /^the page did not finish loading in 20 s: read as it was$/,
   /^no logo candidate could be made: give the logo as a file \(brand\/\)$/,
   /^\d{1,6} connection\(s\) closed by a cap \(bytes, idle or life time\)$/,
@@ -159,7 +159,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio theme from-site` command a human runs for the same extraction. */
+/** The `retake theme from-site` command a human runs for the same extraction. */
 export function siteCommandLine(cli: string, href: string): string {
   return `${cli} theme from-site ${q(href)}`;
 }
@@ -218,8 +218,8 @@ export async function pruneSites(ws: WorkspaceConfig, keep = SITE_KEEP, except: 
   const active = await activeSites(ws.root).catch(() => null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
-  // Never through a link: .demo-studio/ and site/ must be real folders.
-  if (!(await lstat(join(ws.root, '.demo-studio')).catch(() => null))?.isDirectory() || !(await lstat(siteRoot(ws)).catch(() => null))?.isDirectory()) return [];
+  // Never through a link: .retake/ and site/ must be real folders.
+  if (!(await lstat(join(ws.root, '.retake')).catch(() => null))?.isDirectory() || !(await lstat(siteRoot(ws)).catch(() => null))?.isDirectory()) return [];
   let names: string[];
   try {
     names = (await readdir(siteRoot(ws), { withFileTypes: true })).filter((e) => e.isDirectory() && SITE_ID_RE.test(e.name)).map((e) => e.name);
@@ -265,7 +265,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   await pruneSites(ctx.ws, SITE_KEEP, [id]);
   const input: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: first.href, submitted_by: ctx.client, approvals };
   const job = await ctx.queue.enqueue(input);
-  const warnings = unsafeTestResolve().map.size ? ['the unsafe test resolver (DEMO_STUDIO_UNSAFE_TEST_RESOLVE) is set in this server\'s environment'] : [];
+  const warnings = unsafeTestResolve().map.size ? ['the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server\'s environment'] : [];
   return { job, site_id: id, url: first.href, host: first.host, unicode_host: first.unicode_host, dir, warnings };
 }
 
@@ -395,8 +395,8 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   const dir = await makeSiteDir(ctx.ws, input.site_id);
   const test = unsafeTestResolve();
   if (test.map.size) ctx.event({ type: 'log', level: 'warn', message: `the unsafe test resolver is set: ${[...test.map.keys()].join(', ')} reach loopback ports` });
-  if (test.ignored.length) ctx.event({ type: 'log', level: 'warn', message: `DEMO_STUDIO_UNSAFE_TEST_RESOLVE entries ignored (not <name>.test=127.0.0.1:<port>): ${test.ignored.length}` });
-  const { extractSite } = await import('@demo-studio/runner-web');
+  if (test.ignored.length) ctx.event({ type: 'log', level: 'warn', message: `RETAKE_UNSAFE_TEST_RESOLVE entries ignored (not <name>.test=127.0.0.1:<port>): ${test.ignored.length}` });
+  const { extractSite } = await import('@retake/runner-web');
   const steps = ['redirects', 'loading', 'reading', 'logos', 'writing'];
   let report: SiteReport;
   try {
@@ -418,7 +418,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
 }
 
 /**
- * `studio theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
+ * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
 export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { signal?: AbortSignal; onPhase?: (phase: string) => void } = {}): Promise<SiteJobResult> {
@@ -427,7 +427,7 @@ export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, 
   const id = newSiteId();
   const dir = await makeSiteDir(ws, id);
   const test = unsafeTestResolve();
-  const { extractSite } = await import('@demo-studio/runner-web');
+  const { extractSite } = await import('@retake/runner-web');
   let report: SiteReport;
   try {
     report = await extractSite({ url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });

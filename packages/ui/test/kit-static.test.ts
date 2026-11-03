@@ -219,12 +219,12 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
   });
 
   it('L5.11a: a compact blocker — the status bar\'s one line: its words in the mark, its command SHOWN in full in a popover beside its Copy (fixes A-M3: never copied unseen), "Copied" visible; a link form; a checklist of headed items, each with its state word', () => {
-    const c = html(createElement(Blocker, { compact: true, word: '1 hook to approve', fix: { copy: 'studio run p quote' }, testId: 'sb' }));
+    const c = html(createElement(Blocker, { compact: true, word: '1 hook to approve', fix: { copy: 'retake run p quote' }, testId: 'sb' }));
     expect(c).toMatch(/^<span class="k-blocker is-compact" data-testid="sb">/);
     expect(c).toContain('1 hook to approve');
     // The trigger opens a popover (a dialog in the top layer) that shows the command as text, with its Copy.
     expect(c).toMatch(/<button type="button" class="k-btn k-btn-ghost k-btn-sm k-blocker-command" aria-haspopup="dialog" aria-expanded="false" aria-controls="([^"]+)" popover[tT]arget="\1" data-testid="sb-action">.*Command….*<div id="\1" popover="auto" role="dialog" aria-label="The command to run in a terminal" class="k-popover" data-testid="sb-popover">/);
-    expect(c).toContain('<bdi class="k-blocker-code k-mono">studio run p quote</bdi>');
+    expect(c).toContain('<bdi class="k-blocker-code k-mono">retake run p quote</bdi>');
     expect(c).toMatch(/data-testid="sb-copy"[^>]*>.*Copy command/);
     expect(c).not.toContain('k-sr');
     expect(c).toContain('<span class="k-copied" role="status"></span>');
@@ -362,8 +362,8 @@ describe('the overlays (L5.9 part C)', () => {
     const sw = renderToStaticMarkup(createElement(Switch, { label: 'Caption', hint: 'On this step', checked: false, onChange: go, layout: 'row' }));
     expect(sw).toMatch(/^<label class="k-switch-row k-switch-row-layout">/);
     expect(sw).toMatch(/<input type="checkbox" role="switch" class="k-switch-input" aria-labelledby="[^"]+" aria-describedby="[^"]+"\/>/);
-    const cmd = renderToStaticMarkup(createElement(TerminalCommands, { fix: 'studio run p q', fixNode: 'node bin.js run p q' }));
-    expect(cmd).toContain('data-testid="blocker-fix"><bdi>studio run p q</bdi>');
+    const cmd = renderToStaticMarkup(createElement(TerminalCommands, { fix: 'retake run p q', fixNode: 'node bin.js run p q' }));
+    expect(cmd).toContain('data-testid="blocker-fix"><bdi>retake run p q</bdi>');
     expect(cmd).toContain('data-testid="blocker-fix-node"><bdi>node bin.js run p q</bdi>');
     expect(renderToStaticMarkup(createElement(TerminalCommands, {}))).toBe('');
   });

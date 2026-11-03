@@ -1,5 +1,5 @@
-import { seededRandom } from '@demo-studio/core';
-import type { Pacing, PointSpec } from '@demo-studio/core';
+import { seededRandom } from '@retake/core';
+import type { Pacing, PointSpec } from '@retake/core';
 import { clamp } from './util.js';
 
 export function easeInOutCubic(u: number): number {

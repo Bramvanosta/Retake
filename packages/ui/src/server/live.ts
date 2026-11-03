@@ -31,10 +31,10 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
-import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@demo-studio/engine';
-import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@demo-studio/engine';
+import { ENGINE_HTTP_API, EngineError, FileJobQueue, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
+import type { RunChange, RunRow, SourceMap, SqliteLoader } from '@retake/engine';
 
-import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
+import type { LoadedProject, WorkspaceConfig } from '@retake/core';
 import { libraryChanges, libraryWatchScan } from './library-watch.js';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
@@ -64,7 +64,7 @@ export interface LiveOptions {
 /** Why the index cannot answer: this Node.js has no node:sqlite. */
 export function noIndexError(): EngineError {
   return new EngineError('unavailable', `the workspace index needs node:sqlite: Node.js 22.13 or later (this is ${process.versions.node}); activity and search are off`, {
-    fix: 'run studio ui with Node.js 22.13+ (projects and the README editor work without it)',
+    fix: 'run retake ui with Node.js 22.13+ (projects and the README editor work without it)',
   });
 }
 
@@ -97,11 +97,11 @@ export class Live {
     try {
       index = await WorkspaceIndex.open(o.ws, o.sqlite ? { loader: o.sqlite } : {});
     } catch (e) {
-      o.log?.(`studio ui: the workspace index could not be opened (${e instanceof Error ? e.message : String(e)}): activity and search are off`);
+      o.log?.(`retake ui: the workspace index could not be opened (${e instanceof Error ? e.message : String(e)}): activity and search are off`);
     }
     const live = new Live(o, index);
     const why = { corrupt: 'the file was damaged', schema: 'another version wrote it', not_a_file: 'it was not a regular file' } as const;
-    if (index?.rebuilt && index.rebuilt !== 'missing') o.log?.(`studio ui: the workspace index was rebuilt (${why[index.rebuilt]})`);
+    if (index?.rebuilt && index.rebuilt !== 'missing') o.log?.(`retake ui: the workspace index was rebuilt (${why[index.rebuilt]})`);
     await live.refresh();
     return live;
   }
@@ -122,7 +122,7 @@ export class Live {
   refresh(): Promise<void> {
     if (this.closed) return Promise.resolve();
     return (this.refreshing ??= this.poll()
-      .catch((e: unknown) => this.o.log?.(`studio ui: a workspace poll failed: ${e instanceof Error ? e.message : String(e)}`))
+      .catch((e: unknown) => this.o.log?.(`retake ui: a workspace poll failed: ${e instanceof Error ? e.message : String(e)}`))
       .finally(() => {
         this.refreshing = undefined;
       }));

@@ -10,8 +10,8 @@
  * (elements dropped from the end, `truncated` counts them; inspect.json keeps them all).
  */
 import { z } from 'zod';
-import { INSPECT_JOB_LIMIT_MAX, INSPECT_JOB_TARGETS_MAX, InspectTargetSchema } from '@demo-studio/core';
-import type { Engine, InspectJobResult, JobRecord } from '@demo-studio/engine';
+import { INSPECT_JOB_LIMIT_MAX, INSPECT_JOB_TARGETS_MAX, InspectTargetSchema } from '@retake/core';
+import type { Engine, InspectJobResult, JobRecord } from '@retake/engine';
 import { envName, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolImage, ToolOutput } from '../result.js';

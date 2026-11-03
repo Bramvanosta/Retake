@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { Background, CapText, biasMotion, capTextLayout, darkLight, mixColors, nightTone, progress, roundTo, withAlpha, formatMetrics } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, CapText, biasMotion, capTextLayout, darkLight, mixColors, nightTone, progress, roundTo, withAlpha, formatMetrics } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { dim: number; turns: number };
 

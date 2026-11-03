@@ -17,7 +17,7 @@
  * and command palette (a modal dialog walked inside; its options reached through the combobox) open in each scope.
  * L5.12d: the desktop app's quit sheet (unsaved text; jobs only) and the not-found screen, dark at 1280 / 1440 / 900 and
  * light at 1280.
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots of every state (the viewport: the shell's panes scroll themselves).
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots of every state (the viewport: the shell's panes scroll themselves).
  */
 import { join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
@@ -309,8 +309,8 @@ describe.skipIf(!canRun)('the screen tour, part 1: projects and scenarios (L4.9 
     try {
       const SCHEMES_D = [{ scheme: 'dark' as const, widths: [1280, 1440, 900] }, { scheme: 'light' as const, widths: [1280] }];
       for (const [name, detail] of [
-        ['quit-sheet-unsaved', { id: 'quitQuestionTour000000', action: 'quit', title: 'Quit Demo Studio?', text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture\n• A comment being written (northfield-fixture · quote)', buttons: ['Cancel', 'Quit Anyway'], proceed: 1, cancel: 0, destructive: true }],
-        ['quit-sheet-jobs', { id: 'quitQuestionTour000001', action: 'quit', title: 'Quit Demo Studio?', text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)', buttons: ['Quit Anyway', 'Cancel'], proceed: 0, cancel: 1, destructive: false }],
+        ['quit-sheet-unsaved', { id: 'quitQuestionTour000000', action: 'quit', title: 'Quit Retake?', text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture\n• A comment being written (northfield-fixture · quote)', buttons: ['Cancel', 'Quit Anyway'], proceed: 1, cancel: 0, destructive: true }],
+        ['quit-sheet-jobs', { id: 'quitQuestionTour000001', action: 'quit', title: 'Quit Retake?', text: 'These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)', buttons: ['Quit Anyway', 'Cancel'], proceed: 0, cancel: 1, destructive: false }],
       ] as const) {
         const r = await station(
           t,

@@ -4,6 +4,8 @@ The MVP scope is **locked** (2026-10-12) to the lots in `docs/ROADMAP.md`. Every
 lot. Items are **not ordered by priority**: they are grouped by area, and the IDs only make them easy to cite. Moving
 an item into a lot is the founder's decision. Efforts are rough (S/M/L/XL, same scale as the roadmap).
 
+**Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one, entries written before L5.13 included (rewritten mechanically by `scripts/rename-l513.mjs`). <!-- old-name: the history line -->
+
 Sources: the founder's ideas, the earlier V2 component candidates (ROADMAP row L6), a multi-lens product review
 (market, architecture, users, legal, cloud-first and local-only advocates) and a competitive study
 (`docs/COMPETITION.md`), with their third-party claims fact-checked on 2026-10-12.
@@ -41,7 +43,7 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
 
 - **Where the engine runs** stays local (ADR-1): capture needs the user's network, sessions and databases. Later it can
   also run in the user's own CI or VPS (self-hosted runner image, BL-05).
-- **How the UI is delivered** is a separate choice: one web UI served by the local engine (`studio ui`) works in any
+- **How the UI is delivered** is a separate choice: one web UI served by the local engine (`retake ui`) works in any
   browser; the Tauri shell is packaging (installer, updater, supervisor), never a second UI. A hosted UI later reaches
   the engine through an outbound relay (BL-38).
 - **What lives in the cloud** is only what needs a server: licence and billing, review links, render library, runner
@@ -62,7 +64,7 @@ Upload a render, its review stills and its comment threads to a hosted share pag
 ### BL-02 — Team workspace sync (asynchronous, end-to-end encrypted)
 *XL · founder idea · builds on: L3.1 (global IDs, if-match writes, storage refs), L3.6, BL-39*
 
-Asynchronous sync of authored files (project.yaml, scenarios, hooks, assets, components, templates, comments) for teams that don't use git. Media syncs on demand by content hash: capture.mp4 + timeline.json for re-renders, and published renders, never frames. Git semantics: write against a base hash, 3-way text merge, a conflict copy when the merge fails. Never syncs profiles, storage states, .demo-studio/, hook journals, .env files or resolved secrets.
+Asynchronous sync of authored files (project.yaml, scenarios, hooks, assets, components, templates, comments) for teams that don't use git. Media syncs on demand by content hash: capture.mp4 + timeline.json for re-renders, and published renders, never frames. Git semantics: write against a base hash, 3-way text merge, a conflict copy when the merge fails. Never syncs profiles, storage states, .retake/, hook journals, .env files or resolved secrets.
 
 - **Value:** Teams without git share one workspace. It is sold inside the Team tier, not as a standalone plan.
 - **Hard parts:** Resolving conflicts on YAML edited at the same time by people, Claude and the UI, plus an offline queue. End-to-end encryption rules out server-side search and previews.
@@ -93,7 +95,7 @@ Content-addressed object storage for captures, timelines and renders, which are 
 ### BL-05 — Self-hosted runner image and CI templates
 *M · founder idea · builds on: L1.3, L1.6 (automated login), L1.8, L3.1*
 
-Publish the engine as a Docker image containing Node 22, Playwright Chromium plus Remotion's headless shell, ffmpeg, pdfjs and a documented font set. It runs `studio run/render/review` headless in the customer's CI or on their VPS. Ship ready-made CI workflows (for example GitHub Actions) that regenerate videos on each release. Nothing is hosted by us: the customer's own network, secrets and compute are used.
+Publish the engine as a Docker image containing Node 22, Playwright Chromium plus Remotion's headless shell, ffmpeg, pdfjs and a documented font set. It runs `retake run/render/review` headless in the customer's CI or on their VPS. Ship ready-made CI workflows (for example GitHub Actions) that regenerate videos on each release. Nothing is hosted by us: the customer's own network, secrets and compute are used.
 
 - **Value:** Delivers runners away from the laptop with no infrastructure cost and no data custody for the founder, and reaches private staging.
 - **Hard parts:** Linux font fallback makes captures differ from Mac captures. Smoothness without a GPU depends on L1.3. The image is roughly 1.5–2 GB (estimate). Remotion licence and telemetry would apply on customer machines.
@@ -149,7 +151,7 @@ It uses the same tools as Claude through MCP, so there is no second AI feature s
 ### BL-11 — Hosted AI credits
 *M · founder idea · builds on: BL-10, BL-39, BL-43*
 
-Metered AI through Demo Studio's own account, for users without an API key. It needs a metering proxy, credits included in paid tiers and sold as add-ons, per-project opt-in, and redaction before any frame is sent. Priced per review or per minute, not as a flat plan.
+Metered AI through Retake's own account, for users without an API key. It needs a metering proxy, credits included in paid tiers and sold as add-ons, per-project opt-in, and redaction before any frame is sent. Priced per review or per minute, not as a flat plan.
 
 - **Value:** Removes the 'get an API key' step for non-technical buyers.
 - **Hard parts:** Thin margin on resold tokens. Becoming a processor of customer screenshots, with the model vendor as a sub-processor (DPA, transfers to the US). Abuse limits.
@@ -183,7 +185,7 @@ Curated packs of themes, components and templates made by the founder. They are 
 ### BL-15 — Free community component registry
 *M · proposed in review · builds on: L2.2, L3.2, L4.5, BL-42*
 
-`studio components add <git-url|npm-package>` with a hash lockfile, a check of the manifest's `engines` / kit-API version, and a preview rendered in the user's theme. A static index page lists community packages. No payments and no hosted code execution.
+`retake components add <git-url|npm-package>` with a hash lockfile, a check of the manifest's `engines` / kit-API version, and a preview rendered in the user's theme. A static index page lists community packages. No payments and no hosted code execution.
 
 - **Value:** Lets the community share components with almost no infrastructure, building supply before any marketplace.
 - **Hard parts:** Installing third-party code that runs during render and preview requires the isolation in BL-42. Keeping packages compatible across kit-API changes.
@@ -236,7 +238,7 @@ Convert Playwright tests and codegen output, a subset of Cypress specs, and Chro
 ### BL-28 — Personalised batch runs
 *M · proposed in review · builds on: L1.6, L1.8; BL-07 for scale*
 
-`studio run --matrix rows.csv` runs one scenario per row. Variables (prospect name, logo, locale, persona) are injected into hooks, templates and captions, then each row is rendered and reviewed under a predictable name.
+`retake run --matrix rows.csv` runs one scenario per row. Variables (prospect name, logo, locale, persona) are injected into hooks, templates and captions, then each row is rendered and reviewed under a predictable name.
 
 - **Value:** One video per prospect or segment, which sales-demo tools price highest.
 - **Hard parts:** Data preparation and rollback for each row, total runtime of N captures, and Remotion's per-render fees at volume.
@@ -252,7 +254,7 @@ Generic starter scenarios for common SaaS flows (signup, onboarding, create/edit
 ### BL-47 — Scenario draft from a URL, without AI
 *S · seen in competitors · builds on: L3.3 (page_inspect)*
 
-`studio new --from-url` opens the page, lists headings, navigation and primary actions with robust targets, and writes a draft scenario to edit. Deterministic and offline, no model call.
+`retake new --from-url` opens the page, lists headings, navigation and primary actions with robust targets, and writes a draft scenario to edit. Deterministic and offline, no model call.
 
 - **Value:** A first result in minutes for users who don't use Claude, next to scenario_from_script and the recorder.
 - **Hard parts:** Choosing a sensible path through an unknown app; the draft is a starting point, not a finished video.
@@ -260,7 +262,7 @@ Generic starter scenarios for common SaaS flows (signup, onboarding, create/edit
 ### BL-48 — Scenario lint and selector heal loop
 *M · seen in competitors · builds on: L1.2 (target resolver), L3.3; BL-49*
 
-`studio lint` flags fragile targets (nth-child, generated class names, text in a localised project) and predictable freezes (long waits, missing wait_for). After a UI change breaks a run, a heal step proposes replacement targets from page_inspect, applied by the user or by Claude through MCP.
+`retake lint` flags fragile targets (nth-child, generated class names, text in a localised project) and predictable freezes (long waits, missing wait_for). After a UI change breaks a run, a heal step proposes replacement targets from page_inspect, applied by the user or by Claude through MCP.
 
 - **Value:** Addresses the first pain of regenerated videos: the selector that breaks after a release.
 - **Hard parts:** Proposing the right replacement without silently changing what the video shows; keeping fixes reviewable as diffs.
@@ -313,14 +315,14 @@ token saved by a setup hook (`{{hooks.login.json.token}}`) is masked in the run 
 - **Value:** Fewer workarounds for CI-provided values and hook-made credentials.
 - **Hard parts:** Keeping the "values the video may show" vs "secrets" line simple to explain.
 
-### BL-70 — `studio migrate`: rewrite files to the current format version
+### BL-70 — `retake migrate`: rewrite files to the current format version
 *S · found in L1.4 (R-PRIN-13) · builds on: L1.4*
 
 Every file now says which version of its format it is (`version`; absent = 1), and a file of a newer version is
 refused with one message. When a format first changes incompatibly (version 2), readers keep reading version 1, so
-nothing breaks; but files then mix versions in a workspace. A `studio migrate [<project>] [--dry]` would rewrite
-scenarios, project.yaml, template.yaml and studio.yaml to the current version — keeping comments and key order (the
-`yaml` document API, like `studio sandbox init` does for project.yaml), printing a diff first, never touching runs.
+nothing breaks; but files then mix versions in a workspace. A `retake migrate [<project>] [--dry]` would rewrite
+scenarios, project.yaml, template.yaml and retake.yaml to the current version — keeping comments and key order (the
+`yaml` document API, like `retake sandbox init` does for project.yaml), printing a diff first, never touching runs.
 
 - **Value:** One command after an upgrade instead of hand edits; files that sync between machines converge.
 - **Hard parts:** Keeping the user's comments and layout; a rewrite that loses nothing a newer key cannot express.
@@ -406,7 +408,7 @@ A user-supplied narration audio file (or one file per scene) placed on the timel
 ### BL-50 — Static share page
 *M · seen in competitors · builds on: L2.8 (export); BL-33 for publish targets*
 
-Export a self-contained page per video (chapters from scenes, transcript from captions, poster frames, embed code, previous versions) that the user publishes on their own S3, CDN or Pages. No Demo Studio server involved.
+Export a self-contained page per video (chapters from scenes, transcript from captions, poster frames, embed code, previous versions) that the user publishes on their own S3, CDN or Pages. No Retake server involved.
 
 - **Value:** Shareable links that stay local-first, before (or instead of) hosted review links (BL-01).
 - **Hard parts:** Stable URLs across regenerations without a server; video hosting costs fall on the user.
@@ -514,10 +516,10 @@ Developer ID signing and notarisation of the macOS app and every bundled executa
 - **Value:** Non-developers can install without Gatekeeper warnings and stay up to date.
 - **Hard parts:** Notarising Chromium sidecars. Losing the updater key blocks every future update. Apple Developer membership costs about $99/year.
 - **One app with everything in it (direction of 2026-10-28):** installing the app is the whole install. It holds the
-  engine (Node and our packages: the Studio it shows, the worker), the **CLI** (the app installs a `studio` command on
+  engine (Node and our packages: the Studio it shows, the worker), the **CLI** (the app installs a `retake` command on
   the PATH — a small launcher running the bundled Node, so the CLI is always the app's version, like an editor's
-  "install command in PATH"), the **MCP server** (the same `studio mcp`, stdio or HTTP served by the app, registered in
-  Claude Code / Claude Desktop by the app from `studio mcp --print-config`), and the binaries: Chromium for captures,
+  "install command in PATH"), the **MCP server** (the same `retake mcp`, stdio or HTTP served by the app, registered in
+  Claude Code / Claude Desktop by the app from `retake mcp --print-config`), and the binaries: Chromium for captures,
   the headless shell and Remotion's compositor for renders, ffmpeg, and the queue's Postgres (BL-117). The app
   supervises the Studio server, the worker and Postgres. The repository clone stays the developers' path.
 - **Size and shell:** with Chromium, the headless shell, Postgres (≈ 150 MB) and Node, the app is ≈ 0.7–1 GB.
@@ -529,14 +531,14 @@ Developer ID signing and notarisation of the macOS app and every bundled executa
   builds offline from the cargo cache; Electron bundles Chromium (≈ 200 MB before our own binaries) and was not even
   buildable offline here (not in the pnpm store). Tauri kept. What L5.2 built is the shell only: it runs the
   repository's CLI with the Node.js that built it (launch.json), is signed ad hoc, never installed; the bundled Node /
-  engine / Chromium, the `studio` command on the PATH, signing, notarisation and the updater stay here.
+  engine / Chromium, the `retake` command on the PATH, signing, notarisation and the updater stay here.
 - **Scheduled (2026-10-29):** as lot L5.16, right after the rename (L5.13), so the app ships under its final name;
   ffmpeg is bundled too (an LGPL build of our own with VideoToolbox).
 
 ### BL-37 — Windows and Linux support
 *L · proposed in review · builds on: L4.1, L1.6*
 
-Officially support the engine plus `studio ui` in any browser on Linux, which already runs headless, and on Windows. A Windows shell can come later. This reverses a v1 non-goal in SPEC.
+Officially support the engine plus `retake ui` in any browser on Linux, which already runs headless, and on Windows. A Windows shell can come later. This reverses a v1 non-goal in SPEC.
 
 - **Value:** Customer-education and support teams often use Windows.
 - **Hard parts:** Shell hooks, keychain equivalents, path handling and file locking on Windows. Windows code signing (an OV certificate, plus SmartScreen reputation).
@@ -554,7 +556,7 @@ The same Studio web UI served from the cloud. It talks to the user's local engin
 
 Not folded into L3.7 (own use for now; a candidate for our own CI).
 
-A packaged GitHub Action wrapping `studio run/render/review`, with copy-ready recipes: regenerate videos on release, commit or upload the media, comment on the PR with the contact sheet and the render diff, refresh on a cron, fail the build when a flow breaks.
+A packaged GitHub Action wrapping `retake run/render/review`, with copy-ready recipes: regenerate videos on release, commit or upload the media, comment on the PR with the contact sheet and the render diff, refresh on a cron, fail the build when a flow breaks.
 
 - **Value:** The cheapest way to make 'videos regenerated on every release' visible; competitors use it as their main distribution channel.
 - **Hard parts:** Chromium, ffmpeg and fonts on hosted runners (the BL-05 image helps); keeping big media out of the repository.
@@ -673,7 +675,7 @@ L1.2 ships the choreography helpers in their minimal form. Left out:
 
 L1.6 runs every persona on a copy of its session and never writes anything back: a token the app refreshed during a
 run dies with the copy. An app that rotates its refresh token on every use (with reuse detection) may then revoke the
-saved one, and the persona has to sign in again (`studio login`) more often. Write the copy's cookies (and the
+saved one, and the persona has to sign in again (`retake login`) more often. Write the copy's cookies (and the
 profile's changed session files) back to the master after a successful run, under a lock, only when no other run of
 the persona started meanwhile.
 
@@ -684,8 +686,8 @@ the persona started meanwhile.
 ### BL-60 — Sessions of a workspace: path overrides and namespaces
 *S · deferred in L1.6 · builds on: L1.6*
 
-L1.6 derives every session path under the studio home (`~/.demo-studio/…/<project>/<env>/<persona>`;
-`DEMO_STUDIO_HOME` moves all of them). Not done: a per-persona override in a git-ignored `project.local.yaml` or a user
+L1.6 derives every session path under the Retake home (`~/.retake/…/<project>/<env>/<persona>`;
+`RETAKE_HOME` moves all of them). Not done: a per-persona override in a git-ignored `project.local.yaml` or a user
 config (the guard-rail allowed it), and a namespace per workspace — two workspaces with a project of the same slug
 share their sessions today.
 
@@ -701,7 +703,7 @@ L1.6 ships personas in their minimal form. Left out:
 - Filming a sign-in or a sign-out: a step allowed to land on a sign-in page (today the guard fails the run; `persona:
   none` pages are the way to film a sign-up).
 - sessionStorage and IndexedDB restored for `storage_state` personas (only cookies and localStorage today).
-- `studio new` flags for the non-interactive path (`--persona name=page,…`, `--login-url`); `auth status --check` in
+- `retake new` flags for the non-interactive path (`--persona name=page,…`, `--login-url`); `auth status --check` in
   parallel and a `--persona` filter; the personas of a run in `run.json` and a progress event for the preflight.
 
 - **Value:** Fewer workarounds for multi-account and sign-in demos; scripted onboarding.
@@ -737,7 +739,7 @@ hosts in the review.
 The L1.7 guard stops mutating HTTP requests from the run's browsers and hooks. Not covered (README limits): messages
 over a WebSocket or an EventSource (warned per host — an app that saves over a socket writes), WebTransport / WebRTC,
 unsafe GETs (a write sent as GET: a block list of patterns), a write to an unguarded host that redirects to a guarded
-one (only its first hop is seen and recorded `passed`), and `studio login --auto` / `studio auth status --check` on a
+one (only its first hop is seen and recorded `passed`), and `retake login --auto` / `retake auth status --check` on a
 read-only environment (outside any run: never guarded). Message rules for sockets (block / allow by frame pattern), a
 GET block list and following redirects to the end would close most of it.
 
@@ -749,7 +751,7 @@ GET block list and following redirects to the end would close most of it.
 
 L1.7 sets the product's browser clock once per run (`clock:`, running from capture time 0, or frozen) — `Date` and
 Intl's default date only, timers and animation frames stay real. Left out: per-scene time jumps (an interstitial "two
-days later" fast-forwards the clock), a `--clock` flag on `studio run`, the clock in a dedicated worker's first lines
+days later" fast-forwards the clock), a `--clock` flag on `retake run`, the clock in a dedicated worker's first lines
 (it arrives once the worker started: pausing it needs our own target auto-attach, which Playwright's resumes), in
 shared and service workers, a mode that also fakes timers for an app that derives what it shows from `performance`,
 and the server's clock (dates the server makes: created_at, emails, PDFs) — for a sandbox, BL-68.
@@ -761,7 +763,7 @@ and the server's clock (dates the server makes: created_at, emails, PDFs) — fo
 *S · cut in L1.7 · builds on: L1.7, L2.13*
 
 Cut to keep L1.7 an M: the raw export's manifest `run.environment` and per-clip display URLs (the package names URLs
-only in its step markers and click targets, as display URLs or paths since the L1.7 review), `studio doctor
+only in its step markers and click targets, as display URLs or paths since the L1.7 review), `retake doctor
 --project` lines per environment (production, access, display URLs, mock and allow counts), absolute-URL and query patterns in `allow` / `mocks`, mocks on read-write runs,
 GET mocking / response rewriting, HAR replay, and the Studio app's confirmation of a production write (R-ENV-04, with
 the phase 4 run screen).
@@ -790,7 +792,7 @@ A sandbox reset makes the seeded data equal between takes, not what the server w
 `created_at`, a mail's date, a PDF's "issued on" are the time of the take (the fixture is equal only because its demo
 clock restarts at each reset). `--sandbox` deliberately sets no browser clock (a pinned browser clock next to real
 server timestamps shows "created in 3 weeks"). Give the server the project's clock instead: pass `clock:` to the
-sandbox's services as an environment variable (`DEMO_STUDIO_CLOCK=2026-11-02T10:24:00`, frozen or running from the
+sandbox's services as an environment variable (`RETAKE_CLOCK=2026-11-02T10:24:00`, frozen or running from the
 reset) for apps that read one, or run them under libfaketime (process provider, or a compose `LD_PRELOAD`); then the
 browser clock can follow the same value.
 
@@ -806,7 +808,7 @@ Cut to keep L1.8 an L:
   ephemeral per-take sandboxes (a fresh copy per take, so takes run in parallel); `sandbox up --attach` (foreground,
   logs streamed, Ctrl-C stops it); restarting only the services whose definition changed (today a warning: down,
   then up); `reset.after` steps; `--json` on `up` / `reset` / `down`; `logs --follow` for the process provider; a
-  process variant of `studio sandbox init`; `studio new` offering a sandbox.
+  process variant of `retake sandbox init`; `retake new` offering a sandbox.
 - A snapshot taken after the accounts signed in (sessions kept across takes, no sign-in before each take); accounts
   that reuse another environment's persona definitions instead of repeating them in sandbox.yaml.
 - A per-mark frame comparison of two takes (`compare-takes <run> <run> [--mark m]`: text artefacts plus a frame diff
@@ -828,18 +830,18 @@ Cut to keep L1.8 an L:
 
 Cut to keep L3.2 an M:
 - A `still` tool and job kind (one frame of a render plan as an image): `review_get` key frames and `plan_preview`
-  cover it; the CLI keeps `studio still`. A `render_list` tool (renders newest first): `render_status latest` and
+  cover it; the CLI keeps `retake still`. A `render_list` tool (renders newest first): `render_status latest` and
   `run_list` cover it. A `render_cancel` alias of `job_cancel` (add it only if a live session shows the agent missing
   it). A render / export / preview cleanup tool (disk use; deleting stays a human's).
-- Component mp4 previews; pruning `.demo-studio/previews/` (it grows by one folder per preview); a theme's own media
+- Component mp4 previews; pruning `.retake/previews/` (it grows by one folder per preview); a theme's own media
   file (`components: {intro: {video: …}}`) shown in `template_preview` instead of the component's sample.
 - Image caps tuned from the live session (MACOS-CHECKLIST 12d): how Claude Code counts image blocks against
   `MAX_MCP_OUTPUT_TOKENS` decides the defaults (4 images, 1.5 MB of base64, 1280 px).
-- A concurrent `studio review` in a terminal and a `review` job of the same render race on `review/<id>/`: the last one
+- A concurrent `retake review` in a terminal and a `review` job of the same render race on `review/<id>/`: the last one
   to finish wins (each swap is atomic). A per-render lock would serialise them.
 - The network guard's residual: WebRTC (UDP) and DNS prefetch are not covered by CDP Fetch nor by the bundle's CSP
   (full isolation: an OS-level sandbox, BL-42). The guard applies to renders and previews of the jobs worker only:
-  `studio render` keeps the open network (remote images in slots are a CLI feature); a `--guard` option, or the guard
+  `retake render` keeps the open network (remote images in slots are a CLI feature); a `--guard` option, or the guard
   everywhere with a plan warning per remote image, would close it for human-installed components.
 - Queue lanes: one job at a time means a 4K export re-render (minutes) holds captures and previews; a lane per kind, or a
   second worker for renders, with the queue position of each lane in `*_status`.
@@ -848,7 +850,7 @@ Cut to keep L3.2 an M:
 - Remotion's bundle server bound to loopback: `@remotion/renderer` (4.0.534, `port-config` `getHostToBind`) listens on
   `::` / `0.0.0.0` with no option to change it, so during any render or preview (CLI or job) the bundle — the
   project's components and theme — and its `/proxy` route are reachable from the local network (a guarded render's
-  `onDownload` check refuses any other `src`, but `studio render` is not guarded: a host of the network can make it
+  `onDownload` check refuses any other `src`, but `retake render` is not guarded: a host of the network can make it
   download a URL of its choice). Fixing it needs a patch of the renderer (`pnpm patch`, to redo on every Remotion
   upgrade) or an upstream option; until then, a render on an untrusted network exposes them for its duration.
 
@@ -873,7 +875,7 @@ Cut to keep L3.3 an M (Claude writes the scenario; no tool calls a model):
   languages than English and French.
 - MCP sampling (the server asking the client's model to write steps): Claude Code does not offer it to servers, and
   it would hide the work from the user; the calling model writes the scenario.
-- A `studio draft` command over the script parser (a human with a table asks Claude), and the `url` of a host
+- A `retake draft` command over the script parser (a human with a table asks Claude), and the `url` of a host
   `allow_hosts` lists as an inspection source (no page key, so no persona and no sign-in guard).
 
 - **Value:** Faster authoring loops on long flows; better targets on apps with weak accessibility.
@@ -932,7 +934,7 @@ panel — the live draft, target alternatives to pick, quick inserts, Stop, Save
 - **From the reviews of L4.8, not done** (DoS only, or a sentence's worth): a held `record-<id>.lock` or a forged live
   `owner.pid` can keep a recording busy, unpruned or "recording in a terminal"; meta.json keeps the start path as typed
   (as the job input and record.json do: `maskPathSecrets` for all three); a Studio recording whose job was pruned is
-  read-only (its origin cannot be verified: an origin signed with the studio home's key would keep it the person's).
+  read-only (its origin cannot be verified: an origin signed with the Retake home's key would keep it the person's).
 - **Value:** Fewer round trips between the Record screen and the scenario screen; a draft whose check matches what is
   saved.
 - **Hard parts:** Thumbnails without slowing presses; an in-window control the page can neither see nor trigger.
@@ -943,7 +945,7 @@ panel — the live draft, target alternatives to pick, quick inserts, Stop, Save
 A recorded draft whose recorder-added `wait_for` / `scroll {to}` share the action's target object is written with a YAML
 anchor and alias (`target: &a1 {role: button, name: Request a quote}` … `click: *a1`) — valid YAML, unchanged since L3.4.
 A Studio recording's draft has none since the L4.8 reviews (`draftFromRecording(…, {aliases: false})`: the block editor
-deletes or duplicates the helper); the drafts of `studio record` and `scenario_record` keep L3.4's bytes (pinned by
+deletes or duplicates the helper); the drafts of `retake record` and `scenario_record` keep L3.4's bytes (pinned by
 golden drafts in core's test fixtures). People reading or editing those files by hand expect the target repeated: a hand
 edit of the anchored one changes all three steps. Write each target in full there too, with the goldens updated in one
 go.
@@ -963,7 +965,7 @@ draft from one public page; the model chooses the values):
 - Fonts: WOFF1 table decompression and WOFF2 `name` / `OS/2` parsing (magic and header only; the weight comes from the
   input or the file name); copying a site's font files, even with an approval, and font search or download from font
   services (only family names come from a site).
-- `studio theme list` (`studio list` already lists themes).
+- `retake theme list` (`retake list` already lists themes).
 - Several pages of a site, a mobile viewport, signed-in brand portals; bot-challenge pages are never bypassed.
 - Theme media files (intro / outro video, image, Lottie) in generated themes; editing an existing theme through MCP
   beyond `replace` of an unchanged tool-made one (L4.7: people edit existing themes in the Studio's theme editor; MCP
@@ -991,10 +993,10 @@ draft from one public page; the model chooses the values):
 ### BL-76 — Comment extras cut from L3.6
 *S–M · cut in L3.6 · builds on: L3.6, L4.6, BL-01, BL-02, BL-70*
 
-Cut to keep L3.6 an S (people comment frames with `studio comment add`; Claude lists, replies and resolves through
+Cut to keep L3.6 an S (people comment frames with `retake comment add`; Claude lists, replies and resolves through
 MCP):
 - Claude creating threads (`comment_create`, labelled agent) and a reopen tool for the agent: people create and reopen
-  (`studio comment` or, since L4.6, the Studio's Comments screen).
+  (`retake comment` or, since L4.6, the Studio's Comments screen).
 - `step_now` (where the commented step is in today's scenario): `step_id`, `step_fp` / `step_fp_n` and `step_ref` let
   Claude find it in the scenario it reads anyway. Mapping a thread onto the matching frame of a newer render, or across
   variants.
@@ -1002,12 +1004,12 @@ MCP):
   returned pattern-checked, `render_present` is a boolean instead of present / replaced / missing.
 - A second image per thread (a crop of the region) and committed stills (opt-in, never for production environments):
   one still, machine-local; stills for a thread made when ffmpeg failed, or regenerated lazily from the render.
-- The JSON Schema file of a thread and `studio schema comment` (the zod schema is the contract; L4.6 imports it);
+- The JSON Schema file of a thread and `retake schema comment` (the zod schema is the contract; L4.6 imports it);
   `--at 12.4s` / `0:12.4` forms (seconds, `--frame` and `--marker` only).
 - Overlay / pane hit-testing for `component` (the overlays on screen are listed instead); interstitial backdrops traced
   to their clip; several regions or drawings per comment; attachments.
 - Signed human entries and per-person identities (workspace members; BL-01 / BL-02): a signature would not stop
-  Claude Code's own shell (`studio comment add`) anyway — the server's instructions narrow what a comment may ask for
+  Claude Code's own shell (`retake comment add`) anyway — the server's instructions narrow what a comment may ask for
   instead. A merge helper for a thread appended on both sides of a git branch (union of entries by id); editing or
   deleting an entry; notifications or a watch (polling `comments_list` is the loop).
 - Entry-stable ids for cards and interstitials without an `id:` (positional `interstitial-4`, like step indexes).
@@ -1018,7 +1020,7 @@ MCP):
   writers within milliseconds can both pass the check and the last rename wins. Comments take a per-thread lock
   (sandbox `TakeLock`); the same lock around those two writes would close it.
 - Limits documented after the L3.6 review: a listing reads and parses every thread file (≤ 2000; about 23 s for 2000
-  threads) — an index or a cheap stat-based skip of unchanged files; `studio comment add | reopen` run through Claude
+  threads) — an index or a cheap stat-based skip of unchanged files; `retake comment add | reopen` run through Claude
   Code's Bash tool write as `cli` (the instructions forbid it, nothing enforces it — see signed entries above); a
   thread holds at most 500 entries and 2 MB (a new thread past it), and the MCP tools carry its last 10 entries and
   60,000 characters of thread text per listing (no paging: narrow by scenario or render); `step_playing` — inside a
@@ -1038,7 +1040,7 @@ Cut to keep L3.7 an S (three skills in `skills/`, the plugin with the MCP server
   direct `remotion` import of a name the kit re-exports, in workspace components.
 - More reference files: recording and scripts, brand inputs and the component.yaml keys were folded into the
   SKILL.md files and `reference/kit.md` (two references instead of five).
-- `studio skills install | print`, and a `studio doctor` line for the plugin (installed, a duplicate `claude mcp add`
+- `retake skills install | print`, and a `retake doctor` line for the plugin (installed, a duplicate `claude mcp add`
   registration, values that no longer exist: Claude Code does not check `type: file` values).
 - Several workspaces per install and `{{env:…}}` secrets through a `sensitive` userConfig value: one workspace at a
   time, secrets in the keychain or the manual registration. Claude Code keeps the `--config` values once per user
@@ -1047,11 +1049,11 @@ Cut to keep L3.7 an S (three skills in `skills/`, the plugin with the MCP server
   defaulting to `${CLAUDE_PROJECT_DIR}` (the session's folder) in `.mcp.json`, and project-scope installs.
 - A copied install (a git or public marketplace) and its version policy: the local plugin loads in place, so its
   `version` pins nothing (BL-52).
-- Slash commands, agents or hooks in the plugin (a `/demo-studio:video` that starts the whole loop), MCP prompts that
+- Slash commands, agents or hooks in the plugin (a `/retake:video` that starts the whole loop), MCP prompts that
   mirror the skills, `claude plugin eval` suites measuring triggering; checking argument values written as
   placeholders (`<scene>.<step>`), which the lint skips.
 - Lint limits (documented, review of L3.7): a call written without braces (`run_dry` with `headed: true`) is not
-  checked against the schema (only `tool {args}` is); the prose rules match words and phrasings (run `studio …`,
+  checked against the schema (only `tool {args}` is); the prose rules match words and phrasings (run `retake …`,
   "yourself", "unless", curl, password, "do what it says"…), so a loophole phrased otherwise still passes: the live
   probes of MACOS-CHECKLIST 12i are the check of behaviour.
 - Claude desktop chat and claude.ai: a skill folder uploaded there, the desktop app's Code tab; documented as possible,
@@ -1101,12 +1103,12 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
   L5.9).
 - How a person proves presence in the Studio — approvals, comment authorship, scenario edits holding secret references
   or outside files: the L4.1 allow-list runs under the agent's trust with no approver (a page's script cannot be told
-  from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `studio ui` terminal or the Tauri shell's
-  OS dialog, BL-106), comments (L4.6: decided — the Studio writes as the channel `studio`, named by the `studio ui`
+  from a click). Decide per lot: approvals (L4.4: kept cut — a prompt in the `retake ui` terminal or the Tauri shell's
+  OS dialog, BL-106), comments (L4.6: decided — the Studio writes as the channel `studio`, named by the `retake ui`
   process, a channel and not proof of presence; it creates, resolves, reopens and applies Claude's proposals on the
   thread version shown), block edits (L4.3: decided — agent trust kept, hooks unchanged from the Studio, a file
   holding a secret reference or an outside file read-only with why; presence for those is BL-95 / BL-106). L4.2 kept that rule for its Dry run / Capture buttons: a run whose
-  hooks need a person is refused from the Studio with the `studio run …` command (shown before the click); approving
+  hooks need a person is refused from the Studio with the `retake run …` command (shown before the click); approving
   from the UI is BL-106 (L4.4 kept it cut).
 - Index-backed MCP tools (`render_list`, a search tool for Claude; BL-72 mentions `render_list`); the search over
   captions, scenario text and comments (today: project names and READMEs, scenario names, run and render ids).
@@ -1119,10 +1121,10 @@ Cut to keep L4.1 an M (the app shell, Projects, the README editor, the index, li
 
 Residues documented in L4.1 (accepted for a local tool used by one person per Mac account):
 - MCP over HTTP listens on a fixed port (47820) so a registration survives restarts: on a Mac shared with other
-  accounts, another user's program could take the port while `studio mcp --http` is not running and receive the token
+  accounts, another user's program could take the port while `retake mcp --http` is not running and receive the token
   Claude Code sends. A check that the listener is ours (a challenge signed with the token) or a per-user socket would
   close it.
-- `.demo-studio/index.sqlite` (and its -wal / -shm) take the umask's mode (0644 by default): other local accounts can
+- `.retake/index.sqlite` (and its -wal / -shm) take the umask's mode (0644 by default): other local accounts can
   read the project names and README text in it, as they can read the READMEs themselves.
 - ~~`LocalStorage.readText` (README, scenarios) follows links inside the project and refuses those leading out, but it
   has no size cap and would block on a FIFO named README.md or a scenario file~~ — closed in L4.2 (core
@@ -1145,7 +1147,7 @@ the lot's own cuts:
   (`#/p/<slug>/s/<name>/<scene>.<i>`).
 - Per-step mixing of runs (a step's picture from an older run that reached it when the source run did not): one source
   run per screen keeps a picture's provenance one fact.
-- A disk cache of thumbnails (`<project>/.demo-studio/thumbs/`, link-safe writes and pruning) if a measurement ever
+- A disk cache of thumbnails (`<project>/.retake/thumbs/`, link-safe writes and pruning) if a measurement ever
   asks for it — today memory only (≤ 32 MiB in the server, ≤ 600 pictures in the tab).
 - Virtualised step lists (today a file of more than 2,000 steps shows its first 2,000 and says so, review A #8; 1,200
   measured: pictures in ≈ 0.3 s); the text layer of a 2 MiB scenario still takes seconds to build once a minute (the
@@ -1160,7 +1162,7 @@ the lot's own cuts:
   requests: a blob URL against a capability URL — decided there)~~ — built in L4.5: "Show in timeline" on a step bound
   to a capture, the capture served under the player origin's capability URL with Range.
 - Approving hooks from the Studio (a capture whose hooks need a person: today the button says "needs the terminal" and
-  shows the `studio run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
+  shows the `retake run …` command); the sandbox reset, `until` and hooks of a dry run from the Studio (pinned out by
   `scenario_run`, critique B11) — L4.4 kept both out: approvals BL-106, the dry run's options BL-105.
 - Per-step source slices in the payload (the page slices the text by offsets); a live region announcing the selected
   step (the option's accessible name carries it; screen readers are checked by hand: MACOS-CHECKLIST 13j, BL-122).
@@ -1169,8 +1171,8 @@ Residues documented in L4.2:
 - One worker serves the workspace in the environment of the client that started it. Since the review fixes every
   client but the CLI gives it the same cleaned environment (engine `cleanWorkerEnv`): what still differs between an
   MCP-started and a Studio-started worker is only the starter's own variables that pass the cleaner (sign-in secrets,
-  HOME, locale). A worker started by `studio worker` in a terminal keeps that terminal's environment and serves the
-  clients' jobs too. `started_by` says which (sidebar, `studio jobs`, `studio doctor`); a worker per client
+  HOME, locale). A worker started by `retake worker` in a terminal keeps that terminal's environment and serves the
+  clients' jobs too. `started_by` says which (sidebar, `retake jobs`, `retake doctor`); a worker per client
   environment would need a queue split.
 - The worker-env cleaner is a deny-list (sign-in secrets are any name a project chose, so no allow-list): a credential
   under a name it does not know reaches the worker. A per-project allow-list of the `{{env:…}}` names project.yaml uses
@@ -1224,7 +1226,7 @@ expansion.
 ### BL-84 — Storyboard before a take
 *S–M · field feedback 1 (chantier H)*
 
-`scenario_outline` / `studio outline`: chapters, scenes with page and persona, cards, mails, documents,
+`scenario_outline` / `retake outline`: chapters, scenes with page and persona, cards, mails, documents,
 notifications and estimated durations, read in ten seconds before paying for a take (it would have caught a document
 shown before its mail).
 
@@ -1337,7 +1339,7 @@ the inspector's form and a palette of 15 actions):
 Residues documented in L4.3:
 - MCP `scenario_save` can plant a hook agent trust does not refuse: a `shell:` hook that copies a private file into
   the project (`cat ~/.ssh/… > assets/…`), a `python3 -c …` or an inline `js:` hook get no error and no trust problem
-  (only a destructive command, which needs `confirm: true`, and a URL host are caught); the person's `studio run` then
+  (only a destructive command, which needs `confirm: true`, and a URL host are caught); the person's `retake run` then
   runs it without a prompt (author trust: only destructive hooks ask), and the Studio's own Capture refuses it (needs a
   person). The Studio cannot write one (hooks unchanged). Closing it: an approval at run time for hooks an agent wrote
   or changed (BL-106), e.g. a hooks digest signed by the person.
@@ -1396,9 +1398,9 @@ analyse its clicks (`on:` steps), then cut its waits only where no other page of
 ### BL-100 — Pruning beyond runs, renders and reviews
 *S · L5.7 follow-up (R-FLD-28)*
 
-`studio prune` / `project_prune` leave `exports/` (raw packages, exported formats), inspections and recordings
-(`.demo-studio/…`) and the job history alone. A size budget per project (`prune: {keep_renders, max_gb}` in
-project.yaml, applied after each render) and a workspace-wide `studio prune --all` would keep a busy week under control
+`retake prune` / `project_prune` leave `exports/` (raw packages, exported formats), inspections and recordings
+(`.retake/…`) and the job history alone. A size budget per project (`prune: {keep_renders, max_gb}` in
+project.yaml, applied after each render) and a workspace-wide `retake prune --all` would keep a busy week under control
 without thinking about it.
 
 ### BL-101 — Scene options and named hooks from the Studio
@@ -1441,7 +1443,7 @@ panel and the capture's session confirmation):
 - The live preview's input channel (BL-25 recording through the preview, BL-73 held inspections): the wire format
   leaves room (`kind` / `v`), nothing built.
 - A live picture of every page of a multi-page scene side by side (today it follows the acting page); live pictures
-  for `record` / `inspect` jobs and for a `studio run` in a terminal (no worker: steps and log only).
+  for `record` / `inspect` jobs and for a `retake run` in a terminal (no worker: steps and log only).
 - A cheaper picture during a capture — a narrower `maxWidth`, fewer frames a second: measured at ≈ +15 % Chromium CPU
   on a take (DESIGN §4f), which is why it is off by default there.
 - An MCP `run_pause` tool (Claude sees `paused` in run_status and can stop a run, not pause one).
@@ -1464,11 +1466,11 @@ panel and the capture's session confirmation):
 
 The Studio's page runs under an agent's trust with no approver: a page script cannot be told from a click, so what
 needs a person stays in the terminal — a capture whose hooks need approval (the button says "needs the terminal" with
-the `studio run …` command), hook edits and files holding a secret reference or an outside file (read-only with why,
+the `retake run …` command), hook edits and files holding a secret reference or an outside file (read-only with why,
 BL-95), and an approval at run time for hooks an agent wrote or changed (the L4.3 residue). A presence primitive the
-page cannot forge would open them: a prompt in the `studio ui` terminal, or the Tauri shell's OS dialog (L5.2).
+page cannot forge would open them: a prompt in the `retake ui` terminal, or the Tauri shell's OS dialog (L5.2).
 **Amended in L5.2 (the shell exists; nothing of this is built):** the primitive's shape — the server asks through the
-supervised pipe (`{"type":"confirm","id","text","buttons"}` on the stdout of `studio ui --supervised`; `buttons` the
+supervised pipe (`{"type":"confirm","id","text","buttons"}` on the stdout of `retake ui --supervised`; `buttons` the
 labels, the first the default, the last the cancel), the shell shows a native sheet / NSAlert (the text as plain text,
 those labels as the app's own buttons), the answer goes back on the child's stdin (`{"type":"confirmed","id","button"}`,
 the index pressed; the same shape as DESIGN §4j); the page can neither raise one nor answer it (it has no IPC and no access to the
@@ -1484,7 +1486,7 @@ it can check (a `check`, or never signed in); one without a `check` is used as s
 the sign-in page, after its setup hooks (the confirmation says so).
 L4.6: a Studio thread's channel `studio` is not presence either — any program of this user that reads the Studio's
 token file writes the same entries (Claude Code's shell included; its rule against that is an instruction, not a
-barrier), as that shell can write `cli` entries with `studio comment`; Apply of a proposal from the Studio runs the
+barrier), as that shell can write `cli` entries with `retake comment`; Apply of a proposal from the Studio runs the
 Studio's agent-trust write rules, never more.
 
 ### BL-107 — Timeline editing extras cut from L4.5
@@ -1578,7 +1580,7 @@ applied and re-rendered from the Studio):
 - Playing a render in the Comments viewer (BL-109's media mode) and a segment / step strip under its slider;
   commenting the timeline's preview of a version not yet rendered (a comment needs a render's frame).
 - A three-way merge of a stale proposal (today: "ask Claude to propose again"); a person editing a proposal before
-  applying it, or proposing to Claude; `studio comment apply` and a proposal view in the CLI; Undo apply after a reload
+  applying it, or proposing to Claude; `retake comment apply` and a proposal view in the CLI; Undo apply after a reload
   (the last apply lives in the tab; the YAML tab's history does not hold it either).
 - Thread paging past the newest 100 entries in the Studio; comments in the index and its search; notifications when
   Claude answers (live only while a page is open); editing or deleting entries, several regions, attachments (BL-76).
@@ -1612,7 +1614,7 @@ editor with a live preview, undo / redo and *Use in this scenario*):
   validation (the scenario YAML tab's twin).
 - **Rename / delete** a theme; a theme diff; light + dark pairs; **Copy to edit** of a project's own folder theme
   (theme_copy takes a listed name: today a hand copy).
-- **Site approval from the Studio**: the site panel shows the `studio theme from-site <url>` command to copy; approving
+- **Site approval from the Studio**: the site panel shows the `retake theme from-site <url>` command to copy; approving
   a URL in the page needs the person's presence (BL-106); a screenshot of the extraction in the panel (`site_image`).
 - **Newest-wins job merging**: a queued library job cancelled and merged with a newer request (racy with the worker's
   claim); today each request is a job of ≤ 12 components, ids already queued are skipped and the worker skips cached
@@ -1665,8 +1667,8 @@ take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurren
 
 Replace the file queue's state (`packages/engine/src/jobs/`, ≈ 5,800 lines with the job kinds; `FileJobQueue` used by
 `engine.ts`, `renders.ts`, `reviews.ts`, `record.ts`, the index's `jobs-watch.ts` and the Studio server's live
-routes; 21 test files) with pg-boss on a Postgres the studio ships and runs itself. **Why:** a standard queue instead of
-a format of our own (pg-boss is the most used Node queue, MIT; a queue viewer that reads pg-boss reads Demo Studio
+routes; 21 test files) with pg-boss on a Postgres Retake ships and runs itself. **Why:** a standard queue instead of
+a format of our own (pg-boss is the most used Node queue, MIT; a queue viewer that reads pg-boss reads Retake
 with nothing specific to it, and `@pg-boss/dashboard` exists meanwhile), with what BL-116 needs built in, and **nothing
 to install apart**: the Postgres binaries come with `pnpm install` (`embedded-postgres`, per-platform packages for
 macOS, Linux and Windows), as Chromium and Remotion's compositor already do — and later inside the macOS app (L5.2,
@@ -1682,9 +1684,9 @@ Keeping the file queue stays the fallback: self-contained already, BL-116 is a s
 
 **Postgres on the machine** (one for every workspace, so captures-first holds machine-wide):
 - `embedded-postgres` (MIT, ≈ 1 M downloads a week; the macOS arm64 package is ≈ 148 MB unpacked; its version carries
-  a "beta" suffix — pin it and check its update cadence). Its data in `~/.demo-studio/postgres/` (0700), initialised
-  on first use; started on demand by the studio as the worker is today, left running, stopped by `studio` on request;
-  `studio doctor` checks it.
+  a "beta" suffix — pin it and check its update cadence). Its data in `~/.retake/postgres/` (0700), initialised
+  on first use; started on demand by the studio as the worker is today, left running, stopped by `retake` on request;
+  `retake doctor` checks it.
 - Listening on 127.0.0.1 on a port of its own, password authentication, a random password in a discovery file (0600)
   — no `trust`: the capture browser's pages can reach loopback ports (the Postgres protocol is not HTTP, still to test
   with a hostile page). A viewer connects with host, port, user and password.
@@ -1716,7 +1718,7 @@ Keeping the file queue stays the fallback: self-contained already, BL-116 is a s
   at submit (`runs/<id>/run.json`), `history.jsonl` and the index. Job data holds no secret already (inputs carry
   `{{env:}}` / `{{keychain:}}` refs, resolved by the worker) and its approvals stay signed (signing.ts).
 - Retention: pg-boss's retention settings for finished jobs; the history stays in history.jsonl.
-- **CLI commands** (`studio run`, `render`, `export`) run outside the queue today: they enqueue and follow (one path,
+- **CLI commands** (`retake run`, `render`, `export`) run outside the queue today: they enqueue and follow (one path,
   captures-first everywhere), or take the singleton slot themselves — to decide.
 - **A queue viewer** acts with pg-boss's own operations (cancel, resume, retry, delete): a retried capture re-runs a
   take — refuse a retry on capture jobs (job data flag the worker checks) or lock that connection in the viewer.
@@ -1741,7 +1743,7 @@ no stall. The M4 copes on the fixture; a heavier product, a longer take or a sma
 
 Today: the Studio and MCP submit jobs to one worker per workspace that runs one job at a time, oldest first, so a
 render queued before a capture delays the capture, and a capture never overlaps a queued render — but CLI commands
-(`studio run`, `studio render`, `export`) run outside the queue and can overlap anything, as can a second workspace's
+(`retake run`, `retake render`, `export`) run outside the queue and can overlap anything, as can a second workspace's
 worker.
 
 - **Job classes** (over `JOB_KINDS`): `capture` — `run`, `record`, `auth_login`, `inspect`, and what prepares a take
@@ -1751,7 +1753,7 @@ worker.
 - **A capture asked while a heavy job runs**: pause the heavy job's process group (SIGSTOP; SIGCONT when the take
   ends — zero CPU meanwhile, no work lost, Remotion's own timeouts to check against a long pause) rather than make the
   take wait or cancel the render. Windows has no SIGSTOP: wait there.
-- **A machine-wide marker** (`~/.demo-studio`, pid + start time, stale when the process is gone) set by every capture —
+- **A machine-wide marker** (`~/.retake`, pid + start time, stale when the process is gone) set by every capture —
   queued or CLI, any workspace — and honoured by every heavy job, CLI renders included (they pause, or wait to start
   with a message).
 - **Light work during a take** (listing, planning, the live preview's own cost — L4.4 measured +15.6 % Chromium CPU for
@@ -1906,12 +1908,12 @@ and `job_end` lines); what remains:
   marks (component-local text: a step form, a comment — the drafts' only today; Playwright dismisses such a prompt and
   e2e tests that navigate with a typed comment would hang), and a Reload item now guardable through the same question.
 - A Dock badge / progress, recent workspaces and one window per workspace, a menu-bar item, launch at login,
-  `demo-studio://` deep links (`tauri-plugin-deep-link` is in the cargo cache), App Nap measurements and an
+  `retake://` deep links (`tauri-plugin-deep-link` is in the cargo cache), App Nap measurements and an
   NSProcessInfo activity while jobs run.
 - **Native pickers for the Studio's own path fields** (brand files, a scenario file): a narrow page→shell command, with
   BL-106's presence primitive.
 - **Watching an attached server** (critique M2): when another process already serves the workspace, the app attaches
-  and nothing watches that server; if it stops, the window shows "run studio ui again" — File › Open Workspace… (the
+  and nothing watches that server; if it stops, the window shows "run retake ui again" — File › Open Workspace… (the
   same folder) starts a server the app owns; a navigation (a reload) after it stopped is refused and offers Restart
   (L5.2 review A L3). A watcher (pid + port) that restarts it at once, and the page's wording inside the app.
 - A per-workspace environment file for Finder launches (`{{env:}}` references resolve from launchd's environment,
@@ -2111,6 +2113,28 @@ and `job_end` lines); what remains:
 - The className lint reads a template's literal parts only: a variable part (`k-btn-${variant}`) passes on its prefix,
   and a class built in another file is not followed (review B-L2); a runtime check of the classes in the DOM (the
   review's probe) would close it.
+<!-- old-name:begin — BL-136 names the old names it would drop -->
+### BL-136 — Rename extras cut from L5.13a (and the old names to drop later)
+*S–M · cut in L5.13a · builds on: L5.13a · see BL-124*
+
+- **Drop the old outgoing variables**: hook and seed shells and sandbox process services still get `DEMO_STUDIO_SANDBOX`,
+  `_RUN_ID`, `_ENV`, `_PROJECT_DIR` and `_ALLOWED_HOSTS` next to the `RETAKE_*` ones (core `legacy.ts`
+  `withOldOutgoingEnv`, critique H2) — once no product script reads them.
+- **Delete `scripts/rename-l513.mjs`** (and its guard entry) once no branch from before L5.13 is left.
+- The other old names `legacy.ts` keeps (the old home, workspace file, tool folder and variables detected for
+  `retake doctor` and the notices; the agent-writable `.demo-studio/`, the dropped `DEMO_STUDIO_MCP_TOKEN`; the theme
+  provenance and raw-package markers, the session snapshot's `demo_studio` key; run.json's old `perf.cpu.studio` read
+  by the perf line) — once no installation from before L5.13 is left (the safety ones last).
+- A `retake migrate` that moves the home, the workspace file and the tool folders after asking (today: told, never
+  moved); a note of the old home in the desktop app's own window before the Studio loads (today: the Studio's sidebar,
+  the CLI's stderr, doctor, engine_info).
+- The `ds` abbreviations (`__ds_snapshot` is a database name in the person's sandboxes, `ds-asset`…).
+- The built-in `studio/` component namespace → `retake/`, with a migration of every theme and scenario that names it
+  (if ever wanted); the `studio` comment channel and the `studio:*` page events likewise.
+- One `TOOL_DIR` constant for the ~45 `.retake` path literals.
+- The mark's extras are L5.13b's (macOS 26 icon appearances, a favicon following the appearance in Safari).
+<!-- old-name:end -->
+
 
 ## Guard-rails for planned lots (no new scope)
 
@@ -2118,26 +2142,26 @@ Cheap rules to apply when these lots start, so the backlog above is not blocked 
 
 - **L1.2** — Close R-RUN-17: redact `{{env:…}}` and keychain values from timeline, log.jsonl and run.json. Today values in open URLs are written in clear. *Why:* Runs will later be shared through review links, the library, CI artefacts and sync, and any secret left in a run file leaks.
 - **L1.3** — Treat L1.3 as a decision gate and write the result down: either CPU-only capture reaches 24 fps or more with time dilation, or it doesn't and the limit is documented. *Why:* That result decides whether CI runners, self-hosted runners and hosted capture (BL-05, BL-08) are viable, and whether 4K can be sold.
-- **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, studio.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable. *Applied in L1.4:* `version` optional in those five files (absent = 1; a newer one is one positioned error), written by `studio new` and the runner, carried by the starter templates and the fixture; run.json `engine` = Demo Studio, Node.js and Chromium versions, OS and the installed fonts (count + digest of their names); a migration command is BL-70.
-- **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.demo-studio) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.demo-studio/...` in project.yaml, so a path specific to one user would sync and break on every other machine. *Applied in L1.6:* personas by name, paths derived under `~/.demo-studio` (`DEMO_STUDIO_HOME`), snapshots stamped with the machine; the `project.local.yaml` override is BL-60.
-- **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `studio login --auto`).
+- **L1.4** — Finish R-PRIN-13: add a `version` field to scenario, project.yaml, template.yaml, retake.yaml and run.json. Also record the engine version, Chromium version, OS and installed font set in run.json. *Why:* Files will meet clients of different versions through sync, CI and a hosted UI, and differences between local and CI captures must be explainable. *Applied in L1.4:* `version` optional in those five files (absent = 1; a newer one is one positioned error), written by `retake new` and the runner, carried by the starter templates and the fixture; run.json `engine` = Retake, Node.js and Chromium versions, OS and the installed fonts (count + digest of their names); a migration command is BL-70.
+- **L1.6** — Reference personas by name. Resolve profile and storage-state paths from user config (~/.retake) or a git-ignored project.local.yaml, never from project.yaml. Mark storage states as tied to one machine. *Why:* SPEC §4 currently puts `auth.profile: ~/.retake/...` in project.yaml, so a path specific to one user would sync and break on every other machine. *Applied in L1.6:* personas by name, paths derived under `~/.retake` (`RETAKE_HOME`), snapshots stamped with the machine; the `project.local.yaml` override is BL-60.
+- **L1.6** — Make automated login (R-AUTH-05) work headless, with credentials from secret refs (env or keychain) and no copied profile. *Why:* A CI or self-hosted runner has no signed-in profile, so login is the first thing BL-05 needs. *Applied in L1.6:* `login:` steps run headless with no profile at all (in a run's preflight, or `retake login --auto`).
 - **L1.7** — Read-only interception must let the off-camera session check and the automated login through (their tabs, `POST /sign-in`). *Why:* L1.6 checks every persona before a run and may sign it in, before any recording; blocking those requests would fail every signed-in run. *Applied in L1.7:* the automated sign-in tab is exempt while it is on its persona's sign-in page (its writes there are recorded `exempt`, `via: sign-in`; what the page it lands on sends is guarded); the session check only reads, so it is guarded like the capture pages and passes; the product clock is installed after both (they run on the real time). Token refreshes from capture pages go in `read_only.allow`.
 - **L1.8** — Keep host paths out of the sandbox manifest, so the same file runs on a laptop, a VPS or in CI. *Why:* A cloud or CI sandbox (BL-05, BL-08) can then reuse the manifest unchanged.
 - **L3.1** — Engine API security contract: bind to 127.0.0.1, require a per-session token, check Host and Origin against DNS rebinding, allow exact origins only in CORS (never `*`). Keep the asset server's `*` only together with tokenised paths. *Why:* The API runs shell and SQL hooks, so any web page, or a component inside the Player, could otherwise drive it. This becomes critical with marketplace components or a hosted UI. *Moved to L4.1* (L3.1 has no HTTP API: the MCP server is stdio only). *Applied in L4.1:* the engine's gate (DESIGN §4c) — 127.0.0.1 only, Host (421), Origin and Sec-Fetch-Site (403), no CORS at all (no `Access-Control-*` header, a preflight always fails), a bearer token per Studio launch (a one-time bootstrap code in the link, never the token in a URL), a stable token for MCP over HTTP; the asset server is L4.2's.
-- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.demo-studio/ui.json` (0600, claimed exclusively). *L5.2:* the Tauri shell does not read it — it runs `studio ui --supervised`, whose reuse of ui.json gives it a one-time URL (and the player origin) without the token.
-- **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.demo-studio/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
+- **L3.1** — Version the API (`/v1`) and add a capabilities endpoint that returns the engine version and features. Use one discovery file (port, token, pid) shared by the CLI, MCP and the Tauri shell. *Why:* A UI and an engine that ship separately (hosted UI, relay, desktop shell) must negotiate what each supports. *Partly applied in L3.1:* the engine has an API version and a features list (`engine_info`); `/v1`, the capabilities endpoint and the discovery file come with the HTTP API in L4.1. *Applied in L4.1:* `/v1` with `GET /v1/info` (engine info, `http_api: 1`, the allowed ops) and `<workspace>/.retake/ui.json` (0600, claimed exclusively). *L5.2:* the Tauri shell does not read it — it runs `retake ui --supervised`, whose reuse of ui.json gives it a one-time URL (and the player origin) without the token.
+- **L3.1** — Make job payloads serialisable (kind, project ref, relative paths plus hashes, options) and use a worker interface that pulls jobs. Run the worker in a separate process, at least in tests. *Why:* This makes ADR-1's 'remote worker later' real rather than a paper interface, and a pulling worker works behind NAT (BL-05, BL-06). *Applied in L3.1:* core `JobInputSchema` (v1: slugs, scenario names + the sha256 of their bytes, reserved run ids, approvals as fingerprints; never a path, session or secret), a file queue under `<workspace>/.retake/jobs/`, one worker per workspace in its own process (`worker.lock`) that claims jobs; tested in a separate process.
 - **L3.1** — Run, render and export records store storage refs plus sha256, never absolute paths. *Why:* The remote library and cloud storage (BL-04) then plug into the existing storage abstraction. *Partly applied in L3.1:* the engine's `LocalStorage` gives refs + sha256 at its boundary (MCP results); run.json / render.json still hold absolute paths (a format change: L3.6 / BL-70). *L3.6:* comment threads hold ids only (render id, run id; paths rebuilt from ids, never read from a file); render and run records unchanged (BL-70).
 - **L3.1** — Writes from the UI and MCP carry `if-match: <hash>`. All file writes are atomic (temp file then rename). The engine watches the workspace for outside edits. *Why:* Under ADR-2, Claude, the UI and the engine already write the same files, and sync would add another writer. *Applied in L3.1:* `if_match` (sha256 of the bytes written) on `scenario_save` and `project_update_readme`, atomic writes, a must-not-exist create; watching the workspace moves to L4.1. *Applied in L4.1:* a bounded stat poll of the workspace while a Studio tab is open (no recursive fs.watch), told to the page as events; the README editor saves with `if_match` and shows a conflict.
 - **L3.1 / L3.6** — Use globally unique IDs (ULID, or UTC plus random) for runs, renders and comment threads; `-vN` becomes a display label only. *Why:* `newRunId` (core/src/util.ts:14) and `nextVersion` (editor/src/render/runs.ts:92) collide across machines, and comments anchor on render_id. *Partly applied in L3.1:* job ids are ULID-style (`j_` + 26 Crockford base32); run ids keep their readable format (L3.6 / BL-70). *Applied in L3.6:* comment threads are `c_` + a ULID and their entries `r_` + a ULID; render ids stay `<scenario>-v<N>` with the render's `created_at` stored beside them in a thread (BL-76, BL-70).
-- **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.demo-studio/history.jsonl` — one line per finished job and per CLI run / render / still (and per `studio export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
+- **L3.1** — Parked (commercialisation). Add one entitlements function that returns 'all features' for now, and keep a count of renders (videos and stills) in the job history. *Why:* R-V2-01 notes that no licence hook point exists. A render count enables Remotion usage reporting, or the monthly report required when telemetry is blocked. *Applied in L3.1:* engine `entitlements()` (internal, all features, no limit; in `engine_info`) and `<workspace>/.retake/history.jsonl` — one line per finished job and per CLI run / render / still (and per `retake export` that re-rendered formats, counted per format), with captures, dry runs and renders counted (`engine.usage()`); component previews (a development tool) are not counted.
 - **L3.1** — Amend ADR-1 when L3.1 starts: split 'engine runs locally' from 'UI delivery'; define the job input contract (files, sessions, secrets, network reach); replace 'data never leave the machine' with a data-flow table. *Why:* It keeps the UI delivery decision open and makes the privacy claim accurate before it is used in sales material. *Applied in L3.1:* the ADR-1 amendment in docs/ARCHITECTURE.md.
 - **L3.6** — Done 2026-10-12 (DESIGN-phase2 §4, R-CMT-02). Fix DESIGN-phase2 §4 and R-CMT-02 to one file per thread (R-ARC-04). Make replies append-only (one file each, or entries with their own ids). Anchor comments on step `id` or a fingerprint, not only the step index. *Why:* This avoids sync conflicts on threads, and drag-and-drop in L4.3 reorders steps, which breaks anchors based on the index. *Applied in L3.6:* threads `c_<ULID>` with append-only `r_<ULID>` entries, the anchor with `step_id`, a step fingerprint and its occurrence (DESIGN-phase2 §4).
 - **L3.2 / L4.5** — Render and preview Chromium with the network blocked except the asset server. Run the Player in a cross-origin sandboxed iframe with no engine token and a strict CSP. Add `engines` / kit-API version to the component manifest. *Why:* Even a workspace component written by Claude can get past the regex scan in compile.ts. These are the foundations of BL-15, BL-16 and BL-42. *Partly applied in L3.2:* renders and previews of the jobs worker run with a network guard (CDP Fetch on the browser: asset and bundle servers only, Remotion's `/proxy` and Node-side media downloads checked; a CSP meta without WebSocket in every bundle); WebRTC / DNS prefetch and CLI renders are BL-72; the Player iframe and `engines` stay L4.5. *`engines` applied in L4.5 part A:* manifest `engines: {kit: "^1"}` (absent = kit API 1); a component written for another kit API is not loaded (registry notice), its uses fall back. *Applied in L4.5:* the Studio's preview runs the Remotion Player in a cross-origin `sandbox="allow-scripts"` iframe on a second loopback origin, every file of it (frame, bundle, plan, media) under one session capability, no engine token in the frame, a strict CSP with `sandbox` (`connect-src` / `media-src` / `font-src` that origin only, no `unsafe-eval`), WebRTC removed, one MessageChannel to the page with a strict schema and a flood budget, the bundle's imports on an allow-list of real paths (DESIGN §4g); each rule mutation-checked. Residues: BL-110.
-- **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `demo-studio-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
-- **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `studio doctor` warns when a workspace's `.demo-studio/` is not git-ignored.
+- **L3.7** — Component scaffolds and the component skill import renderer primitives through the kit module, not directly from `remotion`, wherever that is feasible. The aim is keeping the renderer replaceable, not hiding Remotion: attribution and licence terms still apply. *Why:* R-V2-08 and BL-24: a change of renderer then touches one module instead of every user component. *Applied in L3.7:* the kit re-exports `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence` and `random` (`kit/renderer.ts`) and the eight scaffolds import nothing from `remotion`; `remotion` stays allowed by the compile check for what the kit does not re-export, and the `retake-component` skill tells Claude the same. The built-in library keeps its direct imports for now (BL-77).
+- **L3.1** — Keep a single list of authored, generated and machine-bound files, and use it for the `.gitignore` written by createProject. It will double as the future sync-ignore list. *Why:* Sync (BL-02) and the library (BL-04) need exactly this list, and it must never include profiles, journals or secrets. *Applied in L3.1:* core `WORKSPACE_FILES` (authored / generated / machine, for a workspace and a project); `PROJECT_GITIGNORE` (same list as before) and `WORKSPACE_GITIGNORE` derive from it; `retake doctor` warns when a workspace's `.retake/` is not git-ignored.
 - **L4.4** — Design the live preview stream with an input channel, even if it is unused at first. *Why:* Recording and driving a remote or headless browser from the UI (BL-25, BL-38) can then reuse it. *Applied in L4.4:* the worker's live channel records carry `{v, kind}` (`kind: 'frame'` today) so an input channel can be added as a separate authenticated route beside `GET /v1/frames` (DESIGN §4f); nothing of it is built (BL-105).
-- **L4.1 / L4.9** — `studio ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame. *L4.9:* the in-repo accessibility checker (a11y.ts: contrast, names, reachable roles, real focus indicators, colour never alone, a selected state more than colour, headings, no sideways scroll) on two screen tours and a keyboard-only path in Chromium, the R-ACC4-01 acceptance in the installed Chrome, one WebKit run by hand from a cached build; Safari, Firefox and VoiceOver by hand (MACOS-CHECKLIST 13j); automating them is BL-121.
-- **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI. *Applied in L5.2:* the shell runs `studio ui --supervised` and opens its one-time URL; it holds no token and never reads ui.json (the CLI's own reuse decides owned / attached); its Rust is process supervision, the menu, two native dialogs and a navigation allow-list (DESIGN §4j).
+- **L4.1 / L4.9** — `retake ui` must work and be tested in Chrome, Safari and Firefox. The Player must be checked on WebKit. *Why:* It serves Windows and Linux users, a future hosted UI, and Tauri's WKWebView with the same code. *Partly applied in L4.5:* the timeline's Player is checked by hand in Safari and Firefox (MACOS-CHECKLIST 13f); the automated suite drives Chromium and, gated, the installed Chrome (WebKit's missing frame isolation: BL-110). *L4.6:* the Comments screen the same way — Chromium, a gated installed-Chrome acceptance on the fixture, Safari and Firefox by hand (MACOS-CHECKLIST 13g); its frames are server-made JPEGs, so every browser shows the same exact frame. *L4.9:* the in-repo accessibility checker (a11y.ts: contrast, names, reachable roles, real focus indicators, colour never alone, a selected state more than colour, headings, no sideways scroll) on two screen tours and a keyboard-only path in Chromium, the R-ACC4-01 acceptance in the installed Chrome, one WebKit run by hand from a cached build; Safari, Firefox and VoiceOver by hand (MACOS-CHECKLIST 13j); automating them is BL-121.
+- **L5.2** — The Tauri shell only supervises the engine and opens the same UI. Nothing beyond OS glue lives in Rust (reinforces R-DSK-02). *Why:* It keeps parity between the browser, desktop and hosted versions of the UI. *Applied in L5.2:* the shell runs `retake ui --supervised` and opens its one-time URL; it holds no token and never reads ui.json (the CLI's own reuse decides owned / attached); its Rust is process supervision, the menu, two native dialogs and a navigation allow-list (DESIGN §4j).
 
 ## Recorder precisions (L3.4 / L4.8)
 
@@ -2176,14 +2200,14 @@ replaceable behind the EditPlan/component contract (R-V2-08, BL-24).
 
 | When | Question | Options |
 |---|---|---|
-| Before pricing / before the first sale; ideally before L3.7 and L5.2 | How is the Remotion licence handled for a commercial desktop tool whose users write components and render on their own machines and in CI? | (a) Demo Studio holds an Automators or Enterprise licence and reports customers' renders. (b) Pass-through: customers with more than 3 people buy their own Remotion Company licence, and this is disclosed at purchase. (c) Negotiated Enterprise terms ($500/month minimum). (d) Replace the renderer (BL-24). Also decide whether to stay on v4 terms for now and plan the move to 5.0. |
+| Before pricing / before the first sale; ideally before L3.7 and L5.2 | How is the Remotion licence handled for a commercial desktop tool whose users write components and render on their own machines and in CI? | (a) Retake holds an Automators or Enterprise licence and reports customers' renders. (b) Pass-through: customers with more than 3 people buy their own Remotion Company licence, and this is disclosed at purchase. (c) Negotiated Enterprise terms ($500/month minimum). (d) Replace the renderer (BL-24). Also decide whether to stay on v4 terms for now and plan the move to 5.0. |
 | Before phase 4 (it shapes Studio UI priorities), and at the latest before the first sale | Who is the first buyer? | (a) SaaS developer, devrel and docs teams: videos in code, regenerated on release, CLI + CI + MCP. (b) Product marketing and sales: a web tool with nothing to install, polish and personalisation. (c) Agencies: several brands, accepting scripts. |
 | Before the first sale | What plan structure and licence model? | (a) The founder's four separate plans (Teams, Cloud, AI, Marketplace). (b) A ladder: Free, Pro per creator, Team per creator with free reviewers, Business by quote, plus usage add-ons. Free threshold: watermark, non-commercial use, or company size (Docker model). Licence: subscription checked on the server (the market standard) or perpetual. The engine's licence: closed, source-available, or open source (Cap, for example, is AGPLv3). |
 | Before V2 | How do users get AI model access in the app? | (a) Bring your own key, or their Claude through MCP, only. (b) Hosted credits included in tiers. (c) Both, with credits only for AI that has a clear cost per unit (voice, dubbing, translation, review). |
 | Before V2 | What does the Team offer lead with, and is sync end-to-end encrypted? | (a) Review links and approvals first, with sync later. (b) Sync first. Encryption: end-to-end like Obsidian (privacy pitch, no server-side search or previews) or encrypted at rest only (more features, processor duties). |
 | Later; after the L1.3 result and the Remotion answer | How far does the Cloud plan go, and on what infrastructure? | (a) Self-hosted runner image only. (b) Plus a control plane. (c) Plus hosted CPU render. (d) Plus hosted capture for public targets and a sandbox. Infrastructure: Cloud Run (GPU requires instance billing) or VPS / bare metal. |
 | Later | Which path to a marketplace, and who handles payments? | (a) First-party packs through a merchant of record. (b) Plus a free git/npm community registry. (c) Plus a commercial marketplace with payouts, either through Stripe Connect (you are the seller and file VAT) or a merchant of record that supports payouts (unverified). |
-| Before L5.2 | How is the desktop app delivered for the first sale? | (a) Tauri shell (L5.2) as planned, macOS only. (b) A signed engine installer plus `studio ui` in any browser first, with Tauri after. (c) Also officially support Windows and Linux through the browser UI. |
+| Before L5.2 | How is the desktop app delivered for the first sale? | (a) Tauri shell (L5.2) as planned, macOS only. (b) A signed engine installer plus `retake ui` in any browser first, with Tauri after. (c) Also officially support Windows and Linux through the browser UI. |
 | Before the first sale | Which video encoders ship, and with what patent position? | (a) macOS system encoders (VideoToolbox / AudioToolbox) for H.264, AAC and ProRes. (b) Bundled GPL ffmpeg with x264 and AAC, plus a written position from Via LA. Also decide whether to drop libx265 and ffmpeg's ProRes encoder. |
 
 ## Suggestions on the locked MVP (founder decides)
@@ -2195,7 +2219,7 @@ Recorded for the founder; nothing here changes the roadmap until they decide.
 - Consider moving L5.3 (iOS Simulator runner, size L) to the backlog. *Why:* First buyers are web SaaS companies. The runner needs Xcode and a Mac, and it can't run in CI or the cloud cheaply (EC2 Mac hosts bill at least 24 hours).
 - Consider slimming L2.11–L2.13: keep clips per scene plus a CSV/JSON markers file, and defer FCPXML, EDL, OTIO, ProRes, split screen, picture-in-picture and Lottie. *Why:* They add a lot of scope for a minority use. ProRes via ffmpeg raises a licensing question, and @remotion/lottie falls under Remotion's licence.
 - Consider cutting L4.7 back to a read-only component library, and leave theme editing to L3.5 plus Claude through MCP. *Why:* Theme creation from brand inputs and from a site URL is already scoped, and Claude covers the editing.
-- First-sale part parked. Re-size L5.2 to L, or ship the first sale as a signed engine installer plus `studio ui` in the browser, with the Tauri shell after. *Why:* Notarising bundled sidecars, the updater key and testing on WebKit make M look optimistic, and the browser UI already works for every user.
+- First-sale part parked. Re-size L5.2 to L, or ship the first sale as a signed engine installer plus `retake ui` in the browser, with the Tauri shell after. *Why:* Notarising bundled sidecars, the updater key and testing on WebKit make M look optimistic, and the browser UI already works for every user.
 - Size the recorder (L3.4 and L4.8) more generously, and keep it early in phase 3/4. *Why:* It is the way non-developers will start, and its value lies entirely in the cleanup work listed in recorder_precisions.
 - Parked (commercialisation). Don't advertise 4K until L1.3 and L1.5 have measured it on a Mac. *Why:* HANDOFF measures 9.5–16 fps for the screencast at 4K, against 44–58 fps at 1080p, and 2–3 fps under backdrop blur.
 - Parked (commercialisation). Add a 'first sale' checklist next to L6: licence and billing (BL-39), compliance pack (BL-41), signed installer (BL-36), and a first video on the buyer's own app in under 15 minutes. *Why:* None of these are in the locked MVP, yet V2 cannot sell without them, and the external steps (lawyer, Remotion, Apple) take calendar time.

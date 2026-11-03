@@ -1,5 +1,5 @@
 /**
- * L4.1 (critique B8): the engine's HTTP listener binds 127.0.0.1 only; the discovery file `.demo-studio/ui.json` is
+ * L4.1 (critique B8): the engine's HTTP listener binds 127.0.0.1 only; the discovery file `.retake/ui.json` is
  * claimed exclusively (two claims at once: one wins, the other gets the holder), created 0600 whatever the umask,
  * read only when it is a regular file of this user without group / other bits, replaced when its holder is dead or
  * it is broken, and removed on release only when it is still ours (whatever its mode by then); an unwritable state
@@ -55,9 +55,9 @@ describe('listenLoopback', () => {
 });
 
 describe('discovery file', () => {
-  it('is created 0600 even under umask 0, inside .demo-studio/', async () => {
+  it('is created 0600 even under umask 0, inside .retake/', async () => {
     const file = discoveryFile(ws);
-    expect(file).toBe(join(ws, '.demo-studio', 'ui.json'));
+    expect(file).toBe(join(ws, '.retake', 'ui.json'));
     const old = process.umask(0);
     try {
       const r = await record(4100);
@@ -147,13 +147,13 @@ describe('discovery file', () => {
   it('a state folder this user cannot write: refused with a fix, never a stack (review B L3)', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-discovery-ro-'));
     try {
-      await mkdir(join(dir, '.demo-studio'), { mode: 0o500 });
-      await chmod(join(dir, '.demo-studio'), 0o500);
+      await mkdir(join(dir, '.retake'), { mode: 0o500 });
+      await chmod(join(dir, '.retake'), 0o500);
       const e = await claimDiscovery(discoveryFile(dir), await record(4112)).then(() => undefined, (x: unknown) => x);
       expect(e).toBeInstanceOf(EngineError);
       expect(e).toMatchObject({ code: 'refused', message: expect.stringContaining('is not writable (EACCES)'), fix: expect.stringContaining('chmod u+w') });
     } finally {
-      await chmod(join(dir, '.demo-studio'), 0o700);
+      await chmod(join(dir, '.retake'), 0o700);
       await rm(dir, { recursive: true, force: true });
     }
   });

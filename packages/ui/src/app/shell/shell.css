@@ -183,6 +183,9 @@
   margin: 0;
   min-width: 0;
 }
+.sh-foot-legacy {
+  color: var(--ui-text-2);
+}
 .sh-foot-label {
   display: block;
   font-weight: var(--ui-weight-strong);

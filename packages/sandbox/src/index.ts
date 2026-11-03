@@ -1,5 +1,5 @@
 /**
- * @demo-studio/sandbox (L1.8): start, seed, reset and stop a project's sandboxes — disposable, local copies of the
+ * @retake/sandbox (L1.8): start, seed, reset and stop a project's sandboxes — disposable, local copies of the
  * product declared by a sandbox.yaml (core `sandbox.ts` reads them into environments). docs/DESIGN.md §3.8.
  */
 export { Sandbox, openSandbox, providerFor, LOG_CAP_BYTES } from './sandbox.js';

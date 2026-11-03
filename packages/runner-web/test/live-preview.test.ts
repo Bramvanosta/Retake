@@ -8,7 +8,7 @@
 import { spawn } from 'node:child_process';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Scenario } from '@demo-studio/core';
+import type { Scenario } from '@retake/core';
 import { LivePreview, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { LiveFrame, LiveSink, RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';

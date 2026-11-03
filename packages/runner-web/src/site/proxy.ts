@@ -13,14 +13,14 @@
  * - caps every tunnel (bytes, idle time, life time) and the job (bytes and tunnels together).
  *
  * Chromium does TLS itself (its certificate checks against the name, SNI), HTTP/2, compression and caching: the proxy
- * sees only encrypted bytes. The test resolver (`DEMO_STUDIO_UNSAFE_TEST_RESOLVE`, core site.ts) maps invented
+ * sees only encrypted bytes. The test resolver (`RETAKE_UNSAFE_TEST_RESOLVE`, core site.ts) maps invented
  * `.test` names to loopback ports for the tests; it never applies to any other name.
  */
 import { lookup } from 'node:dns/promises';
 import { createServer, connect, isIP } from 'node:net';
 import type { Server, Socket } from 'node:net';
-import { classifyAddress } from '@demo-studio/core';
-import type { AddressClass, SiteTestTarget } from '@demo-studio/core';
+import { classifyAddress } from '@retake/core';
+import type { AddressClass, SiteTestTarget } from '@retake/core';
 
 export interface SiteProxyCaps {
   /** Bytes one tunnel carries (both ways). */

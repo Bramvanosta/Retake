@@ -1,13 +1,13 @@
 /**
- * The job history of a workspace (L3.1 guard-rail): `<workspace>/.demo-studio/history.jsonl`, one line per finished job
- * of the worker and per `studio run` / `studio render` / `studio still` of the CLI (which run no job), and per `studio
+ * The job history of a workspace (L3.1 guard-rail): `<workspace>/.retake/history.jsonl`, one line per finished job
+ * of the worker and per `retake run` / `retake render` / `retake still` of the CLI (which run no job), and per `retake
  * export` that re-rendered a format. It counts what was produced —
  * captures, dry runs, renders — for the usage counters a commercial version would need (entitlements.ts) and for the
  * index a later lot builds. Best effort: a line that cannot be written never fails the work it records.
  */
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { JobClient } from '@demo-studio/core';
+import type { JobClient } from '@retake/core';
 import { stateDir } from './jobs/queue.js';
 
 export const HISTORY_VERSION = 1;

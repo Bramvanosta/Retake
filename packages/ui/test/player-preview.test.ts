@@ -19,8 +19,8 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scaffoldDir } from '@demo-studio/components';
-import { memoRegistry } from '@demo-studio/engine';
+import { scaffoldDir } from '@retake/components';
+import { memoRegistry } from '@retake/engine';
 import { COMPONENT_PREVIEW_FORMAT, checkPreviewSpec, startStudioServer } from '../src/index.js';
 import type { StudioServer, ThemePreviewAnswer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -29,7 +29,7 @@ import { raw } from './http.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 /** A folder to keep the framed previews' screenshots in (looked at by hand), or none. */
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
 const MARK = 'HELD-PREVIEW-COMPONENT-8b1f';
 const MEDIA = 'http://127.0.0.1:1/m/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/';
@@ -37,7 +37,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser | undefined;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function preview(args: Record<string, unknown>): Promise<Extract<ThemePreviewAnswer, { frame_url: string }>> {
   const r = await call('theme_preview', { project: P, lease: 'player-preview-lease-01', ...args });
@@ -62,7 +62,7 @@ const spec = (extra: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-player-preview-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   const comp = join(ws, 'components', 'acme', 'held');
   await mkdir(comp, { recursive: true });
@@ -71,7 +71,7 @@ beforeAll(async () => {
   await writeFile(join(comp, 'index.tsx'), `import { AbsoluteFill } from 'remotion';\nexport default function H() { return <AbsoluteFill style={{ background: '#ff00ff' }}>{${JSON.stringify(MARK)}}</AbsoluteFill>; }\n`);
   studio = await startStudioServer({ root: ws, startWorker: false });
   if (!canRun) return;
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   page = await (await browser.newContext({ viewport: { width: 900, height: 600 } })).newPage();
   // The Studio's own page (its CSP frames the player origin only); no session is needed to frame a preview URL.
@@ -81,8 +81,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

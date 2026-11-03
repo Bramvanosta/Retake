@@ -12,8 +12,8 @@ export interface Interrupt {
 }
 
 /**
- * Ctrl-C (SIGINT) / SIGTERM while a command holds a persona's browser (L1.6: `studio login`, `auth status --check`, the
- * js hooks of `hooks run` / `hooks rollback` / `env reset`, the sign-ins of `studio new`). Without a handler Node.js
+ * Ctrl-C (SIGINT) / SIGTERM while a command holds a persona's browser (L1.6: `retake login`, `auth status --check`, the
+ * js hooks of `hooks run` / `hooks rollback` / `env reset`, the sign-ins of `retake new`). Without a handler Node.js
  * would quit at once and leave the session copies — a persona's cookies — in the system temp folder. The first signal
  * aborts `signal`: the command closes its browser (which removes its copies) and ends with EXIT.interrupted; with
  * `exit` (a command that cannot be aborted: the hooks), `exit` closes what it holds and the process exits 130 at once.
@@ -21,7 +21,7 @@ export interface Interrupt {
  * L1.8) and exits. `message` replaces the "closing the browser" line of the first signal.
  */
 export async function onInterrupt(ui: Ui, opts: { exit?: () => Promise<void>; onQuitSync?: () => void; message?: string } = {}): Promise<Interrupt> {
-  const { removeSessionCopiesSync } = await import('@demo-studio/runner-web');
+  const { removeSessionCopiesSync } = await import('@retake/runner-web');
   const controller = new AbortController();
   let count = 0;
   const quit = (): never => {

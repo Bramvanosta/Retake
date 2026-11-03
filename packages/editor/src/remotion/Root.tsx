@@ -46,7 +46,7 @@ export function createRoot(modules: ComponentModules): ComponentType {
     </ModulesContext.Provider>
   );
   const previewDefaults: ComponentPreviewProps = { preview: null };
-  return function DemoStudioRoot() {
+  return function RetakeRoot() {
     return (
       <>
         <Composition

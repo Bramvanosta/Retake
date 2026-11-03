@@ -19,7 +19,7 @@
  * Every value from the server is a text node (Txt / a kit slot).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { ScenarioRenderView, ScenarioRendersView } from '@demo-studio/engine';
+import type { ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { ScenarioRenderAnswer } from '../server/ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import type { Loaded } from './api.js';

@@ -4,7 +4,7 @@
  * EDL with locators, OpenTimelineIO JSON and CSV / JSON. Every clip carries a start timecode equal to its place on the
  * sequence (00:00:00:00 = the sequence start), so source and record timecodes agree in every tool. Pure.
  */
-import type { TimelineEvent } from '@demo-studio/core';
+import type { TimelineEvent } from '@retake/core';
 import { clipFrameAt, type RawClipPlan, type RawPlan, sequenceStartOf } from './plan.js';
 import { csvLine } from './cursor.js';
 
@@ -357,7 +357,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
     const start = timecoded ? seq : 0;
     return {
       OTIO_SCHEMA: 'Clip.2',
-      metadata: { demo_studio: { scene: c.scene, ...(c.page !== undefined ? { page: c.page } : {}), capture: { t0: c.t0, t1: c.t1 } } },
+      metadata: { retake: { scene: c.scene, ...(c.page !== undefined ? { page: c.page } : {}), capture: { t0: c.t0, t1: c.t1 } } },
       name,
       source_range: range(start, c.frames, fps),
       effects: [],
@@ -366,7 +366,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
             .filter((m) => m.clip === c.index)
             .map((m) => ({
               OTIO_SCHEMA: 'Marker.2',
-              metadata: { demo_studio: { kind: m.kind, scene: m.scene, ...(m.step !== undefined ? { step: m.step } : {}), ...(m.step_id ? { step_id: m.step_id } : {}), ...(m.page ? { page: m.page } : {}), capture_t: m.capture_t } },
+              metadata: { retake: { kind: m.kind, scene: m.scene, ...(m.step !== undefined ? { step: m.step } : {}), ...(m.step_id ? { step_id: m.step_id } : {}), ...(m.page ? { page: m.page } : {}), capture_t: m.capture_t } },
               name: m.name,
               color: m.color,
               marked_range: range(start + m.frame, m.duration, fps),
@@ -419,7 +419,7 @@ export function writeOtio(plan: RawPlan, markers: readonly RawMarker[], files: P
   }
   const timeline = {
     OTIO_SCHEMA: 'Timeline.1',
-    metadata: { demo_studio: { run: meta.uid, fps, frames: plan.frames } },
+    metadata: { retake: { run: meta.uid, fps, frames: plan.frames } },
     name: meta.title,
     global_start_time: rt(0, fps),
     tracks: { OTIO_SCHEMA: 'Stack.1', metadata: {}, name: 'tracks', source_range: null, effects: [], markers: [], enabled: true, color: null, children: tracks },

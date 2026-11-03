@@ -6,7 +6,7 @@
  * saved, the check replay passes up to the step before the first write, and a full dry run of the saved draft succeeds
  * on a reset fixture. Also: a taken name (kept, not saved), stop and keep / cancel and discard, the maximum duration,
  * nothing recorded, a read-only environment (writes mocked, the whole draft checked), refusals before the window opens
- * (a persona that cannot sign in, another origin, a bad DEMO_STUDIO_RECORD_MAX_MIN), and a secret typed in the
+ * (a persona that cannot sign in, another origin, a bad RETAKE_RECORD_MAX_MIN), and a secret typed in the
  * recording lab absent from every file and result.
  */
 import { existsSync, statSync } from 'node:fs';
@@ -15,9 +15,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadScenario, parseScenario } from '@demo-studio/core';
-import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
-import { runScenario } from '@demo-studio/runner-web';
+import { loadScenario, parseScenario } from '@retake/core';
+import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import { runScenario } from '@retake/runner-web';
 import { EngineError, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
 import type { RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
@@ -34,7 +34,7 @@ let fixture: Fixture;
 let root: string;
 let ws: WorkspaceConfig;
 let csv: string;
-const saved = { home: process.env.DEMO_STUDIO_HOME, max: process.env.DEMO_STUDIO_RECORD_MAX_MIN, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
+const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
 
 beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
@@ -42,8 +42,8 @@ beforeAll(async () => {
   };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
   root = await mkdtemp(join(tmpdir(), 'studio-record-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  process.env.RETAKE_HOME = join(root, '.home');
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   delete process.env.NORTHFIELD_BUYER_PASSWORD;
   await fixtureWorkspace(root);
   const projectDir = join(root, 'projects', PROJECT);
@@ -63,8 +63,8 @@ afterAll(async () => {
   await fixture?.close();
   if (root) await rm(root, { recursive: true, force: true });
   for (const [k, v] of [
-    ['DEMO_STUDIO_HOME', saved.home],
-    ['DEMO_STUDIO_RECORD_MAX_MIN', saved.max],
+    ['RETAKE_HOME', saved.home],
+    ['RETAKE_RECORD_MAX_MIN', saved.max],
     ['NORTHFIELD_BUYER_PASSWORD', saved.buyer],
   ] as const) {
     if (v === undefined) delete process.env[k];
@@ -313,8 +313,8 @@ describe('recordScenario: names, stop, cancel, limits', () => {
     expect(await readdir(recordsRoot(p))).toEqual(folders);
   }, 120_000);
 
-  it('DEMO_STUDIO_RECORD_MAX_MIN: the recording stops at it and keeps what it has; a bad value is refused before the window opens', async () => {
-    process.env.DEMO_STUDIO_RECORD_MAX_MIN = '0.05';
+  it('RETAKE_RECORD_MAX_MIN: the recording stops at it and keeps what it has; a bad value is refused before the window opens', async () => {
+    process.env.RETAKE_RECORD_MAX_MIN = '0.05';
     try {
       const { o } = await record({ page: 'shop', check: false }, async (page) => {
         await oneClick(page);
@@ -323,14 +323,14 @@ describe('recordScenario: names, stop, cancel, limits', () => {
       expect(o.stop).toBe('max_duration');
       expect(o.counts.actions).toBe(1);
       expect(o.issues.map((i) => i.code)).toContain('max_duration');
-      process.env.DEMO_STUDIO_RECORD_MAX_MIN = 'soon';
+      process.env.RETAKE_RECORD_MAX_MIN = 'soon';
       const e = await recordScenario(ws, await project(), { page: 'shop' }, { headless: true, drive: async () => undefined }).then(
         () => null,
         (x: unknown) => x as EngineError,
       );
       expect(e?.code).toBe('invalid');
     } finally {
-      delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+      delete process.env.RETAKE_RECORD_MAX_MIN;
     }
   }, 120_000);
 });
@@ -361,7 +361,7 @@ describe('recordScenario: access, sign-in, secrets', () => {
     const buyer = await refusal({ env: 'signed-in', page: 'shop' });
     expect(buyer?.code).toBe('refused');
     expect(buyer?.message).toMatch(/persona buyer could not be signed in/);
-    expect(buyer?.fix).toMatch(/studio login northfield-fixture --env signed-in --persona buyer/);
+    expect(buyer?.fix).toMatch(/retake login northfield-fixture --env signed-in --persona buyer/);
     expect((await refusal({ url: 'http://elsewhere.example/' }))?.code).toBe('refused');
     expect((await refusal({ page: 'nowhere' }))?.code).toBe('not_found');
     expect((await refusal({ page: 'shop', persona: 'nobody' }))?.code).toBe('not_found');

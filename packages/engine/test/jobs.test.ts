@@ -9,15 +9,15 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@demo-studio/core';
-import type { RunJobInput } from '@demo-studio/core';
+import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@retake/core';
+import type { RunJobInput } from '@retake/core';
 import { EngineError, FileJobQueue, RunOptionError, SandboxTakeError, WorkerLock, createEngine, liveWorker, newJobId, readWorkerLock, runCommandLine, toEngineError } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
 let ws: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const INPUT: RunJobInput = {
   version: 1,
@@ -38,14 +38,14 @@ function deadPid(): number {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-jobs-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -109,12 +109,12 @@ describe('FileJobQueue', () => {
   });
 
   it('derives `interrupted` when the worker of a running job is gone, or its pid is another program now', async () => {
-    const q = new FileJobQueue(join(ws, 'q-int'), 'studio -C /ws');
+    const q = new FileJobQueue(join(ws, 'q-int'), 'retake -C /ws');
     const job = await q.enqueue({ ...INPUT, env: 'local' });
     const running: JobRecord = { ...job, state: 'running', started_at: new Date().toISOString(), worker: { pid: deadPid(), host: 'h' } };
     await q.write(running);
     const got = await q.get(job.id);
-    expect(got).toMatchObject({ state: 'interrupted', derived: true, error: { fix: 'studio -C /ws env reset northfield-fixture --env local' } });
+    expect(got).toMatchObject({ state: 'interrupted', derived: true, error: { fix: 'retake -C /ws env reset northfield-fixture --env local' } });
     expect(got?.error?.message).toContain('stopped while the job ran');
     expect((await q.stored(job.id))?.state).toBe('running');
     // A live pid with another start time: reused by another program.
@@ -151,7 +151,7 @@ describe('the worker lock', () => {
     expect(readWorkerLock(root)).toMatchObject({ pid: process.pid, build: 'b1' });
     a!.release();
     expect(readWorkerLock(root)).toBeNull();
-    await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid: deadPid(), host: 'h', version: '0', build: 'old', since: '2026-01-01T00:00:00.000Z' }));
+    await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: deadPid(), host: 'h', version: '0', build: 'old', since: '2026-01-01T00:00:00.000Z' }));
     const notes: string[] = [];
     const b = await WorkerLock.acquire(root, 'b2', (m) => notes.push(m));
     expect(b).not.toBeNull();
@@ -166,9 +166,9 @@ describe('the worker lock', () => {
     a!.release();
     const odd = await WorkerLock.acquire(root, 'b1', undefined, 'ui <b>x</b>');
     expect(readWorkerLock(root)?.started_by).toBeUndefined();
-    expect(await readFile(join(root, '.demo-studio', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
+    expect(await readFile(join(root, '.retake', 'workers', 'worker.lock'), 'utf8')).not.toContain('started_by');
     odd!.release();
-    await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }));
+    await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid: process.pid, host: 'h', version: '0', build: 'b', since: '2026-01-01T00:00:00.000Z', started_by: '<img src=x>' }));
     const read = readWorkerLock(root);
     expect(read?.pid).toBe(process.pid);
     expect(read?.started_by).toBeUndefined();
@@ -179,11 +179,11 @@ describe('the worker lock', () => {
     const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { stdio: 'ignore' });
     try {
       for (const pid of [process.pid, child.pid!]) {
-        await mkdir(join(root, '.demo-studio', 'workers'), { recursive: true });
-        await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid, host: 'h', version: '0', build: 'b', since: 'now', started_by: 'ui' }));
+        await mkdir(join(root, '.retake', 'workers'), { recursive: true });
+        await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid, host: 'h', version: '0', build: 'b', since: 'now', started_by: 'ui' }));
         expect(await liveWorker(root), String(pid)).toBeNull();
         // A start time that is not the process's: stale too.
-        await writeFile(join(root, '.demo-studio', 'workers', 'worker.lock'), JSON.stringify({ pid, started_at: '2001-01-01T00:00:00.000Z', host: 'h', version: '0', build: 'b', since: 'now' }));
+        await writeFile(join(root, '.retake', 'workers', 'worker.lock'), JSON.stringify({ pid, started_at: '2001-01-01T00:00:00.000Z', host: 'h', version: '0', build: 'b', since: 'now' }));
         expect(await liveWorker(root), String(pid)).toBeNull();
       }
       // The forged lock is taken over by a real worker, whose own lock (with its start time) is alive.
@@ -242,7 +242,7 @@ describe('engine.runs.submit (no worker started)', () => {
     expect(e).toBeInstanceOf(EngineError);
     expect((e as EngineError).code).toBe('needs_approval');
     expect((e as EngineError).message).toContain('setup hook 2 "free-registry-ref" (HTTP DELETE)');
-    expect((e as EngineError).fix).toBe(`studio -C ${ws} run northfield-fixture catalogue`);
+    expect((e as EngineError).fix).toBe(`retake -C ${ws} run northfield-fixture catalogue`);
     // A shell hook marked `writes: false` on the production environment: through MCP it writes — refused before anyone is asked.
     const scenario = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'shell-prod.yaml');
     await writeFile(
@@ -261,7 +261,7 @@ describe('engine.runs.submit (no worker started)', () => {
     expect(dry.job.state).toBe('queued');
     const hooked = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'shell-prod', mode: 'dry', hooks: 'run' }).catch((x: unknown) => x as EngineError);
     expect((hooked as EngineError).code).toBe('refused');
-    expect((hooked as EngineError).fix).toBe(`studio -C ${ws} run northfield-fixture shell-prod --dry --hooks run`);
+    expect((hooked as EngineError).fix).toBe(`retake -C ${ws} run northfield-fixture shell-prod --dry --hooks run`);
     // Refusals reserve no run folder.
     expect((await engine.runs.list('northfield-fixture', { scenario: 'shell-prod' })).length).toBe(runsBefore + 1);
   });
@@ -287,8 +287,8 @@ describe('engine.runs.submit (no worker started)', () => {
     expect(toEngineError(new SandboxTakeError('health check failed', false)).code).toBe('unavailable');
   });
 
-  it('runCommandLine: the studio command of the same run', () => {
-    expect(runCommandLine('studio', { project: 'p', scenario: 's', mode: 'capture', env: 'my env', sandbox: true })).toBe("studio run p s --env 'my env' --sandbox");
-    expect(runCommandLine('studio', { project: 'p', scenario: 's', mode: 'dry', until: 'a.1', hooks: 'run' })).toBe('studio run p s --dry --until a.1 --hooks run');
+  it('runCommandLine: the retake command of the same run', () => {
+    expect(runCommandLine('retake', { project: 'p', scenario: 's', mode: 'capture', env: 'my env', sandbox: true })).toBe("retake run p s --env 'my env' --sandbox");
+    expect(runCommandLine('retake', { project: 'p', scenario: 's', mode: 'dry', until: 'a.1', hooks: 'run' })).toBe('retake run p s --dry --until a.1 --hooks run');
   });
 });

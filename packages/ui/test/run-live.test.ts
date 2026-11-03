@@ -26,8 +26,8 @@ import { homedir, hostname, tmpdir } from 'node:os';
 import { mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, openLiveChannel, selfIdentity } from '@demo-studio/engine';
-import type { JobRecord, LiveChannel } from '@demo-studio/engine';
+import { FileJobQueue, openLiveChannel, selfIdentity } from '@retake/engine';
+import type { JobRecord, LiveChannel } from '@retake/engine';
 import { LIVE_SNAPSHOT_LOG_LINES, LIVE_TEXT_MAX, RUN_LIVE_STREAMS_MAX, maskUrls, mergeByTime, startStudioServer } from '../src/index.js';
 import { parseSseBlock, readSse } from '../src/app/sse.js';
 import type { StudioServer } from '../src/index.js';
@@ -35,7 +35,7 @@ import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
 
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 let ws: string;
 let studio: StudioServer;
 let queue: FileJobQueue;
@@ -47,7 +47,7 @@ const scenario = (video: string) =>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-live-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   for (const n of ['live-a', 'live-b', 'live-c', 'live-d', 'live-e', 'live-f', 'live-g', 'live-h', 'live-i']) await writeFile(join(project(), 'scenarios', `${n}.yaml`), scenario(n));
   studio = await startStudioServer({ root: ws, startWorker: false, runPollMs: 40 });
@@ -56,8 +56,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -503,7 +503,7 @@ describe('POST /v1/live: the live picture', () => {
       await ch.close();
       await finishJob(j.job);
     }
-    // No frame (raw or base64) anywhere in the workspace or the studio home.
+    // No frame (raw or base64) anywhere in the workspace or the Retake home.
     const needles = sent.slice(-5).flatMap((f) => [f.subarray(0, 64), Buffer.from(f.subarray(0, 48).toString('base64'))]);
     const files: string[] = [];
     const walk = async (d: string) => {

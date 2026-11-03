@@ -20,10 +20,10 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@demo-studio/core';
-import { LIBRARY_DIR, scaffoldDir } from '@demo-studio/components';
-import type { ComponentPreviewSpec } from '@demo-studio/editor';
-import type { ThemeEditView } from '@demo-studio/engine';
+import { STARTER_TEMPLATES_DIR } from '@retake/core';
+import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
+import type { ComponentPreviewSpec } from '@retake/editor';
+import type { ThemeEditView } from '@retake/engine';
 import { COMPONENT_PREVIEW_FORMAT, UI_OPS, WATCH_SCAN_BUDGET, libraryChanges, libraryWatchScan, startStudioServer } from '../src/index.js';
 import type { SiteListAnswer, StudioServer, ThemePreviewAnswer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -33,7 +33,7 @@ const P = 'northfield-fixture';
 const LEASE = 'themeLeaseAAAAAAAAAAA';
 let ws: string;
 let studio: StudioServer;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 async function ok<T>(op: string, args: unknown): Promise<{ data: T; body: string }> {
@@ -53,9 +53,9 @@ const playerGet = (url: string) => {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-theme-ops-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
   await mkdir(join(ws, 'brand'));
   await cp(join(LIBRARY_DIR, 'studio', 'card-title', 'preview.png'), join(ws, 'brand', 'logo.png'));
@@ -69,8 +69,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -293,7 +293,7 @@ describe('theme_list (part D2)', () => {
     pathFree(r.body);
     const by = new Map(r.data.themes.map((t) => [t.name, t]));
     expect(r.data.project_theme).toBe('editorial');
-    expect(by.get('editorial')).toMatchObject({ source: 'starter', default: true, editable: { why: expect.stringMatching(/starter theme shipped with Demo Studio: copy it to edit it/) }, colors: { accent: '#8a2332' } });
+    expect(by.get('editorial')).toMatchObject({ source: 'starter', default: true, editable: { why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) }, colors: { accent: '#8a2332' } });
     expect(by.get('editorial')!.used_by.projects).toContain(P);
     for (const n of ['default', 'motion']) expect(by.get(n)!.editable).toMatchObject({ why: expect.any(String) });
     expect(by.get('mine')).toMatchObject({ source: 'workspace', editable: true, issues: [] });

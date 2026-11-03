@@ -22,7 +22,7 @@ import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml, stepGuard } from '@demo-studio/core';
+import { parseYaml, stepGuard } from '@retake/core';
 import { captureInfo, clearTimelineViewMemo, createEngine, planSignature } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { FIXTURES, synthTimeline } from '../../editor/test/helpers.js';
@@ -53,7 +53,7 @@ scenes:
 let root: string;
 let dir: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const scenarioFile = () => join(dir, 'scenarios', `${SCENARIO}.yaml`);
 const view = async (r: Promise<TimelineViewResult>) => {
   const v = await r;
@@ -88,8 +88,8 @@ async function runJson(runDir: string, id: string, scenario: string): Promise<vo
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-timeline-view-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
@@ -117,8 +117,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 

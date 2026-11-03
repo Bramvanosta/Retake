@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS, DEFAULT_TEMPLATE } from '@demo-studio/core';
-import type { ComponentKind, Template } from '@demo-studio/core';
-import { ComponentError, LIBRARY_DIR, loadComponentRegistry } from '@demo-studio/components';
+import { COMPONENT_KINDS, DEFAULT_TEMPLATE } from '@retake/core';
+import type { ComponentKind, Template } from '@retake/core';
+import { ComponentError, LIBRARY_DIR, loadComponentRegistry } from '@retake/components';
 import { CARD_TSX, cardManifest, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
@@ -58,8 +58,8 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
     expect(reg.get('studio/layout-card').source).toBe('workspace');
   });
 
-  it('reads components_dir from studio.yaml', async () => {
-    await writeFiles(ws.dir, { 'studio.yaml': 'components_dir: ui/parts\n', ...component('ui/parts', 'acme/badge', 'overlay') });
+  it('reads components_dir from retake.yaml', async () => {
+    await writeFiles(ws.dir, { 'retake.yaml': 'components_dir: ui/parts\n', ...component('ui/parts', 'acme/badge', 'overlay') });
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: null });
     expect(reg.componentsDir).toBe(join(ws.dir, 'ui/parts'));
     expect(reg.list().map((c) => c.manifest.id)).toEqual(['acme/badge']);
@@ -94,8 +94,8 @@ describe('loadComponentRegistry (R-REG-01, R-REG-02, R-REG-12)', () => {
     expect(notices).toEqual(
       expect.arrayContaining([
         'error component folder "Zeta/Bad" is not a valid id: use lower-case letters, digits and "-" (e.g. acme/intro-split)',
-        'error invalid component acme/broken: 1 error in component.yaml (studio components validate acme/broken)',
-        'error invalid component acme/moved: 1 error in component.yaml (studio components validate acme/moved)',
+        'error invalid component acme/broken: 1 error in component.yaml (retake components validate acme/broken)',
+        'error invalid component acme/moved: 1 error in component.yaml (retake components validate acme/moved)',
         'error invalid component acme/no-entry: entry file index.tsx not found',
         expect.stringMatching(/^warning component\.yaml in loose\/ is ignored: a component lives in <namespace>\/<name>\//),
       ]),

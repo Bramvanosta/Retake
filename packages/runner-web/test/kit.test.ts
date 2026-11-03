@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Locator, Page } from 'playwright-core';
-import type { BBox, TargetObject } from '@demo-studio/core';
+import type { BBox, TargetObject } from '@retake/core';
 import { ERROR_DOM_MAX, openSession, kitConfigFor } from '../src/index.js';
 import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, ResolveFound, ResolveMissing } from '../src/index.js';
 import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
@@ -46,7 +46,7 @@ afterAll(async () => {
 async function idOf(t: TargetObject): Promise<string | null> {
   const r = await kit.find(t);
   if (r.count === 0) return null;
-  return page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element | null } }).__demoStudio.el(ref)?.id ?? '', (r as { ref: string }).ref);
+  return page.evaluate((ref) => (window as unknown as { __retake: { el(r: string): Element | null } }).__retake.el(ref)?.id ?? '', (r as { ref: string }).ref);
 }
 
 describe('resolver', () => {
@@ -186,10 +186,10 @@ describe('resolver', () => {
     expect(iceland).not.toBeNull();
     const trig = await kit.menuTrigger(iceland!);
     expect(trig.hover).toBe(false);
-    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig.ref!)).toBe('iceland-menu');
+    expect(await page.evaluate((ref) => (window as unknown as { __retake: { el(r: string): Element } }).__retake.el(ref).id, trig.ref!)).toBe('iceland-menu');
     const sweden = await kit.rowFor('Sweden');
     const trig2 = await kit.menuTrigger(sweden!);
-    expect(await page.evaluate((ref) => (window as unknown as { __demoStudio: { el(r: string): Element } }).__demoStudio.el(ref).id, trig2.ref!)).toBe('sweden-more');
+    expect(await page.evaluate((ref) => (window as unknown as { __retake: { el(r: string): Element } }).__retake.el(ref).id, trig2.ref!)).toBe('sweden-more');
   });
 });
 
@@ -306,10 +306,10 @@ describe('cursor overlay', () => {
     await page.goto(`${server.url}/overlay-b.html`);
     st = await kit.cursorState();
     expect(st).toMatchObject({ x: 300, y: 260, known: true, visible: true });
-    expect(await page.evaluate(() => !!document.querySelector('demo-studio-cursor'))).toBe(true);
-    await page.evaluate(() => document.querySelector('demo-studio-cursor')!.remove());
+    expect(await page.evaluate(() => !!document.querySelector('retake-cursor'))).toBe(true);
+    await page.evaluate(() => document.querySelector('retake-cursor')!.remove());
     await page.waitForTimeout(20);
-    expect(await page.evaluate(() => document.querySelector('demo-studio-cursor')?.isConnected === true)).toBe(true);
+    expect(await page.evaluate(() => document.querySelector('retake-cursor')?.isConnected === true)).toBe(true);
   });
 
   it('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
@@ -546,7 +546,7 @@ describe('scene-start rest point and DOM snippets', () => {
     expect(body.length).toBeGreaterThan(ERROR_DOM_MAX * 0.75);
     expect(body.endsWith('>')).toBe(true);
     expect(note).toMatch(/^\d+ of \d+ chars -->$/);
-    expect(html).not.toContain('demo-studio-cursor');
+    expect(html).not.toContain('retake-cursor');
     await page.goto(`${server.url}/cursor.html`);
     const small = await kit.snapshot(null, ERROR_DOM_MAX);
     expect(small).toContain('Far away');

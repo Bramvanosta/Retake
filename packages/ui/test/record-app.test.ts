@@ -9,8 +9,8 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import type { RecordInsert } from '@demo-studio/core';
-import type { RecordCheckView, RecordState } from '@demo-studio/engine';
+import type { RecordInsert } from '@retake/core';
+import type { RecordCheckView, RecordState } from '@retake/engine';
 import { recordEventAction } from '../src/app/events.js';
 import { cursorRow, draftRows } from '../src/app/RecordScreen.js';
 import { RECORD_MARK, ShootBrowser, recordStateWord, recordingWords } from '../src/app/ShootBrowser.js';
@@ -115,8 +115,8 @@ describe('the Record screen words', () => {
 
   it('⚑ a preflight refusal for a persona not signed in maps to Sign in — nothing else does', () => {
     const v = (code: string, message: string, persona: string | null = 'supplier') => ({ job: { error: { code, message } }, persona, env: 'signed-in' });
-    expect(preflightSignIn(v('refused', 'persona supplier is not signed in on signed-in (expired): sign it in first — studio -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
-    expect(preflightSignIn(v('refused', 'persona supplier could not be signed in by its login steps (x): sign it in by hand — studio -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
+    expect(preflightSignIn(v('refused', 'persona supplier is not signed in on signed-in (expired): sign it in first — retake -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
+    expect(preflightSignIn(v('refused', 'persona supplier could not be signed in by its login steps (x): sign it in by hand — retake -C . login p'))).toEqual({ persona: 'supplier', env: 'signed-in' });
     expect(preflightSignIn(v('refused', 'page shop of environment local is not an http(s) URL: nothing to record'))).toBeNull();
     expect(preflightSignIn(v('failed', 'persona supplier is not signed in'))).toBeNull();
     // Before the folder exists the view has no persona: the engine's message names it (and the environment).

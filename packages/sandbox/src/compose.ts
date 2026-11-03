@@ -1,7 +1,7 @@
 /**
  * The docker-compose provider (L1.8): the sandbox's services are the compose files' (`compose.files`, default
  * compose.yaml next to sandbox.yaml), run through the `docker compose` CLI under a project name of their own —
- * `compose.project`, else `demo-studio-<project>-<environment>-<hash of the folder>` (two checkouts of one project never
+ * `compose.project`, else `retake-<project>-<environment>-<hash of the folder>` (two checkouts of one project never
  * share containers or volumes). Every call names the project, its folder and its files (`-p`, `--project-directory`,
  * `-f`) and its env file (`--env-file`, L5.8: the image versions and settings of `${VAR}`s — the names it sets are left
  * out of the shell's environment, which would win over it), with `COMPOSE_*` variables of the shell left out, and every
@@ -29,8 +29,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
-import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, prefetchSecrets, resolveEnvironment, sandboxNames } from '@demo-studio/core';
-import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@demo-studio/core';
+import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, prefetchSecrets, resolveEnvironment, sandboxNames } from '@retake/core';
+import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
 import { checkExecHosts, masker, sandboxSecrets } from './seed.js';
@@ -46,11 +46,11 @@ import { pgAnswers, pgEndpoint, resolveDatabaseUrl } from './snapshot-postgres.j
 export const COMPOSE_HEALTH_TIMEOUT_S = 120;
 /** Default seconds of an `exec` seed step. */
 export const EXEC_TIMEOUT_S = 300;
-/** The variable every process of an exec seed step carries in its container (`DEMO_STUDIO_EXEC=<token>`). */
-export const EXEC_MARK = 'DEMO_STUDIO_EXEC';
+/** The variable every process of an exec seed step carries in its container (`RETAKE_EXEC=<token>`). */
+export const EXEC_MARK = 'RETAKE_EXEC';
 /**
  * Run inside a container as `sh -c <script> sh <token> TERM|KILL`: signals every process whose environment carries
- * DEMO_STUDIO_EXEC=<token> (read from /proc/<pid>/environ) — SIGTERM, up to 3 s, then SIGKILL; KILL at once.
+ * RETAKE_EXEC=<token> (read from /proc/<pid>/environ) — SIGTERM, up to 3 s, then SIGKILL; KILL at once.
  */
 export const KILL_EXEC_SCRIPT = [
   `mark="${EXEC_MARK}=$1"`,
@@ -86,7 +86,7 @@ function realDir(dir: string): string {
 }
 
 /**
- * `demo-studio-<project slug>-<environment>-<8 hex of the folder's path>`, lower-case letters, digits, `-` and `_`,
+ * `retake-<project slug>-<environment>-<8 hex of the folder's path>`, lower-case letters, digits, `-` and `_`,
  * at most 63 characters (the slug and environment are shortened, never the hash).
  */
 export function composeProjectName(slug: string, env: string, dir: string): string {
@@ -97,7 +97,7 @@ export function composeProjectName(slug: string, env: string, dir: string): stri
       .replace(/[^a-z0-9_-]+/g, '-')
       .replace(/-{2,}/g, '-')
       .replace(/^[-_]+|[-_]+$/g, '');
-  const prefix = 'demo-studio-';
+  const prefix = 'retake-';
   const suffix = `-${hash}`;
   let middle = [clean(slug), clean(env)].filter(Boolean).join('-');
   const room = 63 - prefix.length - suffix.length;
@@ -346,7 +346,7 @@ function indent(text: string, by = '    '): string {
 }
 
 export interface ComposeProviderOptions {
-  /** The docker binary (default findDocker(): $DEMO_STUDIO_DOCKER, PATH, the usual install places). */
+  /** The docker binary (default findDocker(): $RETAKE_DOCKER, PATH, the usual install places). */
   docker?: string;
   /** How docker is run (default runDocker; tests pass a fake). */
   exec?: DockerExec;
@@ -392,7 +392,7 @@ export class ComposeProvider implements Provider {
   /** Docker found, Compose recent enough, the daemon running (checked once per instance). */
   async docker(ctx: ProviderContext): Promise<DockerInfo> {
     if (!this.bin) {
-      throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set DEMO_STUDIO_DOCKER)`);
+      throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`);
     }
     this.ready ??= dockerReady(this.run, this.bin, ctx.signal);
     try {
@@ -477,9 +477,9 @@ export class ComposeProvider implements Provider {
     return out;
   }
 
-  /** "studio sandbox down <project> [--env <env>]": the command that takes this sandbox down. */
+  /** "retake sandbox down <project> [--env <env>]": the command that takes this sandbox down. */
   private downCommand(ctx: ProviderContext): string {
-    return `studio sandbox down ${ctx.project.slug}${sandboxNames(ctx.project)[0] === ctx.sandbox.env ? '' : ` --env ${ctx.sandbox.env}`}`;
+    return `retake sandbox down ${ctx.project.slug}${sandboxNames(ctx.project)[0] === ctx.sandbox.env ? '' : ` --env ${ctx.sandbox.env}`}`;
   }
 
   /**
@@ -584,7 +584,7 @@ export class ComposeProvider implements Provider {
   /** A message with one service's log tail and where to read more. */
   private async withTail(ctx: ProviderContext, ref: ComposeProjectRef, message: string, service: string): Promise<string> {
     const tail = await this.logTail(ref, service).catch(() => '');
-    const more = `(studio sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`;
+    const more = `(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`;
     return tail ? `${message}\n— last lines of docker compose logs ${service}:\n${indent(tail)}\n${more}` : `${message} ${more}`;
   }
 
@@ -594,7 +594,7 @@ export class ComposeProvider implements Provider {
       const tail = await this.logTail(ref, p.service).catch(() => '');
       if (tail) parts.push(`— last lines of docker compose logs ${p.service}:\n${indent(tail)}`);
     }
-    parts.push(`(studio sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`);
+    parts.push(`(retake sandbox logs ${ctx.project.slug} --env ${ctx.sandbox.env} shows more)`);
     return parts.join('\n');
   }
 
@@ -661,7 +661,7 @@ export class ComposeProvider implements Provider {
     mkdirSync(ctx.paths.logs, { recursive: true });
     const upLog = join(ctx.paths.logs, 'compose-up.log');
     const args = ['up', '-d', '--wait', '--wait-timeout', String(timeoutS), '--remove-orphans', ...(opts.build ? ['--build'] : [])];
-    writeFileSync(upLog, `── ${new Date().toISOString()} · demo-studio sandbox ${ctx.sandbox.env} · docker ${composeArgs(ref).join(' ')} ${args.join(' ')}\n`);
+    writeFileSync(upLog, `── ${new Date().toISOString()} · retake sandbox ${ctx.sandbox.env} · docker ${composeArgs(ref).join(' ')} ${args.join(' ')}\n`);
     const r = await this.compose(ref, args, {
       signal: ctx.signal,
       onLine: (line) => {
@@ -839,7 +839,7 @@ export class ComposeProvider implements Provider {
    * An `exec` seed step: the command inside a running service (`exec -T`), its output returned and kept in
    * logs/seed.log — secrets masked (the values it resolved, the sandbox's plain passwords). The hosts it names are
    * checked first, like a shell hook's (checkExecHosts). Every process it starts in the container carries
-   * DEMO_STUDIO_EXEC=<token>: an interrupt or a timeout stops them there too (killExec), not only the docker client.
+   * RETAKE_EXEC=<token>: an interrupt or a timeout stops them there too (killExec), not only the docker client.
    */
   async exec(ctx: ProviderContext, step: ExecStepSpec): Promise<string> {
     await this.docker(ctx);

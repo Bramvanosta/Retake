@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { clamp, easing, useCurrentFrame } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { clamp, easing, useCurrentFrame } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { through: 'none' | 'paper' | 'text' | 'accent' };
 

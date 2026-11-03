@@ -17,7 +17,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LIBRARY_DIR, loadComponentRegistry, scaffoldDir } from '@demo-studio/components';
+import { LIBRARY_DIR, loadComponentRegistry, scaffoldDir } from '@retake/components';
 import { PlayerBundles, buildPlayerBundle, modulesSource, playerBundleHash, playerComponents, workspaceComponents } from '../src/player/bundle-player.js';
 
 let ws: string;
@@ -46,7 +46,7 @@ export default function C() { ${body} }
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-player-bundle-'));
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
   await mkdir(join(ws, 'outside'), { recursive: true });
   await writeFile(join(ws, 'outside', 'secret.json'), JSON.stringify({ k: MARK_OUTSIDE }));
   await writeFile(join(ws, 'outside', 'secret.txt'), MARK_OUTSIDE);
@@ -136,7 +136,7 @@ describe('the preview bundle', () => {
     // run, or an edit of it would run under a hash the person allowed for other code.
     const ws2 = await mkdtemp(join(tmpdir(), 'ds-player-hidden-'));
     try {
-      await writeFile(join(ws2, 'studio.yaml'), 'version: 1\nprojects_dir: projects\n');
+      await writeFile(join(ws2, 'retake.yaml'), 'version: 1\nprojects_dir: projects\n');
       const hidden = (n: number) => `export const v = 'HIDDEN-CODE-${n}-e51a';\n`;
       const cases: Record<string, { imports: string; files: Record<string, string> }> = {
         'hid-dot': { imports: "import { v } from './.impl/code';", files: { '.impl/code.ts': hidden(1) } },

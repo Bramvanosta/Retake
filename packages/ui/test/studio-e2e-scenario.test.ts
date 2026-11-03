@@ -10,7 +10,7 @@
  * hostile scenario and page text inert → a 1,200-step scenario under ≈ 5 s with strict request counts, its pictures
  * asked in batches of ≤ 24 for the rows on screen → the run actions (part 4): a blocked Capture is disabled with its
  * reason and command before any click (no request), Dry run calls scenario_run with the pinned arguments only, the
- * queued run's banner and Cancel (run_cancel), the cancelled run then in the picker. `DEMO_STUDIO_UI_SHOTS=<folder>`
+ * queued run's banner and Cancel (run_cancel), the cancelled run then in the picker. `RETAKE_UI_SHOTS=<folder>`
  * saves screenshots there.
  */
 import { spawn } from 'node:child_process';
@@ -28,7 +28,7 @@ import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, BLUE, CYAN, GREEN, GREY, MAGENTA, ORANGE, RED, YELLOW, capture, colourName, near, writeRun } from '../../engine/test/synthetic-runs.js';
 import type { Rgb, SynthRun } from '../../engine/test/synthetic-runs.js';
 
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 15_000 };
 const P = 'northfield-fixture';
 const CAPTURE = '20261020-100000-blocks';
@@ -57,7 +57,7 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const dialogs: string[] = [];
 const consoleErrors: string[] = [];
 /** Every call the page made: [op, time, body]. */
@@ -122,7 +122,7 @@ const pad2 = (n: number) => String(n).padStart(2, '0');
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-scenario-e2e-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   const dir = project();
   await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -164,7 +164,7 @@ beforeAll(async () => {
   await writeRun(dir, { id: '20261020-120000-long', scenario: 'long', mode: 'dry', snapshot: longYaml(), scenes: Array.from({ length: LONG_SCENES }, (_x, s) => ({ id: `s${s}` })), events: longEvents, screenshots: shots });
   // No worker: a dry run started from the screen stays queued until Cancel (the real worker is test:slow's).
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 860 } });
   await context.addInitScript(() => {
@@ -197,8 +197,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -211,7 +211,7 @@ describe('the scenario screen in Chromium', () => {
     await page.getByTestId('scenario-link').click();
     await page.getByRole('heading', { level: 1, name: 'quote' }).waitFor();
     expect(page.url()).toBe(`${studio.url}#/p/${P}/s/quote`);
-    expect(await page.title()).toBe('quote · Scenario · Demo Studio');
+    expect(await page.title()).toBe('quote · Scenario · Retake');
     const scenes = page.getByTestId('scene');
     await expect.poll(() => scenes.count(), POLL).toBe(4);
     // L5.10b: a scene's facts are its inspector's (its "Scene 1 · …" button selects it).
@@ -244,7 +244,7 @@ describe('the scenario screen in Chromium', () => {
     // The command: shown in full in the blocker's popover (review A-M3 of L5.11a).
     await page.getByTestId('blockers-capture-action').click();
     await page.getByTestId('blockers-capture-popover').waitFor(POLL);
-    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toMatch(new RegExp(`^studio -C .* run ${P} quote$`));
+    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toMatch(new RegExp(`^retake -C .* run ${P} quote$`));
     await page.keyboard.press('Escape');
     // The fixture's quote run kept no copy of the scenario: matched by position, said in words.
     expect(await page.getByText('Cannot tell whether the scenario changed since this run').count()).toBe(1);
@@ -536,12 +536,12 @@ describe('the scenario screen in Chromium', () => {
     expect(await capture.innerText()).toBe('Capture');
     const described = await capture.getAttribute('aria-describedby');
     expect(await page.locator(`#${described}`).textContent()).toContain('has hooks a human must approve before they run');
-    // Said once (review B L6), with the command copied — and its node form for a person without `studio` on their PATH
+    // Said once (review B L6), with the command copied — and its node form for a person without `retake` on their PATH
     // on Prepare, where every refusal is said in full.
     expect((await page.getByTestId('blockers-capture').innerText()).match(/hook to approve/g)).toHaveLength(1);
     await page.getByTestId('blockers-capture-action').click();
     await page.getByTestId('blockers-capture-popover').waitFor(POLL);
-    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toBe(`studio -C ${ws} run ${P} quote`);
+    expect(await page.getByTestId('blockers-capture-popover').locator('.k-blocker-code').innerText()).toBe(`retake -C ${ws} run ${P} quote`);
     await page.keyboard.press('Escape');
     await page.goto(`${studio.url}#/p/${P}/s/quote/run`);
     await page.getByTestId('preflight-blockers').getByTestId('blocker-fix-node').waitFor({ state: 'attached', ...POLL });
@@ -598,7 +598,7 @@ describe('the scenario screen in Chromium', () => {
 
   /** The job of a run (its job.json path and record), from the jobs folder. */
   async function jobOf(runId: string): Promise<{ file: string; rec: Record<string, unknown> }> {
-    const dir = join(ws, '.demo-studio', 'jobs');
+    const dir = join(ws, '.retake', 'jobs');
     for (const id of await readdir(dir)) {
       const file = join(dir, id, 'job.json');
       const rec = JSON.parse(await readFile(file, 'utf8').catch(() => '{}')) as { input?: { run_id?: string } };

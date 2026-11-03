@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
-import { encodeFrames } from '@demo-studio/runner-web';
+import { encodeFrames } from '@retake/runner-web';
 
 export type Rgb = [number, number, number];
 export const RED: Rgb = [220, 30, 30];

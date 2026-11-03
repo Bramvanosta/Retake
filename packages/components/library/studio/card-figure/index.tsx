@@ -14,8 +14,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, TextMedia, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, TextMedia, ThemeTokens } from '@retake/components/kit';
 
 type Params = { from: number; count: number; tone: 'paper' | 'dark'; align: 'center' | 'left' };
 

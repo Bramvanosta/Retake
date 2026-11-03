@@ -2,7 +2,7 @@
  * L5.8 — the scenario language side of off-camera work (R-FLD-31) and of the environment (R-FLD-30): `hook: <name>`
  * steps and named hooks (`hooks:` of a scenario or project.yaml), a scene's `offscreen`; their validation, agent trust,
  * read-only refusals, the L5.5 filmed part and edit re-plan, the L4.3 Studio blocks and protected sections; and the
- * sandbox advice `studio doctor` and `project_get` give.
+ * sandbox advice `retake doctor` and `project_get` give.
  */
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -24,8 +24,8 @@ import {
   stepHookList,
   usedNamedHooks,
   writingHooks,
-} from '@demo-studio/core';
-import type { LoadedProject, Scenario, Timeline, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { LoadedProject, Scenario, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -189,7 +189,7 @@ describe('sandbox advice (R-FLD-30)', () => {
     expect(a).toEqual({ env: 'local', holds: ['database main', 'the mailbox'] });
     const t = sandboxAdviceText(a!, 'northfield');
     expect(t.detail).toBe('none — environment local films this machine with database main and the mailbox: each take starts from whatever the last one (or a hand-made reset) left');
-    expect(t.hint).toMatch(/studio sandbox init northfield writes a sandbox\.yaml to fill in \(README "Sandbox mode"\), then studio run northfield <scenario> --env sandbox --sandbox$/);
+    expect(t.hint).toMatch(/retake sandbox init northfield writes a sandbox\.yaml to fill in \(README "Sandbox mode"\), then retake run northfield <scenario> --env sandbox --sandbox$/);
     expect(sandboxAdvice(project(['reset: [{http: {method: POST, url: "{{console}}/api/reset"}}]']))).toEqual({ env: 'local', holds: ['reset hooks'] });
     expect(sandboxAdvice(project())).toBeNull();
     const remote = parseProjectYaml(['name: R', 'environments:', '  staging: {app: "https://app.staging.example.com"}', 'mailbox: {provider: mailpit, url: "http://localhost:8025"}', ''].join('\n'));

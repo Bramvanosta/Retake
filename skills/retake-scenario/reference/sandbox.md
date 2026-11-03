@@ -1,10 +1,10 @@
 # Sandboxes, in short
 
-A sandbox is a disposable, local copy of the product that Demo Studio starts, seeds with demo data and resets before
-every take, so two takes show the same data. It is declared by a `sandbox.yaml` the **user** writes (`studio sandbox
+A sandbox is a disposable, local copy of the product that Retake starts, seeds with demo data and resets before
+every take, so two takes show the same data. It is declared by a `sandbox.yaml` the **user** writes (`retake sandbox
 init <project>` in their terminal scaffolds one, and adds `sandboxes: {sandbox: sandbox/sandbox.yaml}` to project.yaml);
 the sandbox then is an environment of its own. Propose it when a project films a local copy of the product with a
-database or a mailbox: `project_get` says so (and so does `studio doctor --project <slug>`, which the user runs in
+database or a mailbox: `project_get` says so (and so does `retake doctor --project <slug>`, which the user runs in
 their own terminal).
 
 Then: `sandbox_up {project}` (or nothing: `run_capture {project, scenario, env: "sandbox", sandbox: true}` starts it if

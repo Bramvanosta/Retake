@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
+import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import {
   arcPath,
   computeIdle,
@@ -25,7 +25,7 @@ import { LONG_TEXT_MAX_CPS, SEARCH_MAX_CPS, typingRate } from '../src/actions/ke
 import { matchDay, monthDirection } from '../src/actions/calendar.js';
 import type { CalendarDay } from '../src/kit/types.js';
 import { parkPlan } from '../src/park.js';
-import { normalizeStep } from '@demo-studio/core';
+import { normalizeStep } from '@retake/core';
 import { CaptureClock, TimelineBuilder, TrackBuilder } from '../src/timeline.js';
 import { MAX_TICK_ADVANCE_MS, Pointer, TICK_MS } from '../src/pointer.js';
 import type { PointerHost } from '../src/pointer.js';

@@ -7,8 +7,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, parseTemplateYaml, parseYaml } from '@demo-studio/core';
-import type { TemplateFile } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR, parseTemplateYaml, parseYaml } from '@retake/core';
+import type { TemplateFile } from '@retake/core';
 import { PALETTE_THRESHOLDS, derivePalette, generateThemeFile } from '../src/index.js';
 import { backgroundSample, contrastRatio } from '../src/kit/style.js';
 
@@ -117,8 +117,8 @@ describe('generateThemeFile', () => {
     expect(t.background).toEqual(palette.background);
     // The base's components, frame, captions, motion and durations, untouched.
     for (const k of ['components', 'frame', 'captions', 'motion', 'intro', 'interstitial', 'transitions', 'style_bias'] as const) expect(t[k], k).toEqual(parseTemplateYaml(text).template![k]);
-    expect(g.yaml.startsWith(`# Demo Studio theme "acme", made from brand inputs on 2026-10-19 over the "${baseName}" theme`)).toBe(true);
-    expect(g.yaml).not.toMatch(/Atelier|example\.com|Demo Studio"? *#/);
+    expect(g.yaml.startsWith(`# Retake theme "acme", made from brand inputs on 2026-10-19 over the "${baseName}" theme`)).toBe(true);
+    expect(g.yaml).not.toMatch(/Atelier|example\.com|Retake"? *#/);
   });
 
   it('no brand url: the base\'s placeholder outro url is dropped, never kept', () => {

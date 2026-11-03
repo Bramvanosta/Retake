@@ -1,8 +1,8 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { sandboxAdvice, sandboxAdviceText } from '@demo-studio/core';
-import { README_MAX_CHARS, formatBytes } from '@demo-studio/engine';
+import { newVarName, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { README_MAX_CHARS, formatBytes } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
@@ -24,8 +24,8 @@ function isInside(p: string, root: string): boolean {
 
 export const engineInfo = defineTool({
   name: 'engine_info',
-  title: 'Demo Studio engine',
-  description: "Version, workspace root and features of this Demo Studio engine, its jobs worker (the background process that runs dry runs, captures and the other jobs) and the usage counters of the workspace (captures, dry runs, renders), and started_in: the folder the client started this server in (Claude Code: the session's folder). Call it first to check the server is connected to the right workspace: a started_in outside the workspace root means the registration names another folder than this session's.",
+  title: 'Retake engine',
+  description: "Version, workspace root and features of this Retake engine, its jobs worker (the background process that runs dry runs, captures and the other jobs) and the usage counters of the workspace (captures, dry runs, renders), and started_in: the folder the client started this server in (Claude Code: the session's folder). Call it first to check the server is connected to the right workspace: a started_in outside the workspace root means the registration names another folder than this session's.",
   input: z.strictObject({}),
   annotations: READ,
   async run(_args, { engine }) {
@@ -37,7 +37,7 @@ export const engineInfo = defineTool({
     const startedIn = process.cwd();
     const elsewhere = !isInside(startedIn, info.root);
     return {
-      summary: `Demo Studio ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''} Next: project_list, then project_get.`,
+      summary: `Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''}${info.legacy?.old_home ? ` The signed-in sessions from before the rename (${info.legacy.old_home}) are not read: personas show as never signed in until the user moves them (retake doctor, in their terminal, says how).` : ''}${info.legacy?.old_vars ? ` This server's environment sets ${info.legacy.old_vars.join(', ')} (names from before the rename), no longer read: ask the user to rename ${info.legacy.old_vars.length === 1 ? 'it' : 'them'} ${info.legacy.old_vars.map(newVarName).join(', ')} where set (their shell profile, this MCP registration's env).` : ''} Next: project_list, then project_get.`,
       data: { ...info, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage },
     };
   },

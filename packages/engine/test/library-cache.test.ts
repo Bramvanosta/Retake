@@ -14,10 +14,10 @@ import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
-import { PREVIEW_MAX_BYTES, PREVIEW_SAMPLES_DIR, componentSourceHash, createComponent, loadComponentRegistry } from '@demo-studio/components';
-import { loadPreviewSamples } from '@demo-studio/editor';
+import { loadTemplate } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
+import { PREVIEW_MAX_BYTES, PREVIEW_SAMPLES_DIR, componentSourceHash, createComponent, loadComponentRegistry } from '@retake/components';
+import { loadPreviewSamples } from '@retake/editor';
 import {
   LIBRARY_FILES,
   LIBRARY_PREVIEW_FORMAT,
@@ -47,7 +47,7 @@ beforeAll(async () => {
   await cp(join(REPO, 'templates', 'editorial'), join(root, 'templates', 'brandx'), { recursive: true });
   const yaml = await readFile(join(root, 'templates', 'brandx', 'template.yaml'), 'utf8');
   await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^  layout: .*$/m, '  layout: acme/frame'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   ws = { root } as WorkspaceConfig;
   await createComponent(root, { id: 'acme/frame', kind: 'layout', description: 'A frame.' });
   const card = await createComponent(root, { id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
@@ -166,12 +166,12 @@ const key = (n: number) => n.toString(16).padStart(32, '0');
 describe('library preview cache', () => {
   it('the cache folder: plain segments made when missing; a linked segment is refused and nothing is written through it', async () => {
     const dir = await ensureLibraryCacheDir(ws);
-    expect(dir).toBe(join(root, '.demo-studio', 'cache', 'previews'));
+    expect(dir).toBe(join(root, '.retake', 'cache', 'previews'));
     const other = await mkdtemp(join(root, 'linked-'));
     const ws2 = { root: await mkdtemp(join(root, 'ws2-')) } as WorkspaceConfig;
     try {
-      await mkdir(join(ws2.root, '.demo-studio'));
-      await symlink(other, join(ws2.root, '.demo-studio', 'cache'));
+      await mkdir(join(ws2.root, '.retake'));
+      await symlink(other, join(ws2.root, '.retake', 'cache'));
       await expect(ensureLibraryCacheDir(ws2)).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/is not a folder \(a link or a file\)/) });
       expect(await readdir(other)).toEqual([]);
       expect(await readLibraryImage(ws2, key(1))).toBeNull();

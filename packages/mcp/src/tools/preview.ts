@@ -1,4 +1,4 @@
-import type { Engine, JobRecord, PreviewSubmitted } from '@demo-studio/engine';
+import type { Engine, JobRecord, PreviewSubmitted } from '@retake/engine';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';
 import type { ToolContext } from './define.js';

@@ -1,8 +1,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { normalizeStep } from '@demo-studio/core';
-import type { RunProgress, RunRecord, Scenario } from '@demo-studio/core';
+import { normalizeStep } from '@retake/core';
+import type { RunProgress, RunRecord, Scenario } from '@retake/core';
 import { RunSecrets, TIMELINE_POLICY, describeStep, runScenario, trimSnippet } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
@@ -49,14 +49,14 @@ describe('RunSecrets (R-RUN-17)', () => {
   });
 
   it('registers what the environment resolver returns; redacts every form, longest first, and only values', () => {
-    process.env.DEMO_STUDIO_TEST_SECRET_A = 'p@ss wörd"<x>';
-    process.env.DEMO_STUDIO_TEST_SECRET_B = 'p@ss';
+    process.env.RETAKE_TEST_SECRET_A = 'p@ss wörd"<x>';
+    process.env.RETAKE_TEST_SECRET_B = 'p@ss';
     try {
       const secrets = new RunSecrets();
       const untouched = { url: 'https://x.example/?q=p@ss' };
       expect(secrets.redactDeep(untouched)).toBe(untouched); // nothing registered: the same value, no copy
-      expect(secrets.resolver('env:DEMO_STUDIO_TEST_SECRET_A')).toBe('p@ss wörd"<x>');
-      expect(secrets.resolver('env:DEMO_STUDIO_TEST_SECRET_B')).toBe('p@ss');
+      expect(secrets.resolver('env:RETAKE_TEST_SECRET_A')).toBe('p@ss wörd"<x>');
+      expect(secrets.resolver('env:RETAKE_TEST_SECRET_B')).toBe('p@ss');
       expect(secrets.contains('type p@ss wörd"<x> now')).toBe(true);
       expect(secrets.contains('nothing here')).toBe(false);
       expect(secrets.redactText('a p@ss wörd"<x> b')).toBe('a *** b');
@@ -82,8 +82,8 @@ describe('RunSecrets (R-RUN-17)', () => {
       // Without a policy every string is redacted (a step about to be described).
       expect(secrets.redactDeep({ id: 'p@ss', name: 'p@ss' })).toEqual({ id: '***', name: '***' });
     } finally {
-      delete process.env.DEMO_STUDIO_TEST_SECRET_A;
-      delete process.env.DEMO_STUDIO_TEST_SECRET_B;
+      delete process.env.RETAKE_TEST_SECRET_A;
+      delete process.env.RETAKE_TEST_SECRET_B;
     }
   });
 
@@ -206,14 +206,14 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
     if (dir) await rm(dir, { recursive: true, force: true });
   });
   beforeEach(() => {
-    process.env.DEMO_STUDIO_TEST_EMAIL = EMAIL;
-    process.env.DEMO_STUDIO_TEST_PASSWORD = PASSWORD;
-    process.env.DEMO_STUDIO_TEST_TOKEN = TOKEN;
+    process.env.RETAKE_TEST_EMAIL = EMAIL;
+    process.env.RETAKE_TEST_PASSWORD = PASSWORD;
+    process.env.RETAKE_TEST_TOKEN = TOKEN;
   });
   afterEach(() => {
-    delete process.env.DEMO_STUDIO_TEST_EMAIL;
-    delete process.env.DEMO_STUDIO_TEST_PASSWORD;
-    delete process.env.DEMO_STUDIO_TEST_TOKEN;
+    delete process.env.RETAKE_TEST_EMAIL;
+    delete process.env.RETAKE_TEST_PASSWORD;
+    delete process.env.RETAKE_TEST_TOKEN;
   });
 
   async function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<{ rec: RunRecord; events: RunProgress[] }> {
@@ -249,17 +249,17 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
       scenes: [
         {
           id: 'signin',
-          open: '/login.html?token={{env:DEMO_STUDIO_TEST_TOKEN}}',
+          open: '/login.html?token={{env:RETAKE_TEST_TOKEN}}',
           caption: 'Sign in as {{vars.customer}}',
           steps: [
-            { type: { into: { label: 'Work email' }, text: '{{env:DEMO_STUDIO_TEST_EMAIL}}' } },
-            { type: { into: { label: 'Password' }, text: '{{env:DEMO_STUDIO_TEST_PASSWORD}}' } },
+            { type: { into: { label: 'Work email' }, text: '{{env:RETAKE_TEST_EMAIL}}' } },
+            { type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } },
             { click: 'Sign in' },
-            { wait_for: 'Signed in as {{env:DEMO_STUDIO_TEST_EMAIL}}' },
+            { wait_for: 'Signed in as {{env:RETAKE_TEST_EMAIL}}' },
             { click: 'Open {{vars.customer}}', caption: { kicker: '{{vars.customer}}', text: 'Run {{run.id}}' } },
             { assert: '{{vars.customer}} — opened' },
-            { emit: { name: 'quote', data: { customer: '{{vars.customer}}', who: '{{env:DEMO_STUDIO_TEST_EMAIL}}' } } },
-            { eval: { js: "return document.getElementById('pw').value === arg", arg: '{{env:DEMO_STUDIO_TEST_PASSWORD}}' } },
+            { emit: { name: 'quote', data: { customer: '{{vars.customer}}', who: '{{env:RETAKE_TEST_EMAIL}}' } } },
+            { eval: { js: "return document.getElementById('pw').value === arg", arg: '{{env:RETAKE_TEST_PASSWORD}}' } },
             { eval: "return document.getElementById('pw').value" },
           ],
         },
@@ -296,9 +296,9 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
           id: 'signin',
           open: '/login.html',
           steps: [
-            { type: { into: { label: 'Work email' }, text: '{{env:DEMO_STUDIO_TEST_EMAIL}}' } },
+            { type: { into: { label: 'Work email' }, text: '{{env:RETAKE_TEST_EMAIL}}' } },
             { click: 'Sign in' },
-            { capture_text: { target: { text: 'Signed in as {{env:DEMO_STUDIO_TEST_EMAIL}}' }, as: 'who', pattern: '^(Signed in) as' } },
+            { capture_text: { target: { text: 'Signed in as {{env:RETAKE_TEST_EMAIL}}' }, as: 'who', pattern: '^(Signed in) as' } },
           ],
         },
       ],
@@ -323,8 +323,8 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
           id: 'signin',
           open: '/login.html',
           steps: [
-            { type: { into: { label: 'Password' }, text: '{{env:DEMO_STUDIO_TEST_PASSWORD}}' } },
-            { click: { text: '{{env:DEMO_STUDIO_TEST_PASSWORD}}' }, timeout: 0.3 },
+            { type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } },
+            { click: { text: '{{env:RETAKE_TEST_PASSWORD}}' }, timeout: 0.3 },
           ],
         },
       ],
@@ -342,11 +342,11 @@ describe('templating and secrets in a run (R-RUN-16, R-RUN-17)', () => {
     const { rec, events } = await run('unset', {
       scenes: [
         { id: 'first', open: '/login.html', steps: [{ click: 'Sign in' }] },
-        { id: 'second', steps: [{ type: { into: { label: 'Password' }, text: '{{env:DEMO_STUDIO_UNSET_VAR}}' } }] },
+        { id: 'second', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_UNSET_VAR}}' } }] },
       ],
     });
     expect(rec.status).toBe('failed');
-    expect(rec.error?.message).toBe('scene second: environment variable DEMO_STUDIO_UNSET_VAR is not set');
+    expect(rec.error?.message).toBe('scene second: environment variable RETAKE_UNSET_VAR is not set');
     expect(rec.steps_done).toBe(0);
     expect(events.some((e) => e.type === 'scene_start')).toBe(false);
   });

@@ -2,9 +2,9 @@
  * Sessions & personas (L1.6): which account each filmed page is signed in as, where a persona's session lives, what a
  * sign-in page looks like. Pure (no browser, no file access); shared by the validation, the runner and the CLI.
  *
- * A persona's files are never written in project.yaml: they are derived under the studio home —
- * `~/.demo-studio` (DEMO_STUDIO_HOME moves it) — as profiles/<project>/<env>/<persona>/ (the Chromium profile
- * `studio login` keeps), sessions/<project>/<env>/<persona>.json (the session snapshot) and
+ * A persona's files are never written in project.yaml: they are derived under the Retake home —
+ * `~/.retake` (RETAKE_HOME moves it) — as profiles/<project>/<env>/<persona>/ (the Chromium profile
+ * `retake login` keeps), sessions/<project>/<env>/<persona>.json (the session snapshot) and
  * sessions/<project>/<env>/<persona>.status.json (the last check). The legacy single-account form (`auth.profile` /
  * `auth.storage_state`) keeps working as an implicit persona `default` signed into every page.
  */
@@ -27,11 +27,11 @@ export const AUTH_KEYS: readonly string[] = ['profile', 'storage_state', 'login_
 /** Default timeout of a persona check (seconds). */
 export const PERSONA_CHECK_TIMEOUT_S = 10;
 
-/** The studio home: $DEMO_STUDIO_HOME (~ expanded, made absolute), else ~/.demo-studio. */
-export function studioHome(env: NodeJS.ProcessEnv = process.env): string {
-  const v = env.DEMO_STUDIO_HOME;
+/** The Retake home: $RETAKE_HOME (~ expanded, made absolute), else ~/.retake. */
+export function retakeHome(env: NodeJS.ProcessEnv = process.env): string {
+  const v = env.RETAKE_HOME;
   if (v && v.trim() !== '') return resolve(expandHome(v.trim()));
-  return join(homedir(), '.demo-studio');
+  return join(homedir(), '.retake');
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -90,11 +90,11 @@ export interface ResolvedPersona {
   /** Sign-in pages: auth.login_url, the persona's login_url and check.expect_not_url. */
   loginPatterns: LoginPattern[];
   login?: LoginStep[];
-  /** The master profile `studio login` keeps (Chromium user-data-dir; a run only ever copies it). */
+  /** The master profile `retake login` keeps (Chromium user-data-dir; a run only ever copies it). */
   profileDir?: string;
-  /** The session snapshot (Playwright storage state + `demo_studio` metadata). */
+  /** The session snapshot (Playwright storage state + `retake` metadata). */
   snapshot?: string;
-  /** The status of the last check (written by the preflight, `studio login`, `studio auth status --check`). */
+  /** The status of the last check (written by the preflight, `retake login`, `retake auth status --check`). */
   statusFile: string;
   /**
    * An account of a sandbox (L1.8, `accounts:` of its sandbox.yaml): signed in by its login steps whenever its session is
@@ -105,7 +105,7 @@ export interface ResolvedPersona {
   secrets?: string[];
 }
 
-/** Where a persona's files live under the studio home. */
+/** Where a persona's files live under the Retake home. */
 export function personaPaths(home: string, project: string, env: string, persona: string): { profileDir: string; snapshot: string; statusFile: string } {
   return {
     profileDir: join(home, 'profiles', project, env, persona),
@@ -132,7 +132,7 @@ export function resolvePersonas(
   const auth = authFor(project.config, env);
   if (!auth) return [];
   const sandbox = project.sandboxes && Object.hasOwn(project.sandboxes, env) ? project.sandboxes[env] : undefined;
-  const home = opts.home ?? studioHome();
+  const home = opts.home ?? retakeHome();
   const envPages = Object.keys(project.config.environments?.[env] ?? {});
   const common = asList(auth.login_url);
   if (auth.profile !== undefined || auth.storage_state !== undefined) {
@@ -181,7 +181,7 @@ export function environmentLoginPatterns(config: Pick<ProjectConfig, 'auth'>, en
  * (keyed on `legacy`, never on the name — a declared persona may be called "default").
  */
 export function loginCommand(p: { project: string; env: string; persona?: string }): string {
-  return `studio login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
+  return `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
 }
 
 // ── Sign-in pages ────────────────────────────────────────────────────────────

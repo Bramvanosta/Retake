@@ -22,7 +22,7 @@
  * README "unsaved". Still no Markdown preview (deliberate: see above).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ProjectView } from '@demo-studio/engine';
+import type { ProjectView } from '@retake/engine';
 import { CallError, call, errorText, useCall } from './api.js';
 import { useEvents } from './events.js';
 import { Txt } from './bits.js';

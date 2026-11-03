@@ -18,7 +18,7 @@ export interface CheckedDocument {
 export interface CheckDocumentOptions {
   /**
    * The file's format (R-PRIN-13): a `version` above `supported` is refused before the schema — one error at the
-   * `version` key, the file was made for a newer Demo Studio — instead of the unknown keys of a format this one
+   * `version` key, the file was made for a newer Retake — instead of the unknown keys of a format this one
    * does not know.
    */
   formatVersion?: FormatVersion;

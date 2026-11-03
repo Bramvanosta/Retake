@@ -14,8 +14,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Item = { title: string; text?: string; icon?: string };
 type Params = { items: Item[]; stagger: number; tone: 'paper' | 'dark' };

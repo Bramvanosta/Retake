@@ -1,5 +1,5 @@
 import { basename } from 'node:path';
-import type { LoadedTemplate, Template, TextStyle } from '@demo-studio/core';
+import type { LoadedTemplate, Template, TextStyle } from '@retake/core';
 import type { ThemeFontFace, ThemeTextStyle, ThemeTokens } from './types.js';
 
 /** URLs of the template assets as served to the renderer / UI (file paths are not usable in a browser page). */

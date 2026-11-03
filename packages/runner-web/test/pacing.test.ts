@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import type { LoadedProject, Scenario, TimelineEvent } from '@demo-studio/core';
+import type { LoadedProject, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { LATE_DIALOG_PAGE, NAV2_PAGE, NAV_PAGE, STRATEGY_PAGE, localePage } from './pages.js';

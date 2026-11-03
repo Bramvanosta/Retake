@@ -1,10 +1,10 @@
 /**
- * L5.2 — the desktop shell, black box (gated: DEMO_STUDIO_TEST_DESKTOP=1, macOS, cargo on PATH, `pnpm build` first;
+ * L5.2 — the desktop shell, black box (gated: RETAKE_TEST_DESKTOP=1, macOS, cargo on PATH, `pnpm build` first;
  * WKWebView has no WebDriver on macOS, so the proofs are the server's own counters, process tables and lsof).
  *
- * One release build (`desktop.mjs build --id local.demo-studio.desktop.test --out <scratch>`, cargo --offline when
+ * One release build (`desktop.mjs build --id local.retake.desktop.test --out <scratch>`, cargo --offline when
  * CARGO_NET_OFFLINE=true), launched by its binary inside the .app — never `open`, never a Launch Services lookup —
- * with a scratch DEMO_STUDIO_HOME and workspace and DEMO_STUDIO_DESKTOP_TEST=1 (no modal dialog):
+ * with a scratch RETAKE_HOME and workspace and RETAKE_DESKTOP_TEST=1 (no modal dialog):
  * - it owns the workspace's server: the `ui.json` holder is its child, whose command line holds no secret; the child
  *   listens on 127.0.0.1 only (two listeners: the Studio and the player);
  * - the page loaded: the server counted a redeemed code and an open event stream (`/v1/info` counters, read with the
@@ -13,7 +13,7 @@
  *   SIGKILL (a crash) leaves no orphan (the child's stdin EOF); a server already running is attached to and survives;
  * - File › Open Workspace… (SIGUSR1 in test mode) on a folder that is no workspace changes nothing: the app, its
  *   server and its page stay (review B M1);
- * - a hostile launch (review A M1 / M2 / L2 / L4): a copy of the app whose launch.json runs a fake `studio ui
+ * - a hostile launch (review A M1 / M2 / L2 / L4): a copy of the app whose launch.json runs a fake `retake ui
  *   --supervised` serving an adversarial page, a "player" framed `sandbox="allow-scripts"` as the timeline frames it,
  *   and a foreign port — the foreign port gets no request (iframe, redirect, srcdoc frame, octal host, target=_blank,
  *   window.open, top-level location), data: / blob: / custom-scheme navigations are refused, no download lands in
@@ -23,9 +23,9 @@
  * - ~/Library gains nothing named after the test bundle id or the binary (WebKit, Caches, HTTPStorages, Saved
  *   Application State, Preferences, Application Support, Cookies, Logs); Launch Services, which records a bundle even
  *   when its binary is started directly, keeps no record once the test unregisters it (`lsregister -u`).
- * With DEMO_STUDIO_TEST_SLOW=1 too (and Chromium): a capture of the fixture, then the app on its timeline (`--route`):
+ * With RETAKE_TEST_SLOW=1 too (and Chromium): a capture of the fixture, then the app on its timeline (`--route`):
  * the player served the frame its media (bytes counted) — that the Player paints it is the screenshot, looked at by a
- * person (playing needs a click: MACOS-CHECKLIST 14a). DEMO_STUDIO_TEST_SHOTS=<folder> keeps the screenshots there.
+ * person (playing needs a click: MACOS-CHECKLIST 14a). RETAKE_TEST_SHOTS=<folder> keeps the screenshots there.
  * A screenshot is honest about itself (review B): a locked screen skips it, and a capture without Screen Recording
  * permission or a blank picture is reported "unverified" (printed with the timings) — never a silent pass.
  * L5.2b (job notifications, quit guard; SIGUSR2 is Quit through `terminate:` in test mode — the ⌘Q path):
@@ -37,9 +37,9 @@
  * - job ends become notifications by the no-storm rule (test mode logs them): window not in front → one at once and one
  *   summary 5 s later; in front → none;
  * - an attached server: no guard, no notifications (said), SIGUSR2 quits at once and leaves it running with its job;
- * - the real alert (DEMO_STUDIO_DESKTOP_TEST_MODAL_MS): a second window of the app while it is up, gone after; a second
+ * - the real alert (RETAKE_DESKTOP_TEST_MODAL_MS): a second window of the app while it is up, gone after; a second
  *   SIGUSR2 meanwhile is ignored (critique H2); SIGTERM while it is up quits (M1). Screenshots of the question with a job
- *   and with unsaved text are kept (DEMO_STUDIO_TEST_SHOTS);
+ *   and with unsaved text are kept (RETAKE_TEST_SHOTS);
  * - the owned server killed with unsaved text in the window: the restart alert names it, Not Now (its default: Restart
  *   and Quit have no key, review B M4) keeps the window, and Quit then asks about the text only — the dead server's
  *   jobs are history (critique L2).
@@ -51,7 +51,7 @@
  * the second Quit of H2 sent only once the question is up (B L2); the notification summary polled for (B L3).
  * Notifications themselves (the permission prompt, a banner, the click) are a person's check: MACOS-CHECKLIST 14a.
  * L5.12d (critique M2): the quit question is asked in the window's page first. The L5.2b cases above that answer the
- * native alert (ANSWERS / MODAL_MS) keep it through test mode's DEMO_STUDIO_DESKTOP_TEST_QUIT=native; new cases cover
+ * native alert (ANSWERS / MODAL_MS) keep it through test mode's RETAKE_DESKTOP_TEST_QUIT=native; new cases cover
  * the page: Cancel and Quit Anyway through `desktop_answer` with the id test mode logs (the page itself acks `shown`),
  * a second Quit re-dispatching the same id, a replayed old id ignored, and a page that cannot ack (its server
  * SIGSTOPped) giving the native alert after 1.5 s.
@@ -65,22 +65,22 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { selfIdentity } from '@demo-studio/engine';
+import { selfIdentity } from '@retake/engine';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const SCRIPT = join(REPO, 'apps', 'desktop', 'scripts', 'desktop.mjs');
-const TEST_ID = 'local.demo-studio.desktop.test';
+const TEST_ID = 'local.retake.desktop.test';
 // The binary's name: Cargo.toml `name`, its one place (review B L12).
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 const LIBRARY_DIRS = ['WebKit', 'Caches', 'HTTPStorages', 'Saved Application State', 'Preferences', 'Application Support', 'Cookies', 'Logs'];
-const WANTED = process.env.DEMO_STUDIO_TEST_DESKTOP === '1' && process.platform === 'darwin';
+const WANTED = process.env.RETAKE_TEST_DESKTOP === '1' && process.platform === 'darwin';
 // Probed only when asked for (review B M4: the default suite never runs cargo for this file).
 const ENABLED = WANTED && existsSync(CLI) && spawnSync('cargo', ['--version'], { stdio: 'ignore' }).status === 0;
-const SLOW = ENABLED && process.env.DEMO_STUDIO_TEST_SLOW === '1';
-const SHOTS = process.env.DEMO_STUDIO_TEST_SHOTS;
+const SLOW = ENABLED && process.env.RETAKE_TEST_SLOW === '1';
+const SHOTS = process.env.RETAKE_TEST_SHOTS;
 
 let base: string;
 let ws: string;
@@ -137,7 +137,7 @@ interface Record_ {
   port: number;
   token: string;
 }
-const uiJson = (root = ws) => join(root, '.demo-studio', 'ui.json');
+const uiJson = (root = ws) => join(root, '.retake', 'ui.json');
 async function record(root = ws): Promise<Record_ | undefined> {
   try {
     return JSON.parse(await readFile(uiJson(root), 'utf8')) as Record_;
@@ -164,7 +164,7 @@ interface App {
 }
 function launch(args: string[], o: { bin?: string; env?: NodeJS.ProcessEnv } = {}): App {
   const child = spawn(o.bin ?? binary, ['--root', ws, ...args], {
-    env: { ...process.env, DEMO_STUDIO_HOME: home, DEMO_STUDIO_ROOT: '', DEMO_STUDIO_DESKTOP_TEST: '1', ...o.env },
+    env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1', ...o.env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   launched.push(child);
@@ -263,7 +263,7 @@ const RENDER = { version: 1, kind: 'render', project: 'northfield-fixture', scen
 /** A job folder written as a worker would (L5.2b): `running` names this process as its worker (alive: it holds Quit). */
 async function writeJob(root: string, state: string, at?: string): Promise<string> {
   const id = at ?? `j_${String(Date.now()).padStart(13, '0')}${String(++jobN).padStart(13, '0')}`;
-  const dir = join(root, '.demo-studio', 'jobs', id);
+  const dir = join(root, '.retake', 'jobs', id);
   await mkdir(dir, { recursive: true });
   const rec = { version: 1, id, kind: 'render', input: RENDER, state, created_at: new Date().toISOString(), ...(state === 'running' ? { worker: { ...(await selfIdentity()), host: 'test' } } : {}) };
   await writeFile(join(dir, 'job.json'), JSON.stringify(rec));
@@ -304,7 +304,7 @@ function tokenDownloads(): string[] | undefined {
 }
 
 /**
- * The fake `studio ui --supervised` of the hostile launch (review A M2): three loopback listeners on free ports — the
+ * The fake `retake ui --supervised` of the hostile launch (review A M2): three loopback listeners on free ports — the
  * "Studio" serving an adversarial page, a "player" the page frames `sandbox="allow-scripts"`, a foreign port — every
  * request logged to log.txt next to it; it prints the supervised line and stops on stdin's end or SIGTERM.
  */
@@ -378,7 +378,7 @@ process.on('SIGTERM', () => { log('SIGTERM'); process.exit(0); });
 `;
 }
 
-describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTOP=1)', () => {
+describe.skipIf(!ENABLED)('the desktop shell, black box (RETAKE_TEST_DESKTOP=1)', () => {
   const libraryBefore: string[] = [];
   let lsBefore = '';
 
@@ -443,8 +443,8 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(await a.exit).toEqual({ code: 0, signal: null });
     await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
     timings.quit_ms = Date.now() - t1;
-    expect(a.err()).toContain('demo-studio-desktop: quit: SIGTERM');
-    expect(a.err()).toContain('studio: stopped: SIGTERM');
+    expect(a.err()).toContain('retake-desktop: quit: SIGTERM');
+    expect(a.err()).toContain('retake: stopped: SIGTERM');
     expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, quit\\): exit status: 0 after \\d+ ms`));
     expectClean(a.err(), r.token);
   }, 60_000);
@@ -463,7 +463,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   }, 60_000);
 
   it('a server already running: the app attaches (its page loads there), no guard and no notifications (said); Quit (SIGUSR2) at once leaves that server and its job running', async () => {
-    const term = spawn(process.execPath, [CLI, '--root', ws, 'ui', '--no-open', '--json'], { env: { ...process.env, DEMO_STUDIO_HOME: home, DEMO_STUDIO_ROOT: '' }, stdio: ['ignore', 'pipe', 'ignore'] });
+    const term = spawn(process.execPath, [CLI, '--root', ws, 'ui', '--no-open', '--json'], { env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '' }, stdio: ['ignore', 'pipe', 'ignore'] });
     launched.push(term);
     const r = await until(() => record(), 20_000, 'the terminal server');
     expect(r.pid).toBe(term.pid);
@@ -483,11 +483,11 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(alive(r.pid)).toBe(true);
     expect((await record())?.pid).toBe(r.pid);
     expect((await fetch(`http://127.0.0.1:${r.port}/`)).status).toBe(200);
-    expect(JSON.parse(await readFile(join(ws, '.demo-studio', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
+    expect(JSON.parse(await readFile(join(ws, '.retake', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
     expectClean(a.err(), r.token);
     term.kill('SIGTERM');
     await until(() => !existsSync(uiJson()), 5000, 'the terminal server stopped');
-    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 60_000);
 
   it('L5.2b: nothing pending — Quit (SIGUSR2, the terminate: path of ⌘Q) is instant: no question, the server stopped gracefully', async () => {
@@ -504,7 +504,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
     expect(a.err()).toContain('(test mode) SIGUSR2: Quit (terminate:)');
     expect(a.err()).not.toContain('(test mode) alert:');
-    expect(a.err()).toContain('studio: stopped: SIGTERM');
+    expect(a.err()).toContain('retake: stopped: SIGTERM');
     expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, quit\\)`));
     expectClean(a.err(), r.token);
   }, 60_000);
@@ -512,14 +512,14 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   it('L5.2b: a running job holds Quit and Open Workspace… (answered Cancel: app and server stay); once it ended, Quit is instant', async () => {
     const other = join(base, 'other-ws');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     const job = await writeJob(ws, 'running');
     await until(() => a.err().includes('pending: 1 job, 0 unsaved'), 10_000, 'the job in the snapshot');
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
-    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)');
+    expect(a.err()).toContain('(test mode) alert: Quit Retake? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render of northfield-fixture · quote (running)');
     await sleep(2000);
     expect(a.child.exitCode).toBe(null);
     expect(alive(r.pid)).toBe(true);
@@ -538,11 +538,11 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(a.err()).not.toContain('notification:');
     await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
     expectClean(a.err(), r.token);
-    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 90_000);
 
   it('L5.2b: unsaved text a tab reports is named in the question (names that exist only; the op strict); an empty report clears it', async () => {
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture', label: 'Click Quit Anyway to keep your work' }] })).toBe(400);
@@ -550,7 +550,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     await until(() => a.err().includes('pending: 0 jobs, 2 unsaved'), 10_000, 'the unsaved text in the snapshot');
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the question answered Cancel');
-    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• A comment being written\n• README.md of northfield-fixture');
+    expect(a.err()).toContain('(test mode) alert: Quit Retake? — Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• A comment being written\n• README.md of northfield-fixture');
     expect(a.err()).not.toMatch(/no-such-project|Click Quit Anyway/);
     expect(a.child.exitCode).toBe(null);
     expect(await report(r, { tab: TAB, hidden: false, items: [] })).toBe(200);
@@ -624,7 +624,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
       const t0 = Date.now();
       a.child.kill('SIGUSR2');
       await until(() => pageQuestions(a.err())[0], 5000, 'the page question');
-      await until(() => a.err().includes('(test mode) alert: Quit Demo Studio?'), 5000, 'the native alert');
+      await until(() => a.err().includes('(test mode) alert: Quit Retake?'), 5000, 'the native alert');
       timings.page_fallback_ms = Date.now() - t0;
       expect(timings.page_fallback_ms).toBeGreaterThanOrEqual(1400);
       expect(timings.page_fallback_ms).toBeLessThan(4000);
@@ -685,7 +685,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   }, 60_000);
 
   it('⚑ L5.12d fixes (review B-M2): the owned server dies while the page sheet is up — the question in the window dropped before the restart alert takes over (Not Now), a later Quit asks with the alert (its ports are nobody\'s)', async () => {
-    const up = await pageSheetUp({ DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0' });
+    const up = await pageSheetUp({ RETAKE_DESKTOP_TEST_ANSWERS: '0' });
     if (!up) {
       shots.page_server_died = 'skipped: the screen is locked (the page acks only while it is visible)';
       return;
@@ -703,7 +703,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     // A later Quit: no page question (the window's server is gone) — the native alert, answered Cancel.
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the quit question (native)');
-    expect(a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Demo Studio?'))).toContain('• README.md of northfield-fixture');
+    expect(a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Retake?'))).toContain('• README.md of northfield-fixture');
     expect(pageQuestions(a.err())).toEqual([id]);
     expect(a.err()).not.toMatch(/ignored a page (?:ack|answer)/);
     a.child.kill('SIGTERM');
@@ -713,7 +713,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
 
   it('L5.2b: job ends become notifications by the no-storm rule (test mode logs them) — not in front: one at once, one summary; in front: none; SIGTERM with a job running quits without a question', async () => {
     for (const front of ['0', '1']) {
-      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_FRONT: front } });
+      const a = launch([], { env: { RETAKE_DESKTOP_TEST_FRONT: front } });
       const r = await until(() => record(), 20_000, 'ui.json');
       await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
       const t0 = Date.now();
@@ -725,11 +725,11 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
       await sleep(1000);
       if (front === '0') {
         expect(notes()).toEqual([
-          'demo-studio-desktop: (test mode) notification: Render failed — northfield-fixture · quote',
-          'demo-studio-desktop: (test mode) notification: 2 jobs ended — 2 failed / northfield-fixture · quote',
+          'retake-desktop: (test mode) notification: Render failed — northfield-fixture · quote',
+          'retake-desktop: (test mode) notification: 2 jobs ended — 2 failed / northfield-fixture · quote',
         ]);
       } else {
-        expect(notes()).toEqual(Array(3).fill('demo-studio-desktop: (test mode) notification dropped (window in front): 1'));
+        expect(notes()).toEqual(Array(3).fill('retake-desktop: (test mode) notification dropped (window in front): 1'));
       }
       // SIGTERM with a job running: quits now, no question (signals never meet the guard).
       await writeJob(ws, 'running');
@@ -739,14 +739,14 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
       expect(a.err()).toContain('quit: SIGTERM');
       expect(a.err()).not.toContain('(test mode) alert:');
       expectClean(a.err(), r.token);
-      await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+      await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
     }
   }, 90_000);
 
-  it('L5.2b: the real question (MODAL_MS, the native alert: DEMO_STUDIO_DESKTOP_TEST_QUIT=native): a second window while it is up, gone after; a second Quit meanwhile ignored (H2 — the page question re-dispatches instead: L5.12d); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
+  it('L5.2b: the real question (MODAL_MS, the native alert: RETAKE_DESKTOP_TEST_QUIT=native): a second window while it is up, gone after; a second Quit meanwhile ignored (H2 — the page question re-dispatches instead: L5.12d); no picker inside it (B L10); SIGTERM while it is up quits (M1)', async () => {
     const other = join(base, 'other-ws-l10');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: '3000', DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_MODAL_MS: '3000', RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
@@ -795,15 +795,15 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     timings.sigterm_during_question_ms = Date.now() - t0;
     expect(timings.sigterm_during_question_ms).toBeLessThan(3000);
     expect(a.err()).toContain('quit: SIGTERM');
-    expect(a.err()).toContain('studio: stopped: SIGTERM');
+    expect(a.err()).toContain('retake: stopped: SIGTERM');
     await until(() => !alive(r.pid) && !existsSync(uiJson()), 5000, 'the server stopped');
     if (locked) shots.quit_alert = 'skipped: the screen is locked (window counts not checked)';
     expectClean(a.err(), r.token);
-    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 90_000);
 
   it('L5.2b: the owned server dies with unsaved text in the window — the restart alert names it, Not Now (its default) keeps the window, Quit then asks about the text only (its jobs are history)', async () => {
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0', DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_ANSWERS: '0', RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     await writeJob(ws, 'running');
@@ -819,7 +819,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(a.child.exitCode).toBe(null);
     a.child.kill('SIGUSR2');
     await until(() => a.err().includes('quit cancelled: the app stays open'), 10_000, 'the quit question');
-    const q = a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Demo Studio?'));
+    const q = a.err().slice(a.err().lastIndexOf('(test mode) alert: Quit Retake?'));
     expect(q).toContain('Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of northfield-fixture');
     expect(q.split('quit cancelled')[0]).not.toContain('jobs keep running');
     a.child.kill('SIGTERM');
@@ -827,13 +827,13 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(a.err()).toContain(`the Studio server (pid ${r.pid}) had already exited`);
     expectClean(a.err(), r.token);
     await rm(uiJson(), { force: true });
-    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
   }, 60_000);
 
   it('review B M5: Open Anyway and Quit Anyway end to end — the owned server stopped gracefully, the picked workspace served, the app exits 0, the jobs left running', async () => {
     const other = join(base, 'other-ws-m5');
     await mkdir(join(other, 'projects'), { recursive: true });
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: other, DEMO_STUDIO_DESKTOP_TEST_ANSWERS: '0,0', DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_PICK: other, RETAKE_DESKTOP_TEST_ANSWERS: '0,0', RETAKE_DESKTOP_TEST_QUIT: 'native' } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
     const job = await writeJob(ws, 'running');
@@ -846,7 +846,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r.pid}, another workspace opened\\): exit status: 0`));
     const r2 = await until(() => record(other), 20_000, 'the picked workspace served');
     expect(r2.pid).not.toBe(r.pid);
-    expect(JSON.parse(await readFile(join(ws, '.demo-studio', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
+    expect(JSON.parse(await readFile(join(ws, '.retake', 'jobs', job, 'job.json'), 'utf8')).state).toBe('running');
     // A job there, then Quit: Quit Anyway (ANSWERS 0) — the app exits 0, its server stopped gracefully, the job runs on.
     await until(() => count(a.err(), 'pending: 0 jobs, 0 unsaved') >= 2, 20_000, 'the new server\'s first snapshot');
     const job2 = await writeJob(other, 'running');
@@ -855,14 +855,14 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     a.child.kill('SIGUSR2');
     expect(await a.exit).toEqual({ code: 0, signal: null });
     timings.quit_anyway_ms = Date.now() - t0;
-    expect(a.err()).toContain('(test mode) alert: Quit Demo Studio? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render (running)');
+    expect(a.err()).toContain('(test mode) alert: Quit Retake? — These jobs keep running after the app quits, but it will not tell you when they end:\n• Render (running)');
     expect(a.err()).toContain('quit: Quit Anyway');
     await until(() => !alive(r2.pid) && !existsSync(uiJson(other)), 5000, 'the second server stopped');
     expect(a.err()).toMatch(new RegExp(`stopped the Studio server \\(pid ${r2.pid}, quit\\): exit status: 0`));
-    expect(JSON.parse(await readFile(join(other, '.demo-studio', 'jobs', job2, 'job.json'), 'utf8')).state).toBe('running');
+    expect(JSON.parse(await readFile(join(other, '.retake', 'jobs', job2, 'job.json'), 'utf8')).state).toBe('running');
     expectClean(a.err(), r.token);
     expectClean(a.err(), r2.token);
-    await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+    await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
     await rm(other, { recursive: true, force: true });
   }, 90_000);
 
@@ -873,7 +873,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     await mkdir(join(other, 'projects'), { recursive: true });
     const ABORT_MS = '20000';
     for (const kind of ['open', 'not-a-workspace', 'restart'] as const) {
-      const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_MODAL_MS: ABORT_MS, DEMO_STUDIO_DESKTOP_TEST_PICK: kind === 'open' ? other : notWs, DEMO_STUDIO_DESKTOP_TEST_QUIT: 'native' } });
+      const a = launch([], { env: { RETAKE_DESKTOP_TEST_MODAL_MS: ABORT_MS, RETAKE_DESKTOP_TEST_PICK: kind === 'open' ? other : notWs, RETAKE_DESKTOP_TEST_QUIT: 'native' } });
       const r = await until(() => record(), 20_000, 'ui.json');
       await until(() => a.err().includes('pending: 0 jobs, 0 unsaved'), 20_000, 'the first pending snapshot');
       if (kind === 'open') {
@@ -883,7 +883,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
         await until(() => a.err().includes('(test mode) alert: Open another workspace?'), 10_000, 'the Open Workspace… question');
       } else if (kind === 'not-a-workspace') {
         a.child.kill('SIGUSR1');
-        await until(() => a.err().includes('(test mode) alert: Not a Demo Studio workspace'), 10_000, 'the "not a workspace" alert');
+        await until(() => a.err().includes('(test mode) alert: Not a Retake workspace'), 10_000, 'the "not a workspace" alert');
       } else {
         expect(await report(r, { tab: TAB, hidden: true, items: [{ kind: 'readme', project: 'northfield-fixture' }] })).toBe(200);
         await until(() => a.err().includes('pending: 0 jobs, 1 unsaved'), 10_000, 'the unsaved text in the snapshot');
@@ -917,7 +917,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
       }
       expect(existsSync(uiJson(other))).toBe(false);
       expectClean(a.err(), r.token);
-      await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+      await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
     }
   }, 120_000);
 
@@ -926,9 +926,9 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     const badWs = join(base, 'bad-workspace');
     await mkdir(notWs, { recursive: true });
     await mkdir(badWs, { recursive: true });
-    // A workspace by the CLI's rule whose server refuses to start (a newer studio.yaml version: exit 1).
-    await writeFile(join(badWs, 'studio.yaml'), 'version: 99\n');
-    const a = launch([], { env: { DEMO_STUDIO_DESKTOP_TEST_PICK: `${notWs}:${badWs}` } });
+    // A workspace by the CLI's rule whose server refuses to start (a newer retake.yaml version: exit 1).
+    await writeFile(join(badWs, 'retake.yaml'), 'version: 99\n');
+    const a = launch([], { env: { RETAKE_DESKTOP_TEST_PICK: `${notWs}:${badWs}` } });
     const r = await until(() => record(), 20_000, 'ui.json');
     await until(async () => (await counters(r)).streams >= 1, 20_000, 'the page');
     a.child.kill('SIGUSR1');
@@ -959,7 +959,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
   }, 90_000);
 
   it('a hostile page: no request reaches a foreign port, no download lands, no IPC, no capture device; the child has no NODE_OPTIONS', async () => {
-    // A copy of the app whose launch.json runs the fake CLI (a release build reads no DEMO_STUDIO_NODE / _CLI).
+    // A copy of the app whose launch.json runs the fake CLI (a release build reads no RETAKE_NODE / _CLI).
     const dir = join(base, 'hostile');
     await mkdir(dir, { recursive: true });
     hostileApp = join(dir, 'Hostile.app');
@@ -1023,24 +1023,24 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
     expectClean(err, 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJ0123456');
   }
 
-  it.skipIf(!SLOW)('acceptance (DEMO_STUDIO_TEST_SLOW=1): a fixture capture on its timeline — the player served the frame its media (bytes counted)', async () => {
+  it.skipIf(!SLOW)('acceptance (RETAKE_TEST_SLOW=1): a fixture capture on its timeline — the player served the frame its media (bytes counted)', async () => {
     type Fixture = { urls: { console: string; shop: string }; close(): Promise<void> };
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     const fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     const root = join(base, 'ws-capture');
     try {
       await mkdir(root, { recursive: true });
-      await writeFile(join(root, 'studio.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+      await writeFile(join(root, 'retake.yaml'), `version: 1\nprojects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
       const project = join(root, 'projects', 'northfield-fixture');
       const src = join(REPO, 'projects', 'northfield-fixture');
-      const skip = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames', 'comments']);
+      const skip = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
       await cp(src, project, { recursive: true, filter: (s) => !skip.has(s.slice(src.length + 1).split('/')[0]) });
       const yaml = await readFile(join(project, 'project.yaml'), 'utf8');
       await writeFile(join(project, 'project.yaml'), yaml.replaceAll('http://localhost:4401', fixture.urls.console).replaceAll('http://localhost:4402', fixture.urls.shop));
       await symlink(join(REPO, 'fixtures'), join(root, 'fixtures'));
       const t0 = Date.now();
       // Asynchronous: the fixture answers from this process.
-      const cap = spawn(process.execPath, [CLI, '--root', root, 'run', 'northfield-fixture', 'reports'], { env: { ...process.env, DEMO_STUDIO_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
+      const cap = spawn(process.execPath, [CLI, '--root', root, 'run', 'northfield-fixture', 'reports'], { env: { ...process.env, RETAKE_HOME: home }, stdio: ['ignore', 'ignore', 'pipe'] });
       launched.push(cap);
       let capErr = '';
       cap.stderr!.on('data', (c: Buffer) => (capErr += c.toString('utf8')));
@@ -1049,7 +1049,7 @@ describe.skipIf(!ENABLED)('the desktop shell, black box (DEMO_STUDIO_TEST_DESKTO
       timings.capture_ms = Date.now() - t0;
       const t1 = Date.now();
       const child = spawn(binary, ['--root', root, '--route', '#/p/northfield-fixture/s/reports/timeline'], {
-        env: { ...process.env, DEMO_STUDIO_HOME: home, DEMO_STUDIO_ROOT: '', DEMO_STUDIO_DESKTOP_TEST: '1' },
+        env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1' },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       launched.push(child);

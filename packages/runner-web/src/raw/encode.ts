@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import type { RawFormat } from '@demo-studio/core';
+import type { RawFormat } from '@retake/core';
 import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';
 import { EncodeError } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';

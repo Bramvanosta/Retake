@@ -2,7 +2,7 @@
  * L4.7 part A2: "Copy to edit" (engine brand/copy.ts): a listed theme copied into a new workspace theme — its regular
  * files verbatim, `name:` spliced, this tool's provenance file, validated, renamed into place — then editable from the
  * Studio. ⚑ Refused: a starter's or an existing folder's name (without case), a name that is not a slug, a source holding
- * a symbolic or (review A M1) a hard link, a templates_dir inside the Demo Studio package; nothing left behind by a
+ * a symbolic or (review A M1) a hard link, a templates_dir inside the Retake package; nothing left behind by a
  * refusal. A copy is the person's (trust `author`, review A N4): MCP's replace never takes it.
  */
 import { createHash } from 'node:crypto';
@@ -11,7 +11,7 @@ import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core';
 import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from './helpers.js';
@@ -19,7 +19,7 @@ import { REPO } from './helpers.js';
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 async function failure(p: Promise<unknown>): Promise<EngineError> {
   try {
     await p;
@@ -31,15 +31,15 @@ async function failure(p: Promise<unknown>): Promise<EngineError> {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-theme-copy-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -48,14 +48,14 @@ describe('copy a theme (L4.7)', () => {
     const r = await engine.templates.copy({ from: 'editorial', name: 'mine' });
     const dir = join(root, 'templates', 'mine');
     expect(r.name).toBe('mine');
-    expect(r.files.sort()).toEqual(['.demo-studio-theme.json', 'LICENSES.md', 'README.md', 'fonts/InstrumentSerif-Regular.ttf', 'fonts/Inter-Bold.ttf', 'fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'logo.svg', 'template.yaml', 'wordmark.svg']);
+    expect(r.files.sort()).toEqual(['.retake-theme.json', 'LICENSES.md', 'README.md', 'fonts/InstrumentSerif-Regular.ttf', 'fonts/Inter-Bold.ttf', 'fonts/Inter-Regular.ttf', 'fonts/Inter-SemiBold.ttf', 'logo.svg', 'template.yaml', 'wordmark.svg']);
     const src = readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', 'template.yaml'), 'utf8');
     const text = await readFile(join(dir, 'template.yaml'), 'utf8');
     expect(text).toBe(src.replace('name: editorial', 'name: mine'));
     for (const f of ['logo.svg', 'fonts/Inter-Bold.ttf', 'LICENSES.md']) expect(sha(await readFile(join(dir, f)))).toBe(sha(readFileSync(join(STARTER_TEMPLATES_DIR, 'editorial', f))));
     const prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8'));
     // The person made it in the Studio (L4.7 review A N4): theirs, never replaced through MCP; the CLI's replace may.
-    expect(prov).toMatchObject({ made_by: 'demo-studio', copy_of: 'editorial', trust: 'author', name: 'mine', files: { 'template.yaml': sha(text) } });
+    expect(prov).toMatchObject({ made_by: 'retake', copy_of: 'editorial', trust: 'author', name: 'mine', files: { 'template.yaml': sha(text) } });
     expect(await replaceProblem(dir, 'mcp')).toMatch(/made by a human/);
     expect(await replaceProblem(dir, 'author')).toBeNull();
     const v = await engine.templates.view('mine');
@@ -92,7 +92,7 @@ describe('copy a theme (L4.7)', () => {
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
     const repoWs = await openWorkspace({ root: REPO });
-    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }))).message).toMatch(/lies inside the Demo Studio folder/);
+    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }))).message).toMatch(/lies inside the Retake folder/);
   });
 
   it('⚑ L4.7 review A M1: a source holding a hard link is refused whole, nothing written', async () => {

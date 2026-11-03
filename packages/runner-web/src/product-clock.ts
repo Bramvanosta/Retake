@@ -23,12 +23,12 @@ export interface ProductClockConfig {
 /**
  * The in-page clock (serialised: no closure over module scope). `cfg` installs it in this realm or moves an installed
  * one to `cfg`; `null` makes this realm read the real time for good (a page marked useRealTime). The state lives under
- * `Symbol.for('demo-studio.clock')` (not enumerable): `off`, the config, the real `Date` (the kit's time source when it
+ * `Symbol.for('retake.clock')` (not enumerable): `off`, the config, the real `Date` (the kit's time source when it
  * is injected after the clock).
  */
 export function productClock(cfg: ProductClockConfig | null): void {
   type State = { off: boolean; cfg?: ProductClockConfig; Date?: DateConstructor; set?: (c: ProductClockConfig) => void };
-  const KEY = Symbol.for('demo-studio.clock');
+  const KEY = Symbol.for('retake.clock');
   const g = globalThis as unknown as Record<string | symbol, unknown>;
   const prev = g[KEY] as State | undefined;
   if (cfg === null) {

@@ -4,8 +4,8 @@
  */
 import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
-import { qrEncode, qrMatrix, qrPath, qrVersionFor } from '@demo-studio/components/kit';
-import type { QrLevel } from '@demo-studio/components/kit';
+import { qrEncode, qrMatrix, qrPath, qrVersionFor } from '@retake/components/kit';
+import type { QrLevel } from '@retake/components/kit';
 
 const require = createRequire(import.meta.url);
 const QRCode = require('qrcode') as {
@@ -26,7 +26,7 @@ describe('qrEncode (byte mode) matches the qrcode package', () => {
   const texts = [
     'https://northfield.example/start',
     'HELLO',
-    'https://shop.northfield.example/signup?ref=video&utm_source=demo-studio&utm_medium=qr',
+    'https://shop.northfield.example/signup?ref=video&utm_source=retake&utm_medium=qr',
     'Café Lumen — 12,50 € ✓',
     'x'.repeat(300),
   ];

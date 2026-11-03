@@ -18,7 +18,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { RunBlocker } from '@demo-studio/engine';
+import type { RunBlocker } from '@retake/engine';
 import { Txt, When, shown } from '../bits.js';
 import { scenarioEventAction, useEvents } from '../events.js';
 import { useProjectView } from '../project-data.js';

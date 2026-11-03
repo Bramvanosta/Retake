@@ -7,8 +7,8 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RunRecordSchema, filmedChanges, mailPersona, parseProjectYaml, parseScenario, personaEmail, sandboxAuth } from '@demo-studio/core';
-import type { LoadedProject, SandboxManifest, ValidationIssue } from '@demo-studio/core';
+import { RunRecordSchema, filmedChanges, mailPersona, parseProjectYaml, parseScenario, personaEmail, sandboxAuth } from '@retake/core';
+import type { LoadedProject, SandboxManifest, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);

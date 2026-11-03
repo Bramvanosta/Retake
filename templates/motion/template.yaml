@@ -1,8 +1,8 @@
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
-# Demo Studio starter template "motion": a bolder variant for teasers and launch clips.
+# Retake starter template "motion": a bolder variant for teasers and launch clips.
 # Dark gradient, hot coral accent, Space Grotesk display, browser frame with overlaid captions,
 # cuts through black and richer motion design.
-# Placeholder brand: "Demo Studio" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+# Sample brand, the tool's own name: "Retake" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
 version: 1
 name: motion
 
@@ -20,7 +20,7 @@ fonts:
 
 logo: logo.svg
 wordmark: wordmark.svg
-brand: {name: Demo Studio, url: example.com}   # placeholder brand (fictional)
+brand: {name: Retake, url: example.com}   # sample brand: the tool's own name
 
 background: {type: linear, from: "#0a0b11", to: "#1c2030"}
 

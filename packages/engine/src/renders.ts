@@ -2,16 +2,16 @@
  * Renders of a project as clients outside the CLI see them (L3.2): the plan of a render before it runs
  * (plan_preview), and one render's status — its job first, then its record renders/<id>.json. A render id is reused
  * after a failed or cancelled render (nothing was written under it): the newest job of the id is the one shown, unless
- * a render record written after that job (a `studio render` in a terminal) says otherwise. Text the filmed site or the
+ * a render record written after that job (a `retake render` in a terminal) says otherwise. Text the filmed site or the
  * scenario controls (captions, display URLs, page titles quoted by warnings) is kept under `untrusted`.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@demo-studio/core';
-import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
-import type { RenderRecord } from '@demo-studio/editor';
+import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@retake/core';
+import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkScenarioName } from './refs.js';
@@ -201,7 +201,7 @@ export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slu
   const job = await queue.ofRender(slug, renderId);
   let record = await readRecord(project.dir, renderId);
   // A record older than the job belongs to an earlier render of the id only when the job did not write it — never here
-  // (a free id has no record); a record newer than an unfinished or failed job is a later `studio render` of the id.
+  // (a free id has no record); a record newer than an unfinished or failed job is a later `retake render` of the id.
   const jobFirst = job && !(record && job.state !== 'succeeded' && record.created_at > (job.finished_at ?? job.created_at));
   if (!job && !record) throw new EngineError('not_found', `render "${renderId}" not found in ${slug} (no job, no renders/${renderId}.json): render starts one`);
   if (jobFirst && job.state !== 'succeeded') record = undefined;

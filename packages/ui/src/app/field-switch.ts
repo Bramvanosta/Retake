@@ -12,7 +12,7 @@
  * - Every switch is an edit value (core FIELD_PATHS): a render of the same take shows it, no new capture. L4.7
  *   (critique B1): the scenario's theme (`template`) is one too — its default is the project's theme.
  */
-import type { TimelineView } from '@demo-studio/engine';
+import type { TimelineView } from '@retake/engine';
 
 export type Choice = TimelineView['choices']['video'][number];
 export type SwitchValue = string | number | boolean;

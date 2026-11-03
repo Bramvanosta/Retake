@@ -2,7 +2,7 @@
 # Supplier side, signed in (`--env signed-in`: the supplier persona): write a pro forma invoice in a dialog whose body
 # scrolls, download its PDF, send it and show the copy that lands in the supplier's mailbox.
 #
-# The page is made of the traps a real take met (Demo Studio L5.6, docs/FIELD-FEEDBACK-1.md): the filters above the
+# The page is made of the traps a real take met (Retake L5.6, docs/FIELD-FEEDBACK-1.md): the filters above the
 # table have a "Quantity (kg)" field too, hidden behind the dialog — the runner types into the dialog's, below the
 # fold of its body; the calendar under "Delivery date" covers the fields below it until a click outside closes it; the
 # PDF link drops its second transfer (?flaky=1) — the runner fetches it again; the pro forma is mailed to the café's

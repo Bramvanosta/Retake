@@ -1,5 +1,5 @@
 /**
- * Demo Studio — shared contracts.
+ * Retake — shared contracts.
  *
  * This file is the single source of truth for the data model shared by every package
  * (scenario language, project/template model, timeline emitted by runners, run records).
@@ -1232,14 +1232,14 @@ export type LoginStep = (
 
 /**
  * One account the videos are filmed as (L1.6): its session lives outside the project, in
- * ~/.demo-studio/profiles|sessions/<project>/<env>/<persona> (DEMO_STUDIO_HOME moves it) — never a path here.
+ * ~/.retake/profiles|sessions/<project>/<env>/<persona> (RETAKE_HOME moves it) — never a path here.
  */
 export interface PersonaConfig {
   /** The persona's mail address (L5.6): `wait_for_email {to: persona:<name>}`, the mailbox label of a mail card. */
   email?: string;
   /** Environment pages this persona is signed into by default (a page is in at most one persona's list). */
   pages?: string[];
-  /** profile (default): a Chromium profile kept by `studio login`, copied for each run; storage_state: cookies + localStorage only. */
+  /** profile (default): a Chromium profile kept by `retake login`, copied for each run; storage_state: cookies + localStorage only. */
   session?: 'profile' | 'storage_state';
   check?: PersonaCheck;
   /** Sign-in pages of this persona (with auth.login_url and check.expect_not_url). */
@@ -1350,7 +1350,7 @@ export type SandboxProvider = (typeof SANDBOX_PROVIDERS)[number];
 export const SANDBOX_RESET_STRATEGIES = ['reseed', 'snapshot'] as const;
 export type SandboxResetStrategy = (typeof SANDBOX_RESET_STRATEGIES)[number];
 
-/** The version of sandbox.yaml this Demo Studio reads. */
+/** The version of sandbox.yaml this Retake reads. */
 export const SANDBOX_VERSION = 1;
 
 /**
@@ -1580,7 +1580,7 @@ export interface ProjectConfig {
   vars?: Record<string, string>;
   /** Test mailbox read by `wait_for_email`. */
   mailbox?: MailboxConfig;
-  /** Defaults of the raw capture export for editors (`studio export-capture`, `studio run --raw`; L2.13). */
+  /** Defaults of the raw capture export for editors (`retake export-capture`, `retake run --raw`; L2.13). */
   raw?: RawSettings;
   /**
    * Sandbox environments (L1.8), as written: environment name → its sandbox.yaml, relative to the project dir. loadProject
@@ -1607,7 +1607,7 @@ export type RawCursorMode = (typeof RAW_CURSOR_MODES)[number];
 export const RAW_LAYER_FORMATS = ['prores', 'webm'] as const;
 export type RawLayerFormat = (typeof RAW_LAYER_FORMATS)[number];
 
-/** project.yaml `raw`: defaults of `studio export-capture` / `studio run --raw` (the CLI flags win). */
+/** project.yaml `raw`: defaults of `retake export-capture` / `retake run --raw` (the CLI flags win). */
 export interface RawSettings {
   format?: RawFormat;
   fps?: RawFps;
@@ -2093,7 +2093,7 @@ export interface Timeline {
     t0_wall: number;
     frames: number;
     /**
-     * `hidden`: captured without the in-page cursor (`studio run --raw --cursor none|layer`, L2.13) — real input,
+     * `hidden`: captured without the in-page cursor (`retake run --raw --cursor none|layer`, L2.13) — real input,
      * cursor track and effects recorded as usual, nothing drawn. Absent: the cursor is in the pictures.
      */
     cursor?: 'hidden';
@@ -2240,8 +2240,8 @@ export interface OptionalFailure {
 
 /** What ran a capture (run.json `engine`, R-PRIN-13): explains a difference between two machines' takes. */
 export interface RunEngine {
-  /** Demo Studio version. */
-  demo_studio: string;
+  /** Retake version. */
+  retake: string;
   /** Node.js version. */
   node: string;
   /** The browser's version (absent when it did not open). */
@@ -2341,8 +2341,8 @@ export interface RunPerfCpu {
   gpu: number;
   renderer: number;
   chromium_other: number;
-  /** The studio's own process (the runner). */
-  studio: number;
+  /** Retake's own process (the runner). Run records written before L5.13a call it `studio` (perfSummary reads both). */
+  retake: number;
   /** ffmpeg encoding capture.mp4. */
   encoder: number;
   /** The product's local servers (a sandbox's process services), when known. */

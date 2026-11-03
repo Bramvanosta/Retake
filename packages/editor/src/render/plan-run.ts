@@ -1,5 +1,5 @@
 /**
- * Plan a run (L3.2): the one place where a render, a still, `studio still` and the MCP server's plan_preview turn a
+ * Plan a run (L3.2): the one place where a render, a still, `retake still` and the MCP server's plan_preview turn a
  * capture run into an EditPlan — the run, its timeline, the theme, the registry, the music's length, the project files
  * the plan reads, then `planEdit`.
  *
@@ -29,10 +29,10 @@ import {
   scenarioSinceRun,
   templateRefProblem,
   timelineVideo,
-} from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
+} from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
 import { musicFile, musicSpecOf, planEdit } from '../plan.js';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';

@@ -1,11 +1,11 @@
 import { lstatSync } from 'node:fs';
 import { z } from 'zod';
-import { BrandInputSchema } from '@demo-studio/core';
-import type { Engine, JobRecord, SiteJobResult, TemplateDetail, TemplateSummary, ThemeCreated } from '@demo-studio/engine';
+import { BrandInputSchema } from '@retake/core';
+import type { Engine, JobRecord, SiteJobResult, TemplateDetail, TemplateSummary, ThemeCreated } from '@retake/engine';
 import { projectSlug, templateName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolImage, ToolOutput } from '../result.js';
-import { isSiteWarning } from '@demo-studio/engine';
+import { isSiteWarning } from '@retake/engine';
 import { PREVIEW_JOB, READ, SITE_JOB, THEME_WRITE, defineTool } from './define.js';
 import { jobErrorLine, jobLine } from './jobs.js';
 import type { ToolContext, ToolDef } from './define.js';
@@ -37,7 +37,7 @@ export const templateList = defineTool({
   name: 'template_list',
   title: 'List themes',
   description:
-    'Themes (templates) a render can use, by name: the workspace\'s templates/ and the starter themes shipped with Demo Studio (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project\'s own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind\'s component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; existing themes are never edited here (a human edits them) — template_create_from_brand makes a new one (and may replace one it made through MCP that nobody changed).',
+    'Themes (templates) a render can use, by name: the workspace\'s templates/ and the starter themes shipped with Retake (default, editorial, motion), each with the component it picks per kind (intro, layout, caption, card, interstitial, outro, transition). With project: which theme is the project\'s own. With template: that theme in detail — template.yaml, colours, fonts, brand, asset files and each kind\'s component with its params. A theme is switched per render (render {template}) or per scenario (video.template), always by name; existing themes are never edited here (a human edits them) — template_create_from_brand makes a new one (and may replace one it made through MCP that nobody changed).',
   input: z.strictObject({
     project: projectSlug.optional().describe('Mark this project\'s theme (and list its own theme folder, when project.yaml names one).'),
     template: templateName.optional().describe('Return this theme in detail instead of the list.'),
@@ -60,7 +60,7 @@ export const templatePreview = defineTool({
   name: 'template_preview',
   title: 'Preview a theme',
   description:
-    'Stills of a theme as a render would show it: its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro (960×540 each), rendered by a job in the background into <workspace>/.demo-studio/previews/<id>/. Waits up to wait_s (default 20): when it finishes in time the stills come back as images (a few inline, the rest as files), else follow it with job_status {job_id, wait_s} which returns them. Default theme: the project\'s. The previews load nothing from the network.',
+    'Stills of a theme as a render would show it: its intro, its layout with its caption over a neutral sample screen, a card, an interstitial and its outro (960×540 each), rendered by a job in the background into <workspace>/.retake/previews/<id>/. Waits up to wait_s (default 20): when it finishes in time the stills come back as images (a few inline, the rest as files), else follow it with job_status {job_id, wait_s} which returns them. Default theme: the project\'s. The previews load nothing from the network.',
   input: z.strictObject({
     project: projectSlug.describe('Project whose theme is the default (and whose context the theme is resolved in).'),
     template: templateName.optional().describe('Theme to preview (template_list names them); default the project\'s own.'),
@@ -92,7 +92,7 @@ export const templateCreateFromBrand = defineTool({
   name: 'template_create_from_brand',
   title: 'Create a theme from brand files',
   description:
-    'Create a NEW workspace theme, templates/<name>/, from the brand\'s logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.demo-studio/), components/, or a project\'s scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base\'s). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). The name is lower-case and never a starter\'s or an existing folder\'s; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a human made). Returns the folder, template.yaml, the palette with every ratio and change, warnings; then call template_preview {project, template: name}.',
+    'Create a NEW workspace theme, templates/<name>/, from the brand\'s logo, colours and fonts: template.yaml over a base theme (default editorial: its components, frame, captions, motion and durations), the logo / wordmark / fonts copied into the folder after checks, LICENSES.md and a provenance file. Files are paths relative to the workspace root that the user put there (recommended folder: brand/) — never in a hidden folder (.retake/), components/, or a project\'s scenarios/, runs/, renders/, review/ or exports/. Logos: .svg (plain: no script, links or external files), .png, .jpg, .webp; fonts: .ttf, .otf, .woff, .woff2 (copied as fonts/display-<Weight> and fonts/body-<Weight>; none given: the base\'s). Colours are hex: accent required, text / paper / muted / dark / background derived when omitted, contrast checked (text 7:1, muted 4.5:1, accent 3:1); failing derived or given colours are lifted and reported unless adjust: false, the accent is never changed (a suggestion is returned). The name is lower-case and never a starter\'s or an existing folder\'s; replace: true removes and replaces only a theme this tool made through MCP that nobody edited since (never one a human made). Returns the folder, template.yaml, the palette with every ratio and change, warnings; then call template_preview {project, template: name}.',
   input: BrandInputSchema,
   annotations: THEME_WRITE,
   async run(input, { engine }) {
@@ -183,7 +183,7 @@ export const templateFromSite = defineTool({
   name: 'template_from_site',
   title: 'Extract a theme draft from a website',
   description:
-    'Read the brand of a public website for a new theme: the USER is asked to approve the exact URL first (a client that cannot ask its user gets the `studio theme from-site` command to give them). Then a clean headless browser on this machine (no profile, GET requests to public addresses only, nothing clicked or typed) opens the page, in a job: colour swatches by role (paper, text, accent, dark) with contrast ratios, the font family names it uses (names only: font files never come from a site), up to 6 logo candidates converted to transparent PNGs, and a screenshot, in <workspace>/.demo-studio/site/<id>/. Returns them with a draft brand input — `logo: "site:<id>/logo-<n>"` — for template_create_from_brand (call it with the values you choose), and the template.yaml it would make. URL: https, the default port, no query or fragment; never a page of a project\'s environment (page_inspect reads those). Page text, font names and URLs come back under "untrusted"; the images show a third-party page. Waits up to wait_s (default 25), else follow it with job_status.',
+    'Read the brand of a public website for a new theme: the USER is asked to approve the exact URL first (a client that cannot ask its user gets the `retake theme from-site` command to give them). Then a clean headless browser on this machine (no profile, GET requests to public addresses only, nothing clicked or typed) opens the page, in a job: colour swatches by role (paper, text, accent, dark) with contrast ratios, the font family names it uses (names only: font files never come from a site), up to 6 logo candidates converted to transparent PNGs, and a screenshot, in <workspace>/.retake/site/<id>/. Returns them with a draft brand input — `logo: "site:<id>/logo-<n>"` — for template_create_from_brand (call it with the values you choose), and the template.yaml it would make. URL: https, the default port, no query or fragment; never a page of a project\'s environment (page_inspect reads those). Page text, font names and URLs come back under "untrusted"; the images show a third-party page. Waits up to wait_s (default 25), else follow it with job_status.',
   input: z.strictObject({
     url: z.string().min(1).max(300).describe('The site\'s page, e.g. https://www.brand.example/ — https, default port, no query string or fragment.'),
     wait_s: waitS(25, 'the extraction'),

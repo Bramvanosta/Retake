@@ -1,9 +1,9 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, perfSummary, readJson } from '@demo-studio/core';
-import type { RunProgress, RunRecord, Timeline } from '@demo-studio/core';
-import { RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, writesSummary } from '@demo-studio/engine';
-import type { PreparedRun } from '@demo-studio/engine';
-import { EXIT, UsageError, errorMessage } from '../errors.js';
+import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
+import type { RunProgress, RunRecord, Timeline } from '@retake/core';
+import { RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, writesSummary } from '@retake/engine';
+import type { PreparedRun } from '@retake/engine';
+import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { ExitCode } from '../errors.js';
 import { ProgressPrinter, runStatusText } from '../progress.js';
@@ -45,7 +45,7 @@ function rawFlagsWithoutRaw(o: RunCommandOptions): string[] {
   return given;
 }
 
-/** `studio run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
+/** `retake run <project> <scenario>`: capture (or dry-run) a scenario; exit 1 unless the run succeeded. */
 export async function runCommand(
   ui: Ui,
   global: GlobalOptions,
@@ -125,7 +125,7 @@ export async function runCommand(
       },
     );
   } catch (e) {
-    fail(errorMessage(e));
+    fail(errorText(e));
     return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
   }
   // The workspace's job history counts CLI runs too (best effort: never fails the run).

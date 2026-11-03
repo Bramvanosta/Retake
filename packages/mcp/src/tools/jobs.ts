@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { JOB_ID_RE, JOB_STATES } from '@demo-studio/core';
-import { jobProject } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
+import { JOB_ID_RE, JOB_STATES } from '@retake/core';
+import { jobProject } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
 import type { ToolImage } from '../result.js';
 import { projectSlug } from '../schema.js';
 import { plural } from '../result.js';

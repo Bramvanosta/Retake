@@ -172,7 +172,7 @@ export class TakeLock {
       if (seen === null) continue; // released meanwhile
       const held = parseLock(seen);
       if (held && lockAlive(held)) {
-        throw new SandboxError(`sandbox ${env} is in use: ${describeLock(held)} — wait for it (studio sandbox status shows it)`, 'busy');
+        throw new SandboxError(`sandbox ${env} is in use: ${describeLock(held)} — wait for it (retake sandbox status shows it)`, 'busy');
       }
       if (breakStale(file, seen)) {
         note?.(held ? `removed a stale take lock of sandbox ${env}: ${describeLock(held)} is not running any more` : `removed an unreadable take lock of sandbox ${env}`);

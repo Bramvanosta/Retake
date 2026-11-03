@@ -1,5 +1,5 @@
-# Compose file of sandbox __ENV__ (written by `studio sandbox init`). Demo Studio runs it as a compose project of its
-# own (see `studio sandbox status`); every port is published on 127.0.0.1 only. Replace the `app` placeholder with your
+# Compose file of sandbox __ENV__ (written by `retake sandbox init`). Retake runs it as a compose project of its
+# own (see `retake sandbox status`); every port is published on 127.0.0.1 only. Replace the `app` placeholder with your
 # application — README.md next to this file says how.
 x-logging: &logging                        # docker's default log driver never rotates: a sandbox may stay up for days
   driver: json-file
@@ -50,4 +50,4 @@ services:
     logging: *logging
 
 volumes:
-  db-data:                                 # the database (`studio sandbox down --volumes` removes it, and its snapshot)
+  db-data:                                 # the database (`retake sandbox down --volumes` removes it, and its snapshot)

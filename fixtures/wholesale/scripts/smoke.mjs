@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // End-to-end smoke test of the Northfield fixture with real (CDP) mouse & keyboard input.
 // Starts the fixture in-process on free ports (or targets a running one with --console/--shop),
-// walks through every screen and interaction the Demo Studio scenarios rely on, asserts the
+// walks through every screen and interaction the Retake scenarios rely on, asserts the
 // visible outcome and saves screenshots (1920×1080) + ARIA snapshots of the key dialogs.
 //
 //   node scripts/smoke.mjs [--out /tmp/northfield-smoke] [--console http://localhost:4401 --shop http://localhost:4402] [--headed]

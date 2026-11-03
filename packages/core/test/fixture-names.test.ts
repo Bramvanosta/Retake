@@ -26,7 +26,7 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const FORMER_RE = new RegExp(`(?<![\\p{L}])(${FORMER_NAMES.map(escape).join('|')})(?![\\p{L}])`, 'iu');
 
 const TEXT = /\.(mjs|js|jsx|ts|tsx|json|ya?ml|md|css|html|sql|rs|toml|svg)$/i;
-const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'runs', '.git', '.demo-studio', 'target', 'gen']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', 'build', 'runs', '.git', '.retake', 'target', 'gen']);
 
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
   let entries;
@@ -95,7 +95,7 @@ describe('fixture names are invented (R-ISS-10, R-PRIN-01)', () => {
     // the Claude skills and the plugin manifests are text Claude reads: scanned too (review L5)
     // L5.2: the desktop shell's sources (Rust, Cargo manifests, the icon's SVG) — not its build folders.
     for (const f of ['apps/desktop/src/main.rs', 'apps/desktop/core/src/rules.rs', 'apps/desktop/Cargo.toml', 'apps/desktop/icons/icon.svg']) expect(files).toContain(join(ROOT, f));
-    for (const f of ['skills/demo-studio-scenario/SKILL.md', 'skills/demo-studio-theme/SKILL.md', 'skills/.claude-plugin/plugin.json', 'skills/.mcp.json', '.claude-plugin/marketplace.json']) {
+    for (const f of ['skills/retake-scenario/SKILL.md', 'skills/retake-theme/SKILL.md', 'skills/.claude-plugin/plugin.json', 'skills/.mcp.json', '.claude-plugin/marketplace.json']) {
       expect(files).toContain(join(ROOT, f));
     }
     const hits: string[] = [];

@@ -3,7 +3,7 @@
  * the plan (components, captions, transitions, run, theme) and which sample frames changed visibly (frames compared
  * at the same offset inside the same segment, so a longer scene does not shift every later comparison).
  */
-import type { EditPlan, PlanSegment, RenderRecord } from '@demo-studio/editor';
+import type { EditPlan, PlanSegment, RenderRecord } from '@retake/editor';
 import { isClip, round, segmentSpans, spanAt } from './spans.js';
 import type { SegmentSpan } from './spans.js';
 import type { Finding, ReviewDiff } from './types.js';

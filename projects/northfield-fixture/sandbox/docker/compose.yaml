@@ -10,7 +10,7 @@ x-logging: &logging                        # docker's default log driver never r
 services:
   fixture:
     # Node 22 + the server + the UI bundle built on this machine (run `node fixtures/wholesale/build.mjs` before
-    # `studio sandbox up … --build`). No `image:`: the image is named after the compose project (demo-studio-…-fixture).
+    # `retake sandbox up … --build`). No `image:`: the image is named after the compose project (retake-…-fixture).
     # Its healthcheck is the image's (GET http://127.0.0.1:<console port>/api/health).
     build: ../../../../fixtures/wholesale
     init: true                             # stops at once on `down`

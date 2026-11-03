@@ -26,7 +26,7 @@ let ws: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const CAP = '20261020-100000-blocks';
 const DRY_UNTIL = '20261021-090000-blocks';
 const RUNNING = '20261021-100000-blocks';
@@ -35,7 +35,7 @@ const bound = (b: StepBinding | undefined) => (b && 'run_key' in b ? b : undefin
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-view-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
   await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
@@ -60,8 +60,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -327,7 +327,7 @@ describe('review fixes (L4.2)', () => {
       ws: engine.workspace,
       project: (slug) => openProjectBySlug(engine.workspace, slug),
       blockers: async () => {
-        const b = { code: 'refused' as const, message: 'refused from the Studio: scenes[1].steps[0].click and setup[0] need a person; scenes[0] too', fix: 'studio -C /w run northfield-fixture blocks' };
+        const b = { code: 'refused' as const, message: 'refused from the Studio: scenes[1].steps[0].click and setup[0] need a person; scenes[0] too', fix: 'retake -C /w run northfield-fixture blocks' };
         return { dry: [b], capture: [b] };
       },
       overlay: async (_slug, r) => r.status,
@@ -335,7 +335,7 @@ describe('review fixes (L4.2)', () => {
     });
     const w = await views.view(P, 'blocks');
     expect(w.run_blockers.dry[0].message).toBe('refused from the Studio: step 1 of scene two (click) and setup hook 1 need a person; scene one too');
-    expect(w.run_blockers.dry[0].fix).toBe('studio -C /w run northfield-fixture blocks');
+    expect(w.run_blockers.dry[0].fix).toBe('retake -C /w run northfield-fixture blocks');
     expect(w.run_blockers.dry[0].fix_node).toMatch(/\/packages\/cli\/dist\/bin\.js -C \/w run northfield-fixture blocks$/);
     expect(w.run_blockers.dry[0].fix_node?.startsWith(process.execPath)).toBe(true);
   });

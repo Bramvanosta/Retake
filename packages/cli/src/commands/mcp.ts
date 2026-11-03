@@ -1,17 +1,17 @@
 /**
- * `studio mcp`: the MCP server over stdio (L3.1), for Claude Code, Claude desktop or any MCP client. stdout carries the
+ * `retake mcp`: the MCP server over stdio (L3.1), for Claude Code, Claude desktop or any MCP client. stdout carries the
  * protocol only: this command writes nothing else there (diagnostics go to stderr). `--print-config` prints the
  * registration instead. `--http` (L4.1) serves the same tools over Streamable HTTP on 127.0.0.1 (default port 47820)
- * behind the engine's gate, with the stable token of the studio home (`--rotate-token` renews it); `--print-config
+ * behind the engine's gate, with the stable token of the Retake home (`--rotate-token` renews it); `--print-config
  * --http` prints that registration for Claude Code — the URL, and the token only by reference (its file, an
  * environment variable): never the token itself.
  */
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findWorkspaceRoot } from '@demo-studio/core';
-import { EngineError } from '@demo-studio/engine';
-import { EXIT, UsageError } from '../errors.js';
+import { findWorkspaceRoot, oldWorkspaceFileAt } from '@retake/core';
+import { EngineError, refuseBesideOldHolder } from '@retake/engine';
+import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
@@ -38,8 +38,8 @@ function stopSignal(): Promise<NodeJS.Signals> {
 
 /** `--print-config --http` and `--http`: the registration, or the server until Ctrl-C / SIGTERM. */
 async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<ExitCode> {
-  const mcp = await import('@demo-studio/mcp');
-  const { mcpHttpTokenFile, stableToken } = await import('@demo-studio/engine');
+  const mcp = await import('@retake/mcp');
+  const { mcpHttpTokenFile, stableToken } = await import('@retake/engine');
   let port = mcp.DEFAULT_MCP_HTTP_PORT;
   if (opts.port !== undefined) {
     port = Number(opts.port);
@@ -51,7 +51,7 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     token = await stableToken(file, { rotate: opts.rotateToken === true });
   } catch (e) {
     if (e instanceof EngineError) {
-      ui.error(`studio mcp --http: ${e.message}${e.fix ? `\nfix: ${e.fix}` : ''}`);
+      ui.error(`retake mcp --http: ${errorText(e)}`);
       return EXIT.failure;
     }
     throw e;
@@ -66,8 +66,8 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     ui.line(`  ${mcp.claudeCodeHttpCommand({ url, tokenFile: file })}`);
     ui.line(`Or the JSON above in .mcp.json at the workspace root: it holds no token (safe to commit), Claude Code reads it from $${mcp.MCP_HTTP_TOKEN_ENV} — set in the shell that starts claude (your shell profile):`);
     ui.line(`  ${mcp.mcpHttpTokenExport(file)}`);
-    ui.line(`Then keep the server running: studio --root ${root} mcp --http${opts.port !== undefined ? ` --port ${port}` : ''}`);
-    ui.line(`The token (${file}, 0600) is a secret: whoever holds it drives this workspace's tools and answers their approval forms. Never paste it into a file you commit. studio mcp --http --rotate-token replaces it.`);
+    ui.line(`Then keep the server running: retake --root ${root} mcp --http${opts.port !== undefined ? ` --port ${port}` : ''}`);
+    ui.line(`The token (${file}, 0600) is a secret: whoever holds it drives this workspace's tools and answers their approval forms. Never paste it into a file you commit. retake mcp --http --rotate-token replaces it.`);
     if (token.rotated || token.created) ui.line(token.rotated ? 'A new token was written: register the server again.' : 'A token was created.');
     return EXIT.ok;
   }
@@ -77,21 +77,21 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     server = await mcp.startMcpHttpServer({ root, port, token: token.token, log: (m) => ui.line(m) });
   } catch (e) {
     if (e instanceof EngineError) {
-      ui.error(`studio mcp --http: ${e.message}${e.fix ? `\nfix: ${e.fix}` : ''}`);
+      ui.error(`retake mcp --http: ${errorText(e)}`);
       return EXIT.failure;
     }
     throw e;
   }
   if (opts.json) ui.result(JSON.stringify({ type: 'mcp-http', url: server.url, port: server.port, pid: process.pid }));
   else {
-    ui.line(`Demo Studio MCP serves ${root} at ${server.url} — Ctrl-C stops it.`);
-    if (token.rotated) ui.line('The token was replaced: register the server again (studio mcp --print-config --http).');
-    else if (token.created) ui.line('A token was created: register the server with studio mcp --print-config --http.');
-    else ui.line('Registered once with studio mcp --print-config --http; the token stays the same across restarts.');
+    ui.line(`Retake MCP serves ${root} at ${server.url} — Ctrl-C stops it.`);
+    if (token.rotated) ui.line('The token was replaced: register the server again (retake mcp --print-config --http).');
+    else if (token.created) ui.line('A token was created: register the server with retake mcp --print-config --http.');
+    else ui.line('Registered once with retake mcp --print-config --http; the token stays the same across restarts.');
   }
   const signal = await stopSignal();
   await server.close();
-  if (!opts.json) ui.line(`Demo Studio MCP stopped (${signal}).`);
+  if (!opts.json) ui.line(`Retake MCP stopped (${signal}).`);
   return EXIT.ok;
 }
 
@@ -111,25 +111,26 @@ function isDir(p: string): boolean {
 }
 
 /**
- * The workspace root `studio mcp` (and `studio ui`) serves: `--root`, $DEMO_STUDIO_ROOT or the studio.yaml lookup; it
- * must look like one.
+ * The workspace root `retake mcp` (and `retake ui`) serves: `--root`, $RETAKE_ROOT or the retake.yaml lookup; it
+ * must look like one (a workspace file from before L5.13 too: loading it then says to rename it).
  */
 export function workspaceRoot(global: GlobalOptions): string | undefined {
   const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-  return existsSync(join(root, 'studio.yaml')) || isDir(join(root, 'projects')) ? root : undefined;
+  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) || oldWorkspaceFileAt(root) ? root : undefined;
 }
 
 export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommandOptions): Promise<ExitCode> {
   const root = workspaceRoot(global);
   if (!root) {
     ui.error(
-      'studio mcp: no workspace here (no studio.yaml or projects/ folder): pass --root <workspace folder> or set DEMO_STUDIO_ROOT (`studio mcp --root <dir> --print-config` prints the registration)',
+      'retake mcp: no workspace here (no retake.yaml or projects/ folder): pass --root <workspace folder> or set RETAKE_ROOT (`retake mcp --root <dir> --print-config` prints the registration)',
     );
     return EXIT.usage;
   }
   if ((opts.port !== undefined || opts.rotateToken || opts.json) && !opts.http) throw new UsageError('--port, --rotate-token and --json go with --http');
+  if (!opts.printConfig) await refuseBesideOldHolder(root, 'this MCP server');
   if (opts.http) return mcpHttp(ui, root, opts);
-  const mcp = await import('@demo-studio/mcp');
+  const mcp = await import('@retake/mcp');
   if (opts.printConfig) {
     const input = { root, bin: studioBin() };
     ui.result(JSON.stringify(mcp.mcpConfigJson(input), null, 2));
@@ -139,7 +140,7 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
     ui.line(`${either}, for every project of this user (or put the JSON above in .mcp.json at the workspace root):`);
     ui.line(`  ${mcp.claudeCodeCommand(input)}`);
     if (repo) {
-      ui.line(`Or the Claude Code plugin (the Demo Studio skills and this server), enabled in this workspace folder only — not both, or Claude Code gets two ${mcp.SERVER_NAME} servers:`);
+      ui.line(`Or the Claude Code plugin (the Retake skills and this server), enabled in this workspace folder only — not both, or Claude Code gets two ${mcp.SERVER_NAME} servers:`);
       for (const l of mcp.pluginInstallCommands({ ...input, repo })) ui.line(`  ${l}`);
       ui.line(`  (run the install line again to change a value; skills edited in ${join(repo, 'skills')} load at the next session. claude --plugin-dir is for editing the skills: it loads them without this server's values.)`);
     }

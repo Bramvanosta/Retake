@@ -357,14 +357,14 @@ export const TimelineSchema = z
   })
   .meta({
     id: 'Timeline',
-    title: 'Demo Studio timeline',
+    title: 'Retake timeline',
     description: 'runs/<id>/timeline.json: scenes, step events, markers, pages and cursor track in capture time.',
   }) satisfies z.ZodType<Timeline>;
 
 /** What ran a capture (run.json `engine`): explains a difference between two machines' takes. */
 const RunEngineSchema = z
   .strictObject({
-    demo_studio: nonEmpty().describe('Demo Studio version.'),
+    retake: nonEmpty().describe('Retake version.'),
     node: nonEmpty().describe('Node.js version.'),
     chromium: nonEmpty().describe('Version of the browser the run filmed with (absent when it did not open).').optional(),
     os: nonEmpty().describe('Platform, release and architecture, e.g. "darwin 25.6.0 arm64".'),
@@ -373,7 +373,7 @@ const RunEngineSchema = z
       .describe('The fonts installed on the machine: the number of font files and a digest of their names.')
       .optional(),
   })
-  .describe('What ran the capture: Demo Studio, Node.js, Chromium, the OS and its installed fonts.');
+  .describe('What ran the capture: Retake, Node.js, Chromium, the OS and its installed fonts.');
 
 const cpuSeconds = () => z.number().min(0);
 
@@ -387,7 +387,7 @@ const RunPerfSchema = z
         gpu: cpuSeconds(),
         renderer: cpuSeconds(),
         chromium_other: cpuSeconds(),
-        studio: cpuSeconds(),
+        retake: cpuSeconds(),
         encoder: cpuSeconds(),
         product: cpuSeconds().optional(),
         total: cpuSeconds(),
@@ -397,7 +397,7 @@ const RunPerfSchema = z
           .describe('Per browser (one per persona): its CPU seconds, and while no recorder filmed it.')
           .optional(),
       })
-      .describe('CPU seconds per process group over the take (Chromium browser / GPU / renderer / other, studio, encoder, product).')
+      .describe('CPU seconds per process group over the take (Chromium browser / GPU / renderer / other, retake, encoder, product).')
       .optional(),
     machine: z.strictObject({ cpus: z.number().int().min(1), load_mean: z.number().min(0), load_max: z.number().min(0) }),
     gpu: z
@@ -522,4 +522,4 @@ export const RunRecordSchema = z
       .describe('The pauses the run had: before which step, when, how long.')
       .optional(),
   })
-  .meta({ id: 'RunRecord', title: 'Demo Studio run record', description: 'runs/<id>/run.json' }) satisfies z.ZodType<RunRecord>;
+  .meta({ id: 'RunRecord', title: 'Retake run record', description: 'runs/<id>/run.json' }) satisfies z.ZodType<RunRecord>;

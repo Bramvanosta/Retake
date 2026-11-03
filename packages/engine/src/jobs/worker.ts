@@ -15,12 +15,14 @@ import { existsSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join, resolve } from 'node:path';
-import { DEMO_STUDIO_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@demo-studio/core';
-import type { RenderJobInput, RunJobInput } from '@demo-studio/core';
+import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@retake/core';
+import type { RenderJobInput, RunJobInput } from '@retake/core';
 import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
 import { toEngineError } from '../errors.js';
+import type { EngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
+import { refuseBesideOldHolder } from '../legacy.js';
 import { openProjectBySlug } from '../projects.js';
 import { openWorkspace } from '../workspace.js';
 import { buildStamp } from './build.js';
@@ -73,7 +75,7 @@ function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
   const render =
     job.input.kind === 'render' ? { id: job.input.render_id, scenario: job.input.scenario, ...(r?.kind === 'render' ? { variant: r.variant } : {}) } : undefined;
   const review = job.input.kind === 'review' ? { render: job.input.render_id, ...(r?.kind === 'review' ? { clean: r.clean } : {}) } : undefined;
-  // An export counts the formats it re-rendered through the planner (as `studio export` does); transcodes do not count.
+  // An export counts the formats it re-rendered through the planner (as `retake export` does); transcodes do not count.
   const exported = job.input.kind === 'export' ? { render: job.input.render_id, formats: r?.kind === 'export' ? r.outputs.map((o) => o.format) : [], rendered: r?.kind === 'export' ? r.rendered : 0 } : undefined;
   const preview =
     job.input.kind === 'preview'
@@ -144,7 +146,13 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     log(`no workspace at ${root}: ${(e as Error).message}`);
     return 1;
   }
-  const cli = `studio -C ${shellQuote(root)}`;
+  try {
+    await refuseBesideOldHolder(root, 'this jobs worker');
+  } catch (e) {
+    log(`${(e as Error).message}: exiting (${(e as EngineError).fix ?? ''})`);
+    return 1;
+  }
+  const cli = `retake -C ${shellQuote(root)}`;
   const queue = new FileJobQueue(root, cli);
   const build = buildStamp();
   let lock = await WorkerLock.acquire(root, build, log, o.startedBy);
@@ -154,7 +162,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   }
   const self = await selfIdentity();
   const worker: JobWorkerInfo = { ...self, host: hostname() };
-  const rw = await import('@demo-studio/runner-web');
+  const rw = await import('@retake/runner-web');
   log(`serving ${root} (build ${build})`);
 
   // ── signals ──
@@ -334,7 +342,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     if (unknown) {
       await finish(
         { ...stored, state: 'failed' },
-        { code: 'invalid', message: `refused without running: this worker (Demo Studio ${DEMO_STUDIO_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build` },
+        { code: 'invalid', message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build` },
       );
       return;
     }
@@ -400,7 +408,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       const event = (e: JobEventBody) => append([e]);
       // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
       const { approvals, rejected } = await verifiedApprovals(parsed.data);
-      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed by this studio home's key (not written by a submit): ignored` });
+      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed by this Retake home's key (not written by a submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
       const base = { ws, cli, signal: controller.signal, event };

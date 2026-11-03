@@ -17,7 +17,7 @@ import type {
   TimelineEnvironment,
   TimelineScene,
   TimelineVideo,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { round3, wallNow } from './util.js';
 
 /**

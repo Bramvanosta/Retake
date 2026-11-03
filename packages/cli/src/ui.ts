@@ -1,10 +1,10 @@
 import { isAbsolute, parse, relative } from 'node:path';
 import pc from 'picocolors';
-import { formatPath } from '@demo-studio/core';
-import type { ValidationIssue } from '@demo-studio/core';
+import { formatPath } from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
 import type { Colors, Io } from './io.js';
 
-export { formatMs } from '@demo-studio/engine';
+export { formatMs } from '@retake/engine';
 
 /** Output helpers shared by every command: colours, paths, durations, issue lists, a live status line. */
 export class Ui {

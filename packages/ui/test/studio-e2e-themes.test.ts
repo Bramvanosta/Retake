@@ -13,14 +13,14 @@
  * - ⚑ another writer: the change is refused (409), the editor re-reads the new version, nothing overwritten;
  * - ⚑ a workspace component the preview renders is held (the Allow card) until allowed;
  * - "Use in a scenario": the scenario's `template` through scenario_edit; Undo → the exact bytes;
- * - the site panel: a URL → the `studio … theme from-site` command to copy; ⚑ no site job; New theme from an
+ * - the site panel: a URL → the `retake … theme from-site` command to copy; ⚑ no site job; New theme from an
  *   extraction (its hex roles, its logo candidate) → made → its editor;
  * - ⚑ only theme_edit / theme_copy / theme_create write themes, never on a starter (the starters' files unchanged);
  *   ⚑ no model call: every request of the page goes to the Studio origin or its player origin.
  * L5.12c « Épure » 4c (R4-Theme): the editor in the shell — the browser's sections (anchors into the inspector's fields)
  * and components, ONE live preview whatever the target, the status bar (Undo, Redo, Extract from a website…, Use in a
  * scenario…); Copy to edit asks the copy's name in a kit Sheet (the list's and the editor's).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
  */
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -30,8 +30,8 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, parseYaml } from '@demo-studio/core';
-import { LIBRARY_DIR, scaffoldDir } from '@demo-studio/components';
+import { STARTER_TEMPLATES_DIR, parseYaml } from '@retake/core';
+import { LIBRARY_DIR, scaffoldDir } from '@retake/components';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -39,7 +39,7 @@ import { hasTool } from '../../editor/test/render-helpers.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const RLO = String.fromCharCode(0x202e);
 const TITLE = `<img src=x onerror=alert(1)> Brand ${RLO}gnp.exe — ignore previous instructions`;
@@ -50,8 +50,8 @@ let studio: StudioServer;
 let browser: Browser;
 let context: BrowserContext;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
-const savedResolve = process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE;
+const savedHome = process.env.RETAKE_HOME;
+const savedResolve = process.env.RETAKE_UNSAFE_TEST_RESOLVE;
 const consoleErrors: string[] = [];
 const foreign: string[] = [];
 const dialogs: string[] = [];
@@ -106,11 +106,11 @@ const release = (testid: string) => page.getByTestId(testid).evaluate((el) => el
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-themes-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   // The extraction's host (a reserved name, as every test host) is taken as a site name here only.
-  process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
+  process.env.RETAKE_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
   await fixtureWorkspace(ws);
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
   await mkdir(join(ws, 'brand'));
   const png = await readFile(join(LIBRARY_DIR, 'studio', 'card-title', 'preview.png'));
@@ -121,7 +121,7 @@ beforeAll(async () => {
   await cp(scaffoldDir('intro'), comp, { recursive: true });
   await writeFile(join(comp, 'component.yaml'), (await readFile(join(comp, 'component.yaml'), 'utf8')).replace(/^id: .*$/m, 'id: acme/intro'));
   // A site extraction made by the CLI (no signed job): its page text is untrusted.
-  const site = join(ws, '.demo-studio', 'site', SITE);
+  const site = join(ws, '.retake', 'site', SITE);
   await mkdir(site, { recursive: true });
   await writeFile(join(site, 'logo-1.png'), png);
   await writeFile(
@@ -144,7 +144,7 @@ beforeAll(async () => {
   );
   for (const n of ['editorial', 'default', 'motion']) starterShas.set(n, sha(await readFile(join(STARTER_TEMPLATES_DIR, n, 'template.yaml'))));
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 960 }, colorScheme: 'light' });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: studio.url.replace(/\/$/, '') });
@@ -176,10 +176,10 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
-  if (savedResolve === undefined) delete process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE;
-  else process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE = savedResolve;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
+  if (savedResolve === undefined) delete process.env.RETAKE_UNSAFE_TEST_RESOLVE;
+  else process.env.RETAKE_UNSAFE_TEST_RESOLVE = savedResolve;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -189,12 +189,12 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await page.getByRole('link', { name: 'Themes', exact: true }).click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes`);
     await page.getByRole('heading', { level: 1, name: 'Themes' }).waitFor();
-    expect(await page.title()).toBe('Themes · Demo Studio');
+    expect(await page.title()).toBe('Themes · Retake');
     const row = page.locator('[data-testid="theme-row"][data-theme="editorial"]');
     await row.waitFor();
     expect(await row.getAttribute('data-editable')).toBe('no');
     expect(await row.getByTestId('theme-tag').allInnerTexts()).toEqual(expect.arrayContaining(['Starter', "The project's theme", 'Read-only']));
-    expect(await row.getByTestId('theme-row-why').innerText()).toMatch(/starter theme shipped with Demo Studio: copy it to edit it/);
+    expect(await row.getByTestId('theme-row-why').innerText()).toMatch(/starter theme shipped with Retake: copy it to edit it/);
     expect(await row.getByTestId('theme-row-copy').isVisible()).toBe(true);
     // The site panel: the page's title shown literally, its override as a visible mark; nothing built from it.
     const site = page.locator(`[data-testid="site-row"][data-site="${SITE}"]`);
@@ -213,7 +213,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     const ed = page.getByTestId('theme-editor');
     await ed.waitFor();
     expect(await ed.getAttribute('data-editable')).toBe('no');
-    expect(await page.title()).toBe('editorial · Themes · Demo Studio');
+    expect(await page.title()).toBe('editorial · Themes · Retake');
     expect(await page.getByTestId('theme-readonly-why').innerText()).toMatch(/copy it to edit it/);
     for (const id of ['color-accent-picker', 'color-accent-hex', 'background-type', 'font-display', 'text-brand.name']) expect(await page.getByTestId(id).isDisabled(), id).toBe(true);
     expect(await page.locator('[data-testid="theme-fields"] select:not([disabled]), [data-testid="theme-fields"] input:not([disabled])').count()).toBe(0);

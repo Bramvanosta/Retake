@@ -19,8 +19,8 @@ import {
   scenePageEntries,
   splitPageOpen,
   stepPageOf,
-} from '@demo-studio/core';
-import type { LoadedProject, Scene, Timeline, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { LoadedProject, Scene, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}${i.line ? `@${i.line}` : ''}: ${i.message}`);

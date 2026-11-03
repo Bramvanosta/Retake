@@ -4,8 +4,8 @@
  * model call, nothing written: saving stays scenario_save (if_match). The main path is Claude writing the scenario from
  * page inspections; this is a skeleton for when the user hands a table.
  */
-import { draftScenarioFromScript, resolveEnvironment } from '@demo-studio/core';
-import type { LoadedProject, ScriptIssue, ScriptOutline } from '@demo-studio/core';
+import { draftScenarioFromScript, resolveEnvironment } from '@retake/core';
+import type { LoadedProject, ScriptIssue, ScriptOutline } from '@retake/core';
 import { checkScenarioName } from './refs.js';
 import { validateScenarioText } from './scenarios.js';
 import type { ValidateResult } from './scenarios.js';

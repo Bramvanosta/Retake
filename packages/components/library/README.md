@@ -1,6 +1,6 @@
 # Built-in component library
 
-Components shipped with Demo Studio, one folder per component: `library/<namespace>/<name>/` with a
+Components shipped with Retake, one folder per component: `library/<namespace>/<name>/` with a
 `component.yaml` manifest, an `index.tsx` implementation, its generated `preview.png` (960×540, the editorial theme,
 the manifest's preview samples) + `preview.json` sidecar, and a README.md showing the preview, the slots and the params
 (see the README of the repository, section "Components", and `docs/DESIGN-phase2.md` §1).
@@ -42,5 +42,5 @@ per use and passes the result as `props.rects`); the composition draws the capti
 `caption` rect and the brand mark in its `brandmark` rect. Device layouts keep the capture's aspect within device
 proportions and paint the theme background around a capture they letterbox (`rects.display`).
 
-Previews are regenerated with `studio components preview --all` (or `--all --stale`); `packages/components/test/
+Previews are regenerated with `retake components preview --all` (or `--all --stale`); `packages/components/test/
 previews.test.ts` fails when one is missing or older than its component's sources.

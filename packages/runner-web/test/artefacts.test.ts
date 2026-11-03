@@ -11,8 +11,8 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
-import { TimelineSchema } from '@demo-studio/core';
-import type { DocumentArtefact, EmailArtefact, NotificationArtefact, Timeline } from '@demo-studio/core';
+import { TimelineSchema } from '@retake/core';
+import type { DocumentArtefact, EmailArtefact, NotificationArtefact, Timeline } from '@retake/core';
 import { imageSize, mailMatches, parseAddress, runScenario, sandboxedEmail, sniffMime } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
 

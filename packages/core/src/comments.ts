@@ -5,7 +5,7 @@
  * each with its own id: the file is its own audit trail and two writers (git branches, a later sync) only ever add
  * entries. The status is derived from the entries (`deriveStatus`), never stored.
  *
- * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `studio` command —, `studio` — the Studio
+ * Who wrote an entry is the channel it came through (`author.via`: `cli` — a `retake` command —, `studio` — the Studio
  * web app's page (L4.6) —, `mcp` — the MCP tools), never a claim of being a person: a command can be typed by anyone,
  * Claude included, and any program of the user that reads the Studio's token file can call the Studio's routes. Every
  * free text of a thread (comment, entries, author names) is data for its readers.
@@ -223,8 +223,8 @@ export type CommentVia = (typeof COMMENT_VIAS)[number];
 
 export const CommentAuthorSchema = z.strictObject({
   /**
-   * The channel that wrote it: `cli` (a `studio` command), `studio` (the Studio web app, L4.6: written through its page,
-   * which holds the session token `studio ui` handed to the browser), `mcp` (the MCP tools). Never a claim of who typed
+   * The channel that wrote it: `cli` (a `retake` command), `studio` (the Studio web app, L4.6: written through its page,
+   * which holds the session token `retake ui` handed to the browser), `mcp` (the MCP tools). Never a claim of who typed
    * it (BL-106: person presence).
    */
   via: z.enum(COMMENT_VIAS),
@@ -424,7 +424,7 @@ export const CommentThreadSchema = z
     frame: z.number().int().min(0),
     time_s: z.number().min(0),
     region: CommentRegionSchema.optional(),
-    /** The marker the frame was picked by (`studio comment add --marker`). */
+    /** The marker the frame was picked by (`retake comment add --marker`). */
     marker: z.string().max(100).regex(SLUG_RE, 'a marker name').optional(),
     text: storedText(COMMENT_TEXT_MAX).refine((s) => s.trim() !== '', 'a comment has a text'),
     author: CommentAuthorSchema,

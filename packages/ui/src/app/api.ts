@@ -67,7 +67,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     // A call this tab gave up on (its signal) is not a lost server.
     if (init.signal?.aborted) throw new CallError(0, { code: 'cancelled', message: 'cancelled' });
     setConnection('offline');
-    throw new CallError(0, { code: 'unavailable', message: 'The Studio server does not answer: is `studio ui` still running?' });
+    throw new CallError(0, { code: 'unavailable', message: 'The Studio server does not answer: is `retake ui` still running?' });
   }
   if (res.status === 401) {
     sessionEnded();

@@ -6,7 +6,7 @@
  * an in-app route (hrefTo). Without node:sqlite (Node.js before 22.13) the server says so and both show it.
  */
 import { useEffect, useState } from 'react';
-import type { ActivityItem, SearchHit } from '@demo-studio/engine';
+import type { ActivityItem, SearchHit } from '@retake/engine';
 import { call, errorText, useCall } from './api.js';
 import { Txt, When, shown } from './bits.js';
 import { useEvents } from './events.js';

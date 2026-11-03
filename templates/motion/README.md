@@ -17,7 +17,7 @@ through black and richer motion design (`style_bias: motion`).
 | Motion | zooms only from scenario `camera` hints (max 1.6×, snappier easing), `style_bias: motion` |
 | Brandmark | none (the brand closes the video in the outro) |
 
-Files: `template.yaml`, `logo.svg` and `wordmark.svg` (placeholder brand "Demo Studio", light wordmark
+Files: `template.yaml`, `logo.svg` and `wordmark.svg` (sample brand: the tool's own name, "Retake", light wordmark
 for the dark background), `fonts/` (Space Grotesk and Inter, SIL OFL 1.1 — see `LICENSES.md`).
 
 In this dark template `paper` is the dark surface colour and `text` the light one, which is why the
@@ -27,7 +27,7 @@ if you change the colours.
 ## Derive your brand template
 
 Brand templates live in your own workspace (the folder holding your `projects/`, or the `templates_dir`
-of its `studio.yaml`), never in the Demo Studio installation.
+of its `retake.yaml`), never in the Retake installation.
 
 1. Copy this folder to `<workspace>/templates/<brand>/` (for example `templates/northfield-teaser/`).
 2. Replace `logo.svg` with your square mark (shown up to 150 px in the outro; SVG, PNG, JPG or WebP) and
@@ -45,10 +45,10 @@ of its `studio.yaml`), never in the Demo Studio installation.
 5. Use it from a project or a single scenario: `template: <brand>` in `project.yaml`, or in the
    scenario that cuts the teaser.
 
-Every section of `template.yaml` is optional — missing values fall back to Demo Studio's built-in
+Every section of `template.yaml` is optional — missing values fall back to Retake's built-in
 defaults — so a brand template may keep only what differs. This starter spells out every value so it
-reads as a reference. The `# yaml-language-server` header points to the JSON Schema inside the Demo
-Studio repository; in your workspace, point it to the output of `studio schema template` or remove it.
+reads as a reference. The `# yaml-language-server` header points to the JSON Schema inside the Retake
+repository; in your workspace, point it to the output of `retake schema template` or remove it.
 Loading the template reports any mistake with its line and column, and lists missing asset files.
 
 `wordmark.svg` is live text with the Latin subset of Space Grotesk Bold embedded, so it renders the

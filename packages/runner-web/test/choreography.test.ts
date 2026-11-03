@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import type { Pacing, Scene, TimelineEvent } from '@demo-studio/core';
+import type { Pacing, Scene, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { cursorCovers } from '../src/scene-cursor.js';
 import { CALENDAR_PAGE, CHOREO_PAGE, DESIGN_FRAME, EDITOR_PAGE, PICKERS_PAGE, POPOVER_PAGE, RICH_FRAME } from './pages.js';

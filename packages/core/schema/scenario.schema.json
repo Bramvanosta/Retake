@@ -432,7 +432,7 @@
     "scenes"
   ],
   "additionalProperties": false,
-  "title": "Demo Studio scenario",
+  "title": "Retake scenario",
   "description": "A product video: hooks, scenes and steps.",
   "$defs": {
     "HookStep": {

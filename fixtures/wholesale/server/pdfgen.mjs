@@ -1,5 +1,5 @@
 // Real PDFs for the fixture: the quote document (the same HTML the viewer page shows) printed to A4 with Chromium's
-// page.pdf (playwright-core, the browser Demo Studio already uses). The browser is launched on the first request and
+// page.pdf (playwright-core, the browser Retake already uses). The browser is launched on the first request and
 // kept; documents are cached by their HTML, so a quote prints once per state.
 
 import { createHash } from 'node:crypto';

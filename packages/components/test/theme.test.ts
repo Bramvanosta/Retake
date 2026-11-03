@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_TEMPLATE, loadTemplate } from '@demo-studio/core';
-import type { LoadedTemplate } from '@demo-studio/core';
-import { fontFileFace, themeFontFamilies, themeTokens } from '@demo-studio/components';
+import { DEFAULT_TEMPLATE, loadTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core';
+import { fontFileFace, themeFontFamilies, themeTokens } from '@retake/components';
 
 /** The repository is a workspace: its starter templates. */
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));

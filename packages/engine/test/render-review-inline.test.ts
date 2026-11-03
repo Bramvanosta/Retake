@@ -37,13 +37,13 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 let root: string;
 let dir: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'ds-render-review-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
@@ -64,8 +64,8 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (root) await rm(root, { recursive: true, force: true });
 });
 

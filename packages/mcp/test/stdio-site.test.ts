@@ -1,11 +1,11 @@
 /**
- * L3.5 template_from_site through `studio mcp` (spawned from the sources over stdio, R-MCP-12): the brand-site fixture
+ * L3.5 template_from_site through `retake mcp` (spawned from the sources over stdio, R-MCP-12): the brand-site fixture
  * (self-signed https on invented `.test` names) reached through the unsafe test resolver set in the server's
  * environment (its worker inherits it). A client that approves: the question shows the canonical URL and the host;
  * the colours by role, the logo candidates (`site:<id>/logo-<n>`), the screenshot and logos as images, the page's
  * strings only under `untrusted`, a draft; template_create_from_brand from the draft makes the theme; job_status gives
  * the same result. A client that declines: refused; one without elicitation: needs_approval — both with the
- * `studio theme from-site` command, and nothing opened.
+ * `retake theme from-site` command, and nothing opened.
  */
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { readWorkerLock } from '@demo-studio/engine';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
@@ -38,13 +38,13 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: string
     env: {
       PATH: process.env.PATH ?? '',
       HOME: process.env.HOME ?? '',
-      DEMO_STUDIO_HOME: join(ws, '.home'),
-      DEMO_STUDIO_WORKER_IDLE_MS: '1500',
-      DEMO_STUDIO_UNSAFE_TEST_RESOLVE: site.resolveEnv,
+      RETAKE_HOME: join(ws, '.home'),
+      RETAKE_WORKER_IDLE_MS: '1500',
+      RETAKE_UNSAFE_TEST_RESOLVE: site.resolveEnv,
     },
     stderr: 'pipe',
   });
-  const client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
+  const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });
   const asked: string[] = [];
   if (answer) {
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
@@ -72,7 +72,7 @@ beforeAll(async () => {
   if (!can) return;
   site = await startBrandSite();
   ws = await mkdtemp(join(tmpdir(), 'studio-mcp-site-'));
-  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'), { recursive: true });
   await mkdir(join(ws, 'projects', 'demo', 'scenarios'), { recursive: true });
   await writeFile(join(ws, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
@@ -92,7 +92,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe.skipIf(!can)('studio mcp: template_from_site', () => {
+describe.skipIf(!can)('retake mcp: template_from_site', () => {
   it('a client without elicitation: needs_approval with the CLI command; a decline: refused; nothing opened', async () => {
     const { client } = await connect();
     const r = await call(client, 'template_from_site', { url: 'https://brand.test/' });
@@ -151,7 +151,7 @@ describe.skipIf(!can)('studio mcp: template_from_site', () => {
     const theme = made.structuredContent as { name: string; dir: string; files: string[] };
     expect(theme.name).toBe('brand');
     expect(theme.files).toContain('logo.png');
-    const prov = JSON.parse(await readFile(join(theme.dir, '.demo-studio-theme.json'), 'utf8')) as { site_id: string };
+    const prov = JSON.parse(await readFile(join(theme.dir, '.retake-theme.json'), 'utf8')) as { site_id: string };
     expect(prov.site_id).toBe(data.site_id);
     expect(site.escape).toEqual({ tcp: 0, udp: 0, upgrades: 0 });
     expect(site.writes).toEqual([]);

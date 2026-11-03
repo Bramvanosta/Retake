@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Engine, ReviewImagesMode, ReviewView } from '@demo-studio/engine';
+import type { Engine, ReviewImagesMode, ReviewView } from '@retake/engine';
 import { projectSlug, renderId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';

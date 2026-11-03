@@ -1,4 +1,4 @@
-// The shop's recording lab (GET /record-lab): one page made to test the recorder (`studio record`, L3.4) — what a
+// The shop's recording lab (GET /record-lab): one page made to test the recorder (`retake record`, L3.4) — what a
 // person meets on real apps, in one place:
 // - an account form whose password field switches to plain text ("Show"), a field that is re-mounted as a new
 //   element holding the same value, a "reveal" that prints the password as page text, one-time-code boxes, a card
@@ -37,7 +37,7 @@ const HOSTILE_LABEL = `<img src=x onerror=__pwned=1>Hostile ${String.fromCharCod
 /** What a page script can try against a recorder: run once on load and again by the button. */
 function forge() {
   const seen = [];
-  const report = { found: [], called: 0, dispatched: 0, kit: typeof window.__demoStudio, verdict: typeof window.__dsrecVerdict, flush: typeof window.__dsrecFlush, raw: typeof window.__playwright__binding__ };
+  const report = { found: [], called: 0, dispatched: 0, kit: typeof window.__retake, verdict: typeof window.__dsrecVerdict, flush: typeof window.__dsrecFlush, raw: typeof window.__playwright__binding__ };
   for (const name of Object.getOwnPropertyNames(window)) {
     let v;
     try {
@@ -73,7 +73,7 @@ function forge() {
   }
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   window.dispatchEvent(new Event('pagehide'));
-  window.dispatchEvent(new Event('__demo_studio_ping'));
+  window.dispatchEvent(new Event('__retake_ping'));
   report.dispatched += 3;
   return report;
 }

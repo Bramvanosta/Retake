@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { editReplannedMessage, scenarioChangedMessage } from '@demo-studio/core';
-import type { Engine, RenderStatusView } from '@demo-studio/engine';
+import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';

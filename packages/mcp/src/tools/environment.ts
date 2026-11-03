@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { SLUG_RE } from '@demo-studio/core';
-import type { Engine, JobRecord } from '@demo-studio/engine';
-import { signInStoppedText } from '@demo-studio/engine';
+import { SLUG_RE } from '@retake/core';
+import type { Engine, JobRecord } from '@retake/engine';
+import { signInStoppedText } from '@retake/engine';
 import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';

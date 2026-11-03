@@ -1,16 +1,16 @@
 /**
- * `auth_login` jobs (L3.1, R-AUTH-09): `studio login` submitted by a client outside the CLI (the MCP server) and run by
+ * `auth_login` jobs (L3.1, R-AUTH-09): `retake login` submitted by a client outside the CLI (the MCP server) and run by
  * the jobs worker with the same engine code (login.ts). `headed` opens a visible browser window on the machine the
  * worker runs on, for a HUMAN to sign in and close — the job waits for that window; `auto` plays the persona's
  * `login:` steps of project.yaml, headless. No input carries a credential, and no result carries a session's path,
- * cookies or a secret: the session goes to the worker's ~/.demo-studio, as with `studio login`.
+ * cookies or a secret: the session goes to the worker's ~/.retake, as with `retake login`.
  *
  * L4.4: a headed window run by the worker closes after AUTH_HEADED_MAX_ENV minutes (default 30) — the single worker is
  * held while it is open, and a click in the Studio opens it — and `cancelSignIn` stops one (an `auth_login` job only).
  */
 import { readdir } from 'node:fs/promises';
-import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@demo-studio/core';
-import type { AuthLoginJobInput, WorkspaceConfig } from '@demo-studio/core';
+import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@retake/core';
+import type { AuthLoginJobInput, WorkspaceConfig } from '@retake/core';
 import { EngineError, toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import type { FileJobQueue } from './queue.js';
@@ -22,11 +22,11 @@ import type { SubmitContext } from './run-job.js';
 import type { AuthLoginJobResult, JobEventBody, JobRecord } from './types.js';
 
 /** The environment variable that changes how long a headed sign-in window of a job may stay open (minutes). */
-export const AUTH_HEADED_MAX_ENV = 'DEMO_STUDIO_SIGNIN_MAX_MIN';
+export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
 /** How long a headed sign-in window of a job stays open by default (ms): 30 min. */
 export const AUTH_HEADED_MAX_MS = 30 * 60_000;
 
-/** The longest headed sign-in of a job (ms): DEMO_STUDIO_SIGNIN_MAX_MIN (minutes, more than 0 to 1440), else 30 min. */
+/** The longest headed sign-in of a job (ms): RETAKE_SIGNIN_MAX_MIN (minutes, more than 0 to 1440), else 30 min. */
 export function headedSignInMaxMs(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env[AUTH_HEADED_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return AUTH_HEADED_MAX_MS;
@@ -95,7 +95,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio login` command a human runs for the same sign-in. */
+/** The `retake login` command a human runs for the same sign-in. */
 export function loginCommandLine(cli: string, r: AuthLoginSubmitRequest): string {
   return [cli, 'login', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.persona !== undefined ? ['--persona', q(r.persona)] : []), ...(r.mode === 'auto' ? ['--auto'] : [])].join(' ');
 }

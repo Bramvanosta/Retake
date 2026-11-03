@@ -11,8 +11,8 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_PACING, TimelineSchema } from '@demo-studio/core';
-import type { RunRecord, Timeline } from '@demo-studio/core';
+import { DEFAULT_PACING, TimelineSchema } from '@retake/core';
+import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
 

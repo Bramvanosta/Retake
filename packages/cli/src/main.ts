@@ -1,6 +1,6 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
-import { COMPONENT_KINDS, DEMO_STUDIO_VERSION } from '@demo-studio/core';
-import type { JsonSchemaName } from '@demo-studio/core';
+import { COMPONENT_KINDS, RETAKE_VERSION, oldHomeLine, oldHomeState, oldVarsLine, oldVarsUnread } from '@retake/core';
+import type { JsonSchemaName } from '@retake/core';
 import { commentAddCommand, commentListCommand, commentReopenCommand, commentReplyCommand, commentResolveCommand } from './commands/comment.js';
 import type { CommentAddOptions, CommentListOptions, CommentWriteOptions } from './commands/comment.js';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from './commands/components.js';
@@ -46,20 +46,20 @@ import { themeCreateCommand, themeFromSiteCommand } from './commands/theme.js';
 import type { ThemeCreateOptions } from './commands/theme.js';
 import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
-import { EXIT, errorMessage, exitCodeOf, isKnownError } from './errors.js';
+import { EXIT, errorMessage, errorText, exitCodeOf, isKnownError } from './errors.js';
 import type { ExitCode } from './errors.js';
 import { processIo } from './io.js';
 import type { Io } from './io.js';
 import { Ui } from './ui.js';
 import type { GlobalOptions } from './workspace.js';
 
-export const VERSION = DEMO_STUDIO_VERSION;
+export const VERSION = RETAKE_VERSION;
 
 const collect = (value: string, previous: string[] = []) => [...previous, value];
 
-/** Build the `studio` program. Actions store their exit code through `setExit`. */
+/** Build the `retake` program. Actions store their exit code through `setExit`. */
 function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
-  const program = new Command('studio');
+  const program = new Command('retake');
   let ui: Ui | null = null;
   const globals = (): GlobalOptions => program.opts<GlobalOptions>();
   const getUi = (): Ui => {
@@ -76,9 +76,9 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     };
 
   program
-    .description('Demo Studio: precise YAML scenarios → product videos captured from a real web app')
+    .description('Retake: precise YAML scenarios → product videos captured from a real web app')
     .version(VERSION, '-V, --version')
-    .option('-C, --root <dir>', 'workspace root (default: $DEMO_STUDIO_ROOT, else the nearest folder with studio.yaml)')
+    .option('-C, --root <dir>', 'workspace root (default: $RETAKE_ROOT, else the nearest folder with retake.yaml)')
     .option('-v, --verbose', 'show debug and info messages')
     .option('--no-color', 'disable colours')
     .showSuggestionAfterError(true)
@@ -128,7 +128,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--allow-writes', 'let a run on a production environment write (only where project.yaml sets access: read-write; without it such a run is read-only)')
     .option('--sandbox', 'reset the sandbox to its seed before the take: up if needed, health, reset (environment: --env, the scenario env or default_env when a sandbox, else the first sandbox); it stays up after')
     .option('--json', 'stream progress events as JSON lines on stdout')
-    .option('--raw', 'then export the raw package for editors (as studio export-capture: clips per scene, cursor data, markers)')
+    .option('--raw', 'then export the raw package for editors (as retake export-capture: clips per scene, cursor data, markers)')
     .addOption(new Option('--cursor <mode>', 'with --raw: baked (as captured), none (captured without the cursor; data only) or layer (captured without it + a transparent cursor layer per clip)').choices(['baked', 'none', 'layer']))
     .addOption(new Option('--format <format>', 'with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422 HQ)').choices(['mp4', 'prores']))
     .addOption(new Option('--fps <n>', 'with --raw: 30 or 60 fps').choices(['30', '60']))
@@ -148,7 +148,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--page <key>', 'environment page the window opens (default: the persona\'s first page, else the first page)')
     .option('--path <path>', 'path under the page (default /)')
     .option('--url <url>', 'instead of --page / --path: a URL on one of the environment\'s origins')
-    .option('--allow-writes', 'let the window write on a production environment (only where project.yaml sets access: read-write), as studio run')
+    .option('--allow-writes', 'let the window write on a production environment (only where project.yaml sets access: read-write), as retake run')
     .option('--no-check', 'skip the check replay of the draft')
     .option('--json', 'print the outcome as JSON on stdout')
     .action(action((u, g, p: string, n: string | undefined, o: RecordCommandOptions) => recordCommand(u, g, p, n, o)));
@@ -167,7 +167,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--limit <n>', 'elements listed (default 80, at most 300)')
     .addOption(new Option('--images <mode>', 'marked (default): also draw marked.jpg; none: the plain screenshot only').choices(['marked', 'none']))
     .option('--json', 'print the report (inspect.json) on stdout')
-    .option('--out <dir>', 'folder for the inspection folder (default <project>/.demo-studio/inspect/)')
+    .option('--out <dir>', 'folder for the inspection folder (default <project>/.retake/inspect/)')
     .action(action((u, g, p: string, w: string, o: InspectCommandOptions) => inspectCommand(u, g, p, w, o)));
 
   program
@@ -220,7 +220,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--out <file>', 'write the video (and its .json record) here instead of renders/')
     .option('--concurrency <n>', 'frames rendered in parallel (default: 3/4 of the CPUs, at most 8)')
     .option('--json', 'print the render record (without the plan) as JSON')
-    .option('--review', 'review the render right after it (studio review: sheets, key frames, report)')
+    .option('--review', 'review the render right after it (retake review: sheets, key frames, report)')
     .action(action((u, g, p: string, s: string, o: RenderCommandOptions) => renderCommand(u, g, p, s, o)));
 
   program
@@ -256,7 +256,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<scenario>', 'scenario name')
     .requiredOption('--frame <n>', 'output frame number (0-based)')
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
-    .option('--layout <frame>', 'frame of every scene (as `studio render --frame`): card, browser, laptop, phone, tablet, raw, split or pip (multi-page scenes) or a layout id')
+    .option('--layout <frame>', 'frame of every scene (as `retake render --frame`): card, browser, laptop, phone, tablet, raw, split or pip (multi-page scenes) or a layout id')
     .option('--theme <name>', 'plan with another theme (template name or ./path)')
     .option('--vertical', 'a frame of the vertical 9:16 variant')
     .option('--square', 'a frame of the square 1:1 variant')
@@ -279,7 +279,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .command('rollback')
     .description('replay the pending rollbacks of a run (or of every run)')
     .argument('<project>', 'project slug or directory')
-    .argument('[id]', 'run id (folder under runs/) or hooks journal id (.demo-studio/journals/<id>.json)')
+    .argument('[id]', 'run id (folder under runs/) or hooks journal id (.retake/journals/<id>.json)')
     .option('--env <name>', 'environment')
     .option('--allow-writes', 'replay rollbacks of a production environment (only where project.yaml sets access: read-write)')
     .option('--dry', 'describe the rollbacks without executing them')
@@ -337,7 +337,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .action(action((u, g, p: string, o: SandboxCommandOptions) => sandboxStatusCommand(u, g, p, o)));
   sandbox
     .command('logs')
-    .description("the last lines of the services' logs (process: .demo-studio/sandbox/<env>/logs/; docker-compose: docker compose logs)")
+    .description("the last lines of the services' logs (process: .retake/sandbox/<env>/logs/; docker-compose: docker compose logs)")
     .argument('<project>', 'project slug or directory')
     .argument('[service]', 'only this service')
     .option('--env <name>', sandboxEnvHelp)
@@ -385,7 +385,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
   const theme = program.command('theme').description('themes (templates) from brand files or a site');
   theme
     .command('create')
-    .description('a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Demo Studio made)')
+    .description('a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)')
     .argument('<name>', 'new theme name: lower-case letters, digits and "-", not a starter\'s or an existing folder\'s')
     .requiredOption('--accent <hex>', 'brand colour (#rrggbb): kicker, rules, clock hand, cursor ripple — never changed')
     .requiredOption('--logo <file>', 'logo: .svg, .png, .jpg or .webp')
@@ -401,12 +401,12 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--brand-name <name>', 'brand name (drawn when there is no wordmark)')
     .option('--brand-url <url>', 'brand URL shown in the outro, e.g. example.com')
     .option('--no-adjust', 'keep colours that miss a contrast threshold (warnings only)')
-    .option('--replace', 'replace a theme Demo Studio made under that name (this command or template_create_from_brand), when nobody changed it since')
+    .option('--replace', 'replace a theme Retake made under that name (this command or template_create_from_brand), when nobody changed it since')
     .option('--json', 'machine-readable output')
     .action(action((u, g, n: string, o: ThemeCreateOptions) => themeCreateCommand(u, g, n, o)));
   theme
     .command('from-site')
-    .description('open one public https page in a clean headless browser (no profile, GET only, public addresses only) and extract its colours by role, font family names, logo candidates (PNG) and a screenshot into .demo-studio/site/<id>/, with a draft for `studio theme create`')
+    .description('open one public https page in a clean headless browser (no profile, GET only, public addresses only) and extract its colours by role, font family names, logo candidates (PNG) and a screenshot into .retake/site/<id>/, with a draft for `retake theme create`')
     .argument('<url>', 'https://<site>/<path>: default port, no query or fragment')
     .option('--json', 'machine-readable output')
     .action(action((u, g, url: string, o: { json?: boolean }) => themeFromSiteCommand(u, g, url, o)));
@@ -414,7 +414,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
   const comment = program.command('comment').description('frame comments on renders: a comment on one frame (optionally a region), replies, resolution with the render that answers it (comments/<scenario>/<id>.json; Claude reads and answers them through MCP)');
   comment
     .command('add')
-    .description('comment on one frame of a render: the anchor (segment, scene, step, component) is computed from the render\'s plan and the still kept in .demo-studio/comments/')
+    .description('comment on one frame of a render: the anchor (segment, scene, step, component) is computed from the render\'s plan and the still kept in .retake/comments/')
     .argument('<project>', 'project slug or directory')
     .argument('<render>', 'render id (e.g. quote-v3), or "latest"')
     .argument('<text>', 'the comment (at most 2000 characters)')
@@ -423,7 +423,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--marker <name>', 'the frame of a marker (a `mark:` step): its done frame, else its start (a name on several steps: use --frame)')
     .option('--region <x,y,w,h>', 'the commented region, 0..1 of the frame (e.g. 0.67,0.42,0.12,0.08)')
     .option('--scenario <name>', 'with "latest": the latest render of this scenario')
-    .option('--author <name>', 'your name (default $DEMO_STUDIO_AUTHOR, else your user name)')
+    .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
     .action(action((u, g, p: string, r: string, t: string, o: CommentAddOptions) => commentAddCommand(u, g, p, r, t, o)));
   comment
@@ -442,7 +442,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('<id>', 'thread id (c_…)')
     .argument('<text>', 'the reply (at most 2000 characters)')
-    .option('--author <name>', 'your name (default $DEMO_STUDIO_AUTHOR, else your user name)')
+    .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
     .action(action((u, g, p: string, id: string, t: string, o: CommentWriteOptions) => commentReplyCommand(u, g, p, id, t, o)));
   comment
@@ -452,7 +452,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<id>', 'thread id (c_…)')
     .option('--note <text>', 'what was changed (required)')
     .option('--render <id>', 'the render that answers it: a later render of the same scenario and variant (an id or "latest")')
-    .option('--author <name>', 'your name (default $DEMO_STUDIO_AUTHOR, else your user name)')
+    .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
     .action(action((u, g, p: string, id: string, o: CommentWriteOptions) => commentResolveCommand(u, g, p, id, o)));
   comment
@@ -461,7 +461,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('<id>', 'thread id (c_…)')
     .option('--note <text>', 'why')
-    .option('--author <name>', 'your name (default $DEMO_STUDIO_AUTHOR, else your user name)')
+    .option('--author <name>', 'your name (default $RETAKE_AUTHOR, else your user name)')
     .option('--json', 'print the thread as JSON')
     .action(action((u, g, p: string, id: string, o: CommentWriteOptions) => commentReopenCommand(u, g, p, id, o)));
 
@@ -476,7 +476,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('doctor')
-    .description('check this machine for Demo Studio: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, template fonts')
+    .description('check this machine for Retake: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, template fonts')
     .option('--project <slug>', "also check a project: its personas' sessions (never signed in, expired, in use, inside a git work tree) and its environments' hosts (HEAD, 5 s timeout)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));
@@ -510,9 +510,9 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('mcp')
-    .description('MCP server over stdio (or HTTP with --http) so a Claude session (Claude Code, Claude desktop) can drive Demo Studio: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
+    .description('MCP server over stdio (or HTTP with --http) so a Claude session (Claude Code, Claude desktop) can drive Retake: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
     .option('--print-config', 'print the registration for Claude Code (.mcp.json, claude mcp add) and Claude desktop instead of serving')
-    .option('--http', 'serve over Streamable HTTP on 127.0.0.1 (with a stable token in the studio home) instead of stdio; with --print-config: the HTTP registration')
+    .option('--http', 'serve over Streamable HTTP on 127.0.0.1 (with a stable token in the Retake home) instead of stdio; with --print-config: the HTTP registration')
     .option('--port <n>', 'with --http: listen on this port (default 47820; 0: a free one)')
     .option('--rotate-token', 'with --http: replace the stable token first (every registration must be made again)')
     .option('--json', 'with --http: print one JSON line {type, url, port, pid} on stdout once serving')
@@ -574,6 +574,13 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
  */
 export async function main(argv: readonly string[] = process.argv, io: Io = processIo()): Promise<ExitCode> {
   let code: ExitCode = EXIT.ok;
+  // L5.13: sign-ins left in the home from before the rename are not read — one line on stderr (never stdout: MCP over
+  // stdio and `ui --supervised` speak there), until they are moved (critique H3; legacy.ts). Likewise the old variables
+  // still set without their new twin (the old HOME or ROOT: another home, another workspace — reviews A M4 / B M4).
+  const old = oldHomeState();
+  if (old) io.err(`${oldHomeLine(old)}\n`);
+  const vars = oldVarsUnread();
+  if (vars.length) io.err(`${oldVarsLine(vars)}\n`);
   const program = buildProgram(io, (c) => (code = c));
   try {
     await program.parseAsync([...argv]);
@@ -586,7 +593,7 @@ export async function main(argv: readonly string[] = process.argv, io: Io = proc
     const ui = new Ui(io, program.opts<GlobalOptions>().verbose === true);
     ui.clearStatus();
     if (isKnownError(e)) {
-      ui.error(errorMessage(e));
+      ui.error(errorText(e));
     } else {
       ui.error(`unexpected error: ${errorMessage(e)}`);
       if (e instanceof Error && e.stack) ui.line(ui.c.dim(e.stack));

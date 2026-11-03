@@ -9,7 +9,7 @@
  * typed stays, nothing is re-sent. One write at a time: the buttons wait while one is sent.
  */
 import { memo, useEffect, useId, useRef, useState } from 'react';
-import type { ScenarioRenderView } from '@demo-studio/engine';
+import type { ScenarioRenderView } from '@retake/engine';
 import type { ThreadAnswer, ThreadGetAnswer } from '../server/comment-ops.js';
 import { CallError, call, errorText, useCall } from './api.js';
 import { Txt, When, plural } from './bits.js';

@@ -6,8 +6,8 @@
  * region); the whole video gets a chapter progress bar. Everything is anchored in source CSS px and mapped per frame by
  * the composition through layout, camera and reframe.
  */
-import { BADGE_ACTIONS, SPOTLIGHT_ACTIONS, TUTORIAL_COMPONENTS, applyTutorial, resolveTutorial, tutorialOff } from '@demo-studio/core';
-import type { BBox, ResolvedTutorial, Timeline, TimelineEvent, TimelineScene, TutorialFeatureName, TutorialFeatureState, TutorialSwitch } from '@demo-studio/core';
+import { BADGE_ACTIONS, SPOTLIGHT_ACTIONS, TUTORIAL_COMPONENTS, applyTutorial, resolveTutorial, tutorialOff } from '@retake/core';
+import type { BBox, ResolvedTutorial, Timeline, TimelineEvent, TimelineScene, TutorialFeatureName, TutorialFeatureState, TutorialSwitch } from '@retake/core';
 import type { ReframeTarget } from './camera.js';
 import type { OverlayUse, PlanTutorial, ResolvedComponent } from './plan-types.js';
 import { round, stepEnd } from './util.js';

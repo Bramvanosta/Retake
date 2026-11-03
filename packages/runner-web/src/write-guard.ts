@@ -31,8 +31,8 @@
  * loads on a remote one.
  */
 import type { BrowserContext, Dialog, Page, Route } from 'playwright-core';
-import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@demo-studio/core';
-import type { TimelineWrite, WritePolicy } from '@demo-studio/core';
+import { classifyRequest, describeWriteRequest, guardedHostPatterns, isGuardedHost, isWriteMethod, networkHost } from '@retake/core';
+import type { TimelineWrite, WritePolicy } from '@retake/core';
 import { sleep, wallNow } from './util.js';
 
 export type WriteVia = NonNullable<TimelineWrite['via']>;
@@ -222,7 +222,7 @@ export function unloadGuardScript(hosts: readonly string[]): string {
   const writes = (m) => !/^(GET|HEAD|OPTIONS)$/i.test(String(m || 'GET'));
   try {
     const F = globalThis.fetch;
-    if (typeof F === 'function' && !F.__demoStudioGuard) {
+    if (typeof F === 'function' && !F.__retakeGuard) {
       const fetch = function (input, init) {
         try {
           const req = typeof Request === 'function' && input instanceof Request ? input : null;
@@ -232,7 +232,7 @@ export function unloadGuardScript(hosts: readonly string[]): string {
         } catch {}
         return F.call(this === undefined || this === null ? globalThis : this, input, init);
       };
-      Object.defineProperty(fetch, '__demoStudioGuard', { value: true });
+      Object.defineProperty(fetch, '__retakeGuard', { value: true });
       globalThis.fetch = fetch;
       const N = typeof Navigator === 'function' ? Navigator.prototype : null;
       const B = N && N.sendBeacon;

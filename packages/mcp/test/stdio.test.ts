@@ -1,5 +1,5 @@
 /**
- * The MCP server as a client sees it: `studio mcp` spawned from the sources over stdio, driven by the SDK's own client.
+ * The MCP server as a client sees it: `retake mcp` spawned from the sources over stdio, driven by the SDK's own client.
  * Every read tool is called on a copy of the fixture project; stdout must carry JSON-RPC only.
  */
 import { spawn, execFileSync } from 'node:child_process';
@@ -48,11 +48,11 @@ beforeAll(async () => {
     command: process.execPath,
     args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: home },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   client.onerror = (e) => protocolErrors.push(e);
   await client.connect(transport);
 });
@@ -62,9 +62,9 @@ afterAll(async () => {
   await rm(ws, { recursive: true, force: true });
 });
 
-describe('studio mcp over stdio', () => {
+describe('retake mcp over stdio', () => {
   it('initializes with instructions and lists the tools with JSON Schemas from zod (input mode, no extra keys)', async () => {
-    expect(client.getServerVersion()?.name).toBe('demo-studio');
+    expect(client.getServerVersion()?.name).toBe('retake');
     expect(client.getInstructions()).toContain('untrusted');
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual([
@@ -245,10 +245,10 @@ describe('studio mcp over stdio', () => {
     const refused = errorOf(await call('run_capture', { project: 'northfield-fixture', scenario: 'catalogue' }));
     expect(refused.code).toBe('needs_approval');
     expect(refused.message).toContain('HTTP DELETE');
-    expect(refused.fix).toBe(`studio -C ${ws} run northfield-fixture catalogue`);
+    expect(refused.fix).toBe(`retake -C ${ws} run northfield-fixture catalogue`);
     const dry = errorOf(await call('run_dry', { project: 'northfield-fixture', scenario: 'catalogue', hooks: 'run' }));
     expect(dry.code).toBe('needs_approval');
-    expect(dry.fix).toBe(`studio -C ${ws} run northfield-fixture catalogue --dry --hooks run`);
+    expect(dry.fix).toBe(`retake -C ${ws} run northfield-fixture catalogue --dry --hooks run`);
     expect(errorOf(await call('run_dry', { project: 'northfield-fixture', scenario: '../../etc/passwd' })).code).toBe('invalid');
     expect(errorOf(await call('run_dry', { project: 'northfield-fixture', scenario: 'nope' })).code).toBe('not_found');
     const jobs = await call('job_list');
@@ -262,7 +262,7 @@ describe('studio mcp over stdio', () => {
   it('auth_status (no browser, no session paths) and sandbox_status', async () => {
     const auth = await call('auth_status', { project: 'northfield-fixture' });
     expect(auth.isError).toBeFalsy();
-    expect(auth.content[0].text).toContain(`sign it in: auth_login (the user signs in in a window), or a human runs studio -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
+    expect(auth.content[0].text).toContain(`sign it in: auth_login (the user signs in in a window), or a human runs retake -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
     expect(JSON.stringify(auth)).not.toContain(home);
     expect(errorOf(await call('auth_status', { env: 'signed-in' })).code).toBe('invalid');
     const sb = await call('sandbox_status', { project: 'northfield-fixture' });
@@ -308,9 +308,9 @@ describe('studio mcp over stdio', () => {
   });
 });
 
-describe('studio mcp: lifecycle and registration', () => {
+describe('retake mcp: lifecycle and registration', () => {
   it('answers what was sent, then exits 0 when its input ends; stdout is JSON-RPC lines only', async () => {
-    const child = spawn(process.execPath, [...SOURCE_ARGS, '--root', ws, 'mcp'], { cwd: REPO, env: { ...process.env, DEMO_STUDIO_HOME: home }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(process.execPath, [...SOURCE_ARGS, '--root', ws, 'mcp'], { cwd: REPO, env: { ...process.env, RETAKE_HOME: home }, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
     child.stdout.on('data', (d: Buffer) => (out += d.toString()));
     const exited = new Promise<number | null>((r) => child.on('exit', (code) => r(code)));
@@ -329,20 +329,20 @@ describe('studio mcp: lifecycle and registration', () => {
 
   it('--print-config: absolute Node.js, the built entry point, the workspace and a PATH for GUI clients', async () => {
     const io = memoryIo();
-    expect(await main(['node', 'studio', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
+    expect(await main(['node', 'retake', '--root', ws, 'mcp', '--print-config'], io)).toBe(EXIT.ok);
     const cfg = JSON.parse(io.stdout()) as { mcpServers: Record<string, { command: string; args: string[]; env: Record<string, string> }> };
-    const entry = cfg.mcpServers['demo-studio'];
+    const entry = cfg.mcpServers['retake'];
     expect(entry.command).toMatch(/^\/.*\/node$/);
     expect(entry.args).toEqual([join(REPO, 'packages', 'cli', 'dist', 'bin.js'), '--root', ws, 'mcp']);
     expect(entry.env.PATH.split(':')[0]).toBe(dirname(entry.command));
-    expect(io.stderr()).toContain('claude mcp add demo-studio --scope user');
+    expect(io.stderr()).toContain('claude mcp add retake --scope user');
     expect(io.stderr()).toContain('claude_desktop_config.json');
   });
 
   it('refuses to serve without a workspace (exit 2)', async () => {
     const empty = await mkdtemp(join(tmpdir(), 'studio-mcp-none-'));
     const io = memoryIo();
-    expect(await main(['node', 'studio', '--root', empty, 'mcp'], io)).toBe(EXIT.usage);
+    expect(await main(['node', 'retake', '--root', empty, 'mcp'], io)).toBe(EXIT.usage);
     expect(io.stderr()).toContain('no workspace here');
     expect(io.stdout()).toBe('');
     await rm(empty, { recursive: true, force: true });
@@ -354,7 +354,7 @@ describe('studio mcp: lifecycle and registration', () => {
     expect(stableNodePath('/u/.local/share/mise/installs/node/22.16.0/bin/node', has([]))).toBe('/u/.local/share/mise/installs/node/22.16.0/bin/node');
     expect(stableNodePath('/opt/homebrew/Cellar/node@22/22.16.0/bin/node', has(['/opt/homebrew/opt/node@22/bin/node']))).toBe('/opt/homebrew/opt/node@22/bin/node');
     expect(clientPath('/n/bin/node', '/usr/bin:/bin', has(['/opt/homebrew/bin', '/usr/bin']))).toBe('/n/bin:/usr/bin:/bin:/opt/homebrew/bin');
-    // nvm's v-prefixed folders; the folders `pnpm studio …` adds for its script never go into a registration.
+    // nvm's v-prefixed folders; the folders `pnpm retake …` adds for its script never go into a registration.
     expect(stableNodePath('/u/.nvm/versions/node/v22.16.0/bin/node', has(['/u/.nvm/versions/node/22/bin/node']))).toBe('/u/.nvm/versions/node/22/bin/node');
     expect(clientPath('/n/bin/node', '/repo/node_modules/.bin:/u/.cache/node/corepack/v1/pnpm/10.28.0/dist/node-gyp-bin:/repo/packages/cli/node_modules/.bin:/usr/bin', has([]))).toBe('/n/bin:/usr/bin');
   });

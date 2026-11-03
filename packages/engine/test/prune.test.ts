@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { LoadedProject } from '@demo-studio/core';
+import type { LoadedProject } from '@retake/core';
 import { formatBytes, pruneProject } from '../src/index.js';
 
 let dir: string;
@@ -77,7 +77,7 @@ afterAll(async () => {
   if (dir) await rm(dir, { recursive: true, force: true });
 });
 
-describe('studio prune / project_prune (engine pruneProject)', () => {
+describe('retake prune / project_prune (engine pruneProject)', () => {
   it('a dry run lists what goes and why, how much it frees, and deletes nothing', async () => {
     const busy = (id: string) => id === '20261020-150000-catalogue';
     const r = await pruneProject(project, { keep_renders: 2, busy });

@@ -13,8 +13,8 @@ import {
   rise,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { CaptionCue, ComponentProps, ThemeTextStyle, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { CaptionCue, ComponentProps, ThemeTextStyle, ThemeTokens } from '@retake/components/kit';
 
 type Params = { position: 'below' | 'above'; align: 'left' | 'center'; max_lines: number; rule: boolean };
 

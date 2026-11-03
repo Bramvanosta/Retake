@@ -1,4 +1,4 @@
-import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@demo-studio/core';
+import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@retake/core';
 import type { Page } from 'playwright-core';
 import { distance } from './motion.js';
 import type { StepContext } from './runtime.js';

@@ -1,5 +1,5 @@
 /**
- * Brand inputs of a new theme (L3.5, R-MCP-10): what `template_create_from_brand` / `studio theme create` take — a new
+ * Brand inputs of a new theme (L3.5, R-MCP-10): what `template_create_from_brand` / `retake theme create` take — a new
  * theme name, a base theme, hex colours, a logo, an optional wordmark and fonts, the brand's name and URL. Pure:
  * schemas and the syntax rules of file references; the engine (brand/files.ts) resolves references on disk (links,
  * agent-writable folders, the components folder) and checks the bytes; the components package derives the palette.
@@ -69,7 +69,7 @@ export function siteRef(ref: string): { site_id: string; candidate: string } | n
 /**
  * Why a brand file reference is refused by its syntax alone, or null (the engine then checks it on disk). A path is
  * relative to the workspace root: never absolute, `~`, a drive letter, a backslash, a NUL, an empty or `.` / `..`
- * segment, or a hidden one (`.demo-studio/`, `.git/`… — hidden folders are tool or system folders).
+ * segment, or a hidden one (`.retake/`, `.git/`… — hidden folders are tool or system folders).
  */
 export function brandRefSyntaxProblem(ref: string): string | null {
   if (typeof ref !== 'string' || ref.length === 0) return 'an empty file reference';
@@ -162,7 +162,7 @@ function brandInputSchema(ref: z.ZodType<string>) {
 
 /** The input of a new theme from brand files through MCP (trust `mcp`): files are workspace references. */
 export const BrandInputSchema = brandInputSchema(brandFileRefSchema);
-/** The same typed by a human (`studio theme create`, trust `author`): a file may be any local path. */
+/** The same typed by a human (`retake theme create`, trust `author`): a file may be any local path. */
 export const AuthorBrandInputSchema = brandInputSchema(z.string().min(1).max(4096));
 export type BrandInput = z.output<typeof BrandInputSchema>;
 

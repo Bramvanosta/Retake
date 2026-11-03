@@ -12,7 +12,7 @@
  *   the take as captured" on such a take, and off with why on a proposal (⌘B there renders nothing: the proposal is not
  *   the file on disk).
  */
-import type { ScenarioRendersView } from '@demo-studio/engine';
+import type { ScenarioRendersView } from '@retake/engine';
 import { Txt } from './bits.js';
 import { busyWhy, failedWords } from './Renders.js';
 import type { RenderTarget, RendersState } from './Renders.js';

@@ -1,15 +1,15 @@
 # yaml-language-server: $schema=../../../packages/core/schema/sandbox.schema.json
-# The fixture product as a sandbox (L1.8, provider process): Demo Studio starts the Northfield server on ports of its
+# The fixture product as a sandbox (L1.8, provider process): Retake starts the Northfield server on ports of its
 # own (4501–4504, so it never meets a fixture you started by hand on 4401–4404), seeds it before every take with the
 # fixture's own reset API, and films the signed-in side as the supplier and the buyer.
 #
-#   studio sandbox up northfield-fixture                     # start + seed (status / logs / reset / down likewise)
-#   studio run northfield-fixture sandbox-quote --sandbox    # up if needed, health, reset to the seed, capture
+#   retake sandbox up northfield-fixture                     # start + seed (status / logs / reset / down likewise)
+#   retake run northfield-fixture sandbox-quote --sandbox    # up if needed, health, reset to the seed, capture
 version: 1
 provider: process
 services:
   fixture:
-    # "node" runs Demo Studio's own Node. Its in-memory data restarts with the process.
+    # "node" runs Retake's own Node. Its in-memory data restarts with the process.
     command: [node, server.mjs, --console-port, "4501", --shop-port, "4502", --auth-console-port, "4503", --auth-shop-port, "4504"]
     cwd: ../../../fixtures/wholesale
     url: http://localhost:4501          # the open console: its health API (the pages below are behind a sign-in)

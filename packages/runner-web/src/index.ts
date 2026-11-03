@@ -1,5 +1,5 @@
 /**
- * @demo-studio/runner-web — drives a real web app headless with deterministic pacing, an in-page cursor driven by
+ * @retake/runner-web — drives a real web app headless with deterministic pacing, an in-page cursor driven by
  * real input, CDP screencast capture and a timeline of every step (docs/DESIGN.md §3).
  */
 export { DISK_FREE_MIN_GB, DISK_FREE_MIN_SHARE, choppyCause, diskCheck, motionWarnings, runScenario } from './run.js';

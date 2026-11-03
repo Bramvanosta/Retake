@@ -15,9 +15,9 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scaffoldDir } from '@demo-studio/components';
-import { BUNDLE_CSP, allowedDownload, allowedRequest, originOf, planRun, renderPlan, withCspMeta } from '@demo-studio/editor';
-import type { EditPlan, RenderNetwork } from '@demo-studio/editor';
+import { scaffoldDir } from '@retake/components';
+import { BUNDLE_CSP, allowedDownload, allowedRequest, originOf, planRun, renderPlan, withCspMeta } from '@retake/editor';
+import type { EditPlan, RenderNetwork } from '@retake/editor';
 import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
 
@@ -197,7 +197,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
     expect(blocked.join('\n')).not.toMatch(/\/fetch|\/img|proxy-src/);
   }, LONG);
 
-  it('open (a `studio render`): B gets the page requests and the /proxy download — the positive control', async () => {
+  it('open (a `retake render`): B gets the page requests and the /proxy download — the positive control', async () => {
     const plan = await introPlan('acme/reaching');
     hits = [];
     const res = await renderIntro(plan, 'open', 'open.mp4');

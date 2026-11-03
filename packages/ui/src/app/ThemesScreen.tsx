@@ -6,7 +6,7 @@
  * kit Sheet asks for the copy's name: theme_copy); New theme (L3.5's brand form: theme_create, never replacing one; a
  * changed form is unsaved for the desktop app's quit question: `new_theme`); and the site panel — the site extractions
  * of the workspace (host, page title: untrusted text, shown as text; hex roles; logo candidates by name, B11 / C5), the
- * `studio theme from-site` command to copy for a URL (no Studio op queues a site job: the extraction needs a person's
+ * `retake theme from-site` command to copy for a URL (no Studio op queues a site job: the extraction needs a person's
  * approval of the URL in a terminal or in Claude Code), and "New theme from this". With a theme: its editor
  * (ThemeEditor.tsx).
  * In the shell: the browser is the Library's (LibraryBrowser.tsx: each theme opens its editor); the status bar says how

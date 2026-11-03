@@ -14,7 +14,7 @@
  * - L5.9 (review B-M1): inside the shell at 1440 × 900 and 1280 × 800, as many track rows show on load as before it.
  * - L5.12a (R4-Edit): Edit in the shell — the Mode's Edit current, the browser pane hidden, no tabs (the modes and the
  *   title bar replace them); the rows are the kit's tracks (`[data-testid^="track-"]`), the preview `[data-testid=preview]`.
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -22,7 +22,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TimelineViewResult } from '@demo-studio/engine';
+import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { FRAME_URL_RE, landingOf } from '../src/app/timeline-words.js';
@@ -31,7 +31,7 @@ import { hasTool } from '../../editor/test/render-helpers.js';
 import { BITS_TEXT, bitsTimeline, readBits, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const RUN = '20260101-120000-bits';
 const H264_RUN = '20260101-120000-h264';
@@ -42,7 +42,7 @@ let browser: Browser;
 let context: BrowserContext;
 let page: Page;
 let plan: Extract<TimelineViewResult, { view: unknown }>;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const consoleErrors: string[] = [];
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -82,7 +82,7 @@ const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | 
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-timeline-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   await writeTake(dir, 'h264', { run: H264_RUN, text: BITS_TEXT.replace('video: Bits', 'video: H264'), timeline: bitsTimeline(), codec: 'h264-x264', seconds: 8 });
@@ -95,7 +95,7 @@ beforeAll(async () => {
   // A comment on this take at step a.1, and one made on another take (beside the track).
   await writeThread(dir, { id: 'c_01JAAAAAAAAAAAAAAAAAAAAAAA', scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The zoom starts <b>too early</b>', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
   await writeThread(dir, { id: 'c_01JBBBBBBBBBBBBBBBBBBBBBBB', scenario: 'bits', run: '20250101-120000-bits', frames: 100, text: 'An older take', anchor: { segment: 'b', kind: 'clip', scene: 'b', step: 0 } });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   await context.addInitScript(() => {
@@ -113,8 +113,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -134,7 +134,7 @@ describe.skipIf(!canRun)('the timeline screen in Chromium', () => {
     await expect.poll(() => page.getByTestId('timeline').count(), POLL).toBe(1);
     expect(await page.locator(`text=${RUN}`).count()).toBeGreaterThan(0);
     await page.getByTestId('tracks').waitFor();
-    expect(await page.title()).toBe('bits · Timeline · Demo Studio');
+    expect(await page.title()).toBe('bits · Timeline · Retake');
     // L5.12a: Edit in the shell — the Mode says Edit, the browser pane is hidden (the stage takes the width), no tabs.
     expect(await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Edit' }).getAttribute('aria-current')).toBe('page');
     expect(await page.locator('.sh-app').getAttribute('data-browser')).toBe('none');

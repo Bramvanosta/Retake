@@ -1,13 +1,13 @@
 /**
  * One Studio server per workspace (L4.1, critique B8): `launchStudio` reuses the server the discovery file names when
  * its holder is alive (a new bootstrap code minted through it with the file's token), else starts one, binds it, and
- * only then claims `.demo-studio/ui.json` exclusively — the loser of a simultaneous start closes its own listener and
+ * only then claims `.retake/ui.json` exclusively — the loser of a simultaneous start closes its own listener and
  * reuses the winner. Closing the server removes the file when it is still its own.
  * L5.2: each answer names the player origin (`player`) — the desktop shell allows navigations to it; undefined when an
  * older running server's bootstrap answer has none.
  */
-import { EngineError, claimDiscovery, discoveryFile, holderAlive, readDiscovery, releaseDiscovery, selfIdentity } from '@demo-studio/engine';
-import type { DiscoveryRecord } from '@demo-studio/engine';
+import { EngineError, claimDiscovery, discoveryFile, holderAlive, readDiscovery, releaseDiscovery, selfIdentity } from '@retake/engine';
+import type { DiscoveryRecord } from '@retake/engine';
 import { startStudioServer } from './studio.js';
 import type { StudioServer, StudioServerOptions } from './studio.js';
 
@@ -30,7 +30,7 @@ async function codeFrom(r: DiscoveryRecord, file: string): Promise<{ url: string
   }
   const body = res.ok ? ((await res.json().catch(() => ({}))) as { url?: unknown; player?: unknown }) : {};
   if (typeof body.url !== 'string' || !body.url.startsWith(r.url)) {
-    throw new EngineError('unavailable', `a Studio server (pid ${r.pid}) holds ${file} but does not answer on port ${r.port}`, { fix: `stop that process (kill ${r.pid}), then run studio ui again` });
+    throw new EngineError('unavailable', `a Studio server (pid ${r.pid}) holds ${file} but does not answer on port ${r.port}`, { fix: `stop that process (kill ${r.pid}), then run retake ui again` });
   }
   const player = typeof body.player === 'string' && /^http:\/\/127\.0\.0\.1:\d{1,5}$/.test(body.player) ? body.player : undefined;
   return { url: body.url, player };

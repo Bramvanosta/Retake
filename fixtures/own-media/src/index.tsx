@@ -5,7 +5,7 @@
  * overlay video (a burst, rendered with a transparent background → VP9 + alpha .webm and ProRes 4444 .mov) and a sample
  * image for the studio/media preview. Fictional brand "Northfield" (the fixture's).
  *
- * Rendered by scripts/fixture-media.mjs; nothing here is used by Demo Studio itself.
+ * Rendered by scripts/fixture-media.mjs; nothing here is used by Retake itself.
  */
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';

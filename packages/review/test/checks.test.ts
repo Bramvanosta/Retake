@@ -9,12 +9,12 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline, TimelineEnvironment } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { planEdit } from '@demo-studio/editor';
-import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@demo-studio/editor';
+import { loadProject, loadTemplate } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline, TimelineEnvironment } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { planEdit } from '@retake/editor';
+import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
 import {
   DEFAULT_RULES,
   buildOutputTimeline,

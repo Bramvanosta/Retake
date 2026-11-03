@@ -1,5 +1,5 @@
 /**
- * The job queue (L3.1, R-ARC-02): files under <workspace>/.demo-studio/jobs/<id>/, one writer per file.
+ * The job queue (L3.1, R-ARC-02): files under <workspace>/.retake/jobs/<id>/, one writer per file.
  *
  * - job.json: written once by the submitter (`queued`, atomically), then only by the worker that claimed the job;
  * - claim: created exclusively (O_EXCL) by the worker that takes the job — the atomic claim;
@@ -20,8 +20,8 @@
 import { randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE, JobInputSchema } from '@demo-studio/core';
-import type { JobInput, JobKind, JobState } from '@demo-studio/core';
+import { JOB_ID_RE, JobInputSchema } from '@retake/core';
+import type { JobInput, JobKind, JobState } from '@retake/core';
 import { EngineError } from '../errors.js';
 import { newJobId } from './ids.js';
 import { isAlive } from './proc.js';
@@ -30,9 +30,9 @@ import type { ProcessIdentity } from './proc.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord } from './types.js';
 
-/** <workspace>/.demo-studio: machine-local state of a workspace (git-ignored). */
+/** <workspace>/.retake: machine-local state of a workspace (git-ignored). */
 export function stateDir(root: string): string {
-  return join(root, '.demo-studio');
+  return join(root, '.retake');
 }
 
 export function jobsDir(root: string): string {
@@ -102,10 +102,10 @@ const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'sto
 export class FileJobQueue {
   readonly dir: string;
 
-  /** `cli`: how the commands a human is asked to run start ("studio -C <root>"). */
+  /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
   constructor(
     readonly root: string,
-    readonly cli = 'studio',
+    readonly cli = 'retake',
   ) {
     this.dir = jobsDir(root);
   }
@@ -385,7 +385,7 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
       derived: true,
       error: {
         code: 'cancelled',
-        message: `interrupted: ${why}. The site extraction stopped with its browser (files written before stay in .demo-studio/site/${i.site_id}/); nothing else was touched`,
+        message: `interrupted: ${why}. The site extraction stopped with its browser (files written before stay in .retake/site/${i.site_id}/); nothing else was touched`,
         fix: `${cli} theme from-site ${shellWord(i.url)}`,
       },
     };
@@ -424,7 +424,7 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
       derived: true,
       error: {
         code: 'cancelled',
-        message: `interrupted: ${why}. The preview stopped: images written before stay in .demo-studio/previews/${i.preview_id}/ (the next worker kills its browser)`,
+        message: `interrupted: ${why}. The preview stopped: images written before stay in .retake/previews/${i.preview_id}/ (the next worker kills its browser)`,
         ...(i.target.kind === 'component' ? { fix: `${cli} components preview ${i.target.component}${i.template ? ` --theme ${i.template}` : ''} --out <folder>` } : {}),
       },
     };
@@ -444,7 +444,7 @@ function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
   if (i.kind === 'record') {
     // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
     const phase = rec.progress?.phase ?? '';
-    const folder = `.demo-studio/records/${i.rec_id}`;
+    const folder = `.retake/records/${i.rec_id}`;
     // A recording the Studio started is never saved by its job: the person saves it from the Record screen.
     const studio = i.submitted_by === 'ui';
     const message = studio

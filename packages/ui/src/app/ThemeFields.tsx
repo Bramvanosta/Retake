@@ -15,7 +15,7 @@
  */
 import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ThemeEditView } from '@demo-studio/engine';
+import type { ThemeEditView } from '@retake/engine';
 import type { ThemeListAnswer } from '../server/theme-ops.js';
 import { Txt, shown, visibleControls } from './bits.js';
 import {

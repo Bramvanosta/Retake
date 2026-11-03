@@ -9,8 +9,8 @@ import {
   normalizeTarget,
   parseScenario,
   resolveStepRef,
-} from '@demo-studio/core';
-import type { ActionName, Scenario, Step } from '@demo-studio/core';
+} from '@retake/core';
+import type { ActionName, Scenario, Step } from '@retake/core';
 import { SPEC_EXAMPLE } from './helpers.js';
 
 describe('normalizeStep shorthands', () => {

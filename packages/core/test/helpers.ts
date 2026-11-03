@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyProjectDefaults } from '@demo-studio/core';
-import type { LoadedProject, ProjectConfig, ValidationIssue } from '@demo-studio/core';
+import { applyProjectDefaults } from '@retake/core';
+import type { LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -19,7 +19,7 @@ export const SPEC_HOOK_FILES: Record<string, string> = {
 
 /** A project directory (created once, synchronously) holding the SPEC example's hook files. */
 export function specProjectDir(): string {
-  const dir = join(mkdtempSync(join(tmpdir(), 'demo-studio-spec-')), 'projects', 'northfield');
+  const dir = join(mkdtempSync(join(tmpdir(), 'retake-spec-')), 'projects', 'northfield');
   for (const [rel, content] of Object.entries(SPEC_HOOK_FILES)) {
     mkdirSync(dirname(join(dir, rel)), { recursive: true });
     writeFileSync(join(dir, rel), content);
@@ -47,7 +47,7 @@ export function fakeProject(dir = '/nonexistent/northfield', extra: Partial<Proj
   };
 }
 
-export async function tempDir(prefix = 'demo-studio-core-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+export async function tempDir(prefix = 'retake-core-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }

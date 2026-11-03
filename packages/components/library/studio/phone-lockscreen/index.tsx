@@ -18,8 +18,8 @@ import {
   roundTo,
   wallpaperCss,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, NotificationContent, NotificationLayout } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, NotificationContent, NotificationLayout } from '@retake/components/kit';
 
 type Item = { app: string; title?: string; body?: string; time?: string; icon?: string };
 type Params = {

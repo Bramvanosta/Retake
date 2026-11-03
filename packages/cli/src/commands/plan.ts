@@ -12,11 +12,11 @@ import {
   runIdMatchesScenario,
   scenarioChangedMessage,
   writeJson,
-} from '@demo-studio/core';
-import type { LoadedProject, Scenario, Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import { editOfToday, noteEdit, planEdit, planInputFiles, runEnv, summarizePlan } from '@demo-studio/editor';
-import type { EditOverrides } from '@demo-studio/editor';
+} from '@retake/core';
+import type { LoadedProject, Scenario, Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import { editOfToday, noteEdit, planEdit, planInputFiles, runEnv, summarizePlan } from '@retake/editor';
+import type { EditOverrides } from '@retake/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import { variantOption } from './render.js';
 import type { ExitCode } from '../errors.js';
@@ -73,7 +73,7 @@ export function resolveRun(project: LoadedProject, arg: string, scenario?: strin
       .reverse();
     if (candidates.length === 0) {
       throw new CliError(
-        `no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`studio run ${project.slug} <scenario>\``,
+        `no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`retake run ${project.slug} <scenario>\``,
       );
     }
     return { id: candidates[0], dir: join(runsDir, candidates[0]) };
@@ -98,7 +98,7 @@ async function runScenario(dir: string): Promise<Scenario | undefined> {
 }
 
 /**
- * `studio plan <project> <run-id|latest>`: the edit plan of a capture (planEdit) as a human summary — segments with
+ * `retake plan <project> <run-id|latest>`: the edit plan of a capture (planEdit) as a human summary — segments with
  * their components, durations, speeds, trims, zooms, captions, notes and warnings — or as JSON (`--json`, `--out`).
  */
 export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: string, runArg: string, opts: PlanCommandOptions): Promise<ExitCode> {
@@ -108,7 +108,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   const run = resolveRun(project, runArg, opts.scenario);
-  // A run.json a newer Demo Studio wrote (R-PRIN-13), as render and export-capture refuse it.
+  // A run.json a newer Retake wrote (R-PRIN-13), as render and export-capture refuse it.
   const newer = newerRunMessage(run.dir);
   if (newer) throw new CliError(`run ${run.id}: ${newer}`);
   const captured = await readJson<Timeline>(join(run.dir, 'timeline.json'));
@@ -145,7 +145,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   }
   noteEdit(plan, edit, warnings, run.id);
   // L5.5: the filmed part changed since the run (stderr, so --json stays parseable).
-  if (edit.scenario_changed) ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`studio run ${project.slug} ${timeline.scenario}\``, edit.filmed_changes));
+  if (edit.scenario_changed) ui.warn(scenarioChangedMessage(timeline.scenario, run.id, `\`retake run ${project.slug} ${timeline.scenario}\``, edit.filmed_changes));
   if (opts.json) {
     ui.result(JSON.stringify(plan, null, 2));
     return EXIT.ok;

@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../packages/core/schema/template.schema.json
-# Demo Studio starter template "default": neutral and elegant.
+# Retake starter template "default": neutral and elegant.
 # Inter throughout, slate text, a calm blue accent on a solid light background.
-# Placeholder brand: "Demo Studio" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
+# Sample brand, the tool's own name: "Retake" (logo.svg, wordmark.svg) — replace it with yours (see README.md).
 version: 1
 name: default
 
@@ -17,7 +17,7 @@ fonts:
 
 logo: logo.svg
 wordmark: wordmark.svg
-brand: {name: Demo Studio, url: example.com}   # placeholder brand (fictional)
+brand: {name: Retake, url: example.com}   # sample brand: the tool's own name
 
 background: {type: solid, color: "#eef1f5"}
 

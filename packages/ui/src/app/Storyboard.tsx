@@ -22,8 +22,8 @@
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent, KeyboardEvent, MutableRefObject } from 'react';
-import type { EntryBlock, SceneBlock, StepBlock } from '@demo-studio/core';
-import type { StepBinding } from '@demo-studio/engine';
+import type { EntryBlock, SceneBlock, StepBlock } from '@retake/core';
+import type { StepBinding } from '@retake/engine';
 import { Txt, plural, shown } from './bits.js';
 import { IssueLines } from './StepEditing.js';
 import type { StepEditor } from './StepEditing.js';
@@ -40,7 +40,7 @@ import type { FrameDrag } from './ui-kit/index.js';
 export type Subject = { kind: 'step'; key: string } | { kind: 'scene'; id: string } | { kind: 'entry'; index: number } | { kind: 'video' } | { kind: 'before' } | { kind: 'after' };
 
 /** The MIME type a step's drag carries (its key only: drop handlers never read it — they use the drag state). */
-const STEP_DRAG_TYPE = 'application/x-demo-studio-step';
+const STEP_DRAG_TYPE = 'application/x-retake-step';
 
 interface FrameProps {
   step: StepBlock;

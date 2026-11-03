@@ -7,8 +7,8 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TimelineSchema, isDocumentPath, isHostAllowed, parseProjectYaml, parseScenario } from '@demo-studio/core';
-import type { LoadedProject, Timeline, ValidationIssue } from '@demo-studio/core';
+import { TimelineSchema, isDocumentPath, isHostAllowed, parseProjectYaml, parseScenario } from '@retake/core';
+import type { LoadedProject, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);

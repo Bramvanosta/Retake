@@ -15,10 +15,10 @@ import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadWorkspaceConfig } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
-import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, reportReads, scanSources } from '@demo-studio/engine';
-import type { BoardScenario, ProjectBoardView } from '@demo-studio/engine';
+import { loadWorkspaceConfig } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
+import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, reportReads, scanSources } from '@retake/engine';
+import type { BoardScenario, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { productionState } from '../src/app/board-words.js';
@@ -30,7 +30,7 @@ let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
 const BIG = 'big';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const project = (slug = P) => join(ws, 'projects', slug);
 const A = '20261020-100000-blocks';
 const B = '20261021-100000-blocks';
@@ -38,7 +38,7 @@ const C = '20261022-100000-blocks';
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-board-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'blocks.yaml'), `title: {kicker: K, text: "<img src=x onerror=alert(1)> ‮gnp.exe ${'t'.repeat(400)}"}\n${BLOCKS_YAML}`);
   await writeRun(project(), { ...capture(A), snapshot: await readFile(join(project(), 'scenarios', 'blocks.yaml'), 'utf8') });
@@ -58,8 +58,8 @@ beforeAll(async () => {
 afterAll(async () => {
   vi.restoreAllMocks();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -256,7 +256,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
 
   it('A-M3: one pass over a 3000-job queue (each job.json read once), warm ≤ 20 ms measured; a take from a terminal costs no second pass', async () => {
     const dir = await copy('queue');
-    const jobsDir = join(ws, '.demo-studio', 'jobs');
+    const jobsDir = join(ws, '.retake', 'jobs');
     const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
     const id = (i: number) => `j_01JB${Array.from({ length: 22 }, (_, k) => ALPHA[Math.floor(i / 32 ** (21 - k)) % 32]).join('')}`;
     for (let i = 0; i < 3000; i++) {

@@ -1,4 +1,4 @@
-# Demo Studio — design & package contracts
+# Retake — design & package contracts
 
 This document is the build contract between packages. The product brief is `docs/SPEC.md`.
 Shared data types live in `packages/core/src/types.ts` (the source of truth). This file says
@@ -6,7 +6,7 @@ who does what and the exact public API of each package.
 
 Conventions: TypeScript, ESM (`"type": "module"`, NodeNext, relative imports end in `.js`),
 Node 22, pnpm workspace, `tsc -b` builds every package to `dist/`, tests with vitest
-(`pnpm test`; the root `vitest.config.ts` aliases `@demo-studio/*` to `src/` so tests need no build).
+(`pnpm test`; the root `vitest.config.ts` aliases `@retake/*` to `src/` so tests need no build).
 No new npm dependencies without a strong reason (everything needed is already installed).
 
 ## 0. Layout
@@ -21,8 +21,8 @@ packages/review       (phase 2) contact sheets, key frames, report.json, diff vs
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
                       if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker
 packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c), SDK-free tool layer `callTool` (§4c)
-packages/ui           (L4.1) the Studio web app and its server (`studio ui`, §4c)
-packages/cli          `studio` command — everything the MCP does, for humans and CI
+packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
+packages/cli          `retake` command — everything the MCP does, for humans and CI
 fixtures/wholesale    local test product (supplier console + buyer shop) built with real Radix UI and Base UI components
 templates/<name>/     template.yaml + assets (fonts, logo)
 projects/<slug>/      README.md, project.yaml, scenarios/, hooks/, assets/, runs/, renders/, review/
@@ -30,13 +30,13 @@ projects/<slug>/      README.md, project.yaml, scenarios/, hooks/, assets/, runs
 
 ### Workspace root
 
-`findWorkspaceRoot(start = process.cwd())`: `$DEMO_STUDIO_ROOT` if set, else the nearest ancestor
-containing `studio.yaml`, else the nearest ancestor containing a `projects/` or `templates/` dir,
-else `start`. `studio.yaml` (optional) may set `projects_dir`, `templates_dir`, `browser`, `ffmpeg`.
+`findWorkspaceRoot(start = process.cwd())`: `$RETAKE_ROOT` if set, else the nearest ancestor
+containing `retake.yaml`, else the nearest ancestor containing a `projects/` or `templates/` dir,
+else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, `browser`, `ffmpeg`.
 
 `runs/`, `renders/`, `review/` and `frames/` are git-ignored.
 
-## 1. @demo-studio/core
+## 1. @retake/core
 
 Exports everything from `types.ts` plus:
 
@@ -161,7 +161,7 @@ loadTemplate(nameOrDir: string, root?: string): Promise<LoadedTemplate>  // a na
                                                       // name; defaults applied, assets resolved & checked
 DEFAULT_TEMPLATE: Template
 
-// schemas (draft 2020-12 JSON Schema objects, also written to packages/core/schema/*.json by `pnpm -F @demo-studio/core gen:schema`)
+// schemas (draft 2020-12 JSON Schema objects, also written to packages/core/schema/*.json by `pnpm -F @retake/core gen:schema`)
 scenarioJsonSchema(): object; projectJsonSchema(): object; templateJsonSchema(): object; timelineJsonSchema(): object
 
 // misc
@@ -171,15 +171,15 @@ formatIssues(issues: ValidationIssue[], file?: string): string       // "file:12
 class ScenarioError extends Error { issues: ValidationIssue[] }
 
 // file formats (R-PRIN-13, L1.4; formats.ts)
-DEMO_STUDIO_VERSION: string                          // the package version (`studio --version`, run.json engine)
+RETAKE_VERSION: string                          // the package version (`retake --version`, run.json engine)
 FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 }
 newerFormatMessage(value, { file, supported }): string | undefined   // "this project.yaml is version 2: it was made
-                                                                     //  for a newer Demo Studio (this one reads version 1) — update Demo Studio"
+                                                                     //  for a newer Retake (this one reads version 1) — update Retake"
 newerRunMessage(runDir): string | undefined          // the same for runs/<id>/run.json (render, plan, export-capture refuse it)
 checkYamlDocument(text, schema, semantic?, empty?, { formatVersion?: { file, supported } }): CheckedDocument
 ```
 
-**File format versions** (R-PRIN-13, L1.4). Scenarios, project.yaml, template.yaml, studio.yaml and run.json take an
+**File format versions** (R-PRIN-13, L1.4). Scenarios, project.yaml, template.yaml, retake.yaml and run.json take an
 optional top-level `version: 1` (`fileVersion()` in schemas/primitives.ts: `z.literal(1).optional()`; absent = 1);
 sandbox.yaml, timeline.json, the hooks journals, render / review records and raw manifests require theirs. Before the
 schema, `checkYamlDocument` with `formatVersion` (`parseScenario`, `validateScenario`, `parseProjectYaml`,
@@ -188,8 +188,8 @@ with one positioned error at the key — no unknown-key errors for the newer for
 plain schema errors. `parseTemplateYaml` drops `version` before merging the file over the defaults (it is the file's,
 not a template section). Writers: `createProject` (first key), the runner (`RunRecord.version`, first key); the
 starter templates and the fixture's files carry it. Hook files (top-level lists) have none. `findRun` (render,
-export-capture), `studio plan`'s own `resolveRun` and `exportCapture` refuse a run whose run.json is newer; a run.json without `version` (before L1.4)
-reads as 1. No migration: Demo Studio never rewrites a user's file (a `studio migrate` is BL-70).
+export-capture), `retake plan`'s own `resolveRun` and `exportCapture` refuse a run whose run.json is newer; a run.json without `version` (before L1.4)
+reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids
@@ -212,7 +212,7 @@ must be a date and a time; `writes` is for shell hooks only; on a scenario whose
 production), each hook a read-only run would refuse is a warning (`--hooks skip` / `--allow-writes` make the run
 valid), and `mocks` on a read-write environment are a warning (ignored, the writes really happen).
 
-## 2. @demo-studio/hooks
+## 2. @retake/hooks
 
 ```ts
 runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown' | 'reset' | 'seed' | 'step'; journal: Journal }):
@@ -224,14 +224,14 @@ runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown
 //          setup (undone after the teardown with the setup's), rolls nothing back itself; approvals bound to phase `step`
 //   teardown: runs every hook even if some fail (collects errors)
 class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
-                                     // <project>/.demo-studio/journals/<id>.json (studio hooks run / env reset)
+                                     // <project>/.retake/journals/<id>.json (retake hooks run / env reset)
   static open(file: string): Promise<Journal>
   record(entry: JournalEntry): Promise<void>         // executed hook + its rollback action (if any)
   pending(): JournalEntry[]                          // executed with rollback not yet done
   rollbackAll(ctx: HookContext): Promise<HookResult[]>   // reverse order, marks entries rolled back
 }
 findPendingJournals(projectDir: string): Promise<string[]>  // both locations, pending entries only, newest id first (env_reset)
-findJournal(projectDir: string, id: string): string | null  // runs/<id>/hooks-journal.json, else .demo-studio/journals/<id>.json
+findJournal(projectDir: string, id: string): string | null  // runs/<id>/hooks-journal.json, else .retake/journals/<id>.json
 standaloneJournalFile(projectDir: string, id: string): string
 checkHostAllowed(url: string, project: LoadedProject): void  // throws HookSecurityError
 checkShellHosts(cmd, vars, env, project): void               // the hosts a shell command names (core shellHostRefs); throws HookSecurityError
@@ -257,10 +257,10 @@ HookContext = {
   environment's own — L1.8; a replay uses the entry's environment) (templated, secrets resolved).
   File or inline; a whole file runs as one multi-statement query inside `BEGIN … COMMIT`.
   Rollback: file or inline SQL from the hook's `rollback`.
-- **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `DEMO_STUDIO_PROJECT_DIR`,
-  `DEMO_STUDIO_ENV`, `DEMO_STUDIO_RUN_ID`, `DEMO_STUDIO_ALLOWED_HOSTS`), timeout, output logged.
+- **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
+  `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged.
 - **js**: requires `ctx.evalInPage` (else a clear error: "js hooks need a browser: run them through the runner").
-  The runner and `studio hooks run` evaluate it with runner-web `evalHookInPage`: a tab of the run's browser context
+  The runner and `retake hooks run` evaluate it with runner-web `evalHookInPage`: a tab of the run's browser context
   per environment page key (shares cookies / localStorage / IndexedDB with the capture tabs; not in `session.pages`,
   never recorded), opened on that page when it is not on a web page yet, kept for the session and reused by later js
   hooks on the key (a hook may leave the app running there: `quote` keeps its console polling for a notification;
@@ -321,7 +321,7 @@ HookContext = {
   an http hook's every writing hop) is refused the same way (`protectedHostMessage`). Every hook execution is logged with its description (secrets redacted: values resolved from secret
   refs never appear in logs or journals).
 
-## 3. @demo-studio/runner-web
+## 3. @retake/runner-web
 
 ```ts
 runScenario(opts: RunOptions): Promise<RunRecord>
@@ -340,7 +340,7 @@ encodeFrames(framesDir, index: FrameIndexEntry[], out: string, opts: { fps; crf;
 new StreamEncoder({ out, fps, width, height, format, encoder, crf, horizon, onThumb? })   // fed during the take (L5.7): push / endAt / finish / abort
 kitSource(config: KitConfig): string           // the in-page script (for debugging / other runners)
 signIn({project, env, persona, mode: 'headed'|'auto', page?, url?, resolveSecret?, onOpen?, drive?, headless?, signal?})
-  : Promise<{persona, check, profileDir?, snapshot?, cookies, origins, url, alreadySignedIn?, kept?}>   // `studio login` (§3.6)
+  : Promise<{persona, check, profileDir?, snapshot?, cookies, origins, url, alreadySignedIn?, kept?}>   // `retake login` (§3.6)
 checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>   // a saved session checked as a run sees it
 ```
 
@@ -348,24 +348,24 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 - `chromium.launchPersistentContext(profileDir, { headless: true, channel: 'chromium' /* new headless */,
   viewport: { width, height }, deviceScaleFactor: scale, locale, timezoneId, colorScheme })`.
   `locale` (navigator.language, Accept-Language, Intl) = `browser.locale`, else the project `locale`, else the
-  studio.yaml `browser.locale` default (`projectBrowser(project)`).
+  retake.yaml `browser.locale` default (`projectBrowser(project)`).
   Without personas (§3.6): one context on a fresh temp profile. With personas: one context per persona the run films
   ("realms", each its own Chromium process and cookie jar) on a per-run copy of its session, plus the default context
-  when some page has no persona. Executable: config → `$DEMO_STUDIO_CHROMIUM` → Playwright default.
+  when some page has no persona. Executable: config → `$RETAKE_CHROMIUM` → Playwright default.
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
   The ACTIVE page is the one being recorded and acted on.
 
-### 3.2 In-page kit (`window.__demoStudio`, written as a self-contained function, injected via `addInitScript`)
-- **Cursor overlay**: a `<demo-studio-cursor>` host (shadow DOM, `pointer-events:none`) attached to
+### 3.2 In-page kit (`window.__retake`, written as a self-contained function, injected via `addInitScript`)
+- **Cursor overlay**: a `<retake-cursor>` host (shadow DOM, `pointer-events:none`) attached to
   `document.documentElement`, re-attached by a MutationObserver if removed. It uses `popover="manual"` and
   re-raises itself (hide+show popover) whenever another top-layer element opens (`toggle` events, dialog
   `showModal`), so it is drawn above modals; falls back to max z-index.
 - **The overlay follows REAL input events** (`pointermove`/`mousemove` capture listeners on window) — the
   runner moves the real CDP mouse in small eased steps, so the drawn cursor and the page's hover/click
   reactions are synchronised by construction. `mousedown` → pressed state + ripple (template ripple colour);
-  `mouseup` → release. `__demoStudio.cursor.ripple(x,y)` draws a ripple without input (DOM/pointer fallbacks).
+  `mouseup` → release. `__retake.cursor.ripple(x,y)` draws a ripple without input (DOM/pointer fallbacks).
   Sub-frames (the kit runs in every frame) forward their real pointer input to the parent, which offsets it by the
   frame's content-box position (R-KIT-11) — also for a frame inside an open shadow root (found by a deep search,
   cached per source window).
@@ -378,7 +378,7 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   Chromium's paint holding and the recorder's hold of the load on an empty page. The runner reveals it after a load it
   waited for (`cursor.reveal`, a page that never paints content); a load nobody waits for gets it 10 s after `load`.
   Only the drawing waits: `cursor.state()` (`visible`, `known`) is unchanged.
-- **Resolver** `__demoStudio.find(target: TargetObject): ResolveResult` — candidates in document order,
+- **Resolver** `__retake.find(target: TargetObject): ResolveResult` — candidates in document order,
   visible only (non-zero box, not visibility:hidden/display:none, opacity > 0, inside viewport or
   scrollable into it), scope handling (`in`), text normalisation (collapse whitespace, trim, NBSP→space),
   exact-then-substring matching, innermost match for `contains`, promotion to the nearest interactive
@@ -672,7 +672,7 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   (`stopped_at`), later scenes continue. `--until <ref>` stops after that step (both modes).
 
 ### 3.5 Outputs (`runs/<run_id>/`)
-`run.json` (RunRecord, updated live; `version: 1` and, L1.4, `engine: {demo_studio, node, chromium?, os, fonts?:
+`run.json` (RunRecord, updated live; `version: 1` and, L1.4, `engine: {retake, node, chromium?, os, fonts?:
 {files, digest}}` — runner `engine.ts`: `chromium` read over CDP `Browser.getVersion` once the browser is open
 (`BrowserSession.browserVersion`), `os` = platform, release and arch, `fonts` = the number of font files under the
 platform's font folders (darwin: /System/Library/Fonts, /Library/Fonts, ~/Library/Fonts; Linux: /usr/share/fonts,
@@ -697,13 +697,13 @@ read-only environment and an unusable clock throw before the run folder is made.
   host after an http → https or apex → www redirect), or `{regex, flags?}` (flags `g` / `y` never applied). Validation
   refuses a pattern that matches every page (`/`, `<page>:` / `<page>:/`, an environment page's URL, a regex matching
   any URL) and flags `g` / `y`; it warns about `{regex: "^/…"}` (never matches origin + path) and a `/…/flags` path.
-  No path in project.yaml: core `personaPaths(studioHome(), project, env, persona)` →
-  `profiles/<project>/<env>/<persona>/` (the master Chromium profile, written only by `studio login`),
-  `sessions/<project>/<env>/<persona>.json` (snapshot: Playwright storage state + `demo_studio: {version, project,
+  No path in project.yaml: core `personaPaths(retakeHome(), project, env, persona)` →
+  `profiles/<project>/<env>/<persona>/` (the master Chromium profile, written only by `retake login`),
+  `sessions/<project>/<env>/<persona>.json` (snapshot: Playwright storage state + `retake: {version, project,
   env, persona, machine, created_at, how}`) and `….status.json` (`{version, status: valid|expired|error, checked_at,
   by: preflight|login|auth-status|run, run?, at?, detail?}`; "never" is not stored). `loginCommand` adds `--persona`
   whenever one is given: callers leave it out for the legacy persona (keyed on `legacy`, never on the name `default`).
-  `studioHome()` = `$DEMO_STUDIO_HOME` else `~/.demo-studio`. The legacy `auth.profile` / `storage_state` (validation
+  `retakeHome()` = `$RETAKE_HOME` else `~/.retake`. The legacy `auth.profile` / `storage_state` (validation
   warning: a path of one computer; never mixed with `personas`) is the implicit persona `default` on every page, its
   paths as written.
 - **Binding** (core `planPersonas`, pure; the validation, the runner and the CLI share it): a page id's persona is
@@ -713,7 +713,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   tab of a `persona: none` page is in `none` too), `switch_page: previous` follows the walk's page history (pages
   closed by `close_current` aside); `persona: none` written later on a page bound without one adds it to `none`; js
   hook tabs (when hooks run) take the persona their key is filmed with (`none` included), else their key's default —
-  `studio hooks run <scenario>:setup|teardown` binds them with the same plan. Another persona later for the same id is
+  `retake hooks run <scenario>:setup|teardown` binds them with the same plan. Another persona later for the same id is
   an error (validation, per environment with personas; the runner re-plans for its environment and stops before the
   browser opens). `persona` on a multi-page scene is an error. In an environment without personas nothing is bound.
   `used` = the personas to check.
@@ -724,12 +724,12 @@ read-only environment and an unusable clock throw before the run folder is made.
   before. No master: a fresh profile + the snapshot; neither: a fresh profile ("never"). A `storage_state` persona: a
   fresh profile + its snapshot (cookies + localStorage). A master locked by a live process (`profileLock`: the
   `SingletonLock` symbolic link `host-pid`, a dangling link) is refused: Chromium writes cookies lazily. Copies are
-  `$TMPDIR/demo-studio-session-<run>-<persona>-*` (0700), removed when the session closes or a launch fails
+  `$TMPDIR/retake-session-<run>-<persona>-*` (0700), removed when the session closes or a launch fails
   (`BrowserSession.open` launches every realm at once and closes them all when one fails); a master path that is a
-  symbolic link is copied from its target. Each copy (and `studio login`'s temp profile) is registered in the process:
+  symbolic link is copied from its target. Each copy (and `retake login`'s temp profile) is registered in the process:
   `removeSessionCopiesSync()` removes them at once — a run's second SIGINT / SIGTERM does before killing the process;
   the CLI can call it. `sweepStaleSessionCopies()` (at every `prepareSessions`; exported) removes the
-  `demo-studio-session-*` / `demo-studio-login-*` / `demo-studio-profile-*` (a browser's throwaway profile, where a
+  `retake-session-*` / `retake-login-*` / `retake-profile-*` (a browser's throwaway profile, where a
   `storage_state` persona's cookies end up) folders a killed process left: ours, untouched for 10 min, no live
   Chromium lock, not this process's. Runs never open, lock or write a master; nothing is written back (a refreshed
   token stays in the copy). The legacy `auth.storage_state` file must exist (`PreflightError`, as before L1.6).
@@ -740,7 +740,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   (without one: 0.5 s after load, off every sign-in page); error when it cannot load. Not valid + `login` steps →
   automated login (secrets prefetched one persona after the other, then the logins in parallel) and a second check.
   Each check's status is saved (0600 in 0700 folders; an automated login leaves `expired` + "signed in automatically
-  for run X"). Any persona not valid → `PreflightError` listing each one with `sign in again|once: studio login
+  for run X"). Any persona not valid → `PreflightError` listing each one with `sign in again|once: retake login
   <project> --env <env> --persona <name>` (`RunOptions.loginCommand` may rewrite it); the run keeps nothing (no
   timeline). Legacy `default` never fails for a missing or unchecked session (it starts signed out, warned) — except a
   missing `storage_state` file (above). A cancel (Ctrl-C) during a check or an automated login cancels the run at
@@ -769,7 +769,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   only when a step fails.
 - **Concurrent runs** of one scenario never share a folder: without an explicit run id, a run takes the next free
   second.
-- **`studio login`** (`signIn`, runner `login.ts`): refuses a master a live browser holds; signs in on the master (a
+- **`retake login`** (`signIn`, runner `login.ts`): refuses a master a live browser holds; signs in on the master (a
   `storage_state` persona: a temp profile, only the snapshot is kept), seeding a new profile's `Default/Preferences`
   with `credentials_enable_service: false` / `profile.password_manager_enabled: false` (Playwright's mock keychain
   would keep a saved password in the clear). Both modes start from the saved session as a run applies it (the
@@ -790,22 +790,22 @@ read-only environment and an unusable clock throw before the run folder is made.
   renamed over it. `signal` (the CLI's Ctrl-C) closes the window / browser, removes the temp profile and throws a
   `CancelledError`: nothing is written. A first sign-in that fails or is cancelled removes the master it created
   (`auth status` says `never`, not `unchecked`).
-- **CLI side.** `studio auth status` reads, without a browser, each persona's master (non-empty), snapshot, lock and
+- **CLI side.** `retake auth status` reads, without a browser, each persona's master (non-empty), snapshot, lock and
   status file: `never` (neither), `unchecked` (no status file), else the stored status; `--check` runs
   `checkSavedSession` one persona after the other and writes `by: auth-status` — a persona whose master a browser
   holds is not checked (`error`, `not checked`, no time or origin of an older check; "close that browser first"). The
-  legacy `auth.storage_state` form has no `command` (`studio login` refuses it) but a `fix`: export the file again.
-  `studio doctor --project` shows the same per persona plus the studio home's git placement (walk up for `.git`, then
-  `git -C <root> check-ignore -q <rel>[/]`: ignored = OK). CLI js hooks (`studio hooks run`, `hooks rollback`, `env
+  legacy `auth.storage_state` form has no `command` (`retake login` refuses it) but a `fix`: export the file again.
+  `retake doctor --project` shows the same per persona plus the Retake home's git placement (walk up for `.git`, then
+  `git -C <root> check-ignore -q <rel>[/]`: ignored = OK). CLI js hooks (`retake hooks run`, `hooks rollback`, `env
   reset`) open one browser per persona of their page key, on a `prepareSessions` copy (`failure`: the first line of a
-  failure that is not a run's), with the hook tab's sign-in landing check. `studio new` on a terminal (`Io.ask` /
+  failure that is not a run's), with the hook tab's sign-in landing check. `retake new` on a terminal (`Io.ask` /
   `Io.confirm`; `memoryIo({answers})` scripts them) checks the slug, folder and template first (core
   `checkNewProject`), asks environments, then per environment a sign-in page and personas (name, pages — none when
   every page has a persona already —, a signed-in text → `check: {url: "<first page>:/", expect_text}`), writes them
   with `createProject({auth})`, re-opens the project with the workspace's browser settings and offers `signIn`
-  (headed) for each (no answer: that one and the next ones later). Messages print `studio -C <root> …` when `--root`
-  was given (`RunOptions.loginCommand`; doctor's hints too). **Interrupts** (`interrupt.ts` `onInterrupt`): `studio
-  login`, `auth status --check`, the sign-ins of `studio new` and the js hooks of the hook commands handle SIGINT /
+  (headed) for each (no answer: that one and the next ones later). Messages print `retake -C <root> …` when `--root`
+  was given (`RunOptions.loginCommand`; doctor's hints too). **Interrupts** (`interrupt.ts` `onInterrupt`): `retake
+  login`, `auth status --check`, the sign-ins of `retake new` and the js hooks of the hook commands handle SIGINT /
   SIGTERM — the first aborts the command's `signal` (login, check: the browser closes, its copies go) or, for the
   hooks (not abortable), closes their browsers then exits; the command exits 130; a second signal removes the copies
   synchronously (`removeSessionCopiesSync`) and exits. `BrowserSession.close()` called twice waits for the first.
@@ -867,7 +867,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   a stopped write → core `WriteRefusedError` (`protectedBy` on a read-write run; hooks `kinds/js.ts` →
   `HookSecurityError('read-only')`, status `refused`); it caught it → a warning. The CLI hook commands open their
   browser with the same policy (`guardsWrites`).
-- **Hooks of other kinds** (any run, `@demo-studio/hooks` runOne): a hook that writes and whose `PreparedHook.hosts`
+- **Hooks of other kinds** (any run, `@retake/hooks` runOne): a hook that writes and whose `PreparedHook.hosts`
   (http: its URL; sql: its database host; shell: the hosts its command names) include a protected host is refused
   (`checkWriteHosts` → `protectedHostMessage`, reason `read-only`) before it runs; an http hook checks every hop that
   writes (redirects, rollbacks replayed later) too.
@@ -879,7 +879,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   realm of the script `productClock({epoch, since, freeze})`, which replaces `Date` (constructor without arguments,
   `Date()`, `Date.now`; same prototype, so `instanceof` and subclasses hold) and the "now" default of
   `Intl.DateTimeFormat#format` (a bound function per instance) / `#formatToParts`; its state lives under
-  `Symbol.for('demo-studio.clock')` with the real `Date`. The time is `epoch + (realNow − since)` (or `epoch` frozen):
+  `Symbol.for('retake.clock')` with the real `Date`. The time is `epoch + (realNow − since)` (or `epoch` frozen):
   `since` is the runner's `Date.now()` at the install, then at `session.anchorClock()` right before capture time 0
   (`clock.t0Wall`): a later init script moves earlier ones in new documents, an evaluate moves the open ones — every
   document computes from the same anchor, so documents before and after it, in any realm (a realm launched later
@@ -898,7 +898,7 @@ read-only environment and an unusable clock throw before the run folder is made.
 - **Declaration.** project.yaml `sandboxes: {<env>: <sandbox.yaml, relative to the project>}` (checkProject: name
   slug-like, not an environment of project.yaml nor an `auth` key, path relative and existing; `default_env` and a
   scenario's `env` may name a sandbox; `auth.<sandbox>` is an error). `ProjectConfig.sandboxes` keeps it as written.
-- **Manifest.** `SandboxFileSchema` (JSON Schema `sandbox.schema.json`, `studio schema sandbox`): `version: 1`
+- **Manifest.** `SandboxFileSchema` (JSON Schema `sandbox.schema.json`, `retake schema sandbox`): `version: 1`
   (a higher one is refused before the schema runs), `provider` (`docker-compose` | `process`), `compose {files,
   project}`, `services.<name> {url, pages: {key: url | {url, display}}, health, command, cwd, env, stop_timeout_s}`,
   `seed` (`SeedStepSchema`: the http / sql / shell hook branches + `exec {service, command, env, timeout_s}`; `js` is a
@@ -936,8 +936,8 @@ read-only environment and an unusable clock throw before the run folder is made.
   project's — used by the runner (`run.ts`, `actions/artefacts.ts`), scenario validation (`wait_for_email`) and the
   sql hooks (`openDatabase(ctx, …, env)`; journal replays pass the entry's `env`). `resolvePersonas` marks a sandbox
   account `sandbox: true` with `secrets`; runner `autoLogin` registers them (`RunSecrets.addValue`) — both callers,
-  the run's preflight and `studio login` — and the preflight logs its automatic sign-in as info; `studio auth status`
-  marks them `sandbox: true` (shown `auto`, never a `studio login` hint, never a `--check` failure). `allowedHosts`
+  the run's preflight and `retake login` — and the preflight logs its automatic sign-in as info; `retake auth status`
+  marks them `sandbox: true` (shown `auto`, never a `retake login` hint, never a `--check` failure). `allowedHosts`
   adds the loopback hosts of every sandbox's mailbox and databases (`db.localhost`, `127.0.0.2`: validated, refused
   at run time otherwise). Editor and review read `environments` / `environment_settings`; their advice for a page
   without a display URL names the sandbox.yaml (`services.<service>.pages.<page>`) on a sandbox environment.
@@ -946,21 +946,21 @@ read-only environment and an unusable clock throw before the run folder is made.
   `HookContext.baseDir` (default the project dir): sql files, shell `cwd` and the psql-file destructive check.
   `HookContext.signal` aborts a running shell hook (SIGTERM to its group, SIGKILL 2 s later) and stops the list;
   `HookContext.running` holds the groups of the shell commands running now (a second Ctrl-C kills them). A shell
-  command on a sandbox environment gets the templated `env` of its process services and `DEMO_STUDIO_SANDBOX` over the
+  command on a sandbox environment gets the templated `env` of its process services and `RETAKE_SANDBOX` over the
   CLI's environment (its own `env` wins; two services differing on a variable: an error) — a seed's `npm run
   db:reset` reaches the sandbox's database. A sql hook on a sandbox refuses a URL that pg would connect elsewhere
   (`sandboxDatabaseProblem`: pg's own parser vs the URL's host and port, a unix socket, a non-loopback host).
   `HookContext.connectAddress(host, port)` (a docker-compose sandbox's seed): the address its sql steps connect to
   instead of the URL's host name (the URL's host rewritten) — the one Docker publishes the port on.
   `JournalEntry.superseded {at, by}` (not pending any more): `Journal.supersede(env, by)` /
-  `supersedePendingJournals(projectDir, env, by)` — called after a sandbox reset so `studio env reset` never replays a
+  `supersedePendingJournals(projectDir, env, by)` — called after a sandbox reset so `retake env reset` never replays a
   rollback on reseeded data.
 - **Seed hash.** `seedHash(sandbox, extra?)`: sha256 of the canonical seed, strategy, snapshot settings and databases,
   the bytes of `seedFileRefs` (sql step files + every file of `seed/` next to the manifest) and `extra` (image ids…).
 - **Run records.** `RunRecord.environment.sandbox` / `TimelineEnvironment.sandbox` (`RunSandbox {name, provider,
   strategy?, restored?, reset_ms?, seed_hash?, at?}`, kept by the redaction policies) — filled by `run --sandbox`.
 
-### 3.8b Sandbox engine (L1.8): `@demo-studio/sandbox` (deps: core, hooks, pg)
+### 3.8b Sandbox engine (L1.8): `@retake/sandbox` (deps: core, hooks, pg)
 - **API** (the CLI's and L3.1's MCP tools'): `openSandbox(project, env?)` → `Sandbox {env, sandbox, paths, kind,
   strategy}` with `up({seed: 'auto'|'never', build?, signal, log})` → `{started, kept, changed, ms, reset?}`,
   `down({volumes?})` → `{stopped, dataGone}`, `reset({by, reseed?})` → `ResetResult {strategy, restored, ms, hash, at,
@@ -970,7 +970,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   `{service, file | source, exists, text}[]`, `followLogs({service, lines, signal, write})` (docker-compose),
   `checkRunning()` (a run without --sandbox: SandboxError `down` unless every service runs and is healthy; returns a
   live lock), `prepareTake({command, signal, log})` → `Take {info: RunSandbox, up, reset, note(run), release()}`,
-  `killStartedSync()`; `initSandbox(project, {env, force, basePort})` (`studio sandbox init`). Errors: `SandboxError
+  `killStartedSync()`; `initSandbox(project, {env, force, basePort})` (`retake sandbox init`). Errors: `SandboxError
   {code: busy|down|port|unhealthy|seed|interrupted|failed}`. `providerFor(sandbox)`: a fresh `ProcessProvider` or
   `ComposeProvider` per call. Provider (provider.ts): `up(ctx, {build})`, `down(ctx, {volumes})`, `status`, `restart`,
   `exec?`, `stopStarted`, `killStartedSync`, `logFiles`, `servedBy(ctx, port, use)` (the service of the sandbox
@@ -979,7 +979,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   service of the sandbox's own project publishing a port: a snapshot's database by default), `address?(ctx, port)`
   (where to connect to a port its own containers publish: 127.0.0.1 / ::1) and `hashInputs?` (the services' image
   ids: part of the seed hash).
-- **Files** (`<project>/.demo-studio/sandbox/<env>/`, git-ignored): `state.json` (version 1, written synchronously and
+- **Files** (`<project>/.retake/sandbox/<env>/`, git-ignored): `state.json` (version 1, written synchronously and
   atomically: temp + rename) — `services.<name> {kind: process, pid, started_at (ps lstart), command, hash (command /
   cwd / env), status: starting|running, boot (kern.boottime / btime), members ([{pid, start}] of its group once
   healthy, refreshed by each up)}` (written right after the spawn with now as its start time, refined once ps
@@ -1010,7 +1010,7 @@ read-only environment and an unusable clock throw before the run folder is made.
 - **Process provider** (`process.ts`, `proc.ts`, `ports.ts`, `health.ts`). Spawn `detached` (setsid: pgid = pid),
   stdio appended to the log (`O_APPEND`: `trimLogs` truncates in place), `unref`; argv `node` → `process.execPath`,
   a string → `/bin/sh -c`; env = the CLI's minus `npm_*`, `pnpm_*`, `VITEST*`, `NODE_ENV`, `NODE_OPTIONS`, `INIT_CWD`,
-  `TEST`, + the templated `env` + `DEMO_STUDIO_SANDBOX`. Identity (`identify(pid, startedAt, {boot, members,
+  `TEST`, + the templated `env` + `RETAKE_SANDBOX`. Identity (`identify(pid, startedAt, {boot, members,
   spawned})`): another boot time → gone; `kill(-pgid, 0)` gone → gone; the leader alive → its `ps -o lstart`
   (LC_ALL=C, parsed to epoch ms) within 2 s of the recorded one → ours, else reused; the leader gone with its group
   alive → ours only when this call spawned it or a live member of the group matches a recorded member (pid + start
@@ -1029,11 +1029,11 @@ read-only environment and an unusable clock throw before the run folder is made.
   60 s by default; a health path is joined to the url's origin (`//host` cannot leave it); `gone()` ends the wait
   when the started group is gone (exit code / signal + the log's last 20 lines). `servedBy(port)`: a port of a
   process service (`sandboxPorts`) whose entry is ours and whose tree alone listens on it.
-- **docker-compose provider** (`compose.ts`, `docker.ts`). Docker: `$DEMO_STUDIO_DOCKER`, PATH, then the usual install
+- **docker-compose provider** (`compose.ts`, `docker.ts`). Docker: `$RETAKE_DOCKER`, PATH, then the usual install
   places (`dockerPlaces`: Docker Desktop, OrbStack's bin and xbin, Homebrew, /usr/bin — doctor looks there too);
   `compose version --short` ≥ 2.17 and `info --format {{.ServerVersion}}` (the daemon) checked once per call;
   every call runs with the CLI's env minus `COMPOSE_*`, output captured, killed on abort. Project ref: `compose.project`
-  or `demo-studio-<slug>-<env>-<sha256(realpath(folder))[0:8]>` (≤ 63, sanitised), `--project-directory` = the real
+  or `retake-<slug>-<env>-<sha256(realpath(folder))[0:8]>` (≤ 63, sanitised), `--project-directory` = the real
   folder, `-f` per file, `--ansi never`. `ps()` (`ps --all --format json`: NDJSON or one array; Labels a comma-joined
   string cut before `,key=`; one-off containers dropped) refuses containers whose `working_dir` label is another
   folder, and every command reads it first (up, down, status, restart, exec — once per call —, logs, followLogs,
@@ -1067,8 +1067,8 @@ read-only environment and an unusable clock throw before the run folder is made.
   volumes`. `restart`: `ps` → `restart <svc>` → wait running/healthy → manifest health (pinned). `publishedBy(port,
   use)`: a running container of the project publishing it, its `working_dir` label the sandbox's folder (missing:
   refused), no foreign lsof listener, no other project's publisher.
-  `exec`: `exec -T -e DEMO_STUDIO_EXEC [-e NAME…] <svc> sh -c <cmd> | argv` (values in docker's env;
-  DEMO_STUDIO_EXEC=<random token> marks every process it starts), command/env templated (pages, vars, secrets), the
+  `exec`: `exec -T -e RETAKE_EXEC [-e NAME…] <svc> sh -c <cmd> | argv` (values in docker's env;
+  RETAKE_EXEC=<random token> marks every process it starts), command/env templated (pages, vars, secrets), the
   hosts of the rendered command and env checked (`checkExecHosts`: a compose service, `isHostAllowed`, never
   `protectedBy` the run's access), timeout, output to seed.log masked (`masker`: the resolved values and
   `sandboxSecrets`); aborted or timed out → `KILL_EXEC_SCRIPT` run in the service (`sh`, `/proc/*/environ`: SIGTERM
@@ -1084,7 +1084,7 @@ read-only environment and an unusable clock throw before the run folder is made.
   → `PostgresSnapshot.open` on `provider.address(port)` (127.0.0.1 / ::1, never `localhost`; maintenance connection to `postgres`, else `template1`; `server_version_num` ≥ 130000) →
   `repair()` (ALLOW_CONNECTIONS back on) → valid = not `--reseed`, `state.seed.hash` = `provider_state.snapshot.hash`
   = the current hash (core `seedHash(sandbox, hashInputs)`) and the template exists, is a template, with the comment
-  `demo-studio snapshot <hash>` → `restore(owner)` (ALTER … ALLOW_CONNECTIONS false, DROP … IF EXISTS … WITH (FORCE),
+  `retake snapshot <hash>` → `restore(owner)` (ALTER … ALLOW_CONNECTIONS false, DROP … IF EXISTS … WITH (FORCE),
   CREATE … TEMPLATE … OWNER; no abort check between DROP and CREATE); otherwise `ensureDatabase` (an interrupted
   restore) → the seed → `take(hash)` (block + terminate, drop the old template, CREATE … TEMPLATE app, connections
   back in a `finally`, ALLOW_CONNECTIONS false IS_TEMPLATE true, COMMENT) → state. One `query()` per statement;
@@ -1117,13 +1117,13 @@ read-only environment and an unusable clock throw before the run folder is made.
 
 ### 3.9 Page inspection (L3.3; runner `inspect.ts`, kit `inventory` / `checkTargets`, core `inspect.ts`)
 
-What `page_inspect` and `studio inspect` (job, MCP tool, CLI: L3.3 part 2) run in the worker. The tool makes no model
+What `page_inspect` and `retake inspect` (job, MCP tool, CLI: L3.3 part 2) run in the worker. The tool makes no model
 call: the inspection hands Claude page facts and verified targets; Claude writes the scenario.
 
 - **Run path.** `runScenario({mode: 'dry', inspect: {within?, targets?, limit?, budgetMs?, onResult}, runsDir, runId})`
   — exactly `run_dry` semantics: the environment's own access (a production environment stays read-only, no extra
   write guard), personas on session copies with the off-camera preflight (an automated sign-in refreshes the persona's
-  stored session in `DEMO_STUDIO_HOME`, as any run), the sign-in guard, the product clock, agent trust with `hookTrust:
+  stored session in `RETAKE_HOME`, as any run), the sign-in guard, the product clock, agent trust with `hookTrust:
   'mcp'`. Hooks are always skipped (`record.hooks.setup: skipped`); a mode other than `dry` is refused. The replay runs
   at `INSPECT_PACING` (fast cursor travel, hover, typing, scrolls; navigation / popup / settle waits unchanged), every
   pause — `hold`, `wait`, a step's `hold:`, a scene's still — capped at 0.2 s (`Runtime.pause`), and takes no per-step
@@ -1196,7 +1196,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
   (page key exists, its own URL is http(s), the synthetic scenario validated against project + environment with its
   persona; or `prepareRun(dry, until)` + the sha256 of the scenario file, `conflict` when it changed),
   `checkWorkspaceProtection`; submit adds `checkAgentTrust` and the `{{` refusal of every argument; the worker runs the
-  replay with `hookTrust: 'mcp'` (agent trust in the runner) and `checkSandboxEnv`. The folder `<project>/.demo-studio/
+  replay with `hookTrust: 'mcp'` (agent trust in the runner) and `checkSandboxEnv`. The folder `<project>/.retake/
   inspect/<id>/` is made at submit (removed if the enqueue fails); `pruneInspections` keeps the newest 20 (ids sort by
   creation; the new one and those of queued / running inspect jobs are never removed). `runInspection` (shared with the CLI) → `runScenario` with `runsDir` =
   `inspect/`, `runId` = the id, then `drawMarks` through the engine's lazy `review()` import when the report is `ok`
@@ -1205,7 +1205,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
   (preflight, sign-in landing, a refused scenario): the job succeeds with `reported: false`, the run's error under
   `untrusted.error`, and `sign_in: {env, persona}` when the runner asked for a persona's sign-in command (its
   `loginCommand` callback is called only to word that fix). A cancel → job `cancelled`; an interrupted one's fix is the
-  `studio inspect` command. History: kind `inspect`, `inspect: {id, source, status, reported}`, counts nothing.
+  `retake inspect` command. History: kind `inspect`, `inspect: {id, source, status, reported}`, counts nothing.
 - **Marks** (review `drawMarks(png, boxes, out, {scale})`, sharp): one outline and a numbered badge (20 CSS px × scale,
   above the box when there is room) per listed element in view and not `covered` (engine `markBoxes`: a background
   button under a modal would get a number drawn on the modal), boxes × `report.scale`, JPEG `marked.jpg`.
@@ -1222,7 +1222,7 @@ call: the inspection hands Claude page facts and verified targets; Claude writes
   folder was pruned since says so (`pruned: true`). INSTRUCTIONS: the authoring
   loop (page_inspect → Claude writes the YAML → scenario_validate → scenario_save → page_inspect {scenario, until} →
   run_dry → capture).
-- **CLI** `studio inspect <project> <page|url|scenario> [--path] [--until] [--persona] [--env] [--within T] [--target
+- **CLI** `retake inspect <project> <page|url|scenario> [--path] [--until] [--persona] [--env] [--within T] [--target
   T]… [--limit] [--images] [--json] [--out DIR]` (`commands/inspect.ts`): the same `prepareInspect` + `runInspection`
   in-process (trust `author`, no queue, no protected-hosts check), targets given as YAML or text; a table on stderr or
   the report on stdout (`--json`); exit 0 only when the page was inspected (`ok`). The table flags `covered (not
@@ -1270,7 +1270,7 @@ panel — the same session, nothing forwarded to it.
   headless?, windowSize?})` → `{events, stop: closed | stopped | max_duration, ms, window, capture, access, persona,
   counts {events, actions, writes, redacted, dropped {sign_in, frame, invalid, new_page}}, warnings}` (warnings never
   quote page text). The window: `launchPersistentContext` on a COPY of the persona's profile (`prepareSessions`; a
-  snapshot / signed-out persona: a fresh `demo-studio-session-record-*` profile), its snapshot applied, `Preferences`
+  snapshot / signed-out persona: a fresh `retake-session-record-*` profile), its snapshot applied, `Preferences`
   with the password manager and autofill off (`disableAutofill`), `viewport: null` at the window's real size
   (`--start-maximized`; no `--hide-scrollbars`; a window narrower than `capture.width` is warned — the check replay runs
   at the capture size), Ctrl-C / SIGTERM left to the caller. The environment's access as in a run
@@ -1280,7 +1280,7 @@ panel — the same session, nothing forwarded to it.
   `stopped`) or after `maxMs` (default `RECORD_MAX_MS` 30 min: `max_duration`); `signal` closes the window, removes the
   events file and throws a CancelledError. `drive` / `headless` play the person in tests (Playwright input is trusted).
 - **isolated world** (no `exposeBinding`): one CDP session on the window's page — `Page.enable`, `Runtime.enable`,
-  `Runtime.addBinding({name: random, executionContextName: 'demo-studio-record'})`,
+  `Runtime.addBinding({name: random, executionContextName: 'retake-record'})`,
   `Page.addScriptToEvaluateOnNewDocument({source: passive kit + recorder, worldName, runImmediately})`. The page's main
   world sees no binding, no kit, no recorder, no `__playwright__binding__`, no cursor element; it cannot call them or
   touch the world's prototypes; only `isTrusted` events count. An isolated context reports origin `://`: its origin is
@@ -1357,7 +1357,7 @@ panel — the same session, nothing forwarded to it.
   Measured (headless, 2026-10-28): a press on the lab p50 1 ms / p95 4 ms in the page with alternatives, the same
   without; a press on `/inspect-lab?rows=5000` ≈ 250 ms (a slow suggestion: no alternatives).
 
-### 3.12 Recording: draft, engine, CLI (L3.4 part 2; core `draftFromRecording`, engine `record.ts`, `studio record`)
+### 3.12 Recording: draft, engine, CLI (L3.4 part 2; core `draftFromRecording`, engine `record.ts`, `retake record`)
 
 - **core** `draftFromRecording(events, {name, env, envIsDefault, pages, persona, defaultPersonas?, projectVars?,
   access})` → `{scenario, yaml, issues, writes, firstWrite, stats}`. Pure; events in `seq` order; writes taken apart
@@ -1445,10 +1445,10 @@ panel — the same session, nothing forwarded to it.
   first}, check}`. `recordStart`: the page (default the persona's first page, else the environment's first), `path`
   (`inspectPathProblem`), or a `url` on an environment origin (`pageOfUrl`); the persona (`none`, a name, else the page's
   default). Linux without a display (and no test `drive`) → `unavailable`. Preflight: `checkSavedSession`; not valid →
-  the persona's `login:` steps (`signIn` auto, headless), else `refused` with the `studio login` command as `fix`.
-  `DEMO_STUDIO_RECORD_MAX_MIN` (minutes, (0, 1440]) → `maxMs`. The draft is validated with the project
+  the persona's `login:` steps (`signIn` auto, headless), else `refused` with the `retake login` command as `fix`.
+  `RETAKE_RECORD_MAX_MIN` (minutes, (0, 1440]) → `maxMs`. The draft is validated with the project
   (`parseScenario` with its vars, pages and personas) before it is saved or checked: an error is an `invalid` issue; a
-  save that fails is a `not_saved` error issue with a fixed message (the log line too: never the error's text). Folder `<project>/.demo-studio/records/<rec_id>/` (0700,
+  save that fails is a `not_saved` error issue with a fixed message (the log line too: never the error's text). Folder `<project>/.retake/records/<rec_id>/` (0700,
   newest `RECORD_KEEP` 20): `events.jsonl` (the runner's stream), `draft.yaml`, `record.json` (0600: the outcome, write
   labels, first write, saved / check). `ports.stop` = stop and keep; `ports.signal` while recording = cancel (folder
   removed, `cancelled`), after it = the check stops. No action → folder removed, `not_saved: nothing_recorded`. Saved
@@ -1459,11 +1459,11 @@ panel — the same session, nothing forwarded to it.
   else `all` (a read-only environment's stopped / mocked writes are stopped again by the replay's guard) → `{status: passed | failed | skipped | cancelled,
   steps_passed, steps_total, failed_at?, untrusted.error?}`. History: `kind: record`, `record {id, steps, saved}`,
   counts nothing.
-- **CLI** `studio record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check]
+- **CLI** `retake record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check]
   [--json]`: in-process (the primary path), a status line counting actions, Ctrl-C = stop and keep (from the check on,
   the run's own handler stops the check), then the summary (actions, scenes, issues as `scene.step: …`, writes with
   reset advice, saved file, check, draft path, the next `run --dry`); `--json` the outcome. Exit 1 when nothing was
-  recorded, the draft is invalid or the check failed. `--allow-writes` as `studio run` (usage error on a read-only
+  recorded, the draft is invalid or the check failed. `--allow-writes` as `retake run` (usage error on a read-only
   environment).
 
 ### 3.13 Recording: job and MCP (L3.4 part 3; core `RecordJobInputSchema`, engine `jobs/record-job.ts`, MCP `scenario_record`)
@@ -1472,7 +1472,7 @@ panel — the same session, nothing forwarded to it.
   persona?, scenario?, check: boolean, submitted_by}` — strict: no step, URL, typed text or write flag exists in it, so
   nothing in a job can drive the window. `submitRecordJob`: slugs, no `{{…}}` in page / path / url / persona,
   `recordStart` (page key, path, a URL on an environment origin → page + path, persona), the workspace's protected
-  hosts (`checkWorkspaceProtection`), Linux without a display → `unavailable` with the `studio record` command as `fix`;
+  hosts (`checkWorkspaceProtection`), Linux without a display → `unavailable` with the `retake record` command as `fix`;
   warnings (a taken name: the draft is kept only; a read-only environment: writes stopped or mocked).
 - **Execution** (`executeRecordJob`): the checks again, `checkSandboxEnv`, then `recordScenario(…, {id: rec_id, agent:
   true, submittedBy}, {hookTrust: 'mcp', stop, skipCheck: () => stop.aborted, signal, history: false})`. Two signals:
@@ -1483,9 +1483,9 @@ panel — the same session, nothing forwarded to it.
   actions` / draft / check with steps; events carry counts and fixed messages only (a log line when the window opens).
   The worker's history line (`record {id, steps, saved}`, counts nothing) replaces recordScenario's own. A `record` job
   holds the queue while its window is open (one job at a time, as a headed `auth_login`). Interrupted: by its last
-  progress phase — `check`: the draft was made (`.demo-studio/records/<rec_id>/draft.yaml`, saved under scenarios/ when
+  progress phase — `check`: the draft was made (`.retake/records/<rec_id>/draft.yaml`, saved under scenarios/ when
   its name was free), only the check was cut; `draft`: the draft was being made (that file if it was written);
-  otherwise "no draft was made" — `fix` = `studio record …`. `pruneRecords(project, keep, except, root)` never removes the folder of a queued or
+  otherwise "no draft was made" — `fix` = `retake record …`. `pruneRecords(project, keep, except, root)` never removes the folder of a queued or
   running record job (`activeRecords`).
 - **Result** (`RecordJobResult`): `rec_id, dir, draft (path), name, saved {file, path, hash} | null, not_saved?, env,
   persona, access, stop, ms, window, capture, counts, stats, issues {error, warning, info, codes}, warnings, writes
@@ -1531,7 +1531,7 @@ panel — the same session, nothing forwarded to it.
   out of the project (realpath compared, as for writes: the view says why, the list skips it); events.jsonl is read
   without following a link, each complete line re-validated (a refused line dropped and counted, a last line without
   its newline left for the next read). `annotate(project, rec_id, {rev, change})` — under the lock
-  `.demo-studio/locks/record-<id>.lock`, the revision checked, the events read then (an insert `at: 'end'` lands after
+  `.retake/locks/record-<id>.lock`, the revision checked, the events read then (an insert `at: 'end'` lands after
   the newest event in the file at that moment: a visit to the Studio commits the typing in progress after the screen's
   last poll), studio.json read with O_NOFOLLOW (a link refused) and replaced by an exclusive temp file and a rename.
   `save(project, rec_id, {name, rev, draft})` — a finished (done / interrupted) Studio recording: the events file must
@@ -1545,12 +1545,12 @@ panel — the same session, nothing forwarded to it.
   `reason: 'discard'` (L3.4 removes the folder; the view says discarded); during the draft or the check: `discard`
   written into studio.json and the job cancelled, the folder removed by the job itself when it ends (B-L2), else by
   the next view or recent list; afterwards removed at once — only a real folder directly under the project's real
-  `.demo-studio/records` (realpath compared, no link on the way). `stop(project, rec_id, {job?})` — queued: cancel
+  `.retake/records` (realpath compared, no link on the way). `stop(project, rec_id, {job?})` — queued: cancel
   (unless the worker took it meanwhile); preflight and recording: the stop marker — before the window opens the job
   turns it into a clean cancel (nothing opens, no folder kept; a worker taking a job whose stop was asked sees it at
   once), never a cancel racing the window into a discard (B-L8); any recording with a job, whoever started it.
   Annotate, save and discard need a Studio recording (review A-L1): its job exists with `submitted_by: 'ui'` and is the
-  job meta.json names with `submitted_by: 'ui'` (meta.json alone proves nothing — `.demo-studio/` is agent-writable;
+  job meta.json names with `submitted_by: 'ui'` (meta.json alone proves nothing — `.retake/` is agent-writable;
   before the folder exists, the job alone); MCP and CLI recordings, and one whose origin cannot be verified (its job
   gone or another), are read-only from the Studio. A camera insert above the project theme's max_zoom is refused
   (`invalid`). The Studio's `record.submit` refuses a second recording while one is queued
@@ -1559,7 +1559,7 @@ panel — the same session, nothing forwarded to it.
   Prune keeps, beyond the newest 20, a folder whose lock is held and an unsaved, undiscarded Studio recording younger
   than 7 days (`RECORD_UNSAVED_KEEP_MS`).
   `list(project, {limit?})` (part 4) — the recent list: recordings whose job is queued or running before their folder
-  exists, then the real folders of `.demo-studio/records/`, newest first (≤ 50), each `{rec_id, state, job, started_by,
+  exists, then the real folders of `.retake/records/`, newest first (≤ 50), each `{rec_id, state, job, started_by,
   started_at, name, env, persona, page, path, steps, actions, saved, studio}` without reading its events.
 - **The Studio server's Record ops (L4.8 part 4; ui `server/record-ops.ts`, `server/record-watch.ts`)**: seven own ops
   in `UI_OPS` (not MCP tools; `scenario_record` and `job_cancel` stay out). `record_options {project}` — environments
@@ -1572,47 +1572,47 @@ panel — the same session, nothing forwarded to it.
   string), `record_annotate {project, rec_id, rev, change}` (core `RecordAnnotationChangeSchema`, strict),
   `record_stop` / `record_discard {project, rec_id, job?}`, `record_save {project, rec_id, name, rev}` (in the
   server's scenario chain). Every answer goes through `recordPathFree`: pathFree on every trusted string (a failed
-  job's `error.message` / `error.fix` included: `studio -C .` for the workspace) and on the check replay's failure text;
+  job's `error.message` / `error.fix` included: `retake -C .` for the workspace) and on the check replay's failure text;
   the draft and URL `path` fields keep their text with only the workspace's own path cut (withoutPathsDeep would
   shorten a page path such as `/orders/new` and drop blocks below 8 levels). Errors keep the HTTP layer's rule (message
   and details path-free, `fix` as typed). Live re-reads: a stat poll of each recording folder's own files (events.jsonl,
   studio.json, record.json, meta.json; never through a link, ≤ 40 folders a project) while an event stream is open;
   `workspace {records: ['<project>/<rec_id>']}` names those that changed. The screen on top of them: §4h.
 
-### 3.14 Themes from brand files (L3.5 part 1; core `brand.ts`, components `brand/`, engine `brand/`, MCP `template_create_from_brand`, `studio theme create`)
+### 3.14 Themes from brand files (L3.5 part 1; core `brand.ts`, components `brand/`, engine `brand/`, MCP `template_create_from_brand`, `retake theme create`)
 The contract (input schema, palette formulas and thresholds, template.yaml generation, file checks, naming, replace
 and provenance) is DESIGN-phase2.md §1.10. Surfaces: `engine.templates.create(input)` (trust `mcp`, feature
 `templates.create`); MCP `template_create_from_brand` (WRITE_FILES annotations; 40 tools, 41 with `template_from_site` — DESIGN-phase2 §1.11) — input = `BrandInputSchema`,
 summary: folder, colours, every contrast ratio and change, the suggested accent, fonts, warnings and the next step
 (`template_preview {project, template}`), data = `ThemeCreated` with the font files' name strings under
-`untrusted.fonts`; `studio theme create <name> --accent --logo …` calls `createThemeFromBrand` with trust `author`
+`untrusted.fonts`; `retake theme create <name> --accent --logo …` calls `createThemeFromBrand` with trust `author`
 (any local file, relative to the cwd). Synchronous: no browser, no job (file reads ≤ 25 MB).
 
-## 4. CLI (`studio`)
+## 4. CLI (`retake`)
 
 ```
-studio new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
-studio list                                   # projects
-studio validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
-studio run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json] [--sandbox]
-studio hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes] [--allow-writes]
-studio hooks rollback <project> [id] [--allow-writes]   # replay pending rollback journals (run id or journal id)
-studio env reset <project> [--allow-writes]   # project.reset hooks + pending journals
-studio sandbox init <project> [--env E] [--force] [--json]                                  # §3.8b scaffold
-studio sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
-studio schema [scenario|project|template|timeline|sandbox]  # print JSON Schema
-studio login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
-studio auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error
+retake new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
+retake list                                   # projects
+retake validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
+retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json] [--sandbox]
+retake hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes] [--allow-writes]
+retake hooks rollback <project> [id] [--allow-writes]   # replay pending rollback journals (run id or journal id)
+retake env reset <project> [--allow-writes]   # project.reset hooks + pending journals
+retake sandbox init <project> [--env E] [--force] [--json]                                  # §3.8b scaffold
+retake sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
+retake schema [scenario|project|template|timeline|sandbox]  # print JSON Schema
+retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in (§3.6)
+retake auth status [--project P [--env E]] [--check] [--json]   # personas: valid / expired / never / unchecked / error
                                                                 # (a sandbox account never signed in: auto)
-studio doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
+retake doctor [--project P] [--json]          # OK/WARN/FAIL per check (Node, Chromium launch, ffmpeg/ffprobe, display,
                                               # keychain, notifications, workspace, template fonts; project personas
                                               # (never / expired / in use / in a git work tree), session home + hosts;
-                                              # MCP: registered Node path, PATH finds ffmpeg, worker, .demo-studio/ ignored)
-studio render / review / export               # phase 2
-studio mcp [--print-config]                   # §4b: MCP server over stdio (or its registration for Claude Code / desktop)
-studio mcp --http [--port N] [--rotate-token] [--json]   # §4c: the same server over HTTP on 127.0.0.1 (--print-config --http)
-studio ui [--port N] [--no-open] [--json]     # §4c: the Studio web app on 127.0.0.1 until Ctrl-C; one server per workspace
-studio jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
+                                              # MCP: registered Node path, PATH finds ffmpeg, worker, .retake/ ignored)
+retake render / review / export               # phase 2
+retake mcp [--print-config]                   # §4b: MCP server over stdio (or its registration for Claude Code / desktop)
+retake mcp --http [--port N] [--rotate-token] [--json]   # §4c: the same server over HTTP on 127.0.0.1 (--print-config --http)
+retake ui [--port N] [--no-open] [--json]     # §4c: the Studio web app on 127.0.0.1 until Ctrl-C; one server per workspace
+retake jobs [list] [--project P] [--state S]… [--limit N] [--json] | status <id> [--json] | cancel <id>   # §4b jobs
 ```
 `--json` prints RunProgress events as JSON lines (machine-readable; used by the MCP job runner).
 `--allow-writes` (L1.7) confirms writes on a production environment whose project.yaml sets `access: read-write`; on a
@@ -1621,11 +1621,11 @@ read-only environment it is a usage error (exit 2). The run header and the hooks
 of core `RunAccess` is printed once. The run summary
 of a read-only run counts its writes (`writes  1 mocked, 0 stopped (read-only)`, + allowed / to unguarded hosts;
 `writesSummary`; a read-write run's writes stopped on another environment's hosts: `1 stopped (hosts of read-only
-environments)`), and `studio review` / `render --review` print the review's environment line.
+environments)`), and `retake review` / `render --review` print the review's environment line.
 
 ## 4b. Engine API and MCP server (L3.1)
 
-**`@demo-studio/engine`** (deps: core, hooks, runner-web, sandbox). One typed, in-process API over a workspace. The CLI calls
+**`@retake/engine`** (deps: core, hooks, runner-web, sandbox). One typed, in-process API over a workspace. The CLI calls
 the moved functions directly with its native options, errors and exit codes; `EngineError` exists only at the
 boundary of clients outside the CLI (the MCP server; the jobs worker and the HTTP API later).
 
@@ -1634,7 +1634,7 @@ openWorkspace({root?}) / openProject(ws, slugOrDir)   // moved from cli/src/work
 personaState / projectPersonaStates / tildePath       // moved from cli commands/auth.ts (`--check` stays in the CLI: Chromium)
 createEngine({root?, client: 'cli'|'mcp'|'test'|'ui'}): Promise<Engine>   // agentTrust(client): every client but cli / test (§4c)
 Engine {
-  root, workspace, cli /* `studio -C <root>`: commands a human is asked to run */, info(): EngineInfo
+  root, workspace, cli /* `retake -C <root>`: commands a human is asked to run */, info(): EngineInfo
   projects: list() → ProjectSummary[]; get(slug) → ProjectView; create({name, slug?, readme?, environments?, template?});
             updateReadme(slug, markdown, ifMatch?)
   scenarios: get(slug, name) → {name, file (ref), path, yaml, hash}; validate(slug, yaml, {env?, until?, name?}) →
@@ -1643,7 +1643,7 @@ Engine {
         status(slug, runId) → RunStatusWithJob (run.json + the state of its job overlaid; `list` overlays it too:
         a queued run whose job was cancelled before any worker took it is `cancelled`, one whose worker died `interrupted`);
         submit({project, scenario, mode: 'dry'|'capture', env?, until?, hooks?, sandbox?}, {approver?}) → {job, run_id, warnings, worker?};
-        cancel(slug, runId) → JobRecord (refused for a run without a job: a `studio run` in a terminal)
+        cancel(slug, runId) → JobRecord (refused for a run without a job: a `retake run` in a terminal)
   jobs: get(id) / list({project?, states?, kinds?, runId?, limit = 50}) / events(id, {after?}) / cancel(id) /
         wait(id, {timeoutMs, signal?, onChange?}) / position(id) / worker() → the live worker lock or null
   hooks: submit({project, source, env?, dry = true}, {approver?}) → {job, journal_id, worker?}
@@ -1694,17 +1694,17 @@ takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(ap
 {dry, until, hooks, env, headed, sandbox})` (the sandbox pick from the scenario's raw `env:`, the scenario validated
 against the environment it runs on, the template; `RunOptionError` = a CLI usage error) and `executeRun(prepared, req,
 {runId?, allowWrites?, hideCursor?, signal?, loginCommand?}, ports)` (the scenario's warnings and notes, the sandbox
-take or check, `runScenario`) are what `studio run` and the worker both call. `RunPorts {issues, note, sandboxLog,
+take or check, `runScenario`) are what `retake run` and the worker both call. `RunPorts {issues, note, sandboxLog,
 progress, interrupts}` carry what the CLI prints, in the same order as before; `interrupts: InterruptPort` replaces the
 CLI's direct `onInterrupt` for the sandbox take (`open({message, onQuitSync}) → {signal, interrupted, dispose}`; the
 CLI's implementation is `onInterrupt`, the worker's the job's AbortSignal plus its signal rule). `checkAllowWrites`
 throws `AccessError` (the CLI turns it into its usage error), a failed take `SandboxTakeError` (`interrupted` → exit
-130). `studio run`'s output, errors and exit codes are unchanged (a cancelled run still exits 1).
+130). `retake run`'s output, errors and exit codes are unchanged (a cancelled run still exits 1).
 
 **Jobs** (R-ARC-02; `jobs/`). Input contract in core (`jobs.ts`, `JobInputSchema`, version 1): a `run` job is
 `{version, kind: 'run', project (slug), scenario (name), scenario_sha256 (of the file's bytes at submit), mode,
 env?, until?, hooks?, sandbox?, run_id (reserved), submitted_by}` — strict (no other key), never a secret, a session or
-a path. Files under `<workspace>/.demo-studio/` (git-ignored):
+a path. Files under `<workspace>/.retake/` (git-ignored):
 
 ```
 jobs/<id>/job.json      the record: written once by the submitter (queued), then only by the worker that claimed it
@@ -1717,7 +1717,7 @@ workers/worker.log      what workers print (stderr), appended
 
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
-  `interrupted` (fix: `studio env reset <project>`); a `queued` job with a cancel marker and no claim is derived
+  `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived
   `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
   run status overlays it.
 - `succeeded` = ran to the end (the run's own status is `result.status`); `failed` = could not run (EngineError code
@@ -1729,7 +1729,7 @@ workers/worker.log      what workers print (stderr), appended
 - `hooks` / `env_reset` jobs (`jobs/hooks-job.ts`): `{version, kind: 'hooks', project, source (core HOOKS_SOURCE_RE:
   reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project), env?, dry,
   journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
-  journal_id (`<stamp>-env-reset`)}`. The executors are `studio hooks run` / `studio env reset` on the engine's
+  journal_id (`<stamp>-env-reset`)}`. The executors are `retake hooks run` / `retake env reset` on the engine's
   `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
   each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
   its templated description, message and error under `untrusted`. A cancel stops the hooks (a setup's completed ones
@@ -1740,7 +1740,7 @@ workers/worker.log      what workers print (stderr), appended
   run, by the runner's static check too). At submit, `preflightHooks` dry-runs the hooks the job will execute (a run:
   setup + teardown; hooks: the source; env_reset: the project's reset hooks — never the journal rollbacks) with trust
   `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
-  `studio` command); the hooks that need a human (from the dry run, else from the file alone) go to the client's
+  `retake` command); the hooks that need a human (from the dry run, else from the file alone) go to the client's
   `Approver` once (`ApprovalRequest {what, project, env {name, production, access}, items [{fingerprint, phase, index,
   name, kind, description (templated), reason}], fix}`). No approver → `needs_approval`; declined / cancelled /
   timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once
@@ -1759,14 +1759,14 @@ workers/worker.log      what workers print (stderr), appended
   existing file under its working directory: `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`): a script changed
   after the approval is refused. *Signed* (`jobs/signing.ts`): `FileJobQueue.enqueue` signs each approval —
   `sig` = HMAC-SHA256 over the canonical job input (without its approvals) and the approval, with the key
-  `<DEMO_STUDIO_HOME>/approvals.key` (32 random bytes in hex, 0600 in a 0700 folder, created on the first approval);
+  `<RETAKE_HOME>/approvals.key` (32 random bytes in hex, 0600 in a 0700 folder, created on the first approval);
   the worker keeps only approvals whose signature verifies (`verifiedApprovals`; the others are dropped with a `warn`
   event, their hooks refused), so a job.json written by anything but a submit carries no approval. Whoever can read
-  the studio home can sign: it guards against a forged job file, not against a process running as the user with access
-  to `~/.demo-studio` (which holds the sessions too).
+  the Retake home can sign: it guards against a forged job file, not against a process running as the user with access
+  to `~/.retake` (which holds the sessions too).
 - **What work submitted through MCP may reference** (core `agent-trust.ts`; the agent writes scenarios, README.md and
   new projects, and reads what runs return). Checked at `scenario_validate` / `scenario_save` (as errors), at submit
-  (`checkAgentTrust`: `refused` with the `studio` command) and again where it runs (the runner with `hookTrust: 'mcp'`
+  (`checkAgentTrust`: `refused` with the `retake` command) and again where it runs (the runner with `hookTrust: 'mcp'`
   before anything opens; the hooks executor; the step and the hook that read a file):
   - *Secrets*: no `{{env:…}}` / `{{keychain:…}}` anywhere in the scenario (steps, hooks, vars) nor in a code file it
     runs (eval.file, a hook's sql / js file). Only project.yaml (personas' login steps, databases, mailbox, reset hooks)
@@ -1776,29 +1776,29 @@ workers/worker.log      what workers print (stderr), appended
     names are relative, inside the project folder once symbolic links are followed (`projectFileProblem`: no absolute
     path, `~`, `..` out of it); a templated path is checked again when the step runs (runner `Runtime.agentTrust`).
   - *Code from agent-writable files*: eval.file, a hook's sql / js file and a script its shell command names are never
-    README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` or `.demo-studio/` (`AGENT_WRITABLE_PATHS`).
+    README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/` or `.retake/` (`AGENT_WRITABLE_PATHS`).
   - *Production across projects* (`protected-hosts.ts`): the protected hosts are the page hosts (host + port, loopback
     names folded) and `read_only.hosts` of every production or read-only environment of **every** project of the
     workspace. `project_create` refuses a page on one of another project's; a run, hooks or an environment reset on a
     read-write environment with a page on one is refused at submit and by the worker (`checkWorkspaceProtection`). A
     protected environment itself is not concerned (its own access applies); sandboxes neither.
-- Worker (`runWorker`, entry `worker-main.ts`; `studio worker` (hidden) runs the same): takes `worker.lock` (a live
+- Worker (`runWorker`, entry `worker-main.ts`; `retake worker` (hidden) runs the same): takes `worker.lock` (a live
   holder: exit at once; a stale one is taken over under a breaker), claims the oldest queued job, checks its cancel
   marker right after the claim, runs it, writes its final state — a write that fails makes it exit 1, so readers see
   `interrupted` rather than a live `running`. Idle for `--idle-exit` (default 60 s): it releases the lock, looks at the
-  queue once more (a job queued while a client saw it alive), then exits. It exits when `.demo-studio/` disappears,
+  queue once more (a job queued while a client saw it alive), then exits. It exits when `.retake/` disappears,
   and, when idle, when its build changed (`buildStamp`: version + the mtimes of the modules of the engine and of every
-  `@demo-studio/*` package it depends on at run time, transitively from the package.json files — core, hooks,
+  `@retake/*` package it depends on at run time, transitively from the package.json files — core, hooks,
   runner-web, sandbox), handing over to a new worker if jobs wait. A job whose input version or kind it does not know
   (a newer client) is left to a worker of the new build when the code changed, else closed `failed` (`invalid`,
   "refused without running") — never parsed as another kind. Signals: the first SIGINT / SIGTERM stops claiming and aborts
   the running job (teardown and rollbacks run); a later one removes session copies, runs the take's `onQuitSync` and
   exits 130 on the next tick, after the runner's own second-signal handler has killed its shell hooks.
 - `auth_login` / `sandbox_up` / `sandbox_reset` jobs (part D). `{…, kind: 'auth_login', env?, persona? (a name),
-  mode: 'headed' | 'auto'}`: the executor is `studio login`'s (`loginTarget` + `signInPersona`, under the job's
+  mode: 'headed' | 'auto'}`: the executor is `retake login`'s (`loginTarget` + `signInPersona`, under the job's
   interrupt port): `headed` opens a visible window on the worker's machine and the job waits until the human closes
   it; `auto` plays the persona's `login:` steps. Its result (`AuthLoginJobResult`) is the check's status, `signed_in`,
-  the `studio login` command, and the check's detail and URL under `untrusted` — never a profile or snapshot path, a
+  the `retake login` command, and the check's detail and URL under `untrusted` — never a profile or snapshot path, a
   cookie or a secret. `{…, kind: 'sandbox_up', env?}` / `{…, kind: 'sandbox_reset', env?, reseed?}`: `Sandbox.up` /
   `reset` under the interrupt port (`onQuitSync` = `killStartedSync`), result `SandboxJobResult` (services started /
   kept / changed, the reset or null, pages). **Seed steps run with trust `mcp`** (sandbox `SandboxCallOptions.seedTrust
@@ -1811,11 +1811,11 @@ workers/worker.log      what workers print (stderr), appended
   on its kind: `env reset` (run, hooks, env_reset), `login` (auth_login), `sandbox up` (sandbox jobs), `record` (record:
   no draft was made; the events streamed so far stay in the recording's folder).
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
-  the next worker records — appends a line to `<workspace>/.demo-studio/history.jsonl` (`{v, at, job, kind, project,
-  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `studio run`,
-  `studio render` and `studio still` append theirs (no job), `studio export` one counting the formats it re-rendered
+  the next worker records — appends a line to `<workspace>/.retake/history.jsonl` (`{v, at, job, kind, project,
+  submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `retake run`,
+  `retake render` and `retake still` append theirs (no job), `retake export` one counting the formats it re-rendered
   (component previews are not counted). `engine.usage()` sums them; `entitlements()` is the parked licence hook.
-- `studio jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
+- `retake jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
   (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's
   environment and run the jobs an MCP client queued): newest first with progress and outcome, one job's details, a
   cancel (a finished job: nothing to do; a queued one is cancelled at once, closed by the next worker). Malformed ids and states are usage errors (exit 2); an unknown job exits 1.
@@ -1823,7 +1823,7 @@ workers/worker.log      what workers print (stderr), appended
   <tsx loader>` + the `.ts` entry when the engine runs from its sources) unless the lock's holder is alive. The worker
   inherits the spawning server's environment and outlives it.
 
-**`@demo-studio/mcp`** (deps: core, engine, `@modelcontextprotocol/sdk` pinned at exactly 1.32.1, zod).
+**`@retake/mcp`** (deps: core, engine, `@modelcontextprotocol/sdk` pinned at exactly 1.32.1, zod).
 
 - `server.ts` is the only module importing the SDK: the low-level `Server` (tools/list, tools/call), the stdio
   transport; it ends when stdin ends or closes, once the calls already received are answered, or when stdout breaks.
@@ -1840,37 +1840,37 @@ workers/worker.log      what workers print (stderr), appended
   `clientPath` (core `client-path.ts` since L4.2, re-exported: PATH with the node's folder first + Homebrew / system
   folders, absolute entries only, without the folders a package manager adds for its script: `node_modules/.bin`,
   corepack, node-gyp-bin, and none inside the workspace, under any spelling of it — `realpathSync.native`, and any case
-  where the system ignores case), `DEMO_STUDIO_HOME` when set (absolute, through `studioHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
+  where the system ignores case), `RETAKE_HOME` when set (absolute, through `retakeHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first
   folder above the entry point with `.claude-plugin/marketplace.json` and `skills/.claude-plugin/plugin.json`) and
   `pluginInstallCommands` (`claude plugin marketplace add <repo>`, then `cd <ws> && claude plugin install
-  demo-studio@demo-studio --scope local --config node=… studio=… workspace=… [home=…]`, shell-quoted), printed as the
-  alternative to `claude mcp add` when the marketplace is there. Serving, `studio mcp` sets its own `PATH` to
+  retake@retake --scope local --config node=… cli=… workspace=… [home=…]`, shell-quoted), printed as the
+  alternative to `claude mcp add` when the marketplace is there. Serving, `retake mcp` sets its own `PATH` to
   `clientPath(process.execPath, PATH, …, root)` before the server starts (a plugin or GUI client may pass a bare PATH,
   a relative entry or a folder of the workspace, where the agent writes; the jobs worker inherits it). `engine_info`
   adds `started_in` (the server's cwd: Claude Code's session folder) and `started_outside_workspace`, said in its
   summary: the plugin's values are per user, not per folder (review M3).
-- The plugin (L3.7, repository root): `.claude-plugin/marketplace.json` (marketplace `demo-studio`, one plugin, source
-  `./skills`); `skills/.claude-plugin/plugin.json` (`demo-studio`, version = `DEMO_STUDIO_VERSION`, `skills: "./"`,
-  userConfig `node` / `studio` (file) and `workspace` (directory), required, and `home` (directory, default `""`));
-  `skills/.mcp.json` (`${user_config.node} ${user_config.studio} --root ${user_config.workspace} mcp`, env
-  `DEMO_STUDIO_HOME=${user_config.home}`: an empty `home` replaces an inherited `DEMO_STUDIO_HOME` and `studioHome()`
-  falls back to `~/.demo-studio`). Claude Code checks neither the paths nor that required values are set (a missing
-  one: no server, the skills still load). `claude --plugin-dir skills` loads it as `demo-studio@inline`, with its own
+- The plugin (L3.7, repository root): `.claude-plugin/marketplace.json` (marketplace `retake`, one plugin, source
+  `./skills`); `skills/.claude-plugin/plugin.json` (`retake`, version = `RETAKE_VERSION`, `skills: "./"`,
+  userConfig `node` / `cli` (file) and `workspace` (directory), required, and `home` (directory, default `""`));
+  `skills/.mcp.json` (`${user_config.node} ${user_config.cli} --root ${user_config.workspace} mcp`, env
+  `RETAKE_HOME=${user_config.home}`: an empty `home` replaces an inherited `RETAKE_HOME` and `retakeHome()`
+  falls back to `~/.retake`). Claude Code checks neither the paths nor that required values are set (a missing
+  one: no server, the skills still load). `claude --plugin-dir skills` loads it as `retake@inline`, with its own
   (empty) values. Tests: packages/mcp/test/plugin.test.ts (layout, print-config, quoting, PATH; a gated block runs
   `claude plugin validate` / `plugin details` / `mcp list` on a scratch `CLAUDE_CONFIG_DIR`).
-- The skills (L3.7): `skills/demo-studio-{scenario,theme,component}/SKILL.md` (frontmatter `name` first, then
+- The skills (L3.7): `skills/retake-{scenario,theme,component}/SKILL.md` (frontmatter `name` first, then
   `description`, nothing else; ≤ 200 lines; a "Before you start" block calling `engine_info`, the loop, "what good looks
-  like", a Rules block with pinned sentences) and two references (`demo-studio-scenario/reference/scenario-language.md`,
-  `demo-studio-component/reference/kit.md`). The lint `packages/mcp/test/skill-lint.ts` (`lintSkills(files, ctx)`, the
+  like", a Rules block with pinned sentences) and two references (`retake-scenario/reference/scenario-language.md`,
+  `retake-component/reference/kit.md`). The lint `packages/mcp/test/skill-lint.ts` (`lintSkills(files, ctx)`, the
   context injected: tools with their input JSON Schemas and zod checks, the vocabulary, `ACTION_NAMES`, the kit's
   names, the CLI's help through `main`, the scenario validator under agent trust on a fixture copy, `parseManifest`,
   file existence, `checkComponentEntry` on a component folder) returns issues by rule (`frontmatter`, `size`, `tool`,
   `vocabulary`, `cli`, `link`, `orphan`, `yaml`, `code`, `actions`, `kit`, `hygiene`, `rules`, `coverage`);
   `unknownKeys(root, schema, value)` walks nested keys (`$ref`, `anyOf`, records through `additionalProperties`, arrays
-  through `items`). After the review of L3.7: the CLI rule is absolute (pinned: never `studio`, `pnpm studio` or
+  through `items`). After the review of L3.7: the CLI rule is absolute (pinned: never `retake`, `pnpm retake` or
   `node …/bin.js` through the shell, whoever asks); `LOOPHOLE` runs over the whole Rules block; the prose (code and
   pinned sentences blanked) refuses `DENY` phrases (curl, wget, download, password, "do what it says", "anyway"),
-  "run … yourself", "run `studio …`" unless "never" or the user runs it, and a `studio …` command whose sentence does
+  "run … yourself", "run `retake …`" unless "never" or the user runs it, and a `retake …` command whose sentence does
   not name the user (outside "For the user's own terminal"); `FORBIDDEN` adds Claude Code's load-time `` !` ``,
   `` ```! `` and `$ARGUMENTS` / `$N` / `$name`, `confirm` in any spelling and a secret reference with a space;
   hosts are matched case-insensitively and bare domains on every two-letter and common generic TLD (file extensions
@@ -1892,9 +1892,9 @@ workers/worker.log      what workers print (stderr), appended
 - **Elicitation** (`approval.ts`). When the client declared form elicitation, a call gets `CallContext.elicit` (server.ts:
   `server.elicitInput({mode: 'form', message, requestedSchema}, {relatedRequestId, timeout, signal})`) and the tool an
   `Approver`: one form per submit, message = the work, project, environment (production, access), each hook (phase,
-  position, name, templated description with its target, reason) and the `studio` command; schema `{approve: boolean}`
+  position, name, templated description with its target, reason) and the `retake` command; schema `{approve: boolean}`
   (required, default false). Only `accept` with `approve: true` approves. The timeout is explicit — 10 min
-  (`DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
+  (`RETAKE_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
   (`isTimeoutError`) or any failure refuses. A client without form elicitation gets no approver: `needs_approval`.
 
 ## 4c. Engine HTTP server and Studio app (L4.1)
@@ -1921,10 +1921,10 @@ workers/worker.log      what workers print (stderr), appended
 - `ERROR_STATUS`: invalid 400, refused 403, needs_approval 403, not_found 404, conflict 409, cancelled 409, busy 423,
   unavailable 503, internal 500.
 - `stableToken(file, {rotate?}) → {token, created, rotated}` / `readPrivateToken(file)` / `mcpHttpTokenFile()` =
-  `<studio home>/mcp-http.token` (part 3): created once (0600 temporary file, chmod, `link()` into place: two starts
+  `<Retake home>/mcp-http.token` (part 3): created once (0600 temporary file, chmod, `link()` into place: two starts
   never write two tokens), replaced by `rotate` (0600 temporary file renamed over it); trusted only as a regular file of
   this user without group / other bits holding one token — anything else `refused`, never repaired silently.
-- Discovery file `<workspace>/.demo-studio/ui.json` `{version: 1, kind: 'ui', pid, started_at, port, url, token, since}`:
+- Discovery file `<workspace>/.retake/ui.json` `{version: 1, kind: 'ui', pid, started_at, port, url, token, since}`:
   `claimDiscovery(file, record)` after the bind — a 0600 temporary file (chmod) hard-linked into place; on EEXIST a live
   holder (pid + start time) is returned for reuse, a stale or broken file replaced once; a state folder this user cannot
   write (EACCES / EPERM / EROFS) is `refused` with a fix; `readDiscovery` refuses a link, a non-regular file, another
@@ -1951,7 +1951,7 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 **MCP `callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** — the zod parse (problems per
 argument) and the handler, SDK-free; `protocolTool` and the Studio server both use it.
 
-**`@demo-studio/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
+**`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
 - `buildUi()` — esbuild in memory: `src/app/main.tsx` + its CSS → `/app.js`, `/app.css` (ESM, minified, targets
   chrome120 / safari17 / firefox120), `/` a static `INDEX_HTML` without inline script or style; ≈ 100 ms, ≈ 190 KB.
 - `startStudioServer({root, port?, log?, sqlite?, pollMs?, startWorker?, workerSpawn?, workerIdleExitMs?}) → {url, port,
@@ -1975,9 +1975,9 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
 - `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
   code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
-  it. `studio ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
+  it. `retake ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
   L5.2: each answer has `player` (the player origin; `/v1/bootstrap` answers it too — no secret, the capabilities under
-  it are), undefined from an older server; `studio ui --json` prints it with `v: 1`; `studio ui --supervised` (§4j:
+  it are), undefined from an older server; `retake ui --json` prints it with `v: 1`; `retake ui --supervised` (§4j:
   `v: 2` since L5.2b, the pipe lines follow). L5.2b: after each op that succeeded and is not read-only (`unsaved_report`
   excepted) the server's `onWrite` listeners run (the supervised job watch polls at once).
   `/v1/info` adds `counters` — `sessions` (codes redeemed), `streams` (event streams open), `player_media_bytes_read`
@@ -1988,7 +1988,7 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   names no camera / microphone / location use: §4j).
 - The page (`src/app/`): reads `#c=<code>` and removes it with `history.replaceState` before anything else (a route
   fragment stays), trades it at `/v1/session`, keeps the token in sessionStorage, sends it as a header (`credentials:
-  'omit'`); no token or a 401 → "This Studio session ended — run `studio ui` again" (no input asks for a token), with
+  'omit'`); no token or a 401 → "This Studio session ended — run `retake ui` again" (no input asks for a token), with
   every unsaved README text of the tab still on screen, read-only, to copy.
 - App structure (L4.1 part 2; React, no router or state library): hash routes `#/`, `#/p/<slug>`, `#/p/<slug>/readme`
   (`route.ts`: `parseRoute` decodes and caps a slug — the server checks it —, `hrefTo` is the only builder of an
@@ -2018,10 +2018,10 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   `javascript:`, `src=` and any `href` not built by `hrefTo`, and raw direction controls in the sources. L4.2: one
   image source — Thumb.tsx's `<img src={url}` with `url = jpegDataUrl(entry.base64)`, exactly once (§4d) — and no
   `srcSet`, `createElement` / `cloneElement`, `src` key (a `{...{src}}` spread), frame, object or media element.
-- `studio ui` (cli `commands/ui.ts`): workspace check as `studio mcp` (exit 2 with the `--root` hint), lazy import of
-  `@demo-studio/ui`, opens the browser (`open` / `xdg-open`) unless `--no-open`, serves until SIGINT / SIGTERM.
+- `retake ui` (cli `commands/ui.ts`): workspace check as `retake mcp` (exit 2 with the `--root` hint), lazy import of
+  `@retake/ui`, opens the browser (`open` / `xdg-open`) unless `--no-open`, serves until SIGINT / SIGTERM.
 
-**The workspace index** (part 3; engine `src/index-db/`, R-ARC-05, ADR-2) — `<workspace>/.demo-studio/index.sqlite`, a
+**The workspace index** (part 3; engine `src/index-db/`, R-ARC-05, ADR-2) — `<workspace>/.retake/index.sqlite`, a
 cache of the files, written only by the Studio server holding ui.json (the worker and the CLI never open it).
 - `loadSqlite()` imports `node:sqlite` once, with a `process.emitWarning` filter that lives only during the import and
   swallows only the warning whose message starts "SQLite is an experimental feature" (a DeprecationWarning in the same
@@ -2068,15 +2068,15 @@ cache of the files, written only by the Studio server holding ui.json (the worke
   At most `EVENT_STREAMS_MAX` = 4 streams; the next is 503 `too_many_streams`.
 - The page keeps ONE stream per browser (critique B1: over HTTP/1.1 each stream holds one of the browser's 6
   connections per host — at 6 tabs every call hung and a 7th tab did not load): the tab holding the Web Lock
-  `demo-studio.events` reads it (`fetch` with the token in a header — EventSource cannot send one) and relays each event
-  over the BroadcastChannel `demo-studio.events`; when that tab closes, the lock passes to another, which opens the
+  `retake.events` reads it (`fetch` with the token in a header — EventSource cannot send one) and relays each event
+  over the BroadcastChannel `retake.events`; when that tab closes, the lock passes to another, which opens the
   stream. Without Web Locks each tab leads its own; a leader answered 503 publishes `resync` every 3 s (30 s), then
   tries again; when a stream opens again after one was lost, subscribers get `resync` (re-read what they show). `useEvents`,
   `useProjectEvents(slug)`, `useEventMode()` (`stream` / `relay` / `polling`: the sidebar says *live updates* or
   *updates every 3 s*). The `resync` after a lost stream is the next stream's `hello` (what changed meanwhile was told
   to nobody).
 
-**MCP over HTTP** (part 3; R-MCP-02; mcp `src/http.ts`, `server.ts`; cli `studio mcp --http`).
+**MCP over HTTP** (part 3; R-MCP-02; mcp `src/http.ts`, `server.ts`; cli `retake mcp --http`).
 - `server.ts`: `wireServer(o)` (tools/list, tools/call with progress and form elicitation) shared by `serveStdio` and
   `mcpHttpHandler({…, maxSessions = 8, idleMs = 30 min})` — Streamable HTTP with stateful sessions
   (`StreamableHTTPServerTransport`, `sessionIdGenerator: randomUUID`): one wired `Server` per session, so an
@@ -2090,17 +2090,17 @@ cache of the files, written only by the Studio server holding ui.json (the worke
   engine client `mcp` (one engine per process, as stdio), `INSTRUCTIONS`, `TOOLS.map(protocolTool)`; each request:
   `checkRequest` with `refuseBrowsers` and the one route `/mcp` (GET / POST / DELETE, token, ≤ 4 MiB), the security
   headers, the body read and parsed (400 JSON-RPC parse error), then the handler. `listenLoopback`: 127.0.0.1 only.
-- `studio mcp --http [--port N] [--rotate-token] [--json]` — `stableToken(mcpHttpTokenFile(), {rotate})`, the same PATH
+- `retake mcp --http [--port N] [--rotate-token] [--json]` — `stableToken(mcpHttpTokenFile(), {rotate})`, the same PATH
   clean-up as stdio, serves until SIGINT / SIGTERM (`--json`: one line `{type: 'mcp-http', url, port, pid}`);
   `--print-config --http [--port N]` prints the registration without the token (review A M1): `mcpHttpConfigJson`
-  (`{type: 'http', url, headers: {Authorization: 'Bearer ${DEMO_STUDIO_MCP_TOKEN}'}}` — Claude Code expands the
+  (`{type: 'http', url, headers: {Authorization: 'Bearer ${RETAKE_MCP_TOKEN}'}}` — Claude Code expands the
   variable when it reads `.mcp.json`, which is often committed) on stdout; on stderr `claudeCodeHttpCommand` (`claude
-  mcp add --transport http demo-studio <url> --scope user --header "Authorization: Bearer $(cat '<token file>')"` —
+  mcp add --transport http retake <url> --scope user --header "Authorization: Bearer $(cat '<token file>')"` —
   the shell reads the file, its history keeps the `$(cat …)`) and `mcpHttpTokenExport` (`export
-  DEMO_STUDIO_MCP_TOKEN="$(cat '<token file>')"`). `--port` / `--rotate-token` / `--json` without `--http`: usage
+  RETAKE_MCP_TOKEN="$(cat '<token file>')"`). `--port` / `--rotate-token` / `--json` without `--http`: usage
   error.
 - Whoever holds the token is an MCP client of the workspace (agent trust) and answers its own approval forms — as the
-  client that spawns `studio mcp` over stdio. Separate process and token from the Studio: a Studio page never holds it.
+  client that spawns `retake mcp` over stdio. Separate process and token from the Studio: a Studio page never holds it.
 
 ## 4d. Scenario blocks and run thumbnails (L4.2)
 
@@ -2198,7 +2198,7 @@ untrusted}`.
   per mode, "the file has N errors (listed with the blocks): fix the file first — a run from the terminal refuses it
   too", `fix_file`, no command; paths become words ("scenes[3].steps[0].click" → "step 1 of scene send (click)",
   "setup[0]" → "setup hook 1"); a `fix` also as `fix_node` (`<node> <repository>/packages/cli/dist/bin.js -C …`, for a
-  person without `studio` on their PATH). A file of more than `VIEW_STEPS_MAX` = 2,000 steps (review A #8: a 2 MiB
+  person without `retake` on their PATH). A file of more than `VIEW_STEPS_MAX` = 2,000 steps (review A #8: a 2 MiB
   file of 43,488 steps made a 20 MB answer): the first 2,000 steps' blocks and bindings (the entries after the one holding
   the 2,000th step left out) and `limit: {steps_shown, steps_total, issues_shown, issues_total}`; issues ≤ `VIEW_ISSUES_MAX` = 500. `environment` = `{name, production, access, sandbox}` of `env` ?? the scenario's ?? the project's default.
 - `scenes[<id>]` = `{url?, display?, continues_from?, pages?, captured_s?, run_status?}`: the page base (its own page,
@@ -2239,7 +2239,7 @@ untrusted}`.
   and the URL visited (userinfo out): page text, cut to 2,000 characters by the call route's `capUntrusted`, never
   outside `untrusted`.
 - Memo (critique B1), per engine (`ScenarioViews`): the text layer (blocks, validation, blockers, environment, scene
-  URLs, identity) by (file sha256, the signatures of project.yaml / sandbox.yaml / hooks/ / studio.yaml, env), redone
+  URLs, identity) by (file sha256, the signatures of project.yaml / sandbox.yaml / hooks/ / retake.yaml, env), redone
   after 60 s at most (hook files, templates, protected hosts); the run list by the runs folder's signature (its newest
   8 folders and their run.json, unfinished runs' run.json); the binding by (file sha256, the source run's folder and
   file signatures). A repeat with nothing changed reads the file, hashes it and stats a few paths (1,200 steps: first
@@ -2381,10 +2381,10 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   reset, never `until`, never a wait; `{run_id, job, state, mode, warnings, worker?}`. `run_cancel` is the MCP tool (any
   run started through a job; the screen offers it only for its scenario's running run). `run_dry` / `run_capture`
   are not in `UI_OPS`. The submit is the authority: what the view showed as a blocker is refused the same way (403
-  `needs_approval` / `refused` with the `studio run …` fix), nothing queued, no run id reserved.
+  `needs_approval` / `refused` with the `retake run …` fix), nothing queued, no run id reserved.
 - The screen: "Runs from the Studio" holds a Dry run and a Capture button. A mode with blockers is disabled, labelled
   "Capture — needs the terminal" (`aria-describedby` → "why, and the command to type, below": said once, review B L6)
-  above its reasons and fix commands (`studio …` and its `node …/bin.js …` form); a file with errors → "Capture — fix
+  above its reasons and fix commands (`retake …` and its `node …/bin.js …` form); a file with errors → "Capture — fix
   the file first", no command (review B M6); both are disabled while a run of the scenario is queued or running
   ("waits for the run of this scenario to finish") or a click is in flight. A click sends exactly `{project, name,
   mode, hash}`; success → "Dry run <id> queued: its progress shows above…" and a re-read, then, once the run has ended,
@@ -2406,7 +2406,7 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   proposal"), the banner ("current step 3 of proposal"), `partial` and `why` ("failed at step 3 of proposal"), the
   inspector's "step 2 of one in that run" (`keyWords(run_key)`); a run's own keys (`proposal.2`) stay internal (thumbnail
   requests, `data-key`). MCP summaries keep `scene.step` (Claude's references).
-- The worker (critique B5): `studio ui` sets its own PATH with core `clientPath` (absolute entries only, none a package
+- The worker (critique B5): `retake ui` sets its own PATH with core `clientPath` (absolute entries only, none a package
   manager added — `node_modules/.bin`, corepack —, none inside the workspace; the node first, Homebrew / system folders
   completed), so the thumbnails' ffmpeg is never a program in the workspace. The engine takes `workerEnv` /
   `workerSpawn` (tests) and passes them, with `startedBy: client`, to `ensureWorker` → `spawnWorker(root, {env,
@@ -2415,18 +2415,18 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
   `cleanWorkerEnv(env, root)` (review A #3: a worker an MCP client started inherited Claude Code's environment and
   served the Studio's later jobs; the Studio's `studioWorkerEnv` is the same cleaner): no `npm_*` / `pnpm_*` /
   `INIT_CWD` / `COREPACK_*` / npm tokens (a package manager's; `npm_config_*` can carry a registry token), no
-  `DEMO_STUDIO_MCP_TOKEN`, no model or agent credential (`ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*`, `AZURE_OPENAI_*`,
+  `RETAKE_MCP_TOKEN`, no model or agent credential (`ANTHROPIC_*`, `CLAUDE*`, `OPENAI_*`, `AZURE_OPENAI_*`,
   `AWS_BEARER_TOKEN_BEDROCK`, Gemini / Google AI, Mistral, Cohere, Groq, xAI, DeepSeek, OpenRouter, … keys, Hugging Face
   tokens; review B L5) nor code-host tokens (`GH_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`), nothing that loads code from the
   workspace (`NODE_OPTIONS` naming a file to load — `-r`, `--require`, `--import`, `--loader`, `--env-file`… —; `NODE_PATH`,
   `DYLD_*`, `LD_PRELOAD`, `LD_LIBRARY_PATH` with a relative entry or one inside the workspace), PATH =
   `clientPath(node, PATH, exists, root)` (the workspace under any spelling: `realpathSync.native`, and without case
-  where the system ignores it), DEMO_STUDIO_HOME made absolute — never more than `studio worker` typed in the same
+  where the system ignores it), RETAKE_HOME made absolute — never more than `retake worker` typed in the same
   terminal needs; sign-in secrets read through `{{env:…}}` stay. A worker lock without its start time names a pid that
   cannot be told from any other: it counts as alive only where `ps` cannot tell that pid's start either (review A #7:
   a lock forged with the Studio's own pid kept every worker off). One worker serves the workspace: a job runs in
-  the environment of whichever client started the worker (`studio jobs`, `studio doctor`, `engine_info` and the
-  Studio's sidebar say "started by …"). The worker exits after 60 s idle (`DEMO_STUDIO_WORKER_IDLE_MS`;
+  the environment of whichever client started the worker (`retake jobs`, `retake doctor`, `engine_info` and the
+  Studio's sidebar say "started by …"). The worker exits after 60 s idle (`RETAKE_WORKER_IDLE_MS`;
   `workerIdleExitMs` for tests); the Studio never kills it (a capture finishes with its teardown after the Studio
   stops).
 - Tests: scenario-run.test.ts (pinned arguments → 400, nothing queued or reserved; quote's capture → 403 equal to the
@@ -2445,14 +2445,14 @@ scenario list is cut, BL-80). One `scenario_blocks` read per (re)load; the op ad
 R-UI-11 / R-UI-12. Built in four parts: the write path and the editable YAML tab; the step structure edits (move,
 delete, duplicate), drag & drop, the keyboard path and undo / redo; value edits through the inspector's form and new
 steps from a palette — all on the same write path (the lot's plan and critique, B1–B11, apply here); then the
-acceptance on the fixture from the built `studio ui` (end of this section). Cut to BL-95: scenes, forms beyond scalars
+acceptance on the fixture from the built `retake ui` (end of this section). Cut to BL-95: scenes, forms beyond scalars
 and a flat target, YAML saves in the undo history.
 
-**Write lock** (critique B1). Storage `writeText` with an `if_match` hash holds `<project>/.demo-studio/locks/
+**Write lock** (critique B1). Storage `writeText` with an `if_match` hash holds `<project>/.retake/locks/
 write-<sha256 of the target's real project path, 24 hex>.lock` (engine `project-lock.ts` `takeProjectLock`: the L3.6
 TakeLock — created whole, stale only when its process is gone; busy retried every 20 ms for ≤ 3 s, then `busy`) from
-the first hash check to the rename, so two writers of one version — one process or several (`studio ui` beside
-`studio mcp`) — give exactly one success and one `conflict` (before: 221 of 300 concurrent pairs both "succeeded"). A
+the first hash check to the rename, so two writers of one version — one process or several (`retake ui` beside
+`retake mcp`) — give exactly one success and one `conflict` (before: 221 of 300 concurrent pairs both "succeeded"). A
 write through a link and one to its target share the lock. It covers every if_match write: the Studio, MCP
 `scenario_save`, `project_update_readme`, comment threads (inside their own lock). Comments' `lockThread` uses the same
 helper. TakeLock's liveness check answers for its own process without `ps`.
@@ -2637,7 +2637,7 @@ re-read (non-optimistic). Input lock (critique B7): from the send until the view
 rows not draggable, keys and buttons ignored, `aria-busy` on the blocks — and a held key (`repeat`) never edits.
 Editing off (no grip, nothing sent, the reason in the bar) while the YAML draft holds unsaved text or when
 `edit.blocks` is not ok. Native HTML5 DnD (no library): a grip (`aria-hidden`) on draggable rows; `dragstart` sets
-only `application/x-demo-studio-step` (never read on drop); the drag state lives in the document (critique B11): rows
+only `application/x-retake-step` (never read on drop); the drag state lives in the document (critique B11): rows
 and the empty scene's zone accept a drag only when a drag started here, the insertion line by the pointer's half; a
 window listener cancels any other dragover / drop with `dropEffect = 'none'` (a file from the Finder never opens in
 place of the page). Keyboard: Alt+↑ / Alt+↓ (one place; past the scene's edge to the end / start of the previous /
@@ -2673,9 +2673,9 @@ re-reads (workspace events, focus) drive "changed on disk": no unsaved text → 
 banner; a view still showing a version this tab replaced is ignored (the set of superseded hashes). Lines of the
 draft holding a hidden character are listed. Drafts (drafts.ts) are keyed `readme:<slug>` / `scenario:<slug>/<name>`;
 the session-ended page names each. While the scenario's draft holds unsaved text the Blocks tab says block editing is
-off (critique B7). The app builds no YAML: no `yaml` import, only type imports from `@demo-studio/*` (source lint).
+off (critique B7). The app builds no YAML: no `yaml` import, only type imports from `@retake/*` (source lint).
 
-**Acceptance** (part 4): the built `studio ui` on a scratch copy of the fixture workspace, its own fixture on free
+**Acceptance** (part 4): the built `retake ui` on a scratch copy of the fixture workspace, its own fixture on free
 ports, headless Chromium, on `quote`: the type step's text and speed (one save, one line), a caption (one line), a
 drag & drop, an Alt+↓, a Duplicate, a Delete and a palette `hold` — each save diffed against the version before
 (exactly the intended lines: −1/+1, −1/+1, −1/+1, −1/+1, +1, −1, +1); a Dry run of the edited file from the screen (the
@@ -2736,7 +2736,7 @@ socket needs no drain, else it replaces the one waiting record (a reader that ne
 16 KiB buffer). One frame cache, the latest record, sent at once to a new stream (a still page sends nothing new),
 dropped when the job ends. `openLiveFeed` (the Studio server's upstream, part B) checks every record (header ≤ 4 KiB
 with its fields, JPEG `FF D8 FF`, ≤ 512 KiB, w / h ≤ 4096) and ends on anything else. Nothing writes, logs or indexes a
-frame: a test scans every file of the run, `.demo-studio`, the studio home and the worker's TMPDIR for the frames'
+frame: a test scans every file of the run, `.retake`, the Retake home and the worker's TMPDIR for the frames'
 bytes, whole, inside a file or in base64.
 
 **Pause** (runner `pause.ts`, dry runs and captures). Between steps only: at the top of `runStep` once the page is loaded
@@ -2746,7 +2746,7 @@ the next step, or not at all. While `PauseGate.requested` the run waits (polled 
 step, since}`, then `pauses: [{scene, step, at, ms}]` and `paused` removed (also after a cancel); `assertSignedIn`
 again after it. A cancel or the sign-in guard ends the wait at once through the run's combined signal (teardown and
 rollbacks as for any cancel). A pause longer than `PauseGate.maxMs` (default 30 min; the worker reads
-`DEMO_STUDIO_PAUSE_MAX_MIN`, minutes (0, 1440]) stops the run: cancelled, "paused longer than … the run was stopped (its
+`RETAKE_PAUSE_MAX_MIN`, minutes (0, 1440]) stops the run: cancelled, "paused longer than … the run was stopped (its
 teardown and rollbacks still run)". The capture clock pauses with the run (a dry run's timeline too); the pause lands
 in `timeline.pauses: [{t, ms, scene, step}]` (`t` the capture time it stopped at, `ms` the wall ms left out).
 
@@ -2793,13 +2793,13 @@ value; with an `issues` line), `login_keychain` (keychain items counted, never l
 taken as there), `has_check` (review A M2: the preflight checks it before filming), never a profile or snapshot path,
 the last check's `detail` / `at` under `untrusted`. The worker that runs the job may be another one (started from a
 terminal, with its own environment): the answer is about the worker this client would start. A headed `auth_login`
-job's window closes after `DEMO_STUDIO_SIGNIN_MAX_MIN` (default 30 min: it holds the single worker, and a click in the
+job's window closes after `RETAKE_SIGNIN_MAX_MIN` (default 30 min: it holds the single worker, and a click in the
 Studio opens it) — `timed_out`; `auth.cancelSignIn(job)` cancels an `auth_login` job and refuses any other kind. A
 stopped sign-in writes no snapshot and no status; a profile persona that already had a browser profile signed in on
 it, so what the window changed stays there (`profile_kept`, review A L5; `signInStoppedText` words it for the worker,
 MCP and the Studio) — a first sign-in removes its new profile, a `storage_state` persona's window ran on a throwaway
 one. (A temporary copy of the profile, swapped in on success, was weighed and left: the master's writer and its lock
-are `studio login`'s since L1.6.)
+are `retake login`'s since L1.6.)
 
 **The run stream** (part B; ui `server/run-live.ts`, `RunLive`). `POST /v1/live {project, run_id, after?: {log,
 job?}, frames?}` — a route of the gate like every other (Host → Origin / Sec-Fetch-Site → route / method → token → JSON
@@ -2811,7 +2811,7 @@ cursor: {log, job}, events: [{src, seq, ev}], notes?}`; `progress {src, seq, ev}
 cancel_requested}` on change (polled every 4th read); `picture {state: off | none | waiting | live | busy | ended,
 why?}`; `frame {seq, w, h, at, page?, jpeg}` (base64); `end {status?, job_state?}`, then the stream closes.
 - *Steps and log* (critique B11, B12): the run's `log.jsonl` (every progress event, for a job's run and a terminal's
-  `studio run` alike) and, for a job's run, the worker's `events.jsonl` (`log` → `job_log`, `state` → `job_state`; its
+  `retake run` alike) and, for a job's run, the worker's `events.jsonl` (`log` → `job_log`, `state` → `job_state`; its
   `run` events are log.jsonl's and dropped) — read only while a stream is open, every RUN_LIVE_POLL_MS = 300 ms, from
   byte offsets, through engine `RunFolder.readRange` / `readPlainRange` (no link followed — `O_NOFOLLOW`, no FIFO held,
   a regular file checked once open, the run folder still the one resolved), ≤ 256 KiB a read, ≤ 2 MiB a poll and file.
@@ -2848,13 +2848,13 @@ why?}`; `frame {seq, w, h, at, page?, jpeg}` (base64); `end {status?, job_state?
   the picture is no longer live. Latest-only toward each page: a frame is written only when the page's socket needs no
   drain, else it replaces the one waiting frame (a page that never reads holds ≈ two frame records at most); progress
   events are small and always written. Frames are never written, logged or put in an event file (S4: a test scans the
-  workspace and the studio home for their bytes, raw and base64). The page decodes with WebCodecs' `ImageDecoder` where
+  workspace and the Retake home for their bytes, raw and base64). The page decodes with WebCodecs' `ImageDecoder` where
   the browser has it, else `createImageBitmap` of a Blob, on a canvas (part C; no CSP change, no `src=`, no blob: URL).
 - *Ops*: `run_pause {project, run_id, paused}` → engine runs.pause (409 queued / stopping / finished, 403 a terminal's
   run; the summary says "pausing before its next step" until the run reaches it); `scenario_sessions
   {project, name, env?, mode?}` → engine auth.forScenario + `confirm`; `sign_in_cancel {job}` → engine
   auth.cancelSignIn; `auth_status` (MCP, read-only); `auth_login` NARROWED to `mode: 'headed'` and `wait_s: 0` (S6: a
-  page script can only open a window the person sees, which closes after DEMO_STUDIO_SIGNIN_MAX_MIN; `auto` is what
+  page script can only open a window the person sees, which closes after RETAKE_SIGNIN_MAX_MIN; `auto` is what
   every run's preflight does by itself).
 - *The session acknowledgement* (S7, critique B10): `scenario_run` of a capture reads auth.forScenario (capture mode)
   and needs `sessions_ack: string[]` naming every persona whose stored status is expired / error / never and that no
@@ -2933,14 +2933,14 @@ Capture). A start navigates to the run's route.
   scrolling lists, not live regions; one visually hidden `role="status"` line says only the run's state changes
   (queued, running, paused, stopping, ended).
 
-**Acceptance and cost** (part E, 2026-10-26; the built `studio ui`, a scratch copy of the fixture workspace with the
-fixture on ports of its own, a scratch `DEMO_STUDIO_HOME`, a headless Chromium driving the page). A dry run of
+**Acceptance and cost** (part E, 2026-10-26; the built `retake ui`, a scratch copy of the fixture workspace with the
+fixture on ports of its own, a scratch `RETAKE_HOME`, a headless Chromium driving the page). A dry run of
 `highlights` watched live (first frame drawn 1.3 s after Start, the picture letterboxed), paused before
 `quotes.0` for 3 s (no step moved) then resumed — succeeded 7/7; another stopped after 2 steps — cancelled, "no
 rollback was pending". A capture of `highlights`: the picture hidden by default (no `frames` asked, nothing drawn),
 shown by the toggle (the stream reopened with `after` + `frames: true`), paused once — `run.json pauses` 5.0 s,
 `timeline.pauses` `{t: 9.083, ms: 4801}`, the run warning "paused once (4.8 s, not filmed)" —, succeeded with its
-setup and teardown hooks. A capture submitted through MCP (`studio mcp` over stdio, `run_capture`) watched on the Run
+setup and teardown hooks. A capture submitted through MCP (`retake mcp` over stdio, `run_capture`) watched on the Run
 screen, paused there while MCP `run_status` printed "paused before step quotes.0 … (from the Studio: it resumes
 there …)", succeeded. The project page's Sessions panel on `signed-in`: the supplier *expired* (with the check's page
 text in a *From the page* box), the buyer *never signed in*; **Sign in** opened the headed window ("a browser window
@@ -2963,7 +2963,7 @@ times in a row, the page watching each, the picture off / on / off / on:
 | 4 | on (212 frames drawn) | 15.20 | 10.08 | 0.47 | 880 (27.3) | 0 | 5.9 |
 
 Mean 13.37 → 15.45 cpu-s: **+2.1 cpu-s, +15.6 %**, almost all in the browser process (+2.2 cpu-s: the second
-screencast's JPEG encoding at `everyNthFrame: 1`); GPU, renderers and the studio process within the noise; the
+screencast's JPEG encoding at `everyNthFrame: 1`); GPU, renderers and the retake process within the noise; the
 recording untouched (frames, fps, no stall, nothing dropped). Above the plan's 10 % threshold: the picture stays off
 by default during a capture (one click shows it, the screen says it costs CPU), on for a dry run. A cheaper capture
 picture (a narrower `maxWidth`, a lower rate) is in the backlog's Run screen extras.
@@ -3041,7 +3041,7 @@ still wins). Per-scene caption components and a general scenario `components:` m
 
 **`engines.kit`** (components manifest, the guard-rail). `engines: {kit: "1" | "^1"}` (`KIT_RANGE_RE`, absent = 1),
 `KIT_API_VERSION = 1`, `kitMajorOf`. A component of another major is a broken registry folder: a notice ("needs kit
-API 2 (engines.kit "^2"): this Demo Studio provides kit API 1"), `get` / `resolve` throw, `list` leaves it out — its uses
+API 2 (engines.kit "^2"): this Retake provides kit API 1"), `get` / `resolve` throw, `list` leaves it out — its uses
 fall back down the planner's chain (a warning) or render as `missing`. The 41 built-in manifests carry none (critique
 C4); BL-15 is the consumer.
 
@@ -3087,7 +3087,7 @@ also what stops the frame from navigating itself elsewhere (CSP has no `navigate
 the new `allowNullOrigin` (Host exactly 127.0.0.1 / localhost:Q → else 421; GET / HEAD → else 405; Origin absent,
 `null` or its own → else 403; no token: the capability is the proof). One **session capability** (32 random bytes) in
 every path, created with the server, replaced by `rotate()`, revoked by `close()` (every older URL 404); never logged
-(a failure logs `studio player: a <frame|media|other> request failed: <Error name>`), never in a Referer
+(a failure logs `retake player: a <frame|media|other> request failed: <Error name>`), never in a Referer
 (`no-referrer` on every answer and the iframe). Routes, nothing else (no `/v1`, no op, no event):
 - `GET /s/<cap>/frame` — the frame document: no inline script; `boot.<hash>.js` (first, classic) then
   `b.<hash>.js` (defer); `<meta name="ds-parent">` with `http://127.0.0.1:P http://localhost:P`; `Cache-Control:
@@ -3121,17 +3121,17 @@ generated `ds:modules` maps each id to `() => import(entry)` (and each scaffold 
 initialised module inside the one IIFE — nothing a component's module does runs before the frame loads it for a plan
 that uses it, and one that throws rejects its own import only. Import allow-list (an esbuild plugin): a component's
 import is checked with components `importProblem` (own folder, react, react/jsx-runtime, remotion, the kit — the rule
-`studio components` applies); its bare imports resolve from the ui package, never from its folder (a planted
+`retake components` applies); its bare imports resolve from the ui package, never from its folder (a planted
 `node_modules/react` is ignored); each of its files is loaded by the plugin: real path inside the component's real
 folder (a link out of it is refused), read with core `readPlainFile` (no link, regular, ≤ 1 MB), `.ts .tsx .js .jsx
 .mjs .json` only. The frame, the composition and the kit import their own sources and react, react-dom, remotion,
-@remotion/player, @remotion/lottie, lottie-web, scheduler, @demo-studio/core / components (type-only in practice).
+@remotion/player, @remotion/lottie, lottie-web, scheduler, @retake/core / components (type-only in practice).
 A component that breaks a rule or does not compile is excluded and the build retried once without it (`excluded:
 [{id, why}]`, worded with its id, never its folder); its uses draw with their kind's scaffold. Memo (`PlayerBundles`):
 key = sha256 of the format, the Player's version, editor `bundleHash` of the components (composition, kit, every
 component folder by content, Remotion's version) and the frame's sources; rehashed on every frame document (an edited
 component file is a new bundle), at most 2 kept, concurrent asks share one build. `@remotion/player@4.0.534`,
-`remotion`, `@demo-studio/components` and `@demo-studio/editor` are now dependencies of `ui` (same versions as the
+`remotion`, `@retake/components` and `@retake/editor` are now dependencies of `ui` (same versions as the
 lockfile already held; installed with `pnpm install --offline --frozen-lockfile`).
 
 **The frame** (part B; `player/boot.ts`, `player/frame-main.tsx`). `boot.js` deletes and pins to a non-configurable
@@ -3221,10 +3221,10 @@ the source frame index; a scene at 2× with an idle cut, a card, a zoom): 10 fra
 screenshot of the iframe's region after clicks on the tracks, arrows, Shift+arrow, End, a scrubber drag across the card,
 the scrubber's own arrow and a play / pause (output → source 0→6, 7→13, 37→43, 157→192, 158→194, 26→32, 179→236, 2→8,
 23→29); the libx264 H.264 take shows the message, no frame. The installed Google Chrome (gated
-`DEMO_STUDIO_TEST_CHROME=1`, temporary profile): the VideoToolbox take (keyframes every 0.4 s) and the libx264 one
+`RETAKE_TEST_CHROME=1`, temporary profile): the VideoToolbox take (keyframes every 0.4 s) and the libx264 one
 (7.97 s, B-frames) both play — 8 seeks each exact, seek → settled median 107–109 ms, p95 109–111 ms, max ≤ 212 ms
 (the settle check itself is two 30 ms polls), playback 29.4–29.5 output frames / s of 30; a real capture of the fixture
-(`highlights`, VideoToolbox, 1,364 frames, 10 segments; `DEMO_STUDIO_TEST_REAL`): timeline view 77–205 ms, the first
+(`highlights`, VideoToolbox, 1,364 frames, 10 segments; `RETAKE_TEST_REAL`): timeline view 77–205 ms, the first
 frame settled 320 ms after the tracks drew, 8 seeks median 106–107 ms (max 223 ms), playback 29.6 frames / s. On these
 short 640×360 / 1080p takes the long GOP costs no visible seek time; the note stays (critique B14: an 8-s GOP on a long
 1080p take decodes up to 8 s per seek).
@@ -3336,8 +3336,8 @@ memo, view 17 KB (plan 22 KB); a synthetic 4-minute take (8 scenes, 96 steps, 7,
 37–39 ms, view 25 KB, plan 58 KB. The budget of "shows in the preview within a second" is therefore the preview's own
 part (parts B–C): the write plus the view stay under 100 ms (the tests allow 1.5 s / 3 s under load).
 
-**Acceptance (part F, this Mac, 2026-10-27).** The built `studio ui` (`--json --no-open`) on a scratch copy of the
-fixture workspace (its own fixture on 4471–4474, a scratch `DEMO_STUDIO_HOME`), driven in the installed Google Chrome
+**Acceptance (part F, this Mac, 2026-10-27).** The built `retake ui` (`--json --no-open`) on a scratch copy of the
+fixture workspace (its own fixture on 4471–4474, a scratch `RETAKE_HOME`), driven in the installed Google Chrome
 156 (Playwright `channel: 'chrome'`, a temporary profile, 1600×1000 at device scale 2), the worker spawned by the
 Studio itself (`started by the Studio`): Capture of `highlights` from the scenario screen — run
 `20261027-045015-highlights`, 15.9 s; **Open timeline**: tracks 230 ms after the click (`timeline_view` 141 ms on the
@@ -3412,7 +3412,7 @@ preview's near-white is the closer to the page's own CSS colour (#f7f3ee = 247 2
   and at every read), as do `review_image` and planRun's trust gate 2.
 
 Correctness (review B):
-- *"From this version"* (H1) compared the file, the capture and the theme name only: a `studio render --no-intro
+- *"From this version"* (H1) compared the file, the capture and the theme name only: a `retake render --no-intro
   --scale 0.25` of the same file was labelled "this version" and its findings seeked the wrong segments. The render
   list now carries each render's plan signature (`planSignature`: the record's plan without notes and warnings,
   canonical JSON, sha256) and theme folder content hash (`template_sha256`, written in the render record:
@@ -3526,7 +3526,7 @@ ran.
 whose `recordTest.drive` plays the person in the window, fixture on 4551–4554): a pick that folds, a password sentinel,
 a blur mid-word, each insert, Stop, Save (a taken name refused), the hostile page, Discard during the check, a
 read-only recording, the sign-in mapping, the sentinel nowhere. `studio-e2e-record-acceptance.test.ts` (gated by
-`DEMO_STUDIO_TEST_SLOW=1`, ≈ 107 s; `DEMO_STUDIO_TEST_HEADED=1` shows the window): the shop's quote flow recorded with
+`RETAKE_TEST_SLOW=1`, ≈ 107 s; `RETAKE_TEST_HEADED=1` shows the window): the shop's quote flow recorded with
 every insert and a pick, Stop, the check, Save, then a dry run, a capture and a render of the saved scenario from the
 Studio — the plan has the caption from the picked click on, the zoom on it and the marker on the select; measured on
 the Mac (2026-10-28): Stop → checked ≈ 10 s, Save 0.18 s, dry run ≈ 24 s, capture ≈ 24 s, render + review ≈ 37–41 s
@@ -3744,8 +3744,8 @@ Space writes one line, the preview re-plans) → ⌘Z → Comments → the threa
 Not reached by either (gap of R-UI-03): a failed review verdict, a proposal stale or undone, hover-only tooltips,
 posters loaded in the library.
 
-**The R-ACC4-01 acceptance** (`studio-e2e-acceptance.test.ts`, gated by `DEMO_STUDIO_TEST_SLOW=1` and
-`DEMO_STUDIO_TEST_CHROME=1`, Google Chrome installed; not in `pnpm test:slow`, like the other installed-Chrome tests):
+**The R-ACC4-01 acceptance** (`studio-e2e-acceptance.test.ts`, gated by `RETAKE_TEST_SLOW=1` and
+`RETAKE_TEST_CHROME=1`, Google Chrome installed; not in `pnpm test:slow`, like the other installed-Chrome tests):
 the fixture product on free ports, the Studio starting its own worker (the lock's live worker killed at the end, its
 start time checked), every action a click or a key: Projects → highlights → a hold changed in the inspector form
 (exactly that line) → Dry run watched live → Capture → Open timeline → the quotes segment's layout switched (one line,
@@ -3776,7 +3776,7 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   launch would take from `launchctl setenv` (review A L4; `desktop-core` `child_env_dropped`). Not an allow-list: an
   automated sign-in's `{{env:NAME}}` secrets reach the worker through that environment) with three pipes, reads its
   first stdout line (≤ 30 s, ≤ 64 KB) and checks it
-  (`desktop-core` `parse_ui_line`: `type: "ui"`, `v: 2` (L5.2b; `studio ui --json` keeps `v: 1`) — another version is
+  (`desktop-core` `parse_ui_line`: `type: "ui"`, `v: 2` (L5.2b; `retake ui --json` keeps `v: 1`) — another version is
   refused with the one to rebuild: an older CLI "run pnpm build, then pnpm desktop:build", a newer one "rebuild the app —
   pnpm desktop:build" (an app built before L5.2b refuses `v: 2` with its own "pnpm build (and pnpm desktop:build)"
   alert: never a hang), `url` exactly `http://127.0.0.1:<port>/#c=<43 chars>`, `player` exactly `http://127.0.0.1:<other
@@ -3792,11 +3792,11 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
 - **Owned** (`reused: false`): the app holds the only write end of the child's stdin — the app's death (crash, SIGKILL)
   is the child's EOF. Quit (menu, ⌘Q, SIGTERM / SIGINT / SIGHUP through a self-pipe handler that asks the event loop
   to exit; the stop runs on `RunEvent::Exit`): SIGTERM, the stdin closed after 1 s if it still runs, SIGKILL at 5 s
-  (`desktop-core` `stop_child`; `studio ui` stops in ≈ 10–20 ms on SIGTERM). An unexpected exit while owned → the
+  (`desktop-core` `stop_child`; `retake ui` stops in ≈ 10–20 ms on SIGTERM). An unexpected exit while owned → the
   window's allowed origins are emptied at once (review A L3: the freed ports may be bound by another local process,
   whose page a reload must not load), then an alert with its status and last stderr lines (8 KB, sanitised), Restart /
   Quit.
-- **Attached** (`reused: true`: a terminal `studio ui` or another app serves the workspace): the child printed and
+- **Attached** (`reused: true`: a terminal `retake ui` or another app serves the workspace): the child printed and
   exits; the app opens that server's Studio, never stops it and does not watch it (BL-125); a navigation to its
   origins once its pid is gone (`kill(pid, 0)`, `desktop-core` `navigation_decision` → `ServerGone`) is refused, the
   origins are emptied and the same Restart / Quit alert offers a server of the app's own (review A L3).
@@ -3836,7 +3836,7 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   the server started give no `job_end`; a job seen unfinished that reads finished, or a new one already finished, gives
   exactly one (ids remembered, ≤ 1 000). Jobs of the workspace's queue count — the quit question and notifications
   alike — whoever queued them: the Studio (any window or tab on this server) or Claude through MCP. The CLI queues
-  none: `studio run` / `render` / `export` / `record` run in-process and write no job, so a terminal's capture is
+  none: `retake run` / `render` / `export` / `record` run in-process and write no job, so a terminal's capture is
   neither asked about nor notified (review B L1). Kinds that count: captures and dry runs, renders, reviews, exports,
   recordings, sandbox starts and resets, environment resets and hooks that are not dry; not `preview` (the library's posters), `auth_login`
   (the person is at its window), `inspect`, `site`. A queued job with no live worker is left out (critique M2: nothing
@@ -3874,7 +3874,7 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   change (one call in flight, the latest after it), on `visibilitychange` while not empty, nothing while nothing was
   ever unsaved. The browser's own `beforeunload` prompt stays the drafts' only (marks are not added to it). The Record
   screen's typed words are not marked (BL-125).
-- The jobs worker is detached and shared (`studio mcp`, the CLI): Quit never stops it; it finishes and idle-exits.
+- The jobs worker is detached and shared (`retake mcp`, the CLI): Quit never stops it; it finishes and idle-exits.
 
 **The window.** `WebviewUrl::External(<one-time URL>)` — not a Tauri custom protocol: the gate accepts only the
 server's own Origin, the CSP's `connect-src 'self'` and `frame-src <player>` need the real loopback origins, and a
@@ -3909,27 +3909,27 @@ page under `devUrl` / `frontendDist` would be a Tauri *local* origin that reache
   (BL-125: measure with App Nap). No Reload item (critique M1: WKWebView implements no `beforeunload` panel — wry's UI
   delegate has none; Quit, Open Workspace… and a restart ask through the quit guard since L5.2b, a Reload would need
   the same: BL-125).
-- `--route '#/…'` (debug builds, or DEMO_STUDIO_DESKTOP_TEST=1): once the page has removed `#c=` from its URL, the
+- `--route '#/…'` (debug builds, or RETAKE_DESKTOP_TEST=1): once the page has removed `#c=` from its URL, the
   app sets `location.hash` (the only `.eval`; `route_ok`: `#/` + `[A-Za-z0-9/_.-]{0,200}`) — how the black-box test
   reaches a timeline without input automation.
 
-**Workspace and launch config.** `--root` → DEMO_STUDIO_ROOT → `<studio home>/desktop.json` (`{version: 1,
-workspace}`, 0600, written atomically after a start succeeded; studio home as the CLI computes it) → the current
-folder's `studio.yaml` → NSOpenPanel (folders only). The CLI's `no_workspace` line = not a workspace → the picker
+**Workspace and launch config.** `--root` → RETAKE_ROOT → `<Retake home>/desktop.json` (`{version: 1,
+workspace}`, 0600, written atomically after a start succeeded; Retake home as the CLI computes it) → the current
+folder's `retake.yaml` → NSOpenPanel (folders only). The CLI's `no_workspace` line = not a workspace → the picker
 again with that message; Cancel → quit (first launch only). File › Open Workspace… (review B M1) checks the folder
-first (`desktop-core` `is_workspace`: a `studio.yaml` or a `projects/` folder, the CLI's rule): not a workspace → an
+first (`desktop-core` `is_workspace`: a `retake.yaml` or a `projects/` folder, the CLI's rule): not a workspace → an
 alert, nothing changes; otherwise the owned server stops before the next starts (never two), and a start that fails
 or is cancelled reopens the previous workspace — Open Workspace… never quits the app.
 `Contents/Resources/launch.json` (`{version: 1, node, cli}`, written by `desktop:build`: `stableNodePath(execPath)`,
-the repository's `packages/cli/dist/bin.js`); `DEMO_STUDIO_NODE` / `DEMO_STUDIO_CLI` win in debug builds only (a
+the repository's `packages/cli/dist/bin.js`); `RETAKE_NODE` / `RETAKE_CLI` win in debug builds only (a
 Finder launch never takes them from `launchctl setenv`); both absolute, regular files, else an alert with the fix.
-Under DEMO_STUDIO_DESKTOP_TEST=1 — honoured only when another process started the binary, never with launchd as its
+Under RETAKE_DESKTOP_TEST=1 — honoured only when another process started the binary, never with launchd as its
 parent (`getppid() == 1`: a Finder or Dock launch, which `launchctl setenv` could arm — review A L2; decided once at
 launch, `desktop-core` `test_mode_allowed`) — no modal is ever shown (alerts print their text and their buttons' keys
 and answer their cancel button — the last, the guard's Cancel, the restart alert's Not Now — or the next index of
-DEMO_STUDIO_DESKTOP_TEST_ANSWERS; the picker answers DEMO_STUDIO_DESKTOP_TEST_PICK once, then cancels), SIGUSR1 is File › Open Workspace… and SIGUSR2 is Quit through `terminate:` (L5.2b: the ⌘Q path —
+RETAKE_DESKTOP_TEST_ANSWERS; the picker answers RETAKE_DESKTOP_TEST_PICK once, then cancels), SIGUSR1 is File › Open Workspace… and SIGUSR2 is Quit through `terminate:` (L5.2b: the ⌘Q path —
 the gated test's ways to the menu without input automation), notifications are logged, never posted
-(DEMO_STUDIO_DESKTOP_TEST_FRONT=0|1 says whether the window counts as in front), and DEMO_STUDIO_DESKTOP_TEST_MODAL_MS
+(RETAKE_DESKTOP_TEST_FRONT=0|1 says whether the window counts as in front), and RETAKE_DESKTOP_TEST_MODAL_MS
 shows an alert for real and aborts it after that delay (the same main-thread call as a signal's, aimed at that alert
 only).
 
@@ -3937,7 +3937,7 @@ only).
 (every URL cut to its origin, `#c=…`, `Bearer …` and any run of ≥ 40 base64url characters hidden, control and bidi
 characters replaced, ≤ 1000 characters a line), ≤ 50 lines a second, and Tauri's `__TAURI_INVOKE_KEY__ expected … but
 received <frame text>` lines (a page frame posting to the IPC handler wry registers for all frames) dropped and
-counted. The child's stderr is forwarded through it (`studio: …`). `finish()` drains it on exit. A panic writes its
+counted. The child's stderr is forwarded through it (`retake: …`). `finish()` drains it on exit. A panic writes its
 sanitised message straight to the real stderr (review B L7: an abort in an AppKit callback would kill the process
 before the filter thread prints it). Every line the shell prints starts with the binary's name (`main.rs` `BIN` =
 Cargo.toml `name`).
@@ -3967,7 +3967,7 @@ delegate (`class_addMethod`, type `Q@:@`): tao 0.37 does not implement it and Ta
 test turns red at that upgrade. The method, on the main thread: no session of the app's own (none, or an attached
 server: it has no pipe) or nothing pending → Now (a mutex read: Quit stays instant); otherwise the window is shown and
 an app-modal alert (`macos::ask`; not a sheet — it works with the window hidden, needs no TerminateLater bookkeeping,
-and logout waits for it; L5.12d: the fallback — a plain Quit asks the window's page first, below) asks with `desktop-core` `guard_question`: "Quit Demo Studio?" — "Unsaved text in the Studio
+and logout waits for it; L5.12d: the fallback — a plain Quit asks the window's page first, below) asks with `desktop-core` `guard_question`: "Quit Retake?" — "Unsaved text in the Studio
 (this window, or a browser tab on it) can no longer be saved: • README.md of shop • Scenario quote of shop (YAML)"
 (review B L6: the board holds every tab on the server; a browser tab keeps its text on screen, but nothing saves it
 once the server stops) / "These jobs keep running after the app quits, but it will not tell you when they end:
@@ -4079,9 +4079,9 @@ injected clock — critique H1):
 - **Native stays for** logout, restart and shut down (loginwindow never waits on a web page), the restart alert (no
   server, no answer path), "not a workspace", the folder picker, File › Open Workspace…'s question (through the page it
   would turn a synchronous menu callback into an async flow: cut, BL-135), an attached server (no pipe: no question at
-  all), test mode's `DEMO_STUDIO_DESKTOP_TEST_QUIT=native` (the L5.2b gated cases that answer the alert), and every
+  all), test mode's `RETAKE_DESKTOP_TEST_QUIT=native` (the L5.2b gated cases that answer the alert), and every
   fallback.
-Gated (DEMO_STUDIO_TEST_DESKTOP=1): the page asks and acks by itself in WKWebView; Cancel and Quit Anyway through
+Gated (RETAKE_TEST_DESKTOP=1): the page asks and acks by itself in WKWebView; Cancel and Quit Anyway through
 `desktop_answer` with the id test mode logs; a second Quit re-dispatches the same id; a replayed old id is ignored; the
 server SIGSTOPped → no ack → the native alert after ≈ 1.5 s and the late ack ignored; L5.12d fixes (review B-M2), with
 the page path on: SIGTERM while the sheet is up → the app exits 0 at once, the question in the window dropped, no alert;
@@ -4152,13 +4152,13 @@ rename (L5.13) changes the bundle id → one new prompt.
   pressed) to the child's stdin; the server matches the id and continues. The page can neither raise one (it has no
   IPC; a server op may ask on its behalf, and the server decides when to) nor answer it (the answer comes only from
   the pipe the shell holds). In a browser tab (no supervisor) the same request falls back to the terminal prompt.
-- *Name.* "Demo Studio" is tauri.conf.json `productName` and the bundle id its `identifier` — the one place each: the
+- *Name.* "Retake" is tauri.conf.json `productName` and the bundle id its `identifier` — the one place each: the
   shell reads the name from the generated context (`package_info().name`), `desktop.mjs` reads both from the file
   (Info.plist, the `.app` name, the plist's texts). The binary's name is Cargo.toml `name` (`main.rs` `BIN`, the log
   prefix; `desktop.mjs` and the gated test read it from Cargo.toml). The rename changes those values.
 
 **Build.** `desktop:build`: `cargo build --release --locked --features custom-protocol` (thin LTO, stripped: 7.9 MB
-binary) → `<target>/release/bundle/Demo Studio.app` (Info.plist with `NSLocalNetworkUsageDescription` — the worker and
+binary) → `<target>/release/bundle/Retake.app` (Info.plist with `NSLocalNetworkUsageDescription` — the worker and
 its browser are the app's children, so macOS names the app in a local-network prompt —, the icon made by `sips` +
 `iconutil` from `icons/icon.png`, rasterised once from `icons/icon.svg`: the Studio's brand mark), `launch.json`,
 `codesign --force --sign -` (ad hoc, no entitlement). Never copied to /Applications. Launch Services records each
@@ -4177,9 +4177,9 @@ signature, the menu table's accelerators, `TITLE_BAR`, the name in one place); `
 words with a hostile-input property test, the no-storm rule),
 ≈ 1.6 s warm; skipped with the reason in its title on Windows, on macOS without the Xcode command line tools —
 `xcode-select -p`, checked before cargo runs so the `cc` shim never opens their install dialog —, without rustc /
-cargo, or with a Rust older than 1.70: review B M4); `desktop-shell.test.ts` (gated `DEMO_STUDIO_TEST_DESKTOP=1`,
+cargo, or with a Rust older than 1.70: review B M4); `desktop-shell.test.ts` (gated `RETAKE_TEST_DESKTOP=1`,
 cargo probed only then: one release build
-with the test bundle id `local.demo-studio.desktop.test`, the binary started directly; owned server = its child,
+with the test bundle id `local.retake.desktop.test`, the binary started directly; owned server = its child,
 argv without secret, two listeners on 127.0.0.1; the page loaded = `/v1/info` counters `sessions ≥ 1`, `streams ≥ 1`;
 SIGTERM = the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`); SIGKILL = no orphan; attached = the
 terminal's server survives Quit; Open Workspace… (SIGUSR1) on a folder that is no workspace keeps the app, its server
@@ -4191,14 +4191,14 @@ question; attached: no guard, SIGUSR2 quits at once and the job stays; the real 
 the app while it is up and gone after, a second SIGUSR2 ignored (H2), SIGTERM while it is up quits (M1), Return never
 on Quit Anyway with unsaved text (the alert's key equivalents logged), screenshots of the question; the owned server
 killed with unsaved text: the restart alert names it, Not Now keeps the window, Quit then asks about the text only; a
-hostile launch — a copy of the app whose launch.json runs a fake `studio ui --supervised` serving an
+hostile launch — a copy of the app whose launch.json runs a fake `retake ui --supervised` serving an
 adversarial page and a sandboxed "player" — proves no request reaches a foreign port (iframe, redirect, srcdoc frame,
 octal host, `target=_blank`, `window.open`, top-level location), data: / blob: / custom-scheme navigations refused,
 both downloads cancelled and nothing in `~/Downloads` (files named with a per-run token, the only ones ever deleted),
 every invoke refused and the player frame's IPC message dropped, no `mediaDevices`, no NODE_OPTIONS in the child (review
 A M2); no secret in the output; nothing in `~/Library` and no Launch Services record left; with
-`DEMO_STUDIO_TEST_SLOW=1` a fixture capture on its timeline: `player_media_bytes_read > 0`). By eye: the screenshots the
-test keeps (`DEMO_STUDIO_TEST_SHOTS`): a locked screen skips them, a capture without Screen Recording permission or a
+`RETAKE_TEST_SLOW=1` a fixture capture on its timeline: `player_media_bytes_read > 0`). By eye: the screenshots the
+test keeps (`RETAKE_TEST_SHOTS`): a locked screen skips them, a capture without Screen Recording permission or a
 flat picture is printed "unverified" (review B). By hand: MACOS-CHECKLIST 14a.
 
 ## 4k. The Studio's design system and shell (L5.9)
@@ -4215,7 +4215,7 @@ canvas), `LEGACY_COLOURS` (the L4.9 palette: light exactly as L4.9, dark mapped 
 splits where one token could not be both in dark — `--accent-fill` / `--accent-strong-fill` for the primary button
 under white text, `--tooltip-bg` for the timeline's tooltip that read `--fg`), `UI_STATIC` / `LEGACY_STATIC` (type
 13 / 15 / 20 with 18 / 22 / 26 leading, weights 400 / 600, spacing, radii, pane sizes; `--main-h`, the centre pane's
-height, for the legacy rules that used `100vh`), `FONT_FILES`. `tokens.css` is generated (`pnpm -F @demo-studio/ui
+height, for the legacy rules that used `100vh`), `FONT_FILES`. `tokens.css` is generated (`pnpm -F @retake/ui
 gen:tokens`, committed, a test compares it): the two `@font-face`, the appearance-free tokens on `:root`, then
 `:root, [data-appearance='dark'] { color-scheme: dark; … }` (dark by default: no preference or dark),
 `@media (prefers-color-scheme: light) { :root { color-scheme: light; … } }` (light only when the system asks), and the
@@ -4337,9 +4337,9 @@ over every JSX child of `ui-kit/`, and an SSR render planting a hostile string i
 class (`k-…` but `k-sr`, `k-mono`, `k-scope`), any app.css class, or a legacy token written in the TypeScript is counted
 per file against `packages/ui/test/legacy-controls.json` (29 legacy files today): a count may only stay or go **down**
 (≤ its row, so a rebase over another lowering never conflicts; a row above HEAD's fails), a file without a row (the shell,
-the gallery, every new screen) has none, and `pnpm -F @demo-studio/ui ratchet` lowers the rows when they drop and never
-raises one; the product's name (`/Demo\s+Studio/i`) is written only in brand.ts among all the app's sources and
-bundle.ts (A-L8).
+the gallery, every new screen) has none, and `pnpm -F @retake/ui ratchet` lowers the rows when they drop and never
+raises one; the product's name (`/\bRetake\b/` since L5.13) is written only in brand.ts among all the app's sources
+and bundle.ts (A-L8).
 
 L5.10a (§4l) adds SourceList rows, Facts, Disclosure, PosterGrid and Thumb sizes to the kit.
 
@@ -4381,7 +4381,7 @@ with their shape (an environment name, an ISO time; a scene id through `stepRef`
 scenario screen's entries): ONE pass over the runs folder newest first (the newest 300 run.json re-checked by their
 stat; the older ones — finished, they do not change — summed up per scenario once per project and held while their ids
 stay the same, ids joining at the head added to it: a never-run scenario no longer walks the folder at each read), file
-facts memoised by the file's stat and the project files' signatures (project.yaml, sandbox.yaml, hooks/, studio.yaml,
+facts memoised by the file's stat and the project files' signatures (project.yaml, sandbox.yaml, hooks/, retake.yaml,
 the project theme's folder and template.yaml; 512 entries), each entry holding the files its checks looked for (core
 `CheckContext.filesRead`: own media, data, SQL…) re-statted before it is trusted, and expiring after 60 s (the scenario
 view's text TTL) — a removed asset shows at once; "current" by (capture, snapshot stat, file hash), posters by the run
@@ -4505,7 +4505,7 @@ moved to Review mode: the take strip keeps the open count as a link (`threads_co
 link; Dry run and
 Capture in one line, each with what stops it said before any click (the button disabled, "— needs the terminal" / "—
 fix the file first", the reason id read by the button) and the reasons with their commands folded under the line (a
-Disclosure: the blocker's words, `studio run …` and its node form — `TerminalCommands`, a kit piece the Run, Record and
+Disclosure: the blocker's words, `retake run …` and its node form — `TerminalCommands`, a kit piece the Run, Record and
 Timeline screens import too); Open timeline (or off with why); the location line; what the last click came to (queued
 with Watch it live, its outcome with the first line of its error, or the refusal with its command); what the pictures
 may not show (changed since the run with the filmed changes, only the edit changed, cannot tell, newer runs stopped
@@ -4994,7 +4994,7 @@ R-DSK-04, R-UI-50. « Épure » 4d. Reference: R4-Confirm (layout; "Retake" read
   keeps a radius (`a:focus-visible`, the kit ring's `--ui-radius-control`: the legacy layer gave it 4 px; review B-L4). tokens.ts' L4.9 palette and
   its appearance-free tokens (`--font`, `--mono`, `--radius`, `--main-h`) are removed (tokens.css −169 lines): every
   token is a `--ui-*` one. `test/legacy-controls.json` is `{}`: the ratchet test asserts every app file holds zero
-  findings (`pnpm -F @demo-studio/ui ratchet`: "the table is current"). The "every className word is defined" lint the
+  findings (`pnpm -F @retake/ui ratchet`: "the table is current"). The "every className word is defined" lint the
   plan relied on did not exist: it is added (app-source) — a className word is a class of a stylesheet (or a prefix one
   completes in a template), or one of 38 named hooks, each with its reason (two e2e hooks, the kit's middle sizes, a
   screen root's name beside `sc-screen`, states shown by an attribute, parts laid out by their parent); a forgotten
@@ -5020,6 +5020,78 @@ R-DSK-04, R-UI-50. « Épure » 4d. Reference: R4-Confirm (layout; "Retake" read
   tour through Edit and the report stays green.
 - Cut (BL-135): Open Workspace… through the page (critique M4); the sheet's own words for logout / restart (native by
   design).
+
+<!-- old-name:begin — the rename (L5.13a) names the old names on purpose -->
+## 4o. The rename to Retake (L5.13a)
+
+R-REN-01, R-REN-02, R-REN-04. Before L5.13 the tool was called Demo Studio; everything is renamed at once, with no alias:
+the command `studio` → `retake` (bin, `pnpm retake`, Commander, the commands messages print), the packages
+`@demo-studio/*` → `@retake/*` (the root package `retake`), every `DEMO_STUDIO_*` variable → `RETAKE_*`, the home
+`~/.demo-studio` → `~/.retake`, the workspace file `studio.yaml` → `retake.yaml`, the tool folders `.demo-studio/` →
+`.retake/`, the MCP server and plugin `demo-studio` → `retake` (`retake@retake`, skills `retake-scenario / -theme /
+-component`; the plugin's entry-point key `studio` → `cli`), the desktop app `Demo Studio.app` → `Retake.app`
+(identifier `local.demo-studio.desktop` → `local.retake.desktop`, Cargo package `retake-desktop`), Docker / Postgres
+names (`retake-*`, `retake.test=pg`, the snapshot comment `retake snapshot <hash>`), temp prefixes, in-page names
+(`<retake-cursor>`, `__retake*`, `retake.token`, `retake.events`) and the files the tool writes (`engine.retake` in
+run.json — and its `perf.cpu.retake`, `studio` before; a run recorded earlier still reads the same in the perf line —,
+`retake/raw-capture`, `.retake-theme.json`). Kept, not old names: the built-in `studio/` component namespace
+(every theme and scenario names it), the comment / agent channel `studio`, the `studio:*` page events, "the Studio"
+for the web app.
+- **The rename is a script** (`scripts/rename-l513.mjs`): ordered, case-aware rules, exact literals per file, the
+  folder renames; deterministic and idempotent (a second run changes nothing), `--dry` lists, `--only <files>` limits
+  it. It rewrites tracked files only (never another session's untracked work), refuses a dirty tree unless
+  `--allow-dirty` (`--only` names the files to rewrite, dirty or not, inside the repository), never follows a link and
+  skips a file that is not valid UTF-8. A branch started before L5.13 runs it on itself before rebasing. A line carrying the `old-name` tag (with a colon)
+  and a region between its begin and end markers (like this section) are never rewritten. The lockfile is rewritten as text (an offline regeneration
+  drops other platforms' entries), the `@retake/*` keys of each importer re-sorted; Cargo.lock's root package moved to
+  its sorted place (`--locked` holds).
+- **An existing installation is told, never migrated** (`packages/core/src/legacy.ts`, the one module that knows the
+  old names; `packages/engine/src/legacy.ts` for the process check). The old home, workspace file, variables and tool
+  folders are never read — only detected, by stats: one stderr line at CLI start (never stdout: MCP over stdio and
+  `ui --supervised` speak there) while `~/.demo-studio` holds `profiles/` or `sessions/` and `~/.retake` holds
+  neither — RETAKE_HOME is tested first, so a chosen home (every test's) never makes it look; the same in
+  engine_info (`legacy.old_home`: a one-line note in the Studio's sidebar, the MCP summary) and in the preflight's
+  failure when a persona was never signed in. Likewise an old variable set without its `RETAKE_*` twin
+  (`DEMO_STUDIO_HOME`, `_ROOT`…: the tool now runs on another home or workspace): named — never its value — on that
+  stderr line, in `legacy.old_vars` (an MCP client launched with an old registration env never shows stderr) and, for
+  the home, in the preflight's failure. `retake doctor`'s "Before Retake" lines (the home: the move, or the swap
+  `mv ~/.retake ~/.retake.after-upgrade && mv ~/.demo-studio ~/.retake` when the tool recreated `approvals.key`,
+  `mcp-http.token` or `desktop.json`; the old variables by name; the old workspace file; the old tool folders of the
+  workspace and its projects with their pending rollback journals; a workspace or project `.gitignore` that ignores
+  `.demo-studio/` but not `.retake/`, with the line to add). A `studio.yaml` stops the workspace lookup and the load
+  refuses it with the `mv` — only when it is this tool's (next to `projects/` or an old tool folder, or its first 4 KB
+  carry `version:` and a workspace key), and never in the home folder itself (`~/Projects` and the old home sit there
+  on most machines): another tool's file of that name is walked past. The desktop app's "not a workspace" alert names
+  an old `studio.yaml` with its rename. While a Studio or a worker of the old build still holds the workspace (its old
+  `ui.json` / `worker.lock`: a bounded read; a linked file or folder is skipped; a holder counts only with the start
+  time `ps` gives for its pid, as the worker lock's rule — the folder is agent-writable, and a pid alone could name any
+  process of the person), `retake ui`, `retake mcp`, a worker, `retake sandbox up / reset`, a sandbox take
+  (`run --sandbox`, CLI or job), `retake env reset` and a recording refuse to start beside it; the fix says what to stop,
+  or to remove the file when no old Studio or worker runs, and the CLI prints every refusal's fix line. Hooks, components and an MCP registration naming old names are README's grep
+  commands ("Upgrading from Demo Studio").
+- **Safety lists keep the old names.** `.demo-studio/` stays in AGENT_WRITABLE_PATHS (its files — page dumps, drafts —
+  are never run as code: dropping it would have widened trust); a worker a client starts never gets
+  `DEMO_STUDIO_MCP_TOKEN` either. The variables the tool writes for the person's code (`RETAKE_SANDBOX`, `_RUN_ID`,
+  `_ENV`, `_PROJECT_DIR`, `_ALLOWED_HOSTS`: hook and seed shells, process services) are also written under the old
+  names — never read; BL-136 drops them later.
+- **Markers the tool wrote into folders a person keeps** are still recognised: a theme's `.demo-studio-theme.json` /
+  `made_by: demo-studio` (its `--replace`), a raw package's `demo-studio/raw-capture` (a new export to its folder), a
+  session snapshot's `demo_studio` metadata key (the "made on another computer" warning); a component README's generated block is found by its begin marker's prefix, whatever command the comment names. A
+  component importing `@demo-studio/components/kit` is refused with the new specifier in the message (no alias).
+- **The guard** (`packages/core/test/old-name.test.ts`): no tracked file (nor an untracked one under the source
+  folders) holds the old name in any spelling — wrapped across a line too —, the old command (`studio <sub>`, `pnpm
+  studio`, `Usage: studio`, `` `studio` `` before "command" / "CLI"), the old workspace file or home; allowed: the
+  rename script, core's and engine's `legacy.ts`, the `legacy*.test.ts` files, and tagged lines / regions in a short
+  list of files (a tag anywhere else fails); file and folder paths are scanned too, and the regex-source spellings
+  (`Demo\s+Studio`). vitest.config.ts gives every run a scratch RETAKE_HOME unless one is set (removed at the end of
+  the run), refuses `~/.retake` and `~/.demo-studio` (through a link too), and drops every `DEMO_STUDIO_*`; core
+  `retake-home.test.ts` is its canary, and also fails a test file that deletes RETAKE_HOME without restoring it.
+- **The previews' bundle** (editor render/preview.ts): a target that is a package scaffold (same id, same folder) is
+  bundled once, as the scaffold — flagged, so the bundle guard does not ask which component its kit imports belong to;
+  a workspace component reusing a scaffold's id from another folder stays under the holder check (met when the rename
+  made all 49 previews stale at once; editor `preview-scaffold.test.ts`).
+- The "two takes" mark (title bar, Welcome, favicon, desktop icon) is L5.13b.
+<!-- old-name:end -->
 
 ## 5. Fixture product (`fixtures/wholesale`)
 
@@ -5053,8 +5125,8 @@ form with a password; a native select, a Radix select, a Radix dialog, a table w
 asks to confirm), a file drop zone, a textarea, a contenteditable, a "Mark notifications read" button (the page's one
 write) and an in-app link; a script that forges events, calls every window function that looks like a binding and
 looks up the kit's and the recorder's names (on load and by a button; its report in `[data-testid=forge-report]`).
-L1.8: two sandboxes of the fixture project — `sandbox` (process: `node server.mjs` on 4501–4504, started by Demo
-Studio) and `sandbox-docker` (docker-compose, `sandbox/docker/{sandbox.yaml,compose.yaml}`: the fixture image on
+L1.8: two sandboxes of the fixture project — `sandbox` (process: `node server.mjs` on 4501–4504, started by Retake)
+and `sandbox-docker` (docker-compose, `sandbox/docker/{sandbox.yaml,compose.yaml}`: the fixture image on
 4511–4514 + `axllent/mailpit:v1.29.4` on 4525), same pages (the signed-in side), seed (`POST /api/reset`) and
 accounts; scenario `sandbox-quote` (no hooks). No npm package at run time: `bundle.mjs` (OUT_DIR, `bundleState`,
 `bundleVersion`; node: imports only) is what the server imports, `build.mjs` (esbuild imported inside `build()`) is
@@ -5074,15 +5146,15 @@ read to their `NNN ` line; 10 s socket timeout); every outcome logged, never thr
 ## 6. Testing & acceptance (phase 1)
 
 - Unit: core (parsing, errors with line numbers, normalisation, templating, schema, format versions), hooks
-  (journal, rollback order, allow-list, destructive detection; sql against a real Postgres if `$DEMO_STUDIO_TEST_PG` —
-  `pnpm test:pg`: `scripts/test-pg.mjs` starts a throwaway `demo-studio-pg-test-<hex>` container (label
-  `demo-studio.test=pg`) from the local `postgres:17-alpine` image (never pulled) on a loopback port Docker picks,
+  (journal, rollback order, allow-list, destructive detection; sql against a real Postgres if `$RETAKE_TEST_PG` —
+  `pnpm test:pg`: `scripts/test-pg.mjs` starts a throwaway `retake-pg-test-<hex>` container (label
+  `retake.test=pg`) from the local `postgres:17-alpine` image (never pulled) on a loopback port Docker picks,
   with password auth (scram, what the connection-failure test needs), waits for a password-authenticated `SELECT 1`
   over TCP (the image's init server listens on no TCP socket), runs `packages/hooks/test/sql.test.ts` and removes that
   container by its exact name with its anonymous data volume (`docker rm -f -v`: the image declares a volume, which
   `--rm` does not drop when the container is removed by name) in `finally` and on SIGINT / SIGTERM; a labelled
   container a killed run left is listed with its `docker rm -f -v`, never removed; `--all` runs the whole suite with Postgres, Docker and slow tests on).
-- Integration (L1.4, `packages/cli/test/catalogue-acceptance.test.ts`, gated by `DEMO_STUDIO_TEST_SLOW=1` —
+- Integration (L1.4, `packages/cli/test/catalogue-acceptance.test.ts`, gated by `RETAKE_TEST_SLOW=1` —
   `pnpm test:slow`, ≈ 77 s): the fixture on free ports + the committed `catalogue` scenario (loaded through core, the
   `local` environment pointed at the fixture's ports in memory, its real hooks) headless at 1920×1080 with the debug
   cursor → capture.mp4 + timeline.json in a temp folder. Assertions: run succeeded, hooks ok / ok, the setup rollback
@@ -5098,11 +5170,11 @@ read to their `NNN ` line; 10 s socket timeout); every outcome logged, never thr
 - Sandboxes (L1.8): unit (core manifest checks, hooks seed phase, the sandbox engine's state / lock / ports / health /
   identity, compose argv / parsing with a fake docker, the fixture's SMTP relay against an in-test SMTP server), the
   process provider for real on the fixture (default suite), and the docker-compose tests gated by
-  `DEMO_STUDIO_TEST_DOCKER=1` — `packages/sandbox/test/compose.test.ts` (the init scaffold with Postgres snapshots, a
+  `RETAKE_TEST_DOCKER=1` — `packages/sandbox/test/compose.test.ts` (the init scaffold with Postgres snapshots, a
   health stuck at `starting`, busy ports) and `packages/cli/test/sandbox-docker.test.ts` (the fixture's image built,
   a sign-up mail relayed to the real Mailpit and read with runner-web's `MailboxClient`, the PDF refused, reset empties
   Mailpit, `down --volumes`), plus another checkout sharing the project name and another container publishing the
   sandbox's port on [::1] (K2, K3). Their compose projects, containers and images are named
-  `demo-studio-test-<run token>-*` / `demo-studio-test-fixture-<run token>-*` and swept after the run — that run's
+  `retake-test-<run token>-*` / `retake-test-fixture-<run token>-*` and swept after the run — that run's
   only, so two runs (another worktree) never remove each other's (containers, networks, volumes, the images they
   built; never base images, never `--rmi all`, never a prune).

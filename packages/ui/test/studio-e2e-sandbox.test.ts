@@ -40,9 +40,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, Frame, Page } from 'playwright-core';
-import { scaffoldDir } from '@demo-studio/components';
-import { memoRegistry } from '@demo-studio/engine';
-import type { TimelineViewResult } from '@demo-studio/engine';
+import { scaffoldDir } from '@retake/components';
+import { memoRegistry } from '@retake/engine';
+import type { TimelineViewResult } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { STOP_FLOOD } from '../src/player/parent.js';
@@ -64,7 +64,7 @@ let udpPackets = 0;
 let parentJs = '';
 let netlog = '';
 let launches = 0;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const hostileSource = () => `import { useEffect } from 'react';
 import { AbsoluteFill } from 'remotion';
@@ -318,7 +318,7 @@ const previewFrame = (page: Page): Frame => page.frames().find((f) => f.url().st
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-sandbox-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   other = createServer((req, res) => {
     otherHits.push(`${req.method} ${req.url}`);
     res.writeHead(200, { 'Content-Type': 'text/plain', 'Access-Control-Allow-Origin': '*' });
@@ -333,7 +333,7 @@ beforeAll(async () => {
 
   await mkdir(join(ws, 'templates'), { recursive: true });
   await cp(join(REPO, 'templates', 'editorial'), join(ws, 'templates', 'editorial'), { recursive: true });
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   const dir = join(ws, 'projects', PROJECT);
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await mkdir(join(dir, 'assets'), { recursive: true });
@@ -360,7 +360,7 @@ beforeAll(async () => {
  */
 async function launch(): Promise<Browser> {
   netlog = join(ws, `netlog-${launches++}.json`);
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   return chromium.launch({
     headless: true,
     ...(executablePath ? { executablePath } : { channel: 'chromium' }),
@@ -373,8 +373,8 @@ afterAll(async () => {
   await studio?.close();
   await new Promise<void>((ok) => (other ? other.close(() => ok()) : ok()));
   udp?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

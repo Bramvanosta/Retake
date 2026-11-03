@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { allowedHosts, sandboxOf, shellHostRefs } from '@demo-studio/core';
-import type { ShellHookSpec } from '@demo-studio/core';
+import { allowedHosts, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
 import { shellDestructiveReason } from '../destructive.js';
@@ -149,19 +149,22 @@ async function resolveCwd(ctx: HookContext, cwd: string | undefined): Promise<st
 function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    DEMO_STUDIO_PROJECT_DIR: ctx.project.dir,
-    DEMO_STUDIO_ENV: ctx.env.name,
-    ...(ctx.runId ? { DEMO_STUDIO_RUN_ID: ctx.runId } : {}),
-    // The project's allow-list, so a script can check the hosts it computes itself.
-    DEMO_STUDIO_ALLOWED_HOSTS: allowedHosts(ctx.project).join(','),
+    // Also under the names from before L5.13, for a script that still reads them (legacy.ts; never read back).
+    ...withOldOutgoingEnv({
+      RETAKE_PROJECT_DIR: ctx.project.dir,
+      RETAKE_ENV: ctx.env.name,
+      ...(ctx.runId ? { RETAKE_RUN_ID: ctx.runId } : {}),
+      // The project's allow-list, so a script can check the hosts it computes itself.
+      RETAKE_ALLOWED_HOSTS: allowedHosts(ctx.project).join(','),
+    }),
     ...cmd.base,
     ...cmd.env,
   };
 }
 
 /**
- * What a shell command on a sandbox environment (L1.8) gets on top of Demo Studio's own environment: the `env` of the
- * sandbox's process services (templated like theirs) and DEMO_STUDIO_SANDBOX=<env> — a seed's `npm run db:reset`
+ * What a shell command on a sandbox environment (L1.8) gets on top of Retake's own environment: the `env` of the
+ * sandbox's process services (templated like theirs) and RETAKE_SANDBOX=<env> — a seed's `npm run db:reset`
  * reaches the sandbox's database, never the one the developer's shell or `.env` file points at. The command's own
  * `env` wins; a variable two services set differently must be set there. Nothing on other environments.
  */
@@ -184,7 +187,7 @@ async function sandboxEnv(ctx: HookContext, env: string, own: Record<string, str
       }
     }
   }
-  out.DEMO_STUDIO_SANDBOX = env;
+  Object.assign(out, withOldOutgoingEnv({ RETAKE_SANDBOX: env }));
   return out;
 }
 
@@ -281,7 +284,7 @@ export async function rollbackShell(action: Extract<RollbackAction, { kind: 'she
   // The environment the hook ran in (a sandbox's own variables: its database, not the command's).
   const base = await sandboxEnv(r.ctx, r.env ?? r.ctx.env.name, cmd.env);
   if (base) cmd.base = base;
-  // Checked again when replayed: a journal may be rolled back later (`studio env reset`), with another environment.
+  // Checked again when replayed: a journal may be rolled back later (`retake env reset`), with another environment.
   checkHosts(r.ctx, cmd);
   return execute(r.ctx, r.log, cmd, action.timeout ?? DEFAULT_SHELL_TIMEOUT_S);
 }

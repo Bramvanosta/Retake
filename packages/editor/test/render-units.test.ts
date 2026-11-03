@@ -9,8 +9,8 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry, scaffoldDir } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { loadComponentRegistry, scaffoldDir } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
 import {
   COMPOSITION_DEPS,
   COMPOSITION_IDS,
@@ -39,8 +39,8 @@ import {
   takenVersions,
   transitionWindows,
   urlAt,
-} from '@demo-studio/editor';
-import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@demo-studio/editor';
+} from '@retake/editor';
+import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { fixtureProject, realTimeline, template } from './helpers.js';
 
 let registry: ComponentRegistry;
@@ -49,7 +49,7 @@ let quoteMotion: EditPlan;
 let tmp: string;
 
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-render-units-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-render-units-'));
   registry = await loadComponentRegistry({ root: tmp });
   const project = await fixtureProject();
   quote = planEdit({ timeline: realTimeline('quote'), template: await template('editorial'), project, registry, captureFile: '/captures/capture.mp4' });
@@ -296,19 +296,19 @@ describe('render versions and records', () => {
       await writeFile(join(runs, id, 'run.json'), JSON.stringify({ id, env: 'local', ...record }));
     };
     await write('20260101-100000-quote', { status: 'succeeded' });
-    await write('20260102-100000-quote', { version: 1, status: 'succeeded', engine: { demo_studio: '0.1.0', node: '22.0.0', os: 'linux' } });
+    await write('20260102-100000-quote', { version: 1, status: 'succeeded', engine: { retake: '0.1.0', node: '22.0.0', os: 'linux' } });
     await write('20260103-100000-quote', { version: 2, status: 'succeeded', next_format: true });
     expect(findRun(project, '20260101-100000-quote').id).toBe('20260101-100000-quote');
     expect(await runEnv(join(runs, '20260101-100000-quote'))).toBe('local');
     expect(findRun(project, '20260102-100000-quote').id).toBe('20260102-100000-quote');
     expect(() => findRun(project, 'latest', 'quote')).toThrow(
-      'run 20260103-100000-quote: this run.json is version 2: it was made for a newer Demo Studio (this one reads version 1) — update Demo Studio',
+      'run 20260103-100000-quote: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
     );
   });
 });
 
 describe('render environment', () => {
-  it('browser: $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL, else Playwright\'s headless shell, else Remotion\'s own', () => {
+  it('browser: $RETAKE_CHROMIUM_HEADLESS_SHELL, else Playwright\'s headless shell, else Remotion\'s own', () => {
     const exe = process.execPath; // any existing file
     expect(renderBrowser({ [HEADLESS_SHELL_ENV]: exe })).toEqual({ path: exe, source: 'env' });
     const missing = renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' });

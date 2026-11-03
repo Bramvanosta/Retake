@@ -1,7 +1,7 @@
 /**
  * L5.10a fixes (reviews A-H1 and B-H1): the open project's shared reads, counted at the server's door in headless
  * Chromium against an in-process Studio on a scratch copy of the fixture (the fixture product on free ports):
- * - ⚑ a take run from a terminal (`studio run … --dry`, a separate process: every step rewrites run.json) while the
+ * - ⚑ a take run from a terminal (`retake run … --dry`, a separate process: every step rewrites run.json) while the
  *   Project screen and the Cast are open in two tabs — project_board, project_get and auth_status stay under a ceiling
  *   set by the take's changes (it started, it ended), far under its step count (they were one read per step);
  * - ⚑ a project whose project.yaml does not load: its reads over 5 s stay bounded (they looped ~300 times a second);
@@ -30,7 +30,7 @@ import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 const P = 'northfield-fixture';
 const POLL = { timeout: 20_000 };
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const STEPS = 24;
 
 interface Fixture {
@@ -70,7 +70,7 @@ const ALPHA = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 /** A finished job of `project` written straight into the queue (the event stream sees a new job id). */
 async function plantJob(project: string, n: number): Promise<string> {
   const id = `j_01JC${Array.from({ length: 22 }, (_, k) => ALPHA[(n * 7 + k) % 32]).join('')}`;
-  const dir = join(ws, '.demo-studio', 'jobs', id);
+  const dir = join(ws, '.retake', 'jobs', id);
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { kind: 'run', project, scenario: 'quote', run_id: `20261001-10000${n}-quote` }, state: 'succeeded', created_at: new Date().toISOString(), finished_at: new Date().toISOString() }));
   return id;
@@ -78,7 +78,7 @@ async function plantJob(project: string, n: number): Promise<string> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-reads-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
@@ -101,7 +101,7 @@ beforeAll(async () => {
   await mkdir(join(ws, 'projects', 'broken', 'scenarios'), { recursive: true });
   await writeFile(join(ws, 'projects', 'broken', 'project.yaml'), 'version: 1\nname: Broken\nenvironments:\n  "Not A Name!": {app: {url: "http://localhost:1"}}\n');
   studio = await startStudioServer({ root: ws });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
 }, 120_000);
 
@@ -109,8 +109,8 @@ afterAll(async () => {
   await browser?.close();
   await studio?.close();
   await fixture?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -129,7 +129,7 @@ describe('the open project reads by events, never by steps (reviews A-H1, B-H1)'
     let out = '';
     try {
       const code = await new Promise<number | null>((resolve, reject) => {
-        const child = spawn(process.execPath, [join(REPO, 'packages/cli/dist/bin.js'), '-C', ws, 'run', P, 'many-steps', '--dry'], { env: { ...process.env, DEMO_STUDIO_HOME: join(ws, '.home') }, stdio: ['ignore', 'pipe', 'pipe'] });
+        const child = spawn(process.execPath, [join(REPO, 'packages/cli/dist/bin.js'), '-C', ws, 'run', P, 'many-steps', '--dry'], { env: { ...process.env, RETAKE_HOME: join(ws, '.home') }, stdio: ['ignore', 'pipe', 'pipe'] });
         child.stdout.on('data', (d: Buffer) => (out += d.toString()));
         child.stderr.on('data', (d: Buffer) => (out += d.toString()));
         child.on('error', reject);

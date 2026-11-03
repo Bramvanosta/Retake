@@ -12,17 +12,17 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, sep } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS } from '@demo-studio/core';
-import { checkComponentEntry, loadComponentRegistry, paramDefaults, scaffoldDir } from '@demo-studio/components';
-import type { JsonSchemaNode } from '@demo-studio/components';
-import { bundledFileProblem, componentFilesGuard, componentFolderHash, componentHashedFiles, scaffoldComponents } from '@demo-studio/editor';
-import type { BundleComponent } from '@demo-studio/editor';
+import { COMPONENT_KINDS } from '@retake/core';
+import { checkComponentEntry, loadComponentRegistry, paramDefaults, scaffoldDir } from '@retake/components';
+import type { JsonSchemaNode } from '@retake/components';
+import { bundledFileProblem, componentFilesGuard, componentFolderHash, componentHashedFiles, scaffoldComponents } from '@retake/editor';
+import type { BundleComponent } from '@retake/editor';
 
 let root: string;
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-bundle-files-'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\n');
+  root = await mkdtemp(join(tmpdir(), 'retake-bundle-files-'));
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\n');
   const dir = join(root, 'components', 'acme', 'crafted');
   await mkdir(dir, { recursive: true });
   await cp(scaffoldDir('card'), dir, { recursive: true });

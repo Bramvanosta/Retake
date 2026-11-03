@@ -1,6 +1,6 @@
 /**
  * Hosts a shell hook names (R-SEC-06): the allow-list check of `shell` hooks. A shell hook is a local program, so
- * Demo Studio checks the hosts its command line *names* — URLs, `$VARS` (the script's own assignments over the
+ * Retake checks the hosts its command line *names* — URLs, `$VARS` (the script's own assignments over the
  * environment), database-client hosts and PGHOST, ssh / scp / rsync / git destinations, proxies, URLs in inline code
  * (`node -e`, `python3 -c`…) — also inside `sh -c` / `eval`, command substitutions and heredocs, before anything runs.
  * Connections a program makes from its own configuration or code (a `.env` file, ~/.ssh/config, a script file, a host

@@ -1,12 +1,12 @@
 # Bring your own motion
 
-Templates never lock you in. Every piece of the edit that Demo Studio draws with a provided component — the intro, the
+Templates never lock you in. Every piece of the edit that Retake draws with a provided component — the intro, the
 outro, a card, an interstitial, an overlay over the capture — can be **your own work** instead: a video or an image
 file, a transparent video composited over the capture, a Lottie animation, or your own Remotion component. A theme can
 even have no intro component at all and use a file.
 
 This page is practical: copy the snippets, change the paths. Paths are relative to the project folder (a theme's own
-files: relative to the template folder). Run `studio validate <project> <scenario>` after each change — every mistake
+files: relative to the template folder). Run `retake validate <project> <scenario>` after each change — every mistake
 is reported where it is written (missing file, wrong container, unsupported codec, `from` / `to` outside the file,
 an overlay video without an alpha channel…).
 
@@ -45,7 +45,7 @@ scenes:
 | `volume` | video | the file's own sound, 0–1 (default 1). A file without sound stays silent |
 | `params` | all | params of the component that plays the file (`studio/media`, `studio/lottie`) |
 
-What Demo Studio does around your file:
+What Retake does around your file:
 
 - **The theme's transitions apply** into and out of your file (the editorial theme crossfades, the motion theme dips
   to black): your file is a segment like any other.
@@ -54,7 +54,7 @@ What Demo Studio does around your file:
   `background: dark` when your file is dark.
 - **Sound**: your file's own sound plays (at `volume`). The music bed, when the video has one, **ducks under it** like
   it ducks under the product footage; it plays at its base level under an image, a Lottie or a silent video.
-- `studio plan` lists every file (`file: "assets/intro.mp4"`, its length, sound, alpha), the review (`studio review`)
+- `retake plan` lists every file (`file: "assets/intro.mp4"`, its length, sound, alpha), the review (`retake review`)
   reports a file that could not be read (`media-missing`, an error) or that shows a uniform frame (`empty-segment`).
 
 **In a theme** (`templates/<name>/template.yaml`): intro, outro and interstitial may be the theme's own files — every
@@ -113,7 +113,7 @@ restyles the provided overlays (callouts…), never your own files.
 
 ### Exporting video with alpha
 
-Two formats work everywhere Demo Studio renders: **ProRes 4444** in a `.mov` (large, lossless-looking: the usual
+Two formats work everywhere Retake renders: **ProRes 4444** in a `.mov` (large, lossless-looking: the usual
 export of video tools) and **VP9 with alpha** in a `.webm` (small: ideal to commit next to your scenarios).
 
 | Tool | How |
@@ -168,15 +168,15 @@ data — write a component. It lives in your workspace (`components/<namespace>/
 built-in ones.
 
 ```bash
-studio components new acme/launch-intro --kind intro --description "Our launch intro: logo burst, then the title."
+retake components new acme/launch-intro --kind intro --description "Our launch intro: logo burst, then the title."
 # → components/acme/launch-intro/{component.yaml, index.tsx, README.md, preview.png}, validated
 ```
 
 ```tsx
 // components/acme/launch-intro/index.tsx
 import { interpolate, spring } from 'remotion';
-import { AbsoluteFill, Logo, backgroundCss, useCurrentFrame } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { AbsoluteFill, Logo, backgroundCss, useCurrentFrame } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 export default function LaunchIntro({ theme, slots, unit, fps }: ComponentProps<{ accent_ring: boolean }>) {
   const frame = useCurrentFrame();
@@ -193,7 +193,7 @@ export default function LaunchIntro({ theme, slots, unit, fps }: ComponentProps<
 }
 ```
 
-Rules (checked by `studio components validate`): import only `react`, `remotion` and `@demo-studio/components/kit` (and
+Rules (checked by `retake components validate`): import only `react`, `remotion` and `@retake/components/kit` (and
 your own files) — the renderer primitives (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`,
 `random`) come from the kit, `remotion` only for the rest (`interpolate`, `spring`…); read colours, fonts, logo from
 `props.theme`; size everything with `props.unit`; animate from `useCurrentFrame()` — no `Math.random` (use the kit's
@@ -204,7 +204,7 @@ intro: {component: acme/launch-intro}                    # in a scenario
 # or in the theme:  components: {intro: acme/launch-intro}
 ```
 
-`studio components preview acme/launch-intro` renders its `preview.png`. A component usable as several kinds declares
+`retake components preview acme/launch-intro` renders its `preview.png`. A component usable as several kinds declares
 them (`kind: card` + `kinds: [intro, outro, interstitial, overlay]`) and reads `props.as`; a box-filling overlay
 component receives its box as `props.anchor` when the step gives `anchor` / `rect` / `scale`. The kit also exports
 `VideoFile`, `ImageFile` and `LottieFile`, to put a file inside your own frame. The README's "Components" section has
@@ -221,9 +221,9 @@ Whatever a Claude skill (or any other tool) makes, one of three paths takes it i
    background as VP9 with alpha (`--codec=vp9 --image-format=png --pixel-format=yuva420p`) or ProRes 4444"*. Then
    `overlay: {video: assets/burst.webm, anchor: target}` on the step it celebrates.
 3. **As a workspace component** — when the skill writes Remotion code, keep it as a component so it takes every
-   theme: `studio components new acme/<name> --kind <kind>`, paste the animation into `index.tsx`, replace its hard-coded
+   theme: `retake components new acme/<name> --kind <kind>`, paste the animation into `index.tsx`, replace its hard-coded
    colours and fonts with `theme.colors.*` / `theme.fonts.*`, its sizes with `unit`, its texts with `slots.*`, keep
-   the imports to `react`, `remotion` and the kit, and run `studio components validate acme/<name>`. An animation made
+   the imports to `react`, `remotion` and the kit, and run `retake components validate acme/<name>`. An animation made
    in HTML / CSS / SVG without Remotion ports the same way (CSS animations become `interpolate(useCurrentFrame(), …)`).
 
 A prompt that works well: *"Make a 3.5 s, 1920 × 1080, 30 fps Remotion composition: <the motion>. Use only `react` and
@@ -243,7 +243,7 @@ ffmpeg -i burst.mov -c:v libvpx-vp9 -pix_fmt yuva420p -b:v 0 -crf 30 -auto-alt-r
 ffprobe -v error -show_entries stream=codec_type,codec_name,width,height,pix_fmt:stream_tags=alpha_mode:format=duration -of default=nw=1 in.mp4
 ```
 
-`studio validate` probes every file (ffprobe, cached) and reports, at its line: a file that does not exist; a
+`retake validate` probes every file (ffprobe, cached) and reports, at its line: a file that does not exist; a
 container that does not match the key (`image: intro.mp4` → "it looks like a video: write `video:`"); a codec the
 renderer cannot decode; `from` / `to` outside the file; `to` before `from`; fields that do not apply (`volume` on an
 image, `background` on an overlay); an overlay video without alpha (warning); a `duration` longer than the video

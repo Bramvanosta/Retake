@@ -9,11 +9,11 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProjectTemplate, readJson } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import { exportRender, generateTestTrack, gifWindow, planEdit, renderStill, renderVideo } from '@demo-studio/editor';
-import type { ClipSegment, ExportResult, RenderRecord } from '@demo-studio/editor';
+import { loadProjectTemplate, readJson } from '@retake/core';
+import type { Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import { exportRender, generateTestTrack, gifWindow, planEdit, renderStill, renderVideo } from '@retake/editor';
+import type { ClipSegment, ExportResult, RenderRecord } from '@retake/editor';
 import { SHARED_CACHE, frameOfColour, hasTool, pixelAt, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
 

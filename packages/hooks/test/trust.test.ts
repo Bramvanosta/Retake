@@ -7,10 +7,10 @@
 import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Journal, hookFiles, hookFingerprint, runHooks } from '@demo-studio/hooks';
-import type { HookApprovalRequest } from '@demo-studio/hooks';
-import { writingHooks } from '@demo-studio/core';
-import type { HookAccess, HookStep } from '@demo-studio/core';
+import { Journal, hookFiles, hookFingerprint, runHooks } from '@retake/hooks';
+import type { HookApprovalRequest } from '@retake/hooks';
+import { writingHooks } from '@retake/core';
+import type { HookAccess, HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -170,7 +170,7 @@ describe('trust mcp: rollbacks and referenced files', () => {
   });
 
   it('referenced files: outside the project, through a symbolic link, or code in an agent-writable file are refused; a secret in a code file too', async () => {
-    const outside = await tempProject('demo-studio-outside-');
+    const outside = await tempProject('retake-outside-');
     try {
       await writeFile(join(outside.dir, 'secret.js'), 'return document.title');
       await mkdir(join(tmp.dir, 'assets'), { recursive: true });

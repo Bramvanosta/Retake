@@ -1,14 +1,14 @@
 {
- "name": "demo-studio",
+ "name": "retake",
  "owner": {
-  "name": "Demo Studio"
+  "name": "Retake"
  },
- "description": "Demo Studio from this repository: one plugin with the Claude skills and the MCP server.",
+ "description": "Retake from this repository: one plugin with the Claude skills and the MCP server.",
  "plugins": [
   {
-   "name": "demo-studio",
+   "name": "retake",
    "source": "./skills",
-   "description": "Claude skills for authoring scenarios, themes and components with Demo Studio, and the Demo Studio MCP server."
+   "description": "Claude skills for authoring scenarios, themes and components with Retake, and the Retake MCP server."
   }
  ]
 }

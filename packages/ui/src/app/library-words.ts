@@ -7,7 +7,7 @@
  * person's own words (cleaned and quoted) and names checked against their patterns (a component id, a project slug, a
  * theme name), never a manifest string or a name from the address bar that does not match.
  */
-import type { ThemeEditView } from '@demo-studio/engine';
+import type { ThemeEditView } from '@retake/engine';
 import type { LibraryItem } from '../server/library-ops.js';
 import type { StudioEvent } from './events.js';
 import { APP_NAME } from './brand.js';
@@ -274,13 +274,13 @@ export interface PromptInput {
 export function createPrompt(p: PromptInput): { prompt: string; command: string } | null {
   if (!isKind(p.kind) || !okId(p.id) || p.id.startsWith('studio/')) return null;
   const words = cleanWords(p.description);
-  const parts = [`Use the demo-studio-component skill to make a new ${p.kind} component \`${p.id}\``];
+  const parts = [`Use the retake-component skill to make a new ${p.kind} component \`${p.id}\``];
   if (okName(p.project)) parts.push(` for project \`${p.project}\``);
   if (p.like !== undefined && okId(p.like)) parts.push(`, starting from \`${p.like}\``);
   parts.push(words ? `. What it should do, in my words: "${words}".` : '.');
   parts.push(" It is a workspace component (this workspace's components folder), not a built-in.");
   parts.push(` Preview it${p.theme !== undefined && okTheme(p.theme) ? ` in theme \`${p.theme}\`` : ''} with component_preview and validate it with component_validate; ask me before you edit its code.`);
-  return { prompt: parts.join(''), command: `studio components create ${p.id} --kind ${p.kind}` };
+  return { prompt: parts.join(''), command: `retake components create ${p.id} --kind ${p.kind}` };
 }
 
 /** "Set the card of mine to acme/x", worded for the confirmation. */

@@ -6,7 +6,7 @@
  */
 import { execFile } from 'node:child_process';
 import { connect } from 'node:net';
-import type { SandboxManifest } from '@demo-studio/core';
+import type { SandboxManifest } from '@retake/core';
 
 export interface SandboxPort {
   port: number;

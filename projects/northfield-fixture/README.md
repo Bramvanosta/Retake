@@ -1,7 +1,7 @@
 # Northfield (fixture)
 
-Demo Studio project that films **Northfield**, the fictional specialty-coffee wholesale platform
-bundled with the tool (`fixtures/wholesale`). It exists to test Demo Studio end to end — capture,
+Retake project that films **Northfield**, the fictional specialty-coffee wholesale platform
+bundled with the tool (`fixtures/wholesale`). It exists to test Retake end to end — capture,
 edit, review — without access to any real staging site, and to produce sample videos.
 
 ## Product
@@ -26,7 +26,7 @@ Northfield connects coffee roasters with the cafés they supply.
 - Roasters sending a pro forma before a large order (video: `proforma`, `--env signed-in` as the supplier — the
   console's Pro forma invoices page is made of traps a real take met: a dialog whose body scrolls over a page with a
   field of the same label, a calendar over the fields, a PDF whose second transfer breaks, a mail sent to two
-  addresses with one subject; Demo Studio L5.6).
+  addresses with one subject; Retake L5.6).
 
 ## Goals
 
@@ -52,9 +52,9 @@ ports: `--console-port` / `--shop-port` or `NORTHFIELD_CONSOLE_PORT` / `NORTHFIE
 `POST /api/reset` restores the seed data (this is the project's `reset` hook); `GET /api` lists every
 endpoint usable from http hooks.
 
-Or let Demo Studio start it: environment `sandbox` (`sandbox/sandbox.yaml`, L1.8) is a sandbox of the fixture on ports
-4501–4504, its signed-in side filmed as the supplier and the buyer. `studio run northfield-fixture sandbox-quote
---sandbox` starts it when it is not running, resets it to its seed and films; `studio sandbox status | logs | down
+Or let Retake start it: environment `sandbox` (`sandbox/sandbox.yaml`, L1.8) is a sandbox of the fixture on ports
+4501–4504, its signed-in side filmed as the supplier and the buyer. `retake run northfield-fixture sandbox-quote
+--sandbox` starts it when it is not running, resets it to its seed and films; `retake sandbox status | logs | down
 northfield-fixture` show and stop it. Environment `sandbox-docker` (`sandbox/docker/`) is the same in Docker — the
 fixture's image on 4511–4514 and a real Mailpit on 4525 receiving its mails (`--env sandbox-docker`; build the UI
 bundle first: `node fixtures/wholesale/build.mjs`). The image has no Chromium: `quote` (its PDF) is for `local` or

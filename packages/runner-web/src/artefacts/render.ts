@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { dirname, extname, join, normalize, sep } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext } from 'playwright-core';
-import type { BrowserConfig } from '@demo-studio/core';
+import type { BrowserConfig } from '@retake/core';
 import { launchTarget } from '../session.js';
 
 /** Layout width of a rendered email (CSS px). */

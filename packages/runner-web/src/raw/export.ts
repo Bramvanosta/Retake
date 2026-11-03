@@ -15,8 +15,8 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText } from '@demo-studio/core';
-import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@demo-studio/core';
+import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText } from '@retake/core';
+import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
 import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
@@ -118,7 +118,7 @@ export interface RawManifestClip {
 
 export interface RawManifest {
   version: 1;
-  kind: 'demo-studio/raw-capture';
+  kind: 'retake/raw-capture';
   created_at: string;
   project: { slug: string; name: string };
   scenario: string;
@@ -202,7 +202,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
   }
   if (!s.hidden && s.cursor === 'none') {
     throw new RawExportError(
-      `run ${timeline.run_id} has the cursor in its pictures: --cursor none needs a run captured without it — \`studio run ${opts.project.slug} ${timeline.scenario} --raw --cursor none\` (or --cursor layer / baked for this run)`,
+      `run ${timeline.run_id} has the cursor in its pictures: --cursor none needs a run captured without it — \`retake run ${opts.project.slug} ${timeline.scenario} --raw --cursor none\` (or --cursor layer / baked for this run)`,
     );
   }
   const emit = opts.onProgress ?? (() => undefined);
@@ -371,7 +371,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
     const cap = timeline.capture;
     const manifest: RawManifest = {
       version: 1,
-      kind: 'demo-studio/raw-capture',
+      kind: 'retake/raw-capture',
       created_at: new Date().toISOString(),
       project: { slug: opts.project.slug, name: opts.project.config.name },
       scenario: timeline.scenario,
@@ -452,7 +452,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
 }
 
 /** The package folder is replaced at the end: only when it is new, empty, or an earlier raw package. */
-async function assertReplaceable(dir: string): Promise<void> {
+export async function assertReplaceable(dir: string): Promise<void> {
   if (!existsSync(dir)) return;
   let entries: string[];
   try {
@@ -463,7 +463,8 @@ async function assertReplaceable(dir: string): Promise<void> {
   if (entries.length === 0) return;
   try {
     const m = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as { kind?: string };
-    if (m.kind === 'demo-studio/raw-capture') return;
+    // A package made before L5.13 carries the kind of that name (legacy.ts): still a raw package.
+    if (m.kind === 'retake/raw-capture' || m.kind === OLD_RAW_KIND) return;
   } catch {
     /* not a package */
   }
@@ -493,7 +494,7 @@ export function packageReadme(m: RawManifest, plan: RawPlan): string {
   return [
     `# Raw capture — ${m.scenario}`,
     '',
-    `Run \`${m.run.id}\` of project ${m.project.name} (captured ${m.run.captured_at}), exported ${m.created_at} by Demo Studio for editing in another tool.`,
+    `Run \`${m.run.id}\` of project ${m.project.name} (captured ${m.run.captured_at}), exported ${m.created_at} by Retake for editing in another tool.`,
     '',
     `- **Clips:** ${m.clips.length} (${plan.sequence.length} on the sequence), ${m.settings.codec}, **${fps} fps** constant frame rate (real frame timing of the capture, nothing interpolated), BT.709.`,
     `- **Sequence:** ${m.sequence.frames} frames = ${m.sequence.duration_s.toFixed(2)} s, ${m.sequence.start_tc} → ${m.sequence.end_tc}. Every clip's embedded start timecode is its place on the sequence, so source and record timecodes agree.`,
@@ -515,7 +516,7 @@ export function packageReadme(m: RawManifest, plan: RawPlan): string {
     '',
     'The interchange files point at the clips by absolute path (file:// URLs in the FCPXML and OTIO); if you move this folder, relink to `clips/` (names are unique). In Premiere Pro, import the clips folder and the EDL, or convert the OTIO with an OTIO adapter (e.g. otio-fcp-adapter to FCP 7 XML).',
     '',
-    ...(m.edit_files.length ? ['## Files the edit used', 'Your own media the Demo Studio edit of this scenario uses (intro / outro videos, overlays, images) — reuse them in your tool:', '', ...m.edit_files.map((f) => `- \`${f}\``), ''] : []),
+    ...(m.edit_files.length ? ['## Files the edit used', 'Your own media the Retake edit of this scenario uses (intro / outro videos, overlays, images) — reuse them in your tool:', '', ...m.edit_files.map((f) => `- \`${f}\``), ''] : []),
     ...(m.notes.length ? ['## Notes', ...m.notes.map((n) => `- ${n}`), ''] : []),
     ...(m.warnings.length ? ['## Warnings', ...m.warnings.map((n) => `- ${n}`), ''] : []),
     `Sizes: clips ${mb(m.clips.reduce((n, c) => n + c.size_bytes, 0))}${m.cursor.mode === 'layer' ? `, layers ${mb(m.clips.reduce((n, c) => n + (c.layer?.size_bytes ?? 0), 0))}` : ''}. Everything is described in \`manifest.json\`.`,

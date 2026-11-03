@@ -32,7 +32,7 @@ import { Fragment, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
-import { contrastRatio } from '@demo-studio/components/kit';
+import { contrastRatio } from '@retake/components/kit';
 import type { RecordOptionsAnswer, RecordViewAnswer } from '../src/server/record-ops.js';
 import { RecordingBody, StartForm } from '../src/app/RecordScreen.js';
 import { SlotContext } from '../src/app/shell/slots.js';
@@ -155,7 +155,7 @@ describe('the app builds no HTML from data (source lint)', () => {
     for (const [f, text] of files) {
       const src = code(text);
       expect(/from\s+['"]yaml['"]|import\(\s*['"]yaml['"]\s*\)|require\(\s*['"]yaml['"]/.test(src), `${f}: imports yaml`).toBe(false);
-      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*from\s+['"](@demo-studio\/[a-z-]+)['"]/gm)) expect(m[1], `${f}: a runtime import of ${m[2]}`).toBeTruthy();
+      for (const m of src.matchAll(/^import\s+(type\s+)?[^;]*from\s+['"](@retake\/[a-z-]+)['"]/gm)) expect(m[1], `${f}: a runtime import of ${m[2]}`).toBeTruthy();
     }
   });
 
@@ -1047,9 +1047,9 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     for (const v of ['var(--accent)', 'transparent', 'currentColor', 'inherit', '1px solid var(--line)', 'nowrap', 'pre-line', 'redirect']) expect(colourIn(v), v).toBe(false);
   });
 
-  it('⚑ tokens.css is tokens.ts written out (generated: pnpm -F @demo-studio/ui gen:tokens); its only URLs are the two bundled fonts', async () => {
+  it('⚑ tokens.css is tokens.ts written out (generated: pnpm -F @retake/ui gen:tokens); its only URLs are the two bundled fonts', async () => {
     const file = await readFile(join(APP, 'tokens.css'), 'utf8');
-    expect(file, 'tokens.css is stale: run pnpm -F @demo-studio/ui gen:tokens').toBe(tokensCss());
+    expect(file, 'tokens.css is stale: run pnpm -F @retake/ui gen:tokens').toBe(tokensCss());
     expect([...file.matchAll(/url\(([^)]*)\)/g)].map((m) => m[1])).toEqual(["'/fonts/Geist-Variable.woff2'", "'/fonts/GeistMono-Variable.woff2'"]);
     expect(file.match(/@font-face/g)).toHaveLength(2);
     // Dark by default (no preference), light only when the system asks for it; the scopes after the media block.
@@ -1550,7 +1550,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
       expect(table[f], f).toBeUndefined();
       expect(found.get(f), f).toEqual([]);
     }
-    // A row never goes up: not above the committed table's (pnpm -F @demo-studio/ui ratchet only lowers rows).
+    // A row never goes up: not above the committed table's (pnpm -F @retake/ui ratchet only lowers rows).
     const head = headTable();
     if (head) expect(Object.entries(table).filter(([f, n]) => n > (head[f] ?? 0)).map(([f]) => f)).toEqual([]);
     // Planted, in a file without a row: each kind found.
@@ -1570,7 +1570,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
     // The kit's utilities, a kit component, a --ui-* token, a non-widget role, a CLI flag in a string: nothing.
     expect(planted('<span className="k-sr k-mono">x</span>')).toEqual([]);
     expect(planted('<Button variant="primary">Go</Button>')).toEqual([]);
-    expect(planted('<div role="region" style={{ color: \'var(--ui-text-2)\' }} title="studio render --review" />')).toEqual([]);
+    expect(planted('<div role="region" style={{ color: \'var(--ui-text-2)\' }} title="retake render --review" />')).toEqual([]);
     // A stylesheet's classes are read from its selectors (the className lint's).
     expect([...cssClasses('.a, .b > .c:hover { x: 1 } @media (max-width: 9px) { .d.e { y: 2 } } /* .f */')].sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
@@ -1592,12 +1592,13 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
   it('the product\'s name lives in brand.ts: never written in the app\'s sources (the screens, the kit, the shell, the gallery) or bundle.ts', async () => {
     const files = await appSources();
     files.push(['../bundle.ts', await readFile(join(APP, '..', 'bundle.ts'), 'utf8')]);
-    // Any case, any run of spaces (a JSX text wrapped across lines, a no-break space) — review A-L8.
-    const NAME = /Demo\s+Studio/i;
+    // The name as a word, in JSX text, a string or a template (L5.13; the name before it is the guard test's: core
+    // old-name.test.ts).
+    const NAME = /\bRetake\b/;
     expect(files.filter(([f, text]) => f !== 'brand.ts' && NAME.test(code(text))).map(([f]) => f)).toEqual([]);
-    expect(files.find(([f]) => f === 'brand.ts')![1]).toContain("export const APP_NAME = 'Demo Studio';");
-    for (const planted of ['<p>Demo\n        Studio</p>', "'demo studio'", 'Demo\u00a0Studio']) expect(NAME.test(code(planted)), planted).toBe(true);
-    expect(NAME.test(code("import { x } from '@demo-studio/core';"))).toBe(false);
+    expect(files.find(([f]) => f === 'brand.ts')![1]).toContain("export const APP_NAME = 'Retake';");
+    for (const planted of ['<p>\n        Retake</p>', "'Retake'", '`${x} · Retake`']) expect(NAME.test(code(planted)), planted).toBe(true);
+    expect(NAME.test(code("import { x } from '@retake/core';"))).toBe(false);
   });
 });
 

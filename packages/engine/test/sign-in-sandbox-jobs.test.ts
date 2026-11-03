@@ -14,15 +14,15 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import { hookFingerprint } from '@demo-studio/hooks';
-import { openSandbox } from '@demo-studio/sandbox';
+import { loadProject } from '@retake/core';
+import { hookFingerprint } from '@retake/hooks';
+import { openSandbox } from '@retake/sandbox';
 import { EngineError, FileJobQueue, createEngine, historyFile, seedApprovalItems } from '../src/index.js';
 import type { ApprovalRequest, Approver, Engine, JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -67,7 +67,7 @@ const children: ChildProcess[] = [];
 function startWorker(env: NodeJS.ProcessEnv = {}): { exited: Promise<number | null>; err(): string; out(): string } {
   const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', ws, '--idle-exit', '600'], {
     cwd: REPO,
-    env: { ...process.env, DEMO_STUDIO_HOME: home, ...env },
+    env: { ...process.env, RETAKE_HOME: home, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   children.push(child);
@@ -97,11 +97,11 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
   beforeAll(async () => {
     ws = await mkdtemp(join(tmpdir(), 'studio-jobs-d-'));
     home = join(ws, '.home');
-    // The worker saves sessions in its DEMO_STUDIO_HOME; this process reads them from the same one.
-    savedHome = process.env.DEMO_STUDIO_HOME;
-    process.env.DEMO_STUDIO_HOME = home;
+    // The worker saves sessions in its RETAKE_HOME; this process reads them from the same one.
+    savedHome = process.env.RETAKE_HOME;
+    process.env.RETAKE_HOME = home;
     port = await freePort();
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const dir = join(ws, 'projects', 's');
     await mkdir(join(dir, 'sandbox'), { recursive: true });
     await writeFile(join(dir, 'sandbox', 'service.mjs'), SERVICE);
@@ -176,8 +176,8 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
       /* never started */
     }
     await fixture?.close();
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     if (ws) await rm(ws, { recursive: true, force: true });
   });
 
@@ -186,7 +186,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(items).toEqual([expect.objectContaining({ phase: 'seed', index: 1, name: 'mark', reason: 'a shell command (runs local code)' })]);
     const none = await engine.sandbox.up({ project: 's' }).catch((e: unknown) => e);
     expect(none).toBeInstanceOf(EngineError);
-    expect(none).toMatchObject({ code: 'needs_approval', fix: `studio -C ${ws} sandbox up s` });
+    expect(none).toMatchObject({ code: 'needs_approval', fix: `retake -C ${ws} sandbox up s` });
     const asked: ApprovalRequest[] = [];
     const declined = await engine.sandbox.up({ project: 's' }, { approver: approver(false, asked) }).catch((e: unknown) => e);
     expect(declined).toMatchObject({ code: 'refused' });
@@ -237,7 +237,7 @@ describe.skipIf(!posix)('sign-in and sandbox jobs (worker in its own process)', 
     expect(sub.job.input).toEqual({ version: 1, kind: 'auth_login', project: 's', env: 'signed-in', persona: 'supplier', mode: 'auto', submitted_by: 'test' });
     const w = startWorker({ NF_JOB_SUPPLIER: accounts.supplier.password });
     const job = await finished(sub.job.id);
-    expect(job, JSON.stringify(job)).toMatchObject({ state: 'succeeded', result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `studio -C ${ws} login s --env signed-in --persona supplier --auto` } });
+    expect(job, JSON.stringify(job)).toMatchObject({ state: 'succeeded', result: { kind: 'auth_login', persona: 'supplier', status: 'valid', signed_in: true, command: `retake -C ${ws} login s --env signed-in --persona supplier --auto` } });
     const text = JSON.stringify(job) + JSON.stringify(await queue.events(sub.job.id));
     expect(text).not.toContain(home);
     expect(text).not.toContain(accounts.supplier.password);

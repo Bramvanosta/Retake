@@ -6,8 +6,8 @@
  */
 import { copyFile, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve } from 'node:path';
-import { ARTEFACTS_DIR, isCaptureScene, isCard, isDocumentPath, normalizeStep, writeJson } from '@demo-studio/core';
-import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@demo-studio/core';
+import { ARTEFACTS_DIR, isCaptureScene, isCard, isDocumentPath, normalizeStep, writeJson } from '@retake/core';
+import type { BBox, BrowserConfig, DocumentArtefact, EmailArtefact, LoadedProject, NotificationArtefact, Scenario, TextArtefact, TimelineArtefact } from '@retake/core';
 import { errorMessage } from '../errors.js';
 import type { MailboxClient, MailMessage } from './mailbox.js';
 import { formatAddress, inlineCids } from './mailbox.js';

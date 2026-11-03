@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, rise, useCurrentFrame, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, FitText, cssFontFamily, darkLight, fadeIn, progress, rise, useCurrentFrame, withAlpha } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { tone: 'dark' | 'paper'; dim: number };
 

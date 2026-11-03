@@ -1,6 +1,6 @@
-import { reviewRender } from '@demo-studio/review';
-import type { Finding, ReviewProgress, ReviewResult } from '@demo-studio/review';
-import { environmentLine, findingLine, summaryLine } from '@demo-studio/review';
+import { reviewRender } from '@retake/review';
+import type { Finding, ReviewProgress, ReviewResult } from '@retake/review';
+import { environmentLine, findingLine, summaryLine } from '@retake/review';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -79,7 +79,7 @@ export async function runReview(
 }
 
 /**
- * `studio review <project> <render|latest>`: contact sheets, per-scene sheets, key frames, the output-time timeline and
+ * `retake review <project> <render|latest>`: contact sheets, per-scene sheets, key frames, the output-time timeline and
  * report.json/report.md in review/<render>/, and the findings on the terminal.
  */
 export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: string, render: string, opts: ReviewCommandOptions): Promise<ExitCode> {

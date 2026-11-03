@@ -1,6 +1,6 @@
 /**
  * L1.7 end to end on the fixture product (R-ENV-01/03/05): the committed `read-only` scenario (holds removed, quick
- * pacing) dry-run through the `studio` CLI on a production environment pointing at the fixture on free ports. The
+ * pacing) dry-run through the `retake` CLI on a production environment pointing at the fixture on free ports. The
  * request's POST is answered by the scenario's mock and never reaches the server (`/api/health` → `mutations`
  * unchanged), the caption's `{{shop}}` reads the display URL, and two takes read the same "Prices as of" line from
  * the product's clock. Skipped when Chromium is not available.
@@ -12,14 +12,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RunProgress, RunRecord, Timeline } from '@demo-studio/core';
+import type { RunProgress, RunRecord, Timeline } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { writesSummary } from '../src/commands/run.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -37,9 +37,9 @@ interface Fixture {
 let fixture: Fixture;
 let ws: string;
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -91,7 +91,7 @@ describe.skipIf(!chromiumAvailable())('the fixture read-only scenario (productio
     };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'studio-read-only-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'fx');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
@@ -122,7 +122,7 @@ describe.skipIf(!chromiumAvailable())('the fixture read-only scenario (productio
 
   it('runs read-only: the quote request is mocked, nothing reaches the server, captions show the display URL', async () => {
     const before = await mutations();
-    const r = await studio('run', 'fx', 'read-only', '--dry', '--hooks', 'run', '--json');
+    const r = await retake('run', 'fx', 'read-only', '--dry', '--hooks', 'run', '--json');
     const run = runOf(r.out);
     expect(run.error?.message ?? '', r.err).toBe('');
     expect(r.code).toBe(EXIT.ok);
@@ -144,7 +144,7 @@ describe.skipIf(!chromiumAvailable())('the fixture read-only scenario (productio
   it('two takes read the same date and time from the product clock', async () => {
     const takes: string[] = [];
     for (let i = 0; i < 2; i++) {
-      const r = await studio('run', 'fx', 'read-only', '--dry', '--until', 'prices.0', '--json');
+      const r = await retake('run', 'fx', 'read-only', '--dry', '--until', 'prices.0', '--json');
       const run = runOf(r.out);
       expect(run.status, r.err).toBe('succeeded');
       const tl = JSON.parse(await readFile(join(run.dir, 'timeline.json'), 'utf8')) as Timeline;

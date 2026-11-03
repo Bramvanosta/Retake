@@ -12,7 +12,7 @@
  * preview allow-list's own definition of "this component's content"). A component whose spec cannot be built gets a
  * key over its folder and the error (a failure recorded under it is retried once the component changes).
  *
- * **Cache** `<workspace>/.demo-studio/cache/previews/<key>/` (B4, B17): `.demo-studio`, `cache` and `previews` are real
+ * **Cache** `<workspace>/.retake/cache/previews/<key>/` (B4, B17): `.retake`, `cache` and `previews` are real
  * folders (a link or a file there is refused, nothing is written); an entry is written into `<key>.tmp-<pid>-<hex>/` and
  * the folder renamed into place, `meta.json` (or `failed.json`) last — an entry is complete or absent. One entry per key:
  * `meta.json` + `poster.png` / `loop.gif`, `meta.json` alone for a loop too large to keep, or `failed.json` (the reason:
@@ -30,10 +30,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf } from '@demo-studio/core';
-import type { LoadedTemplate, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentRegistry, JsonSchemaNode } from '@demo-studio/components';
-import type { PreviewSamples } from '@demo-studio/editor';
+import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf } from '@retake/core';
+import type { LoadedTemplate, WorkspaceConfig } from '@retake/core';
+import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
+import type { PreviewSamples } from '@retake/editor';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { editor } from './jobs/render-job.js';
@@ -62,9 +62,9 @@ const TMP_RE = /^([0-9a-f]{32})\.tmp-\d+-[0-9a-f]{8}$/;
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const GIF_MAGIC = Buffer.from('GIF89a', 'latin1');
 
-/** <workspace>/.demo-studio/cache/previews */
+/** <workspace>/.retake/cache/previews */
 export function libraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): string {
-  return join(resolve(ws.root), '.demo-studio', 'cache', 'previews');
+  return join(resolve(ws.root), '.retake', 'cache', 'previews');
 }
 
 // ── Keys ─────────────────────────────────────────────────────────────────────
@@ -191,12 +191,12 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
 // ── Cache folder ─────────────────────────────────────────────────────────────
 
 /**
- * The cache folder, made when missing: `.demo-studio`, `cache` and `previews` each a real folder (not a link, not a
+ * The cache folder, made when missing: `.retake`, `cache` and `previews` each a real folder (not a link, not a
  * file) inside the workspace once links are followed — else refused and nothing is written (B17).
  */
 export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string> {
   let parent = resolve(ws.root);
-  for (const seg of ['.demo-studio', 'cache', 'previews']) {
+  for (const seg of ['.retake', 'cache', 'previews']) {
     parent = join(parent, seg);
     await mkdir(parent).catch((e: NodeJS.ErrnoException) => {
       if (e.code !== 'EEXIST') throw e;
@@ -211,7 +211,7 @@ export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): 
 /** The cache folder when each segment is a real folder already (reads never make or follow anything), else null. */
 export async function plainLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string | null> {
   let parent = resolve(ws.root);
-  for (const seg of ['.demo-studio', 'cache', 'previews']) {
+  for (const seg of ['.retake', 'cache', 'previews']) {
     parent = join(parent, seg);
     const st = await lstat(parent).catch(() => null);
     if (!st?.isDirectory()) return null;
@@ -482,7 +482,7 @@ export async function freeBytesOf(dir: string): Promise<number | undefined> {
 /** The sentence of a library job refused or stopped for disk space. */
 export function diskSentence(free: number | undefined): string {
   const mb = free === undefined ? 'almost no' : String(Math.floor(free / 1_000_000));
-  return `the disk has ${mb} MB free: library previews need at least 1 GB free — free some space (\`studio prune <project>\` removes failed takes, dry runs and old renders) and try again`;
+  return `the disk has ${mb} MB free: library previews need at least 1 GB free — free some space (\`retake prune <project>\` removes failed takes, dry runs and old renders) and try again`;
 }
 
 /** Refuse a library job under LIBRARY_DISK_MIN_BYTES free (unmeasurable: allowed). */
@@ -508,7 +508,7 @@ export interface LibraryStatesView {
 }
 
 /**
- * Is this theme folder the editorial starter shipped with Demo Studio (by real path, B15: a workspace whose
+ * Is this theme folder the editorial starter shipped with Retake (by real path, B15: a workspace whose
  * templates_dir is the starters folder lists it as `workspace`)?
  */
 export function isEditorialStarter(template: Pick<LoadedTemplate, 'dir'>): boolean {

@@ -17,7 +17,7 @@ Reproduce with the commands at the end (the fixture must be running for the capt
 
 ## Renders and reviews
 
-| Render | What | Length | `studio review` | Folder |
+| Render | What | Length | `retake review` | Folder |
 |---|---|---|---|---|
 | **catalogue-v7** | editorial theme | 71.87 s | **clean** (no error, no warning; 4 info) | `review/catalogue-v7/` |
 | **quote-v17** | editorial theme | 69.97 s | **clean** (2 info) | `review/quote-v17/` |
@@ -38,13 +38,13 @@ renders, superseded by v18 / v19).
 `git diff -- projects/ templates/` is empty: no scenario, project or template file was edited. Both switches are render
 options of the same capture:
 
-- **Theme** — `studio render northfield-fixture quote --run 20261012-144221-quote --theme motion` (= `EditOverrides
+- **Theme** — `retake render northfield-fixture quote --run 20261012-144221-quote --theme motion` (= `EditOverrides
   {theme: 'motion'}`). The motion template picks its own components: the review's diff against quote-v17 lists
   `intro-stack → intro-minimal`, `caption-below → caption-overlay`, `interstitial-clock → interstitial-plain`,
   `crossfade → fade-black` on every join and the motion layout params (radius, strong shadow); the layout stays
   `studio/layout-card` because the project asks for `frame: card` (a project / scenario frame wins over the theme's
   own `layout-browser`), and the theme's default zoom adds one slow 1.12× zoom on the marked step.
-- **One component** — `studio render northfield-fixture quote --run 20261012-144221-quote --theme editorial --frame
+- **One component** — `retake render northfield-fixture quote --run 20261012-144221-quote --theme editorial --frame
   studio/layout-laptop` (= `EditOverrides {frame: 'studio/layout-laptop'}`; `--frame` takes a frame style or any
   layout component id). The diff of quote-v19 against quote-v17 names exactly one change per clip — `layout:
   studio/layout-card → studio/layout-laptop; layout geometry` — same length, same captions, transitions and cards.
@@ -141,7 +141,7 @@ dimmed page from the click on "Send request" — a full-size crop shows clean ra
 in the theme accent, the Lottie check badge over empty space right of the quotes list, the end-card image as the outro.
 
 ## Raw export (R-RAW on the acceptance)
-`studio export-capture northfield-fixture 20261012-144221-quote --format mp4 --fps 30 --cursor baked` (1 m 01 s) →
+`retake export-capture northfield-fixture 20261012-144221-quote --format mp4 --fps 30 --cursor baked` (1 m 01 s) →
 `exports/20261012-144221-quote-raw-mp430-baked/`: 4 clips (H.264 High, yuv420p, 30 fps, 1678 frames = 55.93 s; no
 loading cut — every wait of this run was shorter than 0.3 s), 35 markers (4 scene, 25 step, 1 mark, 5 caption).
 `scripts/validate-raw.py` (OpenTimelineIO 0.18.1 + the cmx_3600 and fcpx_xml adapters in a scratch venv) → **OK**:
@@ -161,7 +161,7 @@ node packages/cli/dist/bin.js render northfield-fixture catalogue --theme editor
 node packages/cli/dist/bin.js render northfield-fixture quote --theme editorial --review
 node packages/cli/dist/bin.js render northfield-fixture quote --theme motion && node packages/cli/dist/bin.js review northfield-fixture latest --scenario quote --previous <editorial render>
 node packages/cli/dist/bin.js render northfield-fixture quote --frame studio/layout-laptop && node packages/cli/dist/bin.js review northfield-fixture latest --scenario quote --previous <editorial render>
-node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.demo-studio/test-bed.m4a --review
+node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.retake/test-bed.m4a --review
 node packages/cli/dist/bin.js export-capture northfield-fixture latest --scenario quote
 python3 scripts/validate-raw.py projects/northfield-fixture/exports/<run>-raw-mp430-baked
 ```

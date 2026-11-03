@@ -16,8 +16,8 @@ import {
   readableOn,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, PictureMedia, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, PictureMedia, ThemeTokens } from '@retake/components/kit';
 
 type Params = { wipe_at: number; wipe: number; direction: 'left-to-right' | 'right-to-left' | 'top-to-bottom'; end_at: number; tone: 'paper' | 'dark' };
 

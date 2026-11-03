@@ -6,9 +6,9 @@
 # downloads it: film that one on the process sandbox).
 #
 #   node fixtures/wholesale/build.mjs                                            # the UI bundle the image copies
-#   studio sandbox up northfield-fixture --env sandbox-docker                    # build (first time), start, seed
-#   studio run northfield-fixture sandbox-quote --env sandbox-docker --sandbox   # reset to the seed, then the take
-#   studio sandbox down northfield-fixture --env sandbox-docker                  # stop (the image stays: docker image rm)
+#   retake sandbox up northfield-fixture --env sandbox-docker                    # build (first time), start, seed
+#   retake run northfield-fixture sandbox-quote --env sandbox-docker --sandbox   # reset to the seed, then the take
+#   retake sandbox down northfield-fixture --env sandbox-docker                  # stop (the image stays: docker image rm)
 version: 1
 provider: docker-compose
 compose:

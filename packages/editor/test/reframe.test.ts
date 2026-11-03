@@ -5,9 +5,9 @@
  * fixture timelines planned in both variants.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Timeline } from '@demo-studio/core';
-import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, planEdit, reframeTargets, reframeTrack, viewOf } from '@demo-studio/editor';
-import type { CameraFrame, ClipSegment, EditPlan, ReframeTarget } from '@demo-studio/editor';
+import type { Timeline } from '@retake/core';
+import { REFRAME, corridorSmooth, dampedSmooth, leadingPart, planEdit, reframeTargets, reframeTrack, viewOf } from '@retake/editor';
+import type { CameraFrame, ClipSegment, EditPlan, ReframeTarget } from '@retake/editor';
 import { clips, fixtureProject, realTimeline, studioWorkspace, template } from './helpers.js';
 import type { Workspace } from './helpers.js';
 

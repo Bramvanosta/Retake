@@ -16,7 +16,7 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { RenderJobInput } from '@demo-studio/core';
+import type { RenderJobInput } from '@retake/core';
 import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -44,13 +44,13 @@ let root: string;
 let dir: string;
 let engine: Engine;
 let queue: FileJobQueue;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const scenarioFile = () => join(dir, 'scenarios', `${SCENARIO}.yaml`);
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-render-snapshot-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
@@ -76,8 +76,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 
@@ -86,7 +86,7 @@ async function renderUntilStage(job: JobRecord, jobDir: string | undefined): Pro
   const events: unknown[] = [];
   const e = await executeRenderJob({
     ws: engine.workspace,
-    cli: 'studio',
+    cli: 'retake',
     input: job.input as RenderJobInput,
     signal: AbortSignal.abort(),
     event: (x) => events.push(x),
@@ -153,7 +153,7 @@ describe('render job snapshot (critique B5)', () => {
 describe('the inline review of a render (critique B12)', () => {
   const ctx = (signal: AbortSignal, log: unknown[]) => ({
     ws: engine.workspace,
-    cli: 'studio',
+    cli: 'retake',
     signal,
     event: (e: unknown) => log.push(e),
     progress: (p: { phase?: string }) => log.push(p.phase),

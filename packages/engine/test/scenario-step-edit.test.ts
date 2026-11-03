@@ -13,7 +13,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ScenarioError, parseYaml, stepGuard } from '@demo-studio/core';
+import { ScenarioError, parseYaml, stepGuard } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine, StepBinding } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -26,7 +26,7 @@ const RLO = String.fromCodePoint(0x202e);
 let ws: string;
 let dir: string;
 let ui: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const file = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
 const stepsOf = (t: string, scene: string) => (parseYaml(t).value as { scenes: Array<{ id: string; steps: unknown[] }> }).scenes.find((s) => s.id === scene)!.steps;
 const at = (t: string, scene: string, index: number) => ({ scene, index, guard: stepGuard(stepsOf(t, scene)[index]) });
@@ -48,7 +48,7 @@ async function snapshot(name: string): Promise<{ bytes: string; mtime: number }>
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-step-edit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   dir = join(ws, 'projects', P);
   await writeFile(file('blocks'), BLOCKS_YAML);
@@ -57,8 +57,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -5,14 +5,14 @@
  *
  * - Editable by real path, never by `source` (critique B15: a workspace whose templates_dir is the starters folder lists
  *   them as `workspace`): the theme folder must be a real folder (no link) directly in templates_dir, which lies inside
- *   the workspace, outside the Demo Studio package; its template.yaml a regular file with one name (no symbolic or hard
+ *   the workspace, outside the Retake package; its template.yaml a regular file with one name (no symbolic or hard
  *   link). Starters, a project's own folder theme and anything else are read-only with why ("Copy to edit").
  * - A write: the hash the page read (`if_match`, a conflict otherwise naming the current one); the edit built by core
  *   applyThemeEdit (allow-list, `from`, splice) and verified (re-parsed, exactly the intended value); no hidden
  *   character added on a changed line; the theme re-parsed (no error), every file it names a regular file inside its
  *   folder with no link on the way (logo / wordmark checked as images — SVGs scanned —, fonts sniffed), the registry
  *   resolving every kind (kept params validated against the new component); then written atomically under the storage
- *   write lock keyed on the file's real path (workspace `.demo-studio/locks/`), its mode kept.
+ *   write lock keyed on the file's real path (workspace `.retake/locks/`), its mode kept.
  * - Undo / redo (critique B14): `restore` sends the bytes and their sha256, accepted only for a version this process
  *   showed (view) or wrote — never text a page made up; a restored version skips only the hidden-character check (it was
  *   on disk once) and passes every other check again.
@@ -42,9 +42,9 @@ import {
   readPlainFile,
   realPathOf,
   verifyEditText,
-} from '@demo-studio/core';
-import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, WorkspaceConfig } from '@demo-studio/core';
-import type { PaletteCheck } from '@demo-studio/components';
+} from '@retake/core';
+import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, WorkspaceConfig } from '@retake/core';
+import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -52,7 +52,7 @@ import { listProjectSummaries, openProjectBySlug } from './projects.js';
 import { LocalStorage, sha256Hex } from './storage.js';
 import { checkTemplateName } from './templates.js';
 
-/** The Demo Studio package (the repository or its install folder): its themes are shipped files, never edited. */
+/** The Retake package (the repository or its install folder): its themes are shipped files, never edited. */
 const PACKAGE_DIR = resolve(STARTER_TEMPLATES_DIR, '..');
 /** Files a theme folder view lists, at most (a theme is a handful of files). */
 const THEME_FILES_MAX = 2_000;
@@ -110,8 +110,8 @@ async function locateTheme(ws: WorkspaceConfig, name: string): Promise<ThemeLoca
 
 /** Why the Studio may not write this theme (critique B15), or true. */
 async function editability(ws: WorkspaceConfig, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
-  if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Demo Studio: copy it to edit it` };
-  if (isInside(realPathOf(PACKAGE_DIR), realDir)) return { why: `${entry.name} is a theme shipped with Demo Studio (its folder lies in the Demo Studio package): copy it to edit it` };
+  if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Retake: copy it to edit it` };
+  if (isInside(realPathOf(PACKAGE_DIR), realDir)) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
   const realRoot = realPathOf(resolve(ws.root));
   const realTemplates = realPathOf(resolve(ws.templatesDir));
   if (!isInside(realRoot, realTemplates)) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };

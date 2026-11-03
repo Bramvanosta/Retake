@@ -17,7 +17,7 @@ import {
   resolveThemeComponents,
   COMPONENT_KINDS,
   COMPONENT_ID_RE,
-} from '@demo-studio/core';
+} from '@retake/core';
 
 /** The repository itself is a workspace: bundled starter templates and the fixture project. */
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));

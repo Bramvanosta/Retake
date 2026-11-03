@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@demo-studio/core';
-import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@demo-studio/editor';
-import type { LoadedProject } from '@demo-studio/core';
-import type { EditOverrides, RenderProgress, RenderRecord } from '@demo-studio/editor';
-import { appendHistory } from '@demo-studio/engine';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@retake/core';
+import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@retake/editor';
+import type { LoadedProject } from '@retake/core';
+import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/editor';
+import { appendHistory } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -32,7 +32,7 @@ export interface RenderCommandOptions {
   out?: string;
   concurrency?: string;
   json?: boolean;
-  /** Review the render right after it (studio review). */
+  /** Review the render right after it (retake review). */
   review?: boolean;
 }
 
@@ -40,7 +40,7 @@ export interface StillCommandOptions {
   run?: string;
   /** Output frame number (required). */
   frame?: string;
-  /** Frame (layout) of every scene: a FrameStyle or a layout component id (`studio render --frame`). */
+  /** Frame (layout) of every scene: a FrameStyle or a layout component id (`retake render --frame`). */
   layout?: string;
   theme?: string;
   vertical?: boolean;
@@ -151,12 +151,12 @@ function warnScenarioChanged(ui: Ui, project: LoadedProject, runArg: string, sce
   }
   const since = scenarioSinceRun(project, dir, scenario);
   if (!since?.changed) return;
-  if (since.filmed === undefined || since.filmed.length > 0) ui.warn(scenarioChangedMessage(scenario, id, `\`studio run ${project.slug} ${scenario}\``, since.filmed));
+  if (since.filmed === undefined || since.filmed.length > 0) ui.warn(scenarioChangedMessage(scenario, id, `\`retake run ${project.slug} ${scenario}\``, since.filmed));
   else ui.info(editReplannedMessage(scenario, id));
 }
 
 /**
- * `studio render <project> <scenario>`: plan and render the latest capture of a scenario (or `--run`) into
+ * `retake render <project> <scenario>`: plan and render the latest capture of a scenario (or `--run`) into
  * renders/<scenario>-v<N>.mp4 + .json, with a progress bar and a summary.
  */
 export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenario: string, opts: RenderCommandOptions): Promise<ExitCode> {
@@ -224,7 +224,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   }
 }
 
-/** `studio still <project> <scenario> --frame <n>`: one output frame of the planned video as a PNG. */
+/** `retake still <project> <scenario> --frame <n>`: one output frame of the planned video as a PNG. */
 export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: string, scenario: string, opts: StillCommandOptions): Promise<ExitCode> {
   if (opts.frame === undefined || !/^\d+$/.test(opts.frame)) throw new UsageError('--frame <n>: the output frame number (0-based) is required');
   const frame = Number(opts.frame);

@@ -1,7 +1,7 @@
 /**
- * `studio mcp --http` from the built entry point (`pnpm build` first; skipped without dist): `--print-config --http`
- * prints the HTTP registration (the URL; the stable token of the studio home, 0600, only by reference — its file in
- * the `claude mcp add` line, $DEMO_STUDIO_MCP_TOKEN in the .mcp.json block — never the token itself); `--http --port 0
+ * `retake mcp --http` from the built entry point (`pnpm build` first; skipped without dist): `--print-config --http`
+ * prints the HTTP registration (the URL; the stable token of the Retake home, 0600, only by reference — its file in
+ * the `claude mcp add` line, $RETAKE_MCP_TOKEN in the .mcp.json block — never the token itself); `--http --port 0
  * --json` prints one JSON line, nothing on stderr, serves the 45 tools to the SDK's Streamable HTTP client holding that
  * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error.
  */
@@ -24,8 +24,8 @@ let ws: string;
 let home: string;
 const children: ChildProcess[] = [];
 
-function studio(args: string[]): { child: ChildProcess; line: Promise<string>; exit: Promise<{ code: number | null; out: string; err: string }> } {
-  const child = spawn(process.execPath, [BIN, ...args], { cwd: base, env: { ...process.env, DEMO_STUDIO_HOME: home, DEMO_STUDIO_ROOT: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
+function retake(args: string[]): { child: ChildProcess; line: Promise<string>; exit: Promise<{ code: number | null; out: string; err: string }> } {
+  const child = spawn(process.execPath, [BIN, ...args], { cwd: base, env: { ...process.env, RETAKE_HOME: home, RETAKE_ROOT: '' }, stdio: ['ignore', 'pipe', 'pipe'] });
   children.push(child);
   let out = '';
   let err = '';
@@ -53,9 +53,9 @@ afterAll(async () => {
   if (base) await rm(base, { recursive: true, force: true });
 });
 
-describe.skipIf(!built)('studio mcp --http (built CLI)', () => {
-  it('--print-config --http: the URL and the token by reference only (its 0600 file, $DEMO_STUDIO_MCP_TOKEN) — never the token, before or after --rotate-token', async () => {
-    const first = await studio(['--root', ws, 'mcp', '--print-config', '--http', '--port', '47999']).exit;
+describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
+  it('--print-config --http: the URL and the token by reference only (its 0600 file, $RETAKE_MCP_TOKEN) — never the token, before or after --rotate-token', async () => {
+    const first = await retake(['--root', ws, 'mcp', '--print-config', '--http', '--port', '47999']).exit;
     expect(first.code, first.err).toBe(0);
     const file = join(home, 'mcp-http.token');
     expect((await stat(file)).mode & 0o777).toBe(0o600);
@@ -64,15 +64,15 @@ describe.skipIf(!built)('studio mcp --http (built CLI)', () => {
     expect(first.out).not.toContain(token);
     expect(first.err).not.toContain(token);
     const json = JSON.parse(first.out.slice(0, first.out.indexOf('\n}\n') + 2)) as { mcpServers: Record<string, unknown> };
-    expect(json).toEqual({ mcpServers: { 'demo-studio': { type: 'http', url: 'http://127.0.0.1:47999/mcp', headers: { Authorization: 'Bearer ${DEMO_STUDIO_MCP_TOKEN}' } } } });
+    expect(json).toEqual({ mcpServers: { 'retake': { type: 'http', url: 'http://127.0.0.1:47999/mcp', headers: { Authorization: 'Bearer ${RETAKE_MCP_TOKEN}' } } } });
     // The JSON on stdout (to pipe), the lines for a person on stderr — as the stdio registration.
-    expect(first.err).toContain(`claude mcp add --transport http demo-studio http://127.0.0.1:47999/mcp --scope user --header "Authorization: Bearer $(cat ${file})"`);
-    expect(first.err).toContain(`export DEMO_STUDIO_MCP_TOKEN="$(cat ${file})"`);
-    expect(first.err).toContain(`studio --root ${ws} mcp --http --port 47999`);
-    const again = await studio(['--root', ws, 'mcp', '--print-config', '--http', '--port', '47999']).exit;
+    expect(first.err).toContain(`claude mcp add --transport http retake http://127.0.0.1:47999/mcp --scope user --header "Authorization: Bearer $(cat ${file})"`);
+    expect(first.err).toContain(`export RETAKE_MCP_TOKEN="$(cat ${file})"`);
+    expect(first.err).toContain(`retake --root ${ws} mcp --http --port 47999`);
+    const again = await retake(['--root', ws, 'mcp', '--print-config', '--http', '--port', '47999']).exit;
     expect(`${again.out}${again.err}`).not.toContain(token);
     expect(again.err).not.toContain('register the server again');
-    const rotated = await studio(['--root', ws, 'mcp', '--print-config', '--http', '--rotate-token']).exit;
+    const rotated = await retake(['--root', ws, 'mcp', '--print-config', '--http', '--rotate-token']).exit;
     expect(rotated.code).toBe(0);
     const fresh = (await readFile(file, 'utf8')).trim();
     expect(fresh).not.toBe(token);
@@ -82,11 +82,11 @@ describe.skipIf(!built)('studio mcp --http (built CLI)', () => {
   });
 
   it('--http --port 0 --json: one JSON line, nothing on stderr; the 45 tools over HTTP with the token; SIGTERM → exit 0', async () => {
-    const s = studio(['--root', ws, 'mcp', '--http', '--port', '0', '--json']);
+    const s = retake(['--root', ws, 'mcp', '--http', '--port', '0', '--json']);
     const line = JSON.parse(await s.line) as { type: string; url: string; port: number; pid: number };
     expect(line).toMatchObject({ type: 'mcp-http', url: `http://127.0.0.1:${line.port}/mcp`, pid: s.child.pid });
     const token = (await readFile(join(home, 'mcp-http.token'), 'utf8')).trim();
-    const client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+    const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
     const transport = new StreamableHTTPClientTransport(new URL(line.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } });
     await client.connect(transport);
     expect((await client.listTools()).tools).toHaveLength(45);
@@ -104,7 +104,7 @@ describe.skipIf(!built)('studio mcp --http (built CLI)', () => {
   });
 
   it('the HTTP flags without --http: usage error (exit 2)', async () => {
-    const r = await studio(['--root', ws, 'mcp', '--port', '1']).exit;
+    const r = await retake(['--root', ws, 'mcp', '--port', '1']).exit;
     expect(r.code).toBe(2);
     expect(r.err).toContain('go with --http');
   });

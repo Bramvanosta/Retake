@@ -1,7 +1,7 @@
 /**
  * The built entry point (`dist/bin.js`) must tell an old Node.js which version it needs instead of failing with a bare
  * SyntaxError (R-MAC-03): no ESM syntax or post-ES2017 syntax may reach the version check. Runs on the build output
- * (`pnpm build` first). DEMO_STUDIO_TEST_OLD_NODE=/path/to/node (e.g. a Node.js 10) also runs it on that Node.js.
+ * (`pnpm build` first). RETAKE_TEST_OLD_NODE=/path/to/node (e.g. a Node.js 10) also runs it on that Node.js.
  */
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -32,13 +32,13 @@ describe.skipIf(!built)('dist/bin.js on any Node.js (R-MAC-03)', () => {
   });
 
   it('refuses a Node.js older than 22 with the version it needs; loads the CLI on 22+', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'demo-studio-bin-'));
+    const dir = await mkdtemp(join(tmpdir(), 'retake-bin-'));
     try {
       const old = join(dir, 'old-node.cjs');
       await writeFile(old, "Object.defineProperty(process.versions, 'node', { value: '18.19.0' });\n");
       const r = await run(process.execPath, ['-r', old, BIN, '--version']);
       expect(r.code).toBe(1);
-      expect(r.err).toContain('studio needs Node.js 22 or later; this is v18.19.0');
+      expect(r.err).toContain('retake needs Node.js 22 or later; this is v18.19.0');
       expect(r.out).toBe('');
       const ok = await run(process.execPath, [BIN, '--version']);
       expect(ok.code, ok.err).toBe(0);
@@ -49,7 +49,7 @@ describe.skipIf(!built)('dist/bin.js on any Node.js (R-MAC-03)', () => {
   });
 
   it.skipIf(process.platform === 'win32')('loads the CLI through a symbolic link to bin.js (ln -s …/dist/bin.js ~/.local/bin/studio)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'demo-studio-bin-'));
+    const dir = await mkdtemp(join(tmpdir(), 'retake-bin-'));
     try {
       const link = join(dir, 'studio');
       await symlink(BIN, link);
@@ -61,9 +61,9 @@ describe.skipIf(!built)('dist/bin.js on any Node.js (R-MAC-03)', () => {
     }
   });
 
-  it.skipIf(!process.env.DEMO_STUDIO_TEST_OLD_NODE)('a real old Node.js prints the message (DEMO_STUDIO_TEST_OLD_NODE)', async () => {
-    const r = await run(process.env.DEMO_STUDIO_TEST_OLD_NODE!, [BIN, '--version']);
+  it.skipIf(!process.env.RETAKE_TEST_OLD_NODE)('a real old Node.js prints the message (RETAKE_TEST_OLD_NODE)', async () => {
+    const r = await run(process.env.RETAKE_TEST_OLD_NODE!, [BIN, '--version']);
     expect(r.code).toBe(1);
-    expect(r.err).toMatch(/^studio needs Node\.js 22 or later; this is v\d+/);
+    expect(r.err).toMatch(/^retake needs Node\.js 22 or later; this is v\d+/);
   });
 });

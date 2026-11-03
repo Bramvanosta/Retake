@@ -10,7 +10,7 @@ import {
   loadTemplate,
   parseTemplateYaml,
   STARTER_TEMPLATES_DIR,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { tempDir, writeFiles } from './helpers.js';
 
 const ASSETS = {

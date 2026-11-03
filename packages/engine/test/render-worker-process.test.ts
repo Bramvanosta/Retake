@@ -1,7 +1,7 @@
 /**
  * L3.2: a render job's worker killed with SIGKILL mid-render (the worker in a process of its own, from the sources).
  * Remotion starts its Chromium detached: the browser outlives the worker. The job reads `interrupted` (with the
- * `studio render` a human runs); the next worker kills the browser the job recorded (pid AND start time), removes its
+ * `retake render` a human runs); the next worker kills the browser the job recorded (pid AND start time), removes its
  * temporary profile, the version lock and the partial video — no orphan headless shell is left. Synthetic capture, no
  * fixture product. The same for an export killed mid re-render (its browser and partial files), and a review killed
  * mid-way (the previous review, even one set aside by a swap, comes back). Needs ffmpeg and a headless shell.
@@ -13,8 +13,8 @@ import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:f
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import { renderVideo } from '@demo-studio/editor';
+import { loadProject } from '@retake/core';
+import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -28,12 +28,12 @@ let root: string;
 let engine: Engine;
 let queue: FileJobQueue;
 const children: ChildProcess[] = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 function startWorker(...args: string[]): { child: ChildProcess; exited: Promise<number | null>; err(): string } {
   const child = spawn(process.execPath, ['--conditions=source', '--import', 'tsx', join(REPO, 'packages/engine/src/worker-main.ts'), '--root', root, ...args], {
     cwd: REPO,
-    env: { ...process.env, DEMO_STUDIO_HOME: join(root, '.home') },
+    env: { ...process.env, RETAKE_HOME: join(root, '.home') },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
   children.push(child);
@@ -70,8 +70,8 @@ function shellsOf(profile: string): string[] {
 beforeAll(async () => {
   if (!canRender) return;
   root = await mkdtemp(join(tmpdir(), 'studio-render-kill-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const runDir = join(root, 'projects', 'demo', 'runs', '20260101-120000-synthetic');
   await mkdir(runDir, { recursive: true });
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
@@ -96,8 +96,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -125,7 +125,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
       return j?.state === 'interrupted' ? j : undefined;
     }, 10_000);
     expect(job.error?.message).toContain(`nothing was written under ${sub.render_id}`);
-    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`studio -C ${root} render demo synthetic --run 20260101-120000-synthetic`);
+    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} render demo synthetic --run 20260101-120000-synthetic`);
     expect(await engine.renders.status('demo', sub.render_id)).toMatchObject({ status: 'interrupted', finished: true });
     expect((await readdir(renders)).some((f) => f === `.synthetic-v1.lock`)).toBe(true);
 
@@ -168,7 +168,7 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
       return j?.state === 'interrupted' ? j : undefined;
     }, 10_000);
     expect(job.error?.message).toContain(`The export stopped: formats written before stay in exports/${renderId}/`);
-    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`studio -C ${root} export demo ${renderId} --formats vertical_9x16`);
+    expect((await engine.jobs.get(sub.job.id)).error?.fix).toBe(`retake -C ${root} export demo ${renderId} --formats vertical_9x16`);
     // Remotion writes the re-render's file at its end: a partial file as an earlier kill (or ffmpeg) leaves it.
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, `.${renderId}-vertical.partial-0badc0de.mp4`), 'partial');

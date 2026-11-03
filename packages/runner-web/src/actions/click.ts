@@ -1,6 +1,6 @@
 import type { Page, Request, Response } from 'playwright-core';
-import { hasLocator, normalizeTarget, pickTarget } from '@demo-studio/core';
-import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec, TimelineEvent } from '@demo-studio/core';
+import { hasLocator, normalizeTarget, pickTarget } from '@retake/core';
+import type { ClickOptions, ClickStrategy, PointSpec, TargetObject, TargetSpec, TimelineEvent } from '@retake/core';
 import { StepError } from '../errors.js';
 import { distance, isNudge } from '../motion.js';
 import type { PopupEntry } from '../kit/types.js';

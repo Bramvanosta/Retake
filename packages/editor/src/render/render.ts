@@ -2,17 +2,17 @@
  * Rendering (DESIGN-phase2 §2.2): an EditPlan → an MP4 (h264 crf 16, yuv420p, faststart, an audio track always
  * present: silent without music) or a PNG still, with Remotion. The plan's assets are served by a local HTTP server
  * for the duration of the render, the compositions come from a cached bundle (./bundle.ts), and the browser is
- * $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL or Playwright's headless shell (./browser.ts).
+ * $RETAKE_CHROMIUM_HEADLESS_SHELL or Playwright's headless shell (./browser.ts).
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, cpus } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { findWorkspaceRoot, loadProject } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
@@ -59,7 +59,7 @@ export interface RenderPlanOptions {
   root?: string;
   /** Registry to find the plan's component implementations (default: the workspace's). */
   registry?: ComponentRegistry;
-  /** Bundle cache folder (default <root>/.demo-studio/cache). */
+  /** Bundle cache folder (default <root>/.retake/cache). */
   cacheDir?: string;
   concurrency?: number;
   signal?: AbortSignal;
@@ -72,7 +72,7 @@ export interface RenderPlanOptions {
   onBrowser?: (b: BrowserProcessInfo) => void;
 }
 
-/** `open`: the render's Chromium has the machine's network (a `studio` command); `guard`: network-guard.ts. */
+/** `open`: the render's Chromium has the machine's network (a `retake` command); `guard`: network-guard.ts. */
 export type RenderNetwork = 'open' | 'guard';
 
 export interface RenderPlanResult {
@@ -90,7 +90,7 @@ function cancelled(signal?: AbortSignal): boolean {
   return signal?.aborted === true;
 }
 
-/** Lazy: @remotion/renderer pulls in a lot (keep `studio plan` fast). */
+/** Lazy: @remotion/renderer pulls in a lot (keep `retake plan` fast). */
 async function remotionRenderer() {
   return import('@remotion/renderer');
 }
@@ -336,7 +336,7 @@ export interface RenderVideoOptions {
   /** Workspace root (default: the project's). */
   root?: string;
   registry?: ComponentRegistry;
-  /** Bundle cache folder (default <root>/.demo-studio/cache). */
+  /** Bundle cache folder (default <root>/.retake/cache). */
   cacheDir?: string;
   /** `mcp`: the plan passes planRun's trust gates first (work submitted through the MCP server). Default `author`. */
   trust?: PlanTrust;

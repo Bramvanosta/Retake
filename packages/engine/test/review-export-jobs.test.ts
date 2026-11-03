@@ -11,8 +11,8 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION } from '@demo-studio/core';
-import type { RenderRecord } from '@demo-studio/editor';
+import { JOB_INPUT_VERSION } from '@retake/core';
+import type { RenderRecord } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile, runWorker } from '../src/index.js';
 import type { Engine, ExportJobResult, ReviewJobResult } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
@@ -27,7 +27,7 @@ let ws: Workspace;
 let engine: Engine;
 let queue: FileJobQueue;
 let outside: string;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const work = () => runWorker({ root: ws.root, once: true, idleExitMs: 0, pollMs: 50, log: () => undefined });
 const historyLines = async () => (await readFile(historyFile(ws.root), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
@@ -45,7 +45,7 @@ async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false>
 beforeAll(async () => {
   if (!can) return;
   ws = await workspace();
-  process.env.DEMO_STUDIO_HOME = join(ws.root, '.home');
+  process.env.RETAKE_HOME = join(ws.root, '.home');
   // A short case (exports, its re-render) and a long one (a review long enough to be cancelled mid-way).
   await makeCase(ws, 'quote', scenesTimeline([5, 5], { captions: [`${INJECTION}. `.repeat(6), 'A short caption.'] }));
   await makeCase(ws, 'long', scenesTimeline([19, 19, 21]));
@@ -57,8 +57,8 @@ beforeAll(async () => {
 }, LONG);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await ws?.cleanup();
 });
 
@@ -229,7 +229,7 @@ describe.skipIf(!can)('export jobs', () => {
         );
         expect(e?.code, id).toBe('refused');
         expect(e?.message).toMatch(/is outside the project folder: through MCP a render is read only from the project/);
-        expect(e?.fix).toMatch(new RegExp(`^studio -C .* (export|review) demo ${id}`));
+        expect(e?.fix).toMatch(new RegExp(`^retake -C .* (export|review) demo ${id}`));
       }
     }
     // A job queued without a submit (written by hand): the worker checks again.

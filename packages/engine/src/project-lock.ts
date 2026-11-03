@@ -1,15 +1,15 @@
 /**
  * Locks of a project's files (L3.6 comment threads; L4.3 critique B1: every `if_match` write of `writeText`): a lock
- * file under `<project>/.demo-studio/locks/`, the sandbox package's TakeLock — created whole, stale only when its
+ * file under `<project>/.retake/locks/`, the sandbox package's TakeLock — created whole, stale only when its
  * process is gone (never by age) —, retried while a live process holds it, for at most `waitMs`. One process and
- * several (the Studio, `studio mcp`, a terminal) share it: two writers that read the same version can no longer both
+ * several (the Studio, `retake mcp`, a terminal) share it: two writers that read the same version can no longer both
  * pass their `if_match` check and rename one after the other (the last rename silently won).
  */
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
-import { isIsoUtcDate, printableText } from '@demo-studio/core';
-import { TakeLock, readLock } from '@demo-studio/sandbox';
-import type { LockRecord } from '@demo-studio/sandbox';
+import { isIsoUtcDate, printableText } from '@retake/core';
+import { TakeLock, readLock } from '@retake/sandbox';
+import type { LockRecord } from '@retake/sandbox';
 import { EngineError } from './errors.js';
 
 /** Between two tries of a busy lock (ms), by default. */
@@ -41,13 +41,13 @@ async function realDir(path: string): Promise<'ok' | 'missing' | 'a symbolic lin
 }
 
 /**
- * `<project>/.demo-studio/<sub>/`, made of real folders of the project: each level checked before it is created (never
+ * `<project>/.retake/<sub>/`, made of real folders of the project: each level checked before it is created (never
  * through a symbolic link: a lock, its temp and breaker files, or a still would land outside), then its real path
  * checked inside the project. Throws EngineError refused.
  */
 export async function toolDir(projectDir: string, sub: string): Promise<string> {
   let dir = projectDir;
-  for (const part of ['.demo-studio', sub]) {
+  for (const part of ['.retake', sub]) {
     dir = join(dir, part);
     let state = await realDir(dir);
     if (state === 'missing') {
@@ -72,7 +72,7 @@ export function lockHolder(held: LockRecord | null): { pid?: number; since?: str
 }
 
 /**
- * Take `<project>/.demo-studio/locks/<name>`: retried while a live process holds it (≤ `waitMs`), a dead holder's is
+ * Take `<project>/.retake/locks/<name>`: retried while a live process holds it (≤ `waitMs`), a dead holder's is
  * broken; then `busy(file, held)` is thrown. The lock folder is a real folder of the project (toolDir); anything but a
  * file at the lock path is refused (`what` names it: "comment c_…", "scenarios/quote.yaml").
  */
@@ -87,7 +87,7 @@ export async function takeProjectLock(
   for (;;) {
     const st = await lstatOrNull(file);
     if (st && !st.isFile()) {
-      throw new EngineError('refused', `${ref} is ${st.isSymbolicLink() ? 'a symbolic link' : 'not a file'}: ${o.what} cannot be locked`, { fix: `remove ${ref} (no studio command makes one)` });
+      throw new EngineError('refused', `${ref} is ${st.isSymbolicLink() ? 'a symbolic link' : 'not a file'}: ${o.what} cannot be locked`, { fix: `remove ${ref} (no retake command makes one)` });
     }
     try {
       return TakeLock.acquire(file, o.command, o.what);

@@ -12,7 +12,7 @@
  */
 import { useEffect, useId, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import type { ActionName, FormField, SceneBlock, StepBlock, StepForms } from '@demo-studio/core';
+import type { ActionName, FormField, SceneBlock, StepBlock, StepForms } from '@retake/core';
 import { Txt, shown, visibleControls } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { actionForm, fieldLabel, fieldWords, fieldsOf, formChanges, groupLabel, inputsOf, isRequired, issueField, readInputs } from './forms.js';

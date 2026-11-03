@@ -1,8 +1,8 @@
 /**
- * @demo-studio/components — components (plugins) of the edit: the contract (types), component.yaml manifests, the
+ * @retake/components — components (plugins) of the edit: the contract (types), component.yaml manifests, the
  * registry (workspace → built-in library), validation, scaffolding and theme tokens (docs/DESIGN-phase2.md §1).
  *
- * Component implementations import shared helpers from `@demo-studio/components/kit` (never from this entry, which
+ * Component implementations import shared helpers from `@retake/components/kit` (never from this entry, which
  * is Node-only).
  */
 export * from './types.js';

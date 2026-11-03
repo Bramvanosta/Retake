@@ -2,12 +2,12 @@
  * Pure helpers of the composition (no React): transition windows, URL and camera lookups, brand mark placement,
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
-import type { ComponentKind } from '@demo-studio/core';
-import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@demo-studio/components/kit';
-import type { LoupePlacement } from '@demo-studio/components/kit';
+import type { ComponentKind } from '@retake/core';
+import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/kit';
+import type { LoupePlacement } from '@retake/components/kit';
 import { mapSourceRect } from '../layout.js';
 import { insetRectAt, layoutPaneRectsAt, mapPaneRect, paneCaptureAt, paneSource } from '../panes.js';
-import type { LayoutRects } from '@demo-studio/components';
+import type { LayoutRects } from '@retake/components';
 import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
 

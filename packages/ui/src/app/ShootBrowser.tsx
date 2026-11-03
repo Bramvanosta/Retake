@@ -8,7 +8,7 @@
  * Prepare / Runs only while a scenario is in context. L5.11b fixes (review B-L6): a recording's line says its location
  * and step count again, and a saved one links its scenario (a row under it).
  */
-import type { RecordListItem, RecordState, ScenarioRunChoice } from '@demo-studio/engine';
+import type { RecordListItem, RecordState, ScenarioRunChoice } from '@retake/engine';
 import { Txt, plural } from './bits.js';
 import { STATE_WORDS, startedByWords } from './record-words.js';
 import { RUN_STATUS_WORDS } from './scenario-words.js';

@@ -1,5 +1,5 @@
-import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger, useCurrentFrame } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, FitText, Logo, Wordmark, cssFontFamily, rise, stagger, useCurrentFrame } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; rule: boolean; stagger: number };
 

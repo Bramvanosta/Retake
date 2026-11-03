@@ -1,13 +1,13 @@
 /**
- * `sandbox_up` / `sandbox_reset` jobs (L3.1, R-SBX-07): `studio sandbox up | reset` submitted by a client outside the
- * CLI (the MCP server) and run by the jobs worker with @demo-studio/sandbox, as the CLI runs them. A sandbox is local
+ * `sandbox_up` / `sandbox_reset` jobs (L3.1, R-SBX-07): `retake sandbox up | reset` submitted by a client outside the
+ * CLI (the MCP server) and run by the jobs worker with @retake/sandbox, as the CLI runs them. A sandbox is local
  * and disposable (core refuses one that is not), and a reset rewrites only the data the sandbox owns (checked by the
  * sandbox before it changes anything). Its seed steps run with trust `mcp`: a shell seed step needs a human approval,
  * taken at submit and bound to its fingerprint, like a hook.
  */
-import { JOB_INPUT_VERSION, resolveEnvironment } from '@demo-studio/core';
-import type { JobApproval, LoadedProject, SandboxResetJobInput, SandboxUpJobInput, WorkspaceConfig } from '@demo-studio/core';
-import type { ResetResult, Sandbox, SandboxLog } from '@demo-studio/sandbox';
+import { JOB_INPUT_VERSION, resolveEnvironment } from '@retake/core';
+import type { JobApproval, LoadedProject, SandboxResetJobInput, SandboxUpJobInput, WorkspaceConfig } from '@retake/core';
+import type { ResetResult, Sandbox, SandboxLog } from '@retake/sandbox';
 import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { toEngineError } from '../errors.js';
@@ -32,13 +32,13 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio sandbox up | reset` command a human runs for the same work. */
+/** The `retake sandbox up | reset` command a human runs for the same work. */
 export function sandboxCommandLine(cli: string, kind: SandboxJobKind, r: SandboxSubmitRequest): string {
   return [cli, 'sandbox', kind === 'sandbox_up' ? 'up' : 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(kind === 'sandbox_reset' && r.reseed ? ['--reseed'] : [])].join(' ');
 }
 
 async function openProjectSandbox(project: LoadedProject, env: string | undefined): Promise<Sandbox> {
-  const { openSandbox } = await import('@demo-studio/sandbox');
+  const { openSandbox } = await import('@retake/sandbox');
   try {
     return openSandbox(project, env);
   } catch (e) {

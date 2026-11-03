@@ -21,10 +21,10 @@ import {
   projectPersonaNames,
   resolveCheckUrl,
   resolvePersonas,
-  studioHome,
+  retakeHome,
   writeTextAtomic,
-} from '@demo-studio/core';
-import type { LoadedProject, Scenario, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { LoadedProject, Scenario, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -64,10 +64,10 @@ function project(lines: string[] = SIGNED_IN, dir = mkdtempSync(join(tmpdir(), '
 const scenario = (lines: string[]): Scenario => parseYaml(['video: demo', ...lines, ''].join('\n')) as Scenario;
 
 describe('where sessions live (R-AUTH-02, paths)', () => {
-  it('DEMO_STUDIO_HOME moves the studio home (~ expanded); default ~/.demo-studio', () => {
-    expect(studioHome({})).toBe(join(homedir(), '.demo-studio'));
-    expect(studioHome({ DEMO_STUDIO_HOME: '/tmp/x/home' })).toBe('/tmp/x/home');
-    expect(studioHome({ DEMO_STUDIO_HOME: '~/studio-home', HOME: homedir() })).toBe(join(homedir(), 'studio-home'));
+  it('RETAKE_HOME moves the Retake home (~ expanded); default ~/.retake', () => {
+    expect(retakeHome({})).toBe(join(homedir(), '.retake'));
+    expect(retakeHome({ RETAKE_HOME: '/tmp/x/home' })).toBe('/tmp/x/home');
+    expect(retakeHome({ RETAKE_HOME: '~/studio-home', HOME: homedir() })).toBe(join(homedir(), 'studio-home'));
     expect(personaPaths('/h', 'northfield', 'signed-in', 'buyer')).toEqual({
       profileDir: '/h/profiles/northfield/signed-in/buyer',
       snapshot: '/h/sessions/northfield/signed-in/buyer.json',
@@ -114,12 +114,12 @@ describe('where sessions live (R-AUTH-02, paths)', () => {
       },
     ]);
     expect(warns(p.issues ?? [])).toEqual([
-      'auth.profile: `profile` is a path that only exists on this computer: name the account in `personas` instead (its session then lives in ~/.demo-studio, outside the project) — it still works, as persona "default"',
+      'auth.profile: `profile` is a path that only exists on this computer: name the account in `personas` instead (its session then lives in ~/.retake, outside the project) — it still works, as persona "default"',
     ]);
     // The legacy form has no --persona (callers leave it out, keyed on `legacy`); a declared persona named "default" keeps it.
-    expect(loginCommand({ project: 'northfield', env: 'staging' })).toBe('studio login northfield --env staging');
-    expect(loginCommand({ project: 'northfield', env: 'signed-in', persona: 'default' })).toBe('studio login northfield --env signed-in --persona default');
-    expect(loginCommand({ project: 'northfield', env: 'signed-in', persona: 'buyer' })).toBe('studio login northfield --env signed-in --persona buyer');
+    expect(loginCommand({ project: 'northfield', env: 'staging' })).toBe('retake login northfield --env staging');
+    expect(loginCommand({ project: 'northfield', env: 'signed-in', persona: 'default' })).toBe('retake login northfield --env signed-in --persona default');
+    expect(loginCommand({ project: 'northfield', env: 'signed-in', persona: 'buyer' })).toBe('retake login northfield --env signed-in --persona buyer');
   });
 
   it('writeTextAtomic keeps a private file private from its first byte (0600 in 0700)', async () => {
@@ -475,7 +475,7 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
     const { issues } = parseProjectYaml(['name: N', 'environments: {local: {app: "http://localhost:1"}}', 'auth: {personas: {admin: {profile: ~/p, check: {url: /}}}}'].join('\n'));
     expect(errs(issues)).toEqual([
       'auth.personas.admin: unknown key "profile"',
-      "auth.personas.admin.profile: a persona's session is never a path in project.yaml (it would only exist on this computer): `studio login` keeps it in ~/.demo-studio/profiles/<project>/<env>/admin (DEMO_STUDIO_HOME moves it) — remove `profile`",
+      "auth.personas.admin.profile: a persona's session is never a path in project.yaml (it would only exist on this computer): `retake login` keeps it in ~/.retake/profiles/<project>/<env>/admin (RETAKE_HOME moves it) — remove `profile`",
     ]);
   });
 

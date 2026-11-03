@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AccessError, ConfigError, ScenarioError } from '@demo-studio/core';
+import { AccessError, ConfigError, ScenarioError } from '@retake/core';
 import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -10,19 +10,19 @@ import { fixtureWorkspace } from './helpers.js';
 let ws: string;
 let home: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-engine-'));
   home = join(ws, '.home');
-  process.env.DEMO_STUDIO_HOME = home;
+  process.env.RETAKE_HOME = home;
   await fixtureWorkspace(ws);
   engine = await createEngine({ root: ws, client: 'test' });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -218,7 +218,7 @@ describe('engine: runs, auth, sandbox', () => {
   it('auth status: personas with the command a human runs, no session paths', async () => {
     const r = await engine.auth.status({ project: 'northfield-fixture', env: 'signed-in' });
     expect(r.personas.map((p) => [p.persona, p.status])).toEqual([['supplier', 'never'], ['buyer', 'never']]);
-    expect(r.personas[0].command).toBe(`studio -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
+    expect(r.personas[0].command).toBe(`retake -C ${ws} login northfield-fixture --env signed-in --persona supplier`);
     expect(JSON.stringify(r)).not.toContain(home);
     await expect(engine.auth.status({ env: 'local' })).rejects.toMatchObject({ code: 'invalid' });
     const all = await engine.auth.status();

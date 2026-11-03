@@ -5,10 +5,10 @@
  */
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { CAMERA_EASINGS, cubicBezier } from '@demo-studio/components';
-import type { LoadedTemplate } from '@demo-studio/core';
-import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@demo-studio/editor';
-import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@demo-studio/editor';
+import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
+import type { LoadedTemplate } from '@retake/core';
+import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@retake/editor';
+import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
 import type { EntrySpec, PlanContext, Workspace } from './helpers.js';
 

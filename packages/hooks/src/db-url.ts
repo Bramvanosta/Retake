@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { isLoopbackHost, normalizeHost } from '@demo-studio/core';
+import { isLoopbackHost, normalizeHost } from '@retake/core';
 import { HookError } from './errors.js';
 
 export interface DatabaseTarget {

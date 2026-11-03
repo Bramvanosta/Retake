@@ -1,10 +1,10 @@
 /**
  * The frame comment store (L3.6, R-CMT-02..05, ADR-1 #4): thread files `<project>/comments/<scenario>/<id>.json` (core
- * CommentThreadSchema), their stills `<project>/.demo-studio/comments/<id>.jpg` (machine-local: product frames never
+ * CommentThreadSchema), their stills `<project>/.retake/comments/<id>.jpg` (machine-local: product frames never
  * enter git), and the views clients read.
  *
  * Writes: a thread is created whole (a link: never over an existing file); an entry is appended under the thread's lock
- * (`<project>/.demo-studio/locks/comment-<id>.lock`, the sandbox package's TakeLock: created whole, stale only when its
+ * (`<project>/.retake/locks/comment-<id>.lock`, the sandbox package's TakeLock: created whole, stale only when its
  * process is gone — never by age —, retried while busy), read → checked → appended → written atomically (temp + rename)
  * with the hash just read, so `ifMatch` (comment_resolve's if_match) is checked inside the lock. A file that does not
  * read as a thread is never overwritten.
@@ -58,7 +58,7 @@ import {
   textEol,
   textLines,
   trustedAnchor,
-} from '@demo-studio/core';
+} from '@retake/core';
 import type {
   CommentAuthor,
   CommentEntry,
@@ -70,10 +70,10 @@ import type {
   ProposalState,
   Timeline,
   ValidationIssue,
-} from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { RenderRecord } from '@demo-studio/editor';
-import type { TakeLock } from '@demo-studio/sandbox';
+} from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
+import type { RenderRecord } from '@retake/editor';
+import type { TakeLock } from '@retake/sandbox';
 import { EngineError } from './errors.js';
 import { lockHolder, takeProjectLock, toolDir } from './project-lock.js';
 import { checkRunId, checkScenarioName } from './refs.js';
@@ -88,8 +88,8 @@ import type { ScenarioText } from './scenarios.js';
 import { LocalStorage, sha256Hex } from './storage.js';
 import { editor } from './jobs/render-job.js';
 
-/** Lazy: @demo-studio/review pulls in sharp. */
-const review = () => import('@demo-studio/review');
+/** Lazy: @retake/review pulls in sharp. */
+const review = () => import('@retake/review');
 
 /**
  * A thread file larger than this is not read, and an entry that would make it larger is refused (500 entries of 2000
@@ -115,22 +115,22 @@ export function commentRef(scenario: string, id: string): string {
   return `${COMMENTS_DIR}/${scenario}/${id}.json`;
 }
 
-/** `<project>/.demo-studio/comments/<id>.jpg`: the still of a thread (machine-local). */
+/** `<project>/.retake/comments/<id>.jpg`: the still of a thread (machine-local). */
 export function commentStillFile(projectDir: string, id: string): string {
-  return join(projectDir, '.demo-studio', 'comments', `${id}.jpg`);
+  return join(projectDir, '.retake', 'comments', `${id}.jpg`);
 }
 
-/** `<project>/.demo-studio/locks/comment-<id>.lock`: held while an entry is appended. */
+/** `<project>/.retake/locks/comment-<id>.lock`: held while an entry is appended. */
 export function commentLockFile(projectDir: string, id: string): string {
-  return join(projectDir, '.demo-studio', 'locks', `comment-${id}.lock`);
+  return join(projectDir, '.retake', 'locks', `comment-${id}.lock`);
 }
 
 /**
- * The name of the person at this terminal for `studio comment` (no `--author`): $DEMO_STUDIO_AUTHOR, else the OS user
+ * The name of the person at this terminal for `retake comment` (no `--author`): $RETAKE_AUTHOR, else the OS user
  * name (never git config: a subprocess and often a full name), printable, ≤ 80 characters.
  */
 export function defaultAuthorName(): string {
-  const env = process.env.DEMO_STUDIO_AUTHOR;
+  const env = process.env.RETAKE_AUTHOR;
   if (env !== undefined && env.trim() !== '') {
     const name = commentAuthorName(env);
     if (name) return name;
@@ -333,7 +333,7 @@ export interface CommentView {
   newer_renders: string[];
   entries: CommentEntryView[];
   resolution?: { entry: string; via: CommentAuthor['via']; at: string; render_id?: string; render_created_at?: string };
-  /** The still (`.demo-studio/comments/<id>.jpg`), null when missing (made on another machine, or it failed). */
+  /** The still (`.retake/comments/<id>.jpg`), null when missing (made on another machine, or it failed). */
   still: string | null;
   /** comments/<scenario>/<id>.json and its path. */
   ref: string;
@@ -370,7 +370,7 @@ async function renderIndex(projectDir: string): Promise<RenderRecord[]> {
 
 /** The thread's still when it is a plain JPEG of the project: a real file (no link, one name — no hard link), ≤ 10 MB, JPEG bytes. */
 async function stillOf(projectDir: string, id: string): Promise<string | null> {
-  for (const dir of [join(projectDir, '.demo-studio'), join(projectDir, '.demo-studio', 'comments')]) {
+  for (const dir of [join(projectDir, '.retake'), join(projectDir, '.retake', 'comments')]) {
     if ((await realDir(dir)) !== 'ok') return null;
   }
   const file = commentStillFile(projectDir, id);
@@ -889,7 +889,7 @@ function lockThread(projectDir: string, id: string, op: string): Promise<TakeLoc
     busy: (ref, held) => {
       const { pid, since, command } = lockHolder(held);
       return new EngineError('busy', `comment ${id} is being written by another command${pid ? ` (pid ${pid}${since ? `, since ${since}` : ''})` : ''}: try again`, {
-        fix: `try again in a moment; if no studio command is running, remove ${ref}`,
+        fix: `try again in a moment; if no retake command is running, remove ${ref}`,
         ...(command ? { details: { untrusted: { command } } } : {}),
       });
     },
@@ -1036,7 +1036,7 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
     (thread) => {
       const { status, resolution } = deriveStatus(thread.entries);
       if (status === 'resolved') {
-        throw new EngineError('conflict', `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (studio comment reopen)`, {
+        throw new EngineError('conflict', `comment ${id} is already resolved (entry ${resolution?.entry}${resolution?.render_id ? `, render ${resolution.render_id}` : ''}): it is reopened by a person (retake comment reopen)`, {
           details: { status, ...(resolution ? { entry: resolution.entry } : {}) },
         });
       }

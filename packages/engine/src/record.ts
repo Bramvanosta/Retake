@@ -1,10 +1,10 @@
 /**
- * Recording a scenario (L3.4, `studio record`; the `record` job and scenario_record build on it): a HEADED window where
+ * Recording a scenario (L3.4, `retake record`; the `record` job and scenario_record build on it): a HEADED window where
  * a person performs a flow once (runner-web recordSession), then a draft scenario from what they did (core
  * draftFromRecording), saved as scenarios/<name>.yaml when the name is free, then a headless check replay of the draft.
  * Claude may start a recording through MCP, never drive it.
  *
- * Files: <project>/.demo-studio/records/<rec_id>/ (0700) — meta.json (L4.8: written once when the folder is made: the
+ * Files: <project>/.retake/records/<rec_id>/ (0700) — meta.json (L4.8: written once when the folder is made: the
  * draft's context, who started it, its job and process; record-files.ts), events.jsonl (streamed by the runner while
  * recording), draft.yaml and record.json (0600; record.json holds the events file's sha256, `events_sha256`, so a
  * later Save can tell an edited events file), check/ (the check replay's run folder, without its per-step
@@ -15,11 +15,11 @@
  * Rules:
  * - preflight as a run: the persona's saved session is checked (checkSavedSession); when it is not valid and the
  *   persona has `login:` steps it signs in automatically (headless, off camera), else the recording is refused with the
- *   `studio login` command;
- * - access as `studio run`: the environment's own (a read-only environment's writes are stopped or answered by a mock
+ *   `retake login` command;
+ * - access as `retake run`: the environment's own (a read-only environment's writes are stopped or answered by a mock
  *   while recording), `allowWrites` with the same rules as `--allow-writes`; hooks never run;
  * - `stop` = stop and keep (Ctrl-C, a worker signal — the job then skips the check replay: `skipCheck`); `signal` = cancel while recording (the folder removed; after the
- *   recording it only cancels the check replay); the maximum duration (DEMO_STUDIO_RECORD_MAX_MIN, default 30 min)
+ *   recording it only cancels the check replay); the maximum duration (RETAKE_RECORD_MAX_MIN, default 30 min)
  *   stops and keeps;
  * - check replay: a dry run at the capture viewport, up to the step before the first one a write that went through
  *   followed (any host; on a read-only environment the guard's stopped or mocked writes do not count, so it usually
@@ -45,31 +45,32 @@ import {
   resolveEnvironment,
   resolvePersonas,
   resolveRunAccess,
-} from '@demo-studio/core';
-import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkspaceConfig } from '@demo-studio/core';
-import type { RecordSessionOptions, RecordSessionResult } from '@demo-studio/runner-web';
+} from '@retake/core';
+import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkspaceConfig } from '@retake/core';
+import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
 import { newJobId } from './jobs/ids.js';
 import { FileJobQueue } from './jobs/queue.js';
 import { selfIdentity } from './jobs/proc.js';
-import { lockAlive, readLock } from '@demo-studio/sandbox';
+import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
+import { refuseBesideOldHolder } from './legacy.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 
 /** Recordings kept per project (the newest). */
 export const RECORD_KEEP = 20;
 /** The environment variable that changes the longest recording (minutes). */
-export const RECORD_MAX_ENV = 'DEMO_STUDIO_RECORD_MAX_MIN';
+export const RECORD_MAX_ENV = 'RETAKE_RECORD_MAX_MIN';
 
-/** <project>/.demo-studio/records */
+/** <project>/.retake/records */
 export function recordsRoot(project: LoadedProject): string {
-  return join(project.dir, '.demo-studio', 'records');
+  return join(project.dir, '.retake', 'records');
 }
 
-/** <project>/.demo-studio/records/<id> (the id checked: never a path). */
+/** <project>/.retake/records/<id> (the id checked: never a path). */
 export function recordDir(project: LoadedProject, id: string): string {
   if (!RECORD_ID_RE.test(id)) throw new EngineError('invalid', `invalid recording id "${id}": rec_ followed by 26 characters, never a path`);
   return join(recordsRoot(project), id);
@@ -135,7 +136,7 @@ export function fileSha256(file: string): Promise<string> {
   });
 }
 
-/** The longest recording (ms): DEMO_STUDIO_RECORD_MAX_MIN when set (minutes), else undefined (the runner's 30 min). */
+/** The longest recording (ms): RETAKE_RECORD_MAX_MIN when set (minutes), else undefined (the runner's 30 min). */
 export function recordMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
   const raw = env[RECORD_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
@@ -169,7 +170,7 @@ export interface RecordRequest {
   url?: string;
   /** The scenario's name (default recorded-YYYYMMDD-HHMM). Saved only when it is free. */
   name?: string;
-  /** `--allow-writes` (a production environment whose project.yaml allows writes), as `studio run`. */
+  /** `--allow-writes` (a production environment whose project.yaml allows writes), as `retake run`. */
   allowWrites?: boolean;
   /** The check replay after the recording (default true). */
   check?: boolean;
@@ -178,7 +179,7 @@ export interface RecordRequest {
   submittedBy?: JobClient;
   /** The recording's id, reserved by a `record` job at submit (default: a new one). */
   id?: string;
-  /** The `record` job that runs it (meta.json's job_id; none for `studio record`). */
+  /** The `record` job that runs it (meta.json's job_id; none for `retake record`). */
   jobId?: string;
 }
 
@@ -325,9 +326,9 @@ const isCancel = (e: unknown) => e instanceof Error && (e.name === 'CancelledErr
  * the command that signs it in.
  */
 async function preflight(project: LoadedProject, env: ResolvedEnvironment, persona: ResolvedPersona, ports: RecordPorts): Promise<void> {
-  const { checkSavedSession, signIn } = await import('@demo-studio/runner-web');
+  const { checkSavedSession, signIn } = await import('@retake/runner-web');
   const log = ports.log ?? (() => undefined);
-  const command = (ports.loginCommand ?? ((p) => `studio login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
+  const command = (ports.loginCommand ?? ((p) => `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`))({ project: project.slug, env: env.name, persona: persona.name });
   let status: string;
   let detail = '';
   try {
@@ -359,6 +360,8 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
 export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, ports: RecordPorts = {}): Promise<RecordOutcome> {
   const started = Date.now();
+  // L5.13: never beside an old Studio or worker (engine legacy.ts).
+  await refuseBesideOldHolder(project.root, 'this recording');
   const log = ports.log ?? (() => undefined);
   const start = recordStart(project, req);
   const { env, persona } = start;
@@ -406,7 +409,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   const eventsFile = join(dir, 'events.jsonl');
 
   ports.onPhase?.('recording');
-  const { recordSession, INSPECT_PACING, runScenario } = await import('@demo-studio/runner-web');
+  const { recordSession, INSPECT_PACING, runScenario } = await import('@retake/runner-web');
   let session: RecordSessionResult;
   try {
     session = await recordSession({
@@ -552,7 +555,7 @@ async function checkReplay(o: {
   yaml: string;
   firstWrite: { scene: string; step: number } | null;
   pacing: Record<string, unknown>;
-  runScenario: typeof import('@demo-studio/runner-web').runScenario;
+  runScenario: typeof import('@retake/runner-web').runScenario;
   ports: RecordPorts;
 }): Promise<RecordCheck> {
   const { project, ports } = o;

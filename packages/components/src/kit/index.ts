@@ -1,5 +1,5 @@
 /**
- * @demo-studio/components/kit — the helpers components may import (with react and remotion).
+ * @retake/components/kit — the helpers components may import (with react and remotion).
  *
  * Pure helpers (easing, frame-driven motion, text fitting, CSS from theme tokens), React elements (Background,
  * Logo, Wordmark, SafeArea, FitText) and the renderer primitives (useCurrentFrame, useVideoConfig, Img, AbsoluteFill,

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { COMPONENT_KINDS, KEY_RE } from '@demo-studio/core';
+import { COMPONENT_KINDS, KEY_RE } from '@retake/core';
 import { componentId, projectSlug, templateName } from '../schema.js';
 import { plural } from '../result.js';
 import { PREVIEW_JOB, READ, WRITE_FILES, defineTool } from './define.js';
@@ -77,7 +77,7 @@ export const componentPreview = defineTool({
   name: 'component_preview',
   title: 'Preview a component',
   description:
-    'A still of one component with a theme (default the project\'s) — over a neutral sample screen for layouts, captions, overlays and transitions — with its manifest\'s preview samples, or the slot values and params you give (text, url and color slots take a value; file and media slots keep their samples). Rendered by a job in the background into <workspace>/.demo-studio/previews/<id>/ (960×540; never into the component\'s folder). Waits up to wait_s (default 20): when it finishes in time the still comes back as an image, else follow it with job_status {job_id, wait_s}. The preview loads nothing from the network: what a component tries to load is blocked and named under "untrusted".',
+    'A still of one component with a theme (default the project\'s) — over a neutral sample screen for layouts, captions, overlays and transitions — with its manifest\'s preview samples, or the slot values and params you give (text, url and color slots take a value; file and media slots keep their samples). Rendered by a job in the background into <workspace>/.retake/previews/<id>/ (960×540; never into the component\'s folder). Waits up to wait_s (default 20): when it finishes in time the still comes back as an image, else follow it with job_status {job_id, wait_s}. The preview loads nothing from the network: what a component tries to load is blocked and named under "untrusted".',
   input: z.strictObject({
     project: projectSlug.describe('Project whose theme is the default.'),
     component: componentId,

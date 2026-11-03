@@ -1,5 +1,5 @@
 /**
- * The workspace index (L4.1, R-ARC-05, ADR-2): `<workspace>/.demo-studio/index.sqlite`, a cache of what the files say —
+ * The workspace index (L4.1, R-ARC-05, ADR-2): `<workspace>/.retake/index.sqlite`, a cache of what the files say —
  * projects (name, error, README text), runs (run.json), renders (renders/*.json), the job history (history.jsonl) and a
  * full-text search over them — that the Studio reads for its activity feed and its search box. The files stay the only
  * source of truth: every write goes to files through the engine, the index follows.
@@ -21,7 +21,7 @@
 import { lstat, mkdir, open as openFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { LoadedProject, WorkspaceConfig } from '@demo-studio/core';
+import type { LoadedProject, WorkspaceConfig } from '@retake/core';
 import { HISTORY_VERSION, historyFile } from '../history.js';
 import type { HistoryEntry } from '../history.js';
 import { FileJobQueue, jobProject, stateDir } from '../jobs/queue.js';

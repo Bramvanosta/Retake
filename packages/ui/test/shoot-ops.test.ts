@@ -16,19 +16,19 @@ import { raw } from './http.js';
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-shoot-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, pollMs: 100 });
 }, 60_000);
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -80,6 +80,6 @@ describe('scenario_actions', () => {
     const without = { ...a, run_blockers: { dry: a.run_blockers.dry, capture: a.run_blockers.capture.map(({ fix: _f, fix_node: _n, ...rest }) => rest) } };
     expect(JSON.stringify(without)).not.toContain(ws);
     expect(JSON.stringify(without)).not.toMatch(/"file"|\/scenarios\//);
-    expect(r.body).toContain(ws); // the commands do name the workspace (studio -C <root> …)
+    expect(r.body).toContain(ws); // the commands do name the workspace (retake -C <root> …)
   });
 });

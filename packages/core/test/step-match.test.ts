@@ -7,8 +7,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { matchRunSteps, scenarioBlocks, sceneStepFingerprints, stepFingerprint } from '@demo-studio/core';
-import type { RunStepMatch } from '@demo-studio/core';
+import { matchRunSteps, scenarioBlocks, sceneStepFingerprints, stepFingerprint } from '@retake/core';
+import type { RunStepMatch } from '@retake/core';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 

@@ -1,6 +1,6 @@
 /**
  * L5.8 acceptance cases on the fixture product (R-FLD-30, R-FLD-31, R-FLD-33): the committed `off-camera` scenario and
- * variants of it, run through the `studio` CLI against the fixture on free ports (environment `local`) —
+ * variants of it, run through the `retake` CLI against the fixture on free ports (environment `local`) —
  *
  * - a capture: the `hook:` step mid-take makes a café's quote request arrive (an http entry, then a shell one) during
  *   the take, its span is cut from the edit, the `offscreen` scene is played (the console reached its list) but left
@@ -8,7 +8,7 @@
  * - a project.yaml hook with a rollback, undone after the teardown; a failing entry failing its step; a dry run without
  *   hooks skipping the step;
  * - the page pre-flight: a page that does not answer stops the take before anything runs, naming the page and its URL;
- * - `studio doctor --project` pointing to a sandbox.
+ * - `retake doctor --project` pointing to a sandbox.
  *
  * Skipped when Chromium is not available.
  */
@@ -20,14 +20,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, TimelineSchema } from '@demo-studio/core';
-import type { RunProgress, RunRecord, Timeline } from '@demo-studio/core';
+import { RunRecordSchema, TimelineSchema } from '@retake/core';
+import type { RunProgress, RunRecord, Timeline } from '@retake/core';
 import { main, memoryIo } from '../src/index.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -47,16 +47,16 @@ let ws: string;
 let committed: string;
 const QUICK = 'pacing: {scene_start_still: 0.2, after_click_ms: 120, after_popup_ms: 350, after_navigation_ms: 500, settle_ms: 800, move_max_ms: 450}\n';
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
 /** Run a variant of the committed scenario; its run record and timeline. */
 async function variant(name: string, edit: (yaml: string) => string, ...flags: string[]): Promise<{ run: RunRecord; tl: Timeline | null }> {
   await writeFile(join(ws, 'projects', 'fx', 'scenarios', `${name}.yaml`), `${edit(committed)}\n${QUICK}`);
-  const r = await studio('run', 'fx', name, '--json', ...flags);
+  const r = await retake('run', 'fx', name, '--json', ...flags);
   const end = JSON.parse(r.out.trim().split('\n').pop()!) as RunProgress;
   expect(end.type, r.err).toBe('run_end');
   const run = (end as { run: RunRecord }).run;
@@ -83,7 +83,7 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
     };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'studio-off-camera-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'fx');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
@@ -131,7 +131,7 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
     expect(TimelineSchema.safeParse(tl).error?.issues ?? []).toEqual([]);
     expect(RunRecordSchema.safeParse(JSON.parse(await readFile(join(run.dir, 'run.json'), 'utf8'))).error?.issues ?? []).toEqual([]);
 
-    const planned = await studio('plan', 'fx', run.id, '--scenario', 'off-camera', '--json');
+    const planned = await retake('plan', 'fx', run.id, '--scenario', 'off-camera', '--json');
     expect(planned.code, planned.err).toBe(0);
     const plan = JSON.parse(planned.out) as { segments: Array<{ id: string; kind: string; trims?: Array<{ src_from_s: number; src_to_s: number }> }>; notes: string[] };
     expect(plan.segments.map((s) => s.id)).not.toContain('to-the-list');
@@ -141,7 +141,7 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
 
     // `offscreen` is edit: removed from today's file, the same take plans the scene as a clip (no scenario_changed).
     await writeFile(join(ws, 'projects', 'fx', 'scenarios', 'off-camera.yaml'), `${committed.replace('    offscreen: true\n', '')}\n${QUICK}`);
-    const again = await studio('plan', 'fx', run.id, '--scenario', 'off-camera', '--json');
+    const again = await retake('plan', 'fx', run.id, '--scenario', 'off-camera', '--json');
     expect(again.code, again.err).toBe(0);
     expect(again.err).not.toMatch(/filmed part/);
     expect((JSON.parse(again.out) as { segments: Array<{ id: string }> }).segments.map((s) => s.id)).toContain('to-the-list');
@@ -180,14 +180,14 @@ describe.skipIf(!chromiumAvailable())('off camera on the fixture (L5.8)', () => 
     expect(tl?.capture?.frames ?? 0).toBe(0);
   }, 60_000);
 
-  it('studio doctor --project points to a sandbox for a local environment with a mailbox and no sandbox', async () => {
-    const r = await studio('doctor', '--project', 'fx', '--json');
+  it('retake doctor --project points to a sandbox for a local environment with a mailbox and no sandbox', async () => {
+    const r = await retake('doctor', '--project', 'fx', '--json');
     const checks = (JSON.parse(r.out) as { checks: Array<{ status: string; name: string; detail: string; hint?: string }> }).checks;
     expect(checks.find((c) => c.name === 'Sandbox')).toEqual({
       status: 'warn',
       name: 'Sandbox',
       detail: 'none — environment local films this machine with the mailbox: each take starts from whatever the last one (or a hand-made reset) left',
-      hint: expect.stringMatching(/studio( -C \S+)? sandbox init fx writes a sandbox\.yaml to fill in/),
+      hint: expect.stringMatching(/retake( -C \S+)? sandbox init fx writes a sandbox\.yaml to fill in/),
     });
   }, 60_000);
 });

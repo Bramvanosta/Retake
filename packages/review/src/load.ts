@@ -5,10 +5,10 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject } from '@demo-studio/core';
-import type { LoadedProject, RunRecord, Timeline } from '@demo-studio/core';
-import { listRenders, rendersDir } from '@demo-studio/editor';
-import type { RenderRecord } from '@demo-studio/editor';
+import { loadProject } from '@retake/core';
+import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
+import { listRenders, rendersDir } from '@retake/editor';
+import type { RenderRecord } from '@retake/editor';
 
 /** A review that cannot start (message written for the user). */
 export class ReviewError extends Error {
@@ -47,7 +47,7 @@ export async function findRender(project: LoadedProject, arg: string, scenario?:
     const all = (await listRenders(project)).filter((r) => r.status === 'succeeded' && (!scenario || r.scenario === scenario));
     const last = all[all.length - 1];
     if (!last) {
-      throw new ReviewError(`no render${scenario ? ` of scenario "${scenario}"` : ''} in ${rendersDir(project)}: render one with \`studio render ${project.slug} ${scenario ?? '<scenario>'}\``);
+      throw new ReviewError(`no render${scenario ? ` of scenario "${scenario}"` : ''} in ${rendersDir(project)}: render one with \`retake render ${project.slug} ${scenario ?? '<scenario>'}\``);
     }
     return last;
   }

@@ -28,7 +28,7 @@
  * - ⚑ Prepare's sessions table at 1280 and 900 px: no Location column, no cell under its header word, nothing overlaps,
  *   notes on their own line and never repeating an issue, no Sign in for a persona its login steps sign in (B-H1,
  *   B-L1); ⌘. with the palette open closes it and answers (A-L3).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -42,9 +42,9 @@ import { writeRun } from '../../engine/test/synthetic-runs.js';
 
 const P = 'shoot';
 const POLL = { timeout: 20_000 };
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const LEAD_VAR = 'SHOOT_E2E_LEAD_PASSWORD';
 
 let ws: string;
@@ -81,8 +81,8 @@ async function stopAll(): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-shoot-e2e-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\n');
+  process.env.RETAKE_HOME = join(ws, '.home');
+  await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   await mkdir(join(project(), 'scenarios'), { recursive: true });
   await writeFile(
     join(project(), 'project.yaml'),
@@ -122,7 +122,7 @@ beforeAll(async () => {
   // The lead's login steps find their secret where the worker starts: every run signs it in (no "Sign in…").
   process.env[LEAD_VAR] = 'not-a-real-secret';
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1360, height: 860 } });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: studio.url.replace(/\/$/, '') });
@@ -148,8 +148,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   delete process.env[LEAD_VAR];
   if (ws) await rm(ws, { recursive: true, force: true });
 });
@@ -228,7 +228,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     await expect.poll(() => pop.isVisible(), POLL).toBe(true);
     await expect.poll(() => page.getByTestId('blockers-capture-action').getAttribute('aria-expanded'), POLL).toBe('true');
     const shownCommand = await pop.locator('.k-blocker-code').innerText();
-    expect(shownCommand).toBe(`studio -C ${ws} run ${P} hooked`);
+    expect(shownCommand).toBe(`retake -C ${ws} run ${P} hooked`);
     // Shown in full: wrapped, never cut.
     expect(await pop.locator('.k-blocker-code').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('blockers-capture-copy');
@@ -449,7 +449,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     // The answer is held 1.5 s: while it is sent, the button stays enabled and focused, a second click sends nothing.
     await page.route('**/v1/call/scenario_run', async (route) => {
       await sleep(1500);
-      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'refused \u202Eby the test', fix: `studio -C ${ws} run ${P} free` } }) });
+      await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ ok: false, error: { code: 'conflict', message: 'refused \u202Eby the test', fix: `retake -C ${ws} run ${P} free` } }) });
     });
     try {
       await page.goto(`${studio.url}#/p/${P}/s/free/run`);
@@ -466,7 +466,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
       expect(ops('scenario_run', tr)).toHaveLength(1);
       expect(await page.getByTestId('start-refused').innerText()).toBe('refused [U+202E]by the test');
       expect(await page.getByTestId('start-refused-box').innerText()).toContain('The rehearsal was not started');
-      expect(await page.getByTestId('start-refused-box').getByTestId('blocker-fix').innerText()).toBe(`studio -C ${ws} run ${P} free`);
+      expect(await page.getByTestId('start-refused-box').getByTestId('blocker-fix').innerText()).toBe(`retake -C ${ws} run ${P} free`);
       await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-testid')), POLL).toBe('start-refused-box');
       // Review A-M4: the polite line is text — the override shown as a mark, never applied.
       await expect.poll(said, POLL).toBe('The rehearsal of free was not started: refused [U+202E]by the test');
@@ -511,7 +511,7 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     await page.getByTestId('status-watch').waitFor(POLL);
     const [job] = await studio.engine.jobs.list({ project: P, states: ['queued'] });
     expect(job).toBeDefined();
-    const file = join(ws, '.demo-studio', 'jobs', job.id, 'job.json');
+    const file = join(ws, '.retake', 'jobs', job.id, 'job.json');
     let step = 0;
     /** A real job record rewritten as a worker does at each step (`ctx.progress`): the server sends a `jobs` event naming it. */
     const steps = async (n: number) => {

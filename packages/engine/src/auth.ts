@@ -1,14 +1,14 @@
 /**
- * What is known of personas' saved sessions, without opening a browser (`studio auth status`, `studio doctor`, the MCP
+ * What is known of personas' saved sessions, without opening a browser (`retake auth status`, `retake doctor`, the MCP
  * `auth_status` tool). Moved from the CLI (L3.1); `check` (a live, headless check) stays in the CLI: it opens Chromium.
  */
 import { existsSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@demo-studio/core';
-import type { LoadedProject, ResolvedPersona, Scenario } from '@demo-studio/core';
+import { collectSecretRefs, planPersonas, resolveEnvironment, resolvePersonas, sandboxOf } from '@retake/core';
+import type { LoadedProject, ResolvedPersona, Scenario } from '@retake/core';
 
-/** The `studio login` command for a persona (messages print it). */
+/** The `retake login` command for a persona (messages print it). */
 export type LoginCommandOf = (p: { project: string; env: string; persona?: string }) => string;
 
 /** A path under the home folder as ~/… (messages). */
@@ -27,13 +27,13 @@ export interface PersonaState {
   /** never: no saved session at all; unchecked: saved, never checked; else the status of the last check. */
   status: 'valid' | 'expired' | 'error' | 'never' | 'unchecked';
   checked_at?: string;
-  /** Who checked it last: the preflight of a run, `studio login`, `studio auth status --check`. */
+  /** Who checked it last: the preflight of a run, `retake login`, `retake auth status --check`. */
   by?: 'preflight' | 'login' | 'auth-status' | 'run';
   run?: string;
   /** Where the check ended (origin + path). */
   at?: string;
   detail?: string;
-  /** The master profile is held by a running browser (a `studio login` window?). */
+  /** The master profile is held by a running browser (a `retake login` window?). */
   in_use?: { pid?: number };
   profile?: string;
   snapshot?: string;
@@ -59,7 +59,7 @@ async function nonEmptyDir(dir: string | undefined): Promise<boolean> {
 
 /** The state of one persona's saved session: its files, its lock and its last status (no browser). */
 export async function personaState(project: LoadedProject, persona: ResolvedPersona, command: LoginCommandOf): Promise<PersonaState> {
-  const { profileLock, readStatus } = await import('@demo-studio/runner-web');
+  const { profileLock, readStatus } = await import('@retake/runner-web');
   const hasMaster = persona.session === 'profile' && (await nonEmptyDir(persona.profileDir));
   const hasSnapshot = persona.snapshot !== undefined && existsSync(persona.snapshot);
   const out: PersonaState = {
@@ -72,9 +72,9 @@ export async function personaState(project: LoadedProject, persona: ResolvedPers
     ...(sandboxOf(project, persona.env) ? { sandbox: true } : {}),
     ...(persona.profileDir ? { profile: persona.profileDir } : {}),
     ...(persona.snapshot ? { snapshot: persona.snapshot } : {}),
-    // The legacy auth.storage_state file is the user's export: `studio login` has no window for it (it refuses).
+    // The legacy auth.storage_state file is the user's export: `retake login` has no window for it (it refuses).
     ...(persona.legacy && persona.session === 'storage_state'
-      ? { fix: `export ${tildePath(persona.snapshot ?? 'its auth.storage_state file')} again (or name the account in auth.personas, then studio login)` }
+      ? { fix: `export ${tildePath(persona.snapshot ?? 'its auth.storage_state file')} again (or name the account in auth.personas, then retake login)` }
       : { command: command({ project: project.slug, env: persona.env, ...(persona.legacy ? {} : { persona: persona.name }) }) }),
   };
   if (hasMaster && persona.profileDir) {

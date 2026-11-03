@@ -11,7 +11,7 @@
  * - "2 h ago" as a plain string (a select's option cannot hold a <time>), and the time of day where two renders would
  *   read the same (L5.12a fixes, review B-L2).
  */
-import type { RenderReviewSummary, ReviewFindingView } from '@demo-studio/engine';
+import type { RenderReviewSummary, ReviewFindingView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
 import type { MarkState } from './ui-kit/index.js';
 import { reviewBadge, versionWords } from './render-words.js';
@@ -96,12 +96,12 @@ const PROJECT_SLUG = /^[a-z0-9][a-z0-9-]*$/;
 const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
- * The raw capture's export, as a command to copy (`studio export-capture <project> <run>`): null unless the slug and the
+ * The raw capture's export, as a command to copy (`retake export-capture <project> <run>`): null unless the slug and the
  * run id pass their rules (≤ 200 characters each) — a value with a space, a quote or a `;` never becomes a command.
  */
 export function rawExportCommand(slug: string, runId: string): string | null {
   if (slug.length > 200 || runId.length > 200 || !PROJECT_SLUG.test(slug) || !RUN_ID.test(runId)) return null;
-  return `studio export-capture ${slug} ${runId}`;
+  return `retake export-capture ${slug} ${runId}`;
 }
 
 /**

@@ -1,13 +1,13 @@
 /**
- * `studio jobs [list] | status <id> | cancel <id>` (L3.1): what a Claude session started through the MCP server — dry
+ * `retake jobs [list] | status <id> | cancel <id>` (L3.1): what a Claude session started through the MCP server — dry
  * runs, captures, hooks, environment resets, sign-ins, sandbox up / reset —, for the human at the terminal, also once
- * that session is gone. `studio run` and the other commands run inline and are not jobs.
+ * that session is gone. `retake run` and the other commands run inline and are not jobs.
  */
 import { resolve } from 'node:path';
-import { JOB_ID_RE, JOB_STATES } from '@demo-studio/core';
-import type { JobState } from '@demo-studio/core';
-import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject } from '@demo-studio/engine';
-import type { Engine, JobRecord } from '@demo-studio/engine';
+import { JOB_ID_RE, JOB_STATES } from '@retake/core';
+import type { JobState } from '@retake/core';
+import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject } from '@retake/engine';
+import type { Engine, JobRecord } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -31,7 +31,7 @@ async function engineOf(global: GlobalOptions): Promise<Engine> {
 }
 
 function checkId(id: string): void {
-  if (!JOB_ID_RE.test(id)) throw new UsageError(`"${id}" is not a job id (j_ followed by 26 characters: studio jobs lists them)`);
+  if (!JOB_ID_RE.test(id)) throw new UsageError(`"${id}" is not a job id (j_ followed by 26 characters: retake jobs lists them)`);
 }
 
 /** A job's own errors (not found…) as CLI errors with the same message. */
@@ -39,7 +39,7 @@ async function engineCall<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof EngineError) throw new CliError(e.message.replace('job_list names the jobs', 'studio jobs lists them'));
+    if (e instanceof EngineError) throw new CliError(e.message.replace('job_list names the jobs', 'retake jobs lists them'));
     throw e;
   }
 }
@@ -124,7 +124,7 @@ function stateText(ui: Ui, s: JobState): string {
   return s === 'succeeded' ? c.green(w) : s === 'running' || s === 'queued' ? c.bold(w) : s === 'cancelled' ? c.dim(w) : c.red(w);
 }
 
-/** `studio jobs [--project] [--state …] [--limit] [--json]`: jobs of the workspace, newest first, and the worker. */
+/** `retake jobs [--project] [--state …] [--limit] [--json]`: jobs of the workspace, newest first, and the worker. */
 export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsListOptions): Promise<ExitCode> {
   const limit = opts.limit === undefined ? 20 : Number(opts.limit);
   if (!Number.isInteger(limit) || limit < 1) throw new UsageError(`--limit must be a positive whole number, got "${opts.limit}"`);
@@ -140,7 +140,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   }
   const c = ui.c;
   if (!jobs.length) {
-    ui.line(`no jobs${opts.project ? ` of ${opts.project}` : ''}${opts.state?.length ? ` ${opts.state.join(' / ')}` : ''} — jobs are what an MCP client (Claude) starts; \`studio run\` runs in the terminal`);
+    ui.line(`no jobs${opts.project ? ` of ${opts.project}` : ''}${opts.state?.length ? ` ${opts.state.join(' / ')}` : ''} — jobs are what an MCP client (Claude) starts; \`retake run\` runs in the terminal`);
   }
   const now = Date.now();
   for (const j of jobs) {
@@ -154,7 +154,7 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
   return EXIT.ok;
 }
 
-/** `studio jobs status <id> [--json]`: one job — its input, state, progress, result or error and the fix. */
+/** `retake jobs status <id> [--json]`: one job — its input, state, progress, result or error and the fix. */
 export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: string, opts: JobsStatusOptions): Promise<ExitCode> {
   checkId(id);
   const engine = await engineOf(global);
@@ -186,7 +186,7 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   return EXIT.ok;
 }
 
-/** `studio jobs cancel <id>`: a queued job never starts; a running one stops (its teardown and rollbacks still run). */
+/** `retake jobs cancel <id>`: a queued job never starts; a running one stops (its teardown and rollbacks still run). */
 export async function jobsCancelCommand(ui: Ui, global: GlobalOptions, id: string): Promise<ExitCode> {
   checkId(id);
   const engine = await engineOf(global);
@@ -197,6 +197,6 @@ export async function jobsCancelCommand(ui: Ui, global: GlobalOptions, id: strin
   }
   const job = await engineCall(() => engine.jobs.cancel(id));
   if (job.state === 'cancelled') ui.ok(`${id} cancelled (${jobWhat(job)})`);
-  else ui.ok(`${id}: cancel requested (${jobWhat(job)}) — its teardown and rollbacks run first; studio jobs status ${id} follows it`);
+  else ui.ok(`${id}: cancel requested (${jobWhat(job)}) — its teardown and rollbacks run first; retake jobs status ${id} follows it`);
   return EXIT.ok;
 }

@@ -1,4 +1,4 @@
-import type { RunProgress, RunRecord, TimelineEvent } from '@demo-studio/core';
+import type { RunProgress, RunRecord, TimelineEvent } from '@retake/core';
 import type { Ui } from './ui.js';
 import { formatMs, truncate } from './ui.js';
 

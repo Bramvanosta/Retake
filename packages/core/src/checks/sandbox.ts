@@ -337,7 +337,7 @@ export function checkSandbox(value: unknown, structural: readonly LocatedIssue[]
     if (composeNames && !composeNames.has(name)) {
       ctx.error(['services'], `service "${name}" is not a service of the compose files${suggestion(name, [...composeNames])} (they declare: ${[...composeNames].join(', ') || 'none'})`, { path: sp, key: true });
     } else if (profiled.has(name)) {
-      ctx.error(['services'], `service "${name}" has \`profiles:\` in the compose files: a sandbox never starts it (Demo Studio runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``, { path: sp, key: true });
+      ctx.error(['services'], `service "${name}" has \`profiles:\` in the compose files: a sandbox never starts it (Retake runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``, { path: sp, key: true });
     }
     if (compose) {
       for (const k of PROCESS_KEYS) {

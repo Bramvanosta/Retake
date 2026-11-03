@@ -9,7 +9,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RUN_THUMBS_MAX_KEYS } from '@demo-studio/engine';
+import { RUN_THUMBS_MAX_KEYS } from '@retake/engine';
 import { UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -19,12 +19,12 @@ import { raw } from './http.js';
 let ws: string;
 let studio: StudioServer;
 const P = 'northfield-fixture';
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const project = () => join(ws, 'projects', P);
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-scenario-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await writeFile(join(project(), 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
   const run = capture('20261020-100000-blocks', { video: false });
@@ -35,8 +35,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

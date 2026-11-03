@@ -4,8 +4,8 @@
  * id, checked here before the engine (and core, which also accepts paths) sees it.
  */
 import { z } from 'zod';
-import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, TEMPLATE_NAME_RE } from '@demo-studio/core';
-import { RUN_ID_RE } from '@demo-studio/engine';
+import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
+import { RUN_ID_RE } from '@retake/engine';
 
 export const projectSlug = z
   .string()

@@ -8,9 +8,9 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind } from '@demo-studio/core';
-import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@demo-studio/core';
-import type { HookPhase, HookResult } from '@demo-studio/hooks';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind } from '@retake/core';
+import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
+import type { HookPhase, HookResult } from '@retake/hooks';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 
@@ -49,7 +49,7 @@ export interface ApprovalRequest {
   project: string;
   env: { name: string; production: boolean; access: 'read-only' | 'read-write' };
   items: ApprovalItem[];
-  /** The `studio` command a human runs for the same work. */
+  /** The `retake` command a human runs for the same work. */
   fix: string;
 }
 
@@ -69,7 +69,7 @@ export interface SiteApprovalRequest {
   unicode_host: string;
   /** sha256("site\n" + href): the approval written with the job. */
   fingerprint: string;
-  /** The `studio` command a human runs for the same extraction. */
+  /** The `retake` command a human runs for the same extraction. */
   fix: string;
 }
 
@@ -101,7 +101,7 @@ export async function preflightHooks(
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[] }>,
   o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
 ): Promise<Preflight> {
-  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback } = await import('@demo-studio/hooks');
+  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback } = await import('@retake/hooks');
   const { ctx, access } = await createHookContext(project, {
     env: o.env,
     dry: true,
@@ -110,7 +110,7 @@ export async function preflightHooks(
     ...(o.vars ? { vars: o.vars } : {}),
     ...(o.scenario ? { scenario: o.scenario } : {}),
     log: () => undefined,
-    loginCommand: (p) => `studio login ${p.project}`,
+    loginCommand: (p) => `retake login ${p.project}`,
   });
   // A dry run journals nothing: the journal is never written.
   const journal = await Journal.open(o.journalFile);
@@ -156,7 +156,7 @@ export const SHELL_SEED_REASON = 'a shell command (runs local code)';
  * none of them is asked about.
  */
 export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
-  const { hookFingerprint, hookFiles, describeHook } = await import('@demo-studio/hooks');
+  const { hookFingerprint, hookFiles, describeHook } = await import('@retake/hooks');
   const sandbox = project.sandboxes?.[env];
   const steps = sandbox?.manifest.seed ?? [];
   const items: ApprovalItem[] = [];
@@ -210,7 +210,7 @@ function listItems(items: readonly ApprovalItem[]): string {
 /**
  * Ask the client's human to approve `req.items` (none: nothing to ask). Returns the approvals to write with the job;
  * throws `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time
- * or the question failed — each with the `studio` command a human runs in a terminal instead. `client` words the
+ * or the question failed — each with the `retake` command a human runs in a terminal instead. `client` words the
  * refusal for its channel (agentChannel).
  */
 export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
@@ -260,7 +260,7 @@ function outcomeText(outcome: Exclude<ApprovalOutcome, { approved: true }>): str
 /**
  * Ask the client's human to approve opening one site URL. Returns the approval to write with the job; throws
  * `needs_approval` when the client cannot ask anyone, `refused` when the human declined, did not answer in time or the
- * question failed — each with the `studio theme from-site` command a human runs in a terminal instead.
+ * question failed — each with the `retake theme from-site` command a human runs in a terminal instead.
  */
 export async function takeSiteApproval(req: SiteApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
   const details = { url: req.href, host: req.host };

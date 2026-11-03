@@ -1,4 +1,4 @@
-import { maskSql } from '@demo-studio/core';
+import { maskSql } from '@retake/core';
 
 /** The SQL masking lives in core (the read-only classifier uses it too). */
 export { maskSql };

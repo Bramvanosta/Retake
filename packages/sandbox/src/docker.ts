@@ -1,6 +1,6 @@
 /**
- * The `docker` CLI for the docker-compose provider (L1.8): where it is (`$DEMO_STUDIO_DOCKER`, PATH, then the usual
- * install places of Docker Desktop, OrbStack and Homebrew), the environment it runs with (Demo Studio's own minus every
+ * The `docker` CLI for the docker-compose provider (L1.8): where it is (`$RETAKE_DOCKER`, PATH, then the usual
+ * install places of Docker Desktop, OrbStack and Homebrew), the environment it runs with (Retake's own minus every
  * `COMPOSE_*` variable: a shell's COMPOSE_PROFILES or COMPOSE_FILE would change which services a sandbox starts), how
  * it is run (output captured, a timeout, an abort signal), and the version checks: Compose v2.17 or later
  * (`--wait-timeout`), a running daemon. No Docker SDK: the CLI is the contract.
@@ -19,7 +19,7 @@ export const DOCKER_PROBE_TIMEOUT_MS = 10_000;
 
 /**
  * The usual install places of `docker` besides PATH (a GUI-launched shell, a minimal PATH): Docker Desktop, OrbStack,
- * Homebrew, Linux packages. `studio doctor` looks in the same places.
+ * Homebrew, Linux packages. `retake doctor` looks in the same places.
  */
 export function dockerPlaces(home: string = homedir()): string[] {
   return [
@@ -49,9 +49,9 @@ function isExecutable(p: string): boolean {
   }
 }
 
-/** The docker binary: `$DEMO_STUDIO_DOCKER` (as given), else the first candidate that is executable; null when none. */
+/** The docker binary: `$RETAKE_DOCKER` (as given), else the first candidate that is executable; null when none. */
 export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: string) => boolean = isExecutable, home?: string): string | null {
-  if (env.DEMO_STUDIO_DOCKER) return env.DEMO_STUDIO_DOCKER;
+  if (env.RETAKE_DOCKER) return env.RETAKE_DOCKER;
   return dockerCandidates(env, home).find(exists) ?? null;
 }
 
@@ -202,7 +202,7 @@ export interface DockerInfo {
 export async function dockerReady(exec: DockerExec, bin: string, signal?: AbortSignal): Promise<DockerInfo> {
   const need = `docker-compose sandboxes need Docker with Compose v${MIN_COMPOSE_VERSION.slice(0, 2).join('.')} or later`;
   const v = await exec(['compose', 'version', '--short'], { timeoutMs: DOCKER_PROBE_TIMEOUT_MS, signal });
-  if (v.error) throw new SandboxError(`${need}: ${bin} could not be run (${v.error}) — install Docker Desktop or OrbStack, or set DEMO_STUDIO_DOCKER`);
+  if (v.error) throw new SandboxError(`${need}: ${bin} could not be run (${v.error}) — install Docker Desktop or OrbStack, or set RETAKE_DOCKER`);
   if (v.code !== 0) throw new SandboxError(`${need}: \`docker compose\` is not available (${firstErrorLine(v)}) — install the Compose v2 plugin`);
   const compose = v.stdout.trim().replace(/^v/, '');
   const parsed = parseVersion(compose);

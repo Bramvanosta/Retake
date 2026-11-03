@@ -8,8 +8,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@demo-studio/core';
-import type { LoadedTemplate } from '@demo-studio/core';
+import { loadTemplate } from '@retake/core';
+import type { LoadedTemplate } from '@retake/core';
 import {
   PREVIEW_MAX_BYTES,
   PREVIEW_SIZE,
@@ -19,10 +19,10 @@ import {
   pngSize,
   previewStatus,
   themeTokens,
-} from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@demo-studio/editor';
-import type { PreviewSamples } from '@demo-studio/editor';
+} from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
+import type { PreviewSamples } from '@retake/editor';
 import { REPO, SHARED_CACHE, hasTool } from './render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -34,8 +34,8 @@ let editorial: LoadedTemplate;
 let samples: PreviewSamples;
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-preview-'));
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+  root = await mkdtemp(join(tmpdir(), 'retake-preview-'));
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
   editorial = await loadTemplate('editorial', root);
   samples = loadPreviewSamples();
@@ -135,9 +135,9 @@ describe('component preview specs', () => {
 
   it('the preview theme: a workspace template, else the starter of that name', async () => {
     expect((await loadPreviewTheme('editorial', root)).name).toBe('editorial');
-    const bare = await mkdtemp(join(tmpdir(), 'demo-studio-preview-bare-'));
+    const bare = await mkdtemp(join(tmpdir(), 'retake-preview-bare-'));
     try {
-      await writeFile(join(bare, 'studio.yaml'), 'projects_dir: projects\n');
+      await writeFile(join(bare, 'retake.yaml'), 'projects_dir: projects\n');
       expect((await loadPreviewTheme('motion', bare)).name).toBe('motion');
       await expect(loadPreviewTheme('nope', bare)).rejects.toThrow(/template "nope" not found/);
     } finally {

@@ -1,9 +1,9 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { ThemeTokens } from '@demo-studio/components';
+import type { ThemeTokens } from '@retake/components';
 
-export async function tempDir(prefix = 'demo-studio-components-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+export async function tempDir(prefix = 'retake-components-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }
@@ -43,8 +43,8 @@ export function cardManifest(id = 'acme/title-card', extra = ''): string {
 
 /** A minimal valid implementation. */
 export const CARD_TSX = `import { useCurrentFrame } from 'remotion';
-import { Background, FitText, fadeIn } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, FitText, fadeIn } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 export default function TitleCard({ theme, slots, unit, width, fps }: ComponentProps<{ align: string; size: number }>) {
   const frame = useCurrentFrame();

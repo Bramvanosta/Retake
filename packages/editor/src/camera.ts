@@ -2,9 +2,9 @@
  * Camera of a run (zooms from step `camera` hints and the theme default zoom, eased in output time, view clamped to
  * the capture) and the reframe track of the vertical and square variants. Pure.
  */
-import type { CameraHint, Timeline } from '@demo-studio/core';
-import { CAMERA_EASINGS, cubicBezier } from '@demo-studio/components';
-import type { Bezier, EasingFn } from '@demo-studio/components';
+import type { CameraHint, Timeline } from '@retake/core';
+import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
+import type { Bezier, EasingFn } from '@retake/components';
 import type { CameraFrame } from './plan-types.js';
 import { clamp, cursorAt, round } from './util.js';
 

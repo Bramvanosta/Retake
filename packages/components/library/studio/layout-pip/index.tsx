@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { Background, InsetCard, InsetPhone, PIP_BAR, WindowBar, cardShadow, darkLight, nightTone, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps, LayoutPaneRects, ThemeTokens } from '@demo-studio/components/kit';
+import { Background, InsetCard, InsetPhone, PIP_BAR, WindowBar, cardShadow, darkLight, nightTone, withAlpha } from '@retake/components/kit';
+import type { ComponentProps, LayoutPaneRects, ThemeTokens } from '@retake/components/kit';
 
 type Params = {
   width: number;

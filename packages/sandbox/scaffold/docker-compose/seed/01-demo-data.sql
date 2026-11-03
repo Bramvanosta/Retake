@@ -1,4 +1,4 @@
--- Demo data of the sandbox (written by `studio sandbox init`): replace it with your application's, or with an `exec`
+-- Demo data of the sandbox (written by `retake sandbox init`): replace it with your application's, or with an `exec`
 -- seed step that runs its own seed command. It runs in one transaction on database `main` of sandbox.yaml; with the
 -- snapshot strategy a copy of the result is restored before every take. Plain SQL statements only: a pg_dump file
 -- must be made with `pg_dump --inserts` (or loaded by an `exec` step running psql inside the db container).

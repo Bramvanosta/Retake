@@ -23,7 +23,7 @@
  * neutral mark (B-L1); Edit: its status line in plain words (B-L3), the inspector's general hint last with no blank band
  * (B-L4), ⚑ the transport leaves the arrows to the playhead after a click (B-L5), [ ] and Shift+← → on the scrubber (A-L2),
  * every track item a 24 px target (A-L3).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
@@ -33,9 +33,9 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page, Route } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, createEngine } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
-import type { EditPlan } from '@demo-studio/editor';
+import { FileJobQueue, createEngine } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
+import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
@@ -43,7 +43,7 @@ import { writeRender } from './a11y-tour.js';
 import { BITS_TEXT, bitsTimeline, takeWorkspace, writeTake, writeThread } from './timeline-take.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const RUN = '20260101-120000-bits';
 const THREAD = 'c_01JAAAAAAAAAAAAAAAAAAAAAAA';
@@ -59,7 +59,7 @@ let entry: string;
 /** The bits take's frames per second and the first frame of step a.1 (where v4's finding sends Edit). */
 let fps = 30;
 let stepA1 = 0;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const consoleErrors: string[] = [];
 /** The ops the page called (name and body), in order. */
 const calls: Array<{ op: string; body: string }> = [];
@@ -87,7 +87,7 @@ async function copyRender(id: string, n: number, created: string): Promise<void>
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-review-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   await writeTake(dir, 'other', { run: '20260101-110000-other', text: BITS_TEXT.replace('video: Bits', 'video: Other'), timeline: bitsTimeline(), codec: 'vp9', seconds: 2 });
@@ -140,7 +140,7 @@ beforeAll(async () => {
   await writeThread(dir, { id: THREAD, scenario: 'bits', run: RUN, frames: v.plan.durationInFrames, text: 'The caption could be plainer', anchor: { segment: 'a', kind: 'clip', scene: 'a', step: 1 } });
   const mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
   entry = (await mcp.comments.reply('demo', THREAD, 'A plainer caption.', { proposal: { scenario_yaml: BITS_TEXT.replace('caption: Every frame carries its number.', 'caption: Every frame shows its number.'), scenario_hash: sha(BITS_TEXT) } })).entry;
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -170,8 +170,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -180,7 +180,7 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     await page.goto(`${studio.url}#/p/demo/s/bits/review/bits-v1`);
     await page.getByTestId('review-report').waitFor(POLL);
     await expect.poll(() => page.locator('.rv-h1').innerText(), POLL).toBe('bits · v1');
-    expect(await page.title()).toBe('bits · Review report · Demo Studio');
+    expect(await page.title()).toBe('bits · Review report · Retake');
     expect(await page.getByRole('navigation', { name: 'Mode' }).getByRole('link', { name: 'Review' }).getAttribute('aria-current')).toBe('page');
     expect(await page.locator('.sh-app').getAttribute('data-browser')).toBe('none');
     const views = page.getByRole('navigation', { name: 'View' });
@@ -257,10 +257,10 @@ describe.skipIf(!canRun)('the Review report in Chromium (L5.12a)', () => {
     expect(await page.getByTestId('review-export').isDisabled()).toBe(true);
     // The raw capture: a command built from the ids, copied as shown.
     const raw = page.getByTestId('review-export-raw');
-    expect(await raw.innerText()).toContain(`studio export-capture demo ${RUN}`);
+    expect(await raw.innerText()).toContain(`retake export-capture demo ${RUN}`);
     await raw.getByRole('button', { name: 'Copy command' }).click();
     await expect.poll(() => raw.locator('.k-copied').innerText(), POLL).toBe('Copied');
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`studio export-capture demo ${RUN}`);
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`retake export-capture demo ${RUN}`);
     await raw.scrollIntoViewIfNeeded();
     await shot('review-2-export');
     await studio.engine.jobs.cancel(jobs[0].id);

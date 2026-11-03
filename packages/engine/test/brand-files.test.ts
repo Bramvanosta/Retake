@@ -1,7 +1,7 @@
 /**
  * L3.5 brand files (engine src/brand/files.ts): where a logo, wordmark or font may come from under trust `mcp`, and
  * what its bytes must be — every refused source (absolute, `..`, links out of the workspace or into agent-writable
- * folders, scenarios / runs / renders / review / exports of any project in any case, `.demo-studio/`, the components
+ * folders, scenarios / runs / renders / review / exports of any project in any case, `.retake/`, the components
  * folder, hidden folders, malformed `site:` references — the others in site-job.test.ts), raster headers (PNG, JPEG, WebP; sizes), the
  * SVG scan (the starters' logos and font-embedding wordmarks accepted; scripts, handlers, namespaced elements,
  * external references, SMIL, character references, CSS escapes, entities, UTF-16, NUL refused) and the font sniff
@@ -11,10 +11,10 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont } from '../src/index.js';
-import { fontFileFace } from '@demo-studio/components';
+import { fontFileFace } from '@retake/components';
 
 let root: string;
 let outside: string;
@@ -33,14 +33,14 @@ const mcp = (ref: string, kind: 'logo' | 'font' = 'logo') => readBrandFile(ws, r
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-brand-files-'));
   outside = await mkdtemp(join(tmpdir(), 'studio-brand-outside-'));
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\ncomponents_dir: components\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\ncomponents_dir: components\n');
   await put('brand/logo.svg', SVG);
   await put('brand/Inter-Regular.ttf', await readFile(join(T, 'default', 'fonts', 'Inter-Regular.ttf')));
   await put('projects/demo/project.yaml', 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\n');
   await put('projects/demo/assets/logo.svg', SVG);
   for (const f of ['scenarios', 'runs/20261019-1-quote', 'renders', 'review/x', 'exports/x']) await put(`projects/demo/${f}/logo.svg`, SVG);
-  await put('projects/demo/.demo-studio/inspect/i/logo.svg', SVG);
-  await put('.demo-studio/site/s1/logo-1.png', SVG);
+  await put('projects/demo/.retake/inspect/i/logo.svg', SVG);
+  await put('.retake/site/s1/logo-1.png', SVG);
   await put('components/acme/intro/logo.svg', SVG);
   await put('.hidden/logo.svg', SVG);
   await put('templates/own/logo.svg', SVG);
@@ -48,7 +48,7 @@ beforeAll(async () => {
   await symlink(join(outside, 'logo.svg'), join(root, 'brand', 'out.svg'));
   await symlink(join(outside), join(root, 'brand', 'outdir'));
   await symlink(join(root, 'projects', 'demo', 'runs', '20261019-1-quote', 'logo.svg'), join(root, 'brand', 'run-link.svg'));
-  await symlink(join(root, '.demo-studio', 'site', 's1', 'logo-1.png'), join(root, 'brand', 'site-link.png'));
+  await symlink(join(root, '.retake', 'site', 's1', 'logo-1.png'), join(root, 'brand', 'site-link.png'));
   await mkdir(join(root, 'brand', 'folder.svg'));
   ws = await loadWorkspaceConfig(root);
 });
@@ -73,15 +73,15 @@ describe('brand file sources (trust mcp)', () => {
     ['brand/out.svg', /leaves the workspace/],
     ['brand/outdir/logo.svg', /leaves the workspace/],
     ['brand/run-link.svg', /runs\/ of project demo, a folder an agent can write/],
-    ['brand/site-link.png', /hidden folder or file \(\.demo-studio/],
+    ['brand/site-link.png', /hidden folder or file \(\.retake/],
     ['projects/demo/scenarios/logo.svg', /scenarios\/ of project demo/],
     ['projects/demo/runs/20261019-1-quote/logo.svg', /runs\/ of project demo/],
     ['projects/demo/RUNS/20261019-1-quote/logo.svg', /(runs|RUNS)\/ of project demo|not found/],
     ['projects/demo/renders/logo.svg', /renders\/ of project demo/],
     ['projects/demo/review/x/logo.svg', /review\/ of project demo/],
     ['projects/demo/exports/x/logo.svg', /exports\/ of project demo/],
-    ['projects/demo/.demo-studio/inspect/i/logo.svg', /hidden folder/],
-    ['.demo-studio/site/s1/logo-1.png', /hidden folder/],
+    ['projects/demo/.retake/inspect/i/logo.svg', /hidden folder/],
+    ['.retake/site/s1/logo-1.png', /hidden folder/],
     ['.hidden/logo.svg', /hidden folder/],
     ['components/acme/intro/logo.svg', /components folder/],
     ['COMPONENTS/acme/intro/logo.svg', /components folder|not found/],

@@ -182,6 +182,6 @@ export const TemplateFileSchema = z
   })
   .meta({
     id: 'Template',
-    title: 'Demo Studio template',
+    title: 'Retake template',
     description: 'Brand & motion style (templates/<name>/template.yaml), merged over the default template.',
   });

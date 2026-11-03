@@ -12,7 +12,7 @@ import { PRIORITY, ownerOf, registerShellCommand, runShellCommand } from '../src
 
 describe('blocker words by kind (critique H3)', () => {
   it('⚑ each gate its own words and action: hooks to approve (counted), a protected location, agent trust, refused hooks, a read-only location, the file, and an honest fallback', () => {
-    const fix = 'studio run p quote';
+    const fix = 'retake run p quote';
     expect(blockerShort({ kind: 'needs_approval', count: 1, fix })).toEqual({ words: '1 hook to approve', action: 'copy' });
     expect(blockerShort({ kind: 'needs_approval', count: 3, fix })).toEqual({ words: '3 hooks to approve', action: 'copy' });
     expect(blockerShort({ kind: 'needs_approval', fix })).toEqual({ words: 'hooks to approve', action: 'copy' });

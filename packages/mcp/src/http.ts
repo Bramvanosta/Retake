@@ -1,5 +1,5 @@
 /**
- * MCP over HTTP (L4.1, R-MCP-02): `studio mcp --http` serves the same 45 tools as stdio — same engine client (`mcp`),
+ * MCP over HTTP (L4.1, R-MCP-02): `retake mcp --http` serves the same 45 tools as stdio — same engine client (`mcp`),
  * same instructions, same approvals (elicitation over the session) — as Streamable HTTP at
  * `http://127.0.0.1:<port>/mcp`, for an MCP client that registers a URL (Claude Code: `--transport http`).
  *
@@ -9,21 +9,21 @@
  * pages: a browser sends an Origin on every POST and cross-origin fetch, and Sec-Fetch-* from secure contexts (a page of
  * a plain-http site sends none, and its no-cors GET carries neither — it still holds no token); MCP clients send
  * neither. Then the route (`/mcp` only, GET / POST / DELETE; OPTIONS never: no CORS preflight passes), the bearer token
- * (the stable one in the studio home: token-file.ts), JSON bodies only, at most 4 MiB. 127.0.0.1 only, never another
+ * (the stable one in the Retake home: token-file.ts), JSON bodies only, at most 4 MiB. 127.0.0.1 only, never another
  * interface.
  *
  * Whoever holds the token is an MCP client of this workspace — the agent's trust, and the approver of its own forms
- * (as with stdio, where the client that spawns `studio mcp` answers them).
+ * (as with stdio, where the client that spawns `retake mcp` answers them).
  */
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
-import { DEMO_STUDIO_VERSION } from '@demo-studio/core';
-import { BodyTooLargeError, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@demo-studio/engine';
-import type { Engine, RouteSpec } from '@demo-studio/engine';
+import { RETAKE_VERSION } from '@retake/core';
+import { BodyTooLargeError, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
+import type { Engine, RouteSpec } from '@retake/engine';
 import { INSTRUCTIONS, TOOLS, protocolTool } from './index.js';
 import { mcpHttpHandler } from './server.js';
 
-/** The default port of `studio mcp --http` (fixed, so a registration survives restarts). */
+/** The default port of `retake mcp --http` (fixed, so a registration survives restarts). */
 export const DEFAULT_MCP_HTTP_PORT = 47820;
 export const MCP_HTTP_PATH = '/mcp';
 /** A POST's body cap (a tool call's arguments: a scenario, a README, a comment…). */
@@ -62,11 +62,11 @@ export async function startMcpHttpServer(o: McpHttpOptions): Promise<McpHttpServ
   const getEngine = () => (engine ??= createEngine({ root: o.root, client: 'mcp' }));
   await getEngine();
   const handler = mcpHttpHandler({
-    name: 'demo-studio',
-    version: DEMO_STUDIO_VERSION,
+    name: 'retake',
+    version: RETAKE_VERSION,
     instructions: INSTRUCTIONS,
     tools: TOOLS.map((t) => protocolTool(t, getEngine)),
-    onError: (e) => log(`demo-studio mcp --http: ${e.message}`),
+    onError: (e) => log(`retake mcp --http: ${e.message}`),
     ...(o.maxSessions !== undefined ? { maxSessions: o.maxSessions } : {}),
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
   });
@@ -101,7 +101,7 @@ export async function startMcpHttpServer(o: McpHttpOptions): Promise<McpHttpServ
       }
       await handler.handle(req, res, body);
     })().catch((e: unknown) => {
-      log(`demo-studio mcp --http: ${req.method ?? ''} ${(req.url ?? '').split('?')[0]} failed: ${e instanceof Error ? e.message : 'error'}`);
+      log(`retake mcp --http: ${req.method ?? ''} ${(req.url ?? '').split('?')[0]} failed: ${e instanceof Error ? e.message : 'error'}`);
       if (!res.headersSent) fail(res, 500, 'internal', 'internal error');
       else res.destroy();
     });

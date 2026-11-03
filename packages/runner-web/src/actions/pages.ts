@@ -1,5 +1,5 @@
 import type { Page } from 'playwright-core';
-import type { NewTabArgs, OpenArgs, SwitchPageArgs } from '@demo-studio/core';
+import type { NewTabArgs, OpenArgs, SwitchPageArgs } from '@retake/core';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';

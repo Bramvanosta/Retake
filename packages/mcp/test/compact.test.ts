@@ -4,7 +4,7 @@
  * sandboxes, hook steps and the compact results. Pure: synthetic engine views, no worker.
  */
 import { describe, expect, it } from 'vitest';
-import type { ReviewView, RunStatusWithJob } from '@demo-studio/engine';
+import type { ReviewView, RunStatusWithJob } from '@retake/engine';
 import { INSTRUCTIONS, TOOLS, okResult } from '../src/index.js';
 import { COMPACT_FINDINGS_MAX, COMPACT_WARNINGS_MAX, compactElements, compactReview, compactRunStatus } from '../src/compact.js';
 

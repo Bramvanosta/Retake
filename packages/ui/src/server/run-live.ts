@@ -4,7 +4,7 @@
  * behind the same gate as every route. One stream follows one run:
  *
  * - **Steps and log** come from the run's own `log.jsonl` (every progress event, redacted by the runner — a job's run
- *   and a terminal's `studio run` alike) and, for a job's run, the worker's notes of its `events.jsonl` — tailed while
+ *   and a terminal's `retake run` alike) and, for a job's run, the worker's notes of its `events.jsonl` — tailed while
  *   the stream is open and never otherwise: a stat-and-read every RUN_LIVE_POLL_MS from byte offsets, through the
  *   run-file rules of L4.2 (RunFolder: no link followed, no FIFO held, checked once open), at most LIVE_READ_CHUNK
  *   bytes per read, a line longer than LIVE_LINE_MAX skipped with a note (never a buffer without a bound). An event's
@@ -36,8 +36,8 @@ import { join, resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { JOB_STATES, PROJECT_SLUG_RE } from '@demo-studio/core';
-import type { JobState, WorkspaceConfig } from '@demo-studio/core';
+import { JOB_STATES, PROJECT_SLUG_RE } from '@retake/core';
+import type { JobState, WorkspaceConfig } from '@retake/core';
 import {
   ERROR_STATUS,
   EngineError,
@@ -51,8 +51,8 @@ import {
   readPlainRange,
   securityHeaders,
   toEngineError,
-} from '@demo-studio/engine';
-import type { Engine, LiveFeedFrame, RangeRead } from '@demo-studio/engine';
+} from '@retake/engine';
+import type { Engine, LiveFeedFrame, RangeRead } from '@retake/engine';
 import { sseText } from './live.js';
 
 /** Run streams served at once, at most. */
@@ -539,7 +539,7 @@ class RunStream {
       if (++this.ticks % 4 !== 0 && !this.sawEnd) return;
       await this.checkEnd();
     } catch (e) {
-      this.live.log(`studio ui: a run stream failed: ${e instanceof Error ? e.name : 'error'}`);
+      this.live.log(`retake ui: a run stream failed: ${e instanceof Error ? e.name : 'error'}`);
       this.close();
     } finally {
       this.busy = false;
@@ -819,7 +819,7 @@ export class RunLive {
     if (!feed) {
       feed = new FrameFeed(this, jobId);
       this.feeds.set(jobId, feed);
-      void feed.run().catch((e: unknown) => this.log(`studio ui: a live picture failed: ${e instanceof Error ? e.name : 'error'}`));
+      void feed.run().catch((e: unknown) => this.log(`retake ui: a live picture failed: ${e instanceof Error ? e.name : 'error'}`));
     }
     feed.add(s);
   }

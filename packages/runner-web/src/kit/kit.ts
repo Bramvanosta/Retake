@@ -1,11 +1,11 @@
 /**
- * The in-page kit, installed as `window.__demoStudio` in every page and frame.
+ * The in-page kit, installed as `window.__retake` in every page and frame.
  *
  * `demoKit` MUST stay self-contained: it is serialised with `Function.prototype.toString()` and evaluated
  * in the page (see source.ts), so it may not reference anything outside its own body at runtime
  * (type-only imports are fine, they are erased).
  */
-import type { BBox, PointSpec, ScopeSpec, SecretFieldKind, TargetObject } from '@demo-studio/core';
+import type { BBox, PointSpec, ScopeSpec, SecretFieldKind, TargetObject } from '@retake/core';
 import type {
   CalendarInfo,
   CursorKind,
@@ -46,7 +46,7 @@ export function demoKit(config: KitConfig): void {
   // notification's time and a dropped file's date stay the product's.
   const RT = (() => {
     const g = globalThis as unknown as Record<string | symbol, unknown>;
-    const clock = g[Symbol.for('demo-studio.clock')] as { Date?: DateConstructor } | undefined;
+    const clock = g[Symbol.for('retake.clock')] as { Date?: DateConstructor } | undefined;
     const saved: Record<string, unknown> = clock?.Date ? { Date: clock.Date } : {};
     const pick = <T,>(name: string, bind: boolean): T => {
       const v = saved[name] ?? g[name];
@@ -63,13 +63,13 @@ export function demoKit(config: KitConfig): void {
     };
   })();
   // ── Web notifications (R-NTF-03): report every `new Notification(…)` and ServiceWorkerRegistration#showNotification
-  // to the runner (binding `__demoStudioNotification`, else queued in `__demoStudioNotifications`), then let the page's
+  // to the runner (binding `__retakeNotification`, else queued in `__retakeNotifications`), then let the page's
   // call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch).
   (() => {
     type Reported = { via: string; title: string; body: string; tag?: string; icon?: string; time: number; url: string; origin: string };
-    const g = window as unknown as Record<string, unknown> & { __demoStudioNotifications?: Reported[] };
-    if (config.passive || g.__demoStudioNotifyPatched) return;
-    g.__demoStudioNotifyPatched = true;
+    const g = window as unknown as Record<string, unknown> & { __retakeNotifications?: Reported[] };
+    if (config.passive || g.__retakeNotifyPatched) return;
+    g.__retakeNotifyPatched = true;
     const report = (via: string, title: unknown, options: unknown) => {
       try {
         const o = (options && typeof options === 'object' ? options : {}) as { body?: unknown; tag?: unknown; icon?: unknown };
@@ -91,9 +91,9 @@ export function demoKit(config: KitConfig): void {
         };
         if (o.tag !== undefined && o.tag !== null && String(o.tag) !== '') payload.tag = String(o.tag);
         if (icon) payload.icon = icon;
-        const binding = g.__demoStudioNotification;
+        const binding = g.__retakeNotification;
         if (typeof binding === 'function') (binding as (p: Reported) => unknown)(payload);
-        else (g.__demoStudioNotifications ??= []).push(payload);
+        else (g.__retakeNotifications ??= []).push(payload);
       } catch {
         /* never break the page */
       }
@@ -121,8 +121,8 @@ export function demoKit(config: KitConfig): void {
       };
     }
   })();
-  const w = window as unknown as Window & { __demoStudio?: KitApi };
-  const prev = w.__demoStudio;
+  const w = window as unknown as Window & { __retake?: KitApi };
+  const prev = w.__retake;
   let carried: CursorState | null = null;
   if (prev && typeof prev.healthy === 'function') {
     if (prev.version === VERSION && prev.healthy()) return;
@@ -141,7 +141,7 @@ export function demoKit(config: KitConfig): void {
     cleanups.push(() => target.removeEventListener(type, fn, opts));
   }
   let pinged = false;
-  on(window, '__demo_studio_ping', () => {
+  on(window, '__retake_ping', () => {
     pinged = true;
   });
 
@@ -438,7 +438,7 @@ export function demoKit(config: KitConfig): void {
     if (v === undefined) memo.low.set(n, (v = lc(norm(n.textContent))));
     return v;
   }
-  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'DEMO-STUDIO-CURSOR']);
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'RETAKE-CURSOR']);
   const BUTTON_INPUT = 'input[type=button],input[type=submit],input[type=reset]';
 
   function textOf(el: Element): string {
@@ -2253,7 +2253,7 @@ export function demoKit(config: KitConfig): void {
     `<path d="${ibeamPath}" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="${ibeamPath}" fill="none" stroke="#111" stroke-width="1.3" stroke-linecap="round"/>`,
   );
 
-  const host = document.createElement('demo-studio-cursor');
+  const host = document.createElement('retake-cursor');
   /** The overlay's look (also handed to the raw export's cursor layer, L2.13: `api.cursorLook`). */
   const lookCss = `
     :host{all:initial}
@@ -2288,10 +2288,10 @@ export function demoKit(config: KitConfig): void {
   // Raw capture without the cursor (L2.13): the pointer, its icon, presses and ripples keep working and are reported,
   // nothing of them is drawn (the file-drag ghost card stays: it is the page's content being dragged).
   const css = lookCss + (config.cursor.hidden ? '.c,.rps{display:none!important}' : '');
-  /** Report what the cursor shows (icon, press, ripple) to the runner (binding `__demoStudioCursor`), never failing. */
+  /** Report what the cursor shows (icon, press, ripple) to the runner (binding `__retakeCursor`), never failing. */
   function effect(type: 'icon' | 'press' | 'release' | 'ripple', extra: { icon?: CursorKind; x?: number; y?: number } = {}): void {
     try {
-      const b = (window as unknown as Record<string, unknown>).__demoStudioCursor;
+      const b = (window as unknown as Record<string, unknown>).__retakeCursor;
       if (typeof b !== 'function') return;
       const r = (b as (p: unknown) => unknown)({ type, time: RT.Date.now(), ...extra }) as { catch?: (f: () => void) => void } | undefined;
       if (r && typeof r.catch === 'function') r.catch(() => undefined);
@@ -2658,7 +2658,7 @@ export function demoKit(config: KitConfig): void {
       const m = e as MouseEvent;
       if (!m.isTrusted) return;
       try {
-        window.parent.postMessage({ __demoStudioPtr: 1, type, x: m.clientX, y: m.clientY }, '*');
+        window.parent.postMessage({ __retakePtr: 1, type, x: m.clientX, y: m.clientY }, '*');
       } catch {
         /* detached */
       }
@@ -2680,8 +2680,8 @@ export function demoKit(config: KitConfig): void {
   }
   if (!config.passive) on(window, 'message', (ev: Event) => {
     const e = ev as MessageEvent;
-    const d = e.data as { __demoStudioPtr?: number; type?: string; x?: number; y?: number } | null;
-    if (!d || d.__demoStudioPtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
+    const d = e.data as { __retakePtr?: number; type?: string; x?: number; y?: number } | null;
+    if (!d || d.__retakePtr !== 1 || typeof d.x !== 'number' || typeof d.y !== 'number') return;
     const frame = sourceFrame(e.source);
     if (!frame) return;
     const o = contentOffset(frame);
@@ -3389,7 +3389,7 @@ export function demoKit(config: KitConfig): void {
     healthy: () => {
       if (disposed) return false;
       pinged = false;
-      window.dispatchEvent(new Event('__demo_studio_ping'));
+      window.dispatchEvent(new Event('__retake_ping'));
       return pinged && (!isTop || config.passive === true || host.isConnected);
     },
     dispose: () => {
@@ -3450,7 +3450,7 @@ export function demoKit(config: KitConfig): void {
     snapshot: (id, max) => {
       const el = id ? deref(id) : document.body;
       let html = el ? el.outerHTML : document.documentElement.outerHTML;
-      html = html.replace(/<demo-studio-cursor[\s\S]*?<\/demo-studio-cursor>/g, '');
+      html = html.replace(/<retake-cursor[\s\S]*?<\/retake-cursor>/g, '');
       if (html.length <= max) return html;
       // Cut after the last complete tag within the cap (a cut inside a tag would be unreadable).
       let cut = html.lastIndexOf('>', max - 1) + 1;
@@ -3531,5 +3531,5 @@ export function demoKit(config: KitConfig): void {
       return el ? secretKind(el) : null;
     },
   };
-  Object.defineProperty(window, '__demoStudio', { value: api, configurable: true, enumerable: false, writable: true });
+  Object.defineProperty(window, '__retake', { value: api, configurable: true, enumerable: false, writable: true });
 }

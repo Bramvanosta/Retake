@@ -1,8 +1,8 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
-import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@demo-studio/core';
-import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
+import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@retake/core';
+import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
 import { LocalStorage, READ_TEXT_MAX_BYTES } from './storage.js';
@@ -78,7 +78,7 @@ export interface PersonaView {
   name: string;
   /** Environment page keys it is signed into by default. */
   pages: string[];
-  /** It has `login:` steps (`studio login --auto` and sandbox takes sign it in by them). */
+  /** It has `login:` steps (`retake login --auto` and sandbox takes sign it in by them). */
   login_steps: boolean;
   /** An account of a sandbox: signed in automatically by a take. */
   sandbox?: true;

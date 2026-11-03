@@ -8,8 +8,8 @@ import {
   loadScenario,
   parseScenario,
   warningsOf,
-} from '@demo-studio/core';
-import type { LoadedProject, Template, ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { LoadedProject, Template, ValidationIssue } from '@retake/core';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -37,7 +37,7 @@ export function printIssues(ui: Ui, issues: readonly ValidationIssue[], file?: s
 }
 
 /**
- * `studio validate <project> [scenario|file]`: project.yaml, its sandboxes' sandbox.yaml (L1.8), the project template
+ * `retake validate <project> [scenario|file]`: project.yaml, its sandboxes' sandbox.yaml (L1.8), the project template
  * and the scenario (or every scenario when none is given). Prints `file:line:col severity path: message`; exit 1 when
  * any error.
  */

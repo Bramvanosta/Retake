@@ -19,8 +19,8 @@ import {
   roundTo,
   wallpaperCss,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Params = {
   from: number;

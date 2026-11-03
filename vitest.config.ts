@@ -1,5 +1,26 @@
 import { defineConfig } from 'vitest/config';
+import { mkdtempSync, realpathSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// L5.13 (critique H4): a test run never uses the person's own home (~/.retake: their signed-in profiles). RETAKE_HOME
+// is a fresh temp folder unless the shell names one — never ~/.retake nor the home of before L5.13, even through a
+// link (review A M3: pointing RETAKE_HOME at the old home is the obvious workaround of a person who did not move it) —,
+// removed at the end of the run (vitest.teardown.mjs), and variables of the name before L5.13 never reach a test (core
+// test/retake-home.test.ts is the canary).
+for (const k of Object.keys(process.env)) if (k.startsWith('DEMO_STUDIO_')) delete process.env[k]; // old-name: dropped, never read
+if (!process.env.RETAKE_HOME?.trim()) process.env.RETAKE_HOME = process.env.RETAKE_TEST_HOME_MADE = mkdtempSync(join(tmpdir(), 'retake-test-home-'));
+const testHome = resolve(process.env.RETAKE_HOME.trim().replace(/^~(?=$|\/)/, homedir()));
+const real = (p: string) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return p;
+  }
+};
+const REAL_HOMES = [join(homedir(), '.retake'), join(homedir(), '.demo-studio')]; // old-name: the home before L5.13 is refused too
+if (REAL_HOMES.some((h) => testHome === h || real(testHome) === real(h))) throw new Error(`RETAKE_HOME is ${testHome}, a real Retake home: tests use a scratch one (unset it, or name a temp folder)`);
 
 const pkg = (name: string) => fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
 const kit = fileURLToPath(new URL('./packages/components/src/kit/index.ts', import.meta.url));
@@ -7,20 +28,20 @@ const kit = fileURLToPath(new URL('./packages/components/src/kit/index.ts', impo
 export default defineConfig({
   resolve: {
     alias: {
-      '@demo-studio/core': pkg('core'),
-      '@demo-studio/hooks': pkg('hooks'),
-      '@demo-studio/sandbox': pkg('sandbox'),
-      // Before '@demo-studio/components': the first matching alias wins and that one would also match '…/kit'.
-      '@demo-studio/components/kit': kit,
-      '@demo-studio/runner-web': pkg('runner-web'),
-      '@demo-studio/components': pkg('components'),
-      '@demo-studio/editor': pkg('editor'),
-      // Before '@demo-studio/review', as for the kit: the thumbnails' own entry (no editor import).
-      '@demo-studio/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
-      '@demo-studio/review': pkg('review'),
-      '@demo-studio/engine': pkg('engine'),
-      '@demo-studio/mcp': pkg('mcp'),
-      '@demo-studio/ui': pkg('ui'),
+      '@retake/core': pkg('core'),
+      '@retake/hooks': pkg('hooks'),
+      '@retake/sandbox': pkg('sandbox'),
+      // Before '@retake/components': the first matching alias wins and that one would also match '…/kit'.
+      '@retake/components/kit': kit,
+      '@retake/runner-web': pkg('runner-web'),
+      '@retake/components': pkg('components'),
+      '@retake/editor': pkg('editor'),
+      // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
+      '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
+      '@retake/review': pkg('review'),
+      '@retake/engine': pkg('engine'),
+      '@retake/mcp': pkg('mcp'),
+      '@retake/ui': pkg('ui'),
     },
   },
   test: {
@@ -28,7 +49,9 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
-    env: { DEMO_STUDIO_DISK_WARN: 'off' },
+    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome },
+    // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR).
+    globalSetup: ['./vitest.teardown.mjs'],
     pool: 'forks',
     // Browser + ffmpeg tests are timing-sensitive: cap parallel files so a 4-CPU machine is not saturated.
     poolOptions: { forks: { maxForks: 2 } },

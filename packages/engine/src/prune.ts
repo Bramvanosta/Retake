@@ -9,7 +9,7 @@
  */
 import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LoadedProject, RunRecord } from '@demo-studio/core';
+import type { LoadedProject, RunRecord } from '@retake/core';
 import { listComments } from './comments.js';
 import { editor } from './jobs/render-job.js';
 

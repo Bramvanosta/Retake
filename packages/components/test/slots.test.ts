@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { SLOT_SOURCES, fillSlots, parseManifest, slotSource } from '@demo-studio/components';
-import type { SlotContext } from '@demo-studio/components';
+import { SLOT_SOURCES, fillSlots, parseManifest, slotSource } from '@retake/components';
+import type { SlotContext } from '@retake/components';
 import { DARK, LIGHT } from './helpers.js';
 
 const MANIFEST = parseManifest(`id: acme/outro

@@ -147,7 +147,7 @@ export const personaShape = {
   pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
   session: z
     .enum(['profile', 'storage_state'])
-    .describe('profile (default): the Chromium profile `studio login` keeps, copied for each run; storage_state: cookies + localStorage only.')
+    .describe('profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only.')
     .optional(),
   check: PersonaCheckSchema.optional(),
   login_url: LoginPatternsSchema.describe('Sign-in pages of this persona (with auth.login_url).').optional(),
@@ -158,7 +158,7 @@ export const PersonaSchema = z
   .strictObject(personaShape)
   .meta({
     id: 'Persona',
-    description: 'One account the videos are filmed as. Its session lives in ~/.demo-studio (DEMO_STUDIO_HOME), never in the project: no path here.',
+    description: 'One account the videos are filmed as. Its session lives in ~/.retake (RETAKE_HOME), never in the project: no path here.',
   }) satisfies z.ZodType<PersonaConfig>;
 
 export const AuthConfigSchema = z

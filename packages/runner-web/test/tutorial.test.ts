@@ -8,8 +8,8 @@ import type { AddressInfo } from 'node:net';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TimelineSchema } from '@demo-studio/core';
-import type { TextArtefact, Timeline } from '@demo-studio/core';
+import { TimelineSchema } from '@retake/core';
+import type { TextArtefact, Timeline } from '@retake/core';
 import { captureValue, runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
 

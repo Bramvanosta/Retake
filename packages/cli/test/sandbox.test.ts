@@ -1,9 +1,9 @@
 /**
- * `studio sandbox …` and `studio run --sandbox` (L1.8) on the bundled fixture's own sandbox.yaml (the committed one,
+ * `retake sandbox …` and `retake run --sandbox` (L1.8) on the bundled fixture's own sandbox.yaml (the committed one,
  * moved to free ports and started with --no-build) and its `sandbox-quote` scenario (quick pacing): status / up /
  * logs / down, a run on the sandbox environment without --sandbox while it is down (refused) and while it is up (no
  * reset), two takes with --sandbox showing the same data though the sandbox was changed between them, the take lock,
- * the usage errors of --sandbox, and doctor's line. The studio home is a temp folder (DEMO_STUDIO_HOME). Skipped when
+ * the usage errors of --sandbox, and doctor's line. The Retake home is a temp folder (RETAKE_HOME). Skipped when
  * Chromium is not available.
  */
 import { existsSync } from 'node:fs';
@@ -14,9 +14,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@demo-studio/core';
-import type { RunRecord } from '@demo-studio/core';
-import { TakeLock, openSandbox, probePort, sandboxPaths } from '@demo-studio/sandbox';
+import { loadProject } from '@retake/core';
+import type { RunRecord } from '@retake/core';
+import { TakeLock, openSandbox, probePort, sandboxPaths } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
@@ -24,7 +24,7 @@ const FIXTURE_PROJECT = join(REPO, 'projects/northfield-fixture');
 const PROJECT = 'northfield-sbx';
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -52,12 +52,13 @@ async function freePorts(n: number): Promise<number[]> {
 
 let ws = '';
 let home = '';
+let savedHome: string | undefined;
 let dir = '';
 let ports: number[] = [];
 
-async function studio(args: string[]) {
+async function retake(args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -79,15 +80,16 @@ async function lastRun(scenario: string): Promise<{ record: RunRecord; texts: Re
 
 const api = (path: string) => `http://localhost:${ports[0]}${path}`;
 
-describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fixture, process provider)', () => {
+describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fixture, process provider)', () => {
   beforeAll(async () => {
     home = await mkdtemp(join(tmpdir(), 'studio-sandbox-home-'));
-    process.env.DEMO_STUDIO_HOME = home;
+    savedHome = process.env.RETAKE_HOME;
+    process.env.RETAKE_HOME = home;
     const build = (await import(join(REPO, 'fixtures/wholesale/build.mjs'))) as { bundleState(): Promise<{ fresh: boolean }>; build(): Promise<unknown> };
     if (!(await build.bundleState()).fresh) await build.build();
     ports = await freePorts(4);
     ws = await mkdtemp(join(tmpdir(), 'studio-sandbox-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     dir = join(ws, 'projects', PROJECT);
     await mkdir(join(dir, 'scenarios'), { recursive: true });
     await mkdir(join(dir, 'sandbox'), { recursive: true });
@@ -127,42 +129,44 @@ describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fix
     } catch {
       /* not started */
     }
-    delete process.env.DEMO_STUDIO_HOME;
+    // Back to the run's scratch home (vitest.config.ts), never none: a later test's main() would look at the real one.
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     await rm(ws, { recursive: true, force: true });
     await rm(home, { recursive: true, force: true });
   });
 
   it('down: status says so (exit 1), and a run on the sandbox environment without --sandbox is refused before anything runs', async () => {
-    const st = await studio(['sandbox', 'status', PROJECT]);
+    const st = await retake(['sandbox', 'status', PROJECT]);
     expect(st.code).toBe(EXIT.failure);
     expect(st.err).toMatch(/northfield-sbx sandbox sandbox · process · down/);
     expect(st.err).toContain('never seeded');
-    expect(st.err).toContain(`→ studio sandbox up ${PROJECT}`);
-    const json = await studio(['sandbox', 'status', PROJECT, '--json']);
+    expect(st.err).toContain(`→ retake sandbox up ${PROJECT}`);
+    const json = await retake(['sandbox', 'status', PROJECT, '--json']);
     expect(JSON.parse(json.out)).toMatchObject({ project: PROJECT, env: 'sandbox', state: 'down', services: [{ name: 'fixture', state: 'stopped' }] });
-    const run = await studio(['run', PROJECT, 'sandbox-quote']);
+    const run = await retake(['run', PROJECT, 'sandbox-quote']);
     expect(run.code).toBe(EXIT.failure);
-    expect(run.err).toContain(`sandbox sandbox is not running (fixture is not running): studio sandbox up ${PROJECT} --env sandbox, or run with --sandbox`);
+    expect(run.err).toContain(`sandbox sandbox is not running (fixture is not running): retake sandbox up ${PROJECT} --env sandbox, or run with --sandbox`);
     expect(existsSync(join(dir, 'runs'))).toBe(false);
   });
 
   it('up starts and seeds it; status --json and logs show it', async () => {
-    const up = await studio(['sandbox', 'up', PROJECT]);
+    const up = await retake(['sandbox', 'up', PROJECT]);
     expect(up.code).toBe(EXIT.ok);
     expect(up.err).toMatch(/services {2}started fixture · healthy 1\/1/);
     expect(up.err).toMatch(/seed {6}reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);
     expect(up.err).toContain(`pages     console http://localhost:${ports[2]} (console.northfield.example) · shop http://localhost:${ports[3]} (shop.northfield.example)`);
-    const st = await studio(['sandbox', 'status', PROJECT, '--json']);
+    const st = await retake(['sandbox', 'status', PROJECT, '--json']);
     expect(st.code).toBe(EXIT.ok);
     expect(JSON.parse(st.out)).toMatchObject({ state: 'up', services: [{ name: 'fixture', state: 'running', healthy: true }], seed: { current: true } });
-    const logs = await studio(['sandbox', 'logs', PROJECT, '--lines', '8']);
+    const logs = await retake(['sandbox', 'logs', PROJECT, '--lines', '8']);
     expect(logs.code).toBe(EXIT.ok);
     expect(logs.out).toContain('Northfield fixture is running');
-    expect((await studio(['sandbox', 'logs', PROJECT, 'nope'])).code).toBe(EXIT.usage);
+    expect((await retake(['sandbox', 'logs', PROJECT, 'nope'])).code).toBe(EXIT.usage);
   });
 
   it('two takes with --sandbox show the same data though the sandbox changed between them; without --sandbox, the next take does not', async () => {
-    const take1 = await studio(['run', PROJECT, 'sandbox-quote', '--sandbox']);
+    const take1 = await retake(['run', PROJECT, 'sandbox-quote', '--sandbox']);
     expect(take1.code, take1.err).toBe(EXIT.ok);
     expect(take1.err).toMatch(/sandbox sandbox \(process\) · running · healthy 1\/1 · reset reseed \d+ ms/);
     expect(take1.err).toMatch(/sandbox {3}sandbox \(process\) · reset \(reseed\) \d+ ms before the take · seed [0-9a-f]{12}/);
@@ -186,14 +190,14 @@ describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fix
     });
     expect(posted.status).toBe(201);
 
-    const take2 = await studio(['run', PROJECT, 'sandbox-quote', '--sandbox']);
+    const take2 = await retake(['run', PROJECT, 'sandbox-quote', '--sandbox']);
     expect(take2.code, take2.err).toBe(EXIT.ok);
     const two = await lastRun('sandbox-quote');
     expect(two.record.id).not.toBe(one.record.id);
     expect(two.texts).toEqual(one.texts);
 
     // The control: filmed as it is (no reset) — the list and the new reference move on.
-    const take3 = await studio(['run', PROJECT, 'sandbox-quote', '--env', 'sandbox']);
+    const take3 = await retake(['run', PROJECT, 'sandbox-quote', '--env', 'sandbox']);
     expect(take3.code, take3.err).toBe(EXIT.ok);
     expect(take3.err).toContain('sandbox sandbox: filmed as it is, without a reset (--sandbox resets it to its seed first)');
     expect(take3.err).toContain('sandbox (process) · no reset before the take (run without --sandbox)');
@@ -209,15 +213,15 @@ describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fix
     const lock = TakeLock.acquire(sandboxPaths(project.dir, 'sandbox').lock, 'run other', 'sandbox');
     lock.note('20261014-101500-other');
     try {
-      const run = await studio(['run', PROJECT, 'sandbox-quote', '--sandbox', '--dry']);
+      const run = await retake(['run', PROJECT, 'sandbox-quote', '--sandbox', '--dry']);
       expect(run.code).toBe(EXIT.failure);
       expect(run.err).toMatch(/sandbox sandbox is in use: run 20261014-101500-other \(pid \d+\) since \d\d:\d\d:\d\d — wait for it/);
-      const reset = await studio(['sandbox', 'reset', PROJECT]);
+      const reset = await retake(['sandbox', 'reset', PROJECT]);
       expect(reset.code).toBe(EXIT.failure);
       expect(reset.err).toContain('sandbox sandbox is in use: run 20261014-101500-other');
-      const status = await studio(['sandbox', 'status', PROJECT]);
+      const status = await retake(['sandbox', 'status', PROJECT]);
       expect(status.err).toMatch(/lock +in use: run 20261014-101500-other/);
-      const dry = await studio(['run', PROJECT, 'sandbox-quote', '--dry', '--until', 'quotes.0']);
+      const dry = await retake(['run', PROJECT, 'sandbox-quote', '--dry', '--until', 'quotes.0']);
       expect(dry.code, dry.err).toBe(EXIT.ok);
       expect(dry.err).toContain('sandbox sandbox is in use by run 20261014-101500-other');
       // A scenario without `env:` waiting for an email only the sandbox's mailbox receives: --sandbox picks the sandbox
@@ -226,45 +230,45 @@ describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fix
         join(dir, 'scenarios', 'mail-wait.yaml'),
         'video: mail-wait\nscenes:\n  - id: a\n    page: shop\n    steps:\n      - wait_for_email: {to: orders@demo-cafe.example, subject: Confirm, timeout: 2, as: m}\n',
       );
-      const mail = await studio(['run', PROJECT, 'mail-wait', '--sandbox', '--dry']);
+      const mail = await retake(['run', PROJECT, 'mail-wait', '--sandbox', '--dry']);
       expect(mail.code).toBe(EXIT.failure);
       expect(mail.err).toContain('sandbox sandbox is in use: run 20261014-101500-other');
-      expect((await studio(['validate', PROJECT, 'mail-wait'])).code).not.toBe(EXIT.ok);
+      expect((await retake(['validate', PROJECT, 'mail-wait'])).code).not.toBe(EXIT.ok);
     } finally {
       lock.releaseSync();
     }
-    const reset = await studio(['sandbox', 'reset', PROJECT]);
+    const reset = await retake(['sandbox', 'reset', PROJECT]);
     expect(reset.code).toBe(EXIT.ok);
     expect(reset.err).toMatch(/northfield-sbx sandbox sandbox reset: reseed \d+ ms · seed 1 step \(\d+ ms\) · mailbox emptied/);
   });
 
-  it('auth status: a sandbox account signs in automatically — never a "studio login" hint, never a failure (I9)', async () => {
-    const st = await studio(['auth', 'status', '--project', PROJECT]);
+  it('auth status: a sandbox account signs in automatically — never a "retake login" hint, never a failure (I9)', async () => {
+    const st = await retake(['auth', 'status', '--project', PROJECT]);
     expect(st.code).toBe(EXIT.ok);
     expect(st.out).toMatch(/ {2}supplier {2}auto {6}sandbox account: a take signs it in automatically whenever its session is missing \(its login steps, off camera\)\n/);
-    expect(st.out).not.toContain('studio login');
-    const json = JSON.parse((await studio(['auth', 'status', '--project', PROJECT, '--json'])).out) as { personas: Array<{ persona: string; sandbox?: boolean; status: string }> };
+    expect(st.out).not.toContain('retake login');
+    const json = JSON.parse((await retake(['auth', 'status', '--project', PROJECT, '--json'])).out) as { personas: Array<{ persona: string; sandbox?: boolean; status: string }> };
     expect(json.personas.find((p) => p.persona === 'supplier')).toMatchObject({ status: 'never', sandbox: true });
   });
 
   it('--sandbox: an environment that is not a sandbox, or a project without one, is a usage error', async () => {
-    const env = await studio(['run', PROJECT, 'sandbox-quote', '--sandbox', '--env', 'local']);
+    const env = await retake(['run', PROJECT, 'sandbox-quote', '--sandbox', '--env', 'local']);
     expect(env.code).toBe(EXIT.usage);
     expect(env.err).toContain('--sandbox resets a sandbox before the take: environment local is not a sandbox (sandboxes: sandbox)');
     const none = join(ws, 'projects', 'plain');
     await mkdir(join(none, 'scenarios'), { recursive: true });
     await writeFile(join(none, 'project.yaml'), 'name: Plain\nenvironments:\n  local: {app: "http://localhost:9"}\n');
     await writeFile(join(none, 'scenarios', 'one.yaml'), 'video: one\nscenes:\n  - id: a\n    page: app\n    steps: [{hold: 0.1}]\n');
-    const plain = await studio(['run', 'plain', 'one', '--sandbox']);
+    const plain = await retake(['run', 'plain', 'one', '--sandbox']);
     expect(plain.code).toBe(EXIT.usage);
     expect(plain.err).toContain('--sandbox resets a sandbox before the take, and project plain has none');
-    expect((await studio(['sandbox', 'status', 'plain'])).err).toContain('project plain has no sandbox');
-    expect((await studio(['sandbox', 'up', PROJECT, '--env', 'local'])).code).toBe(EXIT.usage);
+    expect((await retake(['sandbox', 'status', 'plain'])).err).toContain('project plain has no sandbox');
+    expect((await retake(['sandbox', 'up', PROJECT, '--env', 'local'])).code).toBe(EXIT.usage);
   });
 
   it('doctor: one line for the sandbox (no line for its accounts, nor for its pages)', async () => {
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@demo-studio/core');
+    const { loadWorkspaceConfig } = await import('@retake/core');
     const probes = { ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) };
     const checks = (await doctorChecks(probes, await loadWorkspaceConfig(ws), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
     expect(checks).toEqual([
@@ -275,35 +279,35 @@ describe.skipIf(!chromiumAvailable())('studio sandbox and run --sandbox (the fix
   });
 
   it('down stops it: its ports are free; doctor then says how to start it', async () => {
-    const down = await studio(['sandbox', 'down', PROJECT]);
+    const down = await retake(['sandbox', 'down', PROJECT]);
     expect(down.code).toBe(EXIT.ok);
     expect(down.err).toContain(`${PROJECT} sandbox sandbox stopped: fixture`);
     for (const p of ports) expect(await probePort(p)).toBe(false);
-    expect((await studio(['sandbox', 'down', PROJECT])).err).toContain('was not running');
+    expect((await retake(['sandbox', 'down', PROJECT])).err).toContain('was not running');
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@demo-studio/core');
+    const { loadWorkspaceConfig } = await import('@retake/core');
     const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await loadWorkspaceConfig(ws), { project: PROJECT });
     expect(checks.find((c) => c.name === 'Sandbox sandbox')).toEqual({
       status: 'warn',
       name: 'Sandbox sandbox',
       detail: 'process · not running',
-      hint: `studio sandbox up ${PROJECT} (studio run … --sandbox starts it too)`,
+      hint: `retake sandbox up ${PROJECT} (retake run … --sandbox starts it too)`,
     });
   });
 });
 
-describe('studio sandbox init and the docker-compose flags (L1.8 part C, no Docker needed)', () => {
+describe('retake sandbox init and the docker-compose flags (L1.8 part C, no Docker needed)', () => {
   let iws = '';
 
   async function cli(args: string[]) {
     const io = memoryIo();
-    const code = await main(['node', 'studio', '--root', iws, ...args], io);
+    const code = await main(['node', 'retake', '--root', iws, ...args], io);
     return { code, out: io.stdout(), err: io.stderr() };
   }
 
   beforeAll(async () => {
     iws = await mkdtemp(join(tmpdir(), 'studio-sandbox-init-'));
-    await writeFile(join(iws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(iws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     await mkdir(join(iws, 'projects', 'shop', 'scenarios'), { recursive: true });
     await writeFile(join(iws, 'projects', 'shop', 'project.yaml'), '# The shop.\nname: Shop\nenvironments:\n  local: {app: "http://localhost:9"}   # the dev server\ntemplate: default\n');
   });
@@ -328,7 +332,7 @@ describe('studio sandbox init and the docker-compose flags (L1.8 part C, no Dock
     expect(again.err).toMatch(/sandbox sandbox already exists \(sandbox\/sandbox\.yaml\): --force writes the scaffold over its files/);
     const text = await cli(['sandbox', 'init', 'shop', '--env', 'demo']);
     expect(text.code, text.err).toBe(EXIT.ok);
-    expect(text.err).toMatch(/sandbox demo scaffolded — try it: studio sandbox up shop --env demo/);
+    expect(text.err).toMatch(/sandbox demo scaffolded — try it: retake sandbox up shop --env demo/);
     expect(text.err).toMatch(/ports +app \d+ · Postgres \d+ · Mailpit \d+ \(127\.0\.0\.1\)/);
   });
 
@@ -342,6 +346,6 @@ describe('studio sandbox init and the docker-compose flags (L1.8 part C, no Dock
     expect(build.err).toMatch(/--build is for docker-compose sandboxes: sandbox sandbox is provider process/);
     expect((await cli(['sandbox', 'down', 'proc', '--volumes'])).err).toMatch(/--volumes is for docker-compose sandboxes/);
     expect((await cli(['sandbox', 'logs', 'proc', '--follow'])).err).toMatch(/--follow is for docker-compose sandboxes: .*tail -f .*<service>\.log/);
-    expect(existsSync(join(dir, '.demo-studio'))).toBe(false);
+    expect(existsSync(join(dir, '.retake'))).toBe(false);
   });
 });

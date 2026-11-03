@@ -5,19 +5,19 @@
  * line, the brand mark, the logo rows, the clock and the texts — against the measured positions, with tolerances of a
  * few px (fonts differ from the reference's; geometry does not). Also: the staggered motion at a few instants, layout
  * geometry following params on screen, and determinism (the same frame rendered twice is the same image).
- * Needs ffmpeg/ffprobe and a Chromium headless shell (Playwright's or $DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL).
+ * Needs ffmpeg/ffprobe and a Chromium headless shell (Playwright's or $RETAKE_CHROMIUM_HEADLESS_SHELL).
  */
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { loadProjectTemplate, readJson } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline } from '@demo-studio/core';
-import { planEdit, renderStills } from '@demo-studio/editor';
-import type { EditOverrides, EditPlan, PlanSegment } from '@demo-studio/editor';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { loadProjectTemplate, readJson } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
+import { planEdit, renderStills } from '@retake/editor';
+import type { EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
 import { REPO, fixtureProject, realTimeline, template } from './helpers.js';
 import { SHARED_CACHE, hasTool, makeColourCapture, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
@@ -139,7 +139,7 @@ const segOf = (plan: EditPlan, pred: (s: PlanSegment) => boolean) => plan.segmen
 
 beforeAll(async () => {
   if (!canRender) return;
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-look-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-look-'));
   registry = await loadComponentRegistry({ root: REPO });
   project = await fixtureProject();
   editorial = await template('editorial');

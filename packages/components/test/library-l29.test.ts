@@ -9,8 +9,8 @@ import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { LIBRARY_DIR, applyParamDefaults, evalAnchor, paramEnums, parseManifest } from '@demo-studio/components';
-import type { ComponentManifest, ComponentProps, LayoutRects, MediaValue } from '@demo-studio/components';
+import { LIBRARY_DIR, applyParamDefaults, evalAnchor, paramEnums, parseManifest } from '@retake/components';
+import type { ComponentManifest, ComponentProps, LayoutRects, MediaValue } from '@retake/components';
 import { NOTIFICATION_STYLES, layoutNotification, notificationBox, phoneCardGeometry } from '../src/kit/index.js';
 import { DARK, LIGHT } from './helpers.js';
 

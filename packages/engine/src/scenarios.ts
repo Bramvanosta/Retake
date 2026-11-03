@@ -23,9 +23,9 @@ import {
   parseYaml,
   textEol,
   verifyEditText,
-} from '@demo-studio/core';
-import type { AgentChannel, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
+} from '@retake/core';
+import type { AgentChannel, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';

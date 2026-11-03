@@ -20,9 +20,9 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import type { Appearance } from '../src/app/tokens.js';
-import { createEngine } from '@demo-studio/engine';
-import type { Engine } from '@demo-studio/engine';
-import type { EditPlan } from '@demo-studio/editor';
+import { createEngine } from '@retake/engine';
+import type { Engine } from '@retake/engine';
+import type { EditPlan } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -41,7 +41,7 @@ export const SCHEMES: Array<{ scheme: Appearance; widths: readonly number[] }> =
   { scheme: 'light', widths: [1280] },
 ];
 export const POLL = { timeout: 30_000 };
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 /** The workspace's own theme (editable in the Studio). */
 export const TOUR_THEME = 'tour-theme';
 /** Claude's proposal on the thread: a caption change, a trailing space and an added line of right-to-left text. */
@@ -107,11 +107,11 @@ export async function writeReview(dir: string): Promise<void> {
 /** The tour's workspace, server and browser (`prepare`: the caller's own changes to the workspace, e.g. fixture ports). */
 export async function startTour(o: { prefix: string; prepare?: (ws: string) => Promise<void> }): Promise<Tour> {
   const ws = await mkdtemp(join(tmpdir(), o.prefix));
-  const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR };
+  const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
   let studio: StudioServer | undefined;
   let browser: Browser | undefined;
   const restore = () => {
-    for (const [k, val] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author]] as const) {
+    for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
       if (val === undefined) delete process.env[k];
       else process.env[k] = val;
     }
@@ -123,13 +123,13 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     await rm(ws, { recursive: true, force: true });
   };
   try {
-    process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-    process.env.DEMO_STUDIO_AUTHOR = 'Studio Person';
+    process.env.RETAKE_HOME = join(ws, '.home');
+    process.env.RETAKE_AUTHOR = 'Studio Person';
     const dir = await takeWorkspace(ws);
     // The fixture project (and the repository's templates: northfield uses editorial too).
     await fixtureWorkspace(ws);
     // The workspace's own templates folder holding an editable copy of editorial (the starters still resolve by name).
-    await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+    await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
     await cp(join(REPO, 'templates', 'editorial'), join(ws, 'templates', TOUR_THEME), { recursive: true });
     await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
     await writeFile(join(dir, 'scenarios', 'broken.yaml'), 'video: Broken\nscenes:\n  - id: a\n    steps: [click: Next\n');
@@ -152,7 +152,7 @@ export async function startTour(o: { prefix: string; prepare?: (ws: string) => P
     await writeFile(threadFile, JSON.stringify({ ...JSON.parse(await readFile(threadFile, 'utf8')), region: { x: 0.2, y: 0.6, w: 0.4, h: 0.25 } }));
     const mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
     const w = await mcp.comments.reply('demo', THREAD, 'A plainer caption, and a note for the team.', { proposal: { scenario_yaml: PROPOSED, scenario_hash: sha(BITS_TEXT) } });
-    const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+    const executablePath = process.env.RETAKE_CHROMIUM;
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
     const context = await browser.newContext({ viewport: { width: WIDTHS[0], height: 900 }, colorScheme: 'dark' });
     await context.addInitScript(() => {

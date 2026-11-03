@@ -4,7 +4,7 @@
  * environment. See engine jobs/worker-env.ts for what is dropped and what stays.
  */
 import { existsSync } from 'node:fs';
-import { cleanWorkerEnv } from '@demo-studio/engine';
+import { cleanWorkerEnv } from '@retake/engine';
 
 export function studioWorkerEnv(env: NodeJS.ProcessEnv, root: string, node: string = process.execPath, exists: (p: string) => boolean = existsSync): NodeJS.ProcessEnv {
   return cleanWorkerEnv(env, root, { node, exists });

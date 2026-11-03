@@ -19,7 +19,7 @@
  * Nothing re-reads the board on every step of a capture (studio-e2e-board-reads counts the calls).
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import type { AuthStatus, ProjectBoardView, ProjectView } from '@demo-studio/engine';
+import type { AuthStatus, ProjectBoardView, ProjectView } from '@retake/engine';
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';
 import type { StudioEvent } from './events.js';

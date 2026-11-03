@@ -5,8 +5,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario } from '@demo-studio/core';
-import type { LoadedProject, Scenario } from '@demo-studio/core';
+import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario } from '@retake/core';
+import type { LoadedProject, Scenario } from '@retake/core';
 import type { RenderRecord } from './types.js';
 import { RenderError } from './types.js';
 
@@ -39,7 +39,7 @@ function latestFirst(a: string, b: string): number {
  * The run to edit: a run id (folder of <project>/runs), a run directory, or `latest` (the most recent capture run —
  * dry runs and runs without a timeline are skipped —, of `scenario` when given). `latest` considers only folder names
  * that are run ids (letters, digits, ".", "_", "-"; ≤ 200 characters: the name reaches trusted summaries) and prefers
- * dated ids (latestFirst). A run whose run.json a newer Demo Studio wrote is refused (R-PRIN-13).
+ * dated ids (latestFirst). A run whose run.json a newer Retake wrote is refused (R-PRIN-13).
  */
 export function findRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
   const run = locateRun(project, arg, scenario);
@@ -63,7 +63,7 @@ function locateRun(project: LoadedProject, arg: string, scenario?: string): RunR
       .filter((id) => hasCaptureTimeline(join(runsDir, id)))
       .sort(latestFirst);
     if (candidates.length === 0) {
-      throw new RenderError(`no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`studio run ${project.slug} ${scenario ?? '<scenario>'}\``);
+      throw new RenderError(`no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`retake run ${project.slug} ${scenario ?? '<scenario>'}\``);
     }
     return { id: candidates[0], dir: join(runsDir, candidates[0]) };
   }

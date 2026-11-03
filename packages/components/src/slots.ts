@@ -2,7 +2,7 @@
  * Slot filling: the value of each slot of a component use, from what the scenario wrote, else its `default_from`
  * source (theme, scenario title/outro, scene caption, interstitial). Pure; used by the edit planner and previews.
  */
-import type { CaptionSpec } from '@demo-studio/core';
+import type { CaptionSpec } from '@retake/core';
 import type { ComponentManifest, ThemeTokens } from './types.js';
 
 /** Where `default_from` sources read. Every part is optional (a preview has a theme but no scenario). */

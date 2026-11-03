@@ -1,6 +1,6 @@
-import { isAccessError } from '@demo-studio/core';
-import { checkAllowWrites, recordScenario } from '@demo-studio/engine';
-import type { RecordOutcome, RecordPorts } from '@demo-studio/engine';
+import { isAccessError } from '@retake/core';
+import { checkAllowWrites, recordScenario } from '@retake/engine';
+import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -8,7 +8,7 @@ import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
-import { loginCommandFor, studioCommand } from './auth.js';
+import { loginCommandFor, retakeCommand } from './auth.js';
 
 export interface RecordCommandOptions {
   env?: string;
@@ -28,7 +28,7 @@ export type RecordTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSi
 const ACTIONS = new Set(['pointer', 'type', 'key', 'select_native', 'file']);
 
 /**
- * `studio record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
+ * `retake record <project> [name] [--env] [--persona] [--page] [--path | --url] [--allow-writes] [--no-check] [--json]`
  * (L3.4): a browser window opens on the environment's page; the person performs the flow and closes the window (or
  * presses Ctrl-C: stop and keep); a draft scenario is made from it, saved as scenarios/<name>.yaml when the name is free
  * (default recorded-YYYYMMDD-HHMM), then checked by a headless dry replay (a second Ctrl-C stops the check). Typed text
@@ -153,5 +153,5 @@ function printOutcome(ui: Ui, global: GlobalOptions, slug: string, o: RecordOutc
   else if (k.reason === 'first_step_writes') ui.info('check replay skipped: the first step already writes');
   else if (k.reason === 'disabled') ui.info('check replay skipped (--no-check)');
   if (o.draft) ui.line(`  ${c.dim('draft')}  ${ui.path(o.draft)}`);
-  if (o.saved) ui.line(`  ${c.dim('next')}   ${studioCommand(global)} run ${slug} ${o.name} --dry`);
+  if (o.saved) ui.line(`  ${c.dim('next')}   ${retakeCommand(global)} run ${slug} ${o.name} --dry`);
 }

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@demo-studio/core';
+import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';

@@ -1,5 +1,5 @@
 /**
- * Browser profiles this process made in the system temp folder (L1.6): the session copies of runs and `studio login`
+ * Browser profiles this process made in the system temp folder (L1.6): the session copies of runs and `retake login`
  * checks, the login profiles, and the throwaway profiles of browsers without a persona profile — a storage_state
  * persona's cookies end up in that one. A hard interrupt removes them (removeSessionCopiesSync); a killed process leaves
  * them to the next sweep (auth.ts sweepStaleSessionCopies). Its own module: session.ts and auth.ts both use it.
@@ -7,7 +7,7 @@
 import { existsSync, rmSync } from 'node:fs';
 
 /** Name prefixes of the folders made in the system temp folder: session copies, login profiles, throwaway profiles. */
-export const SESSION_COPY_PREFIXES: readonly string[] = ['demo-studio-session-', 'demo-studio-login-', 'demo-studio-profile-'];
+export const SESSION_COPY_PREFIXES: readonly string[] = ['retake-session-', 'retake-login-', 'retake-profile-'];
 /** A copy left this long (no browser on it) is stale: its process was killed before it could remove it. */
 export const STALE_COPY_AGE_MS = 10 * 60_000;
 

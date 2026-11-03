@@ -10,7 +10,7 @@
   "persona": null,
   "access": "read-write"
  },
- "yaml": "# Recorded with studio record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: record-lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Email}, text: buyer@example.test}\n      - click: Forgery target\n      - select: {combobox: {label: Roast level}, option: Dark}\n      - type: {into: {label: Note}, text: Two bags}\n      - click: Edit address\n      - press: Escape\n",
+ "yaml": "# Recorded with retake record: a draft. Captions are empty and nothing is held — add them, check the steps flagged\n# in the recording's report (page_inspect), then run_dry.\n\nversion: 1\nvideo: recorded\nscenes:\n  - id: record-lab\n    page: shop\n    open: /record-lab\n    steps:\n      - type: {into: {label: Email}, text: buyer@example.test}\n      - click: Forgery target\n      - select: {combobox: {label: Roast level}, option: Dark}\n      - type: {into: {label: Note}, text: Two bags}\n      - click: Edit address\n      - press: Escape\n",
  "issues": [],
  "writes": [],
  "firstWrite": null,

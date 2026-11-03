@@ -1,5 +1,5 @@
-import { interpolate, listTemplateTokens } from '@demo-studio/core';
-import type { TemplateContext } from '@demo-studio/core';
+import { interpolate, listTemplateTokens } from '@retake/core';
+import type { TemplateContext } from '@retake/core';
 import { redactDeep, secretResolver } from './secrets.js';
 import type { HookContext, TemplateSnapshot } from './types.js';
 

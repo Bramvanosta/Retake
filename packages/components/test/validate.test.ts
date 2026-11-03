@@ -1,7 +1,7 @@
 import { symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS } from '@demo-studio/core';
+import { COMPONENT_KINDS } from '@retake/core';
 import {
   ALLOWED_IMPORTS,
   KIT_MODULE,
@@ -11,7 +11,7 @@ import {
   stripComments,
   validateComponent,
   validateComponentDir,
-} from '@demo-studio/components';
+} from '@retake/components';
 import { CARD_TSX, cardManifest, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };

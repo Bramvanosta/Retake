@@ -1,7 +1,7 @@
 /**
- * L3.8 phase 3 acceptance through MCP (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
+ * L3.8 phase 3 acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
  * One chained story on ONE empty scratch workspace, the fixture product on free ports: an SDK client drives
- * `studio mcp` (spawned from the sources over stdio) the way the skills tell Claude to — deterministically, no model —
+ * `retake mcp` (spawned from the sources over stdio) the way the skills tell Claude to — deterministically, no model —
  * from a README to a commented, fixed and re-rendered video. One test per requirement, sharing the workspace:
  *   R-ACC3-01  project_create from the README the user hands (environments on the fixture's ports);
  *   R-ACC3-02  scenario_from_script on a timecoded table, each beat rewritten into real steps from page_inspect hints
@@ -14,14 +14,14 @@
  *              iteration (the still changes), one still in another theme;
  *   R-ACC3-05  run_capture, plan_preview (≥ 60 s, the component as the intro), render with the new theme and the
  *              component, review clean;
- *   R-ACC3-06  a person's comment (`studio comment add --marker sent`, their own terminal) → comments_list →
+ *   R-ACC3-06  a person's comment (`retake comment add --marker sent`, their own terminal) → comments_list →
  *              scenario_get / validate / save → plan_preview on the old run says scenario_changed → run_capture →
  *              render → review → comment_reply → comment_resolve with the reply's hash.
  * The client declares elicitation.form and records every request: none may come (no hook, no URL in this chain).
  * Each phase's calls are checked as an explicit sequence, against the tools its skill sections name (as a set), and
  * against the rules the skills state (validate after each code write, if_match hashes, validate before save, no
  * render after a scenario save until a capture succeeded, the resolve with the reply's hash and the new render).
- * With DEMO_STUDIO_ACCEPTANCE_KEEP=<folder>, the inspections, stills, sheets, key frames, the comment's still, the
+ * With RETAKE_ACCEPTANCE_KEEP=<folder>, the inspections, stills, sheets, key frames, the comment's still, the
  * diff sheet, the videos and the scenario are copied there to look at.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -35,16 +35,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { flowYaml, parseYaml, scenarioChangedMessage } from '@demo-studio/core';
-import { readWorkerLock } from '@demo-studio/engine';
+import { flowYaml, parseYaml, scenarioChangedMessage } from '@retake/core';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const TSX = pathToFileURL(join(REPO, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
 const tool = (n: string) => spawnSync(n, ['-version'], { stdio: 'ignore' }).status === 0;
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe');
-const KEEP = process.env.DEMO_STUDIO_ACCEPTANCE_KEEP;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe');
+const KEEP = process.env.RETAKE_ACCEPTANCE_KEEP;
 const STEP = 900_000;
 const PROJECT = 'northfield';
 const SCENARIO = 'quote-tour';
@@ -388,13 +388,13 @@ describe('phase 3 acceptance: the rule checker (L3.8 review L8)', () => {
   });
 });
 
-describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project → script → scenario → theme → component → capture → render → review → comment → re-capture → resolve (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project → script → scenario → theme → component → capture → render → review → comment → re-capture → resolve (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
-    // An empty workspace: studio.yaml, an empty templates/ (the starters still resolve), the user's brand/ files.
+    // An empty workspace: retake.yaml, an empty templates/ (the starters still resolve), the user's brand/ files.
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-phase3-'));
-    await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+    await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
     await mkdir(join(root, 'templates'), { recursive: true });
     await mkdir(join(root, 'brand'), { recursive: true });
     await writeFile(join(root, 'brand', 'roastery-mark.svg'), LOGO);
@@ -407,12 +407,12 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
       command: process.execPath,
       args: ['--conditions=source', '--import', TSX, BIN, '--root', root, 'mcp'],
       cwd: root,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '5000' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
     // A client that can show approval forms: every request is recorded and declined — none may come in this chain.
-    client = new Client({ name: 'demo-studio-phase3-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
+    client = new Client({ name: 'retake-phase3-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
       asked.push((req.params as { message: string }).message);
       return { action: 'decline' };
@@ -453,7 +453,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     expect(Object.keys(got.environments[0].pages).sort()).toEqual(['console', 'shop']);
     expect(readdirSync(projectDir()).sort()).toEqual(['.gitignore', 'README.md', 'assets', 'hooks', 'project.yaml', 'scenarios']);
     projectYamlSha = sha(await readFile(join(projectDir(), 'project.yaml')));
-    await checkPhase('project', ['engine_info', 'project_list', 'project_create', 'project_get'], [['demo-studio-scenario', ['Before you start']]]);
+    await checkPhase('project', ['engine_info', 'project_list', 'project_create', 'project_get'], [['retake-scenario', ['Before you start']]]);
   }, STEP);
 
   it('R-ACC3-02: a scenario from the timecoded script, its beats rewritten from page_inspect hints; run_dry; nothing written to the product', async () => {
@@ -571,7 +571,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
         'page_inspect', 'scenario_validate', 'scenario_save',
         'run_dry',
       ],
-      [['demo-studio-scenario', ['The user hands a timecoded script', 'The loop']]],
+      [['retake-scenario', ['The user hands a timecoded script', 'The loop']]],
     );
   }, 1_200_000);
 
@@ -602,7 +602,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     expect(near(pixel(stills.find((s) => s.kind === 'interstitial')!.file), COLORS.dark, 6)).toBe(true);
     expect(near(pixel(stills.find((s) => s.kind === 'outro')!.file), COLORS.paper, 14)).toBe(true);
     await keep('theme', stills.map((s) => s.file));
-    await checkPhase('theme', ['template_list', 'template_create_from_brand', 'template_list', 'template_preview'], [['demo-studio-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for both entries']]]);
+    await checkPhase('theme', ['template_list', 'template_create_from_brand', 'template_list', 'template_preview'], [['retake-theme', ['Before you start', 'Entry A: brand files (preferred)', 'Then, for both entries']]]);
   }, STEP);
 
   it('R-ACC3-04: a component through the skill — look first, scaffold, the kit example, validate after each code write, preview in the new theme, iterate', async () => {
@@ -615,7 +615,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     // Create: the scaffold, then the kit reference's example (what the skill hands Claude) as the user agreed.
     const made = data<{ id: string; dir: string }>(await call('component_create', { id: COMPONENT, kind: 'intro', description: 'Logo on the left, title on the right.' }));
     expect(made).toMatchObject({ id: COMPONENT, dir: join(root, 'components', 'northfield', 'intro-split') });
-    const kit = await readFile(join(REPO, 'skills', 'demo-studio-component', 'reference', 'kit.md'), 'utf8');
+    const kit = await readFile(join(REPO, 'skills', 'retake-component', 'reference', 'kit.md'), 'utf8');
     const blocks = [...kit.matchAll(/```(yaml|tsx)\n([\s\S]*?)```/g)];
     const manifest = blocks.find((b) => b[1] === 'yaml')![2].replace('acme/intro-split', COMPONENT);
     const code = blocks.find((b) => b[1] === 'tsx')![2];
@@ -645,7 +645,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     await checkPhase(
       'component',
       ['component_list', 'component_get', 'component_preview', 'component_create', 'write:component.yaml', 'write:index.tsx', 'component_validate', 'component_preview', 'write:index.tsx', 'component_validate', 'component_preview', 'component_preview'],
-      [['demo-studio-component', ['Look first: an existing component may already do it', 'Create one']]],
+      [['retake-component', ['Look first: an existing component may already do it', 'Create one']]],
     );
   }, STEP);
 
@@ -686,9 +686,9 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
       'film',
       ['run_capture', 'plan_preview', 'render', 'review'],
       [
-        ['demo-studio-scenario', ['The loop']],
-        ['demo-studio-component', ['Create one']],
-        ['demo-studio-theme', ['Then, for both entries']],
+        ['retake-scenario', ['The loop']],
+        ['retake-component', ['Create one']],
+        ['retake-theme', ['Then, for both entries']],
       ],
     );
   }, STEP);
@@ -699,7 +699,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     const out = execFileSync(
       process.execPath,
       ['--conditions=source', '--import', TSX, BIN, '--root', root, 'comment', 'add', PROJECT, ids.render1!, '--marker', 'sent', '--region', '0.72,0.73,0.18,0.11', '--json', 'Keep the confirmation on screen longer'],
-      { cwd: root, env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { cwd: root, env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
     expect(added.warnings).toEqual([]);
@@ -789,7 +789,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README → project �
     await checkPhase(
       'comment',
       ['comments_list', 'scenario_get', 'scenario_validate', 'scenario_save', 'plan_preview', 'run_capture', 'plan_preview', 'render', 'review', 'comment_reply', 'comment_resolve', 'comments_list'],
-      [['demo-studio-scenario', ['Frame comments on a render', 'The loop']]],
+      [['retake-scenario', ['Frame comments on a render', 'The loop']]],
     );
     // No approval was asked; nothing else changed.
     expect(asked).toEqual([]);

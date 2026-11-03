@@ -8,7 +8,7 @@ user asks.** Branch: **`main`**. The work continues in local Claude Code session
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
 ## What this is
-Demo Studio: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
+Retake: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
 professional product video — drive a real web app headless with an in-page cursor, capture it cleanly, then edit it
 automatically with themeable components, and let Claude operate everything through an MCP server.
 
@@ -179,7 +179,7 @@ automatically with themeable components, and let Claude operate everything throu
   Review centred on the window (disabled with no scenario), a left browser, an inspector slot, a status bar with an
   actions slot (filled in L5.11); the centre pane is the only scroller (`--main-h`). The gallery `#/ui` shows every
   component in both appearances. Lints: kit-only ratchet (`test/legacy-controls.json`, per-file counts only go down;
-  `pnpm -F @demo-studio/ui ratchet` lowers them), contrast in both appearances, the name only in `brand.ts`, no vh in
+  `pnpm -F @retake/ui ratchet` lowers them), contrast in both appearances, the name only in `brand.ts`, no vh in
   sizes. The desktop app's View menu gains ⌘K, ⌘1–4, ⌥⌘I (one table shared with the page, parity-tested); ⌘R, ⇧⌘R, ⌘B
   stay free for L5.11; the overlay title bar is not shipped (its probe needs a hand drag: BL-126, the page-side contract
   is). Tests on the Mac: **3842 — 3757 pass, 84 skipped, 1 failure in the one full run** (a sandbox lint that read
@@ -203,20 +203,20 @@ automatically with themeable components, and let Claude operate everything throu
   MACOS-CHECKLIST 14a steps 10–11 (the permission prompt, a delivered banner and its click, the permission after a
   rebuild, logout / restart, the picker with SIGTERM).
 - **L5.2 done (2026-10-29)**: the macOS desktop app (`apps/desktop`, Tauri 2.12.5, built offline from the local crate
-  cache with `--locked`; `pnpm desktop:dev|build|test|clean`). The shell spawns `studio ui --supervised` (= `--json
+  cache with `--locked`; `pnpm desktop:dev|build|test|clean`). The shell spawns `retake ui --supervised` (= `--json
   --no-open`; stops when its stdin closes, so an app crash leaves no orphan; its JSON line gains `v` and `player`) and
   opens the one-time URL in a WKWebView window: incognito (nothing written to ~/Library), Tauri's drag & drop handler
   off (block drag & drop works), navigation held to the Studio and Player origins (redirects, window.open, _blank,
   data: / blob: / custom schemes refused), downloads cancelled, every permission request denied, no IPC capability for
   the page. The shell never reads the token; capability URLs are redacted from every log; Quit stops only a server the
   app started (SIGTERM, stdin closed at 1 s, SIGKILL at 5 s), never an attached one nor the shared worker. Workspace:
-  `--root`, DEMO_STUDIO_ROOT, `desktop.json`, the current folder, then a folder picker; Node / CLI pinned at build in
+  `--root`, RETAKE_ROOT, `desktop.json`, the current folder, then a folder picker; Node / CLI pinned at build in
   `launch.json` (env overrides in debug builds only; release scrubs NODE_OPTIONS / DYLD_*). Menu from one table (Edit
   items, File › Open Workspace…, Window › Show Studio Window ⌘0; ⌘R, ⇧⌘R, ⌘B, ⌘., ⌘S, ⌘Enter left to the page),
   `TITLE_BAR` one switch (Standard now, Overlay ready for L5.9), no forced theme (the window chrome follows the page's
   `color-scheme`, light today). The security rules live in a zero-dependency crate (`apps/desktop/core`, 21 tests in
   ≈ 1.5 s, run by vitest when cargo and the Xcode tools are there, skipped otherwise). The gated acceptance
-  (`DEMO_STUDIO_TEST_DESKTOP=1 DEMO_STUDIO_TEST_SLOW=1 npx vitest run packages/cli/test/desktop-shell.test.ts`) builds
+  (`RETAKE_TEST_DESKTOP=1 RETAKE_TEST_SLOW=1 npx vitest run packages/cli/test/desktop-shell.test.ts`) builds
   the .app, checks owned vs attached servers, a hostile page and Player, graceful quit vs crash, a capture and the
   timeline's media in the window, and ~/Library / ~/Downloads / LaunchServices left as found: 10/10 green after a
   product fix — the preview frame dropped a plan answered before its first React effects (WKWebView fires the frame's
@@ -263,13 +263,13 @@ automatically with themeable components, and let Claude operate everything throu
 - **L4.7 done (2026-10-27)**: the Studio's component library (`#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): a grid by
   kind with posters in the selected / project theme, filters (kind, source, words), "Built-in" / "Workspace" badges,
   Play / Pause of an animated GIF loop per component (rendered on demand by the worker's `library` preview job in
-  chunks of ≤ 12, cached content-keyed in `.demo-studio/cache/previews/`; ≈ 1.5 s per loop warm, 41 built-in loops in
+  chunks of ≤ 12, cached content-keyed in `.retake/cache/previews/`; ≈ 1.5 s per loop warm, 41 built-in loops in
   80 s, 8.4 MB; transitions in a motion mode; one broken component never blocks the others), a detail (slots, params,
   kit compatibility, README as untrusted text), "Set as theme default" and "Create with Claude" (a copyable prompt; the
   Studio calls no model). The theme editor (`#/p/<slug>/themes[/<theme>]`): brand, colours with contrast checks, type
   pair from the theme's own fonts, motion bias, zoom, cursor, component per kind, a live Intro / Clip / Outro frame in
   the L4.5 sandboxed Player (drafts ≤ 5/s, written on release), undo / redo, Copy to edit for starters, New theme, the
-  site extractions listed with the `studio theme from-site` command to copy (no Studio op queues a site job), and "Use
+  site extractions listed with the `retake theme from-site` command to copy (no Studio op queues a site job), and "Use
   in this scenario" — a new scenario `template` field that re-themes existing takes at their next render (no new
   capture). One verified write path for themes (`templates.edit`: allow-list, if_match, re-parse, lock, restore of
   served versions; MCP never edits themes). Tests on the Mac: **3583 — 3517 pass, 64 skipped, 2
@@ -283,7 +283,7 @@ automatically with themeable components, and let Claude operate everything throu
   record; ≈ 150 ms per frame in 1080p, ≈ 0.25–0.7 s in 4K), a region drawn by dragging or typed in four % fields,
   anchor chips (frame / segment / step / component) from the engine, Open / Resolved / All lists, a count on the
   scenario screen, pins on the timeline linking to their threads and a Comment button there. A new `via: 'studio'`
-  channel creates, replies, resolves, reopens and applies (author from the Studio process: `$DEMO_STUDIO_AUTHOR`, else
+  channel creates, replies, resolves, reopens and applies (author from the Studio process: `$RETAKE_AUTHOR`, else
   the OS user; a channel, not proof of a person — BL-106). Claude answers a Studio thread with a **proposal** on
   `comment_reply` (the whole new scenario text + its base hash; edit-only changes to the thread's own scenario, never a
   filmed / theme / override change; ≤ 200 changed lines, 600 diff rows; every L4.3 write check run without writing),
@@ -344,14 +344,14 @@ automatically with themeable components, and let Claude operate everything throu
   hash in the seed inputs, COMPOSE_PROFILES in it refused — checked on the real `docker compose config`; README "A
   stage sandbox". **MCP** (R-FLD-34, `packages/mcp/src/compact.ts`): `run_status`, `review` / `review_get`,
   `page_inspect` (and job_status of an inspection) compact by default, `detail: "full"` as before; one-line JSON in
-  every result; `job_status {wait_s}` up to 600 s with a progress heartbeat every 15 s. Measured through `studio mcp`
+  every result; `job_status {wait_s}` up to 600 s with a progress heartbeat every 15 s. Measured through `retake mcp`
   on the fixture (characters / 4): page_inspect 13,260 → 2,174 tokens, a dry run's run_status 2,715 → 933, review_get
   2,155 → 408 (FIELD-FEEDBACK-1 "After L5.8"). Fixture scenario **`off-camera`** (15 fixture scenarios). Acceptance on
   the Mac (final build): capture 20261026-211008-off-camera (the café's request posted by the hook during the take,
   its 1.53 s span cut, the new row "Q-1043 New" appearing across the cut), render off-camera-v2 and review (one
   warning: the 17 s video is under the reference length), frames on both sides of the cut and the first clip (the
   quote list, not the offscreen products page) looked at; the same
-  capture through the MCP worker with its shell entry approved at submit; `studio doctor --project` on a copy without
+  capture through the MCP worker with its shell entry approved at submit; `retake doctor --project` on a copy without
   sandboxes. Tests on the Mac: **3093 — 3040 pass, 51 skipped, 2 failures that were label updates (the palette's 16
   actions over HTTP, the seed's rollback wording), green alone (≈ 18 min under another session's load 6–11)**;
   `pnpm test:slow` 58/58 (≈ 14 min, load up to 23). Requirements: 647 tracked — 583 done, 26 partial, 30 todo, 8 n/a-here. Follow-ups BL-101 – BL-104 (next free id BL-105). Live
@@ -371,10 +371,10 @@ automatically with themeable components, and let Claude operate everything throu
   `frame_rate_limit: false` warns. **Perf report** (`perf.ts`, run.json `perf`): CPU per group from Chromium's
   SystemInfo.getProcessInfo per persona + `ps -p` of encoders and of the localhost servers + Node, the machine load,
   the GPU (SystemInfo.getInfo), frames, stalls, transitions (`activity.ts`: 96×54 grey thumbnails from the encoder,
-  changed cells outside the cursor; slow = click → stable over 0.8 s), encode, disk; printed by `studio run`, MCP
+  changed cells outside the cursor; slow = click → stable over 0.8 s), encode, disk; printed by `retake run`, MCP
   run_status, review `slow-transition` (info). **Waits after a click** (`timeline.busy`: near-identical frames ending
-  with the content) shortened by the edit (timing `busy`). `studio doctor`: `GPU` and `Capture encoder` lines.
-  **Disk**: engine `pruneProject` → `studio prune <project> [--keep-renders N] [--yes]` and MCP `project_prune` (45
+  with the content) shortened by the edit (timing `busy`). `retake doctor`: `GPU` and `Capture encoder` lines.
+  **Disk**: engine `pruneProject` → `retake prune <project> [--keep-renders N] [--yes]` and MCP `project_prune` (45
   tools); a capture warns under 10 GB / 5 % free. Fixture: `two-personas` scenario, `NORTHFIELD_QUOTES_MS` (skeleton rows
   on the console's Quote requests). Measured before/after, alternated on a quiet Mac (FIELD-FEEDBACK-1 "After L5.7"):
   `quote` 72 → 40 cpu-s (ffmpeg 29 → 7, node 12 → 7, Chromium 31 → 26), run folder 570 → 20 MB, ripple freezes 5 in 5
@@ -453,13 +453,13 @@ automatically with themeable components, and let Claude operate everything throu
   now does). Tests on the Mac: **2794 — 2744 pass, 50 skipped (≈ 13 min), 3 full runs in a row green**; `pnpm test:slow`
   58/58. Requirements: 619 tracked — 554 done, 26 partial, 31 todo, 8 n/a-here. Live checks for the user:
   MACOS-CHECKLIST 13b.
-- **L4.1 done (2026-10-23)**: `studio ui` serves the Studio web app on 127.0.0.1 (new package `packages/ui`, React
+- **L4.1 done (2026-10-23)**: `retake ui` serves the Studio web app on 127.0.0.1 (new package `packages/ui`, React
   bundled in memory by esbuild, strict CSP): the Projects screen, a project page and a README editor (if_match,
   conflict and changed-on-disk flows, line endings kept, non-UTF-8 read-only), an activity feed and a search on a
-  SQLite index (`.demo-studio/index.sqlite`, node:sqlite, rebuilt from files), live updates over one event stream per
+  SQLite index (`.retake/index.sqlite`, node:sqlite, rebuilt from files), live updates over one event stream per
   browser. Every request passes one gate (Host → Origin / Sec-Fetch-Site → route → token → body); the URL carries a
-  one-time code, never the token. `studio mcp --http` serves the same 44 tools over Streamable HTTP (stable token in
-  the studio home, browsers refused, approvals work). Tests on the Mac: **2593 — 2545 pass, 48 skipped (≈ 14 min),
+  one-time code, never the token. `retake mcp --http` serves the same 44 tools over Streamable HTTP (stable token in
+  the Retake home, browsers refused, approvals work). Tests on the Mac: **2593 — 2545 pass, 48 skipped (≈ 14 min),
   3 full runs in a row green**; `pnpm test:slow` 56/56. Requirements: 619 tracked — 549 done, 25 partial, 37 todo, 8
   n/a-here. Live checks for the user: MACOS-CHECKLIST 13a (Safari / Firefox, Claude Code over HTTP).
 - **L3.8 done (2026-10-20) — phase 3 done**: the phase-3 acceptance in `test:slow`
@@ -472,14 +472,14 @@ automatically with themeable components, and let Claude operate everything throu
   Mac: **2484 — 2436 pass, 48 skipped (≈ 12 min), 3 full runs in a row green**; `pnpm test:slow` 56/56 (≈ 11.5 min).
   Requirements: 619 tracked — 543 done, 23 partial, 45 todo, 8 n/a-here. Live check for the user: MACOS-CHECKLIST 12j
   (the whole phase-3 loop in one Claude Code conversation).
-- **L3.7 done (2026-10-20)**: three Claude skills (`skills/demo-studio-scenario`, `demo-studio-theme`,
-  `demo-studio-component`) packaged as a Claude Code plugin with the MCP server (`skills/.claude-plugin/plugin.json`,
+- **L3.7 done (2026-10-20)**: three Claude skills (`skills/retake-scenario`, `retake-theme`,
+  `retake-component`) packaged as a Claude Code plugin with the MCP server (`skills/.claude-plugin/plugin.json`,
   `skills/.mcp.json`, local marketplace `.claude-plugin/marketplace.json`); `mcp --print-config` prints the two install
-  lines (`--scope local`, values: node, studio, workspace, home). Every skill opens by checking `engine_info`'s root and
-  never runs the `studio` CLI through the shell. Component scaffolds import renderer primitives through the kit. Tests
+  lines (`--scope local`, values: node, cli, workspace, home). Every skill opens by checking `engine_info`'s root and
+  never runs the `retake` CLI through the shell. Component scaffolds import renderer primitives through the kit. Tests
   on the Mac: **2445 — 2403 pass, 42 skipped (≈ 12 min)**; `pnpm test:slow` 36/36. Requirements: 619 tracked — 543
   done, 17 partial, 51 todo, 8 n/a-here. Live check for the user: MACOS-CHECKLIST 12i.
-- **L3.6 done (2026-10-19)**: frame comments. A person comments a frame of a render (`studio comment add --at |
+- **L3.6 done (2026-10-19)**: frame comments. A person comments a frame of a render (`retake comment add --at |
   --frame | --marker [--region]`); the thread is anchored to the edit (segment, scene, step and its fingerprint,
   marker, overlays, caption / screen / brand-mark area) with a still of the frame; Claude reads them over MCP
   (`comments_list`, the still as an image), adapts the scenario, re-captures and re-renders, replies (`comment_reply`) and resolves
@@ -491,10 +491,10 @@ automatically with themeable components, and let Claude operate everything throu
   checks, strict SVG scan, font sniff, licence notes) or drafts one from a public website the user approves
   (`template_from_site`: a worker job behind a local CONNECT proxy, public addresses only, signed approval of the exact
   URL; colours by role, font names, logo candidates as PNG, a screenshot), then previews and renders with it. CLI:
-  `studio theme create | from-site`. 41 MCP tools. Tests on the Mac: **2294 — 2257 pass, 37 skipped (≈ 13 min)**;
+  `retake theme create | from-site`. 41 MCP tools. Tests on the Mac: **2294 — 2257 pass, 37 skipped (≈ 13 min)**;
   `pnpm test:slow` 21/21. Requirements: 619 tracked — 531 done, 16 partial, 64 todo, 8 n/a-here. Live check for the
   user: MACOS-CHECKLIST 12g (a brand kit, then a public site you pick).
-- **L3.4 done (2026-10-18)**: `studio record` opens a real window where the person performs the flow; it becomes a
+- **L3.4 done (2026-10-18)**: `retake record` opens a real window where the person performs the flow; it becomes a
   scenario draft (verified targets, scenes, waits, secrets replaced by placeholders) that is saved, checked by a replay
   up to the first write and dry-runs. Claude can start one with `scenario_record` but never drives it. Tests on the
   Mac: **1967 — 1934 pass, 33 skipped (≈ 10 min)**. Requirements: 619 tracked — 529 done, 15 partial, 67 todo, 8 n/a-here. Live checks for the user:
@@ -509,7 +509,7 @@ automatically with themeable components, and let Claude operate everything throu
   Mac: **1819 — 1791 pass, 28 skipped** (≈ 8 min); `pnpm test:slow` includes the whole MCP loop on the fixture.
   Requirements: 618 tracked — 525 done, 14 partial, 71 todo, 8 n/a-here. Live checks for the user: MACOS-CHECKLIST 12c
   (L3.1) and 12d (L3.2).
-- **L3.1 done (2026-10-17)**: `studio mcp` (23 tools over stdio) lets Claude list and edit scenarios, run dry runs and
+- **L3.1 done (2026-10-17)**: `retake mcp` (23 tools over stdio) lets Claude list and edit scenarios, run dry runs and
   captures through a job queue and a separate worker, follow progress, cancel, run hooks and env resets, sign in (the
   human types) and start sandboxes; every risky action asks the human through an approval form. Tests on the Mac:
   **1738 — 1714 pass, 24 skipped (≈ 7 min)**. Requirements: 618 tracked — 514 done, 15 partial, 81 todo, 8 n/a-here. Register it with
@@ -521,19 +521,19 @@ automatically with themeable components, and let Claude operate everything throu
   and four cancel / teardown bugs. Tests on the Mac: **1632 — 1608 pass, 24 skipped (≈ 6 m 35 s; 7 Postgres, 7 Docker, 8 slow, 1 old Node, 1 headed); `pnpm test:pg` 7/7, `pnpm test:slow` 8/8, Docker-gated 7/7**. Requirements: 618 tracked — 498 done, 9 partial,
   103 todo, 8 n/a-here; never exercised in phase 1: 0.
 - **L1.8 done (2026-10-14)**: sandboxes — a `sandbox.yaml` per sandbox environment (process or docker-compose
-  services, seed, reset by reseed or Postgres snapshot, demo accounts as personas, mailbox), `studio sandbox init | up
-  | down | reset | status | logs`, `studio run --sandbox` (every take from the same state), the fixture shipped as a
-  process and a Docker sandbox. Tests on the Mac: **1583 — 1567 pass, 16 skipped (≈ 6 m; 7 Postgres, 7 Docker without DEMO_STUDIO_TEST_DOCKER, 1 old Node, 1 headed sign-in); the gated Docker tests pass 7/7 on OrbStack**. Requirements: 618 tracked — 467 done, 40 partial, 103
+  services, seed, reset by reseed or Postgres snapshot, demo accounts as personas, mailbox), `retake sandbox init | up
+  | down | reset | status | logs`, `retake run --sandbox` (every take from the same state), the fixture shipped as a
+  process and a Docker sandbox. Tests on the Mac: **1583 — 1567 pass, 16 skipped (≈ 6 m; 7 Postgres, 7 Docker without RETAKE_TEST_DOCKER, 1 old Node, 1 headed sign-in); the gated Docker tests pass 7/7 on OrbStack**. Requirements: 618 tracked — 467 done, 40 partial, 103
   todo, 8 n/a-here.
 - **L1.7 done (2026-10-13)**: environment pages take a display URL (never localhost on screen or in a report),
   production / read-only environments (browser writes mocked or stopped, writing hooks refused, production writes only
   with `access: read-write` + `--allow-writes`, access mode in run.json / timeline / review), and a product clock
-  (`clock:`, Date-only, timers and animations real). Tests on the Mac: **1455 — 1446 pass, 9 skipped (≈ 5 m 20 s; 7 Postgres without DEMO_STUDIO_TEST_PG, 1 old Node, 1 headed sign-in)**.
+  (`clock:`, Date-only, timers and animations real). Tests on the Mac: **1455 — 1446 pass, 9 skipped (≈ 5 m 20 s; 7 Postgres without RETAKE_TEST_PG, 1 old Node, 1 headed sign-in)**.
 - **L1.6 done (2026-10-13)**: personas per environment (`auth.personas`), one browser per persona on a per-run copy of
   its signed-in profile, a session preflight before every dry run and capture (automated off-camera login when
-  `login:` steps exist, else the exact `studio login` command), a sign-in guard that fails a run and keeps nothing,
-  `studio login --persona [--auto]`, `studio auth status`, interactive `studio new`, doctor persona lines; the fixture
-  has a signed-in side (env `signed-in`, personas supplier and buyer). Tests on the Mac: **1212 — 1204 pass, 8 skipped (≈ 4 m 40 s; the 8th: the headed sign-in test without DEMO_STUDIO_TEST_HEADED)**.
+  `login:` steps exist, else the exact `retake login` command), a sign-in guard that fails a run and keeps nothing,
+  `retake login --persona [--auto]`, `retake auth status`, interactive `retake new`, doctor persona lines; the fixture
+  has a signed-in side (env `signed-in`, personas supplier and buyer). Tests on the Mac: **1212 — 1204 pass, 8 skipped (≈ 4 m 40 s; the 8th: the headed sign-in test without RETAKE_TEST_HEADED)**.
 - **L1.2 done (2026-10-13)**: the runner finds targets in open shadow roots and same-origin iframes, never films a
   loading page (frames held until the new page paints, `timeline.loading`, cut in the edit), templates every scenario
   string with secrets resolved up front and redacted from every run file, checks the hosts of shell and js hooks, and
@@ -547,8 +547,8 @@ automatically with themeable components, and let Claude operate everything throu
 - **L5.1 done (2026-10-12)**: the CLI tells an old Node.js which version it needs, a new workspace uses the starter
   templates, one-line keychain errors (printed once), `doctor` checks ffmpeg ≥ 5.1, scene rest points next to the
   click point and inside the target's dialog, continuing scenes glide next to a far first target, late popups caught
-  by the next step. Tests on the Mac: **893 — 886 pass, 7 skipped** (6 Postgres without `DEMO_STUDIO_TEST_PG`, 1
-  without `DEMO_STUDIO_TEST_OLD_NODE`), ≈ 2 m 45 s. Requirements: 618 tracked — 431 done, 50 partial, 129 todo,
+  by the next step. Tests on the Mac: **893 — 886 pass, 7 skipped** (6 Postgres without `RETAKE_TEST_PG`, 1
+  without `RETAKE_TEST_OLD_NODE`), ≈ 2 m 45 s. Requirements: 618 tracked — 431 done, 50 partial, 129 todo,
   8 n/a-here.
 - **L1.5 done (2026-10-12, on the Mac)**: every step of `docs/MACOS-CHECKLIST.md` ran on an Apple M4 (results table
   at its end); step 7 found stalls after scrolls and at dialog close (→ L1.3) and scene-start defects (→ L5.1); the
@@ -566,13 +566,13 @@ automatically with themeable components, and let Claude operate everything throu
   quote-v17 (editorial) review clean; quote-v18 (`--theme motion`) and quote-v19 (`--frame studio/layout-laptop`)
   re-render the same capture with no scenario change and review clean; own-media-v9 (user intro video, alpha overlay,
   Lottie, image outro, music) clean; the raw export of the quote run validates (`scripts/validate-raw.py`).
-- **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `DEMO_STUDIO_TEST_PG` (≈ 5–7 min
+- **Tests (end of phase 2, cloud)**: 875 — 869 pass, 6 Postgres tests skipped without `RETAKE_TEST_PG` (≈ 5–7 min
   in the cloud container); 878 after L1.5 (see above).
 - **Not built yet**: phase 3 after L3.1 (MCP, authoring, recorder, skills), phase 4 (Studio app), phase 5 (macOS shell, iOS runner). `packages/mcp`
-  is empty; `studio record|mcp|ui` print "available in phase N".
+  is empty; `retake record|mcp|ui` print "available in phase N".
 
 ## Mac setup
-The next sessions run locally on the user's Mac with Claude Code, on the `main` branch. Steps (once; `studio doctor`
+The next sessions run locally on the user's Mac with Claude Code, on the `main` branch. Steps (once; `retake doctor`
 checks the result):
 
 1. **Command line tools** — `xcode-select --install` (git, clang). The full Xcode is only needed for phase 5.
@@ -582,30 +582,30 @@ checks the result):
    `npm i -g corepack` first, or stay on 22 / 24.
 3. **ffmpeg and ffprobe** — `brew install ffmpeg` (H.264, VP9 / libvpx, ProRes encoders, ffprobe). Captures encode with
    it, renders are probed with it, the review decodes with it, the raw export encodes with it. Elsewhere on disk:
-   `ffmpeg:` in `studio.yaml`, `$DEMO_STUDIO_FFPROBE` for ffprobe.
-4. **The repository** — `git clone -b main <repository URL> demo-studio && cd demo-studio`, then `pnpm install` and
+   `ffmpeg:` in `retake.yaml`, `$RETAKE_FFPROBE` for ffprobe.
+4. **The repository** — `git clone -b main <repository URL> retake && cd retake`, then `pnpm install` and
    `pnpm build`. The lockfile already lists the macOS binaries (`@remotion/compositor-darwin-arm64`,
    `@img/sharp-darwin-arm64`, `@esbuild/darwin-arm64`); pnpm 10 runs install scripts only for esbuild and sharp
    (`onlyBuiltDependencies` in `pnpm-workspace.yaml` / `package.json`).
-5. **Chromium for playwright-core** — `pnpm --filter @demo-studio/runner-web exec playwright-core install chromium`.
+5. **Chromium for playwright-core** — `pnpm --filter @retake/runner-web exec playwright-core install chromium`.
    This downloads the Chromium build pinned by playwright-core 1.56.1 (Chromium 141, revision 1194) **and** its
    headless shell into `~/Library/Caches/ms-playwright/`. How the browsers are found
    (`packages/runner-web/src/probe.ts`, `session.ts`; `packages/editor/src/render/browser.ts`):
-   - captures (runner): `browser.executable` in project.yaml / studio.yaml, else `$DEMO_STUDIO_CHROMIUM`, else
+   - captures (runner): `browser.executable` in project.yaml / retake.yaml, else `$RETAKE_CHROMIUM`, else
      playwright-core's own Chromium launched in new headless mode (`channel: chromium`);
-   - renders (Remotion): `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL`, else playwright-core's `chromium-headless-shell`
+   - renders (Remotion): `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else playwright-core's `chromium-headless-shell`
      (looked up through its registry), else Remotion downloads its own (a warning says so);
    - `PLAYWRIGHT_BROWSERS_PATH` moves the browser cache (the cloud container used `/opt/pw-browsers`); leave it unset
      on the Mac. No other environment variable is needed.
-6. **Check** — `pnpm studio doctor` (Node, Chromium launch, ffmpeg / ffprobe, display, Keychain, notifications,
+6. **Check** — `pnpm retake doctor` (Node, Chromium launch, ffmpeg / ffprobe, display, Keychain, notifications,
    workspace, template fonts): every line `OK`. Node must be 22+ in every folder the CLI runs from: a version manager
    pins it per folder (the user's machine: Node 22 in the repository — `.nvmrc` —, 10 elsewhere; an older Node.js
    prints which version it needs). A workspace outside the repository uses the starter templates by name. ffmpeg 5.1+
-   (the Mac has Homebrew's 9.0; `studio doctor` fails below 5.1).
+   (the Mac has Homebrew's 9.0; `retake doctor` fails below 5.1).
 7. **Later, not before their lot** — Docker Desktop for L1.8 (sandbox mode, docker-compose provider); the full Xcode
    (App Store) + Rust (`rustup`) for phase 5 (L5.2 Tauri shell, L5.3 iOS Simulator runner: simctl / idb).
 8. **Optional** — PostgreSQL for the 6 SQL hook tests (`brew install postgresql@16`, then
-   `DEMO_STUDIO_TEST_PG=postgres://…`); Python 3.13 or older + OpenTimelineIO for `scripts/validate-raw.py`
+   `RETAKE_TEST_PG=postgres://…`); Python 3.13 or older + OpenTimelineIO for `scripts/validate-raw.py`
    (OpenTimelineIO 0.18.1 does not load on Python 3.14: `RuntimeError: bad any cast`; Homebrew has `python@3.13`):
    `python3.13 -m venv ~/.venvs/otio && ~/.venvs/otio/bin/pip install opentimelineio otio-cmx3600-adapter otio-fcpx-xml-adapter`.
 
@@ -613,7 +613,7 @@ checks the result):
 screencast) and the fixture and the render asset server listen on loopback only (no firewall prompt). Expect prompts
 only for what the L1.5 checklist exercises: Keychain access when a hook resolves `{{keychain:service/account}}`
 (through `security`), the Notification / Automation prompt the first time `osascript` posts a notification from the
-terminal, and a visible window for `--headed` runs and `studio login`.
+terminal, and a visible window for `--headed` runs and `retake login`.
 
 ## Order of the next lots
 1. ~~L1.5 = `docs/MACOS-CHECKLIST.md` with the user~~ — done 2026-10-12 (narrowed L1.3, filled L5.1).
@@ -635,24 +635,24 @@ pipe) is in DESIGN §4j, not built. Pending
 for the user: the live runs (MACOS-CHECKLIST 8b, 10b, 12b, 12c–12j, 13a) and the open questions, gathered in one test
 document outside the repository; R-PRJ-02's wording (SPEC §3 vs ADR-2: the queue stays in files, the index holds a view); the open questions Q1 (first buyer) and Q2
 (L4.7 scope). Open phase-1 items left: R-ISS-02 and R-ISS-12 (known capture limits, L1.3) and R-RAW-06 (an import
-into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `studio login
+into an editing tool, L1.5). User checks pending in docs/MACOS-CHECKLIST.md: step 8b (a headed `retake login
 --persona` typed by hand), 10b (a real Keychain item in a step), 12b (a sandbox), 13d (the field project with a
 sandbox, a hook step and compact results through Claude Code).
 
 ## Lot log (what each lot built — details for whoever touches that code)
 - **Phase 1 done** (commit `0df4a29`): core (scenario language, strict schemas, positioned errors), runner-web
   (headless capture, in-page cursor on real input, click strategies, widgets, screencast → CFR mp4, timeline.json),
-  hooks (http/sql/shell/js + rollback journal + allow-list), CLI (`studio …`), fixture product
+  hooks (http/sql/shell/js + rollback journal + allow-list), CLI (`retake …`), fixture product
   `fixtures/wholesale` ("Northfield", fictional, real Radix + Base UI), project `projects/northfield-fixture`,
-  starter templates `default`, `editorial`, `motion`. 275 tests pass (6 Postgres tests need `DEMO_STUDIO_TEST_PG`).
-- **L1.1 done** (phase-1 polish + `studio doctor`): invented fixture names (test-guarded), ripple ring visible on
+  starter templates `default`, `editorial`, `motion`. 275 tests pass (6 Postgres tests need `RETAKE_TEST_PG`).
+- **L1.1 done** (phase-1 polish + `retake doctor`): invented fixture names (test-guarded), ripple ring visible on
   same-colour buttons, field-notes ripple/motion curves, scene `cursor` key (auto rest point next to the first
   target, no visible jump), every widget click in `data.clicks`, standalone hook journals in
-  `<project>/.demo-studio/journals/`, pacing `nudge_*`, `after_navigation_ms`, `popup_fallback_ms`, `scroll_offset`,
-  64 KB DOM snippets, project `locale` → browser locale, missing hook files are errors, `studio doctor`,
+  `<project>/.retake/journals/`, pacing `nudge_*`, `after_navigation_ms`, `popup_fallback_ms`, `scroll_offset`,
+  64 KB DOM snippets, project `locale` → browser locale, missing hook files are errors, `retake doctor`,
   `docs/MACOS-CHECKLIST.md` (the steps of L1.5). 301 tests pass (6 Postgres tests skipped).
 - **L2.1 done** (phase-2 contracts in core): `ComponentKind`, `COMPONENT_KINDS`, `ComponentRef`, `ComponentId`,
-  `COMPONENT_ID_RE` and `FrameSpec` live in `packages/core` (`@demo-studio/components` re-exports the first three);
+  `COMPONENT_ID_RE` and `FrameSpec` live in `packages/core` (`@retake/components` re-exports the first three);
   template `brand` + `components` (id or `{id, params}`, `null` = none) with `resolveThemeComponents()` (legacy field
   mapping, `source: theme|legacy|default`) and a validation warning when an entry contradicts a legacy field; scenario
   `intro`/`outro`/`interstitial` take `component` + `params`, new `card:` entries (no capture time, `card-<n>` default
@@ -661,23 +661,23 @@ sandbox, a hook step and compact results through Claude Code).
   intro, outro, effective frame, template, music; `timelineVideo()` in core). Starter templates declare brand +
   components; the quote fixture has a card and an overlay (run `20261011-172942-quote`: overlay bbox on the €720.00
   total). JSON Schemas regenerated. 345 tests pass (6 Postgres tests skipped).
-- **L2.2 done** (components package, `@demo-studio/components`): `component.yaml` strict zod schema + `parseManifest`
+- **L2.2 done** (components package, `@retake/components`): `component.yaml` strict zod schema + `parseManifest`
   (positioned issues; id = folder; semver; slots + `default_from` sources; params = JSON-Schema subset with defaults,
   objects closed; preview samples fill required slots; layout `geometry`/`geometry_vertical` inside 1920×1080 /
-  1080×1920) and `schema/component.schema.json` (`pnpm -F @demo-studio/components gen:schema`, test-guarded);
-  `loadComponentRegistry({root})` (studio.yaml `components_dir` → `packages/components/library/` — empty until L2.5;
+  1080×1920) and `schema/component.schema.json` (`pnpm -F @retake/components gen:schema`, test-guarded);
+  `loadComponentRegistry({root})` (retake.yaml `components_dir` → `packages/components/library/` — empty until L2.5;
   override warning; invalid folders as `notices`; `list`/`has`/`get` (did you mean)/`resolve(ref, kind)` (defaults
   merged, validated, kind checked)/`resolveTheme(template)`); `validateComponent(dir)` (esbuild in-memory compile:
-  only react, remotion, `@demo-studio/components/kit` and own files; react/remotion/kit named imports checked against
+  only react, remotion, `@retake/components/kit` and own files; react/remotion/kit named imports checked against
   their real exports; Math.random/Date/fetch/timers scan); 8 per-kind scaffolds `packages/components/scaffolds/<kind>/`
   (valid components `scaffolds/<kind>`, theme-driven, unit-sized, deterministic; stand-ins for the render pipeline)
   + `createComponent`; `themeTokens(template, urls)` (font family names `ds-<template>-display|body` + `font_faces`);
   `fillSlots` (default_from sources, for the planner); the kit (easing incl. theme zoom_ease, frame-driven
   fade/rise/stagger, `fitText` with balanced lines + ellipsis, Background/Logo/Wordmark/SafeArea/FitText, colour
   helpers); `ComponentProps` gained `area` (caption), `anchor` (overlay), `direction` (transition); CLI
-  `studio components list|validate|create` (+ `--json`); `FrameComment` type + `COMMENTS_DIR` in core; README section
+  `retake components list|validate|create` (+ `--json`); `FrameComment` type + `COMMENTS_DIR` in core; README section
   "Components". 427 tests pass (6 Postgres tests skipped).
-- **L2.3 done** (edit planner, `@demo-studio/editor`): `planEdit({timeline, template, project, registry, captureFile,
+- **L2.3 done** (edit planner, `@retake/editor`): `planEdit({timeline, template, project, registry, captureFile,
   scenario?, overrides?})` pure + deterministic (src/plan.ts; time maps in src/timing.ts, camera/reframe in
   src/camera.ts, geometry + `mapSourceRect` in src/layout.ts, component precedence in src/resolve.ts, `summarizePlan`
   + `resolvePlanAssets` in src/summary.ts). Contiguous same-page clips are planned as one *run* (one continuous time
@@ -685,7 +685,7 @@ sandbox, a hook step and compact results through Claude Code).
   CFR frame indices (frame n = capture time n/fps; `timeline.capture.frames` is the screencast frame count, the CFR
   count is round(duration·fps)). Plan types extended additively (PlanTransition on segments; clip cues/layout/src/
   speeds/trims/zooms/heldFrames; OverlayUse.anchor in source px; PlanLayout.crop/fallback; ResolvedComponent.missing;
-  `plan.assets` maps `ds-asset:<name>` URLs → files and `plan.meta`). `studio plan <project> <run|latest>` (summary,
+  `plan.assets` maps `ds-asset:<name>` URLs → files and `plan.meta`). `retake plan <project> <run|latest>` (summary,
   `--json`, `--out`, `--theme`, `--frame`, `--vertical`, `--scenario`); README "Editing". Tests: real timelines
   `packages/editor/test/fixtures/{catalogue,quote}.timeline.json` (runs 20261011-182524-catalogue /
   20261011-182706-quote) + synthetic timelines; a temp workspace scaffolds `components/studio/*` with
@@ -701,10 +701,10 @@ sandbox, a hook step and compact results through Claude Code).
   follows params) and no longer draw the brand mark (the composition does; scaffold layout changed accordingly).
   Compositions `DemoVideo`/`DemoVertical` in `packages/editor/src/remotion/` (Root.tsx, DemoVideo.tsx, frames.ts pure
   helpers, fonts.ts, modules.ts). Render pipeline in `packages/editor/src/render/`: generated entry + registry module
-  and bundle cache (bundle.ts, `<root>/.demo-studio/cache/remotion-<hash>/`, ≈ 10 s per bundle), asset server
+  and bundle cache (bundle.ts, `<root>/.retake/cache/remotion-<hash>/`, ≈ 10 s per bundle), asset server
   (asset-server.ts), browser choice (browser.ts, playwright-core registry), `renderVideo`/`renderPlan`/`renderStill`
-  (render.ts), runs/versions/`listRenders` (runs.ts), RenderRecord types (types.ts). CLI `studio render` and
-  `studio still` (packages/cli/src/commands/render.ts); README "Rendering"; DESIGN-phase2 §2.2 updated. 513 tests pass
+  (render.ts), runs/versions/`listRenders` (runs.ts), RenderRecord types (types.ts). CLI `retake render` and
+  `retake still` (packages/cli/src/commands/render.ts); README "Rendering"; DESIGN-phase2 §2.2 updated. 513 tests pass
   (6 Postgres tests skipped); new: components/test/library.test.ts, editor/test/render-units.test.ts,
   editor/test/render-real.test.ts (colour-coded synthetic capture: every sampled output frame shows the plan's source
   frame), cli/test/render.test.ts. Fixture renders `projects/northfield-fixture/renders/{catalogue,quote}-v1.mp4`
@@ -732,7 +732,7 @@ sandbox, a hook step and compact results through Claude Code).
   edges, caption, brand mark, logo rows, clock, texts within ≤ 3 px; motion at 0.4/1.0/1.3 s; width 1400 on screen;
   half size; determinism), library.test.ts rewritten for the reference look. 540 tests pass (6 Postgres tests
   skipped). Fixture renders `renders/{catalogue,quote}-v3.mp4` compared side by side with the reference stills.
-- **L2.6 done** (review package, `@demo-studio/review`): `reviewRender({project, render: id|path|'latest', scenario?,
+- **L2.6 done** (review package, `@retake/review`): `reviewRender({project, render: id|path|'latest', scenario?,
   fps?: 1|2, previous?: id|false, thumbnails?: false|'sheets'|'all', thumbnail_px?, rules?, sheet?, out?})` →
   `ReviewResult` (src/review.ts; contract in src/types.ts with `DEFAULT_RULES`). Writes `review/<render-id>/` aside and
   swaps it in: `sheet_<fps>fps.jpg` (+ `_p2`… pages, ≤ 6×10 tiles shared evenly; labels timecode · frame, segment ·
@@ -746,13 +746,13 @@ sandbox, a hook step and compact results through Claude Code).
   the median colour, luminance sd, 96×54 signatures; also `readImage`/`bbox` for tests). Spans (src/spans.ts): visible
   `[from, next.from)`, `clearFrom/clearTo` outside transition windows. Checks: src/checks.ts (no pixels: durations,
   long scenes, captions — mismatch, overlaps, `fitText` with the theme's REAL font files via src/fonts.ts (cmap/hmtx
-  reader; `fitText`/`estimateTextWidth` now exported from `@demo-studio/components`), brand mark —, text slots vs
+  reader; `fitText`/`estimateTextWidth` now exported from `@retake/components`), brand mark —, text slots vs
   `max_chars`, cursor at clicks with `viewOf`, camera, transitions over clicks, render status/probe/missing components)
   and src/pixel-checks.ts (blank/near-uniform screen runs with the capture frame consulted, blank/loading scene starts,
   screen changing during the opening still, `long-wait` = unchanging screen ≥ 3 s while the scenario waits — wait
   steps + time after an action until the next step, holds excluded —, caption not visible, empty cards); src/diff.ts
-  (per-segment durations and plan changes, sample frames compared at the same segment offset). CLI `studio review
-  <project> <render|latest> [--scenario] [--fps 1|2] [--previous ID|--no-previous] [--strict] [--json]` and `studio
+  (per-segment durations and plan changes, sample frames compared at the same segment offset). CLI `retake review
+  <project> <render|latest> [--scenario] [--fps 1|2] [--previous ID|--no-previous] [--strict] [--json]` and `retake
   render --review` (packages/cli/src/commands/review.ts); README "Reviewing a render"; DESIGN-phase2 §3 notes. Tests:
   review/test/review.test.ts (synthetic renders drawn with ffmpeg from real plans of synthetic runs at quarter size:
   clean case, blank screen + blank scene start, overlapping / wrong-scene captions, too-long captions, cursor outside
@@ -780,12 +780,12 @@ sandbox, a hook step and compact results through Claude Code).
   1280×720, tablet 820×1180, phone 390×844, generated once by `scripts/preview-samples.mjs`; captions/overlays/
   transitions inside the theme's own layout; transitions mid-way into a card-title), `renderComponentPreviews`
   (render/preview.ts: one bundle + browser, still at half scale = 960×540, ffmpeg palette quantisation when > 200 KB),
-  `studio components preview [id|--all [--workspace]] [--stale] [--theme <name>] [--out <dir>] [--json]` → `<dir>/preview.png` +
+  `retake components preview [id|--all [--workspace]] [--stale] [--theme <name>] [--out <dir>] [--json]` → `<dir>/preview.png` +
   `preview.json` (format, component, version, theme, moment, source hash of manifest + entry + local imports) + the
-  generated block of README.md (markers; author text kept); `studio components create` renders the preview
+  generated block of README.md (markers; author text kept); `retake components create` renders the preview
   (`--theme`, `--no-preview`; a warning, not a failure, without a browser); `components list --json` reports preview
   state. Committed previews for the 19 library components and the 8 scaffolds (editorial; 17–195 KB);
-  packages/components/test/previews.test.ts fails on a missing/stale/oversized preview. `studio still --layout <id>`.
+  packages/components/test/previews.test.ts fails on a missing/stale/oversized preview. `retake still --layout <id>`.
   **Flake fix** (runner-web scene-cursor): the cursor glide advanced on wall-clock time, so a stalled tick (GC, CDP
   backlog) made the cursor jump most of the way at once; it now advances on a motion clock capped at 2 ticks
   (`MAX_TICK_ADVANCE_MS`; `PointerHost.clock` injectable) and the test asserts the glide on the recorded samples
@@ -817,13 +817,13 @@ sandbox, a hook step and compact results through Claude Code).
   fades and ducking ×0.5 under clips, base volume on intro/outro/cards), `musicPlayGain`; MusicBed = one Html5Audio per
   play; `generateTestTrack` (ffmpeg sine chords, nothing committed). **Theme default zoom** (R-ED-22 decision):
   `DEFAULT_ZOOM` rules in plan.ts, `ZoomMove/ZoomSpan.source 'theme'`, asymmetric ease-out (`outFrames`), the motion
-  starter sets `default_zoom: 1.12`. **Export**: `exportRender` (editor render/export.ts) + `studio export` (cli
+  starter sets `default_zoom: 1.12`. **Export**: `exportRender` (editor render/export.ts) + `retake export` (cli
   commands/export.ts) → `exports/<render-id>/` + manifest.json; formats mp4_1080p (copy / lanczos scale, CRF 18),
   mp4_4k (copy / re-render scale 2), webm (VP9 CRF 32 + Opus), vertical_9x16 / square_1x1 (re-rendered with the
   master's run, theme and overrides), gif_preview (480 px, 12 fps, palette, 15 s around the first marker). **Review**:
   widget clicks placed one by one with their bbox, `target-cut` (error), `cursor-outside-reframe`, `reframe-jump`
   (rules `reframe_max_step` 6 %, `reframe_max_accel` 1.5 %), theme zooms outside the `max_zooms` budget with
-  `theme-zoom-count|cut|real`, the opening-still check compares the capture frames when the view moves. `studio plan`
+  `theme-zoom-count|cut|real`, the opening-still check compares the capture frames when the view moves. `retake plan`
   shows the reframe travel and theme zooms. Previews regenerated (15 + caption-overlay; landscape look unchanged).
   Tests: editor reframe.test.ts, planner-motion-music.test.ts, export-real.test.ts (DemoSquare frame, test track loops
   and ducking measured, export of 4 formats + manifest), planner-rules (vertical/square/music), review checks
@@ -844,7 +844,7 @@ sandbox, a hook step and compact results through Claude Code).
   off, offline, CSP, cid: inlined) at 600 px × 2 full height, PDFs with pdfjs-dist 5.4.296 (served from node_modules
   via `ctx.route`) at 2 × 96/72 (A4 ≈ 1587×2245) → `documents/<as>/page-<n>.png` + page sizes, notification icons →
   192 px PNG. **Web notifications**: the kit patches `new Notification` / `ServiceWorkerRegistration.prototype.
-  showNotification` once per window; the session grants `notifications` and exposes `__demoStudioNotification`;
+  showNotification` once per window; the session grants `notifications` and exposes `__retakeNotification`;
   `watchNotifications` records artefact + event (step −1 of the current scene). **Planner**: artefact slots →
   serialisable `props.media` (images as `ds-asset:` plan assets; warnings naming what the run captured), notification
   overlays start when the notification showed (inside the clip), `OverlayUse.componentFrames` when cut, tap anchors:
@@ -887,7 +887,7 @@ sandbox, a hook step and compact results through Claude Code).
   outro); tutorial targets join the reframe targets; skipped → plan warning. Story-card media: `frame` → `PictureMedia`
   (capture frozen at the time, or an image file as plan asset), `data` → `TableMedia` (`parseCsv`), `capture` →
   `TextMedia`; project files read before planning by `planInputFiles` (CSV text, image sizes; wired in render, still
-  and `studio plan`); `planComponentIds` includes the progress component. **Composition**: screen layer drawn before
+  and `retake plan`); `planComponentIds` includes the progress component. **Composition**: screen layer drawn before
   the brand mark and caption, `moment` / `region` / `chapters` props, the progress bar at the top level, `avoid`
   (the caption band of a caption over the screen; for the loupe and badges also the key caps' row — `overlayAvoid`,
   `shortcutRow`, kit `shortcutPlateBox`) and one side for a loupe gliding over several fields (`loupePlacement`, kit
@@ -991,12 +991,12 @@ sandbox, a hook step and compact results through Claude Code).
   waiting itself (wait steps + the load pause before a wait that really waited) plays at up to 4× after its first
   0.5 s (`WAIT_SPEED`, `WAIT_KEEP_S`; step speed wins; off with `overrides.trim_idle: false`). **Review**:
   `media-missing` covers files ("could not be read — nothing is shown"), `empty-segment` names the file. **CLI**:
-  `studio components new` (alias of `create`), plan / render pass the template (theme files). **Docs**:
+  `retake components new` (alias of `create`), plan / render pass the template (theme files). **Docs**:
   `docs/BRING-YOUR-OWN-MOTION.md` (linked from the README; export settings for motion tools, Remotion, Lottie,
   workspace components, the output of Claude motion / design skills), README section "Your own media and motion",
   DESIGN-phase2 §1.9. **Fixture**: `scripts/fixture-media.mjs` renders the media with Remotion
   (`fixtures/own-media/src`: intro 1920×1080 3.6 s with a chime made by ffmpeg, end card, a 480×480 VP9-alpha burst;
-  `--prores` also writes a ProRes 4444 burst to `.demo-studio/`) and `fixtures/own-media/lottie.mjs` writes two
+  `--prores` also writes a ProRes 4444 burst to `.retake/`) and `fixtures/own-media/lottie.mjs` writes two
   hand-written Lottie files → `projects/northfield-fixture/assets/` (each < 300 KB; `.gitignore` lets
   `projects/*/assets/*.mp4|webm` in); scenario `own-media` (46 s). Tests: core media.test.ts, components media.test.ts,
   editor planner-media.test.ts and render-media.test.ts (real render: the intro's tone, VP9 and ProRes alpha pixel
@@ -1018,9 +1018,9 @@ sandbox, a hook step and compact results through Claude Code).
   protected whole again (`protectedSpans(…, waitsFaster)`). New tests in render-media, planner-media (4) and review
   tutorial (1). 833 tests: 827 pass, 6 Postgres tests skipped (full suite run twice after the fixes, green both
   times).
-- **L2.13 done** (raw capture export for editors; R-RAW-01…06): `studio export-capture <project> <run|latest>
+- **L2.13 done** (raw capture export for editors; R-RAW-01…06): `retake export-capture <project> <run|latest>
   [--scenario] [--format mp4|prores] [--fps 30|60] [--cursor baked|none|layer] [--layer prores|webm] [--selects]
-  [--no-cuts] [--out] [--json]` and `studio run … --raw [same flags]` (packages/cli/src/commands/export-capture.ts;
+  [--no-cuts] [--out] [--json]` and `retake run … --raw [same flags]` (packages/cli/src/commands/export-capture.ts;
   engine `exportCapture` in **runner-web `src/raw/`**: plan.ts, encode.ts, cursor.ts, layer.ts, markers.ts, export.ts)
   → `<project>/exports/<run>-raw-<format><fps>-<cursor>/` = `clips/NN-<scene>[-<page>].mp4|mov`, `cursor/`
   (cursor.json, cursor.csv, clicks.csv, `NN-<scene>-cursor.mov|webm` layers), `markers/<scenario>.fcpxml|.edl|.otio`
@@ -1037,7 +1037,7 @@ sandbox, a hook step and compact results through Claude Code).
   TC = record TC); runs without kept frames fall back to the CFR video (tag-aware decode, frames repeated, note).
   **Cursor**: runner option `hideCursor` (kit `cursor.hidden` → `.c,.rps{display:none}`; `timeline.capture.cursor:
   hidden`, `run.json options.cursor`; the cursor-motion fps warning is skipped then); the kit now reports icon / press /
-  release / ripple through the binding `__demoStudioCursor` → `timeline.cursor_effects` (+ `tracks[].cursor_effects`,
+  release / ripple through the binding `__retakeCursor` → `timeline.cursor_effects` (+ `tracks[].cursor_effects`,
   current icon when a page starts being filmed); `api.cursorLook` exposes the overlay's CSS + markup. Layer:
   `renderCursorAtlas` draws the kit's look in Chromium (icons × 11 press scales, ripple every 1/120 s), Node composites
   per frame, ffmpeg `prores_aw` profile 4 (5× faster than prores_ks here, alpha within 1/255) or VP9-alpha WebM; runs
@@ -1110,10 +1110,10 @@ sandbox, a hook step and compact results through Claude Code).
 - **L5.1 done** (fixes found by the macOS pass; R-MAC-03…09): **Node guard** — `cli/src/bin.ts` is readable by any
   Node.js up to its version check (no import / export / import.meta / top-level await, ES2017; the CLI is loaded with
   a dynamic import built at run time; the cli tsconfig sets `moduleDetection: legacy` so tsc emits no `export {}`):
-  "studio needs Node.js 22 or later; this is vX (path)…" (cli/test/bin.test.ts: syntax scan, a faked Node 18,
-  `DEMO_STUDIO_TEST_OLD_NODE` for a real one); `.nvmrc` = 22. **Starter templates** — core `STARTER_TEMPLATES_DIR`;
+  "retake needs Node.js 22 or later; this is vX (path)…" (cli/test/bin.test.ts: syntax scan, a faked Node 18,
+  `RETAKE_TEST_OLD_NODE` for a real one); `.nvmrc` = 22. **Starter templates** — core `STARTER_TEMPLATES_DIR`;
   `listTemplates` returns the workspace's templates plus the starters no workspace folder shadows, sorted by name (`source`; a same-named folder without a template.yaml is an error, not a silent fallback), `loadTemplate`
-  falls back to the starter of that name (editor previews reuse it; doctor and `studio list` mark starters).
+  falls back to the starter of that name (editor previews reuse it; doctor and `retake list` mark starters).
   **Keychain** — one line "keychain item S/A not found (reason)"; the CLI hook context logs hook errors at debug level
   (the results list prints them once). **doctor** — ffmpeg / ffprobe below 5.1 fail (`MIN_FFMPEG`; snapshot builds not
   judged). **Scene rest points** (kit `restNear(box, {point, ref})`) — candidates around the click point (±80 px of a
@@ -1129,7 +1129,7 @@ sandbox, a hook step and compact results through Claude Code).
   "Request a quote" in both; delivery at (960,458) between two selects inside the dialog in 191556 — 191149 predates
   the near-scan and rested on the Message field's edge), catalogue 20261012-191245 (scene
   starts unchanged; its known stall after the scroll stays for L1.3). **Review fixes** (a review workflow, each finding
-  re-checked): bin.js resolves `main.js` next to the real file (a symlinked `studio` broke) and exits 13 when main()
+  re-checked): bin.js resolves `main.js` next to the real file (a symlinked `retake` broke) and exits 13 when main()
   never settles; a same-named workspace folder without template.yaml shadows the starter (error, not a silent
   fallback); an out-of-view anchor is judged at its box centre (the kit's point is clipped to the viewport); a clear
   cursor is kept when no spot next to a huge target exists; the late-popup wait ends when the target shows without a
@@ -1221,35 +1221,35 @@ sandbox, a hook step and compact results through Claude Code).
   per environment (`session: profile | storage_state`, `check`, `login_url` patterns, `login:` steps, `pages`);
   scenes and multi-page specs take `persona:` (`none` for a public page); core `planPersonas` binds every page,
   tab and js hook tab (explicit, then already bound, then the persona's pages, then the legacy `default`); no paths
-  in project.yaml — masters under `~/.demo-studio/profiles/<project>/<env>/<persona>/`, snapshots and statuses under
-  `~/.demo-studio/sessions/…` (0600 files, 0700 folders; `DEMO_STUDIO_HOME` moves the root). **Runtime**
+  in project.yaml — masters under `~/.retake/profiles/<project>/<env>/<persona>/`, snapshots and statuses under
+  `~/.retake/sessions/…` (0600 files, 0700 folders; `RETAKE_HOME` moves the root). **Runtime**
   (runner-web auth.ts): one browser per persona; each run works on a copy of the master (caches, `Singleton*`,
   `Login Data*`, `Web Data*` skipped; ≈ 20–60 ms for 10 MB) plus the snapshot's cookies — a session cookie without
   expiry survives only in the snapshot; a locked master is refused (a copy of an open profile carries no cookie);
   nothing is written back (BL-59). Preflight after the secrets prefetch, before setup hooks and the recorder:
   every persona the scenario uses is checked off camera; on failure the `login:` steps sign in automatically (secret
-  refs resolved lazily, redacted), else `PreflightError` with the exact `studio login … --env … --persona …`. Login
+  refs resolved lazily, redacted), else `PreflightError` with the exact `retake login … --env … --persona …`. Login
   guard: any filmed page (tabs, downloads, hook tabs, panes) landing on a sign-in pattern fails the run and keeps
   nothing (frames, capture, timeline, screenshots, artefacts, error files); a tab landing on another persona's
   sign-in says so; the status file becomes `expired` (`by: run`). Copies are registered, removed on close, on a second
-  Ctrl-C (sync) and by a sweep of stale `demo-studio-session-*` / `-login-*` / `-profile-*` folders. **CLI**: `studio
+  Ctrl-C (sync) and by a sweep of stale `retake-session-*` / `-login-*` / `-profile-*` folders. **CLI**: `retake
   login <p> [--env] [--persona] [--auto]` (headed window opened with the saved cookies; closing it signed out never
-  replaces a valid snapshot; `--auto` checks first and keeps a valid session), `studio auth status [--project]
-  [--check] [--json]`, interactive `studio new` (environments, personas, sign in now or later; validated before the
+  replaces a valid snapshot; `--auto` checks first and keeps a valid session), `retake auth status [--project]
+  [--check] [--json]`, interactive `retake new` (environments, personas, sign in now or later; validated before the
   questions), `doctor` persona lines (never / expired / in use / git-tracked), SIGINT handling (exit 130, copies
   removed) in every command that opens a session. **Fixture**: sign-in listeners :4403 (console) / :4404 (shop) in the
   same process, cookie `northfield_session` (console: no expiry), invented accounts, `POST /api/auth/expire`; the
   project's env `signed-in` (personas supplier, buyer; passwords from `NORTHFIELD_SUPPLIER_PASSWORD` /
-  `NORTHFIELD_BUYER_PASSWORD`); env `local` and every scenario unchanged. Acceptance (Mac, scratch DEMO_STUDIO_HOME):
-  `studio login --auto` for both personas (1.6–1.7 s), live-quote signed in 20261013-133904 / -141530 / -152036
+  `NORTHFIELD_BUYER_PASSWORD`); env `local` and every scenario unchanged. Acceptance (Mac, scratch RETAKE_HOME):
+  `retake login --auto` for both personas (1.6–1.7 s), live-quote signed in 20261013-133904 / -141530 / -152036
   (frames: buyer pane as Demo Café, supplier as Maja Lindqvist; no sign-in URL in any timeline; track frames within
   3 % of env local, the same two ripple warnings), quote signed in 20261013-134020 / -152115 / -155049 (the js hook
   tab ran as supplier and fired the captured notification; PDF fetched as buyer); expired sessions → catalogue
   20261013-134239 failed in 520 ms at 0/21 before any hook with the command; a session expired mid-run →
   20261013-134306 failed at step 3 with nothing kept; reports twice in parallel on one persona + embedded at once all
   succeeded, master untouched; env local quote / catalogue unchanged; `auth status --check` after `curl expire`
-  showed both expired (exit 1); `studio new` through a pseudo-terminal. Not proven by a person: a headed `studio login`
-  typed by hand (MACOS-CHECKLIST step 8b; the gated `DEMO_STUDIO_TEST_HEADED=1` test drives it by code). 1212 tests: 1204 pass, 8 skipped.
+  showed both expired (exit 1); `retake new` through a pseudo-terminal. Not proven by a person: a headed `retake login`
+  typed by hand (MACOS-CHECKLIST step 8b; the gated `RETAKE_TEST_HEADED=1` test drives it by code). 1212 tests: 1204 pass, 8 skipped.
   No dependency added.
 - **L1.7 done** (display URLs, read-only & production safety, frozen clock; R-ENV-01..05 done). Planned, criticised
   (11 defects; the clock probe proved the kit had to keep real timers), built in three parts (core + hooks, browser,
@@ -1287,7 +1287,7 @@ sandbox, a hook step and compact results through Claude Code).
 - **L1.8 done** (sandbox mode; R-SBX-01..06 done). Planned, criticised (10 must-fix points measured on the Mac:
   loopback-only URLs, snapshots only of a database the sandbox's own compose project publishes, OrbStack accepting a
   busy host port, `up --wait` exiting 0 on timeout…), built in four parts (core manifest + hooks plumbing; the
-  `@demo-studio/sandbox` package + process provider + CLI + `run --sandbox`; docker-compose + Postgres snapshot + `init`;
+  `@retake/sandbox` package + process provider + CLI + `run --sandbox`; docker-compose + Postgres snapshot + `init`;
   the fixture's Docker sandbox + SMTP relay + docs), reviewed by three independent reviewers (≈ 30 findings, several
   of data-loss class: `?host=` / `?port=` in database URLs, a second checkout sharing `compose.project`, another
   container on `[::1]` of the same port, a stale-lock race, pid reuse) and fixed in two passes. **Manifest**
@@ -1296,14 +1296,14 @@ sandbox, a hook step and compact results through Claude Code).
   js; never rolled back), reset reseed | snapshot, `accounts` → personas with automated login (plain demo passwords
   allowed, masked; under 3 characters refused), mailbox, databases (`external: true` to touch what the sandbox does
   not serve); every URL loopback; a sandbox is never production, always read-write. **Engine** (packages/sandbox):
-  state under `<project>/.demo-studio/sandbox/<env>/` (state.json with boot time and process-tree members, an atomic
+  state under `<project>/.retake/sandbox/<env>/` (state.json with boot time and process-tree members, an atomic
   take lock with a stale-lock breaker, logs with rotation), process provider (detached groups identified by pid +
   start time, ownership of every port by our own tree via lsof, SIGTERM → SIGKILL, Ctrl-C stops only what the call
-  started, seed steps abortable), compose provider (`demo-studio-<slug>-<env>-<path hash>`, folder check on every
+  started, seed steps abortable), compose provider (`retake-<slug>-<env>-<path hash>`, folder check on every
   command, `ps` verification after `up --wait`, `docker ps --filter publish` so no other container shares a port,
   connections pinned to the published address), Postgres template-clone snapshot (PG ≥ 13; owned database only; stale
   on seed or image change; ≈ 0.3 s restore vs 1.5–2 s reseed at 114 MB), mailbox cleared and supersede of pending
-  rollbacks after each reset. **CLI**: `studio sandbox init | up | down | reset | status | logs`, `studio run --sandbox`
+  rollbacks after each reset. **CLI**: `retake sandbox init | up | down | reset | status | logs`, `retake run --sandbox`
   (up if needed, health, reset, capture; stays up; busy → fail fast), doctor Sandbox / Docker lines (Docker a FAIL only
   when the default sandbox needs it). **Fixture**: process sandbox (env `sandbox`, 4501–4504) and Docker sandbox (env
   `sandbox-docker`, 4511–4514 + Mailpit v1.29.4 on 4525; host-built bundle, no Chromium so no PDFs), SMTP relay
@@ -1323,8 +1323,8 @@ sandbox, a hook step and compact results through Claude Code).
   (runner-web widgets.test "options of the scenario language (L1.4)", run.test, kit.test); captures at 2560×1440, 4K
   (scale 2, `keep_frames: false`) and phone (scale 2) (capture-sizes.test); the cursor and file-chip look with
   structural checks + tolerance goldens (look.test, test/golden/; chip golden darwin only; rewrite with
-  `DEMO_STUDIO_UPDATE_GOLDEN=1`); SIGINT / SIGTERM / AbortSignal on the built CLI (cli e2e.test); `studio hooks run`
-  forms; the 7 Postgres tests through `pnpm test:pg` (throwaway `demo-studio-pg-test-*` container with its anonymous
+  `RETAKE_UPDATE_GOLDEN=1`); SIGINT / SIGTERM / AbortSignal on the built CLI (cli e2e.test); `retake hooks run`
+  forms; the 7 Postgres tests through `pnpm test:pg` (throwaway `retake-pg-test-*` container with its anonymous
   volume removed — first run on the Mac: 7/7); the committed catalogue scenario captured on the fixture with the debug
   cursor (`pnpm test:slow`, 8 tests, ≈ 75 s: hotspot ≤ 0.5 px from every click). **Code fixes found by the tests**:
   `wait_for: {network_idle}` never waited for a request started after the page's first idle (runner-web network.ts:
@@ -1333,9 +1333,9 @@ sandbox, a hook step and compact results through Claude Code).
   is never reported as ended; also used by login steps, where a network-idle timeout now fails the step); a cancel
   during a setup hook waited for it (up to 30 s) and a cancel between or during non-shell hooks skipped the rollback;
   teardown skipped after a failed setup; a second signal left shell hooks running; `drop_file` read a file before its
-  size check; `studio plan` accepted a newer run.json. **Formats**: optional `version: 1` on scenario / project /
+  size check; `retake plan` accepted a newer run.json. **Formats**: optional `version: 1` on scenario / project /
   template / studio YAML and run.json (core formats.ts; missing = 1, newer = one positioned error; hook files have
-  none; `studio migrate` is BL-70); run.json `engine` (Demo Studio, Node, Chromium, OS, font digest; runner-web
+  none; `retake migrate` is BL-70); run.json `engine` (Retake, Node, Chromium, OS, font digest; runner-web
   engine.ts). **Requirements**: a generated "Never exercised" section in REQUIREMENTS.md and `node
   scripts/requirements.mjs --untested 1` (exits non-zero while phase 1 has one); R-RUN-17's real-Keychain check is
   MACOS-CHECKLIST step 10b for the user. 1632 tests: 1608 pass, 24 skipped; test:pg 7/7, test:slow 8/8, Docker-gated 7/7. No dependency added.
@@ -1345,17 +1345,17 @@ sandbox, a hook step and compact results through Claude Code).
   four parts (engine read side + MCP skeleton; jobs + worker; hooks / approvals; sign-in, sandboxes, docs), reviewed
   by two reviewers (16 findings, five safety holes) and fixed with mutation-checked tests. **Engine**
   (packages/engine): workspace / project loading, `executeRun`, hooks context, sign-in and sandbox jobs moved out of
-  the CLI, which keeps its options, output and exit codes. **Jobs**: `<workspace>/.demo-studio/jobs/` (job.json written
+  the CLI, which keeps its options, output and exit codes. **Jobs**: `<workspace>/.retake/jobs/` (job.json written
   once by the submitter then only by the claiming worker; claim and cancel O_EXCL markers; `interrupted` derived from a
-  dead worker), `worker.lock` (pid + start + build stamp of every runtime package), a detached `studio worker` that
+  dead worker), `worker.lock` (pid + start + build stamp of every runtime package), a detached `retake worker` that
   stops claiming at the first signal, exits on the next, outlives the MCP session and exits after 60 s idle; core
   `reserveRunId`; `history.jsonl` (runs, renders, stills, export re-renders). **MCP** (packages/mcp; SDK 1.32.1 imported
   only in server.ts): 23 tools, schemas from zod, slugs only, page / mail / hook text under `untrusted`, no Chromium in
-  the server process, progress notifications, long-poll `wait_s` ≤ 25 s, `studio mcp --print-config` (stable Node path,
+  the server process, progress notifications, long-poll `wait_s` ≤ 25 s, `retake mcp --print-config` (stable Node path,
   PATH without pnpm folders). **Safety under trust `mcp`**: `confirm: true` does not count; every shell hook, shell
   seed, destructive hook and destructive / shell / js rollback needs a human approval through elicitation (form lists
   each hook and its rollback), fingerprinted on the raw hook + referenced files and HMAC-signed (key in
-  DEMO_STUDIO_HOME), else refused with the `studio …` command; no `allow_writes`; production / read-only hosts of every
+  RETAKE_HOME), else refused with the `retake …` command; no `allow_writes`; production / read-only hosts of every
   project protected; no `{{env:}}` / `{{keychain:}}` in agent-written text; no file reference outside the project or
   into agent-writable folders; no credential ever passes through a tool (`auth_login` opens a window for the human).
   ARCHITECTURE: ADR-1 amended (engine location vs UI delivery, job input contract, data-flow table: tool results,
@@ -1377,7 +1377,7 @@ sandbox, a hook step and compact results through Claude Code).
   editorial → review clean → render motion + laptop → export mp4 / gif / vertical) with frames looked at. 1819 tests: 1791 pass, 28 skipped; test:slow green. No new dependency.
 - **L3.3 done** (authoring; R-MCP-22, R-MCP-23, new R-MCP-36 done; R-PRIN-04 partial). User decision: Claude writes
   the scenario, the tool makes no model call. Planned, criticised (ladder cost measured: 48 s per page without a
-  per-call cache), built in three parts (kit inventory + runner inspect; inspect job + page_inspect + `studio inspect`;
+  per-call cache), built in three parts (kit inventory + runner inspect; inspect job + page_inspect + `retake inspect`;
   scenario_from_script aid + authoring acceptance + docs), reviewed (9 findings, the worst a late JS navigation getting
   a foreign page inspected as `ok`) and fixed with mutation-checked tests. Kit 1.4.0: per-call memo, `inventory`,
   verified suggestions, `checkTargets`, `nameText` (never field contents). Runner: `inspectPage`, `RunOptions.inspect`,
@@ -1387,7 +1387,7 @@ sandbox, a hook step and compact results through Claude Code).
   sandbox P6 test flake (a race in the test's fake ps). 1887 tests: 1855 pass, 32 skipped; test:slow green. No new dependency.
 - **L3.4 done** (recorder; R-MCP-24 done). Planned, criticised (the binding of `exposeBinding` is visible and forgeable
   by the page — replaced by an isolated world over CDP; a field switched from password to text leaked; a GET form put a
-  password in the URL), built in three parts (capture; draft generator + engine + `studio record`; job + MCP + docs),
+  password in the URL), built in three parts (capture; draft generator + engine + `retake record`; job + MCP + docs),
   reviewed (10 findings: the worst, a write to an API on another host was not seen, so the check replay would repeat it;
   partial passwords masking common words; dropped tokens; tokens in typed URLs; `{{` in typed text) and fixed with
   mutation-checked tests. Files: runner-web `record-session.ts`, `kit/record-script.ts` (kit 1.5.0: `passive`,
@@ -1407,7 +1407,7 @@ sandbox, a hook step and compact results through Claude Code).
   `site.ts` (+ `site` job kind); components `brand/palette.ts`, `brand/template-file.ts`; engine `brand/files.ts`,
   `brand/create.ts`, `jobs/site-job.ts`, site approvals; runner-web `site/proxy.ts`, `site/extract.ts`,
   `site/page-script.ts`, `site/palette.ts`; mcp `template_create_from_brand`, `template_from_site` (41 tools), the site
-  approval form; cli `studio theme create | from-site`, doctor warning. Test fixture: `runner-web/test/fixtures/
+  approval form; cli `retake theme create | from-site`, doctor warning. Test fixture: `runner-web/test/fixtures/
   brand-site` (invented brand on `.test` names over self-signed https; openssl needed). Acceptance in `test:slow`
   (`mcp/test/theme-acceptance.test.ts`): site → draft → theme with the site's logo and the workspace's fonts → preview
   → fixture quote render reviewed clean, frames looked at. Cuts and limits: BL-75. 2294 tests: 2257 pass, 37 skipped;
@@ -1416,7 +1416,7 @@ sandbox, a hook step and compact results through Claude Code).
   a real render (the anchor at a marker named the next step because a satisfied wait owns no frame — the planner now
   puts the marked step on `plan.markers[]`; an `if_match`-only write lost entries across processes — writes go under
   the sandbox package's `TakeLock`; "human" cannot be proven — entries carry `author.via: cli | mcp`; committed stills
-  would put product frames in git — stills stay in `.demo-studio/comments/`), built in three parts (types + anchor +
+  would put product frames in git — stills stay in `.retake/comments/`), built in three parts (types + anchor +
   still; store + CLI; MCP + acceptance + docs), reviewed by two reviewers (trust / storage; anchor / docs / tests: an
   injected lock-file text in an error, no size cap on comments_list, the caption band of the motion theme read as the
   screen, a vertical render resolving a landscape thread, invisible tag characters, a file grown past the read cap…)
@@ -1428,8 +1428,8 @@ sandbox, a hook step and compact results through Claude Code).
 - **L3.7 done** (Claude skills + plugin packaging; R-SKL-01/02/03 done, R-DEC-05 partial until 12i). Planned, criticised
   with a scratch Claude Code config (`${user_config.*}` expands in a plugin `.mcp.json` on 2.1.267; a user-scope install
   would put 44 tools in every session — `--scope local` is the default; the plugin's `home` overrides an inherited
-  DEMO_STUDIO_HOME; 7 scaffolds imported remotion), built in three parts (kit re-export + scaffolds; plugin +
-  registration + PATH; skills + lint + docs), reviewed (the CLI rule still allowed `studio run` in the shell before any
+  RETAKE_HOME; 7 scaffolds imported remotion), built in three parts (kit re-export + scaffolds; plugin +
+  registration + PATH; skills + lint + docs), reviewed (the CLI rule still allowed `retake run` in the shell before any
   refusal; the lint read one sentence; load-time `!` commands; two local installs share one set of values; workspace
   folders on the serving PATH…) and fixed with mutation-checked tests. Files: `skills/` (3 skills + 2 references,
   plugin manifest, `.mcp.json`, README), `.claude-plugin/marketplace.json`, components `kit/renderer.ts`, mcp
@@ -1452,7 +1452,7 @@ sandbox, a hook step and compact results through Claude Code).
   partial). Planned, criticised with probes (one event stream per tab exhausted Chromium's 6 connections per host; an
   index of job states would show a crashed job running forever; the planned security tests could not fail since they
   never sent a token; README / scenario reads followed links out of the project), built in three parts (gate +
-  discovery + bootstrap code + `studio ui` skeleton; the app from files + Chromium e2e; index + events + MCP over HTTP),
+  discovery + bootstrap code + `retake ui` skeleton; the app from files + Chromium e2e; index + events + MCP over HTTP),
   reviewed by two reviewers (the token printed for a committed `.mcp.json`; abandoned HTTP sessions locking clients out;
   unsaved text lost when the session ended; CRLF / Latin-1 READMEs rewritten; links followed by the index…) and fixed
   with 35 mutation-checked tests. Files: engine `src/http/` (gate, token, bootstrap codes, discovery, token file),
@@ -1674,7 +1674,7 @@ sandbox, a hook step and compact results through Claude Code).
 
 ## Working with the fixture
 **On a fresh clone (the Mac) none of the runs, renders, reviews or exports named in this file exist** — they are
-git-ignored and stayed in the cloud container. Start the fixture, capture (`studio run`), then render / review /
+git-ignored and stayed in the cloud container. Start the fixture, capture (`retake run`), then render / review /
 export `latest`; generate the music test bed once with the `generateTestTrack` line below. The fixture's own media
 (`projects/northfield-fixture/assets/`) and the frozen test timelines (`packages/*/test/fixtures/`) are committed.
 
@@ -1698,7 +1698,7 @@ node packages/cli/dist/bin.js run northfield-fixture phone-and-desktop   # deskt
 node packages/cli/dist/bin.js render northfield-fixture live-quote --theme motion --review
 node scripts/fixture-media.mjs [--prores]                                # regenerate the fixture's own media (Remotion + ffmpeg)
 node packages/cli/dist/bin.js run northfield-fixture own-media           # intro video, outro image, alpha burst, Lottie card + overlay (≈ 45 s)
-node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.demo-studio/test-bed.m4a --review
+node packages/cli/dist/bin.js render northfield-fixture own-media --music projects/northfield-fixture/.retake/test-bed.m4a --review
 node packages/cli/dist/bin.js render northfield-fixture phone-and-desktop --vertical --review
 node packages/cli/dist/bin.js still northfield-fixture live-quote --square --frame 880
 node packages/cli/dist/bin.js run northfield-fixture quote --raw --cursor none --selects            # capture without the cursor + raw package (≈ 2 m)
@@ -1710,12 +1710,12 @@ node packages/cli/dist/bin.js render northfield-fixture highlights --theme motio
 node packages/cli/dist/bin.js render northfield-fixture catalogue        # → renders/catalogue-v<N>.mp4 + .json
 node packages/cli/dist/bin.js render northfield-fixture quote --vertical # 1080×1920, reframed → quote-v<N>-vertical.mp4
 node packages/cli/dist/bin.js render northfield-fixture quote --square --theme motion   # 1080×1080 + theme zoom
-node packages/cli/dist/bin.js render northfield-fixture catalogue --music projects/northfield-fixture/.demo-studio/test-bed.m4a
+node packages/cli/dist/bin.js render northfield-fixture catalogue --music projects/northfield-fixture/.retake/test-bed.m4a
 node packages/cli/dist/bin.js export northfield-fixture catalogue-v4 --formats all     # → exports/catalogue-v4/
 node packages/cli/dist/bin.js plan northfield-fixture latest --scenario quote --vertical   # shows each clip's reframe
 node packages/cli/dist/bin.js review northfield-fixture quote-v9-vertical
 node packages/cli/dist/bin.js components preview --all --stale          # regenerate stale committed previews
-node -e "import('./packages/editor/dist/index.js').then(m => m.generateTestTrack('projects/northfield-fixture/.demo-studio/test-bed.m4a', {seconds: 16}))"
+node -e "import('./packages/editor/dist/index.js').then(m => m.generateTestTrack('projects/northfield-fixture/.retake/test-bed.m4a', {seconds: 16}))"
 ```
 Render times in the cloud container (4 CPUs, no GPU, concurrency 3; L2.14: ≈ 4 m per 70 s 1080p video, own-media 46 s
 ≈ 2 m 50 s; a Mac should be faster): 1080p quote 56.3 s → ≈ 3 m; vertical 1080×1920 → 3 m 13 s,
@@ -1745,7 +1745,7 @@ The renders and packages below are git-ignored (they stay in the cloud container
   plan warning "the capture is 1920×1080 px (scale 1): it is upscaled …".
 
 Renders of L2.8, looked at frame by frame (frames extracted with ffmpeg at every click and the 5 frames around the
-largest reframe move of each clip) and reviewed with `studio review`: **quote-v9-vertical** (editorial, 56.3 s;
+largest reframe move of each clip) and reviewed with `retake review`: **quote-v9-vertical** (editorial, 56.3 s;
 review clean, 1 info) — every clicked target (Selowa Ridge, Request a quote, Increase ×2, the size and grind
 dropdowns and their options, Delivery window, Next month at the right edge, 10 Jan, 24 Jan, Message, Send request, the
 notification bell and item, Download quote PDF) and the cursor in view, the callout on €720.00 mapped through the
@@ -1754,7 +1754,7 @@ during the opening stills; **quote-v10-square** (motion theme, 57.2 s; review cl
 under the card, the theme zoom 1.12× on the marked proposal (in 3.8 s, back to 1× before the outro); **catalogue-v4**
 (editorial + the 16 s test track, 59.0 s): music RMS ≈ −25 dB on the intro, ≈ −31/−33 dB under footage (−6 dB
 ducking), −27.6 dB on the outro, no dip at the loop seams (15.5 s, 30.5 s, 45.5 s), faded out to silence at 59 s.
-**Export of catalogue-v4, all six formats** (`studio export … --formats all`, 15 m 37 s; every file ffprobed):
+**Export of catalogue-v4, all six formats** (`retake export … --formats all`, 15 m 37 s; every file ffprobed):
 mp4_1080p copy 1920×1080 h264 + aac 59.01 s 8.8 MB; mp4_4k re-rendered 3840×2160 h264 + aac 59.01 s 17.4 MB (8 m 04 s,
 the upscaling warning); webm 1920×1080 vp9 + opus 59.02 s 4.6 MB (1 m 25 s); vertical_9x16 re-rendered 1080×1920
 h264 + aac 59.01 s 11.5 MB (3 m 17 s); square_1x1 re-rendered 1080×1080 h264 + aac 59.01 s 9.1 MB (2 m 49 s);
@@ -1765,7 +1765,7 @@ edge followed smoothly), the exported vertical reviewed: the known `long-wait` w
 Earlier: quote-v7-vertical / quote-v8-square (before the calm start and the caption bands below the card),
 catalogue-v3 one `long-wait` warning (registry delay of the fixture, 00:45.1–00:48.9) — to fix for L2.12.
 
-Renders of L2.9, reviewed with `studio review` and looked at frame by frame (ffmpeg frames of every new component,
+Renders of L2.9, reviewed with `retake review` and looked at frame by frame (ffmpeg frames of every new component,
 the tap-open transitions frame by frame, crops at full size): **signup-v4** (editorial, 46.4 s, run
 20261012-022315-signup; review clean, 5 info — video length within the tolerance): the mail notification slides in
 at the top right when the mail was captured (sender, subject, two-line preview, mail glyph), the tap ring on it, the
@@ -1781,7 +1781,7 @@ last source edits) and variant sheets (windows / ios-banner / android / in-app, 
 lock-screen motion) looked at. Earlier: signup-v1…v3 (35.8 / 41.6 s: `video-length` warning), quote-v11 (PDF footer
 over the signature), quote-v12 (request scene 34.1 s: `long-scene` warning) — fixed by the changes above.
 
-Renders of L2.10, reviewed with `studio review` and looked at frame by frame (ffmpeg frames at every overlay's start,
+Renders of L2.10, reviewed with `retake review` and looked at frame by frame (ffmpeg frames at every overlay's start,
 moment and glide, contact sheets): runs 20261012-034207-signup and 20261012-034247-highlights. **signup-v7**
 (editorial, 45.47 s; review clean, 3 info): spotlight on Café name gliding to Your name, Work email and Create account,
 badges 1 and 2, the loupe gliding from field to field (Tab between them shows ⇥ caps), ⌘K then the lens on the search
@@ -1801,7 +1801,7 @@ with its QR (sampled from the frame: version 3, 29 × 29 modules, 9.1 px each at
 encoder). Previews of the 11 new components looked at (re-rendered after the last kit edits: byte-identical).
 Render times here: signup 1080p ≈ 2 m 40 s, vertical ≈ 3 m 20 s, highlights ≈ 2 m 10 s.
 
-Renders of L2.11 after the code and video review fixes, reviewed with `studio review` and looked at frame by frame
+Renders of L2.11 after the code and video review fixes, reviewed with `retake review` and looked at frame by frame
 (ffmpeg frames at every click of each page, every acting-page switch and both hand-offs; the café's bell cropped at
 10 fps; pane luminance measured across the switches): run **20261012-073840-live-quote** — **live-quote-v7**
 (editorial, 42.33 s): the two pages side by side with their labels, the roaster's label takes the accent within
@@ -1828,7 +1828,7 @@ Capture fps per page (the runner's own measure, cursor moves below 18 fps): live
 the request dialog's backdrop blur), supplier 1 of 2 (lowest 13); phone-and-desktop phone 1 of 12 (lowest 18), desk
 none. General capture speed stays L1.3. Render times: ≈ 3 m per 1080p video (42 s), vertical ≈ 3 m 30 s, pip ≈ 2 m 30 s.
 
-Renders of L2.12, reviewed with `studio review` and looked at frame by frame (ffmpeg frames at every segment boundary,
+Renders of L2.12, reviewed with `retake review` and looked at frame by frame (ffmpeg frames at every segment boundary,
 inside the intro and the outro, through the alpha burst — full-resolution crops of its edges over the white dialog and
 the dimmed page —, the Lottie card and the Lottie check overlay; audio measured sample by sample against the source
 intro). Run **20261012-093815-own-media** — **own-media-v6** (editorial + the test bed, 46.03 s; review clean, 9 info
@@ -1902,7 +1902,7 @@ frame).
 ## Notes
 Notes from L5.12d:
 - The quit question: `guard_flow.rs` is the only place its rules live (pure, injected clock); guard.rs runs its effects.
-  `DEMO_STUDIO_DESKTOP_TEST_QUIT=native` keeps the L5.2b gated cases on the native alert; the page-path cases run
+  `RETAKE_DESKTOP_TEST_QUIT=native` keeps the L5.2b gated cases on the native alert; the page-path cases run
   without it.
 - `desktop_answer` is never an MCP tool and never nudges onWrite; only `shown` is rate-capped.
 - There is no legacy CSS: base.css holds element defaults on --ui-* tokens; a className word must be defined in a
@@ -1992,14 +1992,14 @@ Notes from L5.10a:
   unknown until its job.json can be read.
 
 Notes from L5.9:
-- Colours live in `tokens.ts` only: run `pnpm -F @demo-studio/ui gen:tokens` after a change (a test compares the
+- Colours live in `tokens.ts` only: run `pnpm -F @retake/ui gen:tokens` after a change (a test compares the
   committed `tokens.css`). New screens use the kit (`src/app/ui-kit/`) and `--ui-*` tokens; legacy screens sit in
-  `@layer legacy` (app.css) and the ratchet in `test/legacy-controls.json` may only go down (`pnpm -F @demo-studio/ui
+  `@layer legacy` (app.css) and the ratchet in `test/legacy-controls.json` may only go down (`pnpm -F @retake/ui
   ratchet` after removing legacy controls). The reference for L5.10 – L5.12 is docs/reference/studio-ui.md (C1 / C2
   give layout only; the R4 boards the drawing).
 - The centre pane (`#main`) is the only scroller: IntersectionObservers and test scrolls target it; sizes derive from
   `--main-h` (no `vh`, also inside min / max / clamp).
-- The app's name is `APP_NAME` in `brand.ts` (a lint refuses "Demo Studio" elsewhere in the app; server / player
+- The app's name is `APP_NAME` in `brand.ts` (a lint refuses "Retake" elsewhere in the app; server / player
   comments and one server test title are left for L5.13).
 - Page commands come from `MENU_COMMANDS` (`commands.ts`), mirrored by the desktop menu table (parity test), dispatched
   as `studio:command` (ids only, ignored while a modal dialog is open); in a browser tab only ⌘K (Ctrl+K off a Mac,
@@ -2017,11 +2017,11 @@ Notes from L5.2b:
 - Never send `terminate:` from a Tauri closure (tao's lock): only `performSelectorOnMainThread` from the signal thread.
   `GUARD_OPEN` makes a second terminate during a question answer Cancel; `QUIT_NOW` (SIGTERM / SIGINT / SIGHUP) aborts
   any shell modal and blocks new ones.
-- Test mode (`DEMO_STUDIO_DESKTOP_TEST` + parent not launchd) answers questions from `_ANSWERS`, logs notifications
+- Test mode (`RETAKE_DESKTOP_TEST` + parent not launchd) answers questions from `_ANSWERS`, logs notifications
   instead of posting them, and SIGUSR2 sends Quit; a Finder launch can never arm it.
 
 Notes from L5.2:
-- `studio ui --supervised` is the shell's only contract: one JSON line (`v`, `url`, `player`, …), stop on stdin EOF /
+- `retake ui --supervised` is the shell's only contract: one JSON line (`v`, `url`, `player`, …), stop on stdin EOF /
   SIGTERM with `stopped: <reason>` on stderr; exit 2 is preceded by `{"type":"error","code":"no_workspace"}` (an exit
   2 without it means an older CLI: `pnpm build`). `/v1/info` gains token-gated counters (`sessions`, `streams`,
   `player_media_bytes_read`, `player_range_requests`) used by the gated test as proof the page and the Player loaded.
@@ -2045,11 +2045,11 @@ Notes from L4.9:
 - The tours (`studio-e2e-a11y.test.ts`, `studio-e2e-a11y-keyboard.test.ts`, ≈ 21 s each) audit an editable workspace
   theme (`tour-theme`), wait for loading `role=status` messages, treat a truncated Tab walk or a still-loading station
   as a finding, and wait for Undo to be enabled before ⌘Z (StepEditing drops ⌘Z while saving: BL-122).
-- The acceptance: `DEMO_STUDIO_TEST_SLOW=1 DEMO_STUDIO_TEST_CHROME=1 npx vitest run
+- The acceptance: `RETAKE_TEST_SLOW=1 RETAKE_TEST_CHROME=1 npx vitest run
   packages/ui/test/studio-e2e-acceptance.test.ts` (installed Chrome for H.264; not in test:slow, like the other Chrome
   tests). Its render wait fails fast with the job's phase; a once-seen cold-cache hang did not reproduce (BL-123).
 - Tests that link the repo's shared render cache use `linkSharedCache(root)` (editor/test/render-helpers.ts), which
-  creates `REPO/.demo-studio/cache` first — a fresh clone or worktree no longer depends on test order.
+  creates `REPO/.retake/cache` first — a fresh clone or worktree no longer depends on test order.
 - WebKit-2370 (cached, not Playwright 1.56.1's 2215) launches through `executablePath`; Firefox does not drive (BiDi).
   Neither is in the suite (BL-121); Safari / Firefox / VoiceOver are MACOS-CHECKLIST 13j.
 
@@ -2067,8 +2067,8 @@ Notes from L4.8:
 - The check replays the recorded draft without picks and inserts (a dry run of the saved scenario checks those). One
   instant wheel jump (headless 2400 px) records no scroll — an L3.4 limit noted in BACKLOG; tests scroll in steps.
 - The lab's labels must not contain each other (Playwright `getByRole` names match substrings): the far section's
-  buttons are "Unlock the last step" / "Delayed control". The gated L4.8 acceptance: `DEMO_STUDIO_TEST_SLOW=1 npx
-  vitest run packages/ui/test/studio-e2e-record-acceptance.test.ts` (part of test:slow; `DEMO_STUDIO_TEST_HEADED=1`
+  buttons are "Unlock the last step" / "Delayed control". The gated L4.8 acceptance: `RETAKE_TEST_SLOW=1 npx
+  vitest run packages/ui/test/studio-e2e-record-acceptance.test.ts` (part of test:slow; `RETAKE_TEST_HEADED=1`
   shows the window).
 
 Notes from L4.7:
@@ -2085,13 +2085,13 @@ Notes from L4.7:
   webpack's lookup (same trust as renders; BL-113).
 - The app's one image element is `Picture`, built only by `imageDataUrl` (JPEG / PNG / GIF, magic-checked, capped per
   format; never SVG / WebP — theme logos show in the live frame only). The app bundle budget is 600 KB (raised
-  freely). The gated L4.7 acceptance: `DEMO_STUDIO_TEST_SLOW=1 npx vitest run
+  freely). The gated L4.7 acceptance: `RETAKE_TEST_SLOW=1 npx vitest run
   packages/ui/test/studio-e2e-themes-acceptance.test.ts` (part of test:slow).
 
 Notes from L4.6:
 - `via: 'studio'` exists only through the Studio's HTTP routes (only studio.ts makes a `ui` engine client); its comment
   ops pin their inputs (no author, via, path or proposal from a page). MCP still cannot create, reopen or apply; the
-  rule keeping Claude off the Studio token (`.demo-studio/ui.json`) and `/v1` routes is an instruction (skill lint), not
+  rule keeping Claude off the Studio token (`.retake/ui.json`) and `/v1` routes is an instruction (skill lint), not
   a barrier (BL-106) — Apply through it would still run under agent trust.
 - A proposal is edit-only (a `template:` / theme, filmed or override change is the direct loop), joined with the file's
   own line breaks (a file mixing LF and CR LF is refused), rebuilt strictly from canonical hunks; Apply always runs the
@@ -2102,10 +2102,10 @@ Notes from L4.6:
   newest wins per tab session before the file opens; busy is 429, a timeout 503 (the only ops not on 423). The
   scenario_edit answer no longer carries `path`; Studio errors are path-free except the copyable `fix` command.
 - An MCP server started before L4.6 reads Studio threads and proposal entries as invalid until restarted (the skill
-  says so). The gated installed-Chrome acceptance: `DEMO_STUDIO_TEST_CHROME=1 npx vitest run
+  says so). The gated installed-Chrome acceptance: `RETAKE_TEST_CHROME=1 npx vitest run
   packages/ui/test/studio-e2e-comments-chrome.test.ts` (fixture on free ports, ≈ 2–6 min). The app bundle budget is
   490 KB.
-- The test suite sets `DEMO_STUDIO_DISK_WARN=off` (vitest.config.ts): captures still measure the free space but the
+- The test suite sets `RETAKE_DISK_WARN=off` (vitest.config.ts): captures still measure the free space but the
   low-disk warning (below 10 GB or 5 % of the disk, R-FLD-28) no longer fails the capture tests that assert no warnings
   (user decision 2026-10-27).
 
@@ -2117,9 +2117,9 @@ Notes from L4.5:
   allowed it in this Studio session (memory only, keyed by its folder content hash; no MCP tool reaches it).
 - `set_field` writes only the scenario's edit values (always an edit change: no new capture); intro / outro switches
   refuse when the map holds more than component and duration. `caption_component` picks the caption component.
-- A Studio render renders the scenario text it was submitted with (`.demo-studio/jobs/<id>/edit.yaml`) and runs its
+- A Studio render renders the scenario text it was submitted with (`.retake/jobs/<id>/edit.yaml`) and runs its
   review inline; "from this version" needs the same plan signature and theme hash.
-- The gated real-Chrome timeline test: `DEMO_STUDIO_TEST_CHROME=1` (+ `DEMO_STUDIO_TEST_REAL=<ws>:<project>:<scenario>`).
+- The gated real-Chrome timeline test: `RETAKE_TEST_CHROME=1` (+ `RETAKE_TEST_REAL=<ws>:<project>:<scenario>`).
   The app bundle budget is 430 KB.
 
 Notes from L4.4:
@@ -2128,7 +2128,7 @@ Notes from L4.4:
   watches; a capture streams only when the page asks (`frames: true`).
 - Capture time comes only from the capture clock (DESIGN §3.4); a pause is a list entry the clock subtracts from every
   wall time (`timeline.pauses`, `t0_wall` alone no longer converts). The product clock is not re-anchored after a pause
-  (what moved on the page shows as a jump; documented). `DEMO_STUDIO_PAUSE_MAX_MIN` (30), `DEMO_STUDIO_SIGNIN_MAX_MIN`
+  (what moved on the page shows as a jump; documented). `RETAKE_PAUSE_MAX_MIN` (30), `RETAKE_SIGNIN_MAX_MIN`
   (30).
 - Every resolved persona's secrets (incl. sandbox account passwords) are registered before the outline is emitted:
   nothing a run writes may hold a secret (auth.test scans every event and run file).
@@ -2157,7 +2157,7 @@ Notes from L4.3:
 - From the Studio, hooks never change, and neither do `vars` / `env` while the file has hooks or mocks (hooks read
   them); a scenario that is a link outside `scenarios/` or holds a lone CR is read-only there. A Studio dry run skips
   hooks: scenarios like quote need their state prepared first.
-- Every `if_match` write holds `.demo-studio/locks/write-*.lock` keyed on the real path (the CLI's own writers do not:
+- Every `if_match` write holds `.retake/locks/write-*.lock` keyed on the real path (the CLI's own writers do not:
   BL-96). `comments_list` returns `step_now` (the step in today's file, across scenes).
 - `run.test.ts` "an AbortSignal cancels the run…" failed every time at load 26–32 on main 2f1813a too (setup 'failed'
   instead of 'ok'): a timing flake that load now triggers reliably — worth hardening (L5.7 touches capture timing).
@@ -2181,9 +2181,9 @@ Notes from L4.1:
   lone `Sec-Fetch-Mode: cors` (Node's fetch sends it); the Host check is what stops DNS rebinding.
 - The `ui` client runs a short op allow-list (9 ops) under agent trust with no approver; later lots add the ops their
   screens need. Reads never follow a link out of a project (README, scenarios, project.yaml through the engine).
-- One Studio server per workspace (`.demo-studio/ui.json`, 0600); `studio ui` opens a one-time code (60 s); the index is
+- One Studio server per workspace (`.retake/ui.json`, 0600); `retake ui` opens a one-time code (60 s); the index is
   a cache (missing / corrupt / not a regular file → rebuilt); unfinished jobs come live from the queue.
-- `studio mcp --http` (default port 47820) keeps a stable token in the studio home (`--rotate-token`); print-config
+- `retake mcp --http` (default port 47820) keeps a stable token in the Retake home (`--rotate-token`); print-config
   never prints it. Port squatting on a multi-user Mac is an accepted residue (BL-79).
 - Mutation scripts must give restored files a fresh mtime (or run `tsc -b --force`): `tsc -b` keeps a stale dist.
 
@@ -2200,28 +2200,28 @@ Notes from L3.8:
 Notes from L3.7:
 - A lot that changes a loop, a tool argument or a CLI flag must update the skills: `skills.test.ts` fails until it does.
   The lint proves names, arguments, commands, links, examples and wording rules — not that Claude follows them.
-- The plugin's values (`node`, `studio`, `workspace`, `home`) are per user even with `--scope local`: one workspace at a
+- The plugin's values (`node`, `cli`, `workspace`, `home`) are per user even with `--scope local`: one workspace at a
   time (reinstall to switch); the skills stop when `engine_info`'s root is not the session's folder. `--plugin-dir
   skills` loads the skills without the MCP server.
-- `studio mcp` keeps only absolute PATH entries outside the workspace, and completes PATH with Homebrew / system folders
-  when serving. The gated `claude` tests use a scratch CLAUDE_CONFIG_DIR (`DEMO_STUDIO_TEST_CLAUDE=1` or test:slow).
+- `retake mcp` keeps only absolute PATH entries outside the workspace, and completes PATH with Homebrew / system folders
+  when serving. The gated `claude` tests use a scratch CLAUDE_CONFIG_DIR (`RETAKE_TEST_CLAUDE=1` or test:slow).
 - The Remotion licence question (BACKLOG open decisions) stays parked: it matters before selling, not for own use.
 
 Notes from L3.6:
 - Threads `<project>/comments/<scenario>/c_<ULID>.json` (ignored in this repository: `projects/*/comments/`), written
-  only through the engine store under `<project>/.demo-studio/locks/comment-<id>.lock` (TakeLock: busy retried 3 s,
+  only through the engine store under `<project>/.retake/locks/comment-<id>.lock` (TakeLock: busy retried 3 s,
   stale only when the holder is dead); entries are appended, the status derived; a file never passes 2 MB.
 - Trust: MCP has no create / reopen and no author field (entries are `{via: mcp, name: agent}`); every free text and
   every field read from a thread file is untrusted (`trustedAnchor` shows a bad value as `unknown`); INSTRUCTIONS: a
-  comment may only ask for changes to the video. `studio comment add --author` from Claude's Bash stays possible (BL-76).
+  comment may only ask for changes to the video. `retake comment add --author` from Claude's Bash stays possible (BL-76).
 - `--at` takes the frame on screen (floor); a marker name used twice is refused; a resolving render must be the same
   variant (`latest` = newest of that variant); `comments_list` returns the last 10 entries per thread and at most
-  60,000 characters of text. `DEMO_STUDIO_AUTHOR` sets the CLI's default author.
+  60,000 characters of text. `RETAKE_AUTHOR` sets the CLI's default author.
 
 Notes from L3.5:
 - Two theme tools: `template_create_from_brand` (sources only from the workspace, never agent-writable folders,
-  `.demo-studio/` only through a `site:<id>/logo-<n>` ref; SVG refused, never cleaned; new names lower-case, never a
-  starter's or an existing folder's, compared without case; never inside the Demo Studio package — the repository root
+  `.retake/` only through a `site:<id>/logo-<n>` ref; SVG refused, never cleaned; new names lower-case, never a
+  starter's or an existing folder's, compared without case; never inside the Retake package — the repository root
   cannot be the workspace of a theme create; `replace` only of an unchanged theme made the same way: MCP replaces only
   MCP-made themes; annotated destructive) and `template_from_site` (a `site` job: the worker refuses the whole job
   unless it carries a verified signed approval of the exact URL's fingerprint).
@@ -2231,7 +2231,7 @@ Notes from L3.5:
   host or its www / apex sibling; WebSocket closed, WebRTC UDP off, service workers, shared workers and `fetchLater`
   removed in every frame (switch + init script); 15 s per page call, 120 s per extraction, `job_cancel` closes the
   browser; outputs written via temp + rename into a folder the worker makes new. Every page string under `untrusted`.
-- Test-only `DEMO_STUDIO_UNSAFE_TEST_RESOLVE=<name>.test=127.0.0.1:<port>` (loopback only; doctor warns; it must be in
+- Test-only `RETAKE_UNSAFE_TEST_RESOLVE=<name>.test=127.0.0.1:<port>` (loopback only; doctor warns; it must be in
   the MCP server's environment). Known limits (BL-75): subresource redirects to another host fail, a signed site job
   has no expiry, "public" ≠ "the internet".
 - Many tests leave `ds-*` folders in `$TMPDIR` (≈ 10,000 / 7 GB since 2026-10-12 on the Mac): clean them now and then
@@ -2245,21 +2245,21 @@ Notes from L3.4:
   side (salted hashes, never written); typed URLs mask token-like path segments and drop token-like query values.
 - Writes: on read-write environments any non-GET request from the window counts (whatever its host) to bound the check
   replay; telemetry POSTs cut it early (safe side). A recording holds the single worker as long as the person takes
-  (≤ 30 min, `DEMO_STUDIO_RECORD_MAX_MIN`); a worker signal stops and keeps, `job_cancel` discards.
+  (≤ 30 min, `RETAKE_RECORD_MAX_MIN`); a worker signal stops and keeps, `job_cancel` discards.
 - Playwright `setInputFiles` with buffers fires untrusted events: tests choose files by path through the file chooser.
 
 Notes from L3.3:
 - The authoring loop (INSTRUCTIONS): page_inspect → Claude writes the YAML → scenario_validate → scenario_save →
   page_inspect {scenario, until} → run_dry. `scenario_from_script` is an optional deterministic aid.
 - Inspections: dry-run semantics (no hooks, writes only as a dry run would), inspection pacing, outputs in
-  `<project>/.demo-studio/inspect/<id>/` (never runs/), origin checked on every kit read (`callOnce`, no retry across
+  `<project>/.retake/inspect/<id>/` (never runs/), origin checked on every kit read (`callOnce`, no retry across
   documents) and foreign main-frame navigations answered 204; an automated sign-in refreshes the persona's session like
   any run. Page text only under `untrusted`; labels never include field contents (`nameText`).
 - Kit budget: per-call memo; an unscoped nth is not looked up among more than 10,000 matches (`NTH_MAX`).
 
 Notes from L3.2:
 - Worker renders are guarded (editor render/network-guard.ts: CDP Fetch on the browser connection, `/proxy` src check,
-  `onDownload`, CSP meta; bundle format 2); `studio render` stays open (https: slots work). Remotion binds its bundle
+  `onDownload`, CSP meta; bundle format 2); `retake render` stays open (https: slots work). Remotion binds its bundle
   server on all interfaces (BL-72). The worker ignores EPIPE rejections only (a refused guarded download).
 - Trust `mcp` render rules: `planRun` gate 1 (before any read) and gate 2 (every plan asset inside project / run /
   theme); agent-writable folders matched case-insensitively on the on-disk path (macOS); `video.template` a name or the
@@ -2271,14 +2271,14 @@ Notes from L3.2:
   under `untrusted.error`.
 
 Notes from L3.1:
-- Register the MCP server with `node packages/cli/dist/bin.js mcp --print-config` (never `pnpm studio …`: pnpm's banner
+- Register the MCP server with `node packages/cli/dist/bin.js mcp --print-config` (never `pnpm retake …`: pnpm's banner
   breaks the JSON and its folders end up in PATH); secrets for automated sign-ins go as `-e NAME=…` before the `--` of
-  `claude mcp add`; remove the user-scope registration after a test (`claude mcp remove demo-studio -s user`).
+  `claude mcp add`; remove the user-scope registration after a test (`claude mcp remove retake -s user`).
 - All SDK imports live in packages/mcp/src/server.ts. The MCP process never launches Chromium: everything that opens a
-  browser is a job for the worker. Worker log: `<workspace>/.demo-studio/workers/worker.log`; queue:
-  `.demo-studio/jobs/`; history: `.demo-studio/history.jsonl`; `DEMO_STUDIO_WORKER_IDLE_MS` sets the idle exit.
-- A worker keeps the environment of the MCP server that spawned it; `studio jobs` never starts one. A headed
-  `auth_login` holds the queue (concurrency 1) until its window closes. `studio run` in a terminal does not go through
+  browser is a job for the worker. Worker log: `<workspace>/.retake/workers/worker.log`; queue:
+  `.retake/jobs/`; history: `.retake/history.jsonl`; `RETAKE_WORKER_IDLE_MS` sets the idle exit.
+- A worker keeps the environment of the MCP server that spawned it; `retake jobs` never starts one. A headed
+  `auth_login` holds the queue (concurrency 1) until its window closes. `retake run` in a terminal does not go through
   the queue (it can overlap an MCP capture).
 - Trust `mcp` rules (engine approvals.ts, core agent-trust.ts, engine protected-hosts.ts, jobs/signing.ts) must
   survive refactors: no `confirm: true`, approvals for shell / destructive hooks, seeds and rollbacks, fingerprints on
@@ -2293,28 +2293,28 @@ Notes from L1.4:
   `node scripts/test-pg.mjs --all` runs everything this Mac can. Run them after any change to the runner, hooks or
   sandbox, and `node scripts/requirements.mjs --untested 1` at every lot end.
 - Goldens (runner-web test/golden/) change with Chromium, GPU and fonts: rewrite them only with
-  `DEMO_STUDIO_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts`, then look at the PNGs; the
+  `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts`, then look at the PNGs; the
   structural checks carry the assertion.
 - `wait_for: {network_idle}` (runner-web network.ts) is re-armed on every call: a page that never goes quiet (long
   polling, a hanging request) now times out and fails the step — and a login step. A response body still open 1 s
   after its headers stops counting. Limit (BL-71): a worker request of an iframe that went away.
 - Cancel semantics: a cancel during setup stops a running shell hook (its group), lets an http / sql / js hook end,
-  rolls back what ran, then teardown always runs; a second signal SIGKILLs shell hook groups. A cancelled `studio run`
+  rolls back what ran, then teardown always runs; a second signal SIGKILLs shell hook groups. A cancelled `retake run`
   exits 1 (others: 130) — by design so far.
 - Earlier `pnpm test:pg` runs (2026-10-14 / -16) left anonymous Postgres data volumes in Docker (fixed since: `docker
   rm -f -v`); removing them needs the user's OK. `packages/core/test/helpers.ts` `specProjectDir()` leaves tiny
-  `$TMPDIR/demo-studio-spec-*` folders (cosmetic).
+  `$TMPDIR/retake-spec-*` folders (cosmetic).
 - The catalogue's two scroll steps take ≈ 0.56 s longer than set (the post-scroll fresh-frame probe, L1.3); the slow
   test allows +1 s.
 
 Notes from L1.8:
 - DOCKER: the user runs other compose stacks on this Mac (ports 8025, 1025, 5432, 3000… are theirs). Never stop,
-  remove or prune anything not named `demo-studio-*`; no `docker system/volume/image prune`, no `--rmi all`. Gated
-  Docker tests (`DEMO_STUDIO_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts
-  packages/cli/test/sandbox-docker.test.ts`, ≈ 75 s) create `demo-studio-test-<run token>-*` resources and sweep only
+  remove or prune anything not named `retake-*`; no `docker system/volume/image prune`, no `--rmi all`. Gated
+  Docker tests (`RETAKE_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts
+  packages/cli/test/sandbox-docker.test.ts`, ≈ 75 s) create `retake-test-<run token>-*` resources and sweep only
   their own; they need busybox:1.38.0, postgres:17-alpine and axllent/mailpit:v1.29.4 present.
-- Diagnose a sandbox: `studio sandbox status [--json]` / `logs <service>`, then `lsof -nP -iTCP:<port> -sTCP:LISTEN`;
-  state in `<project>/.demo-studio/sandbox/<env>/` (state.json, take.lock, seed-journal.json, logs/). Fixture ports:
+- Diagnose a sandbox: `retake sandbox status [--json]` / `logs <service>`, then `lsof -nP -iTCP:<port> -sTCP:LISTEN`;
+  state in `<project>/.retake/sandbox/<env>/` (state.json, take.lock, seed-journal.json, logs/). Fixture ports:
   process 4501–4504, Docker 4511–4514 + Mailpit 4525 (http://localhost:4525 shows the mails); tests copy the manifests
   to free ports.
 - Safety rules that must survive refactors: every sandbox URL is loopback; database URLs refuse `host` / `hostaddr`
@@ -2322,7 +2322,7 @@ Notes from L1.8:
   clear or a reseed SQL touches only what the sandbox serves (`servedBy`) unless sandbox.yaml says `external: true`;
   compose commands check the project's folder; `up --wait`'s exit code is never trusted; another container on the same
   port (OrbStack accepts `[::1]` next to `127.0.0.1`) is refused; process identity is pid + start time + boot time.
-- Seed shell steps (and hooks on a sandbox env) get the process services' `env` plus `DEMO_STUDIO_SANDBOX`, layered
+- Seed shell steps (and hooks on a sandbox env) get the process services' `env` plus `RETAKE_SANDBOX`, layered
   over the CLI's environment — a recipe never touches the developer's own database. Seeds must drop / truncate what
   they create (a seed runs on the data as the last take left it).
 - `--sandbox` does not imply a clock: the server writes real timestamps (BL-68). What still differs between takes:
@@ -2331,7 +2331,7 @@ Notes from L1.8:
   --offline` (a plain offline install prunes other-platform entries).
 - The fixture's Docker image copies the host-built bundle: after a UI change run `node fixtures/wholesale/build.mjs`,
   then `sandbox up --env sandbox-docker --build`. Clean up after use: `sandbox down --env sandbox-docker`, then remove
-  the `demo-studio-northfield-fixture-*` images.
+  the `retake-northfield-fixture-*` images.
 
 Notes from L1.7:
 - `ProjectConfig.environments` always holds the real URLs (both forms); settings only in `environment_settings`
@@ -2357,14 +2357,14 @@ Notes from L1.7:
   real date, a dedicated worker's first lines may too; server-made dates are untouched (BL-65). The kit keeps its own
   real timers anyway (kit 1.3.0: never use page globals for timing in kit code, use `RT`). Session checks and the
   automated sign-in always run on real time.
-- SQL hooks on read-only environments run in `BEGIN READ ONLY`; Postgres cases need `DEMO_STUDIO_TEST_PG` (no server
+- SQL hooks on read-only environments run in `BEGIN READ ONLY`; Postgres cases need `RETAKE_TEST_PG` (no server
   on the Mac: the classifier is unit-tested, the execution was not).
 
 Notes from L1.6:
-- Tests and probes ALWAYS set `DEMO_STUDIO_HOME` to a temp folder: the real `~/.demo-studio` holds the user's own
+- Tests and probes ALWAYS set `RETAKE_HOME` to a temp folder: the real `~/.retake` holds the user's own
   signed-in profile (from L1.5). Never launch a browser on it, never touch the Keychain.
 - Sign in the fixture personas for a signed-in capture: start the fixture, then
-  `NORTHFIELD_SUPPLIER_PASSWORD=… NORTHFIELD_BUYER_PASSWORD=… studio login northfield-fixture --env signed-in
+  `NORTHFIELD_SUPPLIER_PASSWORD=… NORTHFIELD_BUYER_PASSWORD=… retake login northfield-fixture --env signed-in
   --persona supplier --auto` (and `buyer`; values in fixtures/wholesale/README.md), then `run … --env signed-in`.
   Expire sessions with `curl -X POST localhost:4403/api/auth/expire` (`/api/reset` does not touch them).
 - The lock check relies on Chromium taking a `SingletonLock`: runs launch with channel chromium (`launchTarget`);
@@ -2377,7 +2377,7 @@ Notes from L1.6:
 - Bindings: a tab keeps its opener's persona (film another persona's app on its own page); a page id keeps one persona
   per run; `persona: none` pages and their tabs are never guarded; js hook tabs take the persona their page is filmed
   with. Diagnose: persona debug lines in log.jsonl (copy time, check result), statuses in
-  `$DEMO_STUDIO_HOME/sessions/<project>/<env>/`, leftover copies `$TMPDIR/demo-studio-session-*`.
+  `$RETAKE_HOME/sessions/<project>/<env>/`, leftover copies `$TMPDIR/retake-session-*`.
 - A legacy `auth.profile` (persona `default`) never fails the preflight and is now copied per run (rolling refreshes
   are no longer saved back); a missing legacy `storage_state` file still fails the run. The user's own workspace uses
   the legacy form: it keeps working, signed in through the copy.
@@ -2453,7 +2453,7 @@ Notes from L2.14:
   markers too), `done` = the screen once the step is done. Use `done` when you need "the moment the mark names".
 - The composition draws nothing of its own except the theme background and the brand mark (R-CMP-01, DESIGN-phase2
   §2.2); `render-units.test.ts` fails on a colour literal in `src/remotion/`. A new visual = a component.
-- To show what a switch changed, review against an explicit render: `studio review <project> <render> --previous
+- To show what a switch changed, review against an explicit render: `retake review <project> <render> --previous
   <id>` (the default previous is the scenario's latest earlier render).
 - The CLI switches only the layout (`--frame <style|layout id>`) and the theme (`--theme`); other kinds go through
   `renderVideo({overrides: {components: {...}}})` until L3.2 (MCP) / L4.5 (timeline UI).
@@ -2480,7 +2480,7 @@ Notes from L2.13 (raw export):
 - WebM cursor layers are for web players and ffmpeg tools: no timecode (OTIO from 0, not in the FCPXML), alpha only
   through libvpx-vp9 in ffmpeg. Editing tools want `--layer prores` (the default). Whether Resolve takes the WebM
   layers from the OTIO is an optional MACOS-CHECKLIST step 12 item.
-- `studio run --raw --json`: RunProgress lines, then `{"type":"raw_export","dir","manifest"}`; `export-capture
+- `retake run --raw --json`: RunProgress lines, then `{"type":"raw_export","dir","manifest"}`; `export-capture
   --json` prints the manifest as one document.
 - Interchange files reference the clips by absolute path (relink after moving the folder). The EDL has one picture
   track: other pages and layers are in the FCPXML / OTIO only. Clips of different sizes in one sequence (a phone page
@@ -2505,7 +2505,7 @@ Notes from L2.12 for L2.13 (kept for reference):
 - The reframe changed for every vertical / square plan (leading part of wide targets, leading-edge start, no pan for a
   resting cursor, `settle` for idle panes): earlier vertical / square renders of other scenarios (quote-v9-vertical,
   signup-v8-vertical, catalogue exports) would frame differently if re-rendered — not re-rendered here.
-- Known limits of L2.12: ffprobe on PATH (or `$DEMO_STUDIO_FFPROBE`) is needed to check and plan video files (without
+- Known limits of L2.12: ffprobe on PATH (or `$RETAKE_FFPROBE`) is needed to check and plan video files (without
   it: a validation warning and the file is planned as unreadable); GIF and dotLottie (`.lottie`) are not read (the
   validation says how to convert); a Lottie with external images or expressions is drawn as `lottie-web` can (warning
   for external images); an overlay file is clipped to the capture screen (never over the caption or the frame); an
@@ -2551,12 +2551,12 @@ Carried over (from L2.10 notes, still true):
 
 ## Decisions (do not re-litigate)
 - The tool stays generic: no client/brand/person names anywhere in the repo or its history (history was squashed for
-  this). Customer material lives in the user's own workspace (`DEMO_STUDIO_ROOT` or a `studio.yaml`).
+  this). Customer material lives in the user's own workspace (`RETAKE_ROOT` or a `retake.yaml`).
 - Everything visual in the edit is a **component** (plugin) with a manifest; themes (templates) give tokens and pick
   components; workspace components can be created by Claude through a skill; a cloud marketplace comes in V2.
 - **Frame comments** are stored as files in the workspace and exposed to Claude through MCP; anchored to the render
   frame and to the scenario (scene/step/segment/component) via the edit plan's provenance.
-- **Studio app**: web UI first (`studio ui`), Tauri macOS shell later around the same UI; scenario shown as blocks /
+- **Studio app**: web UI first (`retake ui`), Tauri macOS shell later around the same UI; scenario shown as blocks /
   cards / badges, two-way with YAML; timeline with live Remotion Player preview and one-click component switching;
   Run and Record screens as in the canvas.
 - Backlog lives **only in the repo** (no Linear). Small lots; each lot is committed and pushed; consumption reported.
@@ -2586,7 +2586,7 @@ Carried over (from L2.10 notes, still true):
 
 ## Conventions
 - TypeScript ESM/NodeNext, relative imports end in `.js`; `pnpm build` (= `tsc -b`), `pnpm test` (= `vitest run`;
-  `vitest.config.ts` aliases `@demo-studio/*` to `src/`). No new dependencies without a strong reason.
+  `vitest.config.ts` aliases `@retake/*` to `src/`). No new dependencies without a strong reason.
 - Commit messages end with the session attribution lines given by the harness. Never commit `runs/`, `renders/`,
   `review/`, frames or videos (git-ignored).
 - At the end of a lot: update `docs/requirements.json` (status/evidence/gap), run `node scripts/requirements.mjs`,
@@ -2605,7 +2605,7 @@ Homebrew for OpenTimelineIO), no Final Cut Pro / Premiere Pro / DaVinci Resolve.
 - Chromium 141 via playwright-core 1.56.1 (`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`); new headless
   (`channel: 'chromium'`). Remotion renders with
   `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell` (found through playwright-core's
-  registry; `$DEMO_STUDIO_CHROMIUM_HEADLESS_SHELL` overrides).
+  registry; `$RETAKE_CHROMIUM_HEADLESS_SHELL` overrides).
 - ffmpeg 6.1 on PATH. Postgres 16 installed (`pg_ctlcluster 16 main start`, run as the postgres user).
 - No GPU: pages with heavy effects (backdrop blur) are captured at 6–10 fps during cursor motion (L1.3). No display and
   no macOS: login, `--headed`, Keychain and notifications are verified by the user on a Mac (L1.5).

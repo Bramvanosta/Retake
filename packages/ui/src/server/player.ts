@@ -40,9 +40,9 @@ import { closeSync, constants as fsConstants, createReadStream, fstatSync, lstat
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { basename, extname, isAbsolute, relative, resolve } from 'node:path';
-import { checkRequest, listenLoopback, newSecret, secretEquals } from '@demo-studio/engine';
-import type { RouteSpec } from '@demo-studio/engine';
-import type { ComponentPreviewSpec, EditPlan } from '@demo-studio/editor';
+import { checkRequest, listenLoopback, newSecret, secretEquals } from '@retake/engine';
+import type { RouteSpec } from '@retake/engine';
+import type { ComponentPreviewSpec, EditPlan } from '@retake/editor';
 import type { PlayerBundle } from '../player/bundle-player.js';
 import { isPreviewDisplayText } from '../player/protocol.js';
 
@@ -70,7 +70,7 @@ const URL_LIKE = /^(?:[a-z][a-z0-9+.-]*:\/\/|\/\/|(?:file|blob|data|javascript|a
  * protocol.ts `isPreviewDisplayText` (a fixed list of paths, the frame applies the same). Throws PreviewPlanError.
  */
 export async function checkPreviewSpec(spec: unknown, media: string, forbid: readonly string[]): Promise<void> {
-  const ed = await import('@demo-studio/editor');
+  const ed = await import('@retake/editor');
   const dirs = forbid.filter((d) => d.length > 1);
   const scan = (v: unknown, path: string): void => {
     if (typeof v === 'string') {
@@ -260,7 +260,7 @@ function openRecorded(rec: FileRecord): number | undefined {
   return undefined;
 }
 
-const editor = () => import('@demo-studio/editor');
+const editor = () => import('@retake/editor');
 
 interface Scope {
   cap: string;
@@ -447,7 +447,7 @@ export async function startPlayerServer(o: PlayerServerOptions): Promise<PlayerS
     handle(req, res).catch((e: unknown) => {
       // The route family only: a path here holds the capability (critique B16).
       const family = (req.url ?? '').startsWith('/s/') ? 'frame' : (req.url ?? '').startsWith('/m/') ? 'media' : 'other';
-      log(`studio player: a ${family} request failed: ${e instanceof Error ? e.name : 'error'}`);
+      log(`retake player: a ${family} request failed: ${e instanceof Error ? e.name : 'error'}`);
       if (!res.headersSent) {
         res.writeHead(500, { ...COMMON_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
         res.end('internal error');

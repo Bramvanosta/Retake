@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
-import { EXPORT_FORMATS, DEFAULT_EXPORT_FORMATS, ExportError, RenderError, exportRender } from '@demo-studio/editor';
-import type { ExportFormat, ExportProgress } from '@demo-studio/editor';
-import { appendHistory } from '@demo-studio/engine';
+import { EXPORT_FORMATS, DEFAULT_EXPORT_FORMATS, ExportError, RenderError, exportRender } from '@retake/editor';
+import type { ExportFormat, ExportProgress } from '@retake/editor';
+import { appendHistory } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -41,7 +41,7 @@ const LABEL: Record<ExportFormat, string> = {
 };
 
 /**
- * `studio export <project> <render|latest> --formats …`: delivery files in exports/<render-id>/ + manifest.json —
+ * `retake export <project> <render|latest> --formats …`: delivery files in exports/<render-id>/ + manifest.json —
  * transcoded from the master (1080p, WebM, GIF) or re-rendered from the run (4K from a 1080p master, vertical,
  * square).
  */
@@ -77,7 +77,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
       onProgress: status,
     });
     ui.clearStatus();
-    // The workspace's job history counts the formats re-rendered by Remotion (best effort, as `studio render`).
+    // The workspace's job history counts the formats re-rendered by Remotion (best effort, as `retake render`).
     const rendered = r.outputs.filter((o) => o.method === 'render').length;
     if (rendered) await appendHistory(ws.root, { kind: 'export', project: project.slug, submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: rendered } });
     if (opts.json) {

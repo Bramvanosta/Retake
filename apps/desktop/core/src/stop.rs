@@ -1,5 +1,5 @@
 //! Stopping the child server: SIGTERM, then its stdin closed (the `--supervised` EOF rule) when it has not exited
-//! within `EOF_AFTER`, then SIGKILL at the end of the grace period. `studio ui` stops in a few milliseconds on SIGTERM
+//! within `EOF_AFTER`, then SIGKILL at the end of the grace period. `retake ui` stops in a few milliseconds on SIGTERM
 //! (and says `stopped: SIGTERM`: a graceful Quit is told from the app's death, whose only signal is the EOF).
 
 use std::io;

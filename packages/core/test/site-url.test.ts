@@ -78,7 +78,7 @@ describe('parseSiteUrl', () => {
 describe('the unsafe test resolver', () => {
   it('maps .test names to loopback ports only; anything else is ignored', () => {
     const { map, ignored } = unsafeTestResolve({
-      DEMO_STUDIO_UNSAFE_TEST_RESOLVE: 'brand.test=127.0.0.1:4430, www.brand.test=[::1]:4431,evil.example.net=127.0.0.1:443,x.test=10.0.0.1:443,y.test=127.0.0.1:99999,z.test=127.0.0.1',
+      RETAKE_UNSAFE_TEST_RESOLVE: 'brand.test=127.0.0.1:4430, www.brand.test=[::1]:4431,evil.example.net=127.0.0.1:443,x.test=10.0.0.1:443,y.test=127.0.0.1:99999,z.test=127.0.0.1',
     });
     expect([...map]).toEqual([
       ['brand.test', { address: '127.0.0.1', port: 4430 }],

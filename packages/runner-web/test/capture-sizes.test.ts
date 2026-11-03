@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { RunRecord, Timeline } from '@demo-studio/core';
+import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { SIZES_PAGE } from './pages.js';
 import { FAST, debugTemplate, execFileP, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';

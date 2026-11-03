@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { Approver, Engine } from '@demo-studio/engine';
+import type { Approver, Engine } from '@retake/engine';
 import type { Progress, ToolAnnotations } from '../server.js';
 import type { ToolOutput } from '../result.js';
 
@@ -50,10 +50,10 @@ export const SANDBOX_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHi
  * made, in the worker, and writes only the project's renders/, review/ and exports/ folders).
  */
 export const RENDER_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
-/** Starts a preview job: stills of a component or a theme in <workspace>/.demo-studio/previews/ (never a component folder). */
+/** Starts a preview job: stills of a component or a theme in <workspace>/.retake/previews/ (never a component folder). */
 export const PREVIEW_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 /**
  * Starts a site extraction: a clean headless browser opens one public page a human approved (GET only, public addresses
- * only) and its colours, font names and logo PNGs go to <workspace>/.demo-studio/site/ (no theme written).
+ * only) and its colours, font names and logo PNGs go to <workspace>/.retake/site/ (no theme written).
  */
 export const SITE_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };

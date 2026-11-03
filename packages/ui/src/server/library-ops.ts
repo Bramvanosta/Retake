@@ -7,7 +7,7 @@
  *   the selected theme (default: the project's) its poster and loop — each with the key the worker writes under (engine
  *   `components.library`: the ONE key builder the worker uses too, B3), the cache state (`committed`, `cached`,
  *   `too_large`, `failed`, `missing`) and `queued` while a library job of that key is queued or running; the registry's
- *   notices (worded without a path, with the `studio components validate <id>` command); the themes for the switcher.
+ *   notices (worded without a path, with the `retake components validate <id>` command); the themes for the switcher.
  *   A workspace component's name, description and a failure's reason are agent-writable text: under `untrusted` (B16).
  *   Memoised (B5) on file-level stat walks — every file of the component folders (workspace and built-in), the theme
  *   folder, project.yaml, every theme of templates_dir (what picks each component) and the cache folder — so a component rewritten in place by Claude is a new key
@@ -23,7 +23,7 @@
  *   skipped (C1: no merge of queued jobs); nothing left → no job. The engine refuses under 1 GB free (B4). Calls of a
  *   project run one at a time (the op chain), so two clicks never queue a key twice.
  * - `library_component {project, component}` (L4.7 part D1): the library's detail of one component — kinds, version,
- *   source, kit compatibility (`engines.kit` against this Demo Studio's kit API), duration bounds, variants, slots (name,
+ *   source, kit compatibility (`engines.kit` against this Retake's kit API), duration bounds, variants, slots (name,
  *   type, required, default_from, max_chars: what the manifest schema checks) — and, under `untrusted`, the manifest
  *   author's words: name, description, slot descriptions, the params table (names, types, defaults, enums, bounds,
  *   descriptions), tags, tokens and the README as text. No folder, entry or file list; path-free.
@@ -31,10 +31,10 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, readPlainFile } from '@demo-studio/core';
-import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@demo-studio/engine';
-import type { Engine, LibraryStatesView, TemplateSummary } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
+import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@retake/engine';
+import type { Engine, LibraryStatesView, TemplateSummary } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';
@@ -335,7 +335,7 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
         out.images.push({ key: k, component: img.component, kind: img.kind, format: img.kind === 'poster' ? 'png' : 'gif', data });
       }
       if (a.committed?.length) {
-        const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await import('@demo-studio/components');
+        const { PREVIEW_FILE, PREVIEW_MAX_BYTES } = await import('@retake/components');
         const reg = (await memoRegistry(ws)).registry;
         for (const id of [...new Set(a.committed)]) {
           // A built-in only (B15): a workspace component of that id (an override) never shows the built-in's picture.
@@ -449,7 +449,7 @@ export interface LibraryComponentAnswer {
   source: 'workspace' | 'builtin';
   /** A workspace component that replaces the built-in of the same id. */
   overrides_builtin?: true;
-  /** The kit API major it needs (engines.kit; absent = 1) and the one this Demo Studio provides. */
+  /** The kit API major it needs (engines.kit; absent = 1) and the one this Retake provides. */
   kit: { needs: number; provided: number; compatible: boolean };
   duration?: { default: number; min?: number; max?: number };
   variants: string[];
@@ -485,7 +485,7 @@ const DETAIL_ROWS_MAX = 64;
 
 /** engine components.get → the library's detail: no dir, entry or file list; every manifest word under untrusted, path-free. */
 export async function componentAnswer(c: Awaited<ReturnType<Engine['components']['get']>>, root: string): Promise<LibraryComponentAnswer> {
-  const { KIT_API_VERSION, kitMajorOf } = await import('@demo-studio/components');
+  const { KIT_API_VERSION, kitMajorOf } = await import('@retake/components');
   const m = c.manifest;
   const free = (s: string) => pathFree(s, root);
   const needs = kitMajorOf(m);

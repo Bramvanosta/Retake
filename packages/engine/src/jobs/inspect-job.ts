@@ -1,7 +1,7 @@
 /**
  * `inspect` jobs (L3.3, R-MCP-23 / R-MCP-36): page_inspect through the worker. A dry replay — of a one-scene scenario
  * opening a path on an environment page, or of a saved scenario up to `until` — with the runner's `inspect` option: the
- * page it shows is inventoried for an author (runner-web inspect.ts) into <project>/.demo-studio/inspect/<id>/
+ * page it shows is inventoried for an author (runner-web inspect.ts) into <project>/.retake/inspect/<id>/
  * (inspect.json, screenshot.png and, drawn here through the review package, marked.jpg). The newest 20 are kept.
  *
  * Trust: run_dry's semantics — the environment's own access (production read-only), hooks never run, agent trust of
@@ -25,9 +25,9 @@ import {
   isPageOrigin,
   pageOrigins,
   resolveEnvironment,
-} from '@demo-studio/core';
-import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@demo-studio/core';
-import type { InspectReport } from '@demo-studio/runner-web';
+} from '@retake/core';
+import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
+import type { InspectReport } from '@retake/runner-web';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv, prepareRun } from '../execute-run.js';
@@ -62,12 +62,12 @@ export interface InspectSubmitRequest {
   images?: 'marked' | 'none';
 }
 
-/** <project>/.demo-studio/inspect */
+/** <project>/.retake/inspect */
 export function inspectRoot(project: LoadedProject): string {
-  return join(project.dir, '.demo-studio', 'inspect');
+  return join(project.dir, '.retake', 'inspect');
 }
 
-/** <project>/.demo-studio/inspect/<id> (the id checked: never a path). */
+/** <project>/.retake/inspect/<id> (the id checked: never a path). */
 export function inspectDir(project: LoadedProject, id: string): string {
   if (!INSPECT_ID_RE.test(id)) throw new EngineError('invalid', `invalid inspection id "${id}": i_ followed by 26 characters (page_inspect returns it), never a path`);
   return join(inspectRoot(project), id);
@@ -108,7 +108,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio inspect` command a human runs for (about) the same inspection. */
+/** The `retake inspect` command a human runs for (about) the same inspection. */
 export function inspectCommandLine(cli: string, project: string, source: InspectJobInput['source'], env: string | undefined): string {
   const parts = [cli, 'inspect', project];
   if (source.kind === 'page') {
@@ -306,12 +306,12 @@ export interface InspectionOptions {
 }
 
 /**
- * Run one inspection (the worker's job and `studio inspect`): the dry replay with the runner's `inspect` option, then
+ * Run one inspection (the worker's job and `retake inspect`): the dry replay with the runner's `inspect` option, then
  * the marks drawn on the screenshot (boxes of the listed elements in view, × the capture scale).
  */
 export async function runInspection(o: InspectionOptions): Promise<InspectionRun> {
   const { prepared } = o;
-  const { runScenario } = await import('@demo-studio/runner-web');
+  const { runScenario } = await import('@retake/runner-web');
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
   const record = await runScenario({
@@ -327,7 +327,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
     loginCommand: (p) => {
       // The runner names the sign-in a persona needs only in a message about it.
       signIn = { env: p.env, ...(p.persona !== undefined ? { persona: p.persona } : {}) };
-      return o.loginCommand ? o.loginCommand(p) : `studio login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
+      return o.loginCommand ? o.loginCommand(p) : `retake login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`;
     },
     inspect: {
       ...(o.within !== undefined ? { within: o.within } : {}),

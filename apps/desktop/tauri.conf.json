@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Demo Studio",
+  "productName": "Retake",
   "version": "0.1.0",
-  "identifier": "local.demo-studio.desktop",
+  "identifier": "local.retake.desktop",
   "build": {},
   "app": {
     "withGlobalTauri": false,

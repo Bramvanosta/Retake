@@ -3,7 +3,7 @@
  * variant, 1080×1080 for the square one) scaled by `unit`, with the capture fitted to its aspect ratio — and the mapping of source CSS px to output
  * px through the layout and the camera (overlay anchors, review). Pure.
  */
-import type { LayoutGeometry } from '@demo-studio/components';
+import type { LayoutGeometry } from '@retake/components';
 import type { CameraFrame, EditPlan, PlanLayout, PlanSegment, PlanVariant, Rect } from './plan-types.js';
 import { clamp, round } from './util.js';
 

@@ -43,7 +43,7 @@ export function warningsOf(issues: readonly ValidationIssue[]): ValidationIssue[
   return issues.filter((i) => i.severity === 'warning');
 }
 
-/** Error carrying validation issues (invalid project.yaml, template.yaml, studio.yaml, missing files…). */
+/** Error carrying validation issues (invalid project.yaml, template.yaml, retake.yaml, missing files…). */
 export class ConfigError extends Error {
   constructor(
     message: string,

@@ -1,4 +1,4 @@
-// Sign-in for the fixture's signed-in side (Demo Studio L1.6): the same console and shop served on two more ports
+// Sign-in for the fixture's signed-in side (Retake L1.6): the same console and shop served on two more ports
 // (:4403 / :4404 by default) where every page needs an account. Invented accounts on `.example` domains, in-memory
 // sessions, one cookie name on both apps (so a browser holds one account per host at a time: two personas need two
 // browsers), and a helper to expire sessions on purpose (`POST /api/auth/expire`).

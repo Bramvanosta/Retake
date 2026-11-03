@@ -5,7 +5,7 @@
  * length), After filming. A row selects its entry into the inspector and brings it into view (on the board: the entry;
  * in the YAML view: its lines). The current row is the selection's entry (a step: its scene). Every name is text.
  */
-import type { SceneBlock } from '@demo-studio/core';
+import type { SceneBlock } from '@retake/core';
 import { Txt, plural } from './bits.js';
 import { entryTitle, hooksLine, sceneLength } from './Storyboard.js';
 import type { Subject } from './Storyboard.js';

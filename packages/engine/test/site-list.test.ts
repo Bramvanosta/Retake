@@ -1,6 +1,6 @@
 /**
  * L4.7 part A2: the site extractions the Studio's theme panel lists (engine site-list.ts; critique B11, C5). An
- * extraction made by `studio theme from-site` has no signed job and `.demo-studio/` is a folder any file tool writes:
+ * extraction made by `retake theme from-site` has no signed job and `.retake/` is a folder any file tool writes:
  * ⚑ the URL and the host (re-parsed, dropped when not a site URL) and every page string are under `untrusted`, never
  * beside the tool's own fields; hex colours with their contrast checks and the candidate PNGs that exist as plain files
  * are kept; a linked folder or file is never read; path-free; the newest SITE_KEEP.
@@ -14,12 +14,12 @@ import type { Engine } from '../src/index.js';
 
 let root: string;
 let engine: Engine;
-const saved = { home: process.env.DEMO_STUDIO_HOME, resolve: process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE };
+const saved = { home: process.env.RETAKE_HOME, resolve: process.env.RETAKE_UNSAFE_TEST_RESOLVE };
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 200, 0, 0, 0, 100]);
 const id = (n: number) => `s_01JB${String(n).padStart(2, '0')}ZZZZZZZZZZZZZZZZZZZZ`;
 
 async function site(n: number, report: Record<string, unknown>, o: { png?: boolean } = {}): Promise<string> {
-  const dir = join(root, '.demo-studio', 'site', id(n));
+  const dir = join(root, '.retake', 'site', id(n));
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'site.json'), JSON.stringify(report));
   if (o.png) await writeFile(join(dir, 'logo-1.png'), PNG);
@@ -44,15 +44,15 @@ const report = (url: string, extra: Record<string, unknown> = {}) => ({
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-site-list-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  process.env.DEMO_STUDIO_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
-  await writeFile(join(root, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  process.env.RETAKE_UNSAFE_TEST_RESOLVE = 'brand.test=127.0.0.1:9';
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects'), { recursive: true });
   engine = await createEngine({ root, client: 'ui', autoStartWorker: false });
 }, 60_000);
 
 afterAll(async () => {
-  for (const [k, v] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_UNSAFE_TEST_RESOLVE', saved.resolve]] as const) {
+  for (const [k, v] of [['RETAKE_HOME', saved.home], ['RETAKE_UNSAFE_TEST_RESOLVE', saved.resolve]] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
   }
@@ -88,8 +88,8 @@ describe('site list (L4.7)', () => {
     const elsewhere = join(root, 'elsewhere');
     await mkdir(elsewhere, { recursive: true });
     await writeFile(join(elsewhere, 'site.json'), JSON.stringify(report('https://brand.test/linked')));
-    await symlink(elsewhere, join(root, '.demo-studio', 'site', id(4)));
-    const d5 = join(root, '.demo-studio', 'site', id(5));
+    await symlink(elsewhere, join(root, '.retake', 'site', id(4)));
+    const d5 = join(root, '.retake', 'site', id(5));
     await mkdir(d5, { recursive: true });
     await symlink(join(elsewhere, 'site.json'), join(d5, 'site.json'));
     const { sites } = await engine.templates.sites();
@@ -101,13 +101,13 @@ describe('site list (L4.7)', () => {
     expect(all[0].site_id).toBe(id(10 + SITE_KEEP + 1));
   });
 
-  it('⚑ a linked .demo-studio/site folder is never read', async () => {
+  it('⚑ a linked .retake/site folder is never read', async () => {
     const r2 = await mkdtemp(join(tmpdir(), 'ds-site-list-link-'));
     try {
-      await writeFile(join(r2, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+      await writeFile(join(r2, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
       await mkdir(join(r2, 'projects'), { recursive: true });
-      await mkdir(join(r2, '.demo-studio'), { recursive: true });
-      await symlink(join(root, '.demo-studio', 'site'), join(r2, '.demo-studio', 'site'));
+      await mkdir(join(r2, '.retake'), { recursive: true });
+      await symlink(join(root, '.retake', 'site'), join(r2, '.retake', 'site'));
       const e2 = await createEngine({ root: r2, client: 'ui', autoStartWorker: false });
       expect(await e2.templates.sites()).toEqual({ sites: [] });
     } finally {

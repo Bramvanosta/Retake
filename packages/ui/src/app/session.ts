@@ -1,15 +1,15 @@
 /**
- * The page's session (L4.1, critique B9): the URL `studio ui` opens carries a one-time bootstrap code in its fragment
+ * The page's session (L4.1, critique B9): the URL `retake ui` opens carries a one-time bootstrap code in its fragment
  * (`#c=…`, never sent to a server, a referrer or a log). The page removes it from the address bar and history at once,
  * exchanges it over a same-origin `POST /v1/session` for the session token, and keeps the token in sessionStorage (this
  * tab only; it survives a reload). A tab without a token — or whose token the server no longer knows — shows that the
  * session ended: no input ever asks for a token.
  */
-const KEY = 'demo-studio.token';
+const KEY = 'retake.token';
 
 export class SessionEnded extends Error {
   constructor() {
-    super('This Studio session ended: run `studio ui` again.');
+    super('This Studio session ended: run `retake ui` again.');
     this.name = 'SessionEnded';
   }
 }

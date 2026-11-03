@@ -4,7 +4,7 @@
  * the sandbox as an environment of its own: its pages and display URLs (`environments`, `environment_settings`), its
  * accounts as the personas of that environment (`auth`, login steps with {{account.username}} / {{account.password}}
  * substituted), its mailbox and databases (mailboxFor / databasesFor). A sandbox is never production and always
- * read-write; its URLs are loopback only. Starting, seeding and resetting it is @demo-studio/sandbox's job.
+ * read-write; its URLs are loopback only. Starting, seeding and resetting it is @retake/sandbox's job.
  */
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -40,7 +40,7 @@ import { checkYamlDocument } from './validation/document.js';
 export const SANDBOX_FILE = 'sandbox.yaml';
 /** The folder next to sandbox.yaml whose files count in the seed hash (SQL files, scripts). */
 export const SANDBOX_SEED_DIR = 'seed';
-/** The JSON Schema of sandbox.yaml (`# yaml-language-server: $schema=…` in the files `studio sandbox init` writes). */
+/** The JSON Schema of sandbox.yaml (`# yaml-language-server: $schema=…` in the files `retake sandbox init` writes). */
 export const SANDBOX_SCHEMA_FILE = fileURLToPath(new URL('../schema/sandbox.schema.json', import.meta.url));
 
 /** A sandbox.yaml with errors: positioned in the manifest (`file`), for the sandbox environment `env`. */
@@ -66,7 +66,7 @@ export interface ParseSandboxOptions {
 
 /**
  * Validate sandbox.yaml text. `file` (its path) enables the checks of the files it names, relative to its folder.
- * A version above 1 is refused before anything else (made for a newer Demo Studio). `manifest` is returned only when
+ * A version above 1 is refused before anything else (made for a newer Retake). `manifest` is returned only when
  * there is no error-level issue.
  */
 export function parseSandboxYaml(text: string, file?: string, opts: ParseSandboxOptions = {}): { manifest?: SandboxManifest; issues: ValidationIssue[] } {
@@ -360,7 +360,7 @@ export function addSandboxEntry(text: string, env: string, file: string): string
 /**
  * The env file of a docker-compose sandbox (L5.8, R-FLD-32), absolute: `compose.env_file` (relative to sandbox.yaml),
  * else `.env` next to the first compose file when it exists; undefined for none (`env_file: false`, no such file, a
- * process sandbox). Demo Studio passes it to every compose command (`--env-file`), and leaves the names it sets out of
+ * process sandbox). Retake passes it to every compose command (`--env-file`), and leaves the names it sets out of
  * the environment docker runs with — a shell's value would win over the file's.
  */
 export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): string | undefined {
@@ -375,7 +375,7 @@ export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>)
 /**
  * Why a project would want a sandbox (L5.8, R-FLD-30): it has none, one of its environments films only this machine
  * (every page on a loopback host, not production) and the project holds state a take changes — a database, a mailbox,
- * reset hooks. Null otherwise. `studio doctor` and MCP `project_get` point to `studio sandbox init` with it.
+ * reset hooks. Null otherwise. `retake doctor` and MCP `project_get` point to `retake sandbox init` with it.
  */
 export interface SandboxAdvice {
   /** The local environment. */
@@ -408,10 +408,10 @@ export function sandboxAdvice(project: Pick<LoadedProject, 'config'>): SandboxAd
 }
 
 /** The advice in words: what the environment holds, what a sandbox does about it, the command that writes one. */
-export function sandboxAdviceText(a: SandboxAdvice, slug: string, studio = 'studio'): { detail: string; hint: string } {
+export function sandboxAdviceText(a: SandboxAdvice, slug: string, cli = 'retake'): { detail: string; hint: string } {
   const holds = a.holds.length > 1 ? `${a.holds.slice(0, -1).join(', ')} and ${a.holds[a.holds.length - 1]}` : a.holds[0];
   return {
     detail: `none — environment ${a.env} films this machine with ${holds}: each take starts from whatever the last one (or a hand-made reset) left`,
-    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${studio} sandbox init ${slug} writes a sandbox.yaml to fill in (README "Sandbox mode"), then ${studio} run ${slug} <scenario> --env sandbox --sandbox`,
+    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${cli} sandbox init ${slug} writes a sandbox.yaml to fill in (README "Sandbox mode"), then ${cli} run ${slug} <scenario> --env sandbox --sandbox`,
   };
 }

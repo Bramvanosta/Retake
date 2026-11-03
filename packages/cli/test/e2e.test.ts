@@ -1,5 +1,5 @@
 /**
- * End to end: the bundled fixture product on free ports, a short scenario run through the `studio` CLI entry
+ * End to end: the bundled fixture product on free ports, a short scenario run through the `retake` CLI entry
  * (capture mode, real setup/teardown hooks), then capture.mp4 + timeline.json checked for consistency.
  * Skipped when Chromium or ffmpeg is not available.
  */
@@ -12,8 +12,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, TimelineSchema } from '@demo-studio/core';
-import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@demo-studio/core';
+import { RunRecordSchema, TimelineSchema } from '@retake/core';
+import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { EXIT, VERSION, main, memoryIo } from '../src/index.js';
 
 const execFileP = promisify(execFile);
@@ -21,7 +21,7 @@ const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const BIN = join(REPO, 'packages/cli/dist/bin.js');
 
 function chromiumAvailable(): boolean {
-  if (process.env.DEMO_STUDIO_CHROMIUM) return existsSync(process.env.DEMO_STUDIO_CHROMIUM);
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
   try {
     const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
     const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
@@ -45,9 +45,9 @@ interface Fixture {
 let fixture: Fixture;
 let ws: string;
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -78,14 +78,14 @@ scenes:
       - hold: 0.5
 `;
 
-describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', () => {
+describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as {
       startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture>;
     };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     ws = await mkdtemp(join(tmpdir(), 'studio-e2e-'));
-    await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(ws, 'projects', 'e2e');
     await mkdir(join(project, 'scenarios'), { recursive: true });
     await writeFile(
@@ -110,12 +110,12 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   });
 
   it('validates the scenario', async () => {
-    const r = await studio('validate', 'e2e', 'short');
+    const r = await retake('validate', 'e2e', 'short');
     expect(r.code, r.err).toBe(EXIT.ok);
   });
 
   it('captures capture.mp4 + timeline.json that agree with each other', async () => {
-    const r = await studio('run', 'e2e', 'short', '--json');
+    const r = await retake('run', 'e2e', 'short', '--json');
     const events = r.out
       .trim()
       .split('\n')
@@ -135,9 +135,9 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(run.capture && existsSync(run.capture)).toBe(true);
     const record = RunRecordSchema.parse(JSON.parse(await readFile(join(run.dir, 'run.json'), 'utf8')));
     expect(record.status).toBe('succeeded');
-    // The format version and what ran the capture (R-PRIN-13): Demo Studio, Node.js, Chromium, the OS, the fonts.
+    // The format version and what ran the capture (R-PRIN-13): Retake, Node.js, Chromium, the OS, the fonts.
     expect(record.version).toBe(1);
-    expect(record.engine).toMatchObject({ demo_studio: VERSION, node: process.versions.node });
+    expect(record.engine).toMatchObject({ retake: VERSION, node: process.versions.node });
     expect(record.engine?.chromium).toMatch(/^\d+\.\d+\./);
     expect(record.engine?.os.startsWith(`${process.platform} `)).toBe(true);
     expect(record.engine?.fonts?.digest).toMatch(/^[0-9a-f]{12}$/);
@@ -185,17 +185,17 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     expect(tl.pages.map((p) => p.url)).toEqual([`${fixture.urls.console}/imports`]);
     expect(tl.scenes).toEqual([expect.objectContaining({ id: 'import', status: 'ok', url: `${fixture.urls.console}/imports` })]);
 
-    // The setup rollback ran after the teardown: nothing is left pending for `studio env reset`.
+    // The setup rollback ran after the teardown: nothing is left pending for `retake env reset`.
     const journal = JSON.parse(await readFile(join(run.dir, 'hooks-journal.json'), 'utf8')) as { entries: Array<{ status: string; rollback?: unknown }> };
     expect(journal.entries.filter((x) => x.status === 'ok' && x.rollback)).toEqual([]);
-    expect((await studio('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
+    expect((await retake('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
   });
 
   it('runs js hooks in a headless page of the environment', async () => {
     const file = join(ws, 'projects', 'e2e', 'hooks', 'title.yaml');
     await mkdir(join(ws, 'projects', 'e2e', 'hooks'), { recursive: true });
     await writeFile(file, '- name: title\n  js: {code: "if (!document.title.includes(\'Northfield\')) throw new Error(document.title)", page: console}\n');
-    const r = await studio('hooks', 'run', 'e2e', 'hooks/title.yaml');
+    const r = await retake('hooks', 'run', 'e2e', 'hooks/title.yaml');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toContain('title: done');
   });
@@ -204,13 +204,13 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     const hooksDir = join(ws, 'projects', 'e2e', 'hooks');
     await mkdir(hooksDir, { recursive: true });
     await writeFile(join(hooksDir, 'leak.yaml'), '- name: leak\n  js: {code: "await fetch(\'http://elsewhere.invalid/x\')", page: console}\n');
-    const js = await studio('hooks', 'run', 'e2e', 'hooks/leak.yaml');
+    const js = await retake('hooks', 'run', 'e2e', 'hooks/leak.yaml');
     expect(js.code, js.err).toBe(EXIT.failure);
     expect(js.err).toContain('refusing to contact elsewhere.invalid (blocked while the js hook ran)');
     expect(js.err).toContain('the hook threw: TypeError: Failed to fetch');
 
     await writeFile(join(hooksDir, 'curl.yaml'), '- name: reset-prod\n  shell: "touch ran.txt && curl -fsS https://elsewhere.invalid/reset"\n');
-    const shell = await studio('hooks', 'run', 'e2e', 'hooks/curl.yaml');
+    const shell = await retake('hooks', 'run', 'e2e', 'hooks/curl.yaml');
     expect(shell.code, shell.err).toBe(EXIT.failure);
     expect(shell.err).toMatch(/curl\.yaml:2:\d+ error \[0\]\.shell: shell hook names host elsewhere\.invalid \(URL\): it is not allowed/);
     expect(existsSync(join(ws, 'projects', 'e2e', 'ran.txt'))).toBe(false);
@@ -234,7 +234,7 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
         '',
       ].join('\n'),
     );
-    const r = await studio('run', 'e2e', 'clear', '--dry', '--json');
+    const r = await retake('run', 'e2e', 'clear', '--dry', '--json');
     const end = JSON.parse(r.out.trim().split('\n').pop()!) as { run: RunRecord };
     expect(end.run.error?.message ?? '', r.err).toBe('');
     expect(end.run.status).toBe('succeeded');
@@ -245,7 +245,7 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   });
 
   it('dry-runs up to a step with a screenshot per step', async () => {
-    const r = await studio('run', 'e2e', 'short', '--dry', '--until', 'import.1');
+    const r = await retake('run', 'e2e', 'short', '--dry', '--until', 'import.1');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toContain('dry run succeeded');
     const runs = (await readdir(join(ws, 'projects', 'e2e', 'runs'))).sort();
@@ -259,11 +259,11 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   it('inspect --json: the report of a page (elements with verified targets, a marked screenshot), out of runs/', async () => {
     const runs = async () => (existsSync(join(ws, 'projects', 'e2e', 'runs')) ? readdir(join(ws, 'projects', 'e2e', 'runs')) : []);
     const runsBefore = await runs();
-    const r = await studio('inspect', 'e2e', 'shop', '--path', '/inspect-lab', '--json', '--target', '{role: button, name: Publish}');
+    const r = await retake('inspect', 'e2e', 'shop', '--path', '/inspect-lab', '--json', '--target', '{role: button, name: Publish}');
     expect(r.code, r.err).toBe(EXIT.ok);
     const report = JSON.parse(r.out) as { status: string; file: string; marked: string; elements: Array<{ verified: boolean; untrusted: { target_yaml: string | null } }>; targets_checked: Array<{ count: number }> };
     expect(report.status).toBe('ok');
-    expect(report.file.startsWith(join(ws, 'projects', 'e2e', '.demo-studio', 'inspect'))).toBe(true);
+    expect(report.file.startsWith(join(ws, 'projects', 'e2e', '.retake', 'inspect'))).toBe(true);
     expect(existsSync(report.marked)).toBe(true);
     expect(report.elements.filter((e) => e.verified && e.untrusted.target_yaml).length).toBeGreaterThan(15);
     expect(report.targets_checked.map((t) => t.count)).toEqual([1]);
@@ -271,17 +271,17 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   });
 
   it('inspect a scenario up to a step: the open dialog first, as a table; an unknown page or scenario is a usage error', async () => {
-    const r = await studio('inspect', 'e2e', 'short', '--until', 'import.1', '--images', 'none');
+    const r = await retake('inspect', 'e2e', 'short', '--until', 'import.1', '--images', 'none');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(/dialog open/);
     expect(r.err.split('\n').find((l) => /^\s+1\s/.test(l))).toMatch(/in dialog/);
-    const bad = await studio('inspect', 'e2e', 'nowhere');
+    const bad = await retake('inspect', 'e2e', 'nowhere');
     expect(bad.code).toBe(EXIT.usage);
     expect(bad.err).toMatch(/neither a page of environment local \(console, shop\) nor a scenario of e2e \([^)]*\bshort\b/);
-    const until = await studio('inspect', 'e2e', 'shop', '--until', 'import.1');
+    const until = await retake('inspect', 'e2e', 'shop', '--until', 'import.1');
     expect(until.code).toBe(EXIT.usage);
     expect(until.err).toMatch(/"shop" is a page of environment local: --until goes with a scenario/);
-    const persona = await studio('inspect', 'e2e', 'shop', '--persona', 'nobody');
+    const persona = await retake('inspect', 'e2e', 'shop', '--persona', 'nobody');
     expect(persona.code).not.toBe(EXIT.ok);
     expect(persona.err).toMatch(/cannot inspect page shop: persona: unknown persona "nobody"/);
     // No position inside the scenario the command builds (it is never shown).
@@ -289,14 +289,14 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   });
 
   it('inspect a page under an open dialog: what the dialog covers is said so (and left unmarked)', async () => {
-    const r = await studio('inspect', 'e2e', 'shop', '--path', '/inspect-lab?dialog=1');
+    const r = await retake('inspect', 'e2e', 'shop', '--path', '/inspect-lab?dialog=1');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(/covered \(not marked\)/);
   });
 
   it('run --raw --json: JSON lines only — the RunProgress events, then one raw_export line with the manifest', async () => {
     const out = join(ws, 'raw-pkg');
-    const r = await studio('run', 'e2e', 'short', '--raw', '--cursor', 'none', '--json', '--out', out);
+    const r = await retake('run', 'e2e', 'short', '--raw', '--cursor', 'none', '--json', '--out', out);
     expect(r.code, r.err).toBe(EXIT.ok);
     const lines = r.out.trim().split('\n');
     const events = lines.map((l, i) => {
@@ -311,17 +311,17 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     const last = events[events.length - 1] as { type: string; dir: string; manifest: { kind: string; run: { cursor: string }; clips: Array<{ file: string }> } };
     expect(last.type).toBe('raw_export');
     expect(last.dir).toBe(out);
-    expect(last.manifest).toMatchObject({ kind: 'demo-studio/raw-capture', run: { cursor: 'hidden' } });
+    expect(last.manifest).toMatchObject({ kind: 'retake/raw-capture', run: { cursor: 'hidden' } });
     expect(last.manifest.clips.map((c) => c.file)).toEqual(['clips/01-import.mp4']);
     expect(existsSync(join(out, 'manifest.json'))).toBe(true);
   });
 
   /**
-   * R-RUN-08: `studio run` as a process (the built CLI, its own TMPDIR) gets SIGINT or SIGTERM. The run is cancelled
+   * R-RUN-08: `retake run` as a process (the built CLI, its own TMPDIR) gets SIGINT or SIGTERM. The run is cancelled
    * (exit 1, like any run that did not succeed), the teardown hooks and the setup rollbacks run, the browser and its
    * profile are gone. A second signal quits at once.
    */
-  describe.skipIf(process.platform === 'win32' || !existsSync(BIN))('Ctrl-C and SIGTERM during studio run (built CLI)', () => {
+  describe.skipIf(process.platform === 'win32' || !existsSync(BIN))('Ctrl-C and SIGTERM during retake run (built CLI)', () => {
     const LONG_SETUP = SCENARIO.slice(SCENARIO.indexOf('setup:'), SCENARIO.indexOf('pacing:'));
     const scene = ['scenes:', '  - id: wait', '    page: console', '    open: /imports', '    steps:', '      - wait: 30', ''].join('\n');
     const tmps: string[] = [];
@@ -374,12 +374,12 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
     }
 
     type Ready = (events: RunProgress[]) => boolean | Promise<boolean>;
-    /** Spawn `studio run e2e <scenario> --json`; at each `ready`, send its signal; wait for the exit. */
+    /** Spawn `retake run e2e <scenario> --json`; at each `ready`, send its signal; wait for the exit. */
     async function signalled(scenario: string, steps: Array<[Ready, NodeJS.Signals]>) {
       const tmp = await mkdtemp(join(tmpdir(), 'studio-sig-'));
       tmps.push(tmp);
       const child = spawn(process.execPath, [BIN, '--root', ws, 'run', 'e2e', scenario, '--json'], {
-        env: { ...process.env, TMPDIR: tmp, DEMO_STUDIO_HOME: join(tmp, 'home') },
+        env: { ...process.env, TMPDIR: tmp, RETAKE_HOME: join(tmp, 'home') },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
       let out = '';
@@ -411,7 +411,7 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
       const deadline = Date.now() + 10_000;
       while ((await processesWith(tmp)).length && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
       expect(await processesWith(tmp)).toEqual([]);
-      expect((await readdir(tmp)).filter((n) => /^(playwright|demo-studio-)/.test(n))).toEqual([]);
+      expect((await readdir(tmp)).filter((n) => /^(playwright|retake-)/.test(n))).toEqual([]);
     }
 
     async function cancelledRecord(dir: string): Promise<RunRecord> {
@@ -431,7 +431,7 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
       expect(record.error?.message).toBe('run cancelled (SIGINT)');
       expect(r.events.some((e) => e.type === 'hook' && e.phase === 'rollback' && e.status === 'ok')).toBe(true);
       expect(await armedNow()).toBe(false);
-      expect((await studio('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
+      expect((await retake('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
       await noBrowserLeft(r.tmp);
     });
 
@@ -448,11 +448,11 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
       expect(seed).toMatchObject({ status: 'failed', message: expect.stringContaining('was interrupted (its process group stopped)') });
       expect(r.events.some((e) => e.type === 'hook' && e.phase === 'teardown' && e.name === 'reset' && e.status === 'ok')).toBe(true);
       expect(await armedNow()).toBe(false);
-      expect((await studio('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
+      expect((await retake('hooks', 'rollback', 'e2e')).err).toContain('no pending rollbacks');
       await noBrowserLeft(r.tmp);
     });
 
-    it('a second SIGINT (during a teardown shell hook) quits at once and kills that hook; studio hooks rollback replays the rest', async () => {
+    it('a second SIGINT (during a teardown shell hook) quits at once and kills that hook; retake hooks rollback replays the rest', async () => {
       const r = await signalled('slow-teardown', [
         [waiting, 'SIGINT'],
         [() => sleeping(TEARDOWN_SLEEP), 'SIGINT'],
@@ -466,7 +466,7 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
       // Neither the rest of the teardown (the reset) nor the setup rollback ran: the journal kept the rollback.
       expect(await armedNow()).toBe(true);
       await fetch(`${fixture.urls.console}/api/quotes/auto-proposal`, { method: 'POST', body: '{}', headers: { 'content-type': 'application/json' } });
-      const rb = await studio('hooks', 'rollback', 'e2e');
+      const rb = await retake('hooks', 'rollback', 'e2e');
       expect(rb.code, rb.err).toBe(EXIT.ok);
       expect(await armedNow()).toBe(false);
       // The browser went with its pipe; its temporary profile stays for the next run's sweep (README: 10 minutes).
@@ -476,13 +476,13 @@ describe.skipIf(!AVAILABLE)('studio run (fixture product, headless capture)', ()
   });
 });
 
-describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
+describe('retake hooks run / hooks rollback / env reset (fixture API)', () => {
   let api: Fixture;
   let root: string;
 
   async function cli(...args: string[]) {
     const io = memoryIo();
-    const code = await main(['node', 'studio', '--root', root, ...args], io);
+    const code = await main(['node', 'retake', '--root', root, ...args], io);
     return { code, out: io.stdout(), err: io.stderr() };
   }
 
@@ -543,11 +543,11 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     const run = await cli('hooks', 'run', 'api', 'hooks/arm.yaml');
     expect(run.code, run.err).toBe(EXIT.ok);
     expect(await armed()).toBe(true);
-    const runId = /studio hooks rollback api (\S+)\)/.exec(run.err)?.[1];
+    const runId = /retake hooks rollback api (\S+)\)/.exec(run.err)?.[1];
     expect(runId, run.err).toBeTruthy();
 
-    // R-ISS-06: the journal lives in .demo-studio/journals/, never in a run-looking folder of runs/.
-    const journals = join(root, 'projects', 'api', '.demo-studio', 'journals');
+    // R-ISS-06: the journal lives in .retake/journals/, never in a run-looking folder of runs/.
+    const journals = join(root, 'projects', 'api', '.retake', 'journals');
     expect(await readdir(journals)).toEqual([`${runId}.json`]);
     expect(existsSync(join(root, 'projects', 'api', 'runs'))).toBe(false);
 
@@ -569,15 +569,15 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     expect(reset.err).toContain('environment reset');
     expect(await armed()).toBe(false);
     expect((await cli('hooks', 'rollback', 'api')).err).toContain('no pending rollbacks');
-    // R-ISS-06: hooks run + env reset journals are all under .demo-studio/journals/; runs/ stays empty.
-    const journals = await readdir(join(root, 'projects', 'api', '.demo-studio', 'journals'));
+    // R-ISS-06: hooks run + env reset journals are all under .retake/journals/; runs/ stays empty.
+    const journals = await readdir(join(root, 'projects', 'api', '.retake', 'journals'));
     expect(journals.some((f) => /-env-reset\.json$/.test(f))).toBe(true);
     expect(journals.every((f) => f.endsWith('.json'))).toBe(true);
     expect(existsSync(join(root, 'projects', 'api', 'runs'))).toBe(false);
   });
 
   it('hooks run sources: <scenario>:setup, :teardown, reset, a file; --dry checks without running, --yes approves (R-CLI-05)', async () => {
-    const journals = join(root, 'projects', 'api', '.demo-studio', 'journals');
+    const journals = join(root, 'projects', 'api', '.retake', 'journals');
     const listJournals = async () => (existsSync(journals) ? await readdir(journals) : []);
     const before = await listJournals();
     expect(await armed()).toBe(false);
@@ -596,7 +596,7 @@ describe('studio hooks run / hooks rollback / env reset (fixture API)', () => {
     const setup = await cli('hooks', 'run', 'api', 'quote:setup');
     expect(setup.code, setup.err).toBe(EXIT.ok);
     expect(setup.err).toMatch(/✓ arm: http POST \S+\/api\/quotes\/auto-proposal +200 OK/);
-    expect(setup.err).toMatch(/1 pending rollback: studio hooks rollback api \d{8}-\d{6}-hooks-quote-setup\)/);
+    expect(setup.err).toMatch(/1 pending rollback: retake hooks rollback api \d{8}-\d{6}-hooks-quote-setup\)/);
     expect(await armed()).toBe(true);
     const teardown = await cli('hooks', 'run', 'api', 'quote:teardown');
     expect(teardown.code, teardown.err).toBe(EXIT.ok);

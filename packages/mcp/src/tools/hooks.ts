@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { HOOKS_SOURCE_RE } from '@demo-studio/core';
-import type { Engine, HookResultView, JobRecord } from '@demo-studio/engine';
+import { HOOKS_SOURCE_RE } from '@retake/core';
+import type { Engine, HookResultView, JobRecord } from '@retake/engine';
 import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';

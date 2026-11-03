@@ -7,8 +7,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Journal, hookFingerprint, journalsRollback, runHooks } from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+import { Journal, hookFingerprint, journalsRollback, runHooks } from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, tempProject } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;

@@ -3,10 +3,10 @@
  * workspace whose studio/* components are scaffolded stand-ins and the real `editorial` theme.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { cubicBezier } from '@demo-studio/components';
-import type { Timeline, TimelineEvent } from '@demo-studio/core';
-import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, markDoneAt, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@demo-studio/editor';
-import type { CardSegment, ClipSegment, EditPlan } from '@demo-studio/editor';
+import { cubicBezier } from '@retake/components';
+import type { Timeline, TimelineEvent } from '@retake/core';
+import { WAIT_KEEP_S, WAIT_SPEED, mapSourceRect, markDoneAt, resolvePlanAssets, summarizePlan, PLAN_ASSET_SCHEME } from '@retake/editor';
+import type { CardSegment, ClipSegment, EditPlan } from '@retake/editor';
 import { clip, clips, fixtureProject, plan, realTimeline, seg, studioWorkspace, template } from './helpers.js';
 import type { PlanContext } from './helpers.js';
 

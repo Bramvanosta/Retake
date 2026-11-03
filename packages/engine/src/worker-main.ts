@@ -1,8 +1,8 @@
 /**
  * Entry point of a jobs worker process: `node …/engine/dist/worker-main.js --root <workspace> [--idle-exit <ms>]
  * [--once] [--started-by <client>]` (what ensureWorker starts — `--started-by` names the client that started it, recorded in
- * the worker lock; `studio worker` runs the same). stdout stays empty: whatever a library prints goes
- * to stderr, which the spawner sends to .demo-studio/workers/worker.log.
+ * the worker lock; `retake worker` runs the same). stdout stays empty: whatever a library prints goes
+ * to stderr, which the spawner sends to .retake/workers/worker.log.
  */
 import { WORKER_CLIENT_RE } from './jobs/lock.js';
 import { runWorker } from './jobs/worker.js';
@@ -23,7 +23,7 @@ if (!root) {
   process.exit(2);
 }
 const idle = arg('--idle-exit');
-const idleExitMs = idle !== undefined ? Number(idle) : process.env.DEMO_STUDIO_WORKER_IDLE_MS ? Number(process.env.DEMO_STUDIO_WORKER_IDLE_MS) : undefined;
+const idleExitMs = idle !== undefined ? Number(idle) : process.env.RETAKE_WORKER_IDLE_MS ? Number(process.env.RETAKE_WORKER_IDLE_MS) : undefined;
 const startedBy = arg('--started-by');
 runWorker({
   root,

@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ReviewCancelledError, recoverReviewDir, reviewImages, reviewRender } from '../src/index.js';
 import type { Finding, ReviewResult } from '../src/index.js';
 import type { OutputTimeline } from '../src/timeline.js';
-import type { ClipSegment, EditPlan } from '@demo-studio/editor';
+import type { ClipSegment, EditPlan } from '@retake/editor';
 import { hasTool, makeCase, scenesTimeline, workspace } from './helpers.js';
 import type { Workspace } from './helpers.js';
 
@@ -25,7 +25,7 @@ beforeAll(async () => {
   if (can) ws = await workspace();
 }, LONG);
 afterAll(async () => {
-  if (!process.env.DEMO_STUDIO_KEEP_TEST_OUTPUT) await ws?.cleanup();
+  if (!process.env.RETAKE_KEEP_TEST_OUTPUT) await ws?.cleanup();
 });
 
 const codes = (r: ReviewResult) => r.findings.map((f) => f.code);

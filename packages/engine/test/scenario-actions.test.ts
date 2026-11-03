@@ -22,7 +22,7 @@ import { writeRun } from './synthetic-runs.js';
 
 let ws: string;
 let ui: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const project = (name: string, envs: string[]) => ['name: ' + name, 'environments:', ...envs, 'capture: {width: 1280, height: 720, scale: 1, fps: 30}', 'template: default', ''].join('\n');
 const SHORT = 'video: short\nscenes:\n  - id: a\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n      - hold: 0.3\n';
@@ -32,8 +32,8 @@ const BROKEN = 'video: broken\nscenes:\n  - id: a\n    page: console\n    open: 
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-actions-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\n');
+  process.env.RETAKE_HOME = join(ws, '.home');
+  await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   const files: Record<string, string> = {
     'prod/project.yaml': project('Prod', ['  production:', '    production: true', '    pages:', '      console: http://127.0.0.1:4999', '  frozen:', '    access: read-only', '    pages:', '      console: https://frozen.example.com']),
     'prod/scenarios/armed.yaml': PLAIN_HOOK.replace('video: plain', 'video: armed\nenv: frozen'),
@@ -54,8 +54,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

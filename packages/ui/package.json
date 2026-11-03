@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/ui",
+  "name": "@retake/ui",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -22,11 +22,11 @@
     "ratchet": "tsx scripts/ratchet.ts"
   },
   "dependencies": {
-    "@demo-studio/components": "workspace:*",
-    "@demo-studio/core": "workspace:*",
-    "@demo-studio/editor": "workspace:*",
-    "@demo-studio/engine": "workspace:*",
-    "@demo-studio/mcp": "workspace:*",
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
+    "@retake/editor": "workspace:*",
+    "@retake/engine": "workspace:*",
+    "@retake/mcp": "workspace:*",
     "@remotion/player": "4.0.534",
     "esbuild": "0.28.1",
     "react": "19.1.1",

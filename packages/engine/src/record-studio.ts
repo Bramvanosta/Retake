@@ -2,7 +2,7 @@
  * The Studio's side of a recording (L4.8, R-UI-20 / 21 / 22): the Record screen is the control panel of the headed
  * window the worker opened (record-job.ts) — it reads the draft live, picks target alternatives, places quick inserts,
  * stops, discards and saves. Nothing here reaches the window: every operation reads or writes the recording's folder
- * (`<project>/.demo-studio/records/<rec_id>/`) or the job's markers.
+ * (`<project>/.retake/records/<rec_id>/`) or the job's markers.
  *
  * - view: the state (job + folder; the job is found through meta.json's job_id, never a queue scan), the draft made
  *   from events.jsonl (each line re-validated; a last line still being written is left for the next read), meta.json's
@@ -31,7 +31,7 @@
  *
  * Who: annotate, save and discard only for a recording the Studio started — its job exists, with `submitted_by: 'ui'`,
  * and it is the job meta.json names with `submitted_by: 'ui'` too (a meta.json alone proves nothing: everything under
- * `.demo-studio/` is agent-writable); MCP and CLI recordings are read-only here (their job saved them already), and so is
+ * `.retake/` is agent-writable); MCP and CLI recordings are read-only here (their job saved them already), and so is
  * one whose origin cannot be verified. The engine gates every operation of this module to the `ui` and `test` clients.
  */
 import { randomBytes } from 'node:crypto';
@@ -59,7 +59,7 @@ import {
   recordedAlternatives,
   scenarioBlocks,
   shownStep,
-} from '@demo-studio/core';
+} from '@retake/core';
 import type {
   DraftIssue,
   DraftPlaceholder,
@@ -75,7 +75,7 @@ import type {
   RecordingDraft,
   ScenarioBlocks,
   TargetSpec,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
 import type { FileJobQueue } from './jobs/queue.js';
@@ -326,7 +326,7 @@ async function jobOf(queue: FileJobQueue, slug: string, id: string, meta: Record
 
 /**
  * Is the recording's folder there, and a real one: the project's records folder a real folder (its real path exactly
- * <real project>/.demo-studio/records — no link on the way) and the recording's folder a real folder directly in it.
+ * <real project>/.retake/records — no link on the way) and the recording's folder a real folder directly in it.
  * `link`: something on the way is a link or leads elsewhere — nothing is read, written or removed there (L4.1: reads
  * never follow a link out of a project).
  */
@@ -342,7 +342,7 @@ async function folderState(project: LoadedProject, id: string): Promise<'folder'
   if (!dirSt.isDirectory() || dirSt.isSymbolicLink()) return 'link';
   try {
     const [rootSt, realProject, realRoot, realDir] = await Promise.all([lstat(root), realpath(project.dir), realpath(root), realpath(dir)]);
-    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.demo-studio', 'records') || realDir !== join(realRoot, id) || !isInside(realProject, realDir)) return 'link';
+    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.retake', 'records') || realDir !== join(realRoot, id) || !isInside(realProject, realDir)) return 'link';
   } catch {
     return 'link';
   }
@@ -354,7 +354,7 @@ async function realRecordsRoot(project: LoadedProject): Promise<string | null> {
   const root = recordsRoot(project);
   try {
     const [st, realProject, realRoot] = await Promise.all([lstat(root), realpath(project.dir), realpath(root)]);
-    return st.isDirectory() && !st.isSymbolicLink() && realRoot === join(realProject, '.demo-studio', 'records') ? root : null;
+    return st.isDirectory() && !st.isSymbolicLink() && realRoot === join(realProject, '.retake', 'records') ? root : null;
   } catch {
     return null;
   }
@@ -476,7 +476,7 @@ function lockRecording(project: LoadedProject, id: string, op: string) {
 
 /**
  * The recording's folder, checked before anything in it is written or removed: the project's records folder is a real
- * folder (no link on the way: its real path is exactly <real project>/.demo-studio/records) and the recording's own
+ * folder (no link on the way: its real path is exactly <real project>/.retake/records) and the recording's own
  * folder is a real folder directly in it. Throws EngineError refused (no path in the message).
  */
 async function checkedFolder(project: LoadedProject, id: string): Promise<string> {
@@ -1045,7 +1045,7 @@ export const RECORD_LIST_MAX = 50;
 
 /**
  * The project's recordings, newest first (the Record screen's recent list, inside record_options): those whose job is
- * queued or running before their folder exists, then the folders of `.demo-studio/records/` (real folders only, never
+ * queued or running before their folder exists, then the folders of `.retake/records/` (real folders only, never
  * through a link: a records folder that is one, or leads elsewhere, lists nothing). Each one's state as the view gives
  * it, without reading its events; a Discard asked during the check whose job is over is settled here too (B-L2).
  */

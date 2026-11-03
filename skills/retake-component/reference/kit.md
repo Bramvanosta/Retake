@@ -41,8 +41,8 @@ preview:                          # samples: a preview renders with any theme, w
 ## index.tsx
 
 ```tsx
-import { Background, FitText, Logo, rise, stagger, useCurrentFrame } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { Background, FitText, Logo, rise, stagger, useCurrentFrame } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; stagger: number };
 
@@ -66,7 +66,7 @@ export default function SplitIntro({ theme, slots, params, unit, width, fps }: C
 
 The rules `component_validate` checks (it compiles the code; nothing runs):
 
-- Import only `react`, `@demo-studio/components/kit` and the component's own files. Take the renderer primitives
+- Import only `react`, `@retake/components/kit` and the component's own files. Take the renderer primitives
   (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random`) from the kit, like the
   scaffolds; `remotion` itself stays allowed for what the kit does not re-export (`interpolate`, `spring`).
 - Deterministic: everything follows `useCurrentFrame` - no `Math.random` (use `random` with a seed: `random(null)` is
@@ -86,7 +86,7 @@ The rules `component_validate` checks (it compiles the code; nothing runs):
   (caption: `CaptionCue` list), `anchor` (overlay: the target box), `direction` (transition: `exiting` or
   `entering`).
 
-## The kit (`@demo-studio/components/kit`)
+## The kit (`@retake/components/kit`)
 
 | Group | Exports |
 |---|---|

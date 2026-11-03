@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, rm, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { CursorSample, TimelineEvent } from '@demo-studio/core';
+import type { CursorSample, TimelineEvent } from '@retake/core';
 import {
   ActivityRecorder,
   CaptureClock,
@@ -338,7 +338,7 @@ describe('the CPU sampler (perf.ts)', () => {
       { persona: 'supplier', cpu: 0.5, unfilmed: { cpu: 0.5, seconds: expect.any(Number) } },
     ]);
     expect(cpu!.browsers![1].unfilmed!.seconds).toBeGreaterThan(0.05);
-    expect(cpu!.total).toBeCloseTo(7.5 + cpu!.studio, 1);
+    expect(cpu!.total).toBeCloseTo(7.5 + cpu!.retake, 1);
     expect(s.machine().cpus).toBeGreaterThan(0);
     // No Chromium report at all: no CPU figures.
     const none = new PerfSampler({ chromium: async () => [], intervalMs: 60_000 });
@@ -366,7 +366,7 @@ describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
 
   it('the choppy-motion warning names the measured cause, then its figures', () => {
     const machine = { cpus: 10, load_mean: 2, load_max: 3 };
-    const cpu = { browser: 20, gpu: 4, renderer: 3, chromium_other: 1, studio: 6, encoder: 5, total: 39, cores: 0.8 };
+    const cpu = { browser: 20, gpu: 4, renderer: 3, chromium_other: 1, retake: 6, encoder: 5, total: 39, cores: 0.8 };
     const gpu = { accelerated: true, renderer: 'ANGLE Metal' };
     expect(choppyCause({ gpu: { accelerated: false, renderer: 'SwiftShader' }, cpu, machine, seconds: 50, frameRateLimit: true })).toMatch(/^measured: the browser renders in software.*no GPU acceleration \(SwiftShader\)/);
     expect(choppyCause({ gpu, cpu, machine: { ...machine, load_max: 24 }, seconds: 50, frameRateLimit: true })).toMatch(/^measured: the machine was busy.*machine load up to 24\.0 on 10 cores/);
@@ -378,12 +378,12 @@ describe('GPU, choppy motion, disk (R-FLD-24, R-FLD-28)', () => {
   it('the disk check reads the free space of the run folder', async () => {
     const d = await diskCheck(dir, 'demo');
     expect(d.free_gb).toBeGreaterThan(0);
-    if (d.warning) expect(d.warning).toContain('studio prune demo');
-    // Without the switch the warning follows the thresholds; DEMO_STUDIO_DISK_WARN=off (set for the suite) drops it only.
+    if (d.warning) expect(d.warning).toContain('retake prune demo');
+    // Without the switch the warning follows the thresholds; RETAKE_DISK_WARN=off (set for the suite) drops it only.
     const f = await statfs(dir);
     const low = (f.bavail * f.bsize) / 1e9 < DISK_FREE_MIN_GB || f.bavail / f.blocks < DISK_FREE_MIN_SHARE;
     expect(Boolean((await diskCheck(dir, 'demo', {})).warning)).toBe(low);
-    const off = await diskCheck(dir, 'demo', { DEMO_STUDIO_DISK_WARN: 'off' });
+    const off = await diskCheck(dir, 'demo', { RETAKE_DISK_WARN: 'off' });
     expect(off.warning).toBeUndefined();
     expect(off.free_gb).toBeGreaterThan(0);
   });

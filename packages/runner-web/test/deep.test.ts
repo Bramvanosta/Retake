@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import type { Timeline, TimelineEvent } from '@demo-studio/core';
+import type { Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FRAME_PAGE, deepPage } from './pages.js';
 import { FAST, debugTemplate, frameAt, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';

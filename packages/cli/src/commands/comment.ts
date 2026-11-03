@@ -1,12 +1,12 @@
 /**
- * `studio comment add | list | reply | resolve | reopen` (L3.6): frame comments on renders, written as the channel `cli`
+ * `retake comment add | list | reply | resolve | reopen` (L3.6): frame comments on renders, written as the channel `cli`
  * (trust author: whoever types the command). Only this command creates and reopens threads; Claude replies to and
  * resolves them through MCP. Texts shown on the terminal are printable only (they are written by people and agents).
  */
-import { commentAuthorName, printableText, regionProblem } from '@demo-studio/core';
-import type { CommentAuthor, CommentRegion } from '@demo-studio/core';
-import { EngineError, addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from '@demo-studio/engine';
-import type { CommentListView, CommentView, CommentWritten } from '@demo-studio/engine';
+import { commentAuthorName, printableText, regionProblem } from '@retake/core';
+import type { CommentAuthor, CommentRegion } from '@retake/core';
+import { EngineError, addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from '@retake/engine';
+import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -124,7 +124,7 @@ function printThread(ui: Ui, t: CommentView): void {
   ui.line(k.dim(`  ${ui.path(t.file)}${t.still ? ` · still ${ui.path(t.still)}` : ' · no still'}`));
 }
 
-/** `studio comment add <project> <render> (--at <s> | --frame <n> | --marker <name>) [--region x,y,w,h] "text"`. */
+/** `retake comment add <project> <render> (--at <s> | --frame <n> | --marker <name>) [--region x,y,w,h] "text"`. */
 export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectArg: string, render: string, text: string, opts: CommentAddOptions): Promise<ExitCode> {
   const given = [opts.at, opts.frame, opts.marker].filter((v) => v !== undefined).length;
   if (given !== 1) throw new UsageError('name the frame with exactly one of --at <seconds>, --frame <n> or --marker <name>');
@@ -168,7 +168,7 @@ export async function commentAddCommand(ui: Ui, global: GlobalOptions, projectAr
   return EXIT.ok;
 }
 
-/** `studio comment list <project> [--scenario] [--render] [--status]`. */
+/** `retake comment list <project> [--scenario] [--render] [--status]`. */
 export async function commentListCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: CommentListOptions): Promise<ExitCode> {
   let limit: number | undefined;
   if (opts.limit !== undefined) {
@@ -206,14 +206,14 @@ function printWritten(ui: Ui, what: string, w: CommentWritten, json?: boolean): 
   return EXIT.ok;
 }
 
-/** `studio comment reply <project> <id> "text"`. */
+/** `retake comment reply <project> <id> "text"`. */
 export async function commentReplyCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, text: string, opts: CommentWriteOptions): Promise<ExitCode> {
   const by = author(opts.author);
   const project = await openProject(await openWorkspace(global), projectArg);
   return printWritten(ui, 'replied to', await engineCall(() => replyComment(project, id, text, by)), opts.json);
 }
 
-/** `studio comment resolve <project> <id> --note "…" [--render <id>]`. */
+/** `retake comment resolve <project> <id> --note "…" [--render <id>]`. */
 export async function commentResolveCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
   if (opts.note === undefined) throw new UsageError('--note "<what was changed>" is required');
   const by = author(opts.author);
@@ -222,7 +222,7 @@ export async function commentResolveCommand(ui: Ui, global: GlobalOptions, proje
   return printWritten(ui, 'resolved', w, opts.json);
 }
 
-/** `studio comment reopen <project> <id> [--note "…"]`. */
+/** `retake comment reopen <project> <id> [--note "…"]`. */
 export async function commentReopenCommand(ui: Ui, global: GlobalOptions, projectArg: string, id: string, opts: CommentWriteOptions): Promise<ExitCode> {
   const by = author(opts.author);
   const project = await openProject(await openWorkspace(global), projectArg);

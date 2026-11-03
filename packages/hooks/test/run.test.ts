@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JS_NEEDS_PAGE, Journal, runHooks } from '@demo-studio/hooks';
-import { HostRefusedError } from '@demo-studio/core';
-import type { HookStep } from '@demo-studio/core';
+import { JS_NEEDS_PAGE, Journal, runHooks } from '@retake/hooks';
+import { HostRefusedError } from '@retake/core';
+import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -60,7 +60,7 @@ describe('runHooks: setup', () => {
     expect(logText()).toContain('info setup hook 1/2: a: shell "echo a >> order.log"');
   });
 
-  it('templates {{run.id}} and {{run.dir}}: a capture has a run folder, `studio hooks run` none (L1.2 review: D4)', async () => {
+  it('templates {{run.id}} and {{run.dir}}: a capture has a run folder, `retake hooks run` none (L1.2 review: D4)', async () => {
     const project = makeProject(tmp.dir, { console: api.base });
     const runDir = join(tmp.dir, 'runs/20261011-142233-catalogue');
     const { ctx } = makeContext(project, { runId: '20261011-142233-catalogue', runDir });
@@ -209,7 +209,7 @@ describe('shell hooks', () => {
       [
         {
           shell: {
-            run: 'echo "$GREETING|$DEMO_STUDIO_ENV|$DEMO_STUDIO_RUN_ID|$(basename "$PWD")|${HOME:+home}" > out.txt',
+            run: 'echo "$GREETING|$RETAKE_ENV|$RETAKE_RUN_ID|$(basename "$PWD")|${HOME:+home}" > out.txt',
             env: { GREETING: '{{vars.greeting}} ({{console}})' },
           },
         },

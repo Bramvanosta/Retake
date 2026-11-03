@@ -1,4 +1,4 @@
-// A test mailbox with a Mailpit-compatible API (the subset Demo Studio's `wait_for_email` reads), served by the fixture
+// A test mailbox with a Mailpit-compatible API (the subset Retake's `wait_for_email` reads), served by the fixture
 // under /mailbox on both ports:
 //   GET    /mailbox/api/v1/messages[?limit=N]          → {total, count, messages: [{ID, From, To, Subject, Created, Snippet, …}]} newest first
 //   GET    /mailbox/api/v1/message/:id                 → {ID, From, To, Cc, Subject, Date, Text, HTML, Inline: [{PartID, ContentID, ContentType, FileName}]}

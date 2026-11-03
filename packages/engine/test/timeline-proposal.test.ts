@@ -13,9 +13,9 @@ import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { diffLines, textLines } from '@demo-studio/core';
-import { scaffoldDir } from '@demo-studio/components';
-import { usedComponentIds } from '@demo-studio/editor';
+import { diffLines, textLines } from '@retake/core';
+import { scaffoldDir } from '@retake/components';
+import { usedComponentIds } from '@retake/editor';
 import { EngineError, clearTimelineViewMemo, createEngine, knownScenarioVersion } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -49,7 +49,7 @@ let root: string;
 let dir: string;
 let ui: Engine;
 let mcp: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 let n = 0;
 const scenarioFile = (name = SCENARIO) => join(dir, 'scenarios', `${name}.yaml`);
 
@@ -88,8 +88,8 @@ async function propose(id: string, yaml: string, base = TEXT): Promise<{ entry: 
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-timeline-proposal-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   dir = join(root, 'projects', 'demo');
   const runDir = join(dir, 'runs', RUN);
   await mkdir(runDir, { recursive: true });
@@ -126,8 +126,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 

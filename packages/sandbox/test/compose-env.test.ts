@@ -3,22 +3,22 @@
  * compose file (or `compose.env_file`), passed to every compose command (`--env-file`), the names it sets left out of
  * the environment docker runs with (a shell's value would win over the file's), its hash in the seed's inputs, and the
  * validation of `env_file` and of a COMPOSE_PROFILES in it. The unit part runs on a fake docker; the last test asks
- * the real `docker compose config` (DEMO_STUDIO_TEST_DOCKER=1; the docker CLI and its daemon, no image needed) what it
+ * the real `docker compose config` (RETAKE_TEST_DOCKER=1; the docker CLI and its daemon, no image needed) what it
  * read: the file's tag wins over the shell's, the subfolder's file is the one read.
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ConfigError, composeEnvFile, envFileKeys, loadProject } from '@demo-studio/core';
-import type { LoadedProject } from '@demo-studio/core';
-import { ComposeProvider, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@demo-studio/sandbox';
-import type { DockerExec, DockerRunOptions, ProviderContext } from '@demo-studio/sandbox';
+import { ConfigError, composeEnvFile, envFileKeys, loadProject } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
+import { ComposeProvider, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
+import type { DockerExec, DockerRunOptions, ProviderContext } from '@retake/sandbox';
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_DOCKER === '1';
+const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 let tmp = '';
 beforeAll(async () => {
-  tmp = await mkdtemp(join(tmpdir(), 'demo-studio-compose-env-'));
+  tmp = await mkdtemp(join(tmpdir(), 'retake-compose-env-'));
 });
 afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });

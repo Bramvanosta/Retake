@@ -9,7 +9,7 @@ import type { HookStep, LoadedProject, ValidationIssue } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
 import type { LocatedIssue } from './validation/located.js';
 
-/** A hooks file (`studio hooks run <project> hooks/x.yaml`): a YAML list of hook entries. */
+/** A hooks file (`retake hooks run <project> hooks/x.yaml`): a YAML list of hook entries. */
 export const HookFileSchema = z.array(HookStepSchema).describe('A list of hooks (same entries as `setup:` in a scenario).');
 
 /**

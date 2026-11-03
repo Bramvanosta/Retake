@@ -5,8 +5,8 @@
  * scenes) and the `open` steps', templated as the take will template them; one that cannot be resolved yet (a value a
  * later step produces) is skipped. A page that changes data when it loads (marks something read) does it here too.
  */
-import { isCaptureScene, resolvePageUrl, resolveScenePages } from '@demo-studio/core';
-import type { Scenario, SceneEntry } from '@demo-studio/core';
+import { isCaptureScene, resolvePageUrl, resolveScenePages } from '@retake/core';
+import type { Scenario, SceneEntry } from '@retake/core';
 import { errorMessage, isCancelled } from './errors.js';
 import type { Runtime } from './runtime.js';
 import { wallNow } from './util.js';

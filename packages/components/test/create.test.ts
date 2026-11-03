@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { COMPONENT_KINDS } from '@demo-studio/core';
-import { COMPONENT_SCHEMA_FILE, ComponentError, componentDisplayName, createComponent, loadComponentRegistry, parseManifest } from '@demo-studio/components';
+import { COMPONENT_KINDS } from '@retake/core';
+import { COMPONENT_SCHEMA_FILE, ComponentError, componentDisplayName, createComponent, loadComponentRegistry, parseManifest } from '@retake/components';
 import { tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
@@ -34,7 +34,7 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
       expect(resolve(dir, schemaLine.split('$schema=')[1])).toBe(COMPONENT_SCHEMA_FILE);
       expect(yaml).toContain(`id: ${id}\n`);
       expect(parseManifest(yaml, 'component.yaml', { folderId: id }).issues).toEqual([]);
-      expect(readFileSync(join(dir, 'README.md'), 'utf8')).toContain(`studio components validate ${id}`);
+      expect(readFileSync(join(dir, 'README.md'), 'utf8')).toContain(`retake components validate ${id}`);
     }
     const reg = await loadComponentRegistry({ root: ws.dir, builtinDir: null });
     expect(reg.list().map((c) => c.manifest.kind).sort()).toEqual([...COMPONENT_KINDS].sort());
@@ -58,10 +58,10 @@ describe('createComponent (R-REG-10, R-DEC-03)', () => {
     expect(existsSync(join(ws.dir, 'components', 'acme', 'x'))).toBe(false);
   });
 
-  it('honours studio.yaml components_dir', async () => {
+  it('honours retake.yaml components_dir', async () => {
     const other = await tempDir();
     try {
-      await writeFiles(other.dir, { 'studio.yaml': 'components_dir: design/components\n' });
+      await writeFiles(other.dir, { 'retake.yaml': 'components_dir: design/components\n' });
       const created = await createComponent(other.dir, { id: 'acme/badge', kind: 'overlay' });
       expect(created.dir).toBe(join(other.dir, 'design/components/acme/badge'));
     } finally {

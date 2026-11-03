@@ -1,12 +1,12 @@
 /**
- * A sandbox's state file (`.demo-studio/sandbox/<env>/state.json`, version 1): the processes it started (pid + start
+ * A sandbox's state file (`.retake/sandbox/<env>/state.json`, version 1): the processes it started (pid + start
  * time: a reused pid is never taken for ours), when it was last seeded (and the seed's hash) and reset. Written
  * synchronously and atomically (a temp file renamed over it): an entry is on disk before the CLI waits for anything,
  * so a crash or a kill -9 during `up` never leaves an untracked process behind.
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { SandboxProvider, SandboxResetStrategy } from '@demo-studio/core';
+import type { SandboxProvider, SandboxResetStrategy } from '@retake/core';
 import type { Member } from './proc.js';
 
 export const STATE_VERSION = 1;
@@ -81,7 +81,7 @@ export function readState(file: string, env: string, provider: SandboxProvider):
   }
   const s = v as Partial<SandboxState> | null;
   if (!s || typeof s !== 'object' || s.version !== STATE_VERSION || typeof s.services !== 'object' || s.services === null) {
-    return { state: emptyState(env, provider), note: `${file} is not a state file this Demo Studio reads — starting from an empty state` };
+    return { state: emptyState(env, provider), note: `${file} is not a state file this Retake reads — starting from an empty state` };
   }
   if (s.provider !== provider) {
     return { state: emptyState(env, provider), note: `${file} was written for provider ${String(s.provider)} (sandbox.yaml now says ${provider}) — starting from an empty state` };

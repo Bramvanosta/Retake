@@ -3,7 +3,7 @@
 # page filmed at a time: the roaster's quote list stays open in its own browser while the café asks for a quote, the
 # request arrives there live, the roaster answers, the café gets the proposal.
 #
-# Demo Studio L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list
+# Retake L5.7 measures with it what the page nobody films costs during the take (R-FLD-25: the console's list
 # keeps polling for new requests) and, with the fixture's NORTHFIELD_QUOTES_MS, the skeleton rows the edit shortens
 # (R-FLD-26).
 version: 1

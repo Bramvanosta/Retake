@@ -1,5 +1,5 @@
 /**
- * @demo-studio/cli — the `studio` command (docs/DESIGN.md §4). `main(argv, io)` runs it in-process
+ * @retake/cli — the `retake` command (docs/DESIGN.md §4). `main(argv, io)` runs it in-process
  * (tests, other tools) and returns the exit code instead of exiting.
  */
 export { main, VERSION } from './main.js';

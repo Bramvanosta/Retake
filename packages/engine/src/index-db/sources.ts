@@ -17,7 +17,7 @@
  */
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { historyFile } from '../history.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';

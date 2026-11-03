@@ -11,7 +11,7 @@
  *   says "Latest: v1 · … · from this version";
  * - the scenario screen's Renders card shows the same render and verdict (and a step's picture still shows: the same
  *   one `<img>` under the step pictures' cap); its row opens the render's report.
- * No CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  * L4.5 fixes (review B H1): the real render's plan signature is the timeline's ("from this version"); a render of the
  * same file with other options is another version — L5.12a: its findings' Show in Edit never seeks the preview to their
  * frame (said); a copy of the same plan does; a render that failed after them is said in Edit's status bar.
@@ -22,8 +22,8 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, runWorker } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
+import { FileJobQueue, runWorker } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -31,7 +31,7 @@ import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { takeWorkspace, writeTake } from './timeline-take.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 60_000 };
 const RUN = '20260101-120000-tiny';
 const TEXT = `video: Tiny
@@ -51,7 +51,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const consoleErrors: string[] = [];
 
 async function shot(name: string): Promise<void> {
@@ -63,7 +63,7 @@ async function shot(name: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-render-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   const dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 2,
@@ -74,7 +74,7 @@ beforeAll(async () => {
   // The render shares the repository's bundle cache (no rebundle per test file).
   await linkSharedCache(ws);
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1360, height: 900 } });
   await context.addInitScript(() => {
@@ -94,8 +94,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

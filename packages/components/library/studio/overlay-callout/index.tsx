@@ -13,8 +13,8 @@ import {
   roundTo,
   safeAreaRect,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { placement: 'auto' | 'above' | 'below'; max_width: number; highlight: boolean };
 

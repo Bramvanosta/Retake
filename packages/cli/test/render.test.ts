@@ -1,12 +1,12 @@
 /**
- * `studio render` and `studio still` on a synthetic run (a tiny colour-coded capture, quarter size): the summary,
+ * `retake render` and `retake still` on a synthetic run (a tiny colour-coded capture, quarter size): the summary,
  * the files, `--json`, and the usage / lookup errors. Needs ffmpeg and a Chromium headless shell.
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scenarioChangedMessage } from '@demo-studio/core';
+import { scenarioChangedMessage } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { hasTool, renderWorkspace } from '../../editor/test/render-helpers.js';
 import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
@@ -15,9 +15,9 @@ const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
 let ws: RenderWorkspace;
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws.root, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws.root, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -28,9 +28,9 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe.skipIf(!canRender)('studio render / still', () => {
+describe.skipIf(!canRender)('retake render / still', () => {
   it('renders the latest capture of a scenario into renders/<scenario>-v1.mp4 with a summary', async () => {
-    const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2');
+    const r = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(/✓ rendered synthetic-v1 → .*renders\/synthetic-v1\.mp4/);
     expect(r.err).toMatch(/1\.90 s · 57 frames @ 30 fps · 480×270 · [\d.]+ KB · h264 crf 16, silent audio · checked: 1\.9\d s, 480×270, 1 audio track/);
@@ -46,10 +46,10 @@ describe.skipIf(!canRender)('studio render / still', () => {
     await writeFile(join(ws.runDir, 'scenario.yaml'), snapshot);
     await mkdir(join(ws.project.dir, 'scenarios'), { recursive: true });
     await writeFile(join(ws.project.dir, 'scenarios', 'synthetic.yml'), snapshot.replace('hold: 1', 'hold: 3'));
-    const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--no-intro', '--json');
+    const r = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--no-intro', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toContain(
-      `! ${scenarioChangedMessage('synthetic', '20260101-120000-synthetic', '`studio run demo synthetic`', ['scene a: step a.0 changed'])}`,
+      `! ${scenarioChangedMessage('synthetic', '20260101-120000-synthetic', '`retake run demo synthetic`', ['scene a: step a.0 changed'])}`,
     );
     const rec = JSON.parse(r.out) as Record<string, unknown>;
     expect(rec).toMatchObject({ id: 'synthetic-v2', status: 'succeeded', frames: 57, width: 480, height: 270, overrides: { scale: 0.25, intro: false } });
@@ -59,38 +59,38 @@ describe.skipIf(!canRender)('studio render / still', () => {
   }, LONG);
 
   it('still: one frame as a PNG (renders/stills/ by default)', async () => {
-    const r = await studio('still', 'demo', 'synthetic', '--frame', '40', '--json');
+    const r = await retake('still', 'demo', 'synthetic', '--frame', '40', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
     const res = JSON.parse(r.out) as { file: string; frame: number; segment: string; width: number };
     expect(res).toMatchObject({ frame: 40, segment: 'b', width: 1920 });
     expect(res.file).toBe(join(ws.project.dir, 'renders', 'stills', 'synthetic-f00040.png'));
     expect(existsSync(res.file)).toBe(true);
-    const human = await studio('still', 'demo', 'synthetic', '--frame', '3', '--out', join(ws.root, 'f3.png'));
+    const human = await retake('still', 'demo', 'synthetic', '--frame', '3', '--out', join(ws.root, 'f3.png'));
     expect(human.code, human.err).toBe(EXIT.ok);
     expect(human.err).toMatch(/✓ frame 3 \(0\.10 s, clip a\) → /);
   }, LONG);
 
   it('reports bad options and unknown runs', async () => {
-    const frame = await studio('render', 'demo', 'synthetic', '--frame', 'Fancy Frame');
+    const frame = await retake('render', 'demo', 'synthetic', '--frame', 'Fancy Frame');
     expect(frame.code).toBe(EXIT.usage);
     expect(frame.err).toContain('--frame "Fancy Frame"');
-    const scale = await studio('render', 'demo', 'synthetic', '--scale', '0');
+    const scale = await retake('render', 'demo', 'synthetic', '--scale', '0');
     expect(scale.code).toBe(EXIT.usage);
     expect(scale.err).toContain('--scale "0"');
-    const run = await studio('render', 'demo', 'synthetic', '--run', 'nope');
+    const run = await retake('render', 'demo', 'synthetic', '--run', 'nope');
     expect(run.code).toBe(EXIT.failure);
     expect(run.err).toContain('run "nope" not found');
-    const scenario = await studio('render', 'demo', 'ghost');
+    const scenario = await retake('render', 'demo', 'ghost');
     expect(scenario.code).toBe(EXIT.failure);
     expect(scenario.err).toContain('no capture run of scenario "ghost"');
-    expect((await studio('still', 'demo', 'synthetic')).code).toBe(EXIT.usage);
-    const past = await studio('still', 'demo', 'synthetic', '--frame', '999');
+    expect((await retake('still', 'demo', 'synthetic')).code).toBe(EXIT.usage);
+    const past = await retake('still', 'demo', 'synthetic', '--frame', '999');
     expect(past.code).toBe(EXIT.failure);
     expect(past.err).toContain('past the end of the video (57 frames');
   }, LONG);
 
   it('--review reviews the render right after it', async () => {
-    const r = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review');
+    const r = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review');
     expect(r.code, r.err).toBe(EXIT.ok);
     const id = /✓ rendered (synthetic-v\d+)/.exec(r.err)?.[1];
     expect(id).toBeDefined();
@@ -100,7 +100,7 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect(r.err).toMatch(/error {3}\[00:00\.0 · f0 · a\] scene "a" starts on a blank screen \(capture frame 30\)/);
     expect(r.err).toMatch(/warning the video lasts 1\.9 s/);
     expect(existsSync(join(ws.project.dir, 'review', id!, 'report.json'))).toBe(true);
-    const json = await studio('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review', '--json', '--no-intro');
+    const json = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2', '--review', '--json', '--no-intro');
     expect(json.code, json.err).toBe(EXIT.ok);
     const rec = JSON.parse(json.out) as { id: string; review: { render: { id: string }; clean: boolean; files: { report_md: string } } };
     expect(rec.review.render.id).toBe(rec.id);
@@ -108,21 +108,21 @@ describe.skipIf(!canRender)('studio render / still', () => {
     expect(existsSync(rec.review.files.report_md)).toBe(true);
   }, LONG);
   it('export: the master transcoded (WebM, GIF) into exports/<render>/ + manifest.json; --square renders a square variant', async () => {
-    const r = await studio('export', 'demo', 'synthetic-v1', '--formats', 'webm,gif_preview');
+    const r = await retake('export', 'demo', 'synthetic-v1', '--formats', 'webm,gif_preview');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(/export synthetic-v1 \(480×270, 1\.90 s\) → .*exports\/synthetic-v1/);
     expect(r.err).toMatch(/✓ WebM \(VP9\) {3}.*synthetic-v1\.webm {2}1920×1080 vp9 \+ opus, 1\.9\d s/);
     expect(r.err).toMatch(/✓ GIF preview {3}.*synthetic-v1-preview\.gif {2}480×270 gif, 1\.9\d s, 0\.0–1\.9 s \(first\)/);
     const dir = join(ws.project.dir, 'exports', 'synthetic-v1');
     expect((await readdir(dir)).sort()).toEqual(['manifest.json', 'synthetic-v1-preview.gif', 'synthetic-v1.webm']);
-    const json = await studio('export', 'demo', 'latest', '--formats', 'gif_preview', '--gif-start', '0.5', '--json');
+    const json = await retake('export', 'demo', 'latest', '--formats', 'gif_preview', '--gif-start', '0.5', '--json');
     expect(json.code, json.err).toBe(EXIT.ok);
     const m = JSON.parse(json.out) as { render: string; outputs: Array<{ format: string; window?: { start_s: number } }> };
     expect(m.outputs.find((o) => o.format === 'gif_preview')?.window?.start_s).toBe(0.5);
-    const sq = await studio('render', 'demo', 'synthetic', '--square', '--scale', '0.25', '--concurrency', '2', '--json');
+    const sq = await retake('render', 'demo', 'synthetic', '--square', '--scale', '0.25', '--concurrency', '2', '--json');
     expect(sq.code, sq.err).toBe(EXIT.ok);
     expect(JSON.parse(sq.out)).toMatchObject({ variant: 'square', width: 270, height: 270 });
-    expect((await studio('render', 'demo', 'synthetic', '--square', '--vertical')).code).toBe(EXIT.usage);
+    expect((await retake('render', 'demo', 'synthetic', '--square', '--vertical')).code).toBe(EXIT.usage);
   }, LONG);
 });
 

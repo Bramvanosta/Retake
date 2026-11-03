@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { heredocs, shellHostRefs } from '@demo-studio/core';
-import type { ShellHostOptions } from '@demo-studio/core';
+import { heredocs, shellHostRefs } from '@retake/core';
+import type { ShellHostOptions } from '@retake/core';
 
 /** "host via" of each ref; unresolved refs as "? via". */
 function refs(cmd: string, opts?: ShellHostOptions): string[] {

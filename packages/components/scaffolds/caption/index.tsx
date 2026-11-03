@@ -1,5 +1,5 @@
-import { FitText, activeIndex, fadeOut, rise, textStyleCss, useCurrentFrame } from '@demo-studio/components/kit';
-import type { CaptionCue, ComponentProps, ThemeTextStyle } from '@demo-studio/components/kit';
+import { FitText, activeIndex, fadeOut, rise, textStyleCss, useCurrentFrame } from '@retake/components/kit';
+import type { CaptionCue, ComponentProps, ThemeTextStyle } from '@retake/components/kit';
 
 type Params = { align: 'center' | 'left'; max_lines: number; rule: boolean };
 

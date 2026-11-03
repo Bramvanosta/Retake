@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, loadWorkspaceConfig, suggestion } from '@demo-studio/core';
-import type { ComponentKind } from '@demo-studio/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, loadWorkspaceConfig, suggestion } from '@retake/core';
+import type { ComponentKind } from '@retake/core';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { MANIFEST_FILE, parseManifest } from './manifest.js';
 import { COMPONENT_SCHEMA_FILE, LIBRARY_DIR, scaffoldDir } from './paths.js';
@@ -18,7 +18,7 @@ export interface CreateComponentOptions {
   description?: string;
   /** Display name (default: from the name part of the id, "intro-split" → "Intro split"). */
   name?: string;
-  /** Override the workspace components directory (default: studio.yaml `components_dir`, else <root>/components). */
+  /** Override the workspace components directory (default: retake.yaml `components_dir`, else <root>/components). */
   componentsDir?: string;
   /** Built-in library checked for an id clash (default: the package library; null = none). */
   builtinDir?: string | null;
@@ -102,7 +102,7 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   };
   await write(MANIFEST_FILE, manifestText);
   for (const entry of (await readdir(source, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
-    // The scaffold's own generated preview (preview.png / preview.json) is not copied: `studio components create`
+    // The scaffold's own generated preview (preview.png / preview.json) is not copied: `retake components create`
     // renders the new component's preview.
     if (!entry.isFile() || [MANIFEST_FILE, 'README.md', 'preview.png', 'preview.json'].includes(entry.name)) continue;
     await write(entry.name, await readFile(join(source, entry.name), 'utf8'));
@@ -137,9 +137,9 @@ ${description?.trim() || `A ${kind} component.`}
 - \`component.yaml\` — the manifest: slots, params (JSON Schema with defaults), duration${kind === 'layout' ? ', geometry' : ''}, preview samples.
 - \`index.tsx\` — the implementation: \`export default function (props: ComponentProps)\`. Read every colour, font and
   logo from \`props.theme\`, size everything with \`props.unit\`, animate from \`useCurrentFrame()\` only, and import only
-  \`react\`, \`remotion\` and \`@demo-studio/components/kit\`.
+  \`react\`, \`remotion\` and \`@retake/components/kit\`.
 
-Check it with \`studio components validate ${id}\`. Use it from a template (\`components: {${kind}: ${id}}\`) or a
-scenario (see the README of Demo Studio, section "Components").
+Check it with \`retake components validate ${id}\`. Use it from a template (\`components: {${kind}: ${id}}\`) or a
+scenario (see the README of Retake, section "Components").
 `;
 }

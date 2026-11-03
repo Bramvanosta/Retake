@@ -2,7 +2,7 @@
  * Postgres snapshot resets (L1.8, strategy `snapshot`): after the seed, the sandbox's database is copied as a template
  * database `<db>__ds_snapshot`; before each take the database is dropped and created again from that template — a
  * file-level copy, faster than reseeding once the seed is realistic. SQL only, through `pg` (no pg_dump needed on the
- * host). The template's comment `demo-studio snapshot <seed hash>` (and the state file) say which seed it holds: any
+ * host). The template's comment `retake snapshot <seed hash>` (and the state file) say which seed it holds: any
  * other is stale and retaken. Postgres 13 or later (DROP DATABASE … WITH (FORCE)); STRATEGY is left to the server
  * (WAL_LOG from 15, FILE_COPY before). The caller has checked the database belongs to the sandbox's own compose project.
  *
@@ -22,9 +22,9 @@
  * port explicitly, never the URL (whose query parameters would win over them).
  */
 import pg from 'pg';
-import { interpolateDeep, prefetchSecrets } from '@demo-studio/core';
-import type { LoadedProject, LoadedSandbox } from '@demo-studio/core';
-import { databaseTarget, sandboxDatabaseProblem } from '@demo-studio/hooks';
+import { interpolateDeep, prefetchSecrets } from '@retake/core';
+import type { LoadedProject, LoadedSandbox } from '@retake/core';
+import { databaseTarget, sandboxDatabaseProblem } from '@retake/hooks';
 import { SandboxError, errorMessage } from './errors.js';
 
 /** Suffix of the template database (`<db>__ds_snapshot`). */
@@ -32,7 +32,7 @@ export const SNAPSHOT_SUFFIX = '__ds_snapshot';
 /** server_version_num of Postgres 13 (DROP DATABASE … WITH (FORCE)). */
 export const MIN_PG_VERSION_NUM = 130_000;
 const CONNECT_TIMEOUT_MS = 10_000;
-const APPLICATION_NAME = 'demo-studio-sandbox';
+const APPLICATION_NAME = 'retake-sandbox';
 
 /** "app" → `"app"` (a Postgres identifier, quotes doubled). */
 export function quoteIdent(name: string): string {
@@ -46,7 +46,7 @@ export function quoteLiteral(text: string): string {
 
 /** The template's comment: which seed it holds. */
 export function snapshotComment(hash: string): string {
-  return `demo-studio snapshot ${hash}`;
+  return `retake snapshot ${hash}`;
 }
 
 /** Where pg connects: given to it explicitly (never a URL whose query parameters could send it elsewhere). */

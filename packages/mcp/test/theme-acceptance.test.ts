@@ -1,13 +1,13 @@
 /**
  * L3.5 acceptance through MCP: a new theme made from a site and brand files, then filmed with (slow: gated by
- * DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`). An SDK client drives `studio mcp` (spawned from the sources over stdio)
+ * RETAKE_TEST_SLOW=1 — `pnpm test:slow`). An SDK client drives `retake mcp` (spawned from the sources over stdio)
  * on a scratch workspace holding a copy of projects/northfield-fixture (its local environment pointed at the fixture
  * product started on free ports) and the user's font files in brand/ (the OFL fonts of templates/ under other names):
  * template_from_site on the brand-site fixture (self-signed https on invented `.test` names, reached through the unsafe
  * test resolver in the server's environment; the approval answered through elicitation) → template_create_from_brand
  * from its draft with the `site:` logo candidate, the brand/ fonts and the site's colours → template_list shows it
  * (`workspace`) → template_preview stills → a capture of `quote` rendered with the new theme (guarded: nothing blocked)
- * → review: clean. With DEMO_STUDIO_ACCEPTANCE_KEEP=<folder>, the stills, the sheets and the video are copied there to
+ * → review: clean. With RETAKE_ACCEPTANCE_KEEP=<folder>, the stills, the sheets and the video are copied there to
  * look at.
  */
 import { spawnSync } from 'node:child_process';
@@ -19,8 +19,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { parseYaml } from '@demo-studio/core';
-import { readWorkerLock } from '@demo-studio/engine';
+import { parseYaml } from '@retake/core';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
@@ -28,10 +28,10 @@ import type { BrandSite } from '../../runner-web/test/site-fixture.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
 const tool = (n: string) => spawnSync(n, ['-version'], { stdio: 'ignore' }).status === 0;
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe') && hasOpenssl();
-const KEEP = process.env.DEMO_STUDIO_ACCEPTANCE_KEEP;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe') && hasOpenssl();
+const KEEP = process.env.RETAKE_ACCEPTANCE_KEEP;
 const STEP = 900_000;
 const THEME = 'quillmere';
 
@@ -83,13 +83,13 @@ async function keep(sub: string, files: string[]): Promise<void> {
   for (const f of files) await cp(f, join(dir, f.split('/').pop()!));
 }
 
-describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and brand files → preview → capture → render → review (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and brand files → preview → capture → render → review (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     site = await startBrandSite();
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-theme-acceptance-'));
-    await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+    await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
     await mkdir(join(root, 'templates'), { recursive: true });
     const project = join(root, 'projects', 'northfield-fixture');
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -112,15 +112,15 @@ describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and
       env: {
         PATH: process.env.PATH ?? '',
         HOME: process.env.HOME ?? '',
-        DEMO_STUDIO_HOME: join(root, '.home'),
-        DEMO_STUDIO_WORKER_IDLE_MS: '5000',
-        DEMO_STUDIO_UNSAFE_TEST_RESOLVE: site.resolveEnv,
+        RETAKE_HOME: join(root, '.home'),
+        RETAKE_WORKER_IDLE_MS: '5000',
+        RETAKE_UNSAFE_TEST_RESOLVE: site.resolveEnv,
       },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
     // A client whose user approves what the server asks (the site's URL; the quote's setup hooks).
-    client = new Client({ name: 'demo-studio-theme-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
+    client = new Client({ name: 'retake-theme-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
       asked.push((req.params as { message: string }).message);
       return { action: 'accept', content: { approve: true } };
@@ -182,7 +182,7 @@ describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and
     expect(file.logo).toBe('logo.png');
     expect(file.brand).toEqual({ name: 'Quillmere', url: 'quillmere.test' });
     expect(file.outro.url).toBe('quillmere.test');
-    expect((JSON.parse(await readFile(join(dir, '.demo-studio-theme.json'), 'utf8')) as { site_id: string }).site_id).toBe(ids.site);
+    expect((JSON.parse(await readFile(join(dir, '.retake-theme.json'), 'utf8')) as { site_id: string }).site_id).toBe(ids.site);
     const l = await call('template_list', {});
     expect(l.content[0].text).toMatch(new RegExp(`- ${THEME} \\(workspace, real\\)`));
   }, STEP);

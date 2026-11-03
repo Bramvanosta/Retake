@@ -1,5 +1,5 @@
 {
-  "name": "@demo-studio/editor",
+  "name": "@retake/editor",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,8 +17,8 @@
     "src"
   ],
   "dependencies": {
-    "@demo-studio/components": "workspace:*",
-    "@demo-studio/core": "workspace:*",
+    "@retake/components": "workspace:*",
+    "@retake/core": "workspace:*",
     "@remotion/bundler": "4.0.534",
     "@remotion/cli": "4.0.534",
     "@remotion/media-utils": "4.0.534",

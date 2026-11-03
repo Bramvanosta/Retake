@@ -1,6 +1,6 @@
 # `editorial` — warm, premium starter template
 
-The reference look for product videos (measured values in `docs/reference/look.md` of the Demo Studio
+The reference look for product videos (measured values in `docs/reference/look.md` of the Retake
 repository): a warm paper background, the capture in a soft-shadowed card, a serif display face over a
 clean sans body, a deep accent used sparingly, intro and outro with the logo, a dark interstitial with a
 clock for time jumps.
@@ -24,7 +24,7 @@ Files: `template.yaml`, `logo.svg` and `wordmark.svg` (placeholder brand "Atelie
 ## Derive your brand template
 
 Brand templates live in your own workspace (the folder holding your `projects/`, or the `templates_dir`
-of its `studio.yaml`), never in the Demo Studio installation.
+of its `retake.yaml`), never in the Retake installation.
 
 1. Copy this folder to `<workspace>/templates/<brand>/` (for example `templates/northfield/`).
 2. Replace `logo.svg` with your square mark (it is shown from 30 px in the brandmark up to 150 px in the
@@ -41,10 +41,10 @@ of its `studio.yaml`), never in the Demo Studio installation.
    `transitions` (validation warns when they disagree), or remove it to let those fields choose.
 5. Use it from a project: `template: <brand>` in `project.yaml` (or in a scenario).
 
-Every section of `template.yaml` is optional — missing values fall back to Demo Studio's built-in
+Every section of `template.yaml` is optional — missing values fall back to Retake's built-in
 defaults — so a brand template may keep only what differs. This starter spells out every value so it
-reads as a reference. The `# yaml-language-server` header points to the JSON Schema inside the Demo
-Studio repository; in your workspace, point it to the output of `studio schema template` or remove it.
+reads as a reference. The `# yaml-language-server` header points to the JSON Schema inside the Retake
+repository; in your workspace, point it to the output of `retake schema template` or remove it.
 Loading the template reports any mistake with its line and column, and lists missing asset files.
 
 `wordmark.svg` is live text with the Latin subset of Instrument Serif embedded, so it renders the same

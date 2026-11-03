@@ -1,6 +1,6 @@
 /**
  * `run` jobs (L3.1): a dry run or a capture submitted by a client outside the CLI (the MCP server) and executed by the
- * jobs worker with the same `executeRun` as `studio run`.
+ * jobs worker with the same `executeRun` as `retake run`.
  *
  * Submit checks everything that can be checked without running anything (names, the scenario against its
  * environment, the sandbox pick, the hooks a human must approve), hashes the scenario's bytes, reserves the run id
@@ -20,9 +20,9 @@ import {
   resolveStepRef,
   usedNamedHooks,
   writeJson,
-} from '@demo-studio/core';
-import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@demo-studio/core';
-import type { LiveSink, PauseGate } from '@demo-studio/runner-web';
+} from '@retake/core';
+import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
+import type { LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -56,7 +56,7 @@ export interface RunSubmitRequest {
 export interface SubmitContext {
   ws: WorkspaceConfig;
   queue: FileJobQueue;
-  /** "studio -C <root>": how the commands a human is asked to run start. */
+  /** "retake -C <root>": how the commands a human is asked to run start. */
   cli: string;
   client: JobClient;
 }
@@ -66,7 +66,7 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio run` command a human runs for the same run. */
+/** The `retake run` command a human runs for the same run. */
 export function runCommandLine(cli: string, r: RunSubmitRequest): string {
   const parts = [cli, 'run', r.project, r.scenario];
   if (r.env !== undefined) parts.push('--env', q(r.env));
@@ -79,7 +79,7 @@ export function runCommandLine(cli: string, r: RunSubmitRequest): string {
 
 /** A journal file a preflight opens and never writes (a dry run journals nothing). */
 export function preflightJournal(project: LoadedProject): string {
-  return join(project.dir, '.demo-studio', 'journals', `preflight-${randomUUID()}.json`);
+  return join(project.dir, '.retake', 'journals', `preflight-${randomUUID()}.json`);
 }
 
 /** Steps the run will execute (all, or up to `until`), as the runner counts them. */
@@ -141,7 +141,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
   const fix = runCommandLine(ctx.cli, { ...req, hooks: hooksMode });
   const what = `${req.mode === 'dry' ? 'the dry run' : 'the capture'} of scenario ${prepared.scenario.name}`;
   // The hooks this run executes, checked with trust `mcp` (R-MCP-35): what a safety rule refuses fails the submit; what
-  // needs a human is asked through the client's approver, else refused with the `studio` command a human runs.
+  // needs a human is asked through the client's approver, else refused with the `retake` command a human runs.
   // `hook:` steps (L5.8): each named hook they run is asked about once, wherever its steps are.
   const named = usedNamedHooks(sc, project);
   const hasHooks = hooksMode === 'run' && ((sc.setup?.length ?? 0) > 0 || (sc.teardown?.length ?? 0) > 0 || named.length > 0);
@@ -196,9 +196,9 @@ export interface RunBlocker {
   /** How many: hooks to approve (`needs_approval`), hooks refused (`hook_refused`, `read_only`). */
   count?: number;
   message: string;
-  /** The `studio` command a human runs instead, when there is one. */
+  /** The `retake` command a human runs instead, when there is one. */
   fix?: string;
-  /** The same command for a person without `studio` on their PATH: `node <repository>/packages/cli/dist/bin.js …` (the Studio's view). */
+  /** The same command for a person without `retake` on their PATH: `node <repository>/packages/cli/dist/bin.js …` (the Studio's view). */
   fix_node?: string;
   /** The file must be fixed first (it has errors): no command helps (the Studio's view). */
   fix_file?: true;
@@ -350,9 +350,9 @@ export interface RunJobContext {
 }
 
 /** The environment variable that changes the longest pause of a run (minutes). */
-export const PAUSE_MAX_ENV = 'DEMO_STUDIO_PAUSE_MAX_MIN';
+export const PAUSE_MAX_ENV = 'RETAKE_PAUSE_MAX_MIN';
 
-/** The longest pause (ms): DEMO_STUDIO_PAUSE_MAX_MIN when set (minutes, more than 0 to 1440), else undefined (30 min). */
+/** The longest pause (ms): RETAKE_PAUSE_MAX_MIN when set (minutes, more than 0 to 1440), else undefined (30 min). */
 export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undefined {
   const raw = env[PAUSE_MAX_ENV];
   if (raw === undefined || raw.trim() === '') return undefined;
@@ -424,7 +424,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       {
         runId: input.run_id,
         signal: ctx.signal,
-        loginCommand: (p) => coreLoginCommand(p).replace(/^studio /, `${ctx.cli} `),
+        loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),
         // A queued job came through MCP: the hook files' trust flags do not count; only the approvals taken at submit.
         hookTrust: 'mcp',
         hookVia: agentChannel(input.submitted_by),

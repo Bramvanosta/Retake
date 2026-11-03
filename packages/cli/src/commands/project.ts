@@ -8,8 +8,8 @@ import {
   loginPatternForm,
   resolveEnvironment,
   resolvePersonas,
-} from '@demo-studio/core';
-import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@demo-studio/core';
+} from '@retake/core';
+import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -48,7 +48,7 @@ export function parseEnvOptions(values: readonly string[]): ProjectConfig['envir
 }
 
 /**
- * `studio new <slug>`: create a project. On a terminal without `--env`, it asks for the environments and, for each one,
+ * `retake new <slug>`: create a project. On a terminal without `--env`, it asks for the environments and, for each one,
  * the personas (the accounts the videos are filmed as) and offers to sign each one in (R-AUTH-08) — the slug, the
  * folder and the template are checked before the first question.
  */
@@ -70,15 +70,15 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
   ui.line(c.dim('  scenarios/    one <name>.yaml per video'));
   ui.line(c.dim('  hooks/        sql / http / js / sh files used by setup and teardown'));
   if (Object.keys(environments).length === 0) ui.warn('no environment yet: add one under `environments:` in project.yaml');
-  // Signed in with the workspace's browser settings (studio.yaml `browser`), as `studio login` would.
+  // Signed in with the workspace's browser settings (retake.yaml `browser`), as `retake login` would.
   const code = auth ? await offerSignIn(ui, global, await openProject(ws, project.dir), auth) : EXIT.ok;
-  ui.line(`next: write scenarios/<name>.yaml, then ${c.bold(`studio validate ${project.slug} <name>`)}`);
+  ui.line(`next: write scenarios/<name>.yaml, then ${c.bold(`retake validate ${project.slug} <name>`)}`);
   return code;
 }
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
-/** The questions of `studio new` on a terminal: environments, then the personas of each one. */
+/** The questions of `retake new` on a terminal: environments, then the personas of each one. */
 async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environments']; auth?: Record<string, AuthConfig> }> {
   const ask = ui.io.ask!;
   const confirm = ui.io.confirm!;
@@ -112,7 +112,7 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
   }
   if (Object.keys(environments).length === 0) return { environments };
 
-  ui.line(`${c.bold('Personas')} ${c.dim('— the accounts the videos are filmed as; their sessions stay on this computer (~/.demo-studio), never a password in the project')}`);
+  ui.line(`${c.bold('Personas')} ${c.dim('— the accounts the videos are filmed as; their sessions stay on this computer (~/.retake), never a password in the project')}`);
   const auth: Record<string, AuthConfig> = {};
   for (const [env, pages] of Object.entries(environments)) {
     const keys = Object.keys(pages);
@@ -157,7 +157,7 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
 }
 
 /**
- * After `studio new`: sign each persona in now (a browser window), or say how to later. No answer (Ctrl-C at the
+ * After `retake new`: sign each persona in now (a browser window), or say how to later. No answer (Ctrl-C at the
  * question, the end of the input) or Ctrl-C in a window: that persona and the next ones later; EXIT.interrupted then.
  */
 async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>): Promise<ExitCode> {
@@ -218,7 +218,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
   }
   const c = ui.c;
   ui.result(`${c.bold('Projects')} ${c.dim(ui.path(ws.projectsDir))}`);
-  if (detailed.length === 0) ui.result(c.dim('  none yet — create one with `studio new <slug>`'));
+  if (detailed.length === 0) ui.result(c.dim('  none yet — create one with `retake new <slug>`'));
   const width = Math.max(0, ...detailed.map((p) => p.slug.length));
   for (const p of detailed) {
     const info = p.error

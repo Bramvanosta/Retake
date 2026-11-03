@@ -1,16 +1,16 @@
 /**
- * L3.2 fixture acceptance through MCP (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
- * An SDK client drives `studio mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture
+ * L3.2 fixture acceptance through MCP (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`, several minutes).
+ * An SDK client drives `retake mcp` (spawned from the sources over stdio) on a copy of projects/northfield-fixture
  * (its local environment pointed at the fixture product started on free ports) the way an agent would: capture the
  * `quote` scenario → render it with the editorial theme → review it (clean, the contact sheet received as images) →
  * render it again with the motion theme and the laptop layout (no scenario change) → review it (all images) → export
  * mp4_1080p, gif_preview and vertical_9x16 → job_status. Every render runs guarded: none may report a blocked request.
  * L3.6: between the two renders a person comments the proposal of the editorial render, asking for a laptop frame
- * (`studio comment add --marker proposal --region …`, the CLI in its own process); comments_list returns the anchor (the
+ * (`retake comment add --marker proposal --region …`, the CLI in its own process); comments_list returns the anchor (the
  * marked wait_for step, the marker, the callout overlay) and the still; comment_reply; the motion + laptop render answers
  * it and comment_resolve names it with if_match; listings by status and render. L3.8: the request is one a render
  * answers — a scenario change would need a new capture first (plan_preview says scenario_changed: false here).
- * With DEMO_STUDIO_ACCEPTANCE_KEEP=<folder>, the reviews' sheets, the comment's still and the exports are copied there.
+ * With RETAKE_ACCEPTANCE_KEEP=<folder>, the reviews' sheets, the comment's still and the exports are copied there.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -21,16 +21,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { readWorkerLock } from '@demo-studio/engine';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { linkSharedCache } from '../../editor/test/render-helpers.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames']);
 const tool = (n: string) => spawnSync(n, ['-version'], { stdio: 'ignore' }).status === 0;
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe');
-const KEEP = process.env.DEMO_STUDIO_ACCEPTANCE_KEEP;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1' && tool('ffmpeg') && tool('ffprobe');
+const KEEP = process.env.RETAKE_ACCEPTANCE_KEEP;
 const STEP = 900_000;
 
 type Block = { type: string; text?: string; data?: string; mimeType?: string };
@@ -72,12 +72,12 @@ async function keep(sub: string, files: string[]): Promise<void> {
   for (const f of files) await cp(f, join(dir, f.split('/').pop()!));
 }
 
-describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render → review → comment → theme switch → review → resolve → export (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render → review → comment → theme switch → review → resolve → export (RETAKE_TEST_SLOW=1)', () => {
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-mcp-acceptance-'));
-    await writeFile(join(root, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
+    await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
     const project = join(root, 'projects', 'northfield-fixture');
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
     // The copy's local environment on the fixture's free ports (display URLs unchanged).
@@ -92,12 +92,12 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render �
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '5000' },
+      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
     // A client whose user approves what the server asks (the quote's setup hooks write to the fixture).
-    client = new Client({ name: 'demo-studio-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
+    client = new Client({ name: 'retake-acceptance', version: '0' }, { capabilities: { elicitation: { form: {} } } });
     client.setRequestHandler(ElicitRequestSchema, async (req) => {
       asked.push((req.params as { message: string }).message);
       return { action: 'accept', content: { approve: true } };
@@ -143,11 +143,11 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture → render �
     await keep('editorial', v.files.sheets);
   }, STEP);
 
-  it('a person asks for a laptop frame on the proposal (studio comment add --marker); comments_list returns the anchor and the still; comment_reply', async () => {
+  it('a person asks for a laptop frame on the proposal (retake comment add --marker); comments_list returns the anchor and the still; comment_reply', async () => {
     const out = execFileSync(
       process.execPath,
       ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'comment', 'add', 'northfield-fixture', ids.editorial!, '--marker', 'proposal', '--region', '0.67,0.42,0.12,0.08', '--json', 'Try a laptop frame for the proposal'],
-      { cwd: REPO, env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { cwd: REPO, env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
     expect(added.warnings).toEqual([]);

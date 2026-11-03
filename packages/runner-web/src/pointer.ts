@@ -1,5 +1,5 @@
 import type { Page } from 'playwright-core';
-import type { Pacing, PointSpec } from '@demo-studio/core';
+import type { Pacing, PointSpec } from '@retake/core';
 import type { KitClient } from './session.js';
 import type { TimelineBuilder } from './timeline.js';
 import { Jitter, arcPath, distance, easeInOutCubic, moveDuration, snap } from './motion.js';

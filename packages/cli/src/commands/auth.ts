@@ -1,9 +1,9 @@
 import { resolve } from 'node:path';
-import { listProjects, loginCommand as coreLoginCommand, resolveEnvironment } from '@demo-studio/core';
-import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@demo-studio/engine';
-import type { LoginCommandOf, PersonaState } from '@demo-studio/engine';
-import type { LoadedProject, ResolvedPersona } from '@demo-studio/core';
-import type { PersonaCheckResult } from '@demo-studio/runner-web';
+import { listProjects, loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core';
+import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@retake/engine';
+import type { LoginCommandOf, PersonaState } from '@retake/engine';
+import type { LoadedProject, ResolvedPersona } from '@retake/core';
+import type { PersonaCheckResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -11,22 +11,22 @@ import type { Ui } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
-// Moved into @demo-studio/engine (L3.1); re-exported for the commands that import them from here.
-export { personaState, projectPersonaStates, tildePath } from '@demo-studio/engine';
-export type { PersonaState } from '@demo-studio/engine';
+// Moved into @retake/engine (L3.1); re-exported for the commands that import them from here.
+export { personaState, projectPersonaStates, tildePath } from '@retake/engine';
+export type { PersonaState } from '@retake/engine';
 
 function shellQuote(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** `studio`, with `-C <root>` when the command line named the workspace root: the start of the commands messages print. */
-export function studioCommand(global: GlobalOptions): string {
-  return global.root ? `studio -C ${shellQuote(resolve(global.root))}` : 'studio';
+/** `retake`, with `-C <root>` when the command line named the workspace root: the start of the commands messages print. */
+export function retakeCommand(global: GlobalOptions): string {
+  return global.root ? `retake -C ${shellQuote(resolve(global.root))}` : 'retake';
 }
 
-/** The `studio login` command messages print; with `-C <root>` when the command line named the workspace root. */
+/** The `retake login` command messages print; with `-C <root>` when the command line named the workspace root. */
 export function loginCommandFor(global: GlobalOptions): LoginCommandOf {
-  return (p) => coreLoginCommand(p).replace(/^studio /, `${studioCommand(global)} `);
+  return (p) => coreLoginCommand(p).replace(/^retake /, `${retakeCommand(global)} `);
 }
 
 /** "just now", "42 s ago", "3 min ago", "5 h ago", "2 days ago". */
@@ -40,7 +40,7 @@ export function ago(iso: string, now = Date.now()): string {
   return `${Math.round(s / 86400)} days ago`;
 }
 
-// ── studio login ─────────────────────────────────────────────────────────────
+// ── retake login ─────────────────────────────────────────────────────────────
 
 export interface LoginOptions {
   env?: string;
@@ -58,7 +58,7 @@ function cliLoginError(e: unknown): unknown {
 }
 
 /**
- * Sign one persona in and report it (shared by `studio login` and `studio new`): a headed window, or `auto` (its login
+ * Sign one persona in and report it (shared by `retake login` and `retake new`): a headed window, or `auto` (its login
  * steps, headless). Exit 1 when the check made afterwards (the way a run sees the session) still fails; Ctrl-C closes
  * the window or the browser, saves nothing and exits 130.
  */
@@ -124,7 +124,7 @@ export async function signInPersona(
   }
 }
 
-/** `studio login <project> [--env] [--persona] [--page] [--url] [--auto]`: sign one persona in and save its session. */
+/** `retake login <project> [--env] [--persona] [--page] [--url] [--auto]`: sign one persona in and save its session. */
 export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: LoginOptions): Promise<ExitCode> {
   const project = await openProject(await openWorkspace(global), projectArg);
   let target: ReturnType<typeof loginTarget>;
@@ -136,7 +136,7 @@ export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: st
   return signInPersona(ui, global, project, target.env, target.persona, opts);
 }
 
-// ── studio auth status ───────────────────────────────────────────────────────
+// ── retake auth status ───────────────────────────────────────────────────────
 
 /** "checked 2 min ago (preflight of run …)". */
 export function checkedText(s: Pick<PersonaState, 'checked_at' | 'by' | 'run'>, now = Date.now()): string {
@@ -147,7 +147,7 @@ export function checkedText(s: Pick<PersonaState, 'checked_at' | 'by' | 'run'>, 
       : s.by === 'run'
         ? `expired during run ${s.run ?? '?'}`
         : s.by === 'login'
-          ? 'studio login'
+          ? 'retake login'
           : s.by === 'auth-status'
             ? 'auth status --check'
             : (s.by ?? '');
@@ -163,7 +163,7 @@ export interface AuthStatusOptions {
 }
 
 /**
- * `studio auth status [--project] [--env] [--check] [--json]`: every persona of every project (or one) — valid,
+ * `retake auth status [--project] [--env] [--check] [--json]`: every persona of every project (or one) — valid,
  * expired, never signed in, saved but unchecked, could not be checked — with the time of the last check and the command
  * that signs it in. `--check` re-checks each saved session live (the way a run would, without signing in) and saves
  * the result; exit 1 then when one is not valid.
@@ -188,7 +188,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
     for (const r of await projectPersonaStates(project, command, opts.env)) rows.push({ ...r, project });
   }
   if (opts.check) {
-    const { checkSavedSession, profileLock, writeStatus, PreflightError } = await import('@demo-studio/runner-web');
+    const { checkSavedSession, profileLock, writeStatus, PreflightError } = await import('@retake/runner-web');
     /** Not checked now: nothing of the last check is shown with it. */
     const unchecked = (s: PersonaState, detail: string) => {
       Object.assign(s, { status: 'error', detail });
@@ -215,7 +215,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
         } catch (e) {
           if (stop.interrupted) return EXIT.interrupted;
           if (e instanceof PreflightError && r.persona.profileDir) {
-            // Opened meanwhile (a studio login window?).
+            // Opened meanwhile (a retake login window?).
             const lock = await profileLock(r.persona.profileDir);
             r.state.in_use = lock.pid ? { pid: lock.pid } : {};
             unchecked(r.state, 'not checked');
@@ -250,7 +250,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
   }
   printStates(
     ui,
-    rows.map((r) => ({ ...r.state, recheck: r.persona.check ? `${studioCommand(global)} auth status --project ${r.project.slug} --check` : undefined })),
+    rows.map((r) => ({ ...r.state, recheck: r.persona.check ? `${retakeCommand(global)} auth status --project ${r.project.slug} --check` : undefined })),
   );
   return opts.check && bad ? EXIT.failure : EXIT.ok;
 }
@@ -295,7 +295,7 @@ function printStates(ui: Ui, states: Array<PersonaState & { recheck?: string }>)
           : s.status !== 'valid' && s.recheck
             ? `check it now: ${s.recheck}`
             : undefined;
-    // A profile a browser holds: `studio login` and the check refuse it — that browser is closed first.
+    // A profile a browser holds: `retake login` and the check refuse it — that browser is closed first.
     if (next) ui.result(`${' '.repeat(width + 4)}${c.dim(`→ ${s.in_use ? `close that browser${s.in_use.pid ? ` (pid ${s.in_use.pid})` : ''} first, then ${next}` : next}`)}`);
   }
 }

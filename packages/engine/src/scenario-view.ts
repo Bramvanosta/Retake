@@ -23,8 +23,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@demo-studio/core';
-import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@demo-studio/core';
+import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core';
+import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
@@ -452,7 +452,7 @@ export class ScenarioViews {
   // ── Text layer ──────────────────────────────────────────────────────────
 
   private async projectSig(p: LoadedProject): Promise<string> {
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'studio.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
@@ -693,19 +693,19 @@ function humanPaths(message: string, blocks: ScenarioBlocks): string {
   });
 }
 
-/** The studio command line for a person without `studio` on their PATH: the built entry run by this node. */
+/** The retake command line for a person without `retake` on their PATH: the built entry run by this node. */
 function nodeCommand(fix: string): string | undefined {
-  if (!fix.startsWith('studio ')) return undefined;
+  if (!fix.startsWith('retake ')) return undefined;
   const bin = fileURLToPath(new URL('../../cli/dist/bin.js', import.meta.url));
   if (!existsSync(bin)) return undefined;
   const q = (x: string) => (/^[\w@%+=:,./-]+$/.test(x) ? x : `'${x.replace(/'/g, `'\\''`)}'`);
-  return `${q(process.execPath)} ${q(bin)} ${fix.slice('studio '.length)}`;
+  return `${q(process.execPath)} ${q(bin)} ${fix.slice('retake '.length)}`;
 }
 
 /**
  * Run blockers as the Studio shows them (review B M2, M6, L6): a file with errors gets one blocker saying to fix it
  * first, with no command (the terminal refuses the file too); paths in messages become step / scene words; a command
- * also comes as `node …/bin.js …` for a person without `studio` on their PATH.
+ * also comes as `node …/bin.js …` for a person without `retake` on their PATH.
  */
 function studioBlockers(b: { dry: RunBlocker[]; capture: RunBlocker[] }, blocks: ScenarioBlocks, ok: boolean, issues: ValidationIssue[]): { dry: RunBlocker[]; capture: RunBlocker[] } {
   const errors = issues.filter((i) => i.severity === 'error').length;

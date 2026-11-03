@@ -7,7 +7,7 @@
  *   the one card played, and a re-read of the view with the same values (the window's focus re-reads it) renders none —
  *   counted from React's own commits (the DevTools hook's commit callback, installed before the bundle loads: a card
  *   whose props object changed since the last commit was rendered).
- * `DEMO_STUDIO_UI_SHOTS=<folder>` saves a screenshot there.
+ * `RETAKE_UI_SHOTS=<folder>` saves a screenshot there.
  */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,7 +20,7 @@ import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const P = 'northfield-fixture';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const CARDS = 240;
 /** The first paint of 240 cards, at most (ms; a loaded machine included). */
@@ -29,7 +29,7 @@ let ws: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const renders = () => page.evaluate(() => (window as unknown as { __cardRenders: string[] }).__cardRenders);
 /** Waits until no card rendered for a second (the page settled), then counts from zero. */
@@ -51,12 +51,12 @@ async function quiet(): Promise<void> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-lib-budget-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
-  await writeFile(join(ws, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(ws, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(ws, 'templates'));
   studio = await startStudioServer({ root: ws, startWorker: false, pollMs: 100 });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   // React's DevTools hook (before the bundle loads): each commit, the cards whose props changed were rendered.
@@ -110,8 +110,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

@@ -1,6 +1,6 @@
 /**
  * Entitlements (L3.1 guard-rail, a parked commercial hook — docs/BACKLOG.md): what this installation may do. Today
- * everything, with no limit: Demo Studio is a local tool for its own users. The one place a licence check would answer
+ * everything, with no limit: Retake is a local tool for its own users. The one place a licence check would answer
  * from later; the usage it would compare against is the job history (history.ts).
  */
 export interface Entitlements {

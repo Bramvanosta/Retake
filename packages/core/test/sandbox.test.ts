@@ -30,8 +30,8 @@ import {
   seedHash,
   unmaskedPasswordReason,
   weakPasswordReason,
-} from '@demo-studio/core';
-import type { ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
 import { errors, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
 
 const msgs = (issues: ValidationIssue[]) => issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
@@ -41,7 +41,7 @@ afterEach(async () => {
   while (cleanups.length) await cleanups.pop()!();
 });
 async function temp(): Promise<string> {
-  const t = await tempDir('demo-studio-sandbox-');
+  const t = await tempDir('retake-sandbox-');
   cleanups.push(t.cleanup);
   return t.dir;
 }
@@ -139,7 +139,7 @@ describe('sandbox.yaml: schema and checks (R-SBX-01)', () => {
 
   it('a newer version is refused before anything else; a missing one is required', () => {
     const v2 = parseSandboxYaml('version: 2\nprovider: kubernetes\nservices: 3\n');
-    expect(msgs(v2.issues)).toEqual(['error 1:10 version: this sandbox.yaml is version 2: it was made for a newer Demo Studio (this one reads version 1) — update Demo Studio']);
+    expect(msgs(v2.issues)).toEqual(['error 1:10 version: this sandbox.yaml is version 2: it was made for a newer Retake (this one reads version 1) — update Retake']);
     const none = parseSandboxYaml('provider: process\nservices: {}\n');
     expect(msgs(none.issues)).toEqual(['error 1:1 version: expected 1, got nothing']);
   });
@@ -347,7 +347,7 @@ seed:
 `;
     const { issues } = parseSandboxYaml(text, join(dir, 'sandbox.yaml'), { env: 'sandbox' });
     expect(msgs(errors(issues))).toEqual([
-      `error ${lineOf(text, '  tools:')}:3 services: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it (Demo Studio runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``,
+      `error ${lineOf(text, '  tools:')}:3 services: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it (Retake runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``,
       `error ${lineOf(text, 'service: tools')}:21 seed.0.exec.service: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it, so an exec step cannot run in it — remove its \`profiles\``,
     ]);
     // Not named by sandbox.yaml: a profiled service is simply not started.
@@ -423,7 +423,7 @@ async function workspace(projectYaml: string, files: Record<string, string> = {}
   const root = await temp();
   const dir = join(root, 'projects', 'northfield');
   await mkdir(dir, { recursive: true });
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\n');
   await writeFiles(dir, { 'project.yaml': projectYaml, ...files });
   return dir;
 }

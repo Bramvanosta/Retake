@@ -2,9 +2,9 @@
  * The environment of a jobs worker a client starts (L4.2, critique B5; review A #3, B L5). A dry run or a capture runs
  * in the worker, which keeps the environment it was started with and serves every later job of the workspace — so any
  * client but the CLI (the Studio, an MCP client, a test) hands it a clean one, never more than a worker started from a
- * terminal (`studio worker`) needs:
+ * terminal (`retake worker`) needs:
  *
- * - PATH sanitised like `studio mcp`'s (core clientPath): absolute entries only, none a package manager added for the
+ * - PATH sanitised like `retake mcp`'s (core clientPath): absolute entries only, none a package manager added for the
  *   script it runs (`node_modules/.bin`, corepack), none inside the workspace under any spelling (an agent writes files
  *   there), the node that runs the client first, Homebrew / system folders completed;
  * - no variable a package manager sets for a script (`npm_*`, `pnpm_*`, `INIT_CWD`: `npm_config_*` may carry a
@@ -14,14 +14,14 @@
  * - nothing that makes node or the system load code from the workspace: NODE_OPTIONS naming a file to load
  *   (`--require`, `--import`, `--loader`…: a relative one resolves in the worker's cwd, the workspace), NODE_PATH /
  *   DYLD_* / LD_PRELOAD / LD_LIBRARY_PATH holding a relative entry or one inside the workspace;
- * - DEMO_STUDIO_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace).
+ * - RETAKE_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace).
  *
  * Everything else stays: an automated sign-in's `{{env:NAME}}` secrets (project.yaml) are read by the worker from its
  * environment, as for a worker started in a terminal.
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { clientPath, isUnder, studioHome } from '@demo-studio/core';
+import { OLD_SECRET_ENV, clientPath, isUnder, retakeHome } from '@retake/core';
 
 /** Variables a worker started by a client never gets. */
 export const WORKER_ENV_DROPPED: readonly RegExp[] = [
@@ -31,8 +31,9 @@ export const WORKER_ENV_DROPPED: readonly RegExp[] = [
   /^INIT_CWD$/,
   /^COREPACK_/,
   /^(?:NPM|NODE_AUTH|YARN_NPM_AUTH)_TOKEN$/,
-  // the MCP server's HTTP token
-  /^DEMO_STUDIO_MCP_TOKEN$/,
+  // the MCP server's HTTP token (and its variable from before L5.13: a shell may still export it — R-REN-04)
+  /^RETAKE_MCP_TOKEN$/,
+  ...OLD_SECRET_ENV,
   // models and the agent around them
   /^ANTHROPIC_/,
   /^CLAUDE/,
@@ -79,6 +80,6 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
     out[k] = v;
   }
   out.PATH = clientPath(o.node ?? process.execPath, env.PATH ?? '', o.exists ?? existsSync, root);
-  if (env.DEMO_STUDIO_HOME?.trim()) out.DEMO_STUDIO_HOME = studioHome(env);
+  if (env.RETAKE_HOME?.trim()) out.RETAKE_HOME = retakeHome(env);
   return out;
 }

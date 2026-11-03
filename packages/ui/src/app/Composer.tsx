@@ -12,7 +12,7 @@
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
-import type { FrameCommentAnchor } from '@demo-studio/core';
+import type { FrameCommentAnchor } from '@retake/core';
 import type { ThreadAnswer } from '../server/comment-ops.js';
 import { CallError, call, errorText } from './api.js';
 import { Txt } from './bits.js';

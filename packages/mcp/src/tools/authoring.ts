@@ -11,9 +11,9 @@
  * scenario_save. Never the start of the main authoring path (page_inspect → write the YAML → validate → save → run_dry).
  */
 import { z } from 'zod';
-import { SCRIPT_MARKDOWN_MAX } from '@demo-studio/core';
-import type { ScriptIssue, ValidationIssue } from '@demo-studio/core';
-import type { Engine, JobRecord, RecordJobResult } from '@demo-studio/engine';
+import { SCRIPT_MARKDOWN_MAX } from '@retake/core';
+import type { ScriptIssue, ValidationIssue } from '@retake/core';
+import type { Engine, JobRecord, RecordJobResult } from '@retake/engine';
 import { envName, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';

@@ -8,7 +8,7 @@
  *   projects/northfield-fixture/assets/check-badge.json  Lottie overlay
  *   packages/components/preview/media-sample.png, lottie-sample.json (+ samples.json `media.image` / `media.lottie`):
  *     the samples of the studio/media and studio/lottie previews.
- * With `--prores` it also writes projects/northfield-fixture/.demo-studio/sparkle-burst.mov (ProRes 4444 with alpha; ≈ 3.5 MB,
+ * With `--prores` it also writes projects/northfield-fixture/.retake/sparkle-burst.mov (ProRes 4444 with alpha; ≈ 3.5 MB,
  * git-ignored) — the same burst for trying the ProRes path.
  *
  * The Remotion project is fixtures/own-media/src/index.tsx — a stand-in for the user's own motion design (any tool, or
@@ -66,8 +66,8 @@ try {
   await renderMedia({ serveUrl, composition: burst, codec: 'vp9', imageFormat: 'png', pixelFormat: 'yuva420p', crf: 30, outputLocation: join(ASSETS, 'sparkle-burst.webm'), browserExecutable, muted: true });
   console.log(`sparkle-burst.webm ${await kb(join(ASSETS, 'sparkle-burst.webm'))}`);
   if (prores) {
-    await renderMedia({ serveUrl, composition: burst, codec: 'prores', proResProfile: '4444', imageFormat: 'png', pixelFormat: 'yuva444p10le', outputLocation: join(ROOT, 'projects', 'northfield-fixture', '.demo-studio', 'sparkle-burst.mov'), browserExecutable, muted: true });
-    console.log(`.demo-studio/sparkle-burst.mov ${await kb(join(ROOT, 'projects', 'northfield-fixture', '.demo-studio', 'sparkle-burst.mov'))} (git-ignored)`);
+    await renderMedia({ serveUrl, composition: burst, codec: 'prores', proResProfile: '4444', imageFormat: 'png', pixelFormat: 'yuva444p10le', outputLocation: join(ROOT, 'projects', 'northfield-fixture', '.retake', 'sparkle-burst.mov'), browserExecutable, muted: true });
+    console.log(`.retake/sparkle-burst.mov ${await kb(join(ROOT, 'projects', 'northfield-fixture', '.retake', 'sparkle-burst.mov'))} (git-ignored)`);
   }
 
   // Lottie animations (hand-written bodymovin JSON).

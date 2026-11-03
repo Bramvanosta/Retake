@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { readOnlyHookMessage, rollbackWriteReason, writeJson } from '@demo-studio/core';
+import { readOnlyHookMessage, rollbackWriteReason, writeJson } from '@retake/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { executeRollback } from './kinds/index.js';
 import { logger, redactText } from './secrets.js';
@@ -10,24 +10,24 @@ import { isRecord, nowIso } from './util.js';
 
 export const JOURNAL_FILE = 'hooks-journal.json';
 /**
- * Journals of hooks run outside a capture (`studio hooks run`, `studio env reset`), relative to the project dir:
- * `<project>/.demo-studio/journals/<id>.json` — kept out of runs/ so they never look like runs (git-ignored).
+ * Journals of hooks run outside a capture (`retake hooks run`, `retake env reset`), relative to the project dir:
+ * `<project>/.retake/journals/<id>.json` — kept out of runs/ so they never look like runs (git-ignored).
  */
-export const JOURNALS_DIR = '.demo-studio/journals';
+export const JOURNALS_DIR = '.retake/journals';
 
 export interface JournalLocations {
   /** Default `<projectDir>/runs`: run journals are `<runsDir>/<run-id>/hooks-journal.json`. */
   runsDir?: string;
-  /** Default `<projectDir>/.demo-studio/journals`: standalone journals are `<journalsDir>/<id>.json`. */
+  /** Default `<projectDir>/.retake/journals`: standalone journals are `<journalsDir>/<id>.json`. */
   journalsDir?: string;
 }
 
-/** Journal file of a standalone hooks run (`studio hooks run`, `studio env reset`). */
+/** Journal file of a standalone hooks run (`retake hooks run`, `retake env reset`). */
 export function standaloneJournalFile(projectDir: string, id: string, opts: JournalLocations = {}): string {
   return join(opts.journalsDir ?? join(projectDir, JOURNALS_DIR), `${id}.json`);
 }
 
-/** The journal of `id`: a run's `runs/<id>/hooks-journal.json`, else `.demo-studio/journals/<id>.json`; null when neither exists. */
+/** The journal of `id`: a run's `runs/<id>/hooks-journal.json`, else `.retake/journals/<id>.json`; null when neither exists. */
 export function findJournal(projectDir: string, id: string, opts: JournalLocations = {}): string | null {
   const run = join(opts.runsDir ?? join(projectDir, 'runs'), id, JOURNAL_FILE);
   if (existsSync(run)) return run;
@@ -75,7 +75,7 @@ function validate(value: unknown, file: string): JournalFile {
 
 /**
  * Rollback journal of executed hooks, persisted atomically as JSON after every change
- * (runs/<id>/hooks-journal.json for captures, .demo-studio/journals/<id>.json for standalone hook runs).
+ * (runs/<id>/hooks-journal.json for captures, .retake/journals/<id>.json for standalone hook runs).
  * Not safe for concurrent use by several processes.
  */
 export class Journal {
@@ -196,7 +196,7 @@ export class Journal {
     };
     const label = `rollback of #${entry.seq} (${entry.description})`;
     // L1.7: a replay writes on the environment the hook ran in — checked against that environment's access, not the
-    // command's (`studio env reset` on a read-write environment never replays a production write without --allow-writes).
+    // command's (`retake env reset` on a read-write environment never replays a production write without --allow-writes).
     const access = (entry.env !== undefined ? ctx.accessOf?.(entry.env) : undefined) ?? ctx.access;
     const writes = access?.mode === 'read-only' ? rollbackWriteReason(action) : null;
     if (access && writes) {
@@ -261,7 +261,7 @@ async function listJsonFiles(dir: string): Promise<string[]> {
 
 /**
  * Journals with pending rollbacks, from both locations: `<projectDir>/runs/<run-id>/hooks-journal.json` (captures)
- * and `<projectDir>/.demo-studio/journals/<id>.json` (`studio hooks run`, `studio env reset`), most recent first
+ * and `<projectDir>/.retake/journals/<id>.json` (`retake hooks run`, `retake env reset`), most recent first
  * (ids start with a timestamp). Journals that cannot be read are included so the caller surfaces their error when
  * opening them.
  */

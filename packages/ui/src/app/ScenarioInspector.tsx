@@ -17,8 +17,8 @@
  * Every value from the file or the filmed site is a text node (`Txt` / a kit slot).
  */
 import type { ReactNode } from 'react';
-import type { EntryBlock, HookBlock, SceneBlock, StepBlock, StepForms, VideoBlock } from '@demo-studio/core';
-import type { StepBinding } from '@demo-studio/engine';
+import type { EntryBlock, HookBlock, SceneBlock, StepBlock, StepForms, VideoBlock } from '@retake/core';
+import type { StepBinding } from '@retake/engine';
 import { Txt, plural, shown, visibleControls } from './bits.js';
 import { hrefTo } from './route.js';
 import { IssueLines } from './StepEditing.js';

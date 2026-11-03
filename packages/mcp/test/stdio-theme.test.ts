@@ -1,5 +1,5 @@
 /**
- * L3.5 a theme from brand files through `studio mcp` (spawned from the sources over stdio, driven by the SDK client),
+ * L3.5 a theme from brand files through `retake mcp` (spawned from the sources over stdio, driven by the SDK client),
  * in a temporary workspace: template_create_from_brand with the user's files in brand/ → template_list shows the new
  * theme (`workspace`) → template_preview renders its stills through the existing preview job (images inline) → a
  * second call with replace: true changes it while nobody edited it. Refusals over stdio: a starter name, an
@@ -15,8 +15,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { LIBRARY_DIR } from '@demo-studio/components';
-import { readWorkerLock } from '@demo-studio/engine';
+import { LIBRARY_DIR } from '@retake/components';
+import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
 
@@ -52,7 +52,7 @@ beforeAll(async () => {
   libraryBefore = await folderHash(LIBRARY_DIR);
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-theme-'));
   await mkdir(join(root, 'templates'), { recursive: true });
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   await mkdir(join(root, 'projects', 'demo', 'scenarios'), { recursive: true });
   await writeFile(join(root, 'projects', 'demo', 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
   // The user's brand files (here: the starters' placeholder artwork and OFL fonts under other names).
@@ -69,11 +69,11 @@ beforeAll(async () => {
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', DEMO_STUDIO_HOME: join(root, '.home'), DEMO_STUDIO_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
-  client = new Client({ name: 'demo-studio-test', version: '0' }, { capabilities: {} });
+  client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
   await client.connect(transport);
 }, 120_000);
 
@@ -99,7 +99,7 @@ const brand = {
   brand: { name: 'Harbor', url: 'harbor.test' },
 };
 
-describe('studio mcp: a theme from brand files', () => {
+describe('retake mcp: a theme from brand files', () => {
   it('lists template_create_from_brand: writes files (a replace removes a folder: destructive), no open world, its input schema strict', async () => {
     const { tools } = await client.listTools();
     const t = tools.find((x) => x.name === 'template_create_from_brand');
@@ -159,7 +159,7 @@ describe('studio mcp: a theme from brand files', () => {
     [{ name: 'other1', logo: 'projects/demo/scenarios/logo.svg' }, /scenarios\/ of project demo, a folder an agent can write/],
     [{ name: 'other2', logo: 'brand/evil.svg' }, /an SVG this tool does not copy — a href to something other than a fragment/],
     [{ name: 'other3', logo: '../outside.svg' }, /goes out with/],
-    [{ name: 'other4', logo: '.demo-studio/cache/x.svg' }, /hidden folder/],
+    [{ name: 'other4', logo: '.retake/cache/x.svg' }, /hidden folder/],
   ])('refused over stdio: %j', async (over, why) => {
     const r = await call('template_create_from_brand', { ...brand, ...over });
     expect(r.isError).toBe(true);

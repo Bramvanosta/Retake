@@ -1,5 +1,5 @@
 /**
- * `studio login` (L1.6, docs/DESIGN.md §3.6): sign one persona in and save its session — its master profile (this is
+ * `retake login` (L1.6, docs/DESIGN.md §3.6): sign one persona in and save its session — its master profile (this is
  * its only writer), its snapshot (cookies, session cookies included, and localStorage) and the status of a check made
  * the way a run makes it (on a copy of the master plus the snapshot's cookies). Headed: a visible window the user signs
  * in with (SSO, 2FA…), closed by the user; auto: the persona's login steps, headless (tests, CI, a quick refresh). Both
@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Page } from 'playwright-core';
-import { LEGACY_PERSONA, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@demo-studio/core';
-import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext } from '@demo-studio/core';
+import { LEGACY_PERSONA, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
+import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext } from '@retake/core';
 import {
   autoLogin,
   checkPersona,
@@ -132,7 +132,7 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
 }
 
 /**
- * Sign a persona in (`studio login`): refuses a master profile open in another browser; signs in on the master (a
+ * Sign a persona in (`retake login`): refuses a master profile open in another browser; signs in on the master (a
  * `storage_state` persona: on a temporary profile, only the snapshot is kept), starting from the saved session as a run
  * does (the snapshot's cookies; all of it for a `storage_state` persona); writes the snapshot (0600) and, when the
  * persona has a check, the status of a check made on a copy + the snapshot — exactly what the next run will see. A
@@ -143,7 +143,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
   const p = o.persona;
   const log: Log = o.log ?? (() => undefined);
   if (o.mode === 'auto' && !p.login?.length) {
-    throw new RunnerError(`${personaLabel(p)} declares no login steps (auth.personas.${p.name}.login): sign in by hand — studio login without --auto`);
+    throw new RunnerError(`${personaLabel(p)} declares no login steps (auth.personas.${p.name}.login): sign in by hand — retake login without --auto`);
   }
   throwIfAborted(o.signal);
   const master = p.session === 'profile' ? p.profileDir : undefined;
@@ -151,7 +151,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
     const lock = await profileLock(master);
     if (lock.state === 'live') {
       throw new RunnerError(
-        `the profile of ${personaLabel(p)} is open in another browser${lock.pid ? ` (pid ${lock.pid})` : ''} — another studio login window, or a browser started on it? Close it, then try again`,
+        `the profile of ${personaLabel(p)} is open in another browser${lock.pid ? ` (pid ${lock.pid})` : ''} — another retake login window, or a browser started on it? Close it, then try again`,
       );
     }
   }
@@ -170,7 +170,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
   // profile closes), a storage_state persona all of it.
   const applied: StorageStateFile | undefined = saved ? (master ? { cookies: saved.cookies ?? [] } : { cookies: saved.cookies ?? [], origins: saved.origins ?? [] }) : undefined;
   const firstProfile = master !== undefined && !(await isProfileDir(master));
-  const temp = master ? null : await mkdtemp(join(tmpdir(), 'demo-studio-login-'));
+  const temp = master ? null : await mkdtemp(join(tmpdir(), 'retake-login-'));
   if (temp) registerSessionCopy(temp);
   const userDataDir = master ?? temp!;
   let state: StorageStateFile;
@@ -187,7 +187,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
     }
     throwIfAborted(o.signal);
   } catch (e) {
-    // A first sign-in that fails leaves nothing (`studio auth status` says "never", not "saved, never checked").
+    // A first sign-in that fails leaves nothing (`retake auth status` says "never", not "saved, never checked").
     if (firstProfile && master) await rm(master, { recursive: true, force: true }).catch(() => undefined);
     throw e;
   } finally {

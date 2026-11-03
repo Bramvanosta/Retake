@@ -15,8 +15,8 @@ import {
   hasErrors,
   keyString,
   locatedIssue,
-} from '@demo-studio/core';
-import type { ComponentKind, LocatedIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { ComponentKind, LocatedIssue } from '@retake/core';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
 import { ANCHOR_KEYS, GEOMETRY_BUILTINS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
@@ -219,7 +219,7 @@ export const ComponentManifestFileSchema = z
           .regex(KIT_RANGE_RE, { error: (iss) => `engines.kit must be a kit API major such as "1" or "^1", got ${JSON.stringify(iss.input)}` })
           .describe('The kit API major the component was written for: "1" or "^1".'),
       })
-      .describe('What the component needs from Demo Studio (absent: kit API 1).')
+      .describe('What the component needs from Retake (absent: kit API 1).')
       .optional(),
     slots: z
       .record(keyString('slot name'), SlotSpecSchema)
@@ -273,7 +273,7 @@ export const ComponentManifestFileSchema = z
       .describe('Sample values used to render previews with any theme.')
       .optional(),
   })
-  .meta({ id: 'ComponentManifest', title: 'Demo Studio component', description: 'component.yaml' });
+  .meta({ id: 'ComponentManifest', title: 'Retake component', description: 'component.yaml' });
 
 export type ComponentManifestFile = z.infer<typeof ComponentManifestFileSchema>;
 

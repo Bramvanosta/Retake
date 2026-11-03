@@ -5,8 +5,8 @@
  */
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, relative, sep } from 'node:path';
-import { newerFormatMessage, FORMAT_VERSIONS } from '@demo-studio/core';
-import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@demo-studio/core';
+import { newerFormatMessage, FORMAT_VERSIONS } from '@retake/core';
+import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RUN_ID_RE, checkRunId } from './refs.js';
 import { LocalStorage } from './storage.js';
@@ -24,7 +24,7 @@ export interface RunSummary {
   steps_done: number;
   steps_total: number;
   stopped_at?: RunRecord['stopped_at'];
-  /** run.json was written by a newer Demo Studio: only its id is trusted. */
+  /** run.json was written by a newer Retake: only its id is trusted. */
   newer?: string;
 }
 

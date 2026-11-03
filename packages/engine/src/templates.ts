@@ -1,6 +1,6 @@
 /**
  * Themes (templates) as clients outside the CLI see them (L3.2, R-MCP-09): the workspace's templates_dir and the
- * starter templates shipped with Demo Studio, with the component each one picks per kind; one theme in detail
+ * starter templates shipped with Retake, with the component each one picks per kind; one theme in detail
  * (template.yaml, its colours, fonts, brand, assets and resolved components). Through MCP a theme is named, switched
  * per render or per scenario, and previewed (template_preview); a new one may be created from brand inputs
  * (brand/create.ts, L3.5) — an existing one is never edited (a human does).
@@ -10,9 +10,9 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath, listTemplates, loadProjectTemplate, loadTemplate } from '@demo-studio/core';
-import type { ComponentKind, LoadedProject, LoadedTemplate, WorkspaceConfig } from '@demo-studio/core';
-import type { ComponentRegistry } from '@demo-studio/components';
+import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath, listTemplates, loadProjectTemplate, loadTemplate } from '@retake/core';
+import type { ComponentKind, LoadedProject, LoadedTemplate, WorkspaceConfig } from '@retake/core';
+import type { ComponentRegistry } from '@retake/components';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
@@ -67,7 +67,7 @@ export function themeAssetProblems(t: LoadedTemplate): string[] {
 
 export interface TemplateSummary {
   name: string;
-  /** workspace: templates_dir; starter: shipped with Demo Studio; project: the folder project.yaml's own template: names. */
+  /** workspace: templates_dir; starter: shipped with Retake; project: the folder project.yaml's own template: names. */
   source: 'workspace' | 'starter' | 'project';
   dir: string;
   /** The project's theme (with `project`). */

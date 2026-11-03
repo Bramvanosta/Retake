@@ -14,8 +14,8 @@ import {
   nightTone,
   roundTo,
   withAlpha,
-} from '@demo-studio/components/kit';
-import type { ComponentProps, LayoutRects, ThemeTokens } from '@demo-studio/components/kit';
+} from '@retake/components/kit';
+import type { ComponentProps, LayoutRects, ThemeTokens } from '@retake/components/kit';
 
 type Params = {
   width: number;

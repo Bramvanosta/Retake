@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { destructiveReason, shellDestructiveCommand, sqlDestructiveKeyword } from '@demo-studio/core';
+import { destructiveReason, shellDestructiveCommand, sqlDestructiveKeyword } from '@retake/core';
 
 describe('destructive hook detection', () => {
   it('SQL statements, not clauses, comments or literals', () => {

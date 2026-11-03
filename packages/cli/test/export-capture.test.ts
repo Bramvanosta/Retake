@@ -1,5 +1,5 @@
 /**
- * `studio export-capture` (L2.13) on the synthetic run of the render tests: a colour-coded capture whose frame n has
+ * `retake export-capture` (L2.13) on the synthetic run of the render tests: a colour-coded capture whose frame n has
  * its own colour and no kept screencast frames (the video fallback), so each clip frame tells which capture frame it
  * shows — at 60 fps every capture frame twice (repeated, not interpolated), the page load of scene b left out. Also
  * the summary, `--json` and the usage errors of `export-capture` and `run --raw`.
@@ -15,9 +15,9 @@ const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 300_000;
 let ws: RenderWorkspace;
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', ws.root, ...args], io);
+  const code = await main(['node', 'retake', '--root', ws.root, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -28,9 +28,9 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
-describe.skipIf(!canRun)('studio export-capture', () => {
+describe.skipIf(!canRun)('retake export-capture', () => {
   it('--fps 60 --json: a clip per scene, each capture frame shown twice, the page load out, from the CFR video', async () => {
-    const r = await studio('export-capture', 'demo', 'latest', '--scenario', 'synthetic', '--fps', '60', '--json');
+    const r = await retake('export-capture', 'demo', 'latest', '--scenario', 'synthetic', '--fps', '60', '--json');
     expect(r.code, r.err).toBe(EXIT.ok);
     const m = JSON.parse(r.out) as {
       settings: { fps: number; frames_from: string; cursor: string };
@@ -58,7 +58,7 @@ describe.skipIf(!canRun)('studio export-capture', () => {
   }, LONG);
 
   it('prints a summary per clip with the markers and the manifest', async () => {
-    const r = await studio('export-capture', 'demo', RUN_ID, '--out', join(ws.root, 'raw-30'));
+    const r = await retake('export-capture', 'demo', RUN_ID, '--out', join(ws.root, 'raw-30'));
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(new RegExp(`raw export of ${RUN_ID} → .*raw-30`));
     expect(r.err).toMatch(/✓ clips\/01-a\.mp4 +1920×1080 30 frames 1\.00 s @ 00:00:00:00/);
@@ -68,18 +68,18 @@ describe.skipIf(!canRun)('studio export-capture', () => {
   }, LONG);
 
   it('reports bad options, a cursor the run cannot give, and raw flags without --raw', async () => {
-    const fps = await studio('export-capture', 'demo', 'latest', '--fps', '25');
+    const fps = await retake('export-capture', 'demo', 'latest', '--fps', '25');
     expect(fps.code).toBe(EXIT.usage);
-    const none = await studio('export-capture', 'demo', 'latest', '--cursor', 'none');
+    const none = await retake('export-capture', 'demo', 'latest', '--cursor', 'none');
     expect(none.code).toBe(EXIT.failure);
     expect(none.err).toContain('--cursor none needs a run captured without it');
-    const missing = await studio('export-capture', 'demo', 'nope');
+    const missing = await retake('export-capture', 'demo', 'nope');
     expect(missing.code).toBe(EXIT.failure);
     expect(missing.err).toContain('run "nope" not found');
-    const stray = await studio('run', 'demo', 'synthetic', '--cursor', 'none');
+    const stray = await retake('run', 'demo', 'synthetic', '--cursor', 'none');
     expect(stray.code).toBe(EXIT.usage);
     expect(stray.err).toContain('--cursor shapes the raw export: add --raw');
-    const dry = await studio('run', 'demo', 'synthetic', '--raw', '--dry');
+    const dry = await retake('run', 'demo', 'synthetic', '--raw', '--dry');
     expect(dry.code).toBe(EXIT.usage);
     expect(dry.err).toContain('--raw exports a capture');
   }, LONG);

@@ -1,19 +1,19 @@
 /**
- * `studio mcp --print-config`: how an MCP client starts this server. GUI clients (Claude desktop) see neither the shell's
+ * `retake mcp --print-config`: how an MCP client starts this server. GUI clients (Claude desktop) see neither the shell's
  * version-manager shims nor Homebrew: the snippet names an absolute Node.js ≥ 22 — a stable alias of it where one exists,
  * so a patch upgrade does not break the registration — and carries a PATH with the folders the tools the engine runs
  * live in (ffmpeg, docker, psql). It also prints the Claude Code plugin route (L3.7: the repository's local marketplace,
- * the `skills/` plugin with its userConfig values); `studio mcp` itself serves with `clientPath` as its PATH.
+ * the `skills/` plugin with its userConfig values); `retake mcp` itself serves with `clientPath` as its PATH.
  */
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { clientPath, studioHome } from '@demo-studio/core';
+import { clientPath, retakeHome } from '@retake/core';
 
 export { clientPath };
 
-export const SERVER_NAME = 'demo-studio';
+export const SERVER_NAME = 'retake';
 /** The plugin and its marketplace (`.claude-plugin/marketplace.json` at the repository root, the plugin in `skills/`). */
-export const PLUGIN_NAME = 'demo-studio';
+export const PLUGIN_NAME = 'retake';
 export const PLUGIN_ID = `${PLUGIN_NAME}@${PLUGIN_NAME}`;
 
 /**
@@ -38,7 +38,7 @@ export function stableNodePath(execPath: string, exists: (p: string) => boolean 
 export interface McpConfigInput {
   /** Workspace root (absolute). */
   root: string;
-  /** The studio entry point (absolute path of packages/cli/dist/bin.js). */
+  /** The retake entry point (absolute path of packages/cli/dist/bin.js). */
   bin: string;
   /** Default: process.execPath, through stableNodePath. */
   node?: string;
@@ -66,7 +66,7 @@ export function mcpServerEntry(o: McpConfigInput): McpServerEntry {
     env: {
       PATH: clientPath(node, env.PATH ?? '', existsSync, o.root),
       // absolute, as the plugin route prints it: a GUI client's cwd is not the shell's
-      ...(env.DEMO_STUDIO_HOME?.trim() ? { DEMO_STUDIO_HOME: studioHome(env) } : {}),
+      ...(env.RETAKE_HOME?.trim() ? { RETAKE_HOME: retakeHome(env) } : {}),
     },
   };
 }
@@ -88,7 +88,7 @@ export function claudeCodeCommand(o: McpConfigInput): string {
 }
 
 /**
- * MCP over HTTP (L4.1): the registration of `studio mcp --http` — a URL and the bearer header, no command. The printed
+ * MCP over HTTP (L4.1): the registration of `retake mcp --http` — a URL and the bearer header, no command. The printed
  * registrations never carry the token itself (review A M1): the `.mcp.json` block names the environment variable
  * Claude Code expands when it reads the file (a project's `.mcp.json` is often committed), and the `claude mcp add`
  * line reads the token file in the shell that runs it (the shell history keeps `$(cat …)`, not the token).
@@ -100,13 +100,13 @@ export interface McpHttpEntry {
 }
 
 /** The environment variable the `.mcp.json` registration reads the token from (Claude Code expands `${…}` there). */
-export const MCP_HTTP_TOKEN_ENV = 'DEMO_STUDIO_MCP_TOKEN';
+export const MCP_HTTP_TOKEN_ENV = 'RETAKE_MCP_TOKEN';
 
 export function mcpHttpEntry(o: { url: string }): McpHttpEntry {
   return { type: 'http', url: o.url, headers: { Authorization: `Bearer \${${MCP_HTTP_TOKEN_ENV}}` } };
 }
 
-/** The `mcpServers` block for .mcp.json with the HTTP registration (the token from $DEMO_STUDIO_MCP_TOKEN). */
+/** The `mcpServers` block for .mcp.json with the HTTP registration (the token from $RETAKE_MCP_TOKEN). */
 export function mcpHttpConfigJson(o: { url: string }): { mcpServers: Record<string, McpHttpEntry> } {
   return { mcpServers: { [SERVER_NAME]: mcpHttpEntry(o) } };
 }
@@ -124,13 +124,13 @@ export function claudeCodeHttpCommand(o: { url: string; tokenFile: string }): st
   return ['claude mcp add --transport http', SERVER_NAME, shellQuote(o.url), '--scope user', '--header', `"Authorization: Bearer ${tokenFromFile(o.tokenFile)}"`].join(' ');
 }
 
-/** The line that gives the `.mcp.json` registration its token: `export DEMO_STUDIO_MCP_TOKEN="$(cat '<token file>')"`. */
+/** The line that gives the `.mcp.json` registration its token: `export RETAKE_MCP_TOKEN="$(cat '<token file>')"`. */
 export function mcpHttpTokenExport(tokenFile: string): string {
   return `export ${MCP_HTTP_TOKEN_ENV}="${tokenFromFile(tokenFile)}"`;
 }
 
 /**
- * The repository folder holding the local plugin marketplace (`.claude-plugin/marketplace.json`) the studio entry point
+ * The repository folder holding the local plugin marketplace (`.claude-plugin/marketplace.json`) the retake entry point
  * belongs to: the first such folder above it, or undefined (an install without the repository's `skills/`).
  */
 export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolean = existsSync): string | undefined {
@@ -152,14 +152,14 @@ export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolea
  * The Claude Code plugin route, two lines: add the repository's marketplace (user settings; a second add is a no-op),
  * then install the plugin from the workspace folder with `--scope local` (enabled in that folder only) and the userConfig
  * values the plugin's .mcp.json starts the server with — the same Node.js, entry point and workspace as `mcpServerEntry`,
- * and `home` when DEMO_STUDIO_HOME is set (the plugin's server gets DEMO_STUDIO_HOME from it). Running the install line
+ * and `home` when RETAKE_HOME is set (the plugin's server gets RETAKE_HOME from it). Running the install line
  * again updates the values.
  */
 export function pluginInstallCommands(o: McpConfigInput & { repo: string }): string[] {
   const e = mcpServerEntry(o);
   const env = o.env ?? process.env;
-  const config: Array<[string, string]> = [['node', e.command], ['studio', e.args[0]], ['workspace', o.root]];
-  if (env.DEMO_STUDIO_HOME?.trim()) config.push(['home', studioHome(env)]);
+  const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[0]], ['workspace', o.root]];
+  if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
   return [
     `claude plugin marketplace add ${shellQuote(o.repo)}`,
     `cd ${shellQuote(o.root)} && claude plugin install ${PLUGIN_ID} --scope local ${config.map(([k, v]) => `--config ${shellQuote(`${k}=${v}`)}`).join(' ')}`,

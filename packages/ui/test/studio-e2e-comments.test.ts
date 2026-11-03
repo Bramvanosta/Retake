@@ -29,7 +29,7 @@
  *   re-render writes the file, queues the render of the thread's take on it (the worker run in this process renders
  *   and reviews it), the thread follows it, "Resolve with v3" resolves with that render; the Resolved filter; Reopen
  *   (the applied proposal offers nothing, said why).
- * No CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -39,10 +39,10 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CommentThread } from '@demo-studio/core';
-import { createEngine, planRenderRequest, runWorker } from '@demo-studio/engine';
-import type { Engine } from '@demo-studio/engine';
-import type { EditPlan, RenderRecord } from '@demo-studio/editor';
+import type { CommentThread } from '@retake/core';
+import { createEngine, planRenderRequest, runWorker } from '@retake/engine';
+import type { Engine } from '@retake/engine';
+import type { EditPlan, RenderRecord } from '@retake/editor';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
@@ -50,7 +50,7 @@ import { BITS_TEXT, bitsTimeline, bitsVideo, readBits, takeWorkspace, writeTake 
 import { parseTimecode, timeExample } from '../src/app/comment-words.js';
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const POLL = { timeout: 30_000 };
 const RUN = '20260101-120000-bits';
 const AUTHOR = 'Studio Person';
@@ -64,7 +64,7 @@ let browser: Browser;
 let page: Page;
 let land: RenderRecord;
 let vert: RenderRecord;
-const saved = { home: process.env.DEMO_STUDIO_HOME, author: process.env.DEMO_STUDIO_AUTHOR };
+const saved = { home: process.env.RETAKE_HOME, author: process.env.RETAKE_AUTHOR };
 const consoleErrors: string[] = [];
 /** render_frame requests: their session ids and how many were in flight at once (at most). */
 const frames = { sessions: new Set<string>(), inFlight: 0, maxInFlight: 0, count: 0 };
@@ -174,8 +174,8 @@ const chipTexts = async (scope: string) => {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-e2e-comments-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  process.env.DEMO_STUDIO_AUTHOR = AUTHOR;
+  process.env.RETAKE_HOME = join(ws, '.home');
+  process.env.RETAKE_AUTHOR = AUTHOR;
   dir = await takeWorkspace(ws);
   await writeTake(dir, 'bits', { run: RUN, text: BITS_TEXT, timeline: bitsTimeline(), codec: 'vp9', seconds: 8 });
   // Part D2's Apply and re-render renders for real: the repository's bundle cache (no rebundle per test file).
@@ -188,7 +188,7 @@ beforeAll(async () => {
   const vp = await planRenderRequest(studio.engine.workspace, 'studio', { project: 'demo', scenario: 'bits', run_id: RUN, overrides: { variant: 'vertical', scale: 0.5 } });
   vert = await writeRender('bits-v2-vertical', 2, vp.planned.plan, { edit: v.view.hash!, minute: 1 });
   mcp = await createEngine({ root: ws, client: 'mcp', autoStartWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.addInitScript(() => {
@@ -219,7 +219,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  for (const [k, val] of [['DEMO_STUDIO_HOME', saved.home], ['DEMO_STUDIO_AUTHOR', saved.author]] as const) {
+  for (const [k, val] of [['RETAKE_HOME', saved.home], ['RETAKE_AUTHOR', saved.author]] as const) {
     if (val === undefined) delete process.env[k];
     else process.env[k] = val;
   }

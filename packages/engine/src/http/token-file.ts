@@ -1,7 +1,7 @@
 /**
- * The stable token of MCP over HTTP (L4.1, R-MCP-02): `<studio home>/mcp-http.token`, so Claude Code registers the
- * server once (`studio mcp --print-config --http`) and the registration survives restarts — unlike the Studio's
- * per-launch token. One per studio home (a person), whatever the workspace or port.
+ * The stable token of MCP over HTTP (L4.1, R-MCP-02): `<Retake home>/mcp-http.token`, so Claude Code registers the
+ * server once (`retake mcp --print-config --http`) and the registration survives restarts — unlike the Studio's
+ * per-launch token. One per Retake home (a person), whatever the workspace or port.
  *
  * - Created atomically: a 0600 temporary file (chmod: the umask never widens it) hard-linked into place, so two
  *   starts never write two tokens; the loser reads the winner's.
@@ -11,20 +11,20 @@
  *   else (a link, 0644, another owner, garbage) is refused, never followed or repaired silently.
  *
  * Whoever holds it reaches the 45 MCP tools of the workspace a server serves and answers its approval forms (as any
- * MCP client of `studio mcp` over stdio does): it is a secret of the person, like their shell.
+ * MCP client of `retake mcp` over stdio does): it is a secret of the person, like their shell.
  */
 import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { studioHome } from '@demo-studio/core';
+import { retakeHome } from '@retake/core';
 import { EngineError } from '../errors.js';
 import { newSecret } from './token.js';
 
 export const MCP_HTTP_TOKEN_FILE = 'mcp-http.token';
 
-/** `<studio home>/mcp-http.token`. */
+/** `<Retake home>/mcp-http.token`. */
 export function mcpHttpTokenFile(env: NodeJS.ProcessEnv = process.env): string {
-  return join(studioHome(env), MCP_HTTP_TOKEN_FILE);
+  return join(retakeHome(env), MCP_HTTP_TOKEN_FILE);
 }
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,512}$/;
@@ -40,9 +40,9 @@ export async function readPrivateToken(file: string): Promise<string | null> {
   }
   const uid = process.getuid?.();
   const unsafe = !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
-  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix: `remove ${file}, then run studio mcp --http again (it writes a new token: register the server again)` });
+  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix: `remove ${file}, then run retake mcp --http again (it writes a new token: register the server again)` });
   const token = (await readFile(file, 'utf8')).trim();
-  if (!TOKEN_RE.test(token)) throw new EngineError('refused', `${file} holds no valid token`, { fix: `run studio mcp --http --rotate-token (then register the server again)` });
+  if (!TOKEN_RE.test(token)) throw new EngineError('refused', `${file} holds no valid token`, { fix: `run retake mcp --http --rotate-token (then register the server again)` });
   return token;
 }
 

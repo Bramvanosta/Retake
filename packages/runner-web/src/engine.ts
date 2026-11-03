@@ -1,5 +1,5 @@
 /**
- * What ran a capture (run.json `engine`, R-PRIN-13): Demo Studio, Node.js, the browser, the OS and the fonts installed
+ * What ran a capture (run.json `engine`, R-PRIN-13): Retake, Node.js, the browser, the OS and the fonts installed
  * on the machine — what makes two machines' takes of one scenario differ (a font missing on a CI runner changes every
  * text the product draws in a system font).
  */
@@ -7,8 +7,8 @@ import { createHash } from 'node:crypto';
 import { readdirSync } from 'node:fs';
 import { homedir, platform, release, arch } from 'node:os';
 import { join } from 'node:path';
-import { DEMO_STUDIO_VERSION } from '@demo-studio/core';
-import type { RunEngine } from '@demo-studio/core';
+import { RETAKE_VERSION } from '@retake/core';
+import type { RunEngine } from '@retake/core';
 
 /** The folders fonts are installed in, per platform (the user's own last). */
 function fontDirs(): Array<{ label: string; dir: string }> {
@@ -69,7 +69,7 @@ export function installedFonts(): RunEngine['fonts'] {
 /** run.json `engine`: everything but the browser, known before it opens (`chromium` is added once it has). */
 export function runEngine(chromium?: string): RunEngine {
   return {
-    demo_studio: DEMO_STUDIO_VERSION,
+    retake: RETAKE_VERSION,
     node: process.versions.node,
     ...(chromium ? { chromium } : {}),
     os: `${platform()} ${release()} ${arch()}`,

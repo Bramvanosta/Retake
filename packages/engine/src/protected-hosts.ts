@@ -6,8 +6,8 @@
  * project may not point at them, and a run, hooks or an environment reset on a read-write environment that does is
  * refused (a human runs it from a terminal, where project.yaml is theirs).
  */
-import { channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, normalizeHost, resolveEnvironment } from '@demo-studio/core';
-import type { AgentChannel, LoadedProject, WorkspaceConfig } from '@demo-studio/core';
+import { channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, normalizeHost, resolveEnvironment } from '@retake/core';
+import type { AgentChannel, LoadedProject, WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
 

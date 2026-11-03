@@ -4,11 +4,11 @@ import type { AddressInfo } from 'node:net';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { DEFAULT_CAPTURE } from '@demo-studio/core';
-import type { LoadedProject, ProjectConfig } from '@demo-studio/core';
-import type { HookContext, HookLogLevel } from '@demo-studio/hooks';
+import { DEFAULT_CAPTURE } from '@retake/core';
+import type { LoadedProject, ProjectConfig } from '@retake/core';
+import type { HookContext, HookLogLevel } from '@retake/hooks';
 
-export async function tempProject(prefix = 'demo-studio-hooks-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+export async function tempProject(prefix = 'retake-hooks-'): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
   return { dir, cleanup: () => rm(dir, { recursive: true, force: true }) };
 }

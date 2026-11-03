@@ -11,8 +11,8 @@ import {
   resolveEnvironment,
   resolvePageUrl,
   resolveSecretRef,
-} from '@demo-studio/core';
-import type { TemplateContext } from '@demo-studio/core';
+} from '@retake/core';
+import type { TemplateContext } from '@retake/core';
 import { fakeProject } from './helpers.js';
 
 const ctx: TemplateContext = {
@@ -24,7 +24,7 @@ const ctx: TemplateContext = {
 
 describe('interpolate', () => {
   afterEach(() => {
-    delete process.env.DEMO_STUDIO_TEST_TOKEN;
+    delete process.env.RETAKE_TEST_TOKEN;
   });
 
   it('pages, vars (prefixed and bare), hooks and run', () => {
@@ -38,12 +38,12 @@ describe('interpolate', () => {
   });
 
   it('env: references', () => {
-    process.env.DEMO_STUDIO_TEST_TOKEN = 's3cret';
+    process.env.RETAKE_TEST_TOKEN = 's3cret';
     const used = new Set<string>();
-    expect(interpolate('Bearer {{env:DEMO_STUDIO_TEST_TOKEN}}', { ...ctx, usedSecrets: used })).toBe('Bearer s3cret');
+    expect(interpolate('Bearer {{env:RETAKE_TEST_TOKEN}}', { ...ctx, usedSecrets: used })).toBe('Bearer s3cret');
     expect([...used]).toEqual(['s3cret']);
     expect(redact('token=s3cret', used)).toBe('token=***');
-    expect(() => interpolate('{{env:DEMO_STUDIO_UNSET_VAR}}', ctx)).toThrow(/DEMO_STUDIO_UNSET_VAR is not set/);
+    expect(() => interpolate('{{env:RETAKE_UNSET_VAR}}', ctx)).toThrow(/RETAKE_UNSET_VAR is not set/);
   });
 
   it('unknown keys throw a TemplateError listing the available keys', () => {
@@ -123,12 +123,12 @@ describe('environments & URLs', () => {
 describe('resolveSecretRef', () => {
   it('a keychain item that cannot be read fails with one line naming the item and the reason', async () => {
     // Reads only (an item that does not exist): macOS `security`, Linux `secret-tool` (or its absence).
-    const err = await resolveSecretRef('keychain:demo-studio-test-missing/none').then(
+    const err = await resolveSecretRef('keychain:retake-test-missing/none').then(
       () => null,
       (e: unknown) => e as Error,
     );
     expect(err).toBeInstanceOf(TemplateError);
-    expect(err!.message).toMatch(/^keychain item demo-studio-test-missing\/none not found \([^()\n]+\)$/);
+    expect(err!.message).toMatch(/^keychain item retake-test-missing\/none not found \([^()\n]+\)$/);
     if (process.platform === 'darwin') expect(err!.message).toContain('could not be found in the keychain');
   });
 });

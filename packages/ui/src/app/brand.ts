@@ -3,4 +3,4 @@
  * the document's `<title>` in bundle.ts). The rename (L5.13) changes this constant; a lint keeps the name out of the
  * shell, the kit, main.tsx and bundle.ts (screen copy is L5.13's).
  */
-export const APP_NAME = 'Demo Studio';
+export const APP_NAME = 'Retake';

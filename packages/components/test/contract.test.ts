@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import * as core from '@demo-studio/core';
-import { COMPONENT_KINDS } from '@demo-studio/components';
-import type { ComponentKind, ComponentManifest, ComponentRef } from '@demo-studio/components';
+import * as core from '@retake/core';
+import { COMPONENT_KINDS } from '@retake/components';
+import type { ComponentKind, ComponentManifest, ComponentRef } from '@retake/components';
 
-describe('@demo-studio/components contract', () => {
-  it('re-exports the component kinds and references of @demo-studio/core (single source of truth)', () => {
+describe('@retake/components contract', () => {
+  it('re-exports the component kinds and references of @retake/core (single source of truth)', () => {
     expect(COMPONENT_KINDS).toBe(core.COMPONENT_KINDS);
     expect([...COMPONENT_KINDS]).toEqual(['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition']);
     // Types are the core ones: a core ComponentRef/ComponentKind is assignable both ways.

@@ -1,16 +1,16 @@
-# Demo Studio — spec for a scripted product-video capture & edit tool (macOS)
+# Retake — spec for a scripted product-video capture & edit tool (macOS)
 
 > Brief for a Claude Code session. Build it in phases; every phase must be usable on its own.
 > The tool is generic: it is not tied to any product or brand. Projects, templates and brand assets live in the user's workspace, never in this repository.
 
 ## 0. Product principles
 
-Demo Studio is a **third-party, product-agnostic tool** (sold as a licence in a V2): it must work with **any web
+Retake is a **third-party, product-agnostic tool** (sold as a licence in a V2): it must work with **any web
 site or product**, not one use case.
 
 - **No client inside the tool.** No customer name, brand, URL, account, asset or data in the code, docs, templates or
   fixtures. Customer material (projects, brand themes, logos, scripts, hooks, profiles) lives in the user's own
-  **workspace** folder, selected with `DEMO_STUDIO_ROOT` or a `studio.yaml` — the tool installation stays clean.
+  **workspace** folder, selected with `RETAKE_ROOT` or a `retake.yaml` — the tool installation stays clean.
 - **Everything is authored, nothing is hard-coded.** Scenarios, themes (templates), framing, captions and motion style
   are data the user (or Claude through the MCP) creates. The tool ships generic starter templates only.
 - **Authoring for any site.** Besides writing YAML by hand: draft scenarios from a timecoded script, inspect a live
@@ -53,7 +53,7 @@ These come from real failures; the design must make them impossible.
 Do **not** start with a native Rust app. The hard parts are browser automation, capture and video composition, which are best served by the TypeScript ecosystem. Native UI comes last and stays thin.
 
 ```
-demo-studio/
+retake/
   packages/
     core/        # scenario parser + validator (YAML + JSON Schema), project model, timeline types
     runner-web/  # Playwright/CDP runner: offscreen Chromium, cursor overlay, actions, screencast → frames → mp4, timeline.json
@@ -63,8 +63,8 @@ demo-studio/
     editor/      # edit planner + Remotion composition that assembles components; renders from timeline + theme
     review/      # contact sheets, key frames, scene thumbnails, diff vs previous render, JSON report
     mcp/         # MCP server (stdio + HTTP) exposing the tools in §8
-    cli/         # `studio run|render|review|new|ui` — everything the MCP does, for humans and CI
-    ui/          # Studio web app (scenario blocks, timeline, comments) served by `studio ui`
+    cli/         # `retake run|render|review|new|ui` — everything the MCP does, for humans and CI
+    ui/          # Studio web app (scenario blocks, timeline, comments) served by `retake ui`
   apps/
     desktop/     # Tauri shell (Rust) around packages/ui — macOS
   templates/     # generic starter themes (brand themes live in the user's workspace)
@@ -94,7 +94,7 @@ projects/<slug>/
   runs/<timestamp>/    # capture.mp4, frames/, timeline.json, logs, screenshots on error
   renders/<name>-vN.mp4
   review/<name>-vN/    # contact sheets, key frames, report.json
-  comments/<scenario>/<thread-id>.json   # frame comments, one file per thread (committed; stills in .demo-studio/comments/)
+  comments/<scenario>/<thread-id>.json   # frame comments, one file per thread (committed; stills in .retake/comments/)
 ```
 
 `project.yaml` example:
@@ -107,7 +107,7 @@ environments:
   production:    # long form: settings + pages; production is read-only (writes stopped or mocked, writing hooks refused)
     production: true
     pages: {console: https://console.example.com, shop: https://shop.example.com}
-auth:            # personas by name: never a password, never a path (sessions stay in ~/.demo-studio, kept by `studio login`)
+auth:            # personas by name: never a password, never a path (sessions stay in ~/.retake, kept by `retake login`)
   staging:
     login_url: /sign-in
     personas:
@@ -121,10 +121,10 @@ mailbox: {provider: mailpit, url: http://localhost:8025}   # optional test mailb
 sandboxes: {sandbox: sandbox/sandbox.yaml}   # L1.8: a sandbox environment (process or docker-compose), reset before each take
 ```
 
-A sandbox (L1.8) is an environment Demo Studio starts, seeds and resets itself: its `sandbox.yaml` declares the
+A sandbox (L1.8) is an environment Retake starts, seeds and resets itself: its `sandbox.yaml` declares the
 services (pages, display URLs, health), the seed, the reset strategy (reseed, or a Postgres snapshot), the databases,
-the mailbox (Mailpit) and demo accounts — the personas of that environment. `studio sandbox up | down | reset | status
-| logs | init`; `studio run … --sandbox` resets it before the take, so every take starts from the same data.
+the mailbox (Mailpit) and demo accounts — the personas of that environment. `retake sandbox up | down | reset | status
+| logs | init`; `retake run … --sandbox` resets it before the take, so every take starts from the same data.
 
 ## 5. Template (brand & motion style)
 
@@ -212,7 +212,7 @@ Target syntax: `text`, `contains`, `role` + `name`, `label`, `aria`, `css`, `in`
 
 ## 8. MCP server (tools)
 
-Built in L3.1 (`studio mcp`, stdio; L4.1: the same tools over Streamable HTTP too, `studio mcp --http` on 127.0.0.1; arguments as the tools publish them — every `project` is a slug, never a path):
+Built in L3.1 (`retake mcp`, stdio; L4.1: the same tools over Streamable HTTP too, `retake mcp --http` on 127.0.0.1; arguments as the tools publish them — every `project` is a slug, never a path):
 - `engine_info`; `project_list`, `project_get({project})`, `project_create({name, slug?, readme?, environments?, template?})`, `project_update_readme({project, markdown, if_match?})` (`if_match` required once README.md exists)
 - `scenario_get({project, name})` → yaml + hash, `scenario_validate({project, yaml, env?, until?, name?})` → issues with line/col, `scenario_save({project, name, yaml, if_match?})` (`if_match` required once the file exists)
 - `run_dry({project, scenario, env?, until?, hooks?, wait_s?})` → the run as it is after `wait_s` (default 20 s): steps, screenshot paths, the failing step's screenshot and DOM paths
@@ -241,7 +241,7 @@ Built in L3.2 (renders, reviews, exports and previews are jobs of the same worke
   `component_validate({component})` → positioned issues, `component_preview({project, component, template?, slots?,
   params?, at_s?, wait_s?})` → a still (960×540) with the theme, slot values (text slots) and params,
   `component_create({id, kind, description, name?})` → a workspace scaffold (refuses `studio/` and built-in ids)
-- previews go to `<workspace>/.demo-studio/previews/<id>/`, never into a component folder; no tool writes component
+- previews go to `<workspace>/.retake/previews/<id>/`, never into a component folder; no tool writes component
   code, a theme or project.yaml, and no tool takes an output location
 
 Built in L3.3 (authoring: Claude writes the scenario itself; no tool calls a model):
@@ -253,7 +253,7 @@ Built in L3.3 (authoring: Claude writes the scenario itself; no tool calls a mod
   the runner's own resolver was checked to resolve to exactly that element (`fragile` flags, `matches`) and an action
   hint as one line of YAML; `within` (a target: the planned `selector?`) limits the list to an element, `targets` (≤ 20)
   checks Claude's own targets. Every element and all page text are under `untrusted`; files in
-  `<project>/.demo-studio/inspect/<id>/` (newest 20 kept); `job_status` follows a long one. CLI: `studio inspect`.
+  `<project>/.retake/inspect/<id>/` (newest 20 kept); `job_status` follows a long one. CLI: `retake inspect`.
 - `scenario_from_script({project, script_markdown, env?, name?})` — an optional aid, only when the user hands a
   timecoded script table (one Markdown pipe table; English or French headers; `M:SS` times and ranges; a type column for
   interstitial / title / outro): an outline and a draft that validates (one `hold` per beat, the action as its `note`,
@@ -264,7 +264,7 @@ Built in L3.3 (authoring: Claude writes the scenario itself; no tool calls a mod
 Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a recording, never drive it):
 - `scenario_record({project, env?, page + path? | url, persona?, scenario?, check?})` → a `record` job, returned at once
   with its id: a headed browser window opens on the user's machine at an environment page (its own origins only, no
-  template); the person performs the flow and closes the window (at most 30 min, `DEMO_STUDIO_RECORD_MAX_MIN`). The
+  template); the person performs the flow and closes the window (at most 30 min, `RETAKE_RECORD_MAX_MIN`). The
   window holds the queue like a headed `auth_login`; Claude tells the user and follows with `job_status` (no other job
   meanwhile). Then a draft scenario is made from what the person did — verified targets, `select` / `pick` / `menu` /
   `drop_file` / `type` / `press` / `scroll` / `wait_for` steps, scenes split where the page changed, empty captions,
@@ -272,10 +272,10 @@ Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a record
   `scenarios/<scenario>.yaml` when the name is free (agent trust), and checked by a headless dry replay (up to the step
   before the first write that reached a server, whatever its host — usually the whole draft on a read-only
   environment, whose writes are stopped or mocked). Typed text holding a `{{…}}` template never reaches the draft. `job_status` returns counts, the saved file
-  and the check as trusted fields and the draft, read from `<project>/.demo-studio/records/<rec_id>/`, under
+  and the check as trusted fields and the draft, read from `<project>/.retake/records/<rec_id>/`, under
   `untrusted` (typed text and page names). The environment's own access (production read-only, never
   `--allow-writes`), no hook, the workspace's protected hosts. `job_cancel` while the window is open discards the
-  recording; a worker signal stops it and keeps it (no check replay). CLI: `studio record` (the primary path).
+  recording; a worker signal stops it and keeps it (no check replay). CLI: `retake record` (the primary path).
 - `template_create_from_brand({name, base?, colors: {accent, text?, paper?, muted?, dark?}, background?, adjust?, logo,
   wordmark?, fonts?: {display?, body?[]}, brand?: {name, url}, replace?})` (L3.5) → a new folder
   `<templates_dir>/<name>/`: template.yaml over the base theme (default editorial; its components, frame, captions,
@@ -284,18 +284,18 @@ Built in L3.4 (recording: a HUMAN shows the flow once; Claude may start a record
   checks and a strict SVG scan, LICENSES.md and a provenance file (sha256 of each file). Files are workspace-relative,
   never in hidden, components or agent-writable folders; the name is lower-case, never a starter's or an existing
   folder's (case ignored); `replace` only of an unchanged theme the tool made. Returns the path, the palette and a
-  `template_preview` hint. CLI: `studio theme create`.
+  `template_preview` hint. CLI: `retake theme create`.
 - `template_from_site({url, wait_s?})` (L3.5) → the USER approves the exact URL first (elicitation; without it:
-  `needs_approval` with `studio theme from-site <url>`), then a `site` job: a clean headless browser whose only network
+  `needs_approval` with `retake theme from-site <url>`), then a `site` job: a clean headless browser whose only network
   is a local CONNECT proxy (public addresses only, port 443, hosts the page requested, GET / HEAD only, caps; no
   WebSocket, WebRTC UDP, service worker, download or navigation away) opens the page; colour swatches by role (paper,
   text, accent, dark) with contrast, font family names (never font files), ≤ 6 logo candidates as transparent PNGs
-  (`site:<id>/logo-<n>`) and a screenshot in `<workspace>/.demo-studio/site/<id>/`; returns them (images of a
+  (`site:<id>/logo-<n>`) and a screenshot in `<workspace>/.retake/site/<id>/`; returns them (images of a
   third-party page; every page string under `untrusted`) with a draft input for `template_create_from_brand` and the
   template.yaml it would make. https, default port, no query or fragment, never an environment page or protected host.
-  CLI: `studio theme from-site` (no approval, the same network rules).
+  CLI: `retake theme from-site` (no approval, the same network rules).
 
-Built in L3.6 (frame comments: a PERSON creates and reopens threads with `studio comment add | reopen`; Claude lists,
+Built in L3.6 (frame comments: a PERSON creates and reopens threads with `retake comment add | reopen`; Claude lists,
 replies and resolves — there is no create or reopen tool, and no input names an author):
 - `comments_list({project, scenario?, render?: id | "latest", status?: open|resolved|all, limit?: 1..100 (20)})` → the
   threads (open first, then the newest renders, then frame): render id and its `created_at`, `render_present`, frame,
@@ -310,7 +310,7 @@ replies and resolves — there is no create or reopen tool, and no input names a
   `conflict` with the current hash) and a `render_id` later than the commented render, of the same scenario. A comment
   may only ask for a change to the video (scenario, overrides, theme): the INSTRUCTIONS say so.
 - L4.6 (engine, part A1): a third channel `via: studio` — the Studio web app creates, replies, resolves and reopens as
-  `studio` (named by the Studio process's `$DEMO_STUDIO_AUTHOR`, else the OS user; never by the page), reopening and
+  `studio` (named by the Studio process's `$RETAKE_AUTHOR`, else the OS user; never by the page), reopening and
   resolving on the thread's hash and commenting the render it showed (`render_created_at`); the MCP still cannot create
   or reopen. `studio` is a channel (the Studio page holding its token), not proof of a person (BL-106). The engine also
   gives the Studio a render's exact frames (`renders.frame` / `renders.outline`: the video's own fps and frame count,
@@ -365,7 +365,7 @@ with progress notifications, and `*_status` follows. Every tool returns a short 
 structured data with file paths; text that comes from the filmed site is kept under `untrusted`. Hooks or seed steps
 that are destructive or run shell commands, and setup hooks whose rollback is destructive, shell or JavaScript, need a
 human approval through MCP elicitation (`confirm: true` in a file does not count), else the call is refused with the
-`studio` command a human runs. Through MCP a scenario names no secret (`{{env:…}}` / `{{keychain:…}}`: only
+`retake` command a human runs. Through MCP a scenario names no secret (`{{env:…}}` / `{{keychain:…}}`: only
 project.yaml and hooks/ files resolve them), references no file outside its project nor runs code from a file the agent
 can write, and nothing runs read-write on a host of another project's production or read-only environment.
 Renders through MCP (L3.2) read only files of the project, the run and the theme folder (checked before anything is
@@ -376,16 +376,16 @@ Previews run with the same guard. A render (a preview, an export's re-render) re
 mid-render leaves it running until the next worker starts, marks the job interrupted and kills it (a reused pid is
 never killed).
 
-Built in L3.7 (Claude skills, `skills/`): `demo-studio-scenario` (inspect → write → `scenario_validate` →
+Built in L3.7 (Claude skills, `skills/`): `retake-scenario` (inspect → write → `scenario_validate` →
 `scenario_save` → `page_inspect {until}` → `run_dry` → capture → render → review; the recorder and the script table as
-alternatives; the frame-comments loop), `demo-studio-theme` (brand files in the workspace or `template_from_site` on a
+alternatives; the frame-comments loop), `retake-theme` (brand files in the workspace or `template_from_site` on a
 site the user named → `template_create_from_brand` → `template_preview` → render → review) and
-`demo-studio-component` (an existing component first → `component_create` → code edited with the user's agreement,
+`retake-component` (an existing component first → `component_create` → code edited with the user's agreement,
 renderer primitives through the kit → `component_validate` → `component_preview` in the user's theme → render). Skills
 are instructions only (frontmatter `name` + `description`, no pre-approved tools): every gate stays in the tools, and
-their Rules make a refusal or an approval request final and forbid running the `studio` CLI through Claude's shell for
+their Rules make a refusal or an approval request final and forbid running the `retake` CLI through Claude's shell for
 anything a tool refused, asked approval for or does not offer. `skills/` is also a Claude Code plugin (its
-`.mcp.json` starts `studio mcp` from userConfig values; a local marketplace at the repository root; installed per
+`.mcp.json` starts `retake mcp` from userConfig values; a local marketplace at the repository root; installed per
 workspace with `--scope local`); a deterministic lint checks the skills against the tools' schemas, the CLI's help,
 the scenario and component validators and the files.
 
@@ -403,7 +403,7 @@ the scenario and component validators and the files.
 `review/<render>/`: `sheet_1fps.jpg` (labelled timecodes), `sheet_scene_<id>.jpg`, `keyframes/<marker>.png`, `timeline.json`, `report.json` (scene durations, detected blank frames, caption overlaps, warnings). The MCP `review` tool returns these so an agent can verify before showing the user.
 
 Through MCP (L3.2) the paths come as data and a few images come inline: JPEG thumbnails made on read (≤ 1280 px, at
-most 4 images and 1.5 MB of base64 per result by default, `DEMO_STUDIO_MCP_MAX_IMAGES` / `_MAX_IMAGE_BYTES` /
+most 4 images and 1.5 MB of base64 per result by default, `RETAKE_MCP_MAX_IMAGES` / `_MAX_IMAGE_BYTES` /
 `_IMAGE_PX`), each after a text label; the rest are listed as files to read. `review_get` inlines the contact sheet
 pages and the marker key frames (`images: "all"` adds scene sheets, every key frame and the diff sheet; `"none"`
 none); previews inline their stills. Images are never stored as base64 (job.json, report.json); text inside an image is
@@ -433,20 +433,20 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
   another one is not loaded, its uses fall back.
 - Sources, in resolution order: the workspace (`components/`, created by the user or by Claude through a skill), the
   tool's built-in library, and — V2 — a cloud marketplace (manifests already carry publisher/version for it).
-- Authoring: a Claude skill (`demo-studio-component`) + MCP tools (`component_list`, `component_get`,
+- Authoring: a Claude skill (`retake-component`) + MCP tools (`component_list`, `component_get`,
   `component_create`, `component_preview`, `component_validate`) scaffold, preview with a theme and validate new
   components. Component code is never written through MCP: `component_create` writes the tool's own scaffold (it
   refuses the `studio/` namespace and any built-in id — a workspace component of that id would replace the built-in in
   every render); the code is then edited by the user, or by Claude Code's own file tools with the user's permission
   (component code runs in the render's Chromium — the compile check's import scan can be evaded, the network guard
-  still applies). MCP previews are written to `.demo-studio/previews/`, never to the committed `preview.png`.
+  still applies). MCP previews are written to `.retake/previews/`, never to the committed `preview.png`.
 - Themes are edited by people, in the Studio's theme editor (L4.7): each change one verified write to template.yaml
   (an allow-list of fields, the file's comments kept, undo / redo to the exact bytes), on a workspace theme only —
   starters and anything shipped with the tool are copied first. Through MCP, Claude makes new themes and never edits an
   existing one. A scenario picks a theme with `template:` (the Studio's *Use in this scenario*, or Claude through
   `scenario_save`): every existing take of it uses that theme at its next render; project.yaml's theme stays a hand edit.
 - The library's previews (L4.7): a poster and a looping GIF per component and theme, rendered by the jobs worker in the
-  render's guarded browser and cached in `.demo-studio/cache/previews/` by a key over every file they depend on; the
+  render's guarded browser and cached in `.retake/cache/previews/` by a key over every file they depend on; the
   committed `preview.png` of a built-in is its poster in the editorial starter. Measured: about 1.5 s per loop once the
   worker has its bundle; the 41 built-ins' loops in about 80 s, 8 MB. One workspace component that does not compile or
   throws as it loads fails alone (the others are rendered with their own components); its failure is asked again by
@@ -455,9 +455,9 @@ badges) and transitions. Nothing visual is hard-coded in the editor: it assemble
 
 ## 12. Studio app (web UI, then the Tauri desktop shell)
 
-A client of the same packages (the MCP keeps working without it). Served locally by `studio ui`; the Tauri app
+A client of the same packages (the MCP keeps working without it). Served locally by `retake ui`; the Tauri app
 (phase 5, macOS) wraps the same UI. Built in L5.2 (`apps/desktop`, `pnpm desktop:build`): a window on the workspace's
-own `studio ui --supervised` server, the native menu, a workspace picker, Quit stopping the server it owns — the same
+own `retake ui --supervised` server, the native menu, a workspace picker, Quit stopping the server it owns — the same
 UI, Rust only for OS glue, no token in the shell (README "Desktop app (macOS)", DESIGN §4j).
 - **Projects**: list, README editor, themes & component gallery (previews rendered with the project theme, and a short
   animated preview per component so motion can be judged without a render). Built in L4.7 part D1 (the library screen,
@@ -504,7 +504,7 @@ UI, Rust only for OS glue, no token in the shell (README "Desktop app (macOS)", 
   Sessions panel on the project page. Part D: a capture paused between steps does not film the pause (the capture
   clock stands still while its recorders are off; the video goes on at the first fresh frame after the resume; the
   page keeps running meanwhile, so what moved shows as a jump there). Part E: the whole loop accepted on the fixture
-  from the built `studio ui` (dry runs watched, paused and stopped, a capture shown and paused, a capture Claude
+  from the built `retake ui` (dry runs watched, paused and stopped, a capture shown and paused, a capture Claude
   started through MCP watched, the Sessions panel's headed Sign in and Cancel, the confirmation with an expired
   persona); the live picture measured at ≈ +15 % Chromium CPU on a capture (DESIGN §4f), so it stays off by default
   there, and a capture filmed while it was watched says so (`perf.live_preview`); the picture letterboxed in its box.
@@ -549,7 +549,7 @@ UI, Rust only for OS glue, no token in the shell (README "Desktop app (macOS)", 
   with their review's verdict (clean / warnings / errors) and whether they show the version on screen, and a render's
   review: its findings (a finding seeks the preview when the render is of the version shown) and its contact sheets as
   images — every answer path-free, a sheet read by name without following a link, JPEG only, capped. Accepted in L4.5
-  part F from the built `studio ui` in the installed Chrome on a fixture capture (capture from the screen, timeline,
+  part F from the built `retake ui` in the installed Chrome on a fixture capture (capture from the screen, timeline,
   scrub and play at ≈ 30 frames / s, seeks settled in ≈ 0.1 s, a layout and the caption component switched and undone
   to the exact bytes, render and review from the timeline); the preview matches the render frame for frame but for text
   antialiasing and the capture's colours (a few levels brighter in the preview). Cut: editing extras (BL-107), preview

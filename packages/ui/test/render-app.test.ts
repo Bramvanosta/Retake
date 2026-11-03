@@ -6,7 +6,7 @@
  * theme files (a render with other options, fps, variant or theme files never seeks the preview).
  */
 import { describe, expect, it } from 'vitest';
-import type { ScenarioRenderJobView, ScenarioRendersView } from '@demo-studio/engine';
+import type { ScenarioRenderJobView, ScenarioRendersView } from '@retake/engine';
 import { findingAt, findingFrame, jobVersionNote, jobWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords } from '../src/app/render-words.js';
 
 const H = 'a'.repeat(64);

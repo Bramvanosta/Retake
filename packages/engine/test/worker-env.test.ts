@@ -13,18 +13,18 @@ import type { WorkerSpawnFn } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
 let ws: string;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   ws = await realpath(await mkdtemp(join(tmpdir(), 'engine-worker-env-')));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   await mkdir(join(ws, 'bin'), { recursive: true });
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(ws, { recursive: true, force: true });
 });
 
@@ -36,7 +36,7 @@ describe('cleanWorkerEnv', () => {
       INIT_CWD: 'x',
       NPM_TOKEN: 'x',
       NODE_AUTH_TOKEN: 'x',
-      DEMO_STUDIO_MCP_TOKEN: 'x',
+      RETAKE_MCP_TOKEN: 'x',
       ANTHROPIC_API_KEY: 'x',
       ANTHROPIC_AUTH_TOKEN: 'x',
       CLAUDE_CODE_OAUTH_TOKEN: 'x',
@@ -118,7 +118,7 @@ describe('every client but the CLI starts its worker with it', () => {
     const env = await spawned('mcp');
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect((env.PATH ?? '').split(delimiter)).not.toContain(join(ws, 'bin'));
-    expect(env.DEMO_STUDIO_HOME).toBe(join(ws, '.home'));
+    expect(env.RETAKE_HOME).toBe(join(ws, '.home'));
   });
 
   it('the CLI: its own environment (a person at a terminal)', async () => {

@@ -6,9 +6,9 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { LIBRARY_DIR, loadComponentRegistry, parseManifest } from '@demo-studio/components';
-import type { ComponentProps, LottieMedia, PictureMedia, VideoMedia } from '@demo-studio/components';
-import { AUTO_COVER_MIN_SHARE, autoFit, backgroundCss, lottieFrames, mediaBackground, mediaLength, nightTone, parseColor01, recolorLottie, themeColorMap, videoPartFrames } from '@demo-studio/components/kit';
+import { LIBRARY_DIR, loadComponentRegistry, parseManifest } from '@retake/components';
+import type { ComponentProps, LottieMedia, PictureMedia, VideoMedia } from '@retake/components';
+import { AUTO_COVER_MIN_SHARE, autoFit, backgroundCss, lottieFrames, mediaBackground, mediaLength, nightTone, parseColor01, recolorLottie, themeColorMap, videoPartFrames } from '@retake/components/kit';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
 vi.mock('remotion', async (importOriginal) => {

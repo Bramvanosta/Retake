@@ -1,11 +1,11 @@
 /**
  * L5.11a: the words of Shoot — the status bar's state (a shape AND a word for each), a blocker's short words keyed on
  * the gate that refused (`kind`, critique H3: never the generic `code`, which cannot tell agent trust from a protected
- * host), and the mode's names. "Rehearse" is the Studio's word for a dry run (`studio run … --dry`, MCP `run_dry`):
+ * host), and the mode's names. "Rehearse" is the Studio's word for a dry run (`retake run … --dry`, MCP `run_dry`):
  * the engine's own text may still say "dry run" (shared with the CLI and MCP) and is shown only in details, beside one
  * mapping line (critique M6).
  */
-import type { RunBlocker } from '@demo-studio/engine';
+import type { RunBlocker } from '@retake/engine';
 import type { MarkState } from './ui-kit/index.js';
 
 /** A persona's stored session in words, and its shape (L4.4's words; the Cast, Prepare's sessions, the browser). */
@@ -18,7 +18,7 @@ export const STORED_WORDS: Record<string, [string, MarkState]> = {
 };
 
 /** The mapping line Prepare shows once: the engine's and the terminal's words for a rehearsal. */
-export const REHEARSE_MAPPING = 'Rehearse = a dry run: studio run … --dry in a terminal, run_dry for Claude.';
+export const REHEARSE_MAPPING = 'Rehearse = a dry run: retake run … --dry in a terminal, run_dry for Claude.';
 
 /** A run's mode in words: "Rehearsal" / "Capture" (`lower`: inside a sentence). */
 export function modeWord(mode: string, lower = false): string {

@@ -307,7 +307,7 @@ export function Callout({ state = 'idle', title, children, role = 'status', test
 }
 
 /**
- * L5.10b: the command to type in a terminal (what a blocker or a refusal asks for) and, for a person without `studio` on
+ * L5.10b: the command to type in a terminal (what a blocker or a refusal asks for) and, for a person without `retake` on
  * their PATH, the same command through node — both as text to select (test ids kept from L4.2).
  */
 export function TerminalCommands({ fix, fixNode }: { fix?: string; fixNode?: string }) {
@@ -323,7 +323,7 @@ export function TerminalCommands({ fix, fixNode }: { fix?: string; fixNode?: str
       {fixNode && (
         <p className="k-commands-line k-commands-quiet">
           {'Without '}
-          <code className="k-mono">studio</code>
+          <code className="k-mono">retake</code>
           {' on your PATH: '}
           <code className="k-commands-code k-mono" data-testid="blocker-fix-node">
             <Txt text={fixNode} />

@@ -11,8 +11,8 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile } from '@demo-studio/core';
-import type { WorkspaceConfig } from '@demo-studio/core';
+import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile } from '@retake/core';
+import type { WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName } from './refs.js';
@@ -40,7 +40,7 @@ export interface ReviewFindingView {
 export interface ReviewView {
   project: string;
   render_id: string;
-  /** The newest review job's state, or `succeeded` for a review written without a job (`studio review`); `none`: never reviewed. */
+  /** The newest review job's state, or `succeeded` for a review written without a job (`retake review`); `none`: never reviewed. */
   status: JobRecord['state'] | 'none';
   finished: boolean;
   job?: { id: string; state: JobRecord['state']; progress?: JobProgress; cancel_requested_at?: string; error?: JobRecord['error'] };
@@ -276,7 +276,7 @@ export interface ReviewImageView {
   height: number;
 }
 
-const thumbs = () => import('@demo-studio/review/thumbs');
+const thumbs = () => import('@retake/review/thumbs');
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**

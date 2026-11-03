@@ -1,6 +1,6 @@
 import { AbsoluteFill } from 'remotion';
-import { ImageFile, VideoFile, autoFit, mediaBackground } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { ImageFile, VideoFile, autoFit, mediaBackground } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { fit: 'auto' | 'cover' | 'contain'; background: string; volume: number; from: number; to?: number; loop: boolean };
 

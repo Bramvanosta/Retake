@@ -1,5 +1,5 @@
 /**
- * The URL a site extraction opens (L3.5, R-MCP-12: template_from_site / `studio theme from-site`). Pure: checked at
+ * The URL a site extraction opens (L3.5, R-MCP-12: template_from_site / `retake theme from-site`). Pure: checked at
  * submit and again by the worker, before a human is asked and before anything connects.
  *
  * `https:` only, the default port, no user name or password, no query and no fragment (an agent cannot smuggle data
@@ -32,14 +32,14 @@ export interface SiteUrl {
 }
 
 /**
- * The UNSAFE test resolver (tests only): `DEMO_STUDIO_UNSAFE_TEST_RESOLVE=brand.test=127.0.0.1:4430,cdn.test=…` maps
+ * The UNSAFE test resolver (tests only): `RETAKE_UNSAFE_TEST_RESOLVE=brand.test=127.0.0.1:4430,cdn.test=…` maps
  * invented `.test` names to a loopback port, so the tests film a local https site through the production path
  * (CONNECT proxy, route policy, https on 443 as Chromium sees it). It relaxes three rules for those names only: the
  * `.test` suffix is accepted, the address is not classified (loopback), and the browser accepts the test site's
  * self-signed certificate. Entries that are not `<name>.test=<127.0.0.1 or ::1>:<port>` are ignored (`ignored`).
- * `studio doctor` warns when it is set; the worker logs it; a result made with it carries a warning.
+ * `retake doctor` warns when it is set; the worker logs it; a result made with it carries a warning.
  */
-export const UNSAFE_TEST_RESOLVE_ENV = 'DEMO_STUDIO_UNSAFE_TEST_RESOLVE';
+export const UNSAFE_TEST_RESOLVE_ENV = 'RETAKE_UNSAFE_TEST_RESOLVE';
 
 export interface SiteTestTarget {
   address: string;

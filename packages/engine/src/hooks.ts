@@ -1,7 +1,7 @@
 /**
  * Hooks outside a capture (L3.1, moved from the CLI's hooks commands): pick a hooks source, build the context hooks run
- * in (access, js hook browsers per persona, write guard, approvals), run the project's reset. `studio hooks run`,
- * `studio env reset` and `studio hooks rollback` call these with their native options and errors; the jobs worker calls
+ * in (access, js hook browsers per persona, write guard, approvals), run the project's reset. `retake hooks run`,
+ * `retake env reset` and `retake hooks rollback` call these with their native options and errors; the jobs worker calls
  * them for `hooks` and `env_reset` jobs (trust `mcp`, approvals from the job). Nothing here prints or installs signal
  * handlers: the caller logs through `log` and handles interrupts.
  */
@@ -24,9 +24,9 @@ import {
   resolveRunAccess,
   runAccess,
   urlOriginPath,
-} from '@demo-studio/core';
-import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@demo-studio/core';
-import type { HookContext, HookPhase } from '@demo-studio/hooks';
+} from '@retake/core';
+import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@retake/core';
+import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
 
 /**
@@ -153,7 +153,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   const env = resolveEnvironment(project, o.env);
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
   const personas = resolvePersonas(project, env.name);
-  const sessions = new Map<string, Promise<import('@demo-studio/runner-web').BrowserSession>>();
+  const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
   const planned = o.scenario ? planPersonas(o.scenario, { env: env.name, envPages: env.pages, personas, hooks: true }).hookPages : undefined;
@@ -173,7 +173,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     return personas.find((p) => !p.legacy && p.pages.includes(key)) ?? personas.find((p) => p.legacy);
   };
   const open = async (persona: ResolvedPersona | undefined) => {
-    const rw = await import('@demo-studio/runner-web');
+    const rw = await import('@retake/runner-web');
     const capture = project.config.capture;
     const prepared = persona
       ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
@@ -204,7 +204,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     evalInPage: async (pageKey, code) => {
-      const rw = await import('@demo-studio/runner-web');
+      const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);
       const persona = personaOf(pageKey ?? Object.keys(env.pages)[0]);
       let session = sessions.get(persona?.name ?? '');

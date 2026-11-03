@@ -3,13 +3,13 @@
  * Chromium's own process report (SystemInfo.getProcessInfo, per browser: one per persona) for its browser processes
  * (they encode the screencast's JPEG frames), GPU processes, page renderers and other helpers; the system's process
  * table (`ps -p`) for the encoders and the product's local servers (the processes listening on the environment's
- * localhost ports); the studio's own process from Node. The machine's load average is read on every sample. A process
+ * localhost ports); Retake's own process from Node. The machine's load average is read on every sample. A process
  * that exits between two samples loses its last interval: a measure, not an account. A pause of the take (L4.4) counts
  * for nothing: neither its CPU nor its seconds (`pause()` / `resume()`).
  */
 import { execFile } from 'node:child_process';
 import { cpus, loadavg } from 'node:os';
-import type { RunPerfCpu } from '@demo-studio/core';
+import type { RunPerfCpu } from '@retake/core';
 
 export const PERF_SAMPLE_MS = 2000;
 
@@ -112,7 +112,7 @@ export class PerfSampler {
   private running: Promise<void> | null = null;
   private samples = 0;
   private t0 = 0;
-  private studio0 = 0;
+  private own0 = 0;
   private loads: number[] = [];
   private readonly encoderPids = new Set<number>();
   private readonly productPids = new Set<number>();
@@ -120,9 +120,9 @@ export class PerfSampler {
   private lastSampleAt = 0;
   /** Per realm: CPU seconds and wall seconds while no recorder filmed it. */
   private readonly unfilmed = new Map<string, { cpu: number; seconds: number }>();
-  /** A pause of the take (L4.4): when it began (0: none), the studio's CPU then, the wall ms of the pauses so far. */
+  /** A pause of the take (L4.4): when it began (0: none), Retake's own CPU then, the wall ms of the pauses so far. */
   private pausedAt = 0;
-  private studioAtPause = 0;
+  private ownAtPause = 0;
   private pausedMs = 0;
 
   constructor(private readonly opts: PerfSamplerOptions) {}
@@ -137,7 +137,7 @@ export class PerfSampler {
 
   start(): void {
     this.t0 = Date.now();
-    this.studio0 = cpuSeconds(process.cpuUsage());
+    this.own0 = cpuSeconds(process.cpuUsage());
     this.tick();
     this.lastSampleAt = Date.now();
     this.timer = setInterval(() => this.tick(), this.opts.intervalMs ?? PERF_SAMPLE_MS);
@@ -157,7 +157,7 @@ export class PerfSampler {
     if (this.running) await this.running;
     await this.sample();
     this.pausedAt = Date.now();
-    this.studioAtPause = cpuSeconds(process.cpuUsage());
+    this.ownAtPause = cpuSeconds(process.cpuUsage());
   }
 
   /** The take goes on: the CPU every process used during the pause, and its seconds, are left out. */
@@ -165,7 +165,7 @@ export class PerfSampler {
     if (!this.pausedAt) return;
     await this.sample(true);
     this.pausedMs += Date.now() - this.pausedAt;
-    this.studio0 += cpuSeconds(process.cpuUsage()) - this.studioAtPause;
+    this.own0 += cpuSeconds(process.cpuUsage()) - this.ownAtPause;
     this.pausedAt = 0;
     this.timer = setInterval(() => this.tick(), this.opts.intervalMs ?? PERF_SAMPLE_MS);
     this.timer.unref?.();
@@ -230,13 +230,13 @@ export class PerfSampler {
       gpu: sum((p) => p.group === 'gpu'),
       renderer: sum((p) => p.group === 'renderer'),
       chromium_other: sum((p) => p.group === 'chromium_other'),
-      studio: round2(cpuSeconds(process.cpuUsage()) - this.studio0),
+      retake: round2(cpuSeconds(process.cpuUsage()) - this.own0),
       encoder: sum((p) => p.group === 'encoder'),
       total: 0,
       cores: 0,
     };
     if (this.productPids.size) out.product = sum((p) => p.group === 'product');
-    out.total = round2(out.browser + out.gpu + out.renderer + out.chromium_other + out.studio + out.encoder + (out.product ?? 0));
+    out.total = round2(out.browser + out.gpu + out.renderer + out.chromium_other + out.retake + out.encoder + (out.product ?? 0));
     out.cores = round2(out.total / seconds);
     const realms = [...new Set(list.filter((p) => p.realm !== undefined).map((p) => p.realm!))];
     if (realms.length > 1) {

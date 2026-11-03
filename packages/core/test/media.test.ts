@@ -20,8 +20,8 @@ import {
   videoProbeFromJson,
   probeVideoFile,
   DEFAULT_TEMPLATE,
-} from '@demo-studio/core';
-import type { ValidationIssue } from '@demo-studio/core';
+} from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
 import { colOf, fakeProject, lineOf, tempDir } from './helpers.js';
 
 function hasTool(name: string): boolean {
@@ -109,7 +109,7 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
   let dir: string;
   let cleanup: () => Promise<void>;
   beforeAll(async () => {
-    ({ dir, cleanup } = await tempDir('demo-studio-media-'));
+    ({ dir, cleanup } = await tempDir('retake-media-'));
     mkdirSync(join(dir, 'assets'), { recursive: true });
     const a = (f: string) => join(dir, 'assets', f);
     // 2 s H.264 with a tone; 1 s VP9 with alpha; 1 s H.264 without alpha; an MPEG-4 Part 2 video; a PNG; a Lottie.

@@ -33,7 +33,7 @@ import {
   hookStepNames,
   resolveNamedHook,
   stepHookList,
-} from '@demo-studio/core';
+} from '@retake/core';
 import type {
   AgentChannel,
   TimelineEvent,
@@ -60,7 +60,7 @@ import type {
   TimelineEnvironment,
   TimelineWrite,
   WritePolicy,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from './activity.js';
 import { watchNotifications } from './notifications.js';
@@ -124,14 +124,14 @@ export interface RunOptions {
   /** ffmpeg binary (default "ffmpeg" on PATH). */
   ffmpeg?: string;
   /**
-   * Capture without the in-page cursor (raw export for editors, L2.13: `studio run --raw --cursor none|layer`). The
+   * Capture without the in-page cursor (raw export for editors, L2.13: `retake run --raw --cursor none|layer`). The
    * pointer still drives real input and the cursor track, icon, presses and ripples are recorded; nothing of the
    * cursor is drawn in the pictures. The timeline says so (`capture.cursor: hidden`).
    */
   hideCursor?: boolean;
   /** Resolves `{{env:…}}` / `{{keychain:…}}` references (default core resolveSecretRef; tests inject one). */
   resolveSecret?: (ref: string) => Promise<string>;
-  /** The command that signs a persona in again, as messages print it (default `studio login <project> --env … --persona …`). */
+  /** The command that signs a persona in again, as messages print it (default `retake login <project> --env … --persona …`). */
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
   /**
    * `--allow-writes` (L1.7): lets a run on a production environment whose project.yaml sets `access: read-write` write.
@@ -139,7 +139,7 @@ export interface RunOptions {
    */
   allowWrites?: boolean;
   /**
-   * The sandbox reset made before this take (L1.8, `studio run --sandbox`: @demo-studio/sandbox prepareTake), recorded as
+   * The sandbox reset made before this take (L1.8, `retake run --sandbox`: @retake/sandbox prepareTake), recorded as
    * run.json / timeline.json `environment.sandbox`. A run on a sandbox environment without it records the sandbox
    * without a reset.
    */
@@ -274,7 +274,7 @@ export function choppyCause(m: { gpu?: GpuInfo; cpu?: RunPerfCpu; machine: RunPe
   const cores = (x: number) => (x / Math.max(0.001, m.seconds)).toFixed(2);
   if (m.cpu) figures.push(`Chromium ${cores(m.cpu.browser + m.cpu.gpu + m.cpu.renderer + m.cpu.chromium_other)} cores (renderer ${cores(m.cpu.renderer)}, GPU process ${cores(m.cpu.gpu)})`);
   let why: string;
-  if (m.gpu && !m.gpu.accelerated) why = 'the browser renders in software: run `studio doctor` (browser.channel: headless-shell has no GPU)';
+  if (m.gpu && !m.gpu.accelerated) why = 'the browser renders in software: run `retake doctor` (browser.channel: headless-shell has no GPU)';
   else if (m.machine.load_max > m.machine.cpus) why = 'the machine was busy with other work: film when it is quiet';
   else if (m.cpu && m.cpu.renderer / Math.max(0.001, m.seconds) > 0.8) why = "the page's own rendering is heavy (large blurs or shadows, animations): its renderer stayed busy";
   else if (m.cpu?.browsers && m.cpu.browsers.length > 1 && m.cpu.browsers.some((b) => b.cpu / Math.max(0.001, m.seconds) > 0.5)) why = 'several browsers (one per persona) rendered at once';
@@ -302,7 +302,7 @@ export const DISK_FREE_MIN_GB = 10;
 export const DISK_FREE_MIN_SHARE = 0.05;
 
 /** Free GB on the disk of `dir` and the warning when it is low (undefined: not measurable).
- *  `DEMO_STUDIO_DISK_WARN=off` keeps the measure but drops the warning (the test suite sets it: a full disk is the
+ *  `RETAKE_DISK_WARN=off` keeps the measure but drops the warning (the test suite sets it: a full disk is the
  *  machine's state, not a regression). */
 export async function diskCheck(dir: string, project: string, env: NodeJS.ProcessEnv = process.env): Promise<{ free_gb?: number; warning?: string }> {
   try {
@@ -310,9 +310,9 @@ export async function diskCheck(dir: string, project: string, env: NodeJS.Proces
     const free = (f.bavail * f.bsize) / 1e9;
     const total = (f.blocks * f.bsize) / 1e9;
     const free_gb = Math.round(free * 10) / 10;
-    if (env.DEMO_STUDIO_DISK_WARN === 'off') return { free_gb };
+    if (env.RETAKE_DISK_WARN === 'off') return { free_gb };
     if (free < DISK_FREE_MIN_GB || free < total * DISK_FREE_MIN_SHARE) {
-      return { free_gb, warning: `only ${free_gb} GB left on this disk: \`studio prune ${project}\` removes failed takes, dry runs and old renders (it says how much first)` };
+      return { free_gb, warning: `only ${free_gb} GB left on this disk: \`retake prune ${project}\` removes failed takes, dry runs and old renders (it says how much first)` };
     }
     return { free_gb };
   } catch {
@@ -436,10 +436,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   let session: BrowserSession | null = null;
   let prepared: PreparedSession[] = [];
   let personas: ResolvedPersona[] = [];
-  /** The `studio login` command of a persona (the legacy one has no --persona). */
+  /** The `retake login` command of a persona (the legacy one has no --persona). */
   const commandOf = (persona: string): string =>
     (opts.loginCommand ?? defaultLoginCommand)({ project: project.slug, env: env.name, persona: personas.find((p) => p.name === persona)?.legacy ? undefined : persona });
-  /** Personas whose session expired during the run: their status says so at the end (`studio auth status`). */
+  /** Personas whose session expired during the run: their status says so at the end (`retake auth status`). */
   const expiredDuring = new Map<string, { at: string; detail: string }>();
   const expire = (persona: string, at: string, detail: string): void => {
     if (!expiredDuring.has(persona)) expiredDuring.set(persona, { at, detail });
@@ -515,7 +515,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     const probes = await probePages(env.pages, { signal });
     const down = probes.filter((p) => !p.ok);
     if (down.length) {
-      throw new RunnerError(preflightRefusal(env.name, down, env.sandbox ? { sandbox: `studio sandbox up ${project.slug} --env ${env.name}, or run with --sandbox` } : {}));
+      throw new RunnerError(preflightRefusal(env.name, down, env.sandbox ? { sandbox: `retake sandbox up ${project.slug} --env ${env.name}, or run with --sandbox` } : {}));
     }
     log('debug', `pages answer: ${probes.map((p) => `${p.keys.join('/')} HTTP ${p.status} (${p.ms} ms)`).join(', ')}`);
     // A read-only run stops the browser's writes (L1.7, write-guard.ts): armed in every browser at launch. Any run
@@ -582,7 +582,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg);
       gpu = await session.gpuInfo();
       if (gpu && !gpu.accelerated) {
-        const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`studio doctor\`${browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
+        const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`retake doctor\`${browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
         timeline.warn(m);
         log('warn', m);
       }

@@ -17,8 +17,8 @@ import {
   scenarioJsonSchema,
   templateJsonSchema,
   timelineJsonSchema,
-} from '@demo-studio/core';
-import type { RunRecord, Timeline } from '@demo-studio/core';
+} from '@retake/core';
+import type { RunRecord, Timeline } from '@retake/core';
 import { SPEC_EXAMPLE } from './helpers.js';
 
 type Json = Record<string, any>;
@@ -72,10 +72,10 @@ describe('JSON Schemas', () => {
   it('returns fresh copies', () => {
     const a = scenarioJsonSchema() as Json;
     a.title = 'mutated';
-    expect((scenarioJsonSchema() as Json).title).toBe('Demo Studio scenario');
+    expect((scenarioJsonSchema() as Json).title).toBe('Retake scenario');
   });
 
-  it('packages/core/schema/*.json are up to date (pnpm -F @demo-studio/core gen:schema)', () => {
+  it('packages/core/schema/*.json are up to date (pnpm -F @retake/core gen:schema)', () => {
     const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'schema');
     for (const [name, fn] of Object.entries(JSON_SCHEMAS)) {
       const onDisk = JSON.parse(readFileSync(join(dir, `${name}.schema.json`), 'utf8'));
@@ -209,7 +209,7 @@ describe('zod schemas', () => {
       warnings: [],
       perf: {
         seconds: 47.2,
-        cpu: { browser: 21.6, gpu: 5.5, renderer: 3, chromium_other: 0.2, studio: 7, encoder: 7.4, product: 0.1, total: 44.8, cores: 0.95, browsers: [{ persona: 'buyer', cpu: 20 }, { cpu: 1 }] },
+        cpu: { browser: 21.6, gpu: 5.5, renderer: 3, chromium_other: 0.2, retake: 7, encoder: 7.4, product: 0.1, total: 44.8, cores: 0.95, browsers: [{ persona: 'buyer', cpu: 20 }, { cpu: 1 }] },
         machine: { cpus: 10, load_mean: 2.1, load_max: 3 },
         gpu: { accelerated: true, renderer: 'ANGLE Metal' },
         frame_rate_limit: true,
@@ -222,7 +222,10 @@ describe('zod schemas', () => {
     };
     expect(RunRecordSchema.safeParse(run).success).toBe(true);
     expect(RunRecordSchema.safeParse({ ...run, perf: { ...run.perf, frames: { ...run.perf!.frames, extra: 1 } } }).success).toBe(false);
-    expect(perfSummary(run.perf!)).toBe('0.95 cores (Chromium 0.64, encoder 0.16, studio 0.15, product 0.00) · 34.4 fps (moves ≥ 55) · no freeze · 1 slow transition: reports.1 1.9 s · 20 MB');
+    expect(perfSummary(run.perf!)).toBe('0.95 cores (Chromium 0.64, encoder 0.16, retake 0.15, product 0.00) · 34.4 fps (moves ≥ 55) · no freeze · 1 slow transition: reports.1 1.9 s · 20 MB');
+    // A run recorded before L5.13a names the tool's own CPU `studio` (review B L8): the same line.
+    const { retake, ...older } = run.perf!.cpu!;
+    expect(perfSummary({ ...run.perf!, cpu: { ...older, studio: retake } as unknown as typeof older & { retake: number } })).toBe(perfSummary(run.perf!));
     expect(perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false })).toBe(
       'no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off',
     );

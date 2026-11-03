@@ -1,8 +1,8 @@
 /**
  * Approvals signed at submit (L3.1). A job's `approvals` let the worker run hooks a human approved; a job.json written
- * into .demo-studio/jobs/ by anything but a submit (another process, a file-writing tool of the agent) must not carry
- * approvals the worker honours. So each approval is signed at enqueue with an HMAC-SHA256 key kept in the studio home
- * ($DEMO_STUDIO_HOME, else ~/.demo-studio: approvals.key, 0600, created on the first approval), over the job's input and
+ * into .retake/jobs/ by anything but a submit (another process, a file-writing tool of the agent) must not carry
+ * approvals the worker honours. So each approval is signed at enqueue with an HMAC-SHA256 key kept in the Retake home
+ * ($RETAKE_HOME, else ~/.retake: approvals.key, 0600, created on the first approval), over the job's input and
  * the approval; the worker ignores an approval whose signature is missing or wrong (its hook is then refused).
  *
  * The key protects against a job file forged without access to the home folder; whoever can read the home folder (the
@@ -11,13 +11,13 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { studioHome } from '@demo-studio/core';
-import type { JobApproval, JobInput } from '@demo-studio/core';
+import { retakeHome } from '@retake/core';
+import type { JobApproval, JobInput } from '@retake/core';
 
 export const APPROVAL_KEY_FILE = 'approvals.key';
 
 export function approvalKeyFile(env: NodeJS.ProcessEnv = process.env): string {
-  return join(studioHome(env), APPROVAL_KEY_FILE);
+  return join(retakeHome(env), APPROVAL_KEY_FILE);
 }
 
 async function readKey(file: string): Promise<Buffer | undefined> {

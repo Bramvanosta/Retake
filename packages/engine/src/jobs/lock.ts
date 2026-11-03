@@ -1,5 +1,5 @@
 /**
- * The worker lock (<workspace>/.demo-studio/workers/worker.lock): one worker per workspace, so one job at a time
+ * The worker lock (<workspace>/.retake/workers/worker.lock): one worker per workspace, so one job at a time
  * (concurrency 1: a capture is CPU- and GPU-heavy). It holds the worker's pid, start time and build. Created whole and
  * atomically (sandbox createExclusive); a lock whose process is gone — or whose pid belongs to another program now — is
  * stale and taken over under a breaker (sandbox breakStale), so two workers finding one stale lock never both take it.
@@ -8,7 +8,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { DEMO_STUDIO_VERSION } from '@demo-studio/core';
+import { RETAKE_VERSION } from '@retake/core';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { stateDir } from './queue.js';
@@ -20,7 +20,7 @@ export interface WorkerLockRecord extends ProcessIdentity {
   build: string;
   since: string;
   /**
-   * The client whose submit started it (L4.2: `ui`, `mcp`; absent: `studio worker` in a terminal, or an older build).
+   * The client whose submit started it (L4.2: `ui`, `mcp`; absent: `retake worker` in a terminal, or an older build).
    * One worker serves the workspace, in the environment of whoever started it.
    */
   started_by?: string;
@@ -50,7 +50,7 @@ function parse(text: string | null): WorkerLockRecord | null {
   try {
     const v = JSON.parse(text) as WorkerLockRecord;
     if (typeof v?.pid !== 'number') return null;
-    // A client name only (it is shown: doctor, studio jobs, the Studio's sidebar).
+    // A client name only (it is shown: doctor, retake jobs, the Studio's sidebar).
     if (v.started_by !== undefined && !(typeof v.started_by === 'string' && WORKER_CLIENT_RE.test(v.started_by))) delete v.started_by;
     return v;
   } catch {
@@ -93,13 +93,13 @@ export class WorkerLock {
 
   /** Take the lock, or null when a live worker holds it (`note` reports a stale lock taken over). */
   static async acquire(root: string, build: string, note?: (msg: string) => void, startedBy?: string): Promise<WorkerLock | null> {
-    const { createExclusive, breakStale } = await import('@demo-studio/sandbox');
+    const { createExclusive, breakStale } = await import('@retake/sandbox');
     await mkdir(workersDir(root), { recursive: true });
     const file = workerLockFile(root);
     const record: WorkerLockRecord = {
       ...(await selfIdentity()),
       host: hostname(),
-      version: DEMO_STUDIO_VERSION,
+      version: RETAKE_VERSION,
       build,
       since: new Date().toISOString(),
       ...(startedBy !== undefined && WORKER_CLIENT_RE.test(startedBy) ? { started_by: startedBy } : {}),

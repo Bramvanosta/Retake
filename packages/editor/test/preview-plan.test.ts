@@ -10,11 +10,11 @@ import { homedir } from 'node:os';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry } from '@demo-studio/components';
-import { PLAN_ASSET_SCHEME, PreviewPlanError, planEdit, previewPlan } from '@demo-studio/editor';
-import type { ClipSegment, EditPlan } from '@demo-studio/editor';
-import type { Timeline } from '@demo-studio/core';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components';
+import { PLAN_ASSET_SCHEME, PreviewPlanError, planEdit, previewPlan } from '@retake/editor';
+import type { ClipSegment, EditPlan } from '@retake/editor';
+import type { Timeline } from '@retake/core';
 import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
 
 const RUN = '/virtual/runs/r';

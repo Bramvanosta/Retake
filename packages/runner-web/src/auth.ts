@@ -4,8 +4,8 @@
  * anything runs (the preflight), signed in automatically when it declares login steps, and watched during the run (a
  * page landing on a sign-in page fails the run: the guard).
  *
- * Files (core personaPaths): the master profile (`studio login` is its only writer), the snapshot (Playwright storage
- * state + `demo_studio` metadata) and the status of the last check — snapshots and status files are written 0600 in
+ * Files (core personaPaths): the master profile (`retake login` is its only writer), the snapshot (Playwright storage
+ * state + `retake` metadata) and the status of the last check — snapshots and status files are written 0600 in
  * 0700 folders; per-run copies live in the system temp folder (0700) and are removed when the browser closes.
  */
 import { constants as fsConstants } from 'node:fs';
@@ -24,12 +24,14 @@ import {
   matchLoginUrl,
   normalizeStep,
   normalizeTarget,
+  oldSignInHints,
   resolveCheckUrl,
   resolvePageUrl,
+  snapshotMachine,
   splitPageOpen,
   urlOriginPath,
   writeTextAtomic,
-} from '@demo-studio/core';
+} from '@retake/core';
 import type {
   LoadedProject,
   LoginMatcher,
@@ -45,7 +47,7 @@ import type {
   TemplateContext,
   TypeArgs,
   WaitForArgs,
-} from '@demo-studio/core';
+} from '@retake/core';
 import { LoginPageError, PreflightError, RunnerError, errorMessage, isCancelled } from './errors.js';
 import type { RunSecrets } from './secrets.js';
 import { KitClient } from './session.js';
@@ -154,7 +156,7 @@ export async function copyProfile(master: string, dest: string): Promise<void> {
   await chmod(dest, 0o700);
 }
 
-/** Whether a profile folder exists and holds something (a master `studio login` made). */
+/** Whether a profile folder exists and holds something (a master `retake login` made). */
 export async function isProfileDir(dir: string): Promise<boolean> {
   try {
     return (await readdir(dir)).length > 0;
@@ -213,13 +215,13 @@ export interface SnapshotMeta {
   /** os.hostname() of the computer that saved it. */
   machine: string;
   created_at: string;
-  /** How it was made: `manual` (a headed `studio login`), `auto` (login steps)… */
+  /** How it was made: `manual` (a headed `retake login`), `auto` (login steps)… */
   how: string;
 }
 
 /** A session snapshot: Playwright storage state (cookies, session cookies included, and localStorage) + its metadata. */
 export interface SessionSnapshot extends StorageStateFile {
-  demo_studio?: SnapshotMeta;
+  retake?: SnapshotMeta;
 }
 
 /** A snapshot, or null when there is none; an unreadable one fails (a RunnerError naming the file). */
@@ -254,12 +256,12 @@ export async function writeSnapshot(
   const out: SessionSnapshot = {
     cookies: state.cookies ?? [],
     origins: state.origins ?? [],
-    demo_studio: { version: 1, ...meta, machine: hostname(), created_at: new Date().toISOString() },
+    retake: { version: 1, ...meta, machine: hostname(), created_at: new Date().toISOString() },
   };
   await writeTextAtomic(file, `${JSON.stringify(out, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 });
 }
 
-/** The status of a persona's last check (`studio auth status` shows it; "never" is not stored: no session at all). */
+/** The status of a persona's last check (`retake auth status` shows it; "never" is not stored: no session at all). */
 export interface PersonaStatusRecord {
   version: 1;
   status: 'valid' | 'expired' | 'error';
@@ -313,7 +315,7 @@ function personaLabel(p: Pick<ResolvedPersona, 'name' | 'env'>): string {
  * master profile (caches, locks and saved passwords left out) plus its snapshot's cookies (session cookies are lost
  * when a profile closes; the snapshot keeps them) — the legacy form applies the whole storage state, as before; with no
  * master, on a fresh profile plus the snapshot; a `storage_state` persona on a fresh profile plus its snapshot. A master
- * held by a running browser (the `studio login` window) is refused: Chromium writes cookies lazily, a copy taken then
+ * held by a running browser (the `retake login` window) is refused: Chromium writes cookies lazily, a copy taken then
  * may miss them. The legacy `auth.storage_state` file must exist (as before L1.6: only a missing legacy profile starts
  * signed out). Stale copies of killed processes are swept first; on failure the copies made so far are removed.
  * `failure`: the first line of a failure when the sessions are not for a run (a check, the js hooks of the CLI).
@@ -332,12 +334,13 @@ export async function prepareSessions(
         throw preflightFailure(
           [
             `  ${personaLabel(persona)}: its auth.storage_state file does not exist: ${persona.snapshot}`,
-            '    export it again, or name the account in auth.personas and sign it in with `studio login`',
+            '    export it again, or name the account in auth.personas and sign it in with `retake login`',
           ],
           opts.failure,
         );
       }
-      const machine = snapshot?.demo_studio?.machine;
+      // Under its key of today or of before L5.13 (core legacy.ts).
+      const machine = snapshotMachine(snapshot);
       if (machine && !isThisHost(machine)) {
         opts.log('warn', `${personaLabel(persona)}: its saved session was made on another computer (${machine}): sessions are tied to one computer — sign in here if the check fails`);
       }
@@ -347,13 +350,13 @@ export async function prepareSessions(
         if (lock.state === 'live') {
           throw preflightFailure(
             [
-              `  ${personaLabel(persona)}: its profile is open in another browser${lock.pid ? ` (pid ${lock.pid}${lock.host && !isThisHost(lock.host) ? ` on ${lock.host}` : ''})` : ''} — the \`studio login\` window? Close it, then ${opts.failure ? 'try' : 'run'} again`,
+              `  ${personaLabel(persona)}: its profile is open in another browser${lock.pid ? ` (pid ${lock.pid}${lock.host && !isThisHost(lock.host) ? ` on ${lock.host}` : ''})` : ''} — the \`retake login\` window? Close it, then ${opts.failure ? 'try' : 'run'} again`,
               `    profile: ${persona.profileDir}`,
             ],
             opts.failure,
           );
         }
-        const dest = await mkdtemp(join(tmpdir(), `demo-studio-session-${fileSlug(opts.runId)}-${fileSlug(persona.name)}-`));
+        const dest = await mkdtemp(join(tmpdir(), `retake-session-${fileSlug(opts.runId)}-${fileSlug(persona.name)}-`));
         registerSessionCopy(dest);
         // Profile personas take only the snapshot's cookies: localStorage travels in the profile (an init script would
         // bring back keys the app removed during the run).
@@ -632,7 +635,7 @@ async function runLoginStep(page: Page, kit: KitClient, step: NormalizedStep, pe
  */
 export async function autoLogin(context: BrowserContext, persona: ResolvedPersona, deps: LoginDeps): Promise<void> {
   // A sandbox account's plain password (L1.8) is a secret as written: masked before anything can print it (a run's
-  // files and messages, and `studio login`'s, which builds its own RunSecrets).
+  // files and messages, and `retake login`'s, which builds its own RunSecrets).
   for (const v of persona.secrets ?? []) deps.secrets.addValue(v);
   const raw = persona.login ?? [];
   let steps: LoginStep[];
@@ -696,7 +699,7 @@ export interface PreflightDeps extends LoginDeps {
  * parallel. A persona that is not signed in and declares `login` steps is signed in automatically (its secrets
  * resolved one after the other first — a keychain prompt each —, then the logins in parallel) and checked again. The
  * status of each check is saved (an automatic login leaves the saved session expired: nothing is written back). Throws
- * a PreflightError naming each failing persona and the exact `studio login` command to run. The legacy single-account
+ * a PreflightError naming each failing persona and the exact `retake login` command to run. The legacy single-account
  * form never fails for a missing or unchecked session (as before L1.6: the run starts signed out).
  */
 export async function preflight(session: BrowserSession, prepared: readonly PreparedSession[], deps: PreflightDeps): Promise<void> {
@@ -710,8 +713,10 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       /* a listener error must not break the preflight */
     }
   };
+  let once = false;
   const fail = (p: PreparedSession, why: string, hint: 'once' | 'again' | 'reach') => {
     tell(p, 'failed', why);
+    if (hint === 'once') once = true;
     failures.push(`  ${personaLabel(p.persona)}: ${why}`);
     failures.push(
       hint === 'once'
@@ -795,7 +800,12 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
       detail: deps.secrets.redactText(s.detail),
     }).catch((e: unknown) => deps.log('warn', `${personaLabel(s.persona)}: its status could not be saved: ${errorMessage(e)}`));
   }
-  if (failures.length) throw preflightFailure(failures.map((l) => deps.secrets.redactText(l)));
+  if (failures.length) {
+    // L5.13: never signed in, perhaps only because the sign-ins are left in the home from before the rename (H3), or an
+    // old variable names the home the person chose then (review A M4).
+    if (once) for (const hint of oldSignInHints()) failures.push(`  ${hint}`);
+    throw preflightFailure(failures.map((l) => deps.secrets.redactText(l)));
+  }
 }
 
 // ── The guard ───────────────────────────────────────────────────────────────────

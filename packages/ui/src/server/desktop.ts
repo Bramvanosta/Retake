@@ -9,7 +9,7 @@
  *   Claude never answers the person's quit question).
  * - Strict input: the id's shape and one of the two forms, nothing else (an extra field is a 400) — no text of the page
  *   reaches the pipe; nothing is echoed back.
- * - Supervised only (`studio ui --supervised`, owned by the shell): any other server answers 409 (reason
+ * - Supervised only (`retake ui --supervised`, owned by the shell): any other server answers 409 (reason
  *   `not_supervised`) — there is no pipe to write on.
  * - `shown` lines: at most SHOWN_PER_MIN a minute (a page looping on acks cannot flood the pipe); an `answer` is never
  *   capped nor dropped (it is the person's).
@@ -18,8 +18,8 @@
  *   answers `unavailable` (503, reason `stopped`), never "answered"; the page's sheet says the answer did not arrive.
  */
 import { z } from 'zod';
-import { EngineError } from '@demo-studio/engine';
-import type { ToolDef } from '@demo-studio/mcp';
+import { EngineError } from '@retake/engine';
+import type { ToolDef } from '@retake/mcp';
 
 /** The quit question's id (desktop_core guard_flow `id_ok`): 22 base64url characters. */
 export const QUIT_ID_RE = /^[A-Za-z0-9_-]{22}$/;
@@ -41,7 +41,7 @@ export class DesktopPipe {
 
   constructor(private readonly now: () => number = Date.now) {}
 
-  /** The supervisor's framed line writer (`studio ui --supervised`): false once it has stopped (nothing written). */
+  /** The supervisor's framed line writer (`retake ui --supervised`): false once it has stopped (nothing written). */
   attach(write: (line: string) => boolean): void {
     this.write = write;
   }

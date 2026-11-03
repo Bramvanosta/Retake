@@ -13,7 +13,7 @@
  * - WebSocket requests are not paused by CDP Fetch: the bundle's index.html carries a CSP meta whose connect-src
  *   allows no `ws:` / `wss:` (bundle.ts). WebRTC and DNS prefetch stay uncovered (BACKLOG, full isolation).
  *
- * Used by renders of the jobs worker (trust `mcp`); a `studio render` of a human keeps its full network (remote images
+ * Used by renders of the jobs worker (trust `mcp`); a `retake render` of a human keeps its full network (remote images
  * in slots are a CLI feature).
  */
 import { createServer } from 'node:net';

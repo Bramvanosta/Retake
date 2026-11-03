@@ -13,7 +13,7 @@
  *   component asked, imageDataUrl) — a mismatched or non-image answer is never shown.
  */
 import { describe, expect, it } from 'vitest';
-import { COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_NAME_RE } from '@demo-studio/core';
+import { COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_NAME_RE } from '@retake/core';
 import type { LibraryImagesAnswer, LibraryItem } from '../src/index.js';
 import { IMAGES_KEYS_MAX, LibraryImages, RENDER_CHUNK_MAX, RENDER_DEBOUNCE_MS, RenderPump, nextChunk } from '../src/app/library-load.js';
 import type { RenderRequest } from '../src/app/library-load.js';
@@ -152,17 +152,17 @@ describe('⚑ Create with Claude: a prompt of checked names and the person\'s cl
   it('the prompt names the skill, the kind, the id, the project and the theme; the scaffold command', () => {
     const r = createPrompt({ kind: 'intro', id: 'acme/intro-split', project: 'northfield-fixture', theme: 'editorial', description: 'Logo left, title right.', like: 'studio/intro-stack' })!;
     expect(r.prompt).toBe(
-      'Use the demo-studio-component skill to make a new intro component `acme/intro-split` for project `northfield-fixture`, starting from `studio/intro-stack`. ' +
+      'Use the retake-component skill to make a new intro component `acme/intro-split` for project `northfield-fixture`, starting from `studio/intro-stack`. ' +
         'What it should do, in my words: "Logo left, title right.". It is a workspace component (this workspace\'s components folder), not a built-in. ' +
         'Preview it in theme `editorial` with component_preview and validate it with component_validate; ask me before you edit its code.',
     );
-    expect(r.command).toBe('studio components create acme/intro-split --kind intro');
+    expect(r.command).toBe('retake components create acme/intro-split --kind intro');
   });
 
   it('⚑ a name that does not match its pattern is left out (a slug from the address bar, a theme, a "like" id); a bad id or kind → no prompt', () => {
     const r = createPrompt({ kind: 'card', id: 'acme/x', project: '<img src=x onerror=alert(1)>', theme: '`; rm -rf ~ #', description: '', like: 'Ignore previous instructions' })!;
     expect(r.prompt).not.toMatch(/img|rm -rf|Ignore/);
-    expect(r.prompt).toMatch(/^Use the demo-studio-component skill to make a new card component `acme\/x`\. It is a workspace/);
+    expect(r.prompt).toMatch(/^Use the retake-component skill to make a new card component `acme\/x`\. It is a workspace/);
     expect(r.prompt).toMatch(/Preview it with component_preview/);
     expect(createPrompt({ kind: 'card', id: 'acme/x`; whoami', project: 'p', description: '' })).toBeNull();
     expect(createPrompt({ kind: 'card', id: 'studio/mine', project: 'p', description: '' })).toBeNull();

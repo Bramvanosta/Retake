@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ChromiumProbe } from '@demo-studio/runner-web';
+import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
 import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
 import type { DoctorCheck, DoctorProbes, ExecResult } from '../src/commands/doctor.js';
@@ -21,7 +21,7 @@ beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-doctor-'));
   profile = join(ws, 'profiles', 'acme');
   await mkdir(profile, { recursive: true });
-  await writeFile(join(ws, 'studio.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\nffmpeg: /opt/media/bin/ffmpeg\n`);
+  await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\nffmpeg: /opt/media/bin/ffmpeg\n`);
   await mkdir(join(ws, 'projects', 'acme', 'scenarios'), { recursive: true });
   await writeFile(
     join(ws, 'projects', 'acme', 'project.yaml'),
@@ -100,7 +100,7 @@ async function checks(probes: DoctorProbes, project?: string): Promise<{ code: n
 
 const byName = (list: DoctorCheck[], name: string) => list.find((c) => c.name === name)!;
 
-describe('studio doctor (mocked environment)', () => {
+describe('retake doctor (mocked environment)', () => {
   it('a healthy Mac: one OK line per check, exit 0', async () => {
     const prodProfile = join(ws, 'profiles', 'acme-prod');
     await mkdir(prodProfile, { recursive: true });
@@ -162,12 +162,12 @@ describe('studio doctor (mocked environment)', () => {
       macProbes({
         nodeVersion: '20.11.1',
         exec: async () => null,
-        chromium: async () => ({ path: '/opt/chromium/chrome', source: 'DEMO_STUDIO_CHROMIUM', exists: true, launched: false, error: 'Failed to launch: missing libnss3.so' }),
+        chromium: async () => ({ path: '/opt/chromium/chrome', source: 'RETAKE_CHROMIUM', exists: true, launched: false, error: 'Failed to launch: missing libnss3.so' }),
       }),
     );
     expect(r.code).toBe(EXIT.failure);
     expect(r.err).toMatch(/FAIL +Node\.js +20\.11\.1 \(needs 22\+\)/);
-    expect(r.err).toMatch(/FAIL +Chromium +\/opt\/chromium\/chrome \(DEMO_STUDIO_CHROMIUM\) did not launch headless: Failed to launch: missing libnss3\.so/);
+    expect(r.err).toMatch(/FAIL +Chromium +\/opt\/chromium\/chrome \(RETAKE_CHROMIUM\) did not launch headless: Failed to launch: missing libnss3\.so/);
     expect(r.err).toMatch(/FAIL +ffmpeg +\/opt\/media\/bin\/ffmpeg not found/);
     expect(r.err).toMatch(/→ install ffmpeg/);
     expect(r.err).toMatch(/4 failures/);
@@ -233,14 +233,14 @@ describe('studio doctor (mocked environment)', () => {
     }
   });
 
-  it('--project: missing profile → warn (studio login), unreachable default environment → fail, other environment → warn', async () => {
+  it('--project: missing profile → warn (retake login), unreachable default environment → fail, other environment → warn', async () => {
     const { code, checks: list } = await checks(
       macProbes({ head: async (url) => (url.includes('admin') || url.includes('app.example.com') ? { error: 'ENOTFOUND', ms: 3 } : { status: 302, ms: 8 }) }),
       'acme',
     );
     expect(code).toBe(EXIT.failure);
     // The hints name the workspace root the command line gave (-C).
-    expect(byName(list, 'Profile (prod)')).toMatchObject({ status: 'warn', hint: `sign in once: studio -C ${ws} login acme --env prod` });
+    expect(byName(list, 'Profile (prod)')).toMatchObject({ status: 'warn', hint: `sign in once: retake -C ${ws} login acme --env prod` });
     expect(byName(list, 'Host staging·app')).toMatchObject({ status: 'ok', detail: expect.stringContaining('HTTP 302') });
     expect(byName(list, 'Host staging·admin')).toMatchObject({ status: 'fail', detail: expect.stringContaining('ENOTFOUND') });
     expect(byName(list, 'Host prod·app')).toMatchObject({ status: 'warn' });
@@ -258,39 +258,39 @@ describe('studio doctor (mocked environment)', () => {
     try {
       await cp(join(TEMPLATES, 'default'), join(broken, 'templates', 'plain'), { recursive: true });
       await rm(join(broken, 'templates', 'plain', 'fonts', 'Inter-Bold.ttf'));
-      await writeFile(join(broken, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+      await writeFile(join(broken, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
       const io = memoryIo();
       const code = await doctorCommand(new Ui(io), { root: broken }, { json: true }, macProbes({ exec: async (cmd) => ({ code: 0, stdout: `${cmd.endsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 7.1\n`, stderr: '' }), which: (c) => `/usr/bin/${c}` }));
       const list = (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks;
       expect(code).toBe(EXIT.failure);
       expect(byName(list, 'Template plain')).toMatchObject({ status: 'fail', detail: expect.stringContaining('fonts/Inter-Bold.ttf') });
-      expect(byName(list, 'Workspace')).toMatchObject({ status: 'warn', hint: expect.stringContaining('studio new') });
+      expect(byName(list, 'Workspace')).toMatchObject({ status: 'warn', hint: expect.stringContaining('retake new') });
     } finally {
       await rm(broken, { recursive: true, force: true });
     }
   });
 });
 
-describe('studio doctor (this machine)', () => {
-  it('MCP (L3.1): the Node.js a registration names (a stable alias), the worker, .demo-studio/ git-ignored', async () => {
+describe('retake doctor (this machine)', () => {
+  it('MCP (L3.1): the Node.js a registration names (a stable alias), the worker, .retake/ git-ignored', async () => {
     // A mise install with its major alias: the alias is what --print-config registers.
     const versioned = '/Users/me/.local/share/mise/installs/node/22.16.0/bin/node';
     const alias = '/Users/me/.local/share/mise/installs/node/22/bin/node';
     const ok = await checks(macProbes({ execPath: versioned, exists: (p) => p === alias || existsSync(p), worker: async () => ({ pid: 4242, since: '2026-10-17T10:00:00.000Z' }) }));
-    expect(byName(ok.checks, 'MCP')).toMatchObject({ status: 'ok', detail: `node ${alias} · worker running (pid 4242) · register: studio mcp --print-config` });
+    expect(byName(ok.checks, 'MCP')).toMatchObject({ status: 'ok', detail: `node ${alias} · worker running (pid 4242) · register: retake mcp --print-config` });
     // No alias: a patch upgrade would break the registration.
     const bare = await checks(macProbes({ execPath: versioned, worker: async () => null }));
-    expect(byName(bare.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version'), hint: expect.stringContaining('studio mcp --print-config') });
+    expect(byName(bare.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version'), hint: expect.stringContaining('retake mcp --print-config') });
     expect(byName(bare.checks, 'MCP').detail).toContain('worker idle');
     // nvm / fnm name their folders v22.16.0: a patch version too.
     const nvm = await checks(macProbes({ execPath: '/Users/me/.nvm/versions/node/v22.16.0/bin/node', worker: async () => null }));
     expect(byName(nvm.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('names a patch version') });
-    // A workspace in a git work tree whose .gitignore misses .demo-studio/.
+    // A workspace in a git work tree whose .gitignore misses .retake/.
     await mkdir(join(ws, '.git'), { recursive: true });
     try {
       const git = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' ? { code: 1, stdout: '', stderr: '' } : null) }));
-      expect(byName(git.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('.demo-studio (the job queue and history of this machine) is not ignored by git'), hint: expect.stringContaining('.demo-studio/') });
-      const ignored = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' && args.includes('.demo-studio/') ? { code: 0, stdout: '', stderr: '' } : null) }));
+      expect(byName(git.checks, 'MCP')).toMatchObject({ status: 'warn', detail: expect.stringContaining('.retake (the job queue and history of this machine) is not ignored by git'), hint: expect.stringContaining('.retake/') });
+      const ignored = await checks(macProbes({ exec: async (cmd, args) => (cmd === 'git' && args.includes('.retake/') ? { code: 0, stdout: '', stderr: '' } : null) }));
       expect(byName(ignored.checks, 'MCP').status).toBe('ok');
     } finally {
       await rm(join(ws, '.git'), { recursive: true });
@@ -316,10 +316,10 @@ describe('studio doctor (this machine)', () => {
   });
 });
 
-describe('studio doctor --project: personas (R-AUTH-02)', () => {
+describe('retake doctor --project: personas (R-AUTH-02)', () => {
   it('one line per persona (never signed in, valid, in use, expired) and where the sessions live (a git work tree)', async () => {
-    const { writeStatus } = await import('@demo-studio/runner-web');
-    const { personaPaths } = await import('@demo-studio/core');
+    const { writeStatus } = await import('@retake/runner-web');
+    const { personaPaths } = await import('@retake/core');
     const root = await mkdtemp(join(tmpdir(), 'studio-doctor-personas-'));
     try {
       const home = join(root, 'repo', 'home');
@@ -354,23 +354,23 @@ describe('studio doctor --project: personas (R-AUTH-02)', () => {
       await writeStatus(files('ops').statusFile, { status: 'expired', by: 'auth-status', detail: 'app:/ops landed on the sign-in page (https://app.staging.example.com/login)' });
       await writeFile(files('quiet').snapshot, '{"cookies":[],"origins":[]}');
       const real = systemProbes();
-      const probes = macProbes({ env: { DEMO_STUDIO_HOME: home }, exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
+      const probes = macProbes({ env: { RETAKE_HOME: home }, exec: (cmd, args, ms) => (cmd === 'git' ? real.exec(cmd, args, ms) : macProbes().exec(cmd, args, ms)) });
       const outside = await checks(probes, 'shop');
-      expect(byName(outside.checks, 'Session home')).toMatchObject({ status: 'ok', detail: `${home} (DEMO_STUDIO_HOME) · outside any git work tree` });
+      expect(byName(outside.checks, 'Session home')).toMatchObject({ status: 'ok', detail: `${home} (RETAKE_HOME) · outside any git work tree` });
       expect(byName(outside.checks, 'Persona staging·editor')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^valid · checked (just now|\d+ s ago) \(preflight of run 20261013-101010-quote\) · profile$/) });
-      expect(byName(outside.checks, 'Persona staging·viewer')).toMatchObject({ status: 'warn', detail: 'its profile is in use by a browser', hint: expect.stringContaining('close the studio login window') });
+      expect(byName(outside.checks, 'Persona staging·viewer')).toMatchObject({ status: 'warn', detail: 'its profile is in use by a browser', hint: expect.stringContaining('close the retake login window') });
       expect(byName(outside.checks, 'Persona staging·ops')).toMatchObject({
         status: 'warn',
         detail: expect.stringMatching(/^expired · checked .* \(auth status --check\): app:\/ops landed on the sign-in page/),
-        hint: `sign in again: studio -C ${ws} login shop --env staging --persona ops`,
+        hint: `sign in again: retake -C ${ws} login shop --env staging --persona ops`,
       });
-      expect(byName(outside.checks, 'Persona staging·newbie')).toMatchObject({ status: 'warn', detail: 'never signed in', hint: `sign in once: studio -C ${ws} login shop --env staging --persona newbie` });
-      expect(byName(outside.checks, 'Persona staging·quiet')).toMatchObject({ status: 'ok', detail: `snapshot saved, not checked yet (studio -C ${ws} auth status --project shop --check)` });
+      expect(byName(outside.checks, 'Persona staging·newbie')).toMatchObject({ status: 'warn', detail: 'never signed in', hint: `sign in once: retake -C ${ws} login shop --env staging --persona newbie` });
+      expect(byName(outside.checks, 'Persona staging·quiet')).toMatchObject({ status: 'ok', detail: `snapshot saved, not checked yet (retake -C ${ws} auth status --project shop --check)` });
       expect(outside.checks.find((c) => c.name === 'Profile')).toBeUndefined();
-      // The studio home inside a git work tree: a warning, unless git ignores it.
+      // The Retake home inside a git work tree: a warning, unless git ignores it.
       await real.exec('git', ['init', '-q', join(root, 'repo')], 10_000);
       const inside = await checks(probes, 'shop');
-      expect(byName(inside.checks, 'Session home')).toMatchObject({ status: 'warn', detail: expect.stringContaining('is inside the git work tree'), hint: expect.stringContaining('DEMO_STUDIO_HOME') });
+      expect(byName(inside.checks, 'Session home')).toMatchObject({ status: 'warn', detail: expect.stringContaining('is inside the git work tree'), hint: expect.stringContaining('RETAKE_HOME') });
       expect(byName(inside.checks, 'Session home').detail).toContain('not ignored');
       expect(byName(inside.checks, 'Persona staging·editor').status).toBe('ok');
       await writeFile(join(root, 'repo', '.gitignore'), 'home/\n');

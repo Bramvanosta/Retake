@@ -17,14 +17,14 @@
  *   (arrows select, the inspector follows) → Alt+ArrowDown moves a step (the file changes exactly) → once the move has
  *   landed (Undo enabled), ⌘Z (the exact bytes back) → Open timeline → `]` / `[` select a segment → the Layout radios (arrows, Space writes one line, the preview
  *   re-plans) → ⌘Z → the Comments tab → the thread → a reply typed and sent (an entry of the channel `studio`).
- * No CSP violation, no console error. `DEMO_STUDIO_UI_SHOTS=<folder>` saves full-page screenshots of every state.
+ * No CSP violation, no console error. `RETAKE_UI_SHOTS=<folder>` saves full-page screenshots of every state.
  */
 import { join } from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CommentThread } from '@demo-studio/core';
-import { runWorker } from '@demo-studio/engine';
-import type { RecordJobTestHooks } from '@demo-studio/engine';
+import type { CommentThread } from '@retake/core';
+import { runWorker } from '@retake/engine';
+import type { RecordJobTestHooks } from '@retake/engine';
 import { hasTool } from '../../editor/test/render-helpers.js';
 import { dialogCheck } from './a11y.js';
 import { N, POLL, REPO, THREAD, TOUR_THEME, go, settle, startTour, station, tabTo } from './a11y-tour.js';
@@ -39,7 +39,7 @@ interface Fixture {
 }
 
 const canRun = hasTool('ffmpeg') && hasTool('ffprobe');
-const saved = { max: process.env.DEMO_STUDIO_RECORD_MAX_MIN };
+const saved = { max: process.env.RETAKE_RECORD_MAX_MIN };
 let fixture: Fixture;
 let t: Tour;
 const workerLogs: string[] = [];
@@ -49,7 +49,7 @@ beforeAll(async () => {
   const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: Record<string, unknown>): Promise<Fixture> };
   // Free ports (no fixed origin is needed: the project's environments are rewritten to the fixture's own URLs).
   fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1', auth: { consolePort: 0, shopPort: 0 } });
-  delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
+  delete process.env.RETAKE_RECORD_MAX_MIN;
   t = await startTour({
     prefix: 'ds-e2e-a11y-keys-',
     prepare: async (ws) => {
@@ -71,8 +71,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await t?.close();
   await fixture?.close();
-  if (saved.max === undefined) delete process.env.DEMO_STUDIO_RECORD_MAX_MIN;
-  else process.env.DEMO_STUDIO_RECORD_MAX_MIN = saved.max;
+  if (saved.max === undefined) delete process.env.RETAKE_RECORD_MAX_MIN;
+  else process.env.RETAKE_RECORD_MAX_MIN = saved.max;
 });
 
 const at = (hash: string) => `${t.studio.url}#${hash}`;

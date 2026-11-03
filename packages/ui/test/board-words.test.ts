@@ -4,7 +4,7 @@
  * state and every run status, the length and content words, search and sort.
  */
 import { describe, expect, it } from 'vitest';
-import type { BoardRun, BoardScenario, RenderReviewSummary } from '@demo-studio/engine';
+import type { BoardRun, BoardScenario, RenderReviewSummary } from '@retake/engine';
 import { MARK_STATES } from '../src/app/ui-kit/marks.js';
 import { boardEventAction } from '../src/app/project-data.js';
 import { onlyRunProgress } from '../src/app/events.js';

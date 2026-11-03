@@ -1,5 +1,5 @@
 /**
- * L4.7 part E acceptance (slow: gated by DEMO_STUDIO_TEST_SLOW=1 — `pnpm test:slow`): the component library and the
+ * L4.7 part E acceptance (slow: gated by RETAKE_TEST_SLOW=1 — `pnpm test:slow`): the component library and the
  * theme editor with the real worker, in headless Chromium, on a copy of projects/northfield-fixture whose local
  * environment points at the fixture product started on free ports (never the fixture's own 4401–4404). A capture of
  * `highlights` is queued first; meanwhile the library → Play on a card: the worker renders its loop (a real Remotion GIF,
@@ -7,7 +7,7 @@
  * dragged (the live frame shows the draft, nothing written) and released (written), the accent through its hex field →
  * Use in this scenario (`highlights`) → its timeline → Render: the worker renders the existing take with the new theme
  * (B1: the scenario's `template`, re-planned on the take), and a frame of the video shows the new background. The
- * workers are killed by pid at the end, whatever happened. `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there.
+ * workers are killed by pid at the end, whatever happened. `RETAKE_UI_SHOTS=<folder>` saves screenshots there.
  */
 import { execFileSync } from 'node:child_process';
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
@@ -16,21 +16,21 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml } from '@demo-studio/core';
-import { readWorkerLock } from '@demo-studio/engine';
+import { parseYaml } from '@retake/core';
+import { readWorkerLock } from '@retake/engine';
 import { startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { REPO } from '../../engine/test/helpers.js';
 
-const ENABLED = process.env.DEMO_STUDIO_TEST_SLOW === '1';
-const SHOTS = process.env.DEMO_STUDIO_UI_SHOTS;
+const ENABLED = process.env.RETAKE_TEST_SLOW === '1';
+const SHOTS = process.env.RETAKE_UI_SHOTS;
 const P = 'northfield-fixture';
 const S = 'highlights';
 const COPY = 'editorial-copy';
 const BG = '#bcd9f2';
 const ACCENT = '#1f5f8b';
 const FIXTURE_PROJECT = join(REPO, 'projects', P);
-const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.demo-studio', 'frames', 'comments']);
+const GENERATED = new Set(['runs', 'renders', 'review', 'exports', '.retake', 'frames', 'comments']);
 const POLL = { timeout: 30_000, interval: 200 };
 const WORK = { timeout: 300_000, interval: 500 };
 
@@ -44,7 +44,7 @@ let root: string;
 let studio: StudioServer;
 let browser: Browser;
 let page: Page;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const workers = new Set<number>();
 const consoleErrors: string[] = [];
 const timings: Record<string, number> = {};
@@ -79,16 +79,16 @@ async function settledAfter(n: number): Promise<void> {
   await expect.poll(async () => (await page.getByTestId('theme-preview').getAttribute('data-state')) === 'settled' && (await settles()) > n, POLL).toBe(true);
 }
 
-describe.skipIf(!ENABLED)('the library and the theme editor with the real worker on the fixture (DEMO_STUDIO_TEST_SLOW=1)', () => {
+describe.skipIf(!ENABLED)('the library and the theme editor with the real worker on the fixture (RETAKE_TEST_SLOW=1)', () => {
   let runId = '';
 
   beforeAll(async () => {
     const mod = (await import(join(REPO, 'fixtures/wholesale/server.mjs'))) as { startFixture(o: { consolePort: number; shopPort: number; host?: string }): Promise<Fixture> };
     fixture = await mod.startFixture({ consolePort: 0, shopPort: 0, host: '127.0.0.1' });
     root = await mkdtemp(join(tmpdir(), 'studio-ui-themes-acceptance-'));
-    process.env.DEMO_STUDIO_HOME = join(root, '.home');
+    process.env.RETAKE_HOME = join(root, '.home');
     // The workspace's own themes folder (copies go there); the starters are listed as starters, read-only.
-    await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+    await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
     await mkdir(join(root, 'templates'));
     const project = join(root, 'projects', P);
     await cp(FIXTURE_PROJECT, project, { recursive: true, filter: (src) => !GENERATED.has(src.slice(FIXTURE_PROJECT.length + 1).split('/')[0]) });
@@ -106,7 +106,7 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
         await new Promise((r) => setTimeout(r, 500));
       }
     })();
-    const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+    const executablePath = process.env.RETAKE_CHROMIUM;
     browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
     page = await (await browser.newContext({ viewport: { width: 1360, height: 900 }, colorScheme: 'light' })).newPage();
     page.on('console', (m) => {
@@ -129,8 +129,8 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     }
     await fixture?.close();
     console.log(`themes acceptance timings: ${JSON.stringify(timings)}`);
-    if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-    else process.env.DEMO_STUDIO_HOME = savedHome;
+    if (savedHome === undefined) delete process.env.RETAKE_HOME;
+    else process.env.RETAKE_HOME = savedHome;
     if (root) await rm(root, { recursive: true, force: true });
   });
 

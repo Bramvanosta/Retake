@@ -1,9 +1,9 @@
 import { join } from 'node:path';
-import { ScenarioError, isAccessError, newRunId } from '@demo-studio/core';
-import type { LoadedProject, RunAccess, Scenario } from '@demo-studio/core';
-import { HooksSourceError, createHookContext, selectHooks } from '@demo-studio/engine';
-import type { HookSelection } from '@demo-studio/engine';
-import type { HookContext, HookResult } from '@demo-studio/hooks';
+import { ScenarioError, isAccessError, newRunId } from '@retake/core';
+import type { LoadedProject, RunAccess, Scenario } from '@retake/core';
+import { HooksSourceError, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
+import type { HookSelection } from '@retake/engine';
+import type { HookContext, HookResult } from '@retake/hooks';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -37,7 +37,7 @@ function printAccess(ui: Ui, access: RunAccess): void {
 /**
  * The hook context of a CLI command (engine createHookContext): destructive hooks approved by --yes or the prompt;
  * `--allow-writes` on a read-only environment is a usage error. Until `close`, Ctrl-C / SIGTERM close the js hooks'
- * browsers (their copies hold a persona's cookies) and exit 130 (the journal keeps what ran: `studio hooks rollback`).
+ * browsers (their copies hold a persona's cookies) and exit 130 (the journal keeps what ran: `retake hooks rollback`).
  */
 async function hookContext(
   ui: Ui,
@@ -97,8 +97,8 @@ function printResults(ui: Ui, results: readonly HookResult[]): void {
 }
 
 /**
- * `studio hooks run <project> <source>`: run setup/teardown/reset hooks outside a capture. The journal (with the
- * rollbacks of setup-like runs) is kept in <project>/.demo-studio/journals/<id>.json for `studio hooks rollback`,
+ * `retake hooks run <project> <source>`: run setup/teardown/reset hooks outside a capture. The journal (with the
+ * rollbacks of setup-like runs) is kept in <project>/.retake/journals/<id>.json for `retake hooks rollback`,
  * never in runs/ (which only holds captures).
  */
 export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg: string, spec: string, opts: HookCommandOptions): Promise<ExitCode> {
@@ -116,7 +116,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
     }
     throw e;
   }
-  const hooks = await import('@demo-studio/hooks');
+  const hooks = await import('@retake/hooks');
   const runId = newRunId(`hooks-${sel.label}`);
   const journalFile = hooks.standaloneJournalFile(project.dir, runId);
   const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global);
@@ -129,7 +129,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
     printResults(ui, res.results);
     const pending = journal.pending().length;
     if (pending && !opts.dry) {
-      ui.line(c.dim(`  journal ${ui.path(journalFile)} (${plural(pending, 'pending rollback')}: studio hooks rollback ${project.slug} ${runId})`));
+      ui.line(c.dim(`  journal ${ui.path(journalFile)} (${plural(pending, 'pending rollback')}: retake hooks rollback ${project.slug} ${runId})`));
     }
     if (interrupted()) return EXIT.interrupted;
     if (res.ok) ui.ok(`${sel.label}: ${opts.dry ? 'checked (nothing executed)' : 'done'}`);
@@ -140,7 +140,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   }
 }
 
-/** `studio hooks rollback <project> [id]`: replay pending rollbacks (one run or hooks journal, or every pending one). */
+/** `retake hooks rollback <project> [id]`: replay pending rollbacks (one run or hooks journal, or every pending one). */
 export async function hooksRollbackCommand(
   ui: Ui,
   global: GlobalOptions,
@@ -161,7 +161,7 @@ export async function hooksRollbackCommand(
 }
 
 async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, runId: string): Promise<boolean> {
-  const hooks = await import('@demo-studio/hooks');
+  const hooks = await import('@retake/hooks');
   const file = hooks.findJournal(project.dir, runId);
   if (!file) {
     throw new CliError(
@@ -182,7 +182,7 @@ async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, run
 
 /** Roll back every pending journal of a project, most recent run first. True when all succeeded. */
 async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookContext): Promise<boolean> {
-  const hooks = await import('@demo-studio/hooks');
+  const hooks = await import('@retake/hooks');
   const outcomes = await hooks.rollbackPendingJournals(project.dir, ctx);
   if (!outcomes.length) {
     ui.ok('no pending rollbacks');
@@ -202,19 +202,21 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
 }
 
 /**
- * `studio env reset <project>`: replay pending rollback journals (runs/ and .demo-studio/journals/), then the
- * project's `reset` hooks (journaled in .demo-studio/journals/).
+ * `retake env reset <project>`: replay pending rollback journals (runs/ and .retake/journals/), then the
+ * project's `reset` hooks (journaled in .retake/journals/).
  */
 export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const hooks = await import('@demo-studio/hooks');
+  // L5.13: never beside an old Studio or worker (engine legacy.ts).
+  await refuseBesideOldHolder(project.root, 'this env reset');
+  const hooks = await import('@retake/hooks');
   const runId = newRunId('env-reset');
   const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
   printAccess(ui, access);
-  if (ctx.env.sandbox) ui.line(c.dim(`${ctx.env.name} is a sandbox: \`studio sandbox reset ${project.slug} --env ${ctx.env.name}\` restores its seed`));
+  if (ctx.env.sandbox) ui.line(c.dim(`${ctx.env.name} is a sandbox: \`retake sandbox reset ${project.slug} --env ${ctx.env.name}\` restores its seed`));
   try {
     let ok = await rollbackAllPending(ui, project, ctx);
     const reset = project.config.reset ?? [];

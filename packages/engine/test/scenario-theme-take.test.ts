@@ -10,8 +10,8 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@demo-studio/core';
-import { themeContentHash } from '@demo-studio/editor';
+import { STARTER_TEMPLATES_DIR } from '@retake/core';
+import { themeContentHash } from '@retake/editor';
 import { clearTimelineViewMemo, createEngine } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
@@ -31,7 +31,7 @@ scenes:
 `;
 let root: string;
 let engine: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 const view = async (r: Promise<TimelineViewResult>) => {
   const v = await r;
   if (!('view' in v)) throw new Error(`blocked: ${JSON.stringify(v.blocked)}`);
@@ -40,8 +40,8 @@ const view = async (r: Promise<TimelineViewResult>) => {
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'ds-scenario-theme-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), 'version: 1\nprojects_dir: projects\ntemplates_dir: templates\n');
   await cp(join(STARTER_TEMPLATES_DIR, 'editorial'), join(root, 'templates', 'brand'), { recursive: true });
   // Its own name (a byte-identical copy would have the starter's content hash).
   const tpl = join(root, 'templates', 'brand', 'template.yaml');
@@ -71,8 +71,8 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   await rm(root, { recursive: true, force: true });
 });
 

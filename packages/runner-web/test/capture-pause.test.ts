@@ -11,20 +11,20 @@
  * maximum stops with the reason. Review B L10: the clock stops before the recorders do (no frameless span filmed per
  * pause), one length for a pause in run.json and the timeline, and checks bound to the timeline, not to two takes.
  *
- * `DEMO_STUDIO_PAUSE_SHOTS=<folder>` saves the frames around the pause point there (to look at them).
+ * `RETAKE_PAUSE_SHOTS=<folder>` saves the frames around the pause point there (to look at them).
  */
 import { execFileSync } from 'node:child_process';
 import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunRecord, Timeline, TimelineLoading, TimelinePause } from '@demo-studio/core';
+import type { RunProgress, RunRecord, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
 import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.js';
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
 import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
 
-const SHOTS = process.env.DEMO_STUDIO_PAUSE_SHOTS;
+const SHOTS = process.env.RETAKE_PAUSE_SHOTS;
 const FPS = 30;
 const PAUSE_MS = 2500;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

@@ -847,17 +847,17 @@ describe('draftFromRecording: a Studio draft has no YAML alias (review B-M2)', (
     const ev = rec(start(), press(400, { target: { text: 'New quote' } }), { kind: 'scroll', t: 2600, container: 'document', el: null, dx: 0, dy: 600 }, press(3000, late), typing(3400, late, { text: 'Acme' }), stop(4000));
     // The recorder's own draft (CLI / MCP) is unchanged: L3.4 wrote the shared target once, with an alias.
     expect(draft(ev).yaml).toMatch(/&a1/);
-    const studio = draftFromRecording(ev, CTX, null, { aliases: false });
-    expect(studio.yaml).not.toMatch(/[&*]a\d/);
-    expect(parseScenario(studio.yaml).scenario).toEqual(parseScenario(draft(ev).yaml).scenario);
-    const { scenario } = parseScenario(studio.yaml);
+    const studioDraft = draftFromRecording(ev, CTX, null, { aliases: false });
+    expect(studioDraft.yaml).not.toMatch(/[&*]a\d/);
+    expect(parseScenario(studioDraft.yaml).scenario).toEqual(parseScenario(draft(ev).yaml).scenario);
+    const { scenario } = parseScenario(studioDraft.yaml);
     const steps = (scenario as unknown as { scenes: Array<{ steps: unknown[] }> }).scenes[0].steps;
     for (const [kind, index] of [
       ['delete_step', 1],
       ['delete_step', 2],
       ['duplicate_step', 2],
     ] as const) {
-      const r = applyStepEdit(studio.yaml, { kind, at: { scene: 'home', index, guard: stepGuard(steps[index] as never) } } as never);
+      const r = applyStepEdit(studioDraft.yaml, { kind, at: { scene: 'home', index, guard: stepGuard(steps[index] as never) } } as never);
       expect(parseScenario(r.text).issues.filter((i) => i.severity === 'error'), `${kind} ${index}`).toEqual([]);
     }
   });

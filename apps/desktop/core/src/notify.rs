@@ -210,27 +210,27 @@ mod tests {
         let mut p = Permission::default();
         assert_eq!(p.on_post(), AuthStep::Ask);
         assert_eq!(p.on_post(), AuthStep::Wait);
-        let (ok, line) = p.on_answer(AuthAnswer::Denied, "Demo Studio");
+        let (ok, line) = p.on_answer(AuthAnswer::Denied, "Retake");
         assert!(!ok);
-        assert_eq!(line.as_deref(), Some("notifications are off: System Settings › Notifications › Demo Studio turns them on"));
+        assert_eq!(line.as_deref(), Some("notifications are off: System Settings › Notifications › Retake turns them on"));
         // The next post asks again (no prompt then: the person answered), and the same no is not said again.
         assert_eq!(p.on_post(), AuthStep::Ask);
-        assert_eq!(p.on_answer(AuthAnswer::Denied, "Demo Studio"), (false, None));
+        assert_eq!(p.on_answer(AuthAnswer::Denied, "Retake"), (false, None));
         // Turned on in System Settings meanwhile: granted at the next post, said.
         assert_eq!(p.on_post(), AuthStep::Ask);
-        assert_eq!(p.on_answer(AuthAnswer::Granted, "Demo Studio"), (true, Some("notifications are on".into())));
+        assert_eq!(p.on_answer(AuthAnswer::Granted, "Retake"), (true, Some("notifications are on".into())));
         assert_eq!(p.on_post(), AuthStep::Post);
         // An error is not a person's no: its domain and code are said.
         let mut q = Permission::default();
         q.on_post();
-        let (ok, line) = q.on_answer(AuthAnswer::Error("UNErrorDomain".into(), 1), "Demo Studio");
+        let (ok, line) = q.on_answer(AuthAnswer::Error("UNErrorDomain".into(), 1), "Retake");
         assert!(!ok);
         assert_eq!(line.as_deref(), Some("notifications could not be allowed: macOS refused the request (UNErrorDomain 1)"));
         assert_eq!(q.state(), Auth::Unknown);
         // Granted at once (the usual case): nothing to say.
         let mut g = Permission::default();
         g.on_post();
-        assert_eq!(g.on_answer(AuthAnswer::Granted, "Demo Studio"), (true, None));
+        assert_eq!(g.on_answer(AuthAnswer::Granted, "Retake"), (true, None));
     }
 
     #[test]

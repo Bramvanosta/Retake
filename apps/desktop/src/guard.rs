@@ -11,7 +11,7 @@
 //!   JSON data and a fresh id, only while the window is on the Studio's own origin); the page's kit Sheet acks `shown`
 //!   and answers through the op `desktop_answer`, which the server writes on its pipe (child.rs → `from_page`). Quit
 //!   Anyway re-enters through `request_terminate()` (as SIGUSR2 does: no TerminateLater, no reply from a tao callback);
-//!   no ack within 1.5 s, logout / restart / shut down, test mode's DEMO_STUDIO_DESKTOP_TEST_QUIT=native: the native
+//!   no ack within 1.5 s, logout / restart / shut down, test mode's RETAKE_DESKTOP_TEST_QUIT=native: the native
 //!   alert below. Every exit from a page question closes its sheet (`studio:quit-close`).
 //! - The native alert: app-modal inside the hook (the standard pattern: logout waits for it), the window shown first.
 //!   Unsaved text: Cancel is the default button and Quit Anyway destructive (critique M3); jobs only: Quit Anyway first.
@@ -146,10 +146,10 @@ fn fresh_id() -> String {
     }
 }
 
-/// DEMO_STUDIO_DESKTOP_TEST_QUIT=native (test mode only): the quit question is the native alert, as before L5.12d —
-/// the L5.2b gated tests answer it through DEMO_STUDIO_DESKTOP_TEST_ANSWERS / MODAL_MS.
+/// RETAKE_DESKTOP_TEST_QUIT=native (test mode only): the quit question is the native alert, as before L5.12d —
+/// the L5.2b gated tests answer it through RETAKE_DESKTOP_TEST_ANSWERS / MODAL_MS.
 fn page_question_on() -> bool {
-    !(crate::test_mode() && std::env::var("DEMO_STUDIO_DESKTOP_TEST_QUIT").is_ok_and(|v| v == "native"))
+    !(crate::test_mode() && std::env::var("RETAKE_DESKTOP_TEST_QUIT").is_ok_and(|v| v == "native"))
 }
 
 /// Do what the flow said, in order (any thread but a Tauri callback's: `terminate:` is posted, never sent).

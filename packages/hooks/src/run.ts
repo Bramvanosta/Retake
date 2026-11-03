@@ -1,5 +1,5 @@
-import { channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@demo-studio/core';
-import type { HookKind, HookStep, HttpHookSpec } from '@demo-studio/core';
+import { channelWords, readOnlyHookMessage, shellAlwaysWrites } from '@retake/core';
+import type { HookKind, HookStep, HttpHookSpec } from '@retake/core';
 import { checkWriteHosts } from './allow-list.js';
 import { hookFiles, hookFingerprint } from './approval.js';
 import { describeHook, hookKindOf, withName } from './describe.js';

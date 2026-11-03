@@ -16,8 +16,8 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ScenarioError } from '@demo-studio/core';
-import type { CommentThread } from '@demo-studio/core';
+import { ScenarioError } from '@retake/core';
+import type { CommentThread } from '@retake/core';
 import { EngineError, createEngine } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
@@ -46,7 +46,7 @@ let dir: string;
 let mcp: Engine;
 let ui: Engine;
 let cli: Engine;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 let n = 0;
 
 const scenarioFile = (name: string) => join(dir, 'scenarios', `${name}.yaml`);
@@ -97,8 +97,8 @@ const propose = (scenario: string, id: string, yaml: string, hash: string, engin
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'ds-comment-proposals-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
-  await writeFile(join(ws, 'studio.yaml'), 'projects_dir: projects\n');
+  process.env.RETAKE_HOME = join(ws, '.home');
+  await writeFile(join(ws, 'retake.yaml'), 'projects_dir: projects\n');
   dir = join(ws, 'projects', 'w');
   await mkdir(join(dir, 'scenarios'), { recursive: true });
   await mkdir(join(dir, 'runs', RUN), { recursive: true });
@@ -112,8 +112,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

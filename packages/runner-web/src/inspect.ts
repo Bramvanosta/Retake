@@ -1,5 +1,5 @@
 /**
- * Page inspection (L3.3, `page_inspect` / `studio inspect`): at the end of a dry replay — or at the step where it failed
+ * Page inspection (L3.3, `page_inspect` / `retake inspect`): at the end of a dry replay — or at the step where it failed
  * — the page the run shows is inventoried for a scenario's author. A viewport screenshot (the cursor hidden; marks are
  * drawn later, by the engine, from the boxes), the visible interactive elements with a suggested target each and
  * `inspect.json`, all in the run folder.
@@ -12,8 +12,8 @@
  */
 import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { flowYaml, isPageOrigin, isPoint, normalizeTarget, roundTrips, targetValue } from '@demo-studio/core';
-import type { BBox, Pacing, PointSpec, TargetObject, TargetSpec } from '@demo-studio/core';
+import { flowYaml, isPageOrigin, isPoint, normalizeTarget, roundTrips, targetValue } from '@retake/core';
+import type { BBox, Pacing, PointSpec, TargetObject, TargetSpec } from '@retake/core';
 import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RunRecordSchema, TimelineSchema } from '@demo-studio/core';
-import type { Timeline } from '@demo-studio/core';
+import { RunRecordSchema, TimelineSchema } from '@retake/core';
+import type { Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
 import { debugTemplate, ffprobeDuration, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';

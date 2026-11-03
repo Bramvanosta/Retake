@@ -1,5 +1,5 @@
-import { isHostRefusedError, isWriteRefusedError, protectedHostMessage, readOnlyHookMessage } from '@demo-studio/core';
-import type { JsHookSpec } from '@demo-studio/core';
+import { isHostRefusedError, isWriteRefusedError, protectedHostMessage, readOnlyHookMessage } from '@retake/core';
+import type { JsHookSpec } from '@retake/core';
 import { describeJs } from '../describe.js';
 import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';
@@ -10,7 +10,7 @@ import { oneLine } from '../util.js';
 import { ignoreRollback, readHookFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 
-export const JS_NEEDS_PAGE = 'js hooks need a browser page: run them through the runner (studio run / run_capture)';
+export const JS_NEEDS_PAGE = 'js hooks need a browser page: run them through the runner (retake run / run_capture)';
 
 function checkPage(ctx: HookContext, page: string | undefined): void {
   if (page !== undefined && !Object.hasOwn(ctx.env.pages, page)) {

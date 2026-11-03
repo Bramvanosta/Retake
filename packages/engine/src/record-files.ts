@@ -2,14 +2,14 @@
  * A recording folder's own files beside the runner's events (L4.8): meta.json, written once by the code that creates
  * the folder (record.ts, the CLI and the worker alike), and studio.json, the Studio's annotations (core
  * record-annotations.ts), written only by the engine (record-studio.ts) under the recording's lock
- * (`<project>/.demo-studio/locks/record-<id>.lock`). Everything under `.demo-studio/` is agent-writable: both files are
+ * (`<project>/.retake/locks/record-<id>.lock`). Everything under `.retake/` is agent-writable: both files are
  * read without following a link (O_NOFOLLOW), bounded, and checked field by field before any use; a file that fails is
  * treated as absent (meta.json: the recording is read-only) or refused (studio.json: never overwritten).
  */
 import { writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, readPlainFile } from '@demo-studio/core';
-import type { JobClient, RecordAnnotations } from '@demo-studio/core';
+import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, readPlainFile } from '@retake/core';
+import type { JobClient, RecordAnnotations } from '@retake/core';
 import type { ProcessIdentity } from './jobs/proc.js';
 
 export const RECORD_META_FILE = 'meta.json';
@@ -22,7 +22,7 @@ export const RECORD_UNSAVED_KEEP_MS = 7 * 24 * 3600_000;
 export interface RecordMeta {
   v: 1;
   rec_id: string;
-  /** The `record` job (null: a `studio record` in a terminal). */
+  /** The `record` job (null: a `retake record` in a terminal). */
   job_id: string | null;
   submitted_by: JobClient;
   /** The scenario name the draft is made for. */
@@ -38,13 +38,13 @@ export interface RecordMeta {
   owner: ProcessIdentity;
 }
 
-/** `<project>/.demo-studio/locks/record-<id>.lock`'s name: held by annotate, save and discard; prune skips its folder. */
+/** `<project>/.retake/locks/record-<id>.lock`'s name: held by annotate, save and discard; prune skips its folder. */
 export function recordLockName(id: string): string {
   return `record-${id}.lock`;
 }
 
 export function recordLockFile(projectDir: string, id: string): string {
-  return join(projectDir, '.demo-studio', 'locks', recordLockName(id));
+  return join(projectDir, '.retake', 'locks', recordLockName(id));
 }
 
 /** Write meta.json once (0600; never over an existing file). */

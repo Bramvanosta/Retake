@@ -8,27 +8,27 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_INPUT_VERSION, loadWorkspaceConfig } from '@demo-studio/core';
-import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@demo-studio/engine';
-import type { Engine, JobRecord, SiteJobResult } from '@demo-studio/engine';
+import { JOB_INPUT_VERSION, loadWorkspaceConfig } from '@retake/core';
+import { JOB_RECORD_VERSION, createEngine, makeSiteDir, newSiteId } from '@retake/engine';
+import type { Engine, JobRecord, SiteJobResult } from '@retake/engine';
 import { siteOutput } from '../src/tools/theme.js';
 import { drawPng } from '../../runner-web/test/site-fixture.js';
 
 let root: string;
 let engine: Engine;
-const saved = process.env.DEMO_STUDIO_HOME;
+const saved = process.env.RETAKE_HOME;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'studio-mcp-site-output-'));
-  process.env.DEMO_STUDIO_HOME = join(root, '.home');
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
+  process.env.RETAKE_HOME = join(root, '.home');
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   engine = await createEngine({ root, client: 'mcp', autoStartWorker: false });
 });
 
 afterAll(async () => {
   if (root) await rm(root, { recursive: true, force: true });
-  if (saved === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = saved;
+  if (saved === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = saved;
 });
 
 async function finishedJob(warnings: unknown[]): Promise<{ job: JobRecord; dir: string }> {
@@ -72,7 +72,7 @@ describe('siteOutput', () => {
     const view = (await engine.templates.site((job.input as { site_id: string }).site_id, 'https://brand.example.net/')).view!;
     expect(view.candidates).toHaveLength(1);
     await rm(join(dir, 'screenshot.jpg'));
-    await symlink(join(root, 'studio.yaml'), join(dir, 'screenshot.jpg'));
+    await symlink(join(root, 'retake.yaml'), join(dir, 'screenshot.jpg'));
     const out = await siteOutput(engine, job);
     expect(out.images?.map((i) => i.file.split('/').at(-1))).toEqual(['logo-1.png']);
   });

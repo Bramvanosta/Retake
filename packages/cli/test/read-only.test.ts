@@ -1,6 +1,6 @@
 /**
  * L1.7 on the command line (R-ENV-02/04): `--allow-writes` on run / hooks run / hooks rollback / env reset, writing
- * hooks refused on read-only environments (before any browser opens for `studio run`), journal replays judged by
+ * hooks refused on read-only environments (before any browser opens for `retake run`), journal replays judged by
  * each entry's own environment. A local HTTP server stands in for the product; no browser is needed.
  */
 import { createServer } from 'node:http';
@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { RunRecord } from '@demo-studio/core';
+import type { RunRecord } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
 
 let root: string;
@@ -18,9 +18,9 @@ let server: Server;
 let base: string;
 const requests: string[] = [];
 
-async function studio(...args: string[]) {
+async function retake(...args: string[]) {
   const io = memoryIo();
-  const code = await main(['node', 'studio', '--root', root, ...args], io);
+  const code = await main(['node', 'retake', '--root', root, ...args], io);
   return { code, out: io.stdout(), err: io.stderr() };
 }
 
@@ -33,8 +33,8 @@ beforeAll(async () => {
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   root = await mkdtemp(join(tmpdir(), 'studio-readonly-'));
-  // A browser that cannot start: `studio run` must refuse before it would launch one.
-  await writeFile(join(root, 'studio.yaml'), 'projects_dir: projects\nbrowser: {executable: /nonexistent/chromium}\n');
+  // A browser that cannot start: `retake run` must refuse before it would launch one.
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\nbrowser: {executable: /nonexistent/chromium}\n');
   const project = join(root, 'projects', 'shop');
   await mkdir(join(project, 'hooks'), { recursive: true });
   await mkdir(join(project, 'scenarios'), { recursive: true });
@@ -81,37 +81,37 @@ beforeEach(() => {
   requests.length = 0;
 });
 
-describe('studio hooks run on read-only environments', () => {
+describe('retake hooks run on read-only environments', () => {
   it('refuses a writing hook on production; reads run; the header says read-only', async () => {
-    const w = await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production');
+    const w = await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production');
     expect(w.code).toBe(EXIT.failure);
     expect(w.err).toContain('· env production · production · read-only');
     expect(w.err).toContain('refusing a hook that writes (HTTP POST) on read-only environment production');
     expect(requests).toEqual([]);
 
-    const r = await studio('hooks', 'run', 'shop', 'hooks/read.yaml', '--env', 'production');
+    const r = await retake('hooks', 'run', 'shop', 'hooks/read.yaml', '--env', 'production');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(requests).toEqual(['GET /api/health']);
   });
 
   it('a dry run reports the refusal; --allow-writes on a read-only environment is a usage error', async () => {
-    const dry = await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production', '--dry');
+    const dry = await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production', '--dry');
     expect(dry.code).toBe(EXIT.failure);
     expect(dry.err).toContain('refusing a hook that writes (HTTP POST)');
-    const flag = await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production', '--allow-writes');
+    const flag = await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'production', '--allow-writes');
     expect(flag.code).toBe(EXIT.usage);
     expect(flag.err).toContain('environment production is read-only in project.yaml (production: true): --allow-writes only confirms writes');
     expect(requests).toEqual([]);
   });
 
   it('production that allows writes: read-only with a notice, read-write with --allow-writes', async () => {
-    const no = await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live');
+    const no = await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live');
     expect(no.code).toBe(EXIT.failure);
     expect(no.err).toContain('this run is read-only: pass --allow-writes to write');
     expect(no.err).toContain('pass --allow-writes to let it write to production');
     expect(requests).toEqual([]);
 
-    const yes = await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live', '--allow-writes');
+    const yes = await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live', '--allow-writes');
     expect(yes.code, yes.err).toBe(EXIT.ok);
     expect(yes.err).toContain('· env live · production · writes allowed');
     expect(yes.err).toContain('writes go to production: environment live runs read-write (--allow-writes)');
@@ -121,26 +121,26 @@ describe('studio hooks run on read-only environments', () => {
 
 describe('journal replays take the access of each entry\'s environment', () => {
   it('env reset on local does not replay a production rollback without --allow-writes', async () => {
-    const journals = join(root, 'projects', 'shop', '.demo-studio', 'journals');
+    const journals = join(root, 'projects', 'shop', '.retake', 'journals');
     await rm(journals, { recursive: true, force: true });
-    expect((await studio('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live', '--allow-writes')).code).toBe(EXIT.ok);
+    expect((await retake('hooks', 'run', 'shop', 'hooks/arm.yaml', '--env', 'live', '--allow-writes')).code).toBe(EXIT.ok);
     requests.length = 0;
 
     // The command's environment is local (read-write): the pending entry ran on live.
-    const reset = await studio('env', 'reset', 'shop');
+    const reset = await retake('env', 'reset', 'shop');
     expect(reset.code).toBe(EXIT.failure);
     expect(reset.err).toContain('refusing a hook that writes (its rollback: HTTP DELETE) on read-only environment live: pass --allow-writes');
     expect(requests).toEqual(['POST /api/reset']); // the reset hooks of local ran; the rollback did not
 
-    const rollback = await studio('hooks', 'rollback', 'shop', '--allow-writes');
+    const rollback = await retake('hooks', 'rollback', 'shop', '--allow-writes');
     expect(rollback.code, rollback.err).toBe(EXIT.ok);
     expect(requests).toEqual(['POST /api/reset', 'DELETE /api/arm']);
-    expect((await studio('hooks', 'rollback', 'shop')).err).toContain('no pending rollbacks');
+    expect((await retake('hooks', 'rollback', 'shop')).err).toContain('no pending rollbacks');
     expect((await readdir(journals)).length).toBeGreaterThan(0);
   });
 
   it('env reset on production refuses its own writing reset hooks', async () => {
-    const r = await studio('env', 'reset', 'shop', '--env', 'production');
+    const r = await retake('env', 'reset', 'shop', '--env', 'production');
     expect(r.code).toBe(EXIT.failure);
     expect(r.err).toContain('· env production · production · read-only');
     expect(r.err).toContain('refusing a hook that writes (HTTP POST)');
@@ -148,9 +148,9 @@ describe('journal replays take the access of each entry\'s environment', () => {
   });
 });
 
-describe('studio run on read-only environments', () => {
+describe('retake run on read-only environments', () => {
   it('refuses a scenario whose setup hooks write, before any browser opens', async () => {
-    const r = await studio('run', 'shop', 'quote', '--env', 'production');
+    const r = await retake('run', 'shop', 'quote', '--env', 'production');
     expect(r.code).toBe(EXIT.failure);
     expect(r.err).toContain('production · read-only');
     expect(r.err).toContain('environment production is production, read-only and a hook writes: setup hook 1 "reset" (HTTP POST) — nothing ran');
@@ -163,7 +163,7 @@ describe('studio run on read-only environments', () => {
   });
 
   it('the header and run.json say a frozen clock and its zone (T4)', async () => {
-    const r = await studio('run', 'shop', 'frozen', '--env', 'production');
+    const r = await retake('run', 'shop', 'frozen', '--env', 'production');
     expect(r.code).toBe(EXIT.failure); // its setup hook writes: refused before any browser opens
     expect(r.err).toContain('capture  env production · hooks run · production · read-only · clock 2026-11-02T10:24:00 Europe/Paris (frozen)');
     const runs = join(root, 'projects', 'shop', 'runs');
@@ -173,14 +173,14 @@ describe('studio run on read-only environments', () => {
   });
 
   it('--allow-writes on a read-only environment is a usage error', async () => {
-    const r = await studio('run', 'shop', 'quote', '--env', 'production', '--allow-writes');
+    const r = await retake('run', 'shop', 'quote', '--env', 'production', '--allow-writes');
     expect(r.code).toBe(EXIT.usage);
     expect(r.err).toContain('--allow-writes only confirms writes');
     expect(requests).toEqual([]);
   });
 
   it('validate warns about the hooks a read-only run would refuse', async () => {
-    const v = await studio('validate', 'shop', 'quote', '--env', 'production');
+    const v = await retake('validate', 'shop', 'quote', '--env', 'production');
     expect(v.code, v.err).toBe(EXIT.ok);
     expect(v.err).toMatch(/quote\.yaml:3:\d+ warning .*this hook writes \(HTTP POST\) and environment production is production, read-only/);
   });
@@ -190,13 +190,13 @@ describe('js hooks on read-only environments (a real browser)', () => {
   let jsRoot: string;
   const run = async (...args: string[]) => {
     const io = memoryIo();
-    const code = await main(['node', 'studio', '--root', jsRoot, ...args], io);
+    const code = await main(['node', 'retake', '--root', jsRoot, ...args], io);
     return { code, out: io.stdout(), err: io.stderr() };
   };
 
   beforeAll(async () => {
     jsRoot = await mkdtemp(join(tmpdir(), 'studio-readonly-js-'));
-    await writeFile(join(jsRoot, 'studio.yaml'), 'projects_dir: projects\n');
+    await writeFile(join(jsRoot, 'retake.yaml'), 'projects_dir: projects\n');
     const project = join(jsRoot, 'projects', 'shop');
     await mkdir(join(project, 'hooks'), { recursive: true });
     await writeFile(join(project, 'project.yaml'), `name: Shop\nenvironments:\n  production:\n    production: true\n    pages: {app: ${base}}\n`);

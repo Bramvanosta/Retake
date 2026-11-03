@@ -1,14 +1,14 @@
 /**
- * `hooks` and `env_reset` jobs (L3.1): `studio hooks run` and `studio env reset` submitted by a client outside the CLI
+ * `hooks` and `env_reset` jobs (L3.1): `retake hooks run` and `retake env reset` submitted by a client outside the CLI
  * (the MCP server) and executed by the jobs worker with the same engine code (hooks.ts) — trust `mcp`: the hook files'
  * `confirm: true` does not count, every shell hook needs a human approval and always counts as writing.
  *
  * Submit checks the names and the source, and for a real run takes the approvals (approvals.ts): a dry run executes
  * nothing and asks nobody — its result says which hooks a real run needs approved.
  */
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@demo-studio/core';
-import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@demo-studio/core';
-import type { HookResult } from '@demo-studio/hooks';
+import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@retake/core';
+import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@retake/core';
+import type { HookResult } from '@retake/hooks';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -39,12 +39,12 @@ function q(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** The `studio hooks run` command a human runs for the same hooks. */
+/** The `retake hooks run` command a human runs for the same hooks. */
 export function hooksCommandLine(cli: string, r: HooksSubmitRequest): string {
   return [cli, 'hooks', 'run', r.project, q(r.source), ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.dry ? ['--dry'] : [])].join(' ');
 }
 
-/** The `studio env reset` command a human runs for the same reset. */
+/** The `retake env reset` command a human runs for the same reset. */
 export function envResetCommandLine(cli: string, r: EnvResetSubmitRequest): string {
   return [cli, 'env', 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(r.dry ? ['--dry'] : [])].join(' ');
 }
@@ -166,7 +166,7 @@ const levelOf = (l: string): 'debug' | 'info' | 'warn' | 'error' => (l === 'erro
 /** Execute a `hooks` job: the hooks of its source, with trust `mcp` and the approvals taken at submit. */
 export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Promise<HooksJobResult> {
   const { input } = ctx;
-  const hooks = await import('@demo-studio/hooks');
+  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
   const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true });
   // Checked again here: the scenario may have changed since the submit (its hooks' approvals are bound to fingerprints).
@@ -207,7 +207,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
 /** Execute an `env_reset` job: every pending rollback, then the project's reset hooks (trust `mcp`, approvals). */
 export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>): Promise<EnvResetJobResult> {
   const { input } = ctx;
-  const hooks = await import('@demo-studio/hooks');
+  const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
   await checkWorkspaceProtection(ctx.ws, project, input.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {

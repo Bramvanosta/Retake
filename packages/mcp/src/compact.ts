@@ -8,8 +8,8 @@
  * Trust is unchanged: what the filmed site or the scenario wrote stays under `untrusted` (capUntrusted still applies).
  */
 import { z } from 'zod';
-import { perfSummary } from '@demo-studio/core';
-import type { ReviewView, RunStatusWithJob } from '@demo-studio/engine';
+import { perfSummary } from '@retake/core';
+import type { ReviewView, RunStatusWithJob } from '@retake/engine';
 
 export const detail = z
   .enum(['compact', 'full'])

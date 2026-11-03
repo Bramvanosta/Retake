@@ -3,9 +3,9 @@
  * scene starts (rendered frames, and the capture frames behind them), a screen still changing during the scene's
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
-import type { Timeline } from '@demo-studio/core';
-import { viewOf } from '@demo-studio/editor';
-import type { ClipSegment, EditPlan } from '@demo-studio/editor';
+import type { Timeline } from '@retake/core';
+import { viewOf } from '@retake/editor';
+import type { ClipSegment, EditPlan } from '@retake/editor';
 import type { CheckContext } from './checks.js';
 import { captionRegion, locate } from './checks.js';
 import type { RegionStats } from './pixels.js';

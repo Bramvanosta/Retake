@@ -12,8 +12,8 @@ import {
   rollbackPendingJournals,
   runHooks,
   standaloneJournalFile,
-} from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+} from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
@@ -139,11 +139,11 @@ describe('findPendingJournals', () => {
     expect(await findPendingJournals(tmp.dir)).toEqual([runFile('20261008-090000-broken')]);
   });
 
-  it('reads standalone journals from .demo-studio/journals as well, merged by id (R-ISS-06)', async () => {
+  it('reads standalone journals from .retake/journals as well, merged by id (R-ISS-06)', async () => {
     const { ctx } = makeContext(makeProject(tmp.dir));
     const standalone = standaloneJournalFile(tmp.dir, '20261010-120000-hooks-catalogue-setup');
     expect(standalone).toBe(join(tmp.dir, JOURNALS_DIR, '20261010-120000-hooks-catalogue-setup.json'));
-    expect(standalone).toBe(join(tmp.dir, '.demo-studio', 'journals', '20261010-120000-hooks-catalogue-setup.json'));
+    expect(standalone).toBe(join(tmp.dir, '.retake', 'journals', '20261010-120000-hooks-catalogue-setup.json'));
     await runHooks([hook('standalone')], ctx, { phase: 'setup', journal: await Journal.open(standalone) });
     for (const run of ['20261009-090000-catalogue', '20261011-090000-quote']) {
       await runHooks([hook(run.slice(0, 8))], ctx, { phase: 'setup', journal: await Journal.open(runFile(run)) });

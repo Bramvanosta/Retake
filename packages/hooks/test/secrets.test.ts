@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { Journal, runHooks } from '@demo-studio/hooks';
-import type { HookStep } from '@demo-studio/core';
+import { Journal, runHooks } from '@retake/hooks';
+import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject } from './helpers.js';
 
 const TOKEN = 'nf-staging-token-8f3a1c';

@@ -1,6 +1,6 @@
 /**
  * A sandbox's seed and the reset around it: the seed steps (hook phase `seed`: http / sql / shell run by
- * @demo-studio/hooks — relative to sandbox.yaml, on the sandbox's own databases, never asked to confirm a destructive
+ * @retake/hooks — relative to sandbox.yaml, on the sandbox's own databases, never asked to confirm a destructive
  * step, nothing rolled back — and `exec` steps run by the provider), then the mailbox emptied (Mailpit), and the pending
  * rollbacks recorded on the sandbox's environment marked superseded (replaying them would act on the new data).
  *
@@ -11,10 +11,10 @@
  */
 import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { interpolateDeep, isHostAllowed, normalizeHost, prefetchSecrets, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@demo-studio/core';
-import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@demo-studio/core';
-import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@demo-studio/hooks';
-import type { HookContext, HookResult } from '@demo-studio/hooks';
+import { interpolateDeep, isHostAllowed, normalizeHost, prefetchSecrets, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core';
+import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
+import type { HookContext, HookResult } from '@retake/hooks';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { pinnedAddress, pinnedRequest } from './health.js';
 import type { Provider, ProviderContext, SandboxLog } from './provider.js';

@@ -1,7 +1,7 @@
 # The scenario language, condensed
 
 A scenario is `scenarios/<name>.yaml` of a project. This page is enough for most videos; the full language is the
-README section "Scenario language" of the Demo Studio repository, and `scenario_validate` is the judge: every issue
+README section "Scenario language" of the Retake repository, and `scenario_validate` is the judge: every issue
 it gives has a line and a col.
 
 ## Skeleton

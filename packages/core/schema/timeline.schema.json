@@ -2059,7 +2059,7 @@
     "warnings"
   ],
   "additionalProperties": false,
-  "title": "Demo Studio timeline",
+  "title": "Retake timeline",
   "description": "runs/<id>/timeline.json: scenes, step events, markers, pages and cursor track in capture time.",
   "$defs": {
     "Frame": {

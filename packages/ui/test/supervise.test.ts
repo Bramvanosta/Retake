@@ -12,10 +12,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { JOB_KINDS } from '@demo-studio/core';
-import type { JobKind } from '@demo-studio/core';
-import { FileJobQueue, selfIdentity } from '@demo-studio/engine';
-import type { JobRecord } from '@demo-studio/engine';
+import { JOB_KINDS } from '@retake/core';
+import type { JobKind } from '@retake/core';
+import { FileJobQueue, selfIdentity } from '@retake/engine';
+import type { JobRecord } from '@retake/engine';
 import { JOB_END_PER_MIN, PIPE_LINE_MAX, Supervisor, UnsavedBoard, jobOutcome, pendingLine, pipeKind } from '../src/index.js';
 import type { PipeOut } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -36,13 +36,13 @@ afterAll(async () => {
 
 /** A fresh jobs folder per test (the watch reads them all). */
 beforeEach(async () => {
-  await rm(join(ws, '.demo-studio', 'jobs'), { recursive: true, force: true });
+  await rm(join(ws, '.retake', 'jobs'), { recursive: true, force: true });
 });
 
 const id = () => `j_${String(++n).padStart(26, '0')}`;
 
 async function job(rec: Partial<JobRecord> & { kind: JobKind; input: Record<string, unknown>; state: JobRecord['state'] }, at = id()): Promise<string> {
-  const dir = join(ws, '.demo-studio', 'jobs', at);
+  const dir = join(ws, '.retake', 'jobs', at);
   await mkdir(dir, { recursive: true });
   const full = { version: 1, id: at, created_at: new Date().toISOString(), ...rec, input: { version: 1, kind: rec.kind, submitted_by: 'test', ...rec.input } };
   await writeFile(join(dir, 'job.json'), JSON.stringify(full));

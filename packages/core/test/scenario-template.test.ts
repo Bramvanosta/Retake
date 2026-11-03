@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { TemplateError, displayPages, normalizeStep, templateSceneEntry, templateVideo } from '@demo-studio/core';
-import type { CardScene, InterstitialScene, Scene, TemplateContext } from '@demo-studio/core';
+import { TemplateError, displayPages, normalizeStep, templateSceneEntry, templateVideo } from '@retake/core';
+import type { CardScene, InterstitialScene, Scene, TemplateContext } from '@retake/core';
 
 const ctx: TemplateContext = {
   pages: { shop: 'http://localhost:4402' },
@@ -11,7 +11,7 @@ const ctx: TemplateContext = {
 
 describe('templateSceneEntry (R-RUN-16)', () => {
   afterEach(() => {
-    delete process.env.DEMO_STUDIO_TEST_PASSWORD;
+    delete process.env.RETAKE_TEST_PASSWORD;
   });
 
   it('templates every string of a scene: arguments, targets, waits, captions, overlays, pages, the scene cursor', () => {
@@ -101,8 +101,8 @@ describe('templateSceneEntry (R-RUN-16)', () => {
   });
 
   it('resolves secret references in steps through the context, and names the string of an unknown key', () => {
-    process.env.DEMO_STUDIO_TEST_PASSWORD = 'S3cret-pw-42';
-    const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:DEMO_STUDIO_TEST_PASSWORD}}' } }] };
+    process.env.RETAKE_TEST_PASSWORD = 'S3cret-pw-42';
+    const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }] };
     expect(templateSceneEntry(scene, 0, ctx).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
     const viaResolver = templateSceneEntry(
       { id: 'kc', steps: [{ type: '{{keychain:demo-test/agent}}' }] } as Scene,

@@ -17,7 +17,7 @@ let own: ProcessIdentity | undefined;
 /** This process, with its start time as ps reports it (read once). */
 export async function selfIdentity(): Promise<ProcessIdentity> {
   if (own) return own;
-  const { processStart } = await import('@demo-studio/sandbox');
+  const { processStart } = await import('@retake/sandbox');
   const t = await processStart(process.pid);
   own = { pid: process.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}) };
   return own;
@@ -25,13 +25,13 @@ export async function selfIdentity(): Promise<ProcessIdentity> {
 
 /** A process's start time (ms since the epoch, from ps), or null. */
 export async function processStart(pid: number): Promise<number | null> {
-  const { processStart: start } = await import('@demo-studio/sandbox');
+  const { processStart: start } = await import('@retake/sandbox');
   return start(pid);
 }
 
 /** Is the process `id` names still running (same pid, same start time)? */
 export async function isAlive(id: ProcessIdentity): Promise<boolean> {
-  const { processStart, signalState } = await import('@demo-studio/sandbox');
+  const { processStart, signalState } = await import('@retake/sandbox');
   if (id.pid === process.pid) {
     const me = await selfIdentity();
     return !me.started_at || !id.started_at || me.started_at === id.started_at;

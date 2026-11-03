@@ -17,7 +17,7 @@
  * - `brand_files {kind}`: the workspace's image / font files a new theme may take (names and sizes).
  * - `site_list {url?}`: the newest site extractions (hex roles, checks, candidates by `site:<id>/logo-<n>`; URL, host and
  *   page text under `untrusted`: a CLI extraction has no signed job, B11). With `url`: the URL checked (public, not an
- *   environment of a project) and the `studio theme from-site` command to copy — no Studio op queues a site job (the
+ *   environment of a project) and the `retake theme from-site` command to copy — no Studio op queues a site job (the
  *   extraction needs a person's approval of the URL, BL-106).
  * - `theme_preview {project, theme, target, draft?, lease}`: the theme editor's live preview — the editor's
  *   ComponentPreviewSpec (motion mode) of the theme's intro, its layout with its caption over the sample screen (`clip`),
@@ -30,12 +30,12 @@
  */
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { BrandInputSchema, COMPONENT_ID_RE, COMPONENT_KINDS, HEX_COLOR_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, THEME_NAME_RE, isTemplateMediaRef } from '@demo-studio/core';
-import type { ComponentKind, LoadedTemplate } from '@demo-studio/core';
-import { EngineError, checkSiteUrl, firstErrorLine, memoRegistry, openProjectBySlug, siteCommandLine, siteHostConflicts, themeAssetProblems, themeEditList, themeForWork } from '@demo-studio/engine';
-import type { Engine, SiteList, ThemeEditList, ThemeEditResult, ThemeEditView } from '@demo-studio/engine';
-import type { ComponentRegistry } from '@demo-studio/components';
-import type { ToolDef } from '@demo-studio/mcp';
+import { BrandInputSchema, COMPONENT_ID_RE, COMPONENT_KINDS, HEX_COLOR_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, THEME_NAME_RE, isTemplateMediaRef } from '@retake/core';
+import type { ComponentKind, LoadedTemplate } from '@retake/core';
+import { EngineError, checkSiteUrl, firstErrorLine, memoRegistry, openProjectBySlug, siteCommandLine, siteHostConflicts, themeAssetProblems, themeEditList, themeForWork } from '@retake/engine';
+import type { Engine, SiteList, ThemeEditList, ThemeEditResult, ThemeEditView } from '@retake/engine';
+import type { ComponentRegistry } from '@retake/components';
+import type { ToolDef } from '@retake/mcp';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';
@@ -291,7 +291,7 @@ export function themeOps(o: ThemeOpsOptions = {}): ToolDef[] {
           out.url_problem = pathFree(firstErrorLine(e instanceof Error ? e.message : String(e)), engine.workspace.root);
         }
       }
-      // The command keeps the workspace (`studio -C <root>`): the person copies it into a terminal, like an error's `fix`.
+      // The command keeps the workspace (`retake -C <root>`): the person copies it into a terminal, like an error's `fix`.
       return {
         summary: `${out.sites.length} site extractions${out.command ? '; command ready' : out.url_problem ? `; ${out.url_problem}` : ''}`,
         data: out as unknown as Record<string, unknown>,
@@ -325,7 +325,7 @@ async function heldOf(registry: ComponentRegistry, ids: readonly string[], allow
   return (await workspaceComponents(registry)).filter((c) => used.has(c.id) && !allow.has(c.id, c.hash));
 }
 
-let samplesMemo: Promise<import('@demo-studio/editor').PreviewSamples> | undefined;
+let samplesMemo: Promise<import('@retake/editor').PreviewSamples> | undefined;
 
 /** The theme with the draft's colours (memory only). */
 function withDraft(t: LoadedTemplate, draft: z.infer<typeof PreviewInput>['draft']): LoadedTemplate {
@@ -384,7 +384,7 @@ export async function themePreview(engine: Engine, a: z.infer<typeof PreviewInpu
   const player = o.player!();
   o.leases?.prune();
   o.leases?.hold(scope, a.lease);
-  const [ed, comps] = [await import('@demo-studio/editor'), await import('@demo-studio/components')];
+  const [ed, comps] = [await import('@retake/editor'), await import('@retake/components')];
   samplesMemo ??= Promise.resolve().then(() => ed.loadPreviewSamples());
   samplesMemo.catch(() => (samplesMemo = undefined));
   const samples = await samplesMemo;

@@ -27,10 +27,10 @@ import { link, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue } from '@demo-studio/engine';
-import type { JobRecord, ScenarioRendersView } from '@demo-studio/engine';
+import { FileJobQueue } from '@retake/engine';
+import type { JobRecord, ScenarioRendersView } from '@retake/engine';
 import { RENDER_OPS, UI_OPS, startStudioServer } from '../src/index.js';
-import { TOOLS } from '@demo-studio/mcp';
+import { TOOLS } from '@retake/mcp';
 import type { RenderReviewAnswer, ScenarioRenderAnswer, StudioServer } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { hasTool } from '../../editor/test/render-helpers.js';
@@ -56,7 +56,7 @@ let ws: string;
 let dir: string;
 let studio: StudioServer;
 let queue: FileJobQueue;
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 const call = (op: string, args: unknown = {}) => raw(studio.port, 'POST', `/v1/call/${op}`, { authorization: `Bearer ${studio.token}`, 'content-type': 'application/json' }, JSON.stringify(args));
 const renderArgs = (o: Record<string, unknown> = {}) => ({ project: 'demo', name: 'tl', run: RUN, expect_edit_sha256: sha(TEXT), ...o });
@@ -82,7 +82,7 @@ async function writeRecord(id: string, created: string): Promise<void> {
 beforeAll(async () => {
   if (!canRun) return;
   ws = await mkdtemp(join(tmpdir(), 'ds-render-ops-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   dir = await takeWorkspace(ws);
   const t = synthTimeline({
     duration: 3,
@@ -136,8 +136,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 

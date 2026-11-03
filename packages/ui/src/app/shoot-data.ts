@@ -20,7 +20,7 @@
  *   #6 of L4.2: a changed file is a 409, then the screen reads it again), else the actions' hash.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import type { ScenarioActions } from '@demo-studio/engine';
+import type { ScenarioActions } from '@retake/engine';
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';
 import { scenarioEventAction, useEvents } from './events.js';

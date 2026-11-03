@@ -13,10 +13,10 @@ import { createElement } from 'react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadTemplate, resolveThemeComponents } from '@demo-studio/core';
-import type { Template } from '@demo-studio/core';
-import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, isMultiPaneGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@demo-studio/components';
-import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@demo-studio/components';
+import { loadTemplate, resolveThemeComponents } from '@retake/core';
+import type { Template } from '@retake/core';
+import { LIBRARY_DIR, applyParamDefaults, captionBandBox, evalLayoutGeometry, isMultiPaneGeometry, loadComponentRegistry, paramDefaults, parseManifest, validateComponentDir } from '@retake/components';
+import type { ComponentManifest, ComponentProps, ComponentRegistry, LayoutRects, ThemeTokens } from '@retake/components';
 import { DARK, LIGHT, tempDir } from './helpers.js';
 
 const frame = vi.hoisted(() => ({ current: 0 }));

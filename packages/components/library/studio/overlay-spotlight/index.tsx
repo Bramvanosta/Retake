@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { useCurrentFrame } from 'remotion';
-import { SYSTEM_COLORS, biasMotion, clamp, fadeOut, nightTone, progress, roundTo, withAlpha } from '@demo-studio/components/kit';
-import type { ComponentProps } from '@demo-studio/components/kit';
+import { SYSTEM_COLORS, biasMotion, clamp, fadeOut, nightTone, progress, roundTo, withAlpha } from '@retake/components/kit';
+import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { dim: number; padding: number; radius: number; feather: number; ring: boolean; area: 'screen' | 'frame' };
 

@@ -3,17 +3,17 @@
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
  * user once, in form mode, with an explicit timeout. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
- * (the engine then refuses with the `studio` command a human runs in a terminal).
+ * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@demo-studio/engine';
+import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 
-/** How long a human has to answer (ms): 10 min; DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS overrides it. */
+/** How long a human has to answer (ms): 10 min; RETAKE_MCP_APPROVAL_TIMEOUT_MS overrides it. */
 export const APPROVAL_TIMEOUT_MS = 10 * 60_000;
 
 export function approvalTimeoutMs(env: NodeJS.ProcessEnv = process.env): number {
-  const v = Number(env.DEMO_STUDIO_MCP_APPROVAL_TIMEOUT_MS);
+  const v = Number(env.RETAKE_MCP_APPROVAL_TIMEOUT_MS);
   return Number.isFinite(v) && v > 0 ? v : APPROVAL_TIMEOUT_MS;
 }
 
@@ -21,7 +21,7 @@ export function approvalTimeoutMs(env: NodeJS.ProcessEnv = process.env): number 
 export function approvalMessage(req: ApprovalRequest): string {
   const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
   return [
-    `Demo Studio: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
+    `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
     `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count):`,
     ...req.items.map((i, n) => `${n + 1}. ${i.phase} hook ${i.index + 1}${i.name ? ` "${i.name}"` : ''}: ${i.description} — ${i.reason}`),
     'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
@@ -53,10 +53,10 @@ export function approvalForm(req: ApprovalRequest): ElicitForm {
  */
 export function siteApprovalMessage(req: SiteApprovalRequest): string {
   return [
-    'Demo Studio: the agent asks to open a website and extract its colours, font names and logos for a new theme.',
+    'Retake: the agent asks to open a website and extract its colours, font names and logos for a new theme.',
     `URL: ${req.href}`,
     `Host: ${req.unicode_host}${req.unicode_host !== req.host ? ` (written ${req.host})` : ''}`,
-    'It opens once in a clean headless browser on this machine: no profile and no saved sign-in, page loads only (GET requests to public addresses; no form is sent, nothing is clicked or typed). A screenshot and logo images go to .demo-studio/site/; no theme is written.',
+    'It opens once in a clean headless browser on this machine: no profile and no saved sign-in, page loads only (GET requests to public addresses; no form is sent, nothing is clicked or typed). A screenshot and logo images go to .retake/site/; no theme is written.',
     'Approve to open exactly this URL. Decline to refuse: nothing opens.',
     `Instead, you can run it yourself in a terminal: ${req.fix}`,
   ].join('\n');

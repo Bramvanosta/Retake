@@ -36,13 +36,13 @@ let context: BrowserContext;
 let page: Page;
 const errors: string[] = [];
 const bodies: Array<Record<string, unknown>> = [];
-const savedHome = process.env.DEMO_STUDIO_HOME;
+const savedHome = process.env.RETAKE_HOME;
 
 /** The shell's words for unsaved text (words.rs), and for jobs only. */
 const UNSAVED = {
   id: ID,
   action: 'quit',
-  title: 'Quit Demo Studio?',
+  title: 'Quit Retake?',
   text: 'Unsaved text in the Studio (this window, or a browser tab on it) can no longer be saved:\n• README.md of <b>shop</b>\u202egnp.exe\n• A comment being written',
   buttons: ['Cancel', 'Quit Anyway'],
   proceed: 1,
@@ -82,10 +82,10 @@ async function open(ctx: BrowserContext, app: boolean): Promise<Page> {
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-ui-e2e-quit-'));
-  process.env.DEMO_STUDIO_HOME = join(ws, '.home');
+  process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   studio = await startStudioServer({ root: ws, pollMs: 100, startWorker: false });
-  const executablePath = process.env.DEMO_STUDIO_CHROMIUM;
+  const executablePath = process.env.RETAKE_CHROMIUM;
   browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : { channel: 'chromium' }) });
   context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   page = await open(context, true);
@@ -94,8 +94,8 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
   await studio?.close();
-  if (savedHome === undefined) delete process.env.DEMO_STUDIO_HOME;
-  else process.env.DEMO_STUDIO_HOME = savedHome;
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
@@ -109,7 +109,7 @@ describe('the quit sheet (the desktop app\'s question in its page)', () => {
     await expect.poll(() => shownAcks().length, POLL).toBe(1);
     expect(shownAcks()[0]).toEqual({ id: ID, shown: true });
     // Words: the shell's lines kept; markup and a direction override shown as text.
-    expect(await d.locator('h2').innerText()).toBe('Quit Demo Studio?');
+    expect(await d.locator('h2').innerText()).toBe('Quit Retake?');
     const text = await d.locator('.sh-quit-text').innerText();
     expect(text).toContain('• README.md of <b>shop</b>[U+202E]gnp.exe\n• A comment being written');
     expect(await d.locator('b').count()).toBe(0);

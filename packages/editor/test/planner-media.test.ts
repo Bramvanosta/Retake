@@ -8,12 +8,12 @@ import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadComponentRegistry } from '@demo-studio/components';
-import type { ComponentRegistry, VideoMedia } from '@demo-studio/components';
-import { loadTemplate } from '@demo-studio/core';
-import type { LoadedProject, LoadedTemplate, Timeline, TimelineEvent } from '@demo-studio/core';
-import { MARK_WINDOW_S, OVERLAY_BOX_MARGIN, WAIT_KEEP_S, duckSpans, mapSourceRect, musicVolumeAt, overlayBoxAt, planEdit, planFileRefs, protectedSpans, stepBoxes, themeFileRefs, waitingSpans } from '@demo-studio/editor';
-import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@demo-studio/editor';
+import { loadComponentRegistry } from '@retake/components';
+import type { ComponentRegistry, VideoMedia } from '@retake/components';
+import { loadTemplate } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Timeline, TimelineEvent } from '@retake/core';
+import { MARK_WINDOW_S, OVERLAY_BOX_MARGIN, WAIT_KEEP_S, duckSpans, mapSourceRect, musicVolumeAt, overlayBoxAt, planEdit, planFileRefs, protectedSpans, stepBoxes, themeFileRefs, waitingSpans } from '@retake/editor';
+import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@retake/editor';
 import { REPO, fixtureProject, seg, synthTimeline } from './helpers.js';
 
 let registry: ComponentRegistry;
@@ -22,7 +22,7 @@ let editorial: LoadedTemplate;
 let root: string;
 
 beforeAll(async () => {
-  root = await mkdtemp(join(tmpdir(), 'demo-studio-media-plan-'));
+  root = await mkdtemp(join(tmpdir(), 'retake-media-plan-'));
   registry = await loadComponentRegistry({ root });
   project = await fixtureProject();
   editorial = await loadTemplate('editorial', REPO);

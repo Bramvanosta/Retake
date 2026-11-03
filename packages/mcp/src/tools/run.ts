@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { perfSummary } from '@demo-studio/core';
-import type { Engine, JobRecord, RunStatusWithJob } from '@demo-studio/engine';
+import { perfSummary } from '@retake/core';
+import type { Engine, JobRecord, RunStatusWithJob } from '@retake/engine';
 import { envName, projectSlug, runId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';
@@ -98,7 +98,7 @@ export const runList = defineTool({
   annotations: READ,
   async run({ project, scenario, mode, limit }, { engine }) {
     const runs = await engine.runs.list(project, { scenario, mode, limit });
-    const lines = runs.map((r) => (r.newer ? `- ${r.id}: written by a newer Demo Studio` : `- ${r.id} ${r.mode} ${r.status} (${r.steps_done}/${r.steps_total} steps, env ${r.env})`));
+    const lines = runs.map((r) => (r.newer ? `- ${r.id}: written by a newer Retake` : `- ${r.id} ${r.mode} ${r.status} (${r.steps_done}/${r.steps_total} steps, env ${r.env})`));
     return {
       summary: runs.length ? `${plural(runs.length, 'run')} of ${project}${scenario ? ` · ${scenario}` : ''}:\n${lines.join('\n')}` : `No run of ${project}${scenario ? ` · ${scenario}` : ''} yet.`,
       data: { project, runs },
