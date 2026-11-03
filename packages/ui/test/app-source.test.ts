@@ -21,7 +21,7 @@
  * element with a control role, a literal or roving tabIndex 0 and, for a click, a key handler (five reasoned
  * exceptions, keyed by exact attributes and their source line), no spread onto a non-native element, no <a> without a
  * real href, no positive tabIndex; no outline removed, transparent or faded without an accent ring in its place, and
- * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9, three since L5.12a); no colour
+ * every focus ring drawn in --accent / --accent-strong; opacity below 1 only on the accepted states (four since L5.9, three since L5.12a, two since L5.12c — the unset colour well is hatched in the kit); no colour
  * literal (hex of 3–8 digits, a colour function, a named colour) in the app's TypeScript.
  */
 import { execFileSync } from 'node:child_process';
@@ -43,7 +43,7 @@ import { FRAME_URL_RE, previewUrls } from '../src/app/timeline-words.js';
 import { PREVIEW_FRAME_ATTRS } from '../src/player/parent.js';
 import { LOOP_DATA_MAX, POSTER_DATA_MAX, SHEET_DATA_MAX, THUMB_DATA_MAX, imageDataUrl, jpegDataUrl } from '../src/app/thumbs.js';
 import { colourTokens, tokenMap, tokensCss } from '../src/app/tokens.js';
-import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, CommandPalette, ContactSheet, DiffTable, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RegionOverlay, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
+import { Blocker, Button, Callout, Checklist, ChecklistItem, ChoiceChips, ColorField, CommandPalette, ContactSheet, DataTable, DiffTable, Disclosure, EmptyState, Facts, FieldRow, FrameCard, FrameGrid, FrameOption, InspectorSection, Kbd, LinkButton, Menu, NumberField, PosterGrid, Progress, RadioGroup, RegionOverlay, RowCard, Scrubber, Segmented, SegmentedLinks, Select, Sheet, SourceList, StatusBar, StatusMark, Switch, Tag, TerminalCommands, TextArea, TextField, Toolbar, Track, TrackItem } from '../src/app/ui-kit/index.js';
 import { STATUS_TOKENS } from './a11y.js';
 import { appCssClasses, offKit, ratchetFindings, readTable } from '../scripts/kit-ratchet.js';
 import type { Appearance } from '../src/app/tokens.js';
@@ -836,7 +836,7 @@ const colourIn = (value: string) => COLOUR_LITERAL.test(value) || NAMED_COLOUR.t
 /** Text tokens × the backgrounds they may sit on: every pair reaches 4.5:1 (the static contrast guarantee). */
 const TEXT_ON_LIGHT = ['fg', 'fg-soft', 'hook-fg', 'tint-fg', 'muted', 'accent', 'accent-strong', 'danger', 'warning', 'info', 'success', 'input-fg'];
 // (L5.9: the names say "light" from L4.9; the sets hold by role in both appearances.)
-const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'code-bg', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'info-soft', 'success-soft', 'input-tint', 'veil'];
+const LIGHT_BG = ['bg', 'surface', 'subtle', 'field-off', 'code-bg', 'hover', 'thumb-stripe', 'tint', 'thumb-bg', 'hook-tint', 'accent-soft', 'danger-soft', 'warning-soft', 'info-soft', 'success-soft', 'input-tint'];
 const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
   { text: TEXT_ON_LIGHT, on: LIGHT_BG },
   // Primary fills. (L5.12a: the timeline's tooltip and its link colour left with its legacy rules; L5.12b: the comments'
@@ -847,11 +847,11 @@ const CONTRAST_SETS: Array<{ text: string[]; on: string[] }> = [
 const NOT_MEANT: Array<[string, string, string]> = [];
 /** Backgrounds that carry no text: decorative bars, the dialog backdrop, the marks beside words (dots, the playhead);
  * L5.12b: the ink under a picture (a thumbnail, a poster) — its text left with the comments' frame. */
-const NON_TEXT_BG = ['backdrop', 'danger', 'muted', 'ink', 'ink-soft'];
+const NON_TEXT_BG = ['danger', 'muted', 'ink-soft'];
 /** The kit's backgrounds that carry no text: marks (status, the switch's track and knob, a progress fill), the sheet's backdrop. */
 const UI_NON_TEXT_BG = ['ui-backdrop', 'ui-ring', 'ui-ok', 'ui-warn', 'ui-fail', 'ui-record', 'ui-idle', 'ui-waiting', 'ui-track', 'ui-knob', 'ui-hairline', 'ui-text-3'];
 /** Translucent backgrounds laid over video: composited over every grey (anything may be under them). */
-const OVER_MEDIA = ['veil'];
+const OVER_MEDIA: string[] = [];
 /** Non-text marks at 3:1 (WCAG 1.4.11): the focus ring on the light surfaces, the comment region on video, the status dots. */
 const NON_TEXT_PAIRS: Array<[string, string[]]> = [
   ['accent', ['bg', 'surface', 'subtle', 'hover', 'tint', 'accent-soft']],
@@ -932,6 +932,8 @@ const REAL_CONTROL_EXCEPTIONS: Array<{ file: string; tag: string; attrs: Record<
   { file: 'ui-kit/CommandPalette.tsx', tag: 'div', attrs: { role: '"option"', id: '{optId(c)}' }, line: 'role="option"', why: "L5.9: an option of the palette's listbox, which its combobox drives (aria-activedescendant: the focus stays in the input); Enter runs it" },
   { file: 'ui-kit/cards.tsx', tag: 'li', attrs: { role: '"option"', 'data-index': '{n}' }, line: '<li', why: 'L5.10a: an option of the productions listbox (PosterGrid), which holds the tab stop (aria-activedescendant); Enter opens the selected one as a double-click does' },
   { file: 'ui-kit/frames.tsx', tag: 'div', attrs: { role: '"option"', id: '{option.id}' }, line: 'role="option"', why: "L5.11b fixes (review A-M2): a RowCard option of a RowList listbox (the Record screen's draft), which holds the tab stop (aria-activedescendant); Enter / Space select the active one as a click does" },
+  { file: 'LibraryScreen.tsx', tag: 'div', attrs: { className: '"lb-cards"', onKeyDown: '{gridKeys}' }, line: '<div className="lb-cards"', why: "L5.12c fixes (review A-M3): the roving keys of the Library's card grid (arrows, Home / End, Escape, Enter to the inspector); the cards' own buttons hold its one tab stop" },
+  { file: 'ui-kit/Sheet.tsx', tag: 'dialog', attrs: { onKeyDown: '{onKeyDown}' }, line: '<dialog', why: "L5.12c fixes (review A-L2 / B-L2): Return in a sheet's one-line text field chooses its default action; the dialog is no control (its fields and actions are)" },
 ];
 const SPREAD_EXCEPTIONS: Array<{ file: string; tag: string; why: string }> = [{ file: 'bits.tsx', tag: 'bdi', why: 'Txt passes its typed aria-current only' }];
 
@@ -1037,13 +1039,14 @@ const VAR_REF = /var\((--[\w-]+)/g;
 
 /** The faded states app.css accepts (its header): inactive or transient only. */
 /** L5.12a: the switched-off group's fade left with the timeline's legacy chips (the kit's are dashed, no opacity). */
-const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging', ".th-color input[type='color'].is-unset"];
+const OPACITY_ACCEPTED = ['.button:disabled', '.step.dragging'];
 
 describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: one token file, dark and light)', () => {
   it('⚑ no colour literal outside tokens.css (hex, colour functions, named colours); no var() fallback; no font file or URL but its two @font-face', async () => {
     const rules = cssRules(await appCss());
-    // (L5.12b: the legacy layer shrinks as the screens move to the kit — d deletes the rest.)
-    expect(rules.length).toBeGreaterThan(300);
+    // (L5.12b: the legacy layer shrinks as the screens move to the kit — d deletes the rest; L5.12c: the Library's and the
+    // themes' rules left too.)
+    expect(rules.length).toBeGreaterThan(200);
     const bad: string[] = [];
     for (const [f, text] of [['app.css', await appCss()] as [string, string], ...(await kitCss())]) {
       for (const r of cssRules(text)) {
@@ -1090,7 +1093,8 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     // Review A-L9: the veils are declared on ::backdrop itself in each appearance (Safari 17 and Firefox 120 do not
     // inherit custom properties into it).
     for (const sel of ['::backdrop', "[data-appearance='light'] ::backdrop", "[data-appearance='dark'] ::backdrop"]) {
-      expect(file, sel).toMatch(new RegExp(`^${sel.replace(/[[\]()'.*]/g, '\\$&')} \\{\\n  --ui-backdrop: rgba\\([^)]*\\);\\n  --backdrop: rgba`, 'm'));
+      // (L5.12c: the legacy --backdrop left with the Library's dialog: the kit's veil only.)
+      expect(file, sel).toMatch(new RegExp(`^${sel.replace(/[[\]()'.*]/g, '\\$&')} \\{\\n  --ui-backdrop: rgba\\([^)]*\\);\\n\\}`, 'm'));
     }
     expect(file).toMatch(/@media \(prefers-color-scheme: light\) \{\n {2}::backdrop \{\n {4}--ui-backdrop: rgba\(22, 24, 29, 0\.35\);/);
     // No other token shares a status family's colour in an appearance: the checker's colour-only rule reads a colour
@@ -1124,12 +1128,16 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     }
     expect([...used].filter((u) => !tokens.has(u)), 'used but not defined').toEqual([]);
     expect([...tokens.keys()].filter((t) => !used.has(t)), 'defined but never used').toEqual([]);
-    // The live picture's letterbox reads --ink (the app holds no colour of its own).
-    expect(used.has('--ink')).toBe(true);
+    // (L5.12c: --ink, --veil and --backdrop left with the theme editor's frame and the Library's dialog: the kit's
+    // --ui-video / --ui-overlay / --ui-backdrop draw them — the app holds no colour of its own.)
+    expect([...used].some((u) => u === '--ink' || u === '--veil' || u === '--backdrop')).toBe(false);
   });
 
   it('⚑ colour literals in the app sources (hex of 3–8 digits, colour functions, named colours): only the theme editor\'s defaults (theme data, not the Studio\'s chrome) and tokens.ts', async () => {
     const THEME_DATA = new Set(['ThemeEditor.tsx', 'ThemesScreen.tsx', 'theme-words.ts', 'tokens.ts']);
+    // L5.12c (critique M1): the set stays these four — a new file (ThemeFields.tsx, the kit's ColorField) takes its
+    // colours as data, never a literal of its own.
+    expect(THEME_DATA.size).toBe(4);
     for (const [f, src] of await appSources()) {
       if (f.endsWith('.css') || THEME_DATA.has(f)) continue;
       expect(tsColourLiterals(code(src)), `${f}: a colour literal`).toEqual([]);
@@ -1250,7 +1258,7 @@ describe('the closed palette, the fonts, contrast by token (L4.9 part B; L5.9: o
     for (const rule of ['button:focus-visible { outline: 2px solid var(--accent) }', '.x:focus { outline: none; box-shadow: 0 0 0 2px var(--accent-strong) }', '.chip:focus-within { outline: 2px solid var(--accent); outline-offset: 1px }', '.k-button:focus-visible { outline: 2px solid var(--ui-ring) }']) expect(focusLint(cssRules(rule)), rule).toEqual([]);
   });
 
-  it('⚑ opacity below 1 only on the three accepted states (a disabled control, a dragged step, an unset colour well); none in the kit', async () => {
+  it('⚑ opacity below 1 only on the two accepted states (a disabled control, a dragged step); none in the kit (L5.12c: the unset colour well is hatched)', async () => {
     const rules = cssRules(await appCss());
     const faded = rules.filter((r) => r.decls.some(([k, v]) => k === 'opacity' && Number(v) > 0 && Number(v) < 1)).map((r) => r.selector);
     expect(faded.sort()).toEqual([...OPACITY_ACCEPTED].sort());
@@ -1491,6 +1499,10 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
       createElement(RegionOverlay, { region: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, label: K('rolabel') }),
       createElement(CommandPalette, { open: true, onClose: go, footnote: K('pfoot'), commands: [{ id: 'b', label: 'Row', icon: 'theme', group: 'Themes', run: go }] }),
       createElement(Track, { name: 'Pins', testId: 't2', count: 1, children: createElement(TrackItem, { variant: 'pin', place: { at: 3 }, frames: 10, label: 'Pin', testId: 'p2', to: { name: 'projects' }, tip: K('trltip'), children: K('trlitem') }) }),
+      // L5.12c: the Library's data table, the theme editor's colour field, a sheet's fields.
+      createElement(DataTable, { caption: K('dtcap'), columns: [{ key: 'a', label: K('dtcol') }, { key: 'b', label: 'B' }], rows: [{ key: 'r', cells: [K('dthead'), K('dtcell')] }] }),
+      createElement(ColorField, { label: K('cflabel'), hint: K('cfhint'), value: 'x', picker: 'x', draft: K('cfdraft'), onDraft: go, onCommit: go }),
+      createElement(Sheet, { open: false, title: 'Copy', actions: [{ id: 'c', label: 'Cancel', isCancel: true }], onAction: go, content: K('shcontent') }),
     ];
     const html = shownMarkup(els.map((el) => renderToStaticMarkup(el)).join('\n'));
     const raw = [...html.matchAll(/.{0,60}[\u202e\u2067].{0,10}/g)].map((m) => m[0]);
@@ -1501,7 +1513,7 @@ describe('⚑ the kit shows text it did not write through Txt (L5.9 review A-M1)
     // Text outside a <bdi> only where no <bdi> can go (an <option>, a key cap); an attribute (aria-valuetext) with its controls visible (no raw one above).
     const wrong = places.filter((p) => !marks.has(p.n) && (p.where === 'bare' || p.where === 'option'));
     expect(wrong, JSON.stringify(wrong)).toEqual([]);
-    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta', 'dttitle', 'dtword', 'dtgap', 'rolabel', 'pfoot', 'trltip', 'trlitem'];
+    const all = ['plabel', 'phint', 'pgroup', 'mtext', 'mitem', 'slabel', 'shint', 'stitle', 'saction', 'sbody', 'sheading', 'srow', 'sflag', 'status', 'bstate', 'binfo', 'bactions', 'cpic', 'cnum', 'ctitle', 'cmeta', 'wlabel', 'whint', 'flabel', 'fhint', 'ferror', 'alabel', 'rlabel', 'rhint', 'rchild', 'seglegend', 'seg', 'seghint', 'link', 'link2', 'etitle', 'etext', 'eactions', 'ititle', 'ibody', 'ctitle2', 'cbody2', 'prog', 'progv', 'blword', 'blfix', 'bltext', 'why', 'btn', 'lbtn', 'tool', 'factl', 'factv', 'dsum', 'dbody', 'ppic', 'ptitle', 'pmeta', 'svalue', 'slead', 'fpic', 'fnum', 'ftitle', 'fmeta', 'fempty', 'rtile', 'rtitle', 'rmeta', 'caltitle', 'calbody', 'tfix', 'tnode', 'wrlabel', 'wrhint', 'sbtn', 'ckword', 'cktitle', 'ckact', 'ckbody', 'cbword', 'cbcopy', 'cbtext', 'cbword2', 'cblink', 'astitle', 'asaction', 'rglegend', 'rglabel', 'rgdetail', 'rgaside', 'crtile', 'crtitle', 'crmeta', 'craside', 'chlabel', 'chlabel2', 'chwhy', 'trname', 'trtip', 'tritem', 'sctime', 'scmark', 'cslabel', 'csmeta', 'cspic', 'cslabel2', 'cswords', 'tag', 'nflabel', 'nfhint', 'nferror', 'lrtile', 'lrtitle', 'lrmeta', 'dttitle', 'dtword', 'dtgap', 'rolabel', 'pfoot', 'trltip', 'trlitem', 'dtcap', 'dtcol', 'dthead', 'dtcell', 'cflabel', 'cfhint', 'cfdraft', 'shcontent'];
     const inBdi = new Set(places.filter((p) => p.where === 'bdi').map((p) => p.n));
     expect(all.filter((n) => !inBdi.has(n))).toEqual([]);
     // An <option> and a key cap cannot isolate (no <bdi> inside): their controls are shown as marks.
@@ -2148,4 +2160,225 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     expect(threadWrites("call('thread_apply', { project, comment_id, entry_id, if_match: undefined })")[0].keys).not.toContain('if_match');
   });
 
+});
+
+// ── L5.12c: the Library, the Themes list and the theme editor (R4-Library, R4-Theme) ──────────────────────────────────
+
+/** The files L5.12c rebuilt or added (kit only, every value from data through Txt / a kit slot). */
+const LIBRARY_SIDE = ['LibraryScreen.tsx', 'LibraryCards.tsx', 'LibraryInspector.tsx', 'LibraryDetail.tsx', 'LibraryBrowser.tsx', 'CreateSheet.tsx', 'ThemesScreen.tsx', 'ThemeEditor.tsx', 'ThemeFields.tsx'];
+
+/** The ops each Library / themes file may call (critique M1 of L5.12: an allow-list per file, like the comments side's). */
+const LIBRARY_OPS: Record<string, string[]> = {
+  'LibraryScreen.tsx': ['library_view', 'library_render', 'library_images', 'library_component'],
+  'LibraryCards.tsx': [],
+  'LibraryInspector.tsx': ['theme_view', 'theme_edit', 'theme_copy'],
+  'LibraryDetail.tsx': [],
+  'LibraryBrowser.tsx': [],
+  'CreateSheet.tsx': [],
+  'ThemesScreen.tsx': ['theme_list', 'theme_copy', 'brand_files', 'theme_create', 'site_list'],
+  'ThemeEditor.tsx': ['theme_view', 'timeline_leave', 'theme_preview', 'theme_edit', 'theme_copy', 'preview_allow', 'scenario_blocks', 'scenario_edit'],
+  'ThemeFields.tsx': [],
+};
+
+/** Every `call('<op>', {…})` of a source among `ops` and its argument keys (a parser pass: the object written in the call). */
+function opCalls(text: string, ops: ReadonlySet<string>): Array<{ op: string; keys: string[]; line: number }> {
+  const src = tsx(text);
+  const out: Array<{ op: string; keys: string[]; line: number }> = [];
+  const visit = (n: ts.Node) => {
+    // A bare `call(…)` or (L5.12c fixes, review A-M2) a member `x.call(…)`.
+    const callee = ts.isCallExpression(n) ? n.expression : null;
+    const isCall = callee !== null && ((ts.isIdentifier(callee) && callee.text === 'call') || (ts.isPropertyAccessExpression(callee) && callee.name.text === 'call'));
+    if (isCall && ts.isCallExpression(n) && n.arguments[0] && ts.isStringLiteral(n.arguments[0]) && ops.has(n.arguments[0].text)) {
+      out.push({ op: n.arguments[0].text, keys: keysOf(n.arguments[1]), line: src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1 });
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+const API_NAMES = new Set(['call', 'useCall']);
+const isApi = (spec: ts.Expression) => ts.isStringLiteral(spec) && /(^|\/)api\.js$/.test(spec.text);
+
+/**
+ * L5.12c fixes (review A-M2): how a file reaches the api — `call` / `useCall` imported by their own names from api.js
+ * (no `as`, no namespace or default import, no re-export, no dynamic import) and used only as a call's callee (never
+ * bound to another name or passed on): the op lints (opsCalled, opCalls) then see every call a file makes.
+ */
+function apiImportFindings(file: string, text: string): string[] {
+  const src = tsx(text);
+  const out: string[] = [];
+  let bound = false;
+  for (const st of src.statements) {
+    if (ts.isImportDeclaration(st) && isApi(st.moduleSpecifier)) {
+      const c = st.importClause;
+      if (c?.name) out.push(`${file}: a default import of the api (${c.name.text})`);
+      const b = c?.namedBindings;
+      if (b && ts.isNamespaceImport(b)) out.push(`${file}: import * as ${b.name.text} from the api`);
+      if (b && ts.isNamedImports(b)) {
+        for (const e of b.elements) {
+          const name = (e.propertyName ?? e.name).text;
+          if (e.propertyName && API_NAMES.has(name)) out.push(`${file}: import { ${name} as ${e.name.text} } from the api`);
+          if (!e.propertyName && API_NAMES.has(name)) bound = true;
+        }
+      }
+    }
+    if (ts.isExportDeclaration(st) && st.moduleSpecifier && isApi(st.moduleSpecifier)) out.push(`${file}: re-exports the api`);
+  }
+  const visit = (n: ts.Node) => {
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && isApi(n.arguments[0])) out.push(`${file}: a dynamic import of the api`);
+    if (bound && ts.isIdentifier(n) && API_NAMES.has(n.text)) {
+      const p = n.parent;
+      const callee = ts.isCallExpression(p) && p.expression === n;
+      const named = (ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n) || ts.isImportSpecifier(p) || ((ts.isMethodDeclaration(p) || ts.isPropertyDeclaration(p) || ts.isPropertySignature(p) || ts.isMethodSignature(p)) && p.name === n);
+      if (!callee && !named) out.push(`${file}:${src.getLineAndCharacterOfPosition(n.getStart(src)).line + 1}: ${n.text} used as a value`);
+    }
+    ts.forEachChild(n, visit);
+  };
+  visit(src);
+  return out;
+}
+
+/** The exports of a source whose value holds a colour literal (theme-words.ts: the theme data the chrome must not take). */
+function colourExports(text: string): string[] {
+  const src = tsx(text);
+  const out: string[] = [];
+  for (const st of src.statements) {
+    if (!ts.isVariableStatement(st) || !st.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name) && d.initializer && tsColourLiterals(d.initializer.getText(src)).length) out.push(d.name.text);
+  }
+  return out;
+}
+
+/** A file's named imports from theme-words.ts (a namespace import: every name). */
+function themeWordsImports(text: string): string[] | '*' {
+  const out: string[] = [];
+  for (const st of tsx(text).statements) {
+    if (!ts.isImportDeclaration(st) || !ts.isStringLiteral(st.moduleSpecifier) || !/(^|\/)theme-words\.js$/.test(st.moduleSpecifier.text)) continue;
+    const b = st.importClause?.namedBindings;
+    if (b && ts.isNamespaceImport(b)) return '*';
+    if (b && ts.isNamedImports(b)) for (const e of b.elements) out.push((e.propertyName ?? e.name).text);
+  }
+  return out;
+}
+
+describe('L5.12c: the Library, the Themes list and the theme editor', () => {
+  it('⚑ every value from data is text: each JSX child of the Library\'s and the themes\' files goes through Txt / shown / a kit slot (a planted bare component name, page title or README fails it)', async () => {
+    const files = (await appSources()).filter(([f]) => LIBRARY_SIDE.includes(f));
+    expect(files.map(([f]) => f).sort()).toEqual([...LIBRARY_SIDE].sort());
+    expect(files.flatMap(([f, text]) => kitBareText(f, text))).toEqual([]);
+    for (const [file, from, to, bare] of [
+      ['LibraryCards.tsx', '<Txt text={item.untrusted.name} />', '{item.untrusted.name}', '{item.untrusted.name}'],
+      ['ThemesScreen.tsx', '<Txt text={s.untrusted.title} />', '{s.untrusted.title}', '{s.untrusted.title}'],
+      ['LibraryDetail.tsx', '<Txt text={d.data.untrusted.readme} />', '{d.data.untrusted.readme}', '{d.data.untrusted.readme}'],
+      ['ThemeFields.tsx', '<Txt text={w} />', '{w}', '{w}'],
+    ] as const) {
+      const text = files.find(([f]) => f === file)![1];
+      const planted = text.replace(from, to);
+      expect(planted, `${file}: ${from}`).not.toBe(text);
+      expect(kitBareText(file, planted)).toEqual([expect.stringContaining(bare)]);
+    }
+  });
+
+  it('⚑ kit only: the rebuilt files have no ratchet row and nothing off the kit (−603 legacy controls); no native <dialog> outside the kit; their CSS left app.css', async () => {
+    const table = await readTable();
+    const found = await ratchetFindings();
+    for (const f of LIBRARY_SIDE) {
+      expect(table[f], f).toBeUndefined();
+      expect(found.get(f) ?? [], f).toEqual([]);
+    }
+    // The Library's Create dialog was the last ad-hoc one: every dialog of the app is the kit's (Sheet, the palette).
+    const sources = await appSources();
+    expect(sources.filter(([f, text]) => !f.startsWith('ui-kit/') && /<dialog\b/.test(code(text))).map(([f]) => f)).toEqual([]);
+    const css = await appCss();
+    expect(css).not.toMatch(/\.(?:lib|th|theme)-[a-z]|\.library-screen|\.themes-screen|\.confirm-dialog|\.tl-preview-note|\.tl-undo\b/);
+    // The mutation: a native input in the theme's fields counts (and ThemeFields.tsx has no row to hold it).
+    const text = sources.find(([f]) => f === 'ThemeFields.tsx')![1];
+    const planted = text.replace('<div className="tm-chips" data-testid={`chips-${name}`}>', '<div className="tm-chips" data-testid={`chips-${name}`}><input type="radio" />');
+    expect(planted).not.toBe(text);
+    const ctx = { appClasses: appCssClasses(css), tokens: new Set<string>() };
+    expect(offKit('ThemeFields.tsx', planted, ctx).length).toBeGreaterThan(offKit('ThemeFields.tsx', text, ctx).length);
+  });
+
+  it('⚑ the Library and the themes call only their own ops (an allow-list per file); a library render and the theme writes come from these files only', async () => {
+    const files = await appSources();
+    const found: Record<string, string[]> = {};
+    for (const f of Object.keys(LIBRARY_OPS)) found[f] = [...new Set(opsCalled(files.find(([x]) => x === f)![1]))].sort();
+    expect(found).toEqual(Object.fromEntries(Object.entries(LIBRARY_OPS).map(([f, ops]) => [f, [...ops].sort()])));
+    // App-wide: who renders library previews, who writes a theme (the palette's Themes rows never do: L5.12b's lint).
+    const owners = (op: string) => files.filter(([, text]) => opsCalled(text).includes(op)).map(([f]) => f).sort();
+    expect(owners('library_render')).toEqual(['LibraryScreen.tsx']);
+    expect(owners('theme_edit')).toEqual(['LibraryInspector.tsx', 'ThemeEditor.tsx']);
+    expect(owners('theme_copy')).toEqual(['LibraryInspector.tsx', 'ThemeEditor.tsx', 'ThemesScreen.tsx']);
+    expect(owners('theme_create')).toEqual(['ThemesScreen.tsx']);
+    // The mutation: a theme write planted in the list fails its allow-list.
+    const list = files.find(([f]) => f === 'ThemesScreen.tsx')![1];
+    const planted = list.replace('  const first = useRef(true);', "  void call('theme_edit', { theme: 'x', if_match: 'y', edit: {} });\n  const first = useRef(true);");
+    expect(planted).not.toBe(list);
+    expect([...new Set(opsCalled(planted))].sort()).not.toEqual([...LIBRARY_OPS['ThemesScreen.tsx']].sort());
+  });
+
+  it('⚑ every theme write the engine guards names the version shown — theme_edit carries if_match (checked on each call\'s argument object); the scenario writes of "Use in a scenario" name its hash', async () => {
+    const files = await appSources();
+    const edits = files.flatMap(([f, text]) => opCalls(text, new Set(['theme_edit'])).map((c) => ({ f, ...c })));
+    expect(edits.map((c) => c.f).sort()).toEqual(['LibraryInspector.tsx', 'LibraryInspector.tsx', 'ThemeEditor.tsx']);
+    for (const c of edits) expect(c.keys, `${c.f}:${c.line}`).toEqual(['theme', 'if_match', 'edit']);
+    const scenario = opCalls(files.find(([f]) => f === 'ThemeEditor.tsx')![1], new Set(['scenario_edit']));
+    expect(scenario.length).toBe(2);
+    for (const c of scenario) expect(c.keys).toContain('hash');
+    // The engine's own input requires it.
+    const ops = await readFile(join(REPO, 'packages', 'ui', 'src', 'server', 'theme-ops.ts'), 'utf8');
+    expect(ops.slice(ops.indexOf('const EditInput ='), ops.indexOf('const CopyInput ='))).toMatch(/if_match: sha256/);
+    // The mutation: a theme_edit without its version.
+    expect(opCalls("call('theme_edit', { theme: target, edit: plan.edit })", new Set(['theme_edit']))[0].keys).not.toContain('if_match');
+  });
+
+  it('⚑ L5.12c fixes (review A-M2): every app file imports the api\'s call / useCall by their own names and only calls them — an alias, a namespace import or a call bound to another name fails (both of the review\'s dodges planted); the if_match lint sees `x.call(…)`', async () => {
+    const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f) && f !== 'api.ts');
+    expect(files.flatMap(([f, text]) => apiImportFindings(f, text))).toEqual([]);
+    // The files that call the api at all are seen by the lint (it is not vacuous).
+    expect(files.filter(([, text]) => /from '\.\/(?:\.\.\/)?api\.js'/.test(text)).length).toBeGreaterThan(20);
+    const editor = files.find(([f]) => f === 'ThemeEditor.tsx')![1];
+    const line = "import { CallError, call, errorText } from './api.js';";
+    expect(editor).toContain(line);
+    // Dodge 1: `import { call as rpc }` then rpc('theme_edit', …) — invisible to opsCalled, caught here.
+    const alias = `${editor.replace(line, `${line}\nimport { call as rpc } from './api.js';`)}\nexport const dodge = () => rpc('theme_edit', { theme: 'x', edit: {} });\n`;
+    expect(opsCalled(alias).filter((op) => op === 'theme_edit').length).toBe(opsCalled(editor).filter((op) => op === 'theme_edit').length);
+    expect(apiImportFindings('ThemeEditor.tsx', alias)).toEqual(['ThemeEditor.tsx: import { call as rpc } from the api']);
+    // Dodge 2: `import * as api` then api.call('theme_edit', …) without if_match — caught here and by opCalls.
+    const ns = `${editor.replace(line, `${line}\nimport * as api from './api.js';`)}\nexport const dodge = () => api.call('theme_edit', { theme: 'x', edit: {} });\n`;
+    expect(apiImportFindings('ThemeEditor.tsx', ns)).toEqual(['ThemeEditor.tsx: import * as api from the api']);
+    expect(opCalls(ns, new Set(['theme_edit'])).filter((c) => !c.keys.includes('if_match'))).toEqual([expect.objectContaining({ op: 'theme_edit', keys: ['theme', 'edit'] })]);
+    // A call bound to another name or passed on; a default, a re-export, a dynamic import.
+    expect(apiImportFindings('X.tsx', "import { call } from './api.js';\nconst rpc = call;\nrpc('theme_edit', {});")).toEqual(['X.tsx:2: call used as a value']);
+    expect(apiImportFindings('X.tsx', "import { useCall } from './api.js';\nrun(useCall);")).toEqual(['X.tsx:2: useCall used as a value']);
+    expect(apiImportFindings('X.tsx', "import api from './api.js';")).toEqual(['X.tsx: a default import of the api (api)']);
+    expect(apiImportFindings('X.tsx', "export { call } from './api.js';")).toEqual(['X.tsx: re-exports the api']);
+    expect(apiImportFindings('X.tsx', "const m = import('./api.js');")).toEqual(['X.tsx: a dynamic import of the api']);
+    // What stays allowed: a call, a member named call of something else, an object key.
+    expect(apiImportFindings('X.tsx', "import { call, useCall } from './api.js';\ncall<T>('theme_view', {});\nuseCall('x', {}, 'k');\nfn.call(null);\nconst o = { call: 1 };")).toEqual([]);
+  });
+
+  it('⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery\'s sample, the New theme form, the colour fields\' fallback', async () => {
+    const files = (await appSources()).filter(([f]) => /\.tsx?$/.test(f));
+    const colours = colourExports(files.find(([f]) => f === 'theme-words.ts')![1]);
+    expect(colours.sort()).toEqual(['EMPTY_FORM', 'SAMPLE_ACCENT', 'pickerValue']);
+    const ALLOWED: Record<string, string[]> = {
+      'GalleryScreen.tsx': ['SAMPLE_ACCENT', 'pickerValue'],
+      'ThemesScreen.tsx': ['EMPTY_FORM', 'pickerValue'],
+      'ThemeFields.tsx': ['pickerValue'],
+    };
+    const found: Record<string, string[]> = {};
+    for (const [f, text] of files) {
+      if (f === 'theme-words.ts') continue;
+      const names = themeWordsImports(text);
+      const taken = names === '*' ? ['*'] : names.filter((n) => colours.includes(n));
+      if (taken.length) found[f] = taken.sort();
+    }
+    expect(found).toEqual(ALLOWED);
+    // Planted: the chrome taking a theme colour; a namespace import.
+    expect(themeWordsImports("import { SAMPLE_ACCENT } from './theme-words.js';")).toEqual(['SAMPLE_ACCENT']);
+    expect(themeWordsImports("import * as tw from '../theme-words.js';")).toBe('*');
+    expect(colourExports("export const X = '#123456';\nexport const Y = 'words';\nexport const Z = (v: string) => v ?? 'rgb(0, 0, 0)';").sort()).toEqual(['X', 'Z']);
+  });
 });

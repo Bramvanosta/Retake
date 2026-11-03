@@ -1,74 +1,46 @@
 /**
- * The theme editor (L4.7 part D2, R-UI-07; `#/p/<slug>/themes/<theme>`): one theme's brand (name, URL, the outro's URL
- * and tagline, logo and wordmark picked among the theme folder's own image files — listed by name: logos show only in
- * the live frame, critique B9), colours (pickers with the palette checks after each write), the background (its type
- * and colours in one write, critique B7a), the type pair (the theme's own font files, Q4), motion bias, zoom (steps of
- * 0.01), cursor (filmed: the next capture), and a component per kind (its old params kept or dropped, B7b) — beside
- * the live frame: the theme's intro, a clip with its caption, its outro (theme_preview in the sandboxed Player; a
- * workspace component waits for the timeline's Allow card; a theme's own video / image / Lottie is said, not shown,
- * B10). "Use in this scenario" writes the scenario's `template` (critique B1).
+ * The theme editor (L4.7 part D2, R-UI-07; L5.12c « Épure » 4c, R4-Theme, R-UI-49 — `#/p/<slug>/themes/<theme>`): one
+ * theme's brand, colours, background, type pair, motion, zoom, cursor and a component per kind (the fields:
+ * ThemeFields.tsx, in the inspector) beside ONE live preview: the theme's intro, a clip with its caption, or its outro
+ * (a segmented control picks the target; theme_preview in the sandboxed Player; a workspace component waits for Allow; a
+ * theme's own video / image / Lottie is said, not shown, B10). "Use in a scenario" writes the scenario's `template`
+ * (critique B1).
+ *
+ * In the shell: the browser is the theme's sections (anchors into the inspector) and its components (each to the
+ * library); the inspector holds the fields; the status bar says "Each change is saved and checked", Undo, Redo,
+ * Extract from a website… (the Themes list's site panel) and Use in a scenario…
  *
  * - The one write path is `theme_edit` on the version shown (if_match its sha256): each control's change is one
  *   verified write; the view is then read again (the new sha256, the palette checks) and the frame re-plans. A 409
  *   (someone else wrote) re-reads the theme and says the change was not written. Starters and read-only themes show
- *   their values with "Copy to edit" (theme_copy).
+ *   their values with "Copy to edit…" (a kit Sheet: theme_copy).
  * - Colours being dragged are previewed in memory (theme_preview `draft`, at most five a second: DraftThrottle) and
- *   written on release (the input's `change`).
- * - Undo / redo restore exact earlier bytes the server served (ThemeHistory, critique B14).
+ *   written on release (the input's `change`); a draft not written yet is unsaved (`theme_draft`).
+ * - Undo / redo restore exact earlier bytes the server served (ThemeHistory ≤ 50, critique B14).
  * - Every string from the server (a font's name table, a warning, an error) is a text node through `Txt` or
  *   `visibleControls`; the frame runs workspace component code only on the player origin, in the sandbox.
  */
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ThemeEditResult, ThemeEditView } from '@demo-studio/engine';
 import type { ThemeListAnswer, ThemePreviewAnswer } from '../server/theme-ops.js';
 import { CallError, call, errorText } from './api.js';
 import type { Loaded } from './api.js';
-import { Badge, Loading, Notice, Txt, visibleControls } from './bits.js';
+import { Txt } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
-import { copyName, themeNameProblem } from './library-words.js';
+import { copyName, okId, themeNameProblem } from './library-words.js';
 import { PreviewFrame } from './PreviewFrame.js';
 import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';
 import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
-import {
-  COLOR_FIELDS,
-  DraftThrottle,
-  EDITOR_KINDS,
-  NONE_WORDS,
-  TARGET_WORDS,
-  TEXT_MAX,
-  ThemeHistory,
-  USE_IN_SCENARIO_WORDS,
-  ZOOM_MAX,
-  ZOOM_MIN,
-  ZOOM_STEP,
-  backgroundEdit,
-  backgroundOf,
-  bodyFonts,
-  componentChoices,
-  componentEdit,
-  componentOptionWords,
-  componentRow,
-  fieldEdit,
-  fontChoices,
-  imageChoices,
-  isRemovable,
-  kindLabel,
-  okHex,
-  paletteRows,
-  pickerHex,
-  switchedBackground,
-  textProblem,
-  themeEventAction,
-  useInScenarioPlan,
-  usedByWords,
-  written,
-} from './theme-words.js';
-import type { Background, ColorKey, PreviewTarget, ScenarioFacts, ThemeEdit } from './theme-words.js';
+import { ShellSlot } from './shell/slots.js';
+import { SECTIONS, ThemeFields, showSection } from './ThemeFields.js';
+import type { Draft, Send } from './ThemeFields.js';
+import { DraftThrottle, EDITOR_KINDS, TARGET_WORDS, ThemeHistory, USE_IN_SCENARIO_WORDS, componentRow, kindLabel, themeEventAction, useInScenarioPlan, usedByWords, written } from './theme-words.js';
+import type { PreviewTarget, ScenarioFacts, ThemeEdit } from './theme-words.js';
 import { previewUrls } from './timeline-words.js';
+import { Button, Callout, LinkButton, Segmented, Select, Sheet, SourceList, StatusMark, Tag, TextField } from './ui-kit/index.js';
 
 /** A random lease id (22 base64url characters) for theme_preview / timeline_leave. */
 function newLease(): string {
@@ -76,16 +48,13 @@ function newLease(): string {
   return btoa(String.fromCharCode(...b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-/** Colours being changed and not written yet (shown in the frame only). */
-interface Draft {
-  colors?: Partial<Record<ColorKey, string>>;
-  background?: Background;
-}
-
 interface Status {
   tone: 'info' | 'warning' | 'danger';
   text: string;
 }
+
+/** The select of "Use in a scenario" (the status bar's "Use in a scenario…" brings the focus to it). */
+const USE_SELECT = 'tm-use-scenario';
 
 /** The theme as the editor reads it: theme_view, read again after each write (sequence-guarded). */
 function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<ThemeEditView | null>] {
@@ -111,6 +80,36 @@ function useThemeView(theme: string): [Loaded<ThemeEditView>, () => Promise<Them
   }, [load]);
   return [v, load];
 }
+
+/** The browser: the theme's sections (anchors into the inspector's fields) and its components (each to the library). */
+const ThemeBrowser = memo(function ThemeBrowser({ slug, v }: { slug: string; v: ThemeEditView }) {
+  return (
+    <ShellSlot name="browser">
+      <SourceList
+        label="Theme sections"
+        groups={[
+          { key: 'sections', heading: <Txt text={v.name} />, label: 'Sections', items: SECTIONS.map((s) => ({ key: s.key, label: s.title, current: false, onSelect: () => showSection(s.key) })) },
+          {
+            key: 'components',
+            heading: 'Components',
+            label: 'Components of this theme',
+            items: EDITOR_KINDS.map((k) => {
+              const picked = componentRow(v, k).picked;
+              return { key: k, label: kindLabel(k), current: false, detail: <Txt className="k-mono" text={picked ?? 'none'} />, quiet: picked === null, ...(picked && okId(picked) ? { to: { name: 'library' as const, slug, theme: v.name, component: picked } } : { onSelect: () => showSection('components') }) };
+            }),
+          },
+          {
+            key: 'back',
+            items: [
+              { key: 'themes', to: { name: 'themes', slug }, label: 'All themes', icon: 'theme', current: false },
+              { key: 'library', to: { name: 'library', slug, theme: v.name }, label: 'Components in this theme', icon: 'components', current: false },
+            ],
+          },
+        ]}
+      />
+    </ShellSlot>
+  );
+});
 
 export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string; list: Loaded<ThemeListAnswer> }) {
   const [view, load] = useThemeView(theme);
@@ -175,7 +174,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     if (shownSha === undefined) return;
     void askPreview(null);
   }, [shownSha, askPreview]);
-  const setDraft = (d: Draft) => {
+  const setDraftNow = (d: Draft) => {
     setDraftState(d);
     throttle.push(d);
   };
@@ -224,7 +223,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     }
   };
   /** A control's plan: written, refused with why (said), or nothing to do (the draft dropped). */
-  const send = (plan: { edit: ThemeEdit } | { why: string } | null) => {
+  const send: Send = (plan) => {
     if (plan === null) {
       throttle.cancel();
       if (draft) {
@@ -239,526 +238,138 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     }
     void write(plan.edit);
   };
+  // Stable for the memoised fields (review A-L4: a drag renders the dragged field, not every section): they call the
+  // latest closures.
+  const latest = useRef({ send, setDraftNow });
+  latest.current = { send, setDraftNow };
+  const stableSend = useCallback<Send>((plan) => latest.current.send(plan), []);
+  const setDraft = useCallback((d: Draft) => latest.current.setDraftNow(d), []);
+  const reloadView = useCallback(() => void load(), [load]);
 
-  if (view.state === 'loading') return <Loading what={`theme ${theme}`} />;
+  if (view.state === 'loading') {
+    return (
+      <div className="tm-screen">
+        <p className="tm-quiet" role="status">
+          <Txt text={`Loading theme ${theme}…`} />
+        </p>
+      </div>
+    );
+  }
   if (view.state === 'error' || !v) {
     return (
-      <Notice tone={view.state === 'error' && view.code === 'not_found' ? 'warning' : 'danger'} role="alert" title="This theme cannot be opened">
-        <p className="pre-line">
-          <Txt text={view.state === 'error' ? view.error : ''} />
-        </p>
-        <p>
-          <a href={hrefTo({ name: 'themes', slug })}>Back to the themes</a>
-        </p>
-      </Notice>
+      <div className="tm-screen">
+        <h1 className="tm-h1">
+          <Txt text={theme} />
+        </h1>
+        <Callout state={view.state === 'error' && view.code === 'not_found' ? 'warn' : 'fail'} role="alert" title="This theme cannot be opened">
+          <p className="tm-pre">
+            <Txt text={view.state === 'error' ? view.error : ''} />
+          </p>
+          <LinkButton size="sm" to={{ name: 'themes', slug }}>
+            Back to the themes
+          </LinkButton>
+        </Callout>
+      </div>
     );
   }
   const editable = v.editable === true;
   const off = !editable || busy !== null;
   const listed = list.state === 'ready' ? list.data : null;
-  const bg = backgroundOf(v);
   const paper = typeof written(v, 'colors.paper') === 'string' ? (written(v, 'colors.paper') as string) : '#ffffff';
   const undo = history.current.undoStep();
   const redo = history.current.redoStep();
-  const familyOf = (file: string) => {
-    const f = v.untrusted.fonts.find((x) => x.file === file);
-    return f?.family ? ` — ${visibleControls(f.family)}${f.subfamily ? ` ${visibleControls(f.subfamily)}` : ''}` : '';
-  };
-  const fonts = fontChoices(v);
-  const images = imageChoices(v);
-  const body = (written(v, 'fonts.body') as string[] | undefined) ?? [];
+  const scenarios = listed?.scenarios ?? [];
 
   return (
-    <div className="theme-editor" data-testid="theme-editor" data-theme={v.name} data-sha={v.sha256} data-editable={editable ? 'yes' : 'no'}>
-      <header className="screen-head th-head">
-        <h1>
+    <div className="tm-screen tm-editor" data-testid="theme-editor" data-theme={v.name} data-sha={v.sha256} data-editable={editable ? 'yes' : 'no'}>
+      <ThemeBrowser slug={slug} v={v} />
+      <ShellSlot name="actions">
+        <span className="sh-scenario" data-testid="theme-state">
+          {busy ? <StatusMark state="running" word={`Busy: ${busy}`} /> : editable ? <StatusMark state="idle" word="Ready · each change is saved and checked" /> : <StatusMark state="idle" word="Read-only: copy it to edit it" />}
+        </span>
+        <Button size="sm" variant="ghost" icon="undo" data-testid="theme-undo" disabled={!editable || busy !== null || !undo} onClick={() => void write(undo!.edit, 'undo')}>
+          Undo
+        </Button>
+        <Button size="sm" variant="ghost" icon="redo" data-testid="theme-redo" disabled={!editable || busy !== null || !redo} onClick={() => void write(redo!.edit, 'redo')}>
+          Redo
+        </Button>
+        <LinkButton size="sm" variant="ghost" to={{ name: 'themes', slug }}>
+          Extract from a website…
+        </LinkButton>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={scenarios.length === 0}
+          onClick={() => {
+            const el = document.getElementById(USE_SELECT);
+            el?.scrollIntoView({ block: 'nearest' });
+            el?.focus();
+          }}
+        >
+          Use in a scenario…
+        </Button>
+      </ShellSlot>
+      <header className="tm-head">
+        <h1 className="tm-h1">
           <Txt text={v.name} />
         </h1>
-        <p className="th-badges">
-          <Badge tone={editable ? 'success' : 'warning'}>{editable ? 'Editable' : 'Read-only'}</Badge>
-          <Badge>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Badge>
-          <span className="small muted" data-testid="theme-used-by">
-            {usedByWords(v.used_by, slug)}
+        <span className="tm-tags">
+          <Tag>{editable ? 'Editable · in this workspace' : 'Read-only'}</Tag>
+          <Tag>{v.source === 'starter' ? 'Starter' : 'Workspace'}</Tag>
+          <span className="tm-quiet" data-testid="theme-used-by">
+            <Txt text={usedByWords(v.used_by, slug)} />
           </span>
-        </p>
+        </span>
       </header>
       {!editable && <CopyToEdit slug={slug} theme={v.name} why={v.editable === true ? '' : v.editable.why} taken={listed?.themes.map((t) => t.name) ?? []} />}
       {v.issues.length > 0 && (
-        <Notice tone="danger" role="note" title="This theme has problems">
-          <ul>
+        <Callout state="fail" role="note" title="This theme has problems">
+          <ul className="tm-issues">
             {v.issues.slice(0, 6).map((x, i) => (
               <li key={i}>
                 <Txt text={x} />
               </li>
             ))}
           </ul>
-        </Notice>
+        </Callout>
       )}
-      <div className="th-bar">
-        <span className="tl-undo">
-          <button type="button" className="button small" data-testid="theme-undo" disabled={!editable || busy !== null || !undo} onClick={() => void write(undo!.edit, 'undo')}>
-            Undo
-          </button>
-          <button type="button" className="button small" data-testid="theme-redo" disabled={!editable || busy !== null || !redo} onClick={() => void write(redo!.edit, 'redo')}>
-            Redo
-          </button>
-        </span>
-        <p className={`small th-status${status ? ` th-status-${status.tone}` : ''}`} role="status" aria-live="polite" data-testid="theme-status">
-          {busy ? <Badge tone="info">{busy}</Badge> : status ? <Txt text={status.text} /> : editable ? 'Each change is written at once (Undo takes it back).' : ''}
-        </p>
-      </div>
-      <div className="th-grid">
-        <div className="th-fields">
-          <Section title="Brand" id="th-brand">
-            <TextField label="Brand name" field="brand.name" view={v} off={off} send={send} />
-            <TextField label="Brand URL" field="brand.url" view={v} off={off} send={send} hint="as shown, e.g. example.com" />
-            <TextField label="Outro URL" field="outro.url" view={v} off={off} send={send} />
-            <TextField label="Outro tagline" field="outro.tagline" view={v} off={off} send={send} />
-            <FileSelect label="Logo" field="logo" view={v} files={images} off={off} send={send} />
-            <FileSelect label="Wordmark" field="wordmark" view={v} files={images} off={off} send={send} none="None (the brand name as text)" />
-            <p className="small muted">Logos show in the live frame (Intro, Outro); the files are the theme folder's own — add one there to pick it.</p>
-          </Section>
-          <Section title="Colours" id="th-colours">
-            {COLOR_FIELDS.map((c) => {
-              const w = written(v, c.field);
-              return (
-                <ColorField
-                  key={c.key}
-                  label={c.label}
-                  hint={c.hint}
-                  testid={`color-${c.key}`}
-                  version={v.sha256}
-                  value={typeof w === 'string' ? w : undefined}
-                  draft={draft?.colors?.[c.key]}
-                  off={off}
-                  removable={isRemovable(c.field)}
-                  onDraft={(hex) => setDraft({ ...draft, colors: { ...draft?.colors, [c.key]: hex } })}
-                  onCommit={(hex) => send(fieldEdit(v, c.field, hex, c.key === 'accent' && rippleFollows && v.fields['cursor.ripple_color'] !== undefined ? { ripple: true } : {}))}
-                  onRemove={() => send(fieldEdit(v, c.field, undefined))}
-                />
-              );
-            })}
-            <label className="th-check small">
-              <input type="checkbox" checked={rippleFollows} disabled={off} onChange={(e) => setRippleFollows(e.target.checked)} data-testid="ripple-follows" /> The cursor ripple follows the accent
-            </label>
-            <BackgroundField
-              bg={bg}
-              paper={paper}
-              version={v.sha256}
-              draft={draft?.background}
-              off={off}
-              onType={(type) => send(backgroundEdit(v, switchedBackground(bg.value, type, paper)))}
-              onDraft={(b) => setDraft({ ...draft, background: b })}
-              onCommit={(part, hex) => send(fieldEdit(v, `background.${part}`, hex))}
-            />
-            <Palette view={v} />
-          </Section>
-          <Section title="Type" id="th-type">
-            <label className="field">
-              <span className="label">Display (titles)</span>
-              <select value={String(written(v, 'fonts.display') ?? '')} disabled={off} data-testid="font-display" onChange={(e) => send(fieldEdit(v, 'fonts.display', e.target.value))}>
-                {written(v, 'fonts.display') !== undefined && !fonts.some((f) => f.file === written(v, 'fonts.display')) && <option value={String(written(v, 'fonts.display'))}>{visibleControls(String(written(v, 'fonts.display')))} (as written)</option>}
-                {fonts.map((f) => (
-                  <option key={f.file} value={f.file}>
-                    {visibleControls(f.file)} ({f.words}){familyOf(f.file)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <fieldset className="th-fonts" data-testid="font-body">
-              <legend className="label">Body (one file per weight or style, 1 to 4)</legend>
-              {fonts.map((f) => (
-                <label key={f.file} className="th-check small">
-                  <input
-                    type="checkbox"
-                    checked={body.includes(f.file)}
-                    disabled={off}
-                    onChange={(e) => {
-                      const next = bodyFonts(body, f.file, e.target.checked, fonts.map((x) => x.file));
-                      send(Array.isArray(next) ? fieldEdit(v, 'fonts.body', next) : next);
-                    }}
-                  />{' '}
-                  <Txt className="mono" text={f.file} /> ({f.words})
-                </label>
-              ))}
-            </fieldset>
-            <p className="small muted">The type pair uses the theme folder's own font files (a new font comes with a new theme: its licence notes are written then).</p>
-          </Section>
-          <Section title="Motion and cursor" id="th-motion">
-            <Chips
-              legend="Style"
-              name="style_bias"
-              value={String(written(v, 'style_bias') ?? 'balanced')}
-              options={[
-                ['real', 'Real (calm)'],
-                ['balanced', 'Balanced'],
-                ['motion', 'Motion'],
-              ]}
-              off={off}
-              onPick={(x) => send(fieldEdit(v, 'style_bias', x))}
-            />
-            <NumberField label="Largest zoom" field="motion.max_zoom" view={v} off={off} send={send} />
-            <DefaultZoom view={v} off={off} send={send} />
-            <Chips
-              legend="Cursor (filmed: takes effect at the next capture)"
-              name="cursor.style"
-              value={String(written(v, 'cursor.style') ?? 'arrow-dark')}
-              options={[
-                ['arrow-dark', 'Dark arrow'],
-                ['arrow-light', 'Light arrow'],
-              ]}
-              off={off}
-              onPick={(x) => send(fieldEdit(v, 'cursor.style', x))}
-            />
-            <TextField label="Cursor ripple colour" field="cursor.ripple_color" view={v} off={off} send={send} hint="a hex colour or rgba(r, g, b, a)" />
-          </Section>
-          <Section title="Components" id="th-components">
-            <p className="small muted">The component each kind uses by default. Its look in this theme: the library.</p>
-            {EDITOR_KINDS.map((k) => (
-              <ComponentPick key={k} kind={k} view={v} choices={listed ? componentChoices(listed.components, k) : []} slug={slug} off={off} send={send} />
-            ))}
-          </Section>
-        </div>
-        <div className="th-side">
-          <section className="card th-live" aria-labelledby="th-live-h">
-            <div className="card-head">
-              <h2 id="th-live-h" className="card-title">
-                Live preview
-              </h2>
-              <Chips legend="" name="target" value={target} options={(['intro', 'clip', 'outro'] as const).map((t) => [t, TARGET_WORDS[t]] as const)} off={false} onPick={(t) => setTarget(t as PreviewTarget)} compact />
-            </div>
-            {answer ? <LiveFrame v={answer} drafting={draft !== null} onAgain={() => void askPreview(draft)} /> : previewError ? null : <p className="small muted">Loading the preview…</p>}
-            {previewError && (
-              <p className="small lib-failure" role="status" data-testid="theme-preview-error">
-                <Txt text={previewError} />
-              </p>
-            )}
-          </section>
-          <UseInScenario slug={slug} theme={v.name} scenarios={listed?.scenarios ?? []} onChanged={() => void load()} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Section({ title, id, children }: { title: string; id: string; children: ReactNode }) {
-  return (
-    <section className="card th-section" aria-labelledby={id}>
-      <h2 id={id} className="card-title">
-        {title}
-      </h2>
-      {children}
-    </section>
-  );
-}
-
-type Send = (plan: { edit: ThemeEdit } | { why: string } | null) => void;
-
-/** A one-line text value: written on Enter or when the field is left (an empty removable field removes it). */
-function TextField({ label, field, view, off, send, hint }: { label: string; field: string; view: ThemeEditView; off: boolean; send: Send; hint?: string }) {
-  const w = written(view, field);
-  const shown = typeof w === 'string' ? w : w === undefined ? '' : String(w);
-  const [text, setText] = useState(shown);
-  const id = useId();
-  // A new version read (a write, a refusal, another writer): the field shows what is written.
-  useEffect(() => setText(shown), [shown, view.sha256]);
-  const problem = text !== shown && text !== '' && field in TEXT_MAX ? textProblem(field, text) : null;
-  const commit = () => {
-    if (text === shown) return;
-    if (text === '' && !isRemovable(field)) return setText(shown);
-    send(fieldEdit(view, field, text === '' ? undefined : text));
-  };
-  return (
-    <label className="field" htmlFor={id}>
-      <span className="label">{label}</span>
-      <input
-        id={id}
-        className="search-input"
-        value={text}
-        disabled={off}
-        maxLength={TEXT_MAX[field] ?? 200}
-        data-testid={`text-${field}`}
-        aria-invalid={problem ? true : undefined}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-          if (e.key === 'Escape') setText(shown);
-        }}
-      />
-      {(problem || hint) && <span className="small muted">{problem ?? hint}</span>}
-    </label>
-  );
-}
-
-/** A number field (the largest zoom): written on change (Enter, the arrows, leaving it). */
-function NumberField({ label, field, view, off, send }: { label: string; field: string; view: ThemeEditView; off: boolean; send: Send }) {
-  const w = written(view, field);
-  const shown = typeof w === 'number' ? String(w) : '';
-  const [text, setText] = useState(shown);
-  useEffect(() => setText(shown), [shown, view.sha256]);
-  const commit = () => {
-    if (text === shown || text === '') return setText(shown);
-    send(fieldEdit(view, field, Number(text)));
-  };
-  return (
-    <label className="field th-number">
-      <span className="label">{label}</span>
-      <input type="number" min={ZOOM_MIN} max={ZOOM_MAX} step={ZOOM_STEP} value={text} disabled={off} data-testid={`number-${field}`} onChange={(e) => setText(e.target.value)} onBlur={commit} onKeyDown={(e) => e.key === 'Enter' && commit()} />
-    </label>
-  );
-}
-
-/** The default zoom: none, or a number from 1 to 3 (removable: the theme's default). */
-function DefaultZoom({ view, off, send }: { view: ThemeEditView; off: boolean; send: Send }) {
-  const w = written(view, 'motion.default_zoom');
-  const [text, setText] = useState(typeof w === 'number' ? String(w) : '');
-  useEffect(() => setText(typeof w === 'number' ? String(w) : ''), [w, view.sha256]);
-  const mode = w === undefined ? 'default' : w === 'none' ? 'none' : 'number';
-  return (
-    <div className="field">
-      <span className="label">Default zoom</span>
-      <span className="th-inline">
-        <select
-          value={mode}
-          disabled={off}
-          aria-label="Default zoom"
-          data-testid="default-zoom"
-          onChange={(e) => {
-            const m = e.target.value;
-            if (m === 'none') send(fieldEdit(view, 'motion.default_zoom', 'none'));
-            else if (m === 'default') send(fieldEdit(view, 'motion.default_zoom', undefined));
-            else send(fieldEdit(view, 'motion.default_zoom', 1.2));
-          }}
-        >
-          <option value="default">The theme's default</option>
-          <option value="none">None</option>
-          <option value="number">A zoom</option>
-        </select>
-        {mode === 'number' && (
-          <input
-            type="number"
-            min={ZOOM_MIN}
-            max={ZOOM_MAX}
-            step={ZOOM_STEP}
-            value={text}
-            disabled={off}
-            aria-label="Default zoom factor"
-            onChange={(e) => setText(e.target.value)}
-            onBlur={() => text !== '' && Number(text) !== w && send(fieldEdit(view, 'motion.default_zoom', Number(text)))}
-          />
-        )}
-      </span>
-    </div>
-  );
-}
-
-/** A logo / wordmark among the theme folder's image files (listed by name, never shown here: critique B9). */
-function FileSelect({ label, field, view, files, off, send, none }: { label: string; field: string; view: ThemeEditView; files: string[]; off: boolean; send: Send; none?: string }) {
-  const w = written(view, field);
-  const cur = typeof w === 'string' ? w : '';
-  return (
-    <label className="field">
-      <span className="label">{label}</span>
-      <select value={cur} disabled={off} data-testid={`file-${field}`} onChange={(e) => send(fieldEdit(view, field, e.target.value === '' ? undefined : e.target.value))}>
-        {none !== undefined ? <option value="">{none}</option> : cur === '' && <option value="">(not set)</option>}
-        {cur !== '' && !files.includes(cur) && <option value={cur}>{visibleControls(cur)} (as written; not a usable image)</option>}
-        {files.map((f) => (
-          <option key={f} value={f}>
-            {visibleControls(f)}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-/**
- * A colour: the picker (each move previewed in the frame, written on release — its `change`) and the hex typed
- * (written on Enter / leaving the field). The swatch shows the draft while it is dragged.
- */
-function ColorField(p: { label: string; hint: string; testid: string; version: string; value?: string; draft?: string; off: boolean; removable: boolean; onDraft(hex: string): void; onCommit(hex: string): void; onRemove(): void }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const shown = p.draft ?? p.value;
-  const [text, setText] = useState(p.value ?? '');
-  useEffect(() => setText(p.value ?? ''), [p.value, p.version]);
-  const commitRef = useRef(p.onCommit);
-  commitRef.current = p.onCommit;
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    // The native change: the picker was released or closed (React's onChange is every move).
-    const on = () => commitRef.current(el.value);
-    el.addEventListener('change', on);
-    return () => el.removeEventListener('change', on);
-  }, []);
-  const id = useId();
-  const commitText = () => {
-    if (text === (p.value ?? '')) return;
-    if (text === '' && p.removable) return p.onRemove();
-    if (okHex(text)) p.onCommit(text);
-    else setText(p.value ?? '');
-  };
-  return (
-    <div className="th-color" data-testid={p.testid}>
-      <input ref={ref} type="color" id={id} className={pickerHex(shown) ? undefined : 'is-unset'} value={pickerHex(shown) ?? '#ffffff'} disabled={p.off} aria-describedby={`${id}-h`} onChange={(e) => p.onDraft(e.target.value)} data-testid={`${p.testid}-picker`} />
-      <label htmlFor={id} className="th-color-label">
-        <span className="label">{p.label}</span>
-        <span id={`${id}-h`} className="small muted">
-          {p.hint}
-        </span>
-      </label>
-      <input
-        className="search-input mono th-hex"
-        value={text}
-        placeholder={p.removable ? 'not set' : ''}
-        disabled={p.off}
-        maxLength={7}
-        aria-label={`${p.label}, hex`}
-        data-testid={`${p.testid}-hex`}
-        onChange={(e) => setText(e.target.value.trim())}
-        onBlur={commitText}
-        onKeyDown={(e) => e.key === 'Enter' && commitText()}
-      />
-      {p.draft !== undefined && <span className="small th-draft">previewing {p.draft}</span>}
-    </div>
-  );
-}
-
-/** The background: its type (a switch writes type and colours together, critique B7a) and its colours. */
-function BackgroundField({ bg, paper, version, draft, off, onType, onDraft, onCommit }: { bg: ReturnType<typeof backgroundOf>; paper: string; version: string; draft?: Background; off: boolean; onType(t: Background['type']): void; onDraft(b: Background): void; onCommit(part: 'color' | 'from' | 'to', hex: string): void }) {
-  const cur = draft ?? bg.value;
-  if (bg.why) {
-    return (
-      <p className="small muted" data-testid="background-why">
-        Background: <Txt text={bg.why} />
+      <p className="tm-status" role="status" aria-live="polite" data-tone={status?.tone ?? 'info'} data-testid="theme-status">
+        {busy ? <Txt text={busy} /> : status ? <Txt text={status.text} /> : editable ? 'Each change is written at once (Undo takes it back).' : ''}
       </p>
-    );
-  }
-  const type = cur?.type ?? 'radial';
-  const grad = cur && cur.type !== 'solid' ? cur : null;
-  const part = (name: 'color' | 'from' | 'to', label: string) => {
-    const value = cur ? (cur.type === 'solid' ? (name === 'color' ? cur.color : undefined) : name === 'from' ? cur.from : name === 'to' ? cur.to : undefined) : undefined;
-    const writtenValue = bg.value ? (bg.value.type === 'solid' ? (name === 'color' ? bg.value.color : undefined) : name === 'from' ? bg.value.from : name === 'to' ? bg.value.to : undefined) : undefined;
-    return (
-      <ColorField
-        key={name}
-        label={label}
-        hint=""
-        testid={`background-${name}`}
-        version={version}
-        {...(writtenValue !== undefined ? { value: writtenValue } : {})}
-        {...(draft && value !== writtenValue && value !== undefined ? { draft: value } : {})}
-        off={off || !bg.value}
-        removable={false}
-        onDraft={(hex) => onDraft(name === 'color' ? { type: 'solid', color: hex } : { type: grad?.type ?? 'radial', from: name === 'from' ? hex : (grad?.from ?? paper), to: name === 'to' ? hex : (grad?.to ?? paper) })}
-        onCommit={(hex) => onCommit(name, hex)}
-        onRemove={() => undefined}
-      />
-    );
-  };
-  return (
-    <div className="th-bg" data-testid="background">
-      <label className="field">
-        <span className="label">Background</span>
-        <select value={type} disabled={off} data-testid="background-type" onChange={(e) => onType(e.target.value as Background['type'])}>
-          <option value="solid">Solid</option>
-          <option value="radial">Radial gradient</option>
-          <option value="linear">Linear gradient</option>
-        </select>
-      </label>
-      {type === 'solid' ? part('color', 'Background colour') : [part('from', 'From (centre / top)'), part('to', 'To (edge / bottom)')]}
+      <section className="tm-live" aria-labelledby="tm-live-h">
+        <div className="tm-live-head">
+          <h2 id="tm-live-h" className="tm-h2">
+            Live preview
+          </h2>
+          <span className="tm-quiet">No render: the preview follows each change</span>
+          <span className="tm-live-target" data-testid="chips-target">
+            <Segmented<PreviewTarget> label="Show" size="sm" value={target} onChange={setTarget} options={(['intro', 'clip', 'outro'] as const).map((t) => ({ value: t, label: TARGET_WORDS[t] }))} />
+          </span>
+        </div>
+        {answer ? (
+          <LiveFrame v={answer} drafting={draft !== null} onAgain={() => void askPreview(draft)} />
+        ) : previewError ? null : (
+          <p className="tm-quiet" role="status">
+            Loading the preview…
+          </p>
+        )}
+        {previewError && (
+          <p className="tm-failure" role="status" data-testid="theme-preview-error">
+            <Txt text={previewError} />
+          </p>
+        )}
+      </section>
+      <UseInScenario slug={slug} theme={v.name} scenarios={scenarios} onChanged={reloadView} />
+      <ShellSlot name="inspector" inline="Fields">
+        <ThemeFields v={v} slug={slug} off={off} draft={draft} paper={paper} rippleFollows={rippleFollows} setRippleFollows={setRippleFollows} listed={listed} send={stableSend} setDraft={setDraft} />
+      </ShellSlot>
     </div>
   );
 }
 
-/** The contrast checks of the colours as written (each with its ratio and minimum, in words). */
-function Palette({ view }: { view: ThemeEditView }) {
-  const rows = paletteRows(view);
-  if (!rows.length) return <p className="small muted">The contrast checks show when every colour is a hex value.</p>;
-  return (
-    <div className="th-palette" data-testid="palette">
-      <span className="label">Contrast</span>
-      <ul>
-        {rows.map((r) => (
-          <li key={r.check} data-check={r.check} data-ok={r.ok ? 'yes' : 'no'}>
-            <Badge tone={r.ok ? 'success' : 'warning'}>{r.ok ? 'passes' : 'low'}</Badge> {r.words}: {r.ratio.toFixed(2)}:1 (at least {r.min}:1)
-          </li>
-        ))}
-      </ul>
-      {view.palette?.warnings.map((w, i) => (
-        <p key={i} className="small muted">
-          <Txt text={w} />
-        </p>
-      ))}
-    </div>
-  );
-}
-
-/** Radio chips (a pick writes at once). */
-function Chips({ legend, name, value, options, off, onPick, compact = false }: { legend: string; name: string; value: string; options: ReadonlyArray<readonly [string, string]>; off: boolean; onPick(v: string): void; compact?: boolean }) {
-  const id = useId();
-  return (
-    <fieldset className={compact ? 'chips th-chips-compact' : 'chips'} data-testid={`chips-${name}`}>
-      {legend ? <legend className="label">{legend}</legend> : <legend className="sr-only">Show</legend>}
-      {options.map(([k, label]) => (
-        <label key={k} className={value === k ? 'chip current' : 'chip'}>
-          <input type="radio" name={`${id}-${name}`} value={k} checked={value === k} disabled={off} onChange={() => onPick(k)} />
-          {label}
-        </label>
-      ))}
-    </fieldset>
-  );
-}
-
-/** A kind's component: the pick (or none for captions / transitions) and, when params are written, keep or drop them. */
-function ComponentPick({ kind, view, choices, slug, off, send }: { kind: (typeof EDITOR_KINDS)[number]; view: ThemeEditView; choices: string[]; slug: string; off: boolean; send: Send }) {
-  const row = componentRow(view, kind);
-  const [params, setParams] = useState<'keep' | 'drop'>('drop');
-  const none = NONE_WORDS[kind];
-  const all = row.picked && !choices.includes(row.picked) ? [row.picked, ...choices] : choices;
-  return (
-    <div className="th-comp" data-testid={`component-${kind}`}>
-      <label className="field">
-        <span className="label">{kindLabel(kind)}</span>
-        <select value={row.picked ?? ''} disabled={off || row.why !== undefined} onChange={(e) => send(componentEdit(view, kind, e.target.value === '' ? null : e.target.value, params))}>
-          {(none || row.picked === null) && <option value="">{none ?? '(not set)'}</option>}
-          {all.map((id) => (
-            <option key={id} value={id}>
-              {componentOptionWords(id, choices)}
-            </option>
-          ))}
-        </select>
-      </label>
-      {row.why && (
-        <p className="small muted">
-          <Txt text={row.why} />
-        </p>
-      )}
-      {row.params.length > 0 && !row.why && (
-        <fieldset className="chips th-params">
-          <legend className="small muted">Its params ({row.params.slice(0, 6).join(', ')}) when you switch it</legend>
-          <label className={params === 'drop' ? 'chip current' : 'chip'}>
-            <input type="radio" name={`params-${kind}`} checked={params === 'drop'} disabled={off} onChange={() => setParams('drop')} />
-            Drop them
-          </label>
-          <label className={params === 'keep' ? 'chip current' : 'chip'}>
-            <input type="radio" name={`params-${kind}`} checked={params === 'keep'} disabled={off} onChange={() => setParams('keep')} />
-            Keep them (checked against the new one)
-          </label>
-        </fieldset>
-      )}
-      {row.picked && (
-        <a className="small" href={hrefTo({ name: 'library', slug, theme: view.name, component: row.picked })}>
-          See it in the library
-        </a>
-      )}
-    </div>
-  );
-}
-
-/** "Copy to edit": a starter or read-only theme copied to a workspace theme (theme_copy), then opened. */
+/** "Copy to edit…": a starter or read-only theme copied to a workspace theme (theme_copy, a kit Sheet asks the name), then opened. */
 function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; why: string; taken: string[] }) {
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState(() => copyName(theme, taken));
   const [state, setState] = useState<{ busy?: boolean; error?: string }>({});
   const problem = themeNameProblem(name, taken);
@@ -773,31 +384,48 @@ function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; 
     }
   };
   return (
-    <Notice tone="info" role="note" title="Read-only here">
-      <p className="small" data-testid="theme-readonly-why">
+    <Callout state="idle" role="note" title="Read-only here">
+      <p className="tm-line" data-testid="theme-readonly-why">
         <Txt text={why} />
       </p>
-      <div className="th-inline">
-        <label className="field">
-          <span className="label">Name of the copy</span>
-          <input className="search-input mono" value={name} maxLength={100} onChange={(e) => setName(e.target.value.trim())} data-testid="theme-copy-name" />
-        </label>
-        <button type="button" className="button primary" disabled={state.busy || !!problem} onClick={() => void copy()} data-testid="theme-copy">
-          {state.busy ? 'Copying…' : 'Copy to edit'}
-        </button>
-      </div>
-      {(state.error || problem) && (
-        <p className="small lib-failure" role="status">
-          <Txt text={state.error ?? problem ?? ''} />
-        </p>
-      )}
-    </Notice>
+      <Button size="sm" variant="primary" onClick={() => setOpen(true)} data-testid="theme-copy-open">
+        Copy to edit…
+      </Button>
+      <Sheet
+        open={open}
+        testId="theme-copy-sheet"
+        title={`Copy ${theme} to edit it`}
+        actions={[
+          { id: 'copy', label: state.busy ? 'Copying…' : 'Copy to edit', variant: 'primary', isDefault: true, disabled: state.busy === true || problem !== null, testId: 'theme-copy' },
+          { id: 'cancel', label: 'Cancel', isCancel: true },
+        ]}
+        onAction={(id) => {
+          if (id === 'copy') void copy();
+          else {
+            setOpen(false);
+            setState({});
+          }
+        }}
+        content={
+          <>
+            <TextField label="Name of the copy" value={name} onChange={(x) => setName(x.trim())} unsaved={null} mono maxLength={100} autoComplete="off" spellCheck={false} testId="theme-copy-name" error={problem ?? undefined} />
+            {state.error && (
+              <p className="tm-failure" role="status">
+                <Txt text={state.error} />
+              </p>
+            )}
+          </>
+        }
+      >
+        The copy is a theme of this workspace: the Studio edits it; this one stays as it is.
+      </Sheet>
+    </Callout>
   );
 }
 
 /**
  * The frame of a theme_preview answer: the sandboxed Player loads the preview at its still's moment and settles
- * there; Play loops it. A workspace component it uses waits for Allow (the timeline's card, preview_allow).
+ * there; Play loops it (a toggle with one name). A workspace component it uses waits for Allow (preview_allow).
  */
 function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: boolean; onAgain(): void }) {
   const urls = 'frame_url' in v ? previewUrls(v.frame_url, v.plan_url) : null;
@@ -811,6 +439,7 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
   const [allowing, setAllowing] = useState<string | null>(null);
   const [allowError, setAllowError] = useState<string | null>(null);
   const conn = useRef<PreviewConnection | null>(null);
+  const heldId = useId();
   const onMessage = useCallback((m: FrameMessage) => {
     switch (m.type) {
       case 'loaded':
@@ -864,38 +493,39 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
       .finally(() => setAllowing(null));
   };
   return (
-    <div className="th-frame-wrap">
-      <div className="th-frame" role="region" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
+    <div className="tm-frame-wrap">
+      <div className="tm-frame" role="region" aria-label="Live preview" aria-busy={state === 'loading'} data-testid="theme-preview" data-state={urls ? state : 'none'} data-settles={settles}>
         {urls && state !== 'stopped' && <PreviewFrame key={`${urls.frame}#${restart}`} url={urls.frame} planUrl={urls.plan} frameRef={frameRef} onMessage={onMessage} onHello={onHello} onStop={onStop} onConnection={onConnection} />}
         {urls && state === 'loading' && (
-          <p className="tl-preview-note" role="status">
+          <p className="tm-note" role="status">
             Loading the preview…
           </p>
         )}
         {'not_previewed' in v && (
-          <p className="tl-preview-note is-message" role="status" data-testid="theme-not-previewed">
+          <p className="tm-note tm-note-message" role="status" data-testid="theme-not-previewed">
             <Txt text={`Not previewed: ${v.not_previewed}.`} />
           </p>
         )}
         {'preview_error' in v && (
-          <p className="tl-preview-note is-message" role="status" data-testid="theme-preview-error">
-            The preview cannot show this: <Txt text={v.preview_error} />
+          <p className="tm-note tm-note-message" role="status" data-testid="theme-preview-error">
+            {'The preview cannot show this: '}
+            <Txt text={v.preview_error} />
           </p>
         )}
       </div>
-      <div className="th-frame-bar">
-        <button type="button" className="button small" aria-pressed={playing} disabled={!urls || state === 'loading'} data-testid="theme-play" onClick={() => conn.current?.send(playing ? { type: 'pause' } : { type: 'play' })}>
-          {playing ? 'Pause' : 'Play'}
-        </button>
+      <div className="tm-frame-bar">
+        <Button size="sm" icon="play" aria-pressed={playing} disabled={!urls || state === 'loading'} data-testid="theme-play" onClick={() => conn.current?.send(playing ? { type: 'pause' } : { type: 'play' })}>
+          Play
+        </Button>
         {state === 'stopped' && (
-          <button type="button" className="button small" onClick={() => (setRestart((n) => n + 1), setState('loading'))}>
+          <Button size="sm" onClick={() => (setRestart((n) => n + 1), setState('loading'))}>
             Restart the preview
-          </button>
+          </Button>
         )}
-        <span className="small muted">{drafting ? 'Showing the colour you are changing (not written yet).' : v.target.component ? <Txt className="mono" text={v.target.component} /> : null}</span>
+        <span className="tm-quiet">{drafting ? 'Showing the colour you are changing (not written yet).' : v.target.component ? <Txt className="k-mono" text={v.target.component} /> : null}</span>
       </div>
       {notes.length > 0 && (
-        <ul className="small muted th-notes">
+        <ul className="tm-notes">
           {notes.map((n, i) => (
             <li key={i}>
               <Txt text={n} />
@@ -904,26 +534,29 @@ function LiveFrame({ v, drafting, onAgain }: { v: ThemePreviewAnswer; drafting: 
         </ul>
       )}
       {held.length > 0 && (
-        <Notice tone="warning" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}>
+        <Callout state="warn" role="note" title={held.length === 1 ? 'A workspace component is not run in the preview' : `${held.length} workspace components are not run in the preview`}>
           <div data-testid="preview-held">
-            <p className="small">Components of this workspace are code: the preview runs one only once you allow it, for this Studio session. Its stand-in draws until then; a render uses it either way.</p>
-            <ul className="held-list">
+            <p className="tm-line" id={heldId}>
+              Components of this workspace are code: the preview runs one only once you allow it, for this Studio session. Its stand-in draws until then; a render uses it either way.
+            </p>
+            <ul className="tm-held" aria-describedby={heldId}>
               {held.map((c) => (
                 <li key={c.id} data-testid="held-component" data-id={c.id}>
-                  <Txt className="mono" text={c.id} /> <span className="muted small">({c.kind}, folder {c.hash})</span>{' '}
-                  <button type="button" className="button small" data-testid="allow-component" disabled={allowing !== null} onClick={() => allow(c)}>
+                  <Txt className="k-mono" text={c.id} />
+                  <Txt className="tm-quiet" text={` (${c.kind}, folder ${c.hash}) `} />
+                  <Button size="sm" data-testid="allow-component" disabled={allowing !== null} onClick={() => allow(c)}>
                     {allowing === c.id ? 'Allowing…' : 'Allow in the preview'}
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>
             {allowError && (
-              <p className="pre-line small" role="alert" data-testid="allow-error">
+              <p className="tm-pre" role="alert" data-testid="allow-error">
                 <Txt text={allowError} />
               </p>
             )}
           </div>
-        </Notice>
+        </Callout>
       )}
     </div>
   );
@@ -942,7 +575,7 @@ type UseState =
  * on the version scenario_blocks showed; Undo restores those exact bytes. Every existing take re-plans with it at its
  * next render (L5.5); the cursor style is filmed.
  */
-function UseInScenario({ slug, theme, scenarios, onChanged }: { slug: string; theme: string; scenarios: string[]; onChanged(): void }) {
+const UseInScenario = memo(function UseInScenario({ slug, theme, scenarios, onChanged }: { slug: string; theme: string; scenarios: string[]; onChanged(): void }) {
   const [scenario, setScenario] = useState(scenarios[0] ?? '');
   const [st, setSt] = useState<UseState>({ s: 'idle' });
   useEffect(() => {
@@ -976,61 +609,60 @@ function UseInScenario({ slug, theme, scenarios, onChanged }: { slug: string; th
     }
   };
   return (
-    <section className="card th-use" aria-labelledby="th-use-h" data-testid="use-in-scenario">
-      <h2 id="th-use-h" className="card-title">
+    <section className="tm-use" aria-labelledby="tm-use-h" data-testid="use-in-scenario">
+      <h2 id="tm-use-h" className="tm-h2">
         Use in a scenario
       </h2>
       {scenarios.length === 0 ? (
-        <p className="small muted">This project has no scenario yet.</p>
+        <p className="tm-quiet">This project has no scenario yet.</p>
       ) : (
         <>
-          <div className="th-inline">
-            <label className="field">
-              <span className="label">Scenario</span>
-              <select value={scenario} onChange={(e) => setScenario(e.target.value)} data-testid="use-scenario">
-                {scenarios.map((s) => (
-                  <option key={s} value={s}>
-                    {visibleControls(s)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className="button" disabled={st.s === 'busy' || !scenario} onClick={() => void use()} data-testid="use-in-scenario-go">
+          <div className="tm-use-line">
+            <Select label="Scenario" layout="inline" id={USE_SELECT} value={scenario} onChange={setScenario} testId="use-scenario" options={scenarios.map((s) => ({ value: s, label: s }))} />
+            <Button disabled={st.s === 'busy' || !scenario} onClick={() => void use()} data-testid="use-in-scenario-go">
               Use in this scenario
-            </button>
+            </Button>
           </div>
-          <p className="small muted">{USE_IN_SCENARIO_WORDS} The project's own theme stays as project.yaml names it.</p>
+          <p className="tm-quiet">
+            <Txt text={`${USE_IN_SCENARIO_WORDS} The project's own theme stays as project.yaml names it.`} />
+          </p>
         </>
       )}
-      <div className="small" role="status" aria-live="polite" data-testid="use-in-scenario-state">
+      <div className="tm-line" role="status" aria-live="polite" data-testid="use-in-scenario-state">
         {st.s === 'busy' && 'Writing the scenario…'}
         {st.s === 'already' && (
           <>
-            <Txt text={st.scenario} /> already uses <Txt text={theme} />.
+            <Txt text={st.scenario} />
+            {' already uses '}
+            <Txt text={theme} />
+            {'.'}
           </>
         )}
         {st.s === 'undone' && (
           <>
-            Undone: <Txt text={st.scenario} /> is back to the version before.
+            {'Undone: '}
+            <Txt text={st.scenario} />
+            {' is back to the version before.'}
           </>
         )}
         {st.s === 'error' && (
-          <span className="lib-failure">
+          <span className="tm-failure">
             <Txt text={st.message} />
           </span>
         )}
         {st.s === 'done' && (
           <>
-            <Txt text={st.label} />.{' '}
-            <a href={hrefTo({ name: 'timeline', slug, scenario: st.scenario })} data-testid="use-in-scenario-timeline">
+            <Txt text={st.label} />
+            {'. '}
+            <LinkButton size="sm" variant="ghost" to={{ name: 'timeline', slug, scenario: st.scenario }} testId="use-in-scenario-timeline">
               Open its timeline
-            </a>{' '}
-            <button type="button" className="button small" onClick={() => void undo(st)} data-testid="use-in-scenario-undo">
+            </LinkButton>{' '}
+            <Button size="sm" onClick={() => void undo(st)} data-testid="use-in-scenario-undo">
               Undo
-            </button>
+            </Button>
           </>
         )}
       </div>
     </section>
   );
-}
+});

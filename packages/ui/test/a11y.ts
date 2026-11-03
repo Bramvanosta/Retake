@@ -414,7 +414,7 @@ function install(): void {
   const DOT = /[\u25cf\u2022\u2b24\u25c9]/;
   /** The state words a status colour may stand beside (the badges' and notices' vocabulary; L5.11b: a recording's
    * "recorded" and "discarded"; L5.12a fixes, review B-L1: a render's "rendered", beside the report's neutral mark). */
-  const STATE_WORDS = new Set('failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered'.split(' '));
+  const STATE_WORDS = new Set('failed failure fails error errors warning warnings note notes ok okay succeeded success done passed clean online offline connected connecting ended live running queued waiting pending cancelled canceled stopped paused interrupted blocked stale missing changed conflict added removed deleted new applied resolved open outdated invalid required unsaved saved broken ready expired recording idle busy disconnected unreachable skipped superseded rejected accepted draft locked readonly read-only valid recorded discarded rendered playing'.split(' '));
   const saysState = (text: string) => text.toLowerCase().split(/[^\p{L}-]+/u).some((wd) => STATE_WORDS.has(wd));
   const startsWithSign = (text: string) => SIGN.test(text.trim().split(/\s+/)[0] ?? '');
 

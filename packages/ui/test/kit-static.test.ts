@@ -41,7 +41,9 @@ import {
   PosterGrid,
   Progress,
   Callout,
+  ColorField,
   ContactSheet,
+  DataTable,
   DiffTable,
   RegionOverlay,
   FrameGrid,
@@ -241,6 +243,8 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     const sel = html(createElement(FrameCard, { picture: createElement('span', null, 'pic'), number: 3, title: 'Checkout', meta: '4 steps', selected: true, onSelect: noop }));
     expect(sel).toMatch(/^<button type="button" class="k-card k-card-frame is-selected" aria-pressed="true">/);
     expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', to: { name: 'project', slug: 'q' } }))).toMatch(/^<a href="#\/p\/q" class="k-card k-card-poster">/);
+    // L5.12c fixes: a roving grid's stop, named by its title and described by its meta (review A-L7).
+    expect(html(createElement(PosterCard, { picture: 'p', title: 'Quote', selected: false, onSelect: noop, tabIndex: -1, labelledBy: 'n1', describedBy: 'm1' }))).toMatch(/^<button type="button" class="k-card k-card-poster" aria-pressed="false" tabindex="-1" aria-labelledby="n1" aria-describedby="m1">/);
   });
 
   it('L5.10a: the productions listbox — one tab stop, options with aria-selected, the active one named by aria-activedescendant; none selected: no aria-activedescendant at all (review A-L6)', () => {
@@ -284,6 +288,56 @@ describe('the kit renders native, named elements (L5.9 part B)', () => {
     expect(f).toMatch(/<label class="k-field-label k-sr" for="[^"]+">Search productions<\/label>/);
     expect(f).toMatch(/<svg class="k-icon k-input-icon"[^>]*aria-hidden="true"/);
     expect(f).toMatch(/<input [^>]*type="search"[^>]*maxLength="200"[^>]*autoComplete="off"[^>]*spellCheck="false"/);
+  });
+});
+
+describe('L5.12c: the Library\'s and the theme editor\'s kit pieces', () => {
+  it('a data table: its caption (hidden, still its name), column headers th scope=col, each row headed by its first cell (th scope=row), an empty cell a dash', () => {
+    const t = html(createElement(DataTable, { caption: 'Slots', captionHidden: true, testId: 'slots', columns: [{ key: 'a', label: 'Slot' }, { key: 'b', label: 'Max', numeric: true }], rows: [{ key: 'r', cells: ['title', null] }] }));
+    expect(t).toContain('<table class="k-table" data-testid="slots"><caption class="k-sr">Slots</caption>');
+    expect(t).toContain('<th scope="col">Slot</th><th scope="col" class="k-table-num">Max</th>');
+    expect(t).toContain('<tbody><tr><th scope="row">title</th><td class="k-table-num"><span class="k-table-none">—</span></td></tr>');
+  });
+
+  it('a colour field: the native colour input named by its label, the hex field named by the label and the word "hex" (no copy of the label in an attribute), the draft in words; the swatch is data, the kit holds no colour', async () => {
+    const c = html(createElement(ColorField, { label: 'Accent', hint: 'kicker', value: '#225588', picker: '#225588', swatch: '#225588', draft: '#00c000', onDraft: noop, onCommit: noop, testId: 'color-accent' }));
+    const id = /<input type="color" id="([^"]+)"/.exec(c)![1];
+    expect(c).toContain(`<label class="k-field-label" for="${id}" id="${id}-label">Accent</label>`);
+    expect(c).toContain(`<input type="color" id="${id}" class="k-color-well" aria-describedby="${id}-hint" data-testid="color-accent-picker" value="#225588"/>`);
+    expect(c).toContain(`aria-labelledby="${id}-label ${id}-hexword" data-testid="color-accent-hex"`);
+    expect(c).toContain(`<span id="${id}-hexword" class="k-sr">hex</span>`);
+    expect(c).not.toMatch(/aria-label="Accent/);
+    expect(c).toContain('previewing #00c000');
+    // Nothing written: the well is hatched (a shape: kit.css), never faded.
+    expect(html(createElement(ColorField, { label: 'Dark', value: '', picker: '#ffffff', unset: true, removable: true, onDraft: noop, onCommit: noop }))).toContain('class="k-color-well is-unset"');
+    const src = await readFile(join(KIT, 'ColorField.tsx'), 'utf8');
+    expect(src.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/#[0-9a-f]{3,8}\b/i);
+  });
+
+  it('⚑ L5.12c fixes: the colour field\'s swatch dot draws only a hex value and only while a colour is dragged (A-L5, B-L1); an unset colour says "not set" in words for a screen reader, removable or not (A-L3)', () => {
+    const base = { label: 'Accent', value: '#225588', picker: '#225588', onDraft: noop, onCommit: noop };
+    // While dragged: the written colour's dot (a hex: it reaches the style).
+    expect(html(createElement(ColorField, { ...base, swatch: '#225588', draft: '#00c000' }))).toContain('<span class="k-color-swatch" style="background:#225588" aria-hidden="true"></span>');
+    // Not a hex: nothing drawn, whatever the caller passes.
+    for (const swatch of ['red', 'url(x)', '#2255', '#225588; background-image: url(x)', '']) expect(html(createElement(ColorField, { ...base, swatch, draft: '#00c000' })), swatch).not.toContain('k-color-swatch');
+    // Nothing dragged: the well is the only swatch.
+    expect(html(createElement(ColorField, { ...base, swatch: '#225588' }))).not.toContain('k-color-swatch');
+    // Unset: the words in hidden text, the picker and the hex field described by them (a field that is not removable too).
+    for (const removable of [true, false]) {
+      const u = html(createElement(ColorField, { label: 'Dark', value: '', picker: '#ffffff', unset: true, removable, onDraft: noop, onCommit: noop, testId: 'color-dark' }));
+      const id = /<input type="color" id="([^"]+)"/.exec(u)![1];
+      expect(u).toContain(`<span id="${id}-unset" class="k-sr" data-testid="color-dark-unset">not set (the picker starts at #ffffff)</span>`);
+      expect(u).toContain(`aria-describedby="${id}-unset" data-testid="color-dark-picker"`);
+      expect(u).toContain(`aria-labelledby="${id}-label ${id}-hexword" aria-describedby="${id}-unset"`);
+    }
+    expect(html(createElement(ColorField, base))).not.toContain('not set');
+  });
+
+  it('a sheet with fields: the fields under the text and outside its description; an action that is off is disabled', () => {
+    const s = html(createElement(Sheet, { open: false, title: 'Copy editorial first?', actions: [{ id: 'copy', label: 'Copy and set', variant: 'primary', isDefault: true, disabled: true }, { id: 'c', label: 'Cancel', isCancel: true }], onAction: noop, content: createElement('span', null, 'FIELDS'), children: 'Why.' }));
+    const described = /aria-describedby="([^"]+)"/.exec(s)![1];
+    expect(s).toContain(`<div id="${described}" class="k-sheet-text">Why.</div><div class="k-sheet-content"><span>FIELDS</span></div>`);
+    expect(s).toContain('<button data-default="yes" type="button" class="k-btn k-btn-primary k-btn-md" disabled="">');
   });
 });
 

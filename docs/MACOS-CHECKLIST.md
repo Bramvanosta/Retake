@@ -1564,7 +1564,7 @@ then light. (14c (b)'s items 1 and 7 now read: the run actions are in the status
    recording. At 900 px: the start form in two columns, a live recording usable (a row's "n alternatives" under its
    text, no word cut; the toolbar wrapping), the status bar's counts give way, nothing scrolls sideways.
 
-### 14e. Edit, the Review report, frame comments, the README and ⌘K in the app and in Safari (L5.12a, L5.12b)
+### 14e. Edit, the Review report, frame comments, the README, ⌘K, the Library and the theme editor in the app and in Safari (L5.12a, L5.12b, L5.12c)
 
 The automated checks run in Playwright's Chromium (no H.264: its preview says it cannot play the fixture's takes); the
 preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `pnpm build`, the desktop app (and Safari on
@@ -1627,6 +1627,30 @@ preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `
    scene picked in ⌘K highlights its lines.
 9. **README.** The project's README: type, ⌘S (the state "Saved · …"); change README.md in an editor meanwhile and save:
    both versions side by side, "Save mine over it" / "Load the version on disk"; dark, light, 900 px.
+10. **The Library (L5.12c).** Components: the browser lists the Library and the project's themes; click a card — the
+   inspector shows it (VoiceOver reads the card as a toggle button, pressed); Play under it plays the loop and the
+   poster says "Playing · loop" (VoiceOver: "Play <name>, toggle button, pressed" — the same name both ways); Play in the
+   theme in the inspector plays the same card. Scroll a long grid quickly: posters come in for the cards on screen only.
+   (L5.12c fixes) Keyboard: Tab reaches the grid once (one card), the arrows move the selection, Home / End, Escape
+   clears it; Enter on the selected card brings the focus to the inspector; one more Tab after the card's Play leaves
+   the grid. The selected card's ring and fill hold its Play; VoiceOver reads the card's name first (not the picture's
+   description). Hide the inspector (⌥⌘I): the selected card shows "Details", a link to its page.
+   Set as default… on a starter, from a card selected in the grid: a sheet asks the copy's name, Escape closes it with
+   nothing copied; again, edit the name and press Return — the Library moves to the copy's page and the inspector still
+   says what was set, with Undo and "Open the copy"; on your copy the sheet's Return sets it (Undo in the inspector).
+   Create with Claude…: it opens with the focus in the Id field; Copy the prompt is the default once an id is
+   typed; close it with Escape and open it again — your words are still there; quit the app with words typed: the quit
+   question names them. Dark, light, 900 px.
+11. **The theme editor's colour picker (L5.12c).** On a theme of yours: drag the accent's colour well with the system
+   picker open — the preview follows (at most five a second), the file is not written while you drag; release (close
+   the picker) — one write, the status line says what it set, Undo puts it back. Type a hex and press Return. The browser's
+   Colours row brings the inspector's colours and VoiceOver reads the hex field as "Accent hex"; an unset colour (Dark)
+   shows a hatched well and VoiceOver says "not set". Switch the preview's target (Intro · Clip with caption · Outro):
+   one preview, Play loops it. (L5.12c fixes) Change the brand URL in template.yaml in an editor, then type a new accent
+   hex and press Return: the status line says it was not written and the hex field shows the accent as written; Tab out
+   of it — nothing is written. Copy to edit… on a starter asks the name in a sheet: edit it and press Return in the field
+   — it copies. New theme…: type a paper colour that is not a hex — the line under the form says why and Make the theme
+   stays off. Dark, light, 900 px.
 
 ## Results — first pass (L1.5, 2026-10-12)
 

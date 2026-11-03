@@ -6,9 +6,16 @@
  * once, never on the dialog's `close` event: that event is a task of its own, and under load it lands after the user
  * (or another sheet) has moved the focus on, which it would steal back. The sheet follows its `open` prop even when the
  * platform closes the dialog itself (review A-L1).
+ * L5.12c: a sheet that asks for a value too (a copy's name, the Library's Create with Claude): its fields go in `content`,
+ * under the text and outside the sheet's description (a screen reader reads the text, not every field, on open); an
+ * action can be off (`disabled`: no prompt to copy yet) — the focus then starts on the first field.
+ * L5.12c fixes: the focus on open is the default action when it is on, else the first text field of `content`, else the
+ * first action that is on — never a control that is not a tab stop (review A-L1: an unchecked chip); Return in a
+ * one-line text field of the sheet chooses the default action when it is on (review A-L2 / B-L2: edit a copy's name,
+ * press Return).
  */
 import { useEffect, useId, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { Button } from './Button.js';
 import type { ButtonVariant } from './Button.js';
 import { shown } from '../bits.js';
@@ -23,6 +30,16 @@ export interface SheetAction {
   isCancel?: boolean;
   /** L5.11a: a test id kept from an older dialog. */
   testId?: string;
+  /** L5.12c: off for now (nothing to act on yet). */
+  disabled?: boolean;
+}
+
+/** A sheet's one-line text fields (Return in one chooses the default action; the first takes the focus when it is off). */
+const TEXT_FIELD = 'input:is([type="text"], [type="search"], [type="url"], [type="email"], :not([type])):not(:disabled):not([readonly])';
+
+/** Where the focus starts: the default action when it is on, else the first text field, else the first action that is on. */
+export function firstFocus(d: HTMLElement): HTMLElement | null {
+  return d.querySelector<HTMLElement>('[data-default="yes"]:not(:disabled)') ?? d.querySelector<HTMLElement>(`.k-sheet-content :is(${TEXT_FIELD}, textarea:not(:disabled):not([readonly]))`) ?? d.querySelector<HTMLElement>('.k-sheet-actions button:not(:disabled)');
 }
 
 /** The action Return chooses: the one marked default unless it is destructive, else the cancel action. */
@@ -39,6 +56,7 @@ export function Sheet({
   destructive,
   alert,
   testId,
+  content,
 }: {
   open: boolean;
   title: ReactNode;
@@ -49,6 +67,8 @@ export function Sheet({
   /** L5.11a (critique L4): `role="alertdialog"` without marking the sheet destructive (a warning that loses no work). */
   alert?: boolean;
   testId?: string;
+  /** L5.12c: fields under the text (not part of the sheet's description). */
+  content?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -73,7 +93,7 @@ export function Sheet({
     if (open && !d.open) {
       if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
       d.showModal();
-      d.querySelector<HTMLElement>('[data-default="yes"]')?.focus();
+      firstFocus(d)?.focus();
     } else if (!open && d.open) {
       ownCloses.current += 1;
       d.close();
@@ -98,9 +118,18 @@ export function Sheet({
     }
     giveBack();
   };
+  // Return in a one-line text field: the default action, when it is on (a text area keeps its Return).
+  const onKeyDown = (e: KeyboardEvent<HTMLDialogElement>) => {
+    if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey || e.nativeEvent.isComposing) return;
+    const t = e.target as HTMLElement;
+    if (!(t instanceof HTMLInputElement) || !t.matches(TEXT_FIELD) || !def || def.disabled) return;
+    e.preventDefault();
+    onAction(def.id);
+  };
   return (
     <dialog
       ref={ref}
+      onKeyDown={onKeyDown}
       className="k-sheet"
       role={destructive || alert ? 'alertdialog' : undefined}
       data-testid={testId}
@@ -121,9 +150,10 @@ export function Sheet({
           {shown(children)}
         </div>
       )}
+      {content && <div className="k-sheet-content">{shown(content)}</div>}
       <div className="k-sheet-actions">
         {actions.map((a) => (
-          <Button key={a.id} variant={a.variant ?? 'secondary'} data-default={a === def ? 'yes' : undefined} data-testid={a.testId} onClick={() => onAction(a.id)}>
+          <Button key={a.id} variant={a.variant ?? 'secondary'} disabled={a.disabled} data-default={a === def ? 'yes' : undefined} data-testid={a.testId} onClick={() => onAction(a.id)}>
             {shown(a.label)}
           </Button>
         ))}

@@ -2320,3 +2320,545 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* L5.12c: the Library (R4-Library) — the filters, sections of poster cards, a component's page, the inspector's lines. */
+.lb-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-7);
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.lb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.lb-head-end {
+  margin-left: auto;
+}
+.lb-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+  overflow-wrap: anywhere;
+}
+.lb-h2 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.lb-count,
+.lb-num,
+.lb-quiet {
+  color: var(--ui-text-3);
+}
+.lb-quiet,
+.lb-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.lb-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.lb-label {
+  color: var(--ui-text-3);
+}
+.lb-code {
+  padding: 0 var(--ui-space-2);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-well);
+  overflow-wrap: anywhere;
+}
+.lb-failure {
+  color: var(--ui-danger-text);
+  overflow-wrap: anywhere;
+}
+.lb-filters {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.lb-filter-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4) var(--ui-space-6);
+}
+.lb-search {
+  flex: 0 1 260px;
+  min-width: 180px;
+}
+.lb-kinds,
+.lb-create-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.lb-notices {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+.lb-section {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.lb-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.lb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--ui-space-7) var(--ui-space-6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.lb-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-2);
+  min-width: 0;
+  /* L5.12c fixes (review B-M1): the card's frame — hover, the selection fill and ring — is the whole card, Play inside */
+  padding: var(--ui-space-3);
+  border-radius: var(--ui-radius-card);
+}
+.lb-card:hover {
+  background: var(--ui-pane);
+}
+.lb-card[data-selected='yes'] {
+  background: var(--ui-select);
+}
+.lb-card > .k-card,
+.lb-card > .k-card:hover,
+.lb-card > .k-card.is-selected {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+/* The pressed card's ring: drawn by its selecting button, over the whole card (the li is its containing block) */
+.lb-card > .k-card.is-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ui-radius-card);
+  box-shadow: inset 0 0 0 2px var(--ui-ring);
+  pointer-events: none;
+}
+/* The selected card's inspector: Enter on the card brings the focus here (its ring inside the pane) */
+.lb-insp:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: -2px;
+}
+.lb-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  min-width: 0;
+}
+.lb-id {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lb-pic {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lb-pic-large {
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  aspect-ratio: 16 / 9;
+}
+.lb-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.lb-pic-words,
+.lb-pic-note {
+  position: absolute;
+  inset: auto var(--ui-space-3) var(--ui-space-3) var(--ui-space-3);
+  padding: var(--ui-space-1) var(--ui-space-3);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+  white-space: normal;
+}
+.lb-pic-words {
+  inset: 50% var(--ui-space-3) auto var(--ui-space-3);
+  transform: translateY(-50%);
+  text-align: center;
+}
+.lb-playing {
+  position: absolute;
+  top: var(--ui-space-3);
+  right: var(--ui-space-3);
+  padding: 0 var(--ui-space-3);
+  border-radius: var(--ui-radius-kbd);
+  background: var(--ui-video);
+  color: var(--ui-on-video);
+}
+/* The mark's word on the video plate (the kit's mark is text-2: unreadable on video). */
+.lb-playing .k-mark {
+  color: var(--ui-on-video);
+}
+.lb-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  min-width: 0;
+}
+/* Play pressed: a filled button with a bar of its own (its state is more than the mark on the poster; not the focus
+   ring's look: review A-L6). */
+.lb-controls [aria-pressed='true'],
+.lb-actions [aria-pressed='true'] {
+  background: var(--ui-select);
+  box-shadow: inset 0 -3px 0 var(--ui-pressed);
+}
+.lb-words {
+  color: var(--ui-text-2);
+}
+.lb-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3);
+}
+.lb-insp-picture {
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+  aspect-ratio: 16 / 9;
+}
+.lb-insp-id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.lb-sheet-line {
+  margin: 0;
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.lb-detail {
+  display: grid;
+  gap: var(--ui-space-8);
+  max-width: 1100px;
+}
+.lb-detail-head {
+  display: grid;
+  gap: var(--ui-space-2);
+}
+.lb-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+  margin: 0;
+  color: var(--ui-text-2);
+}
+.lb-detail-top {
+  display: grid;
+  grid-template-columns: minmax(0, 640px) minmax(200px, 1fr);
+  align-items: start;
+  gap: var(--ui-space-7);
+}
+.lb-detail-side {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.lb-detail-section {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.lb-readme {
+  margin: 0;
+  padding: var(--ui-space-5);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-well);
+  font-family: var(--ui-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A narrow centre: the picture above its controls. */
+@media (max-width: 1100px) {
+  .lb-detail-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* L5.12c: the Themes list and the theme editor (R4-Theme) — rows with swatches, the forms, one live preview, the fields. */
+.tm-screen {
+  display: grid;
+  align-content: start;
+  gap: var(--ui-space-7);
+  max-width: 1200px;
+  padding: var(--ui-space-8) var(--ui-space-9);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.tm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.tm-head-end {
+  margin-left: auto;
+}
+.tm-h1 {
+  margin: 0;
+  font-size: var(--ui-type-lg);
+  line-height: var(--ui-lead-lg);
+  font-weight: var(--ui-weight-strong);
+  letter-spacing: var(--ui-tracking);
+  overflow-wrap: anywhere;
+}
+.tm-h2,
+.tm-h3 {
+  margin: 0;
+  font-size: var(--ui-type-md);
+  line-height: var(--ui-lead-md);
+  font-weight: var(--ui-weight-strong);
+}
+.tm-quiet {
+  margin: 0;
+  color: var(--ui-text-3);
+  overflow-wrap: anywhere;
+}
+.tm-line {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.tm-pre {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.tm-failure {
+  margin: 0;
+  color: var(--ui-danger-text);
+  overflow-wrap: anywhere;
+}
+.tm-label {
+  color: var(--ui-text-3);
+}
+.tm-code {
+  display: block;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-well);
+  overflow-wrap: anywhere;
+}
+.tm-tags,
+.tm-actions,
+.tm-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+}
+.tm-list {
+  display: grid;
+  gap: var(--ui-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.tm-row {
+  display: grid;
+  gap: var(--ui-space-2);
+  padding: var(--ui-space-5) var(--ui-space-6);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  background: var(--ui-pane);
+}
+.tm-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+  min-width: 0;
+}
+.tm-row-name {
+  min-width: 0;
+  font-weight: var(--ui-weight-strong);
+  overflow-wrap: anywhere;
+}
+.tm-row-actions {
+  margin-left: auto;
+}
+.tm-link {
+  color: var(--ui-link);
+}
+.tm-swatches {
+  display: inline-flex;
+  gap: var(--ui-space-1);
+}
+.tm-swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--ui-radius-kbd);
+  box-shadow: inset 0 0 0 1px var(--ui-field-line);
+}
+.tm-panel {
+  display: grid;
+  gap: var(--ui-space-5);
+  padding: var(--ui-space-6);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+}
+.tm-panel-body {
+  display: grid;
+  gap: var(--ui-space-5);
+}
+.tm-new-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--ui-space-5) var(--ui-space-6);
+}
+.tm-url-line,
+.tm-use-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ui-space-4);
+}
+.tm-url {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.tm-command {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.tm-status {
+  margin: 0;
+  min-height: var(--ui-lead-sm);
+  color: var(--ui-text-2);
+  overflow-wrap: anywhere;
+}
+.tm-issues,
+.tm-notes,
+.tm-held,
+.tm-palette-list {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-wrap: anywhere;
+}
+.tm-notes {
+  color: var(--ui-text-3);
+}
+.tm-live,
+.tm-use {
+  display: grid;
+  gap: var(--ui-space-4);
+}
+.tm-live-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.tm-live-target {
+  margin-left: auto;
+}
+.tm-frame-wrap {
+  display: grid;
+  gap: var(--ui-space-4);
+  max-width: 960px;
+}
+.tm-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--ui-radius-frame);
+  background: var(--ui-video);
+}
+.tm-note {
+  position: relative;
+  max-width: 80%;
+  margin: 0;
+  padding: var(--ui-space-4) var(--ui-space-6);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-overlay);
+  color: var(--ui-text);
+  text-align: center;
+}
+.tm-frame-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-5);
+}
+.tm-frame-bar [aria-pressed='true'] {
+  background: var(--ui-select);
+  box-shadow: inset 0 -3px 0 var(--ui-pressed);
+}
+.tm-held li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2) var(--ui-space-3);
+}
+/* The fields (the inspector): a section is an anchor of the browser; its focus ring when a browser row brings it. */
+.tm-fields {
+  display: grid;
+  gap: var(--ui-space-2);
+  min-width: 0;
+}
+.tm-section {
+  scroll-margin-top: var(--ui-space-4);
+  border-radius: var(--ui-radius-well);
+}
+.tm-section:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.tm-group,
+.tm-comp,
+.tm-params,
+.tm-palette {
+  display: grid;
+  gap: var(--ui-space-3);
+  min-width: 0;
+}
+.tm-chips {
+  display: grid;
+  gap: var(--ui-space-2);
+}

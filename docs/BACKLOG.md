@@ -2075,6 +2075,19 @@ and `job_end` lines); what remains:
 - "Press C on any frame" on the Comments screen (the key belongs to Edit; Comments has "Comment at this frame" in ⌘K).
 - A Markdown preview of the README stays out (deliberate: a renderer is the largest script-injection surface).
 
+### BL-134 — « Épure » 4 extras cut from L5.12c (the Library, the theme editor)
+*S–M · cut in L5.12c · builds on: L5.12c*
+
+- R4-Theme's "Content from <scenario>" select: theme_preview has no scenario target (intro, clip, outro or a
+  component) — a preview of a scenario's own clip with the theme first.
+- R4-Theme's three-tile preview grid (Intro, Outro, Clip): one Player exists; the other two tiles have no picture
+  source — a still per target (a frame from theme_preview) first. The editor keeps one preview and a target Segmented.
+- R4-Theme's Undo / Redo in the title bar (they are in the status bar) and the browser's per-section notes ("5 colours",
+  "2 pass").
+- R4-Library's card without visible buttons (Play sits under each poster, inside the card's frame: the selected card's
+  Play / Retry are its tab stops after the card; L5.12c fixes made the grid one tab stop).
+- The Themes list's site panel keeps a plain layout (kit fields, no R4 drawing of its own).
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

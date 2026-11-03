@@ -159,6 +159,8 @@ describe.skipIf(!ENABLED)('the library and the theme editor with the real worker
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes/editorial`);
     await page.getByTestId('theme-editor').waitFor();
     expect(await page.getByTestId('theme-editor').getAttribute('data-editable')).toBe('no');
+    // (L5.12c: Copy to edit… asks the copy's name in a kit Sheet.)
+    await page.getByTestId('theme-copy-open').click();
     expect(await page.getByTestId('theme-copy-name').inputValue()).toBe(COPY);
     await page.getByTestId('theme-copy').click();
     await expect.poll(() => page.getByTestId('theme-editor').getAttribute('data-editable'), POLL).toBe('yes');

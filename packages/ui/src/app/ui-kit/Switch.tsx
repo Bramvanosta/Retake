@@ -25,7 +25,7 @@ export function Switch({ label, checked, onChange, hint, disabled, layout, dataF
           {shown(hint ?? '')}
         </span>
         <span className="k-switch">
-          <input type="checkbox" role="switch" className="k-switch-input" checked={checked} disabled={disabled} aria-labelledby={labelId} aria-describedby={hint ? hintId : undefined} data-switch={dataField} onChange={(e) => onChange(e.currentTarget.checked)} />
+          <input type="checkbox" role="switch" className="k-switch-input" checked={checked} disabled={disabled} aria-labelledby={labelId} aria-describedby={hint ? hintId : undefined} data-switch={dataField} data-testid={testId} onChange={(e) => onChange(e.currentTarget.checked)} />
           <span className="k-switch-knob" aria-hidden="true" />
         </span>
       </label>

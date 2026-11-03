@@ -17,6 +17,9 @@
  *   extraction (its hex roles, its logo candidate) → made → its editor;
  * - ⚑ only theme_edit / theme_copy / theme_create write themes, never on a starter (the starters' files unchanged);
  *   ⚑ no model call: every request of the page goes to the Studio origin or its player origin.
+ * L5.12c « Épure » 4c (R4-Theme): the editor in the shell — the browser's sections (anchors into the inspector's fields)
+ * and components, ONE live preview whatever the target, the status bar (Undo, Redo, Extract from a website…, Use in a
+ * scenario…); Copy to edit asks the copy's name in a kit Sheet (the list's and the editor's).
  * `DEMO_STUDIO_UI_SHOTS=<folder>` saves screenshots there (1280 and 1600 wide, light).
  */
 import { execFileSync } from 'node:child_process';
@@ -190,7 +193,7 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     const row = page.locator('[data-testid="theme-row"][data-theme="editorial"]');
     await row.waitFor();
     expect(await row.getAttribute('data-editable')).toBe('no');
-    expect(await row.locator('.badge').allInnerTexts()).toEqual(expect.arrayContaining(['Starter', "The project's theme", 'Read-only']));
+    expect(await row.getByTestId('theme-tag').allInnerTexts()).toEqual(expect.arrayContaining(['Starter', "The project's theme", 'Read-only']));
     expect(await row.getByTestId('theme-row-why').innerText()).toMatch(/starter theme shipped with Demo Studio: copy it to edit it/);
     expect(await row.getByTestId('theme-row-copy').isVisible()).toBe(true);
     // The site panel: the page's title shown literally, its override as a visible mark; nothing built from it.
@@ -213,14 +216,19 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.title()).toBe('editorial · Themes · Demo Studio');
     expect(await page.getByTestId('theme-readonly-why').innerText()).toMatch(/copy it to edit it/);
     for (const id of ['color-accent-picker', 'color-accent-hex', 'background-type', 'font-display', 'text-brand.name']) expect(await page.getByTestId(id).isDisabled(), id).toBe(true);
-    expect(await page.locator('[data-testid="theme-editor"] .th-fields select:not([disabled]), [data-testid="theme-editor"] .th-fields input:not([disabled])').count()).toBe(0);
+    expect(await page.locator('[data-testid="theme-fields"] select:not([disabled]), [data-testid="theme-fields"] input:not([disabled])').count()).toBe(0);
+    // (L5.12c: the fields' chips stay focusable, each aria-disabled with the group's.)
+    expect(await page.locator('[data-testid="theme-fields"] [role="radio"]:not([aria-disabled="true"])').count()).toBe(0);
     expect(opsOf('theme_edit')).toHaveLength(0);
     // Review B L2: every control of the editor has a name (the Default zoom select was the one without).
     expect(await page.getByRole('combobox', { name: 'Default zoom', exact: true }).count()).toBe(1);
-    const unnamed = await page.locator('[data-testid="theme-editor"] select, [data-testid="theme-editor"] input, [data-testid="theme-editor"] button').evaluateAll((els) =>
+    const unnamed = await page.locator('[data-testid="theme-editor"] :is(select, input, button), [data-testid="theme-fields"] :is(select, input, button)').evaluateAll((els) =>
       els.filter((e) => !(e as HTMLElement).closest('[hidden]') && !e.getAttribute('aria-label') && !e.getAttribute('aria-labelledby') && !(e as HTMLInputElement).labels?.length && !(e.textContent ?? '').trim() && (e as HTMLInputElement).type !== 'hidden').map((e) => e.outerHTML.slice(0, 80)),
     );
     expect(unnamed).toEqual([]);
+    // L5.12c: Copy to edit… asks the copy's name in a kit Sheet.
+    await page.getByTestId('theme-copy-open').click();
+    await page.locator('[data-testid="theme-copy-sheet"][open]').waitFor();
     expect(await page.getByTestId('theme-copy-name').inputValue()).toBe(COPY);
     await page.getByTestId('theme-copy').click();
     await expect.poll(() => page.url(), POLL).toBe(`${studio.url}#/p/${P}/themes/${COPY}`);
@@ -326,8 +334,117 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     expect(await page.getByTestId('theme-undo').isDisabled()).toBe(true);
   });
 
+  it('⚑ L5.12c fixes (review A-M1): a colour refused by a 409 is never written when its hex field is left — the field shows the written value of the new version', async () => {
+    await expect.poll(() => page.getByTestId('color-accent-hex').isDisabled(), POLL).toBe(false);
+    const accent = (await themeYaml()).colors.accent as string;
+    expect(await page.getByTestId('color-accent-hex').inputValue()).toBe(accent);
+    // Someone else writes another field (the brand URL) while the edit is in flight: the server refuses it (409).
+    let held = 0;
+    await page.route('**/v1/call/theme_edit', async (route) => {
+      if (held++ === 0) await writeFile(themeFile(), (await readFile(themeFile(), 'utf8')).replace(/url: [a-z.]+example(\.com)?}/, 'url: second.example}'));
+      await route.continue();
+    });
+    try {
+      const before = opsOf('theme_edit').length;
+      await page.getByTestId('color-accent-hex').fill('#123456');
+      await page.getByTestId('color-accent-hex').press('Enter');
+      await expect.poll(status, POLL).toMatch(/The theme changed meanwhile .*your change was not written/);
+      expect(opsOf('theme_edit').length).toBe(before + 1);
+      const outside = await readFile(themeFile(), 'utf8');
+      expect(outside).toContain('second.example');
+      // The new version shown: the field holds what is written (the same accent), not the refused text.
+      await expect.poll(() => page.getByTestId('color-accent-hex').inputValue(), POLL).toBe(accent);
+      // Leaving the field (a keyboard user tabbing through the inspector) writes nothing.
+      await page.getByTestId('color-accent-hex').focus();
+      await page.keyboard.press('Tab');
+      await page.waitForTimeout(500);
+      expect(opsOf('theme_edit').length).toBe(before + 1);
+      expect(await readFile(themeFile(), 'utf8')).toBe(outside);
+      expect((await themeYaml()).colors.accent).toBe(accent);
+    } finally {
+      await page.unroute('**/v1/call/theme_edit');
+    }
+  });
+
+  it('⚑ L5.12c fixes (review A-L4): a colour drag renders the dragged field (and the frame), not the editor — about one commit per move, no other colour field, section or component pick rendered', async () => {
+    // React's DevTools hook (before the bundle loads again): commits, and the fields whose props changed.
+    await context.addInitScript(() => {
+      const w = window as unknown as { __commits: number; __fields: string[]; __REACT_DEVTOOLS_GLOBAL_HOOK__: unknown };
+      w.__commits = 0;
+      w.__fields = [];
+      type Fiber = { child: Fiber | null; sibling: Fiber | null; alternate: Fiber | null; memoizedProps: unknown; type: unknown };
+      const seen = new WeakMap<Fiber, unknown>();
+      const what = (p: Record<string, unknown>): string | null => {
+        if (typeof p.testId === 'string' && p.testId.startsWith('color-') && 'picker' in p) return p.testId;
+        if ('choices' in p && typeof p.kind === 'string') return `pick:${p.kind}`;
+        if (typeof p.k === 'string' && 'title' in p && p.k !== 'colours') return `section:${p.k}`;
+        return null;
+      };
+      const visit = (f: Fiber | null) => {
+        for (let n = f; n; n = n.sibling) {
+          const p = n.memoizedProps as Record<string, unknown> | null;
+          const name = typeof n.type === 'function' && p && typeof p === 'object' ? what(p) : null;
+          if (name) {
+            const last = seen.has(n) ? seen.get(n) : n.alternate ? seen.get(n.alternate) : undefined;
+            if (last !== undefined && last !== n.memoizedProps) w.__fields.push(name);
+            seen.set(n, n.memoizedProps);
+            if (n.alternate) seen.set(n.alternate, n.memoizedProps);
+          }
+          visit(n.child);
+        }
+      };
+      w.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        supportsFiber: true,
+        isDisabled: false,
+        renderers: new Map(),
+        inject: () => 1,
+        checkDCE: () => undefined,
+        onScheduleFiberRoot: () => undefined,
+        onCommitFiberUnmount: () => undefined,
+        onPostCommitFiberRoot: () => undefined,
+        onCommitFiberRoot: (_id: number, root: { current: Fiber }) => {
+          w.__commits++;
+          visit(root.current);
+        },
+      };
+    });
+    await page.reload();
+    await page.locator('[data-testid="theme-editor"][data-editable="yes"]').waitFor(POLL);
+    await settledAfter(0);
+    await expect.poll(() => page.getByTestId('color-muted-picker').isDisabled(), POLL).toBe(false);
+    await page.waitForTimeout(800);
+    // The previews held (their answers would load the frame: not the fields' renders): the drag's own commits only.
+    const pending: Array<() => Promise<void>> = [];
+    await page.route('**/v1/call/theme_preview', (route) => void pending.push(() => route.continue()));
+    try {
+      await page.evaluate(() => {
+        const w = window as unknown as { __commits: number; __fields: string[] };
+        w.__commits = 0;
+        w.__fields = [];
+      });
+      const moves = Array.from({ length: 30 }, (_, i) => `#${(0x30 + i * 3).toString(16).padStart(2, '0')}4060`);
+      await drag('color-muted-picker', moves, 15);
+      await expect.poll(() => page.getByTestId('color-muted').innerText(), POLL).toContain(`previewing ${moves.at(-1)}`);
+      const got = await page.evaluate(() => {
+        const w = window as unknown as { __commits: number; __fields: string[] };
+        return { commits: w.__commits, fields: [...new Set(w.__fields)].sort(), muted: w.__fields.filter((f) => f === 'color-muted').length };
+      });
+      console.log(`colour drag: ${moves.length} moves, ${got.commits} commits, rendered ${got.fields.join(', ')}`);
+      expect(got.fields).toEqual(['color-muted']);
+      expect(got.muted).toBeLessThanOrEqual(moves.length + 1);
+      expect(got.commits).toBeLessThanOrEqual(moves.length + 3);
+    } finally {
+      await page.unroute('**/v1/call/theme_preview');
+      for (const go of pending) await go().catch(() => undefined);
+    }
+    // Nothing written: the draft dropped with a reload.
+    await page.reload();
+    await page.locator('[data-testid="theme-editor"][data-editable="yes"]').waitFor(POLL);
+  });
+
   it('⚑ a workspace component the preview renders is held (the Allow card) until allowed', async () => {
-    await page.getByTestId('chips-target').getByText('Intro', { exact: true }).click();
+    // (L5.12c: the target is the kit's segmented control: its radio covers its label.)
+    await page.getByTestId('chips-target').getByRole('radio', { name: 'Intro', exact: true }).check();
     await expect.poll(() => page.locator('[data-testid="component-intro"] select').isDisabled(), POLL).toBe(false);
     await page.locator('[data-testid="component-intro"] select').selectOption('acme/intro');
     await expect.poll(async () => (await themeYaml()).components.intro, POLL).toBe('acme/intro');
@@ -358,6 +475,89 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     await expect.poll(async () => Buffer.compare(await readFile(file), before), POLL).toBe(0);
   });
 
+  it('⚑ L5.12c: the editor in the shell — the browser\'s sections bring the inspector\'s fields, its components go to the library; one live preview whatever the target; the status bar\'s Use in a scenario… brings the scenario', async () => {
+    const pane = page.getByRole('complementary', { name: 'Browser' });
+    await pane.getByRole('button', { name: 'Colours', exact: true }).click();
+    await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute('data-section')), POLL).toBe('colours');
+    const inspector = (await page.getByRole('complementary', { name: 'Inspector' }).boundingBox())!;
+    const section = (await page.locator('[data-section="colours"]').boundingBox())!;
+    expect(section.y).toBeGreaterThanOrEqual(inspector.y - 1);
+    expect(section.y).toBeLessThan(inspector.y + inspector.height);
+    // The theme's components: each a link to its page in the library, in this theme.
+    expect(await pane.locator(`a[href="#/p/${P}/library/${COPY}/studio/layout-browser"]`).count()).toBe(1);
+    // One preview (critique M5: no grid of three): each target loads into the one frame.
+    for (const t of ['Clip with caption', 'Outro', 'Intro']) {
+      const n = await settles();
+      await page.getByTestId('chips-target').getByRole('radio', { name: t, exact: true }).check();
+      await settledAfter(n);
+      expect(await page.locator('[data-testid="preview-frame"]').count()).toBe(1);
+      expect(await page.getByTestId('theme-preview').count()).toBe(1);
+    }
+    // The status bar: Undo, Redo, Extract from a website… (the list's site panel), Use in a scenario… (its select).
+    const bar = page.getByRole('region', { name: 'Status' });
+    expect(await bar.getByTestId('theme-undo').count()).toBe(1);
+    expect(await bar.getByTestId('theme-redo').count()).toBe(1);
+    expect(await bar.getByRole('link', { name: 'Extract from a website…' }).getAttribute('href')).toBe(`#/p/${P}/themes`);
+    await bar.getByRole('button', { name: 'Use in a scenario…' }).click();
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('use-scenario');
+  });
+
+  it('⚑ L5.12c: the list\'s Copy to edit… asks the name in a kit Sheet — Escape closes it, nothing copied', async () => {
+    await page.goto(`${studio.url}#/p/${P}/themes`);
+    const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
+    await row.waitFor();
+    const before = execFileSync('ls', [join(ws, 'templates')]).toString();
+    await row.getByTestId('theme-row-copy').click();
+    await page.locator('[data-testid="theme-row-copy-sheet"][open]').waitFor();
+    expect(await page.getByTestId('theme-row-copy-name').inputValue()).toBe('motion-copy');
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid'))).toBe('theme-row-copy-yes');
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.locator('dialog[open]').count(), POLL).toBe(0);
+    expect(execFileSync('ls', [join(ws, 'templates')]).toString()).toBe(before);
+    expect(opsOf('theme_copy').filter((o) => JSON.parse(o.body).from === 'motion')).toHaveLength(0);
+  });
+
+  it('⚑ L5.12c fixes (review A-L2 / B-L2): Return in the copy\'s name field copies — the name as edited — and opens the copy', async () => {
+    await page.goto(`${studio.url}#/p/${P}/themes`);
+    const row = page.locator('[data-testid="theme-row"][data-theme="motion"]');
+    await row.waitFor();
+    await row.getByTestId('theme-row-copy').click();
+    await page.locator('[data-testid="theme-row-copy-sheet"][open]').waitFor();
+    await page.getByTestId('theme-row-copy-name').fill('motion-two');
+    await page.getByTestId('theme-row-copy-name').press('Enter');
+    await expect.poll(() => page.getByTestId('theme-editor').getAttribute('data-theme'), POLL).toBe('motion-two');
+    expect(JSON.parse(opsOf('theme_copy').at(-1)!.body)).toEqual({ from: 'motion', name: 'motion-two' });
+    expect(await page.locator('dialog[open]').count()).toBe(0);
+  });
+
+  it('⚑ L5.12c fixes (review B-M2): the New theme form takes each keystroke of a colour — a value that is not a hex stays and the form says why (nothing made); "Make the theme" follows the typed accent', async () => {
+    await page.goto(`${studio.url}#/p/${P}/themes`);
+    await page.locator(`[data-testid="site-row"][data-site="${SITE}"]`).getByTestId('site-new-theme').click();
+    await page.getByTestId('theme-new').waitFor();
+    await page.getByTestId('new-name').fill('typed-theme');
+    const made = opsOf('theme_create').length;
+    // A paper that is not a hex, the field left: it stays as typed and the form's line says why; nothing can be made.
+    await page.getByTestId('new-paper-hex').fill('#12345');
+    await page.keyboard.press('Tab');
+    expect(await page.getByTestId('new-paper-hex').inputValue()).toBe('#12345');
+    await expect.poll(() => page.getByTestId('new-problem').innerText(), POLL).toBe('The paper colour is a hex value: #rgb or #rrggbb.');
+    expect(await page.getByTestId('new-create').isDisabled()).toBe(true);
+    await page.getByTestId('new-paper-hex').fill('');
+    // An accent typed, not yet left: each keystroke reaches the form (a half-typed one is said at once).
+    await page.getByTestId('new-accent-hex').fill('#1a2b');
+    await expect.poll(() => page.getByTestId('new-problem').innerText(), POLL).toBe('The accent colour is a hex value: #rgb or #rrggbb.');
+    expect(await page.getByTestId('new-create').isDisabled()).toBe(true);
+    await page.getByTestId('new-accent-hex').pressSequentially('3c');
+    await expect.poll(() => page.getByTestId('new-create').isDisabled(), POLL).toBe(false);
+    expect(await page.getByTestId('new-problem').innerText()).toBe('');
+    await page.getByTestId('new-create').click();
+    await page.getByTestId('theme-new-made').waitFor({ timeout: 30_000 });
+    expect(opsOf('theme_create').length).toBe(made + 1);
+    expect(JSON.parse(opsOf('theme_create').at(-1)!.body)).toMatchObject({ name: 'typed-theme', colors: { accent: '#1a2b3c', text: '#1b1b1f' } });
+    expect(JSON.parse(opsOf('theme_create').at(-1)!.body).colors.paper).toBeUndefined();
+    await page.getByTestId('theme-new-made').getByRole('button', { name: 'Close' }).click();
+  });
+
   it('the site panel: a URL → the command to copy; ⚑ no site job; New theme from an extraction → made → its editor', async () => {
     await page.goto(`${studio.url}#/p/${P}/themes`);
     await page.getByTestId('site-url').fill('https://example.com/pricing');
@@ -369,7 +569,9 @@ describe.skipIf(!canRun)('the theme screens in Chromium', () => {
     const form = page.getByTestId('theme-new');
     await form.waitFor();
     expect(await page.getByTestId('new-name').inputValue()).toBe('site-theme');
-    expect(await page.getByTestId('new-accent').inputValue()).toBe('#0f6e5a');
+    // (L5.12c: the kit's ColorField — the field `new-accent`, its hex `new-accent-hex`.)
+    expect(await page.getByTestId('new-accent').count()).toBe(1);
+    expect(await page.getByTestId('new-accent-hex').inputValue()).toBe('#0f6e5a');
     expect(await page.getByTestId('new-logo').inputValue()).toBe(`site:${SITE}/logo-1`);
     await shot('themes-site', 1280);
     await page.setViewportSize({ width: 1280, height: 960 });

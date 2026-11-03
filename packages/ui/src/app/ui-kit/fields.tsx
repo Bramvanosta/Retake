@@ -78,7 +78,7 @@ const describedBy = (id: string, hint: ReactNode, error: ReactNode, more?: strin
  * L5.10a fixes (review B-L4, B-L6): a search keeps its limits (`maxLength`, no autocomplete, no spell check), and its
  * label may be visually hidden (`labelHidden`: still the input's name) with a search icon in the field.
  */
-export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown, maxLength, autoComplete, spellCheck, labelHidden, dataField, testId, title, describedBy: more, inputMode }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void; maxLength?: number; autoComplete?: string; spellCheck?: boolean; inputMode?: HTMLAttributes<HTMLInputElement>['inputMode'] }) {
+export function TextField({ label, value, onChange, baseline = '', unsaved, mono, error, hint, placeholder, disabled, readOnly, layout = 'stack', id, name, type = 'text', onKeyDown, onBlur, maxLength, autoComplete, spellCheck, labelHidden, dataField, testId, title, describedBy: more, inputMode }: TextCommon & { type?: 'text' | 'search' | 'url' | 'email'; onKeyDown?: (e: KeyboardEvent<HTMLInputElement>) => void; /** L5.12c: the field left (the theme editor writes a text on Enter or when it is left). */ onBlur?: () => void; maxLength?: number; autoComplete?: string; spellCheck?: boolean; inputMode?: HTMLAttributes<HTMLInputElement>['inputMode'] }) {
   useUnsavedMark(unsavedFor(value, baseline, unsaved));
   const own = useId();
   const fid = id ?? own;
@@ -106,6 +106,7 @@ export function TextField({ label, value, onChange, baseline = '', unsaved, mono
         aria-describedby={describedBy(fid, hint, error, more)}
         onChange={(e) => onChange(e.currentTarget.value)}
         onKeyDown={onKeyDown}
+        onBlur={onBlur}
       />
     </Frame>
   );

@@ -92,6 +92,7 @@ html[data-titlebar='overlay'] {
   --ui-on-video: #ffffff;
   --ui-danger-text: #ff7b72;
   --ui-ring: #4c8dff;
+  --ui-pressed: #a3c4ff;
   --ui-ok: #4cd27a;
   --ui-warn: #f2b84b;
   --ui-fail: #ff7b72;
@@ -144,10 +145,7 @@ html[data-titlebar='overlay'] {
   --success-soft: #1b2e22;
   --input-tint: #2a2340;
   --input-fg: #c9b5f5;
-  --ink: #0a0a0b;
   --ink-soft: #141518;
-  --veil: rgba(24, 25, 28, 0.92);
-  --backdrop: rgba(6, 7, 8, 0.55);
 }
 /* The system asks for light. */
 @media (prefers-color-scheme: light) {
@@ -176,6 +174,7 @@ html[data-titlebar='overlay'] {
     --ui-on-video: #ffffff;
     --ui-danger-text: #b42318;
     --ui-ring: #2f6fe0;
+    --ui-pressed: #1b45ad;
     --ui-ok: #1a8d4c;
     --ui-warn: #a86d14;
     --ui-fail: #d93a30;
@@ -228,10 +227,7 @@ html[data-titlebar='overlay'] {
     --success-soft: #e6f4ea;
     --input-tint: #f1ebfb;
     --input-fg: #5b3a99;
-    --ink: #16181d;
     --ink-soft: #1c1f24;
-    --veil: rgba(255, 255, 255, 0.92);
-    --backdrop: rgba(22, 24, 29, 0.35);
   }
 }
 /* Scopes inside the page (the gallery, a legacy route kept light): after the media block, so a scope always wins. */
@@ -260,6 +256,7 @@ html[data-titlebar='overlay'] {
   --ui-on-video: #ffffff;
   --ui-danger-text: #b42318;
   --ui-ring: #2f6fe0;
+  --ui-pressed: #1b45ad;
   --ui-ok: #1a8d4c;
   --ui-warn: #a86d14;
   --ui-fail: #d93a30;
@@ -312,10 +309,7 @@ html[data-titlebar='overlay'] {
   --success-soft: #e6f4ea;
   --input-tint: #f1ebfb;
   --input-fg: #5b3a99;
-  --ink: #16181d;
   --ink-soft: #1c1f24;
-  --veil: rgba(255, 255, 255, 0.92);
-  --backdrop: rgba(22, 24, 29, 0.35);
 }
 [data-appearance='dark'] {
   color-scheme: dark;
@@ -342,6 +336,7 @@ html[data-titlebar='overlay'] {
   --ui-on-video: #ffffff;
   --ui-danger-text: #ff7b72;
   --ui-ring: #4c8dff;
+  --ui-pressed: #a3c4ff;
   --ui-ok: #4cd27a;
   --ui-warn: #f2b84b;
   --ui-fail: #ff7b72;
@@ -394,27 +389,20 @@ html[data-titlebar='overlay'] {
   --success-soft: #1b2e22;
   --input-tint: #2a2340;
   --input-fg: #c9b5f5;
-  --ink: #0a0a0b;
   --ink-soft: #141518;
-  --veil: rgba(24, 25, 28, 0.92);
-  --backdrop: rgba(6, 7, 8, 0.55);
 }
 /* ::backdrop inherits no custom property in Safari 17 and Firefox 120 (UI_TARGETS): the veils are declared on it. */
 ::backdrop {
   --ui-backdrop: rgba(6, 7, 8, 0.55);
-  --backdrop: rgba(6, 7, 8, 0.55);
 }
 @media (prefers-color-scheme: light) {
   ::backdrop {
     --ui-backdrop: rgba(22, 24, 29, 0.35);
-    --backdrop: rgba(22, 24, 29, 0.35);
   }
 }
 [data-appearance='light'] ::backdrop {
   --ui-backdrop: rgba(22, 24, 29, 0.35);
-  --backdrop: rgba(22, 24, 29, 0.35);
 }
 [data-appearance='dark'] ::backdrop {
   --ui-backdrop: rgba(6, 7, 8, 0.55);
-  --backdrop: rgba(6, 7, 8, 0.55);
 }

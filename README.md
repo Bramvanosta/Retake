@@ -3740,9 +3740,16 @@ running: the MCP server keeps working without it.
   `components/` — each card the component's poster in the project's theme; the *Theme* menu shows them in another
   (`#/p/<project>/library/<theme>`). Filter by kind, source and words: a kind's chip counts what it lists (the
   components of that kind and those that can also serve as one); in the full view a kind's section lists its own
-  components, and *+ N more that can also serve here* picks that kind's filter. A badge says where it comes from: *Built-in* or *Workspace* (made in this workspace, by you or with Claude:
-  the Studio cannot tell who). **Play** shows the component moving — a looping GIF in place of the poster — and
-  **Pause** the poster again; loops never start by themselves. Posters and loops are rendered by the jobs worker (the
+  components, and *+ N more that can also serve here* picks that kind's filter. A tag says where it comes from: *Built-in* or *Workspace* (made in this workspace, by you or with Claude:
+  the Studio cannot tell who). **Play** under a card shows the component moving — a looping GIF in place of the poster,
+  marked *Playing · loop* — and pressing it again shows the poster; loops never start by themselves. (L5.12c, in the
+  shell: the browser lists the Library — Components, Themes — and the project's themes, each showing the components in
+  it; the title bar's *Theme* menu does the same; a click on a card selects it and the inspector shows its facts —
+  kind, slots, length, whether its kit works here, the themes that pick it — with *Play in the theme*, *Open the
+  details*, *Create with Claude…*, *Set as default…* and its description; the status bar says whether previews are
+  queued, with **Render all loops** and **Open the theme editor**. By keyboard the grid is one stop: the arrow keys,
+  Home and End move the selection, Escape clears it and Return on the selected card goes to its inspector; with the
+  inspector hidden, the selected card links to its page, *Details*.) Posters and loops are rendered by the jobs worker (the
   component's code runs only in the render's guarded browser, never in the Studio) and kept in
   `.demo-studio/cache/previews/`: posters of the cards on screen are asked 2 s after you stop scrolling or switch theme,
   12 components at a time, each batch once the previous one finished (a capture you start meanwhile goes first); a
@@ -3751,31 +3758,35 @@ running: the MCP server keeps working without it.
   its poster in the editorial starter. A preview that failed says why (as text) and is rendered again with **Retry** —
   or by itself once any component changed (a broken component of the workspace never fails the others: they are
   rendered with their own components); a batch that failed as a whole says why at the top of the page; nothing is
-  queued while the disk has less than 1 GB free (the page says so — **Try again** after freeing space). A component's page (click its id) shows the picture large, its kinds, version, source, whether it works
+  queued while the disk has less than 1 GB free (the page says so — **Try again** after freeing space). A component's page (*Open the details* in the inspector) shows the picture large, its kinds, version, source, whether it works
   with this Demo Studio's kit, its duration, formats, slots and params, which themes use it and its README as text.
   **Set as default of <theme>** makes it the theme's component for its kind (choose the kind when it serves several)
-  after a confirmation, with **Undo** (the theme file back byte for byte); a starter theme cannot be changed, so it is
-  copied first to a theme of your workspace (name it; the library then shows the copy — your project keeps its theme
+  after a confirmation sheet (Return sets it), with **Undo** (the theme file back byte for byte); a starter theme cannot be changed, so it is
+  copied first to a theme of your workspace (name it — Return in the name field copies; the library then shows the copy,
+  from the grid as from a component's page, with the result, **Undo** and *Open the copy* — your project keeps its theme
   until `template:` names the copy; *Open the copy* takes you to its theme editor, where *Use in this scenario* is). A
   component imports only its own files — never through a dot folder, `node_modules/`, `previews/` or `dist/` of its
   folder (their changes would go unseen by the caches): `studio components validate` names such an import.
-  **Create with Claude…** writes a prompt for Claude Code's component skill from a
-  kind, an id and your words, to copy (**Copy the prompt**) — the Studio calls no model — and shows the
-  `studio components create <id> --kind <kind>` command; the new component shows up in the library when its folder is
-  written.
+  **Create with Claude…** opens a sheet that writes a prompt for Claude Code's component skill from a
+  kind, an id and your words, to copy (**Copy the prompt**, the sheet's default) — the Studio calls no model — and shows
+  the `studio components create <id> --kind <kind>` command; your words stay when you close it (until you leave the
+  Library); the new component shows up in the library when its folder is written.
 - **Themes** (L4.7). **Themes** in the project's pages (`#/p/<project>/themes`; *Open the theme editor* from the
   library) lists every theme — your workspace's, the starters, the project's own theme folder — with its colours, where
   it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Demo Studio, or a
-  project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first. A
-  theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
+  project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first (a sheet
+  asks the copy's name; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
   `example.com/path`, no `https://` —, the outro's tagline; the logo
   and wordmark among the theme folder's own image files — add one there to pick it), colours (picker or hex, with the
   contrast checks; the cursor ripple can follow the accent), background (solid, radial or linear), type pair (the
   theme's own font files), style, zoom, cursor (filmed: the next capture uses it) and the component of each kind
   (switching keeps or drops the old one's params). Every change is written at once to template.yaml — comments and the
-  rest of the file kept — and **Undo** / **Redo** put back the exact earlier bytes; if the file changed meanwhile
-  (another window, Claude, you in an editor) the change is not written and the editor shows the new version. The **live
-  preview** beside it plays the theme's intro, a clip with its caption or its outro (Play loops it); a colour being
+  rest of the file kept — and **Undo** / **Redo** (the status bar) put back the exact earlier bytes; if the file changed
+  meanwhile (another window, Claude, you in an editor) the change is not written and the editor shows the new version
+  (a colour's hex field included: leaving it then writes nothing).
+  (L5.12c, in the shell: the fields are in the inspector — the browser's sections bring each one —, the browser also
+  lists the theme's components, each opening its page in the library.) The **live preview** plays the theme's intro, a
+  clip with its caption or its outro (one preview: pick the target above it; Play loops it); a colour being
   dragged shows there before it is written (on release). A workspace component the preview would run waits for
   **Allow in the preview**, as on the timeline. **Use in this scenario** sets a scenario's `template:` to the theme
   (Undo puts the file back): every existing take of it uses the theme at its next render, no new capture — the cursor

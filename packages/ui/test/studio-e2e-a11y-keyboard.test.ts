@@ -1,14 +1,16 @@
 /**
  * L4.9 part C (R-UI-03): the screen tour, part 2, and the keyboard-only path — headless Chromium against a real Studio
  * server (a11y-tour.ts), the fixture product on free ports (the project's environments rewritten to them) for a recording:
- * - the checker (a11y.ts) at 1280 and 1440 wide with its Tab walk at 1280 on: the component library (every card's
- *   controls walked) and its "Create with Claude" dialog (walked inside), a component's detail (once its About, Slots and
+ * - the checker (a11y.ts) at 1280 and 1440 wide with its Tab walk at 1280 on: the component library (its grid one
+ *   tab stop since L5.12c's fixes: the selected card's controls walked) and its "Create with Claude" dialog (walked inside), a component's detail (once its About, Slots and
  *   Params have loaded), the themes, ⚑ the theme editor on the workspace's own editable theme (its fields enabled,
  *   measured and walked; no sideways scroll at either width — its hidden legend once widened the page), the Record start
  *   form, a recording live with its draft (the `record` job run in this process, Playwright playing the person in the
  *   recording window — no headed window), the recording done and its Discard dialog (walked inside); L5.11b: the start
  *   form and the live recording (a row selected: its alternatives and the Insert toolbar; the status bar the
- *   recording's) also in dark at 900 px, the shell's narrowest window, beside light 1280;
+ *   recording's) also in dark at 900 px, the shell's narrowest window, beside light 1280; L5.12c: the Library with a card
+ *   selected (its inspector), its Create with Claude sheet, a component's page and the theme editor with a colour field
+ *   focused — dark at 1280 / 1440 / 900 and light at 1280;
  * - the native dialogs' keyboard contract (modal, focus moves in, Escape closes, focus returns to the opener): Create
  *   with Claude, Discard the recording;
  * - ⚑ a keyboard-only path (no pointer event at all): Skip to content → the demo project → bits → the steps listbox
@@ -74,6 +76,11 @@ afterAll(async () => {
 });
 
 const at = (hash: string) => `${t.studio.url}#${hash}`;
+/** L5.12c: the Library's and the theme editor's stations — dark at the three shell widths, light at 1280. */
+const SHELL_SCHEMES = [
+  { scheme: 'dark' as const, widths: [1280, 1440, 900] },
+  { scheme: 'light' as const, widths: [1280] },
+];
 /** L5.11b: the Record screen in dark at 1280 / 1440 and the 900 px window, and light at 1280. */
 const RECORD_SCHEMES = [
   { scheme: 'dark' as const, widths: [1280, 1440, 900] },
@@ -160,24 +167,47 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
 
   it('the library and its Create with Claude dialog (focus in, Escape, focus back); a component\'s detail', async () => {
     const { page } = t;
-    let r = await station(t, 'library', () => go(page, at(`/p/${N}/library`), '[data-testid="lib-card"]'));
+    // L5.12c: a card selected — its inspector (facts, Play in the theme, Set as default…, About) beside the grid.
+    let r = await station(
+      t,
+      'library',
+      async () => {
+        await go(page, at(`/p/${N}/library`), '[data-testid="lib-card"]');
+        await page.locator('[data-testid="lib-card"][data-component="studio/intro-stack"] .k-card').click();
+        await page.getByTestId('lib-inspector').waitFor(POLL);
+      },
+      { schemes: SHELL_SCHEMES },
+    );
     expect(r.findings, r.report).toEqual([]);
-    // The walk went round the whole page (every card's controls): it came back to its first stop, far from the cap.
-    expect(r.result.walk!.stops).toBeGreaterThan(80);
-    r = await station(t, 'library-create', async () => {
-      await page.getByTestId('lib-create-open').click();
-      await page.getByTestId('lib-create').waitFor(POLL);
-    });
+    // The walk went round the whole page and came back to its first stop. (L5.12c fixes, review A-M3: the card grid is
+    // one tab stop — the selected card and its controls — where every card's controls were stops: 104 then.)
+    expect(r.result.walk!.stops).toBeGreaterThan(10);
+    expect(r.result.walk!.stops).toBeLessThan(60);
+    r = await station(
+      t,
+      'library-create',
+      async () => {
+        await page.getByTestId('lib-create-open').click();
+        await page.locator('[data-testid="lib-create"][open]').waitFor(POLL);
+      },
+      { schemes: SHELL_SCHEMES },
+    );
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.walk!.stops).toBeGreaterThanOrEqual(2);
     await page.keyboard.press('Escape');
-    await page.getByTestId('lib-create').waitFor({ state: 'detached' });
+    // (L5.12c: the kit Sheet stays in the page, closed.)
+    await page.locator('[data-testid="lib-create"][open]').waitFor({ state: 'detached' });
     expect(await dialogCheck(page, page.getByTestId('lib-create-open'), () => page.keyboard.press('Enter'))).toEqual([]);
     // The detail once loaded: its About, Slots and Params cards (reached by a hash change, it answers after the list).
-    r = await station(t, 'component', async () => {
-      await go(page, at(`/p/${N}/library/editorial/studio/card-cta`), 'h1');
-      for (const h of ['About', 'Slots', 'Params']) await page.locator(`main h2:text-is("${h}")`).waitFor(POLL);
-    });
+    r = await station(
+      t,
+      'component',
+      async () => {
+        await go(page, at(`/p/${N}/library/editorial/studio/card-cta`), 'h1');
+        for (const h of ['About', 'Slots', 'Params']) await page.locator(`main h2:text-is("${h}")`).waitFor(POLL);
+      },
+      { schemes: SHELL_SCHEMES },
+    );
     expect(r.findings, r.report).toEqual([]);
     expect(r.result.audits[1280].stats.texts).toBeGreaterThan(80);
   }, 180_000);
@@ -193,9 +223,11 @@ describe.skipIf(!canRun)('the screen tour, part 2: library, themes, Record (L4.9
       async () => {
         await go(page, at(`/p/${N}/themes/${TOUR_THEME}`), `h1:has-text("${TOUR_THEME}")`);
         await page.locator('[data-testid="theme-editor"][data-editable="yes"]').waitFor(POLL);
+        // L5.12c: a colour field focused (its ring in the inspector).
+        await page.getByTestId('color-accent-hex').focus();
       },
       // (L5.9: + the shell's four Mode buttons, disabled with no scenario in context.)
-      { exemptMax: 8 },
+      { exemptMax: 8, schemes: SHELL_SCHEMES },
     );
     expect(r.findings, r.report).toEqual([]);
     expect(await page.getByTestId('theme-editor').getAttribute('data-editable')).toBe('yes');

@@ -2154,3 +2154,127 @@ summary.k-section-title {
 a.k-trackitem-button {
   text-decoration: none;
 }
+
+/* L5.12c: a sheet's fields (a copy's name, Create with Claude's form) under its text. */
+.k-sheet-content {
+  display: grid;
+  gap: var(--ui-space-5);
+  margin-top: var(--ui-space-6);
+  min-width: 0;
+}
+
+/* L5.12c: a data table (a component's slots and params) — hairlines between rows, headers in text-3, cells that wrap. */
+.k-table-wrap {
+  min-width: 0;
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  overflow: hidden;
+}
+.k-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ui-text);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}
+.k-table-caption {
+  padding: var(--ui-space-3) var(--ui-space-5);
+  border-bottom: 1px solid var(--ui-hairline);
+  color: var(--ui-text-2);
+  text-align: left;
+  font-weight: var(--ui-weight-strong);
+}
+.k-table th,
+.k-table td {
+  padding: var(--ui-space-3) var(--ui-space-5);
+  border-top: 1px solid var(--ui-hairline);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.k-table thead th {
+  border-top: 0;
+  background: var(--ui-pane);
+  color: var(--ui-text-3);
+  font-weight: var(--ui-weight-regular);
+  white-space: nowrap;
+}
+.k-table tbody th {
+  font-weight: var(--ui-weight-strong);
+  /* A row's name (a slot, a param) breaks only when it cannot fit on its own line: its column is as wide as it. */
+  overflow-wrap: break-word;
+}
+.k-table .k-table-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.k-table-none {
+  color: var(--ui-text-3);
+}
+
+/* L5.12c: a colour — the native picker's well (the swatch the person drags from), the hex typed beside it. */
+.k-color-line {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-4);
+  min-width: 0;
+}
+.k-color-well {
+  flex: none;
+  width: var(--ui-control-h);
+  height: var(--ui-control-h);
+  padding: var(--ui-space-1);
+  border: 1px solid var(--ui-field-line);
+  border-radius: var(--ui-radius-control);
+  background: var(--ui-field);
+  cursor: pointer;
+}
+.k-color-well::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.k-color-well::-webkit-color-swatch {
+  border: 0;
+  border-radius: var(--ui-radius-kbd);
+}
+/* Nothing written: the well's value is a fallback — a dashed edge and stripes over it (a shape, not a fade). */
+.k-color-well.is-unset {
+  border-style: dashed;
+  background: repeating-linear-gradient(45deg, var(--ui-field) 0 4px, var(--ui-hairline) 4px 8px);
+}
+.k-color-well.is-unset::-webkit-color-swatch {
+  visibility: hidden;
+}
+.k-color-well:disabled {
+  cursor: default;
+  border-style: dotted;
+}
+.k-color-well:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.k-color-hex {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 132px;
+}
+.k-color-swatch {
+  position: absolute;
+  top: 50%;
+  left: var(--ui-space-4);
+  width: 12px;
+  height: 12px;
+  border-radius: var(--ui-radius-kbd);
+  box-shadow: 0 0 0 1px var(--ui-field-line);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.k-color-swatch + .k-color-text {
+  padding-left: calc(var(--ui-space-4) * 2 + 12px);
+}
+.k-color-draft {
+  color: var(--ui-text-2);
+  font-size: var(--ui-type-sm);
+  line-height: var(--ui-lead-sm);
+}

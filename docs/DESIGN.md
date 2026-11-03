@@ -4820,6 +4820,93 @@ for a thread with its proposal, the README conflict and the palette on Edit at d
 - At 900 px (a trade-off, said in studio-ui.md): the frame ≥ 260 px, the diff's code column ≥ 160 px with its lines
   wrapped, no sideways scroll — an e2e holds it.
 
+### 4n (c). The Library, the Themes list and the theme editor (L5.12c)
+
+R-UI-49. « Épure » 4c. Reference: R4-Library, R4-Theme (layout and drawing; "Retake" read as `APP_NAME`). A rebuild:
+every capability of L4.7's LibraryScreen / ThemesScreen / ThemeEditor is kept (posters only for cards on screen —
+library-load.ts' chunks of 12, the 2 s debounce, Retry, nothing while the tab is hidden —, checked data addresses for
+every picture, Play that never starts by itself, the registry notices, the failed job's words, set as theme default with
+`if_match` and an exact Undo, copy-first for a read-only theme, Create with Claude's prompt of checked names; the theme
+editor's one write path `theme_edit` on the version shown, ThemeHistory ≤ 50, DraftThrottle 5/s with the write on
+release, the 409 re-read, held workspace components with Allow, the lease, Use in a scenario with its Undo, the unsaved
+`theme_draft` / `new_theme` / `component_brief` marks). Cuts: BL-134.
+
+**The Library in the shell.** Browser (`LibraryBrowser.tsx`, shared with the Themes list): Productions, the Library
+group (Components with its count — the old `library-link` —, Themes) and each theme of the project with where it comes
+from in words; on the Library a theme row shows the components in that theme. Context: the Theme select (`lib-theme`).
+Centre (`LibraryScreen.tsx`): "Components · n in <theme>", Create with Claude…, Source as a Segmented, the search, the
+Kind chips (`ChoiceChips`: "All (41)", "Intros (4)" — what choosing one would show), the notices (a Disclosure), then a
+section per kind of poster cards (`LibraryCards.tsx`): a card is ONE selection control (the kit's PosterCard, pressed;
+named by the component's name, its id and tags its description — the picture's alt is not said first) and its play
+controls under it, inside the card's frame (the hover and the selection fill are the whole card; the ring is the
+pressed button's own mark drawn over the card) — Play is a toggle with one name ("Play <name>", `aria-pressed`, named
+by `aria-labelledby` the button and the name's element), its state a pressed look of its own (`--ui-pressed`'s bar,
+not the focus ring's colour; its icon a pause) and the "Playing · loop" mark on the poster. The grid is ONE tab stop
+(L5.12c fixes, review A-M3): the selected card — else the last one picked, else the first — and its controls are the
+stops, every other card's are not; ← → move the selection one card (across sections), ↑ ↓ a row of the section (past
+its first or last row, the same column of the next section), Home / End, Escape clears it (the stop stays), Space
+selects, Enter on the selected card brings the focus to its inspector (in place when the inspector is hidden; there the
+selected card also links to its page, "Details"). With 240 cards the inspector is two Tabs from the selected card.
+Inspector (`LibraryInspector.tsx`, rendered at one place of the screen's tree for the grid and a component's
+page, keyed by the component: Set as default on a starter from the grid moves to the copy's page and keeps its result,
+Undo and "Open the copy"): the selected card's — or the open component's — picture, kind, slots,
+length, kit compatibility (a mark and a word), the themes that pick it; Play in the theme (the same play state and the
+card's rule: off when the loop cannot play, unless it plays),
+Open the details, Create with Claude… (a new one like it); Theme default (Set as default of <theme>…); About. Nothing
+selected: the theme's summary. The detail route keeps its page (`LibraryDetail.tsx`): the picture large with its
+controls, About, the slots and params as kit `DataTable`s (column headers, row headers, a caption), the README as text.
+Status bar: "Idle" (or "n previews queued: waiting for the worker") · "Posters render while their cards are on screen",
+Render all loops, Open the theme editor — the scenario in context's line and buttons stand down on the Library's and
+the themes' routes (StatusActions).
+
+**Sheets.** Create with Claude is a kit Sheet (`CreateSheet.tsx`, not destructive): Copy the prompt is its default (off
+until there is a prompt), Close / Escape closes, and the person's words belong to the screen — closing keeps them,
+reopening shows them, the quit question names them (`component_brief`) while they are not empty. Set as default: a
+Sheet says what the write does (Return = Set as default); a starter: a Sheet asks the copy's name ("Copy as <name> and
+set"). The Themes list's Copy to edit… and the editor's are Sheets with the name field: Return in it copies (L5.12c
+fixes: the kit Sheet runs its default action, when it is on, on Return in a one-line text field). The kit Sheet gained
+`content` (fields under the text, outside its description) and a `disabled` action; its focus on open is the default
+when it is on, else the first text field, else the first action that is on (Create with Claude opens on its Id field,
+never on a chip that is not a tab stop). No native `<dialog>` is left outside the kit (a lint).
+
+**The theme editor in the shell.** Browser: the theme's sections (Brand, Colours, Type, Motion and cursor, Components) —
+rows that bring the inspector's section into view and give it the focus — and its components, each a link to its page
+in the library in this theme. Centre (`ThemeEditor.tsx`, still the one owner of the theme's `<PreviewFrame`): the
+theme's name, Editable / Read-only and Starter / Workspace as tags, what uses it, Copy to edit… on a read-only theme,
+its problems, the status line (`theme-status`: what the last write did, or why it was not written), ONE live preview
+with a target Segmented Intro · Clip with caption · Outro (critique M5: no grid of three — only one Player exists),
+Play (a toggle with one name) and Restart, the held components with Allow, then Use in a scenario. Inspector
+(`ThemeFields.tsx`): the fields — the kit's `ColorField` for each colour (the native `<input type="color">`: each move a
+draft previewed in the frame, its native `change` the write; the hex written on Enter or when left, once, never a
+text that is not a hex; the field's `version` is the theme's sha256, so after a refused write (409) it shows what is
+written and leaving it sends nothing; while a colour is dragged, a dot of the written colour beside the well; an unset
+well hatched, never faded, and "not set" in words for a screen reader), the ripple Switch, the background, the contrast lines (a mark and a word each),
+Type (the display Select, a Switch per body font file), Motion and cursor (ChoiceChips, Max zoom, the default zoom),
+Components per kind (Select, the old params kept or dropped as a Segmented). Status bar: "Ready · each change is saved
+and checked", Undo, Redo, Extract from a website… (the list's site panel), Use in a scenario… (brings its select). The
+colour literals stay in ThemeEditor / ThemesScreen / theme-words / tokens (the set's size is asserted: ThemeFields.tsx
+and the kit take colours as data; `pickerValue` is theme-words'). The Themes list: rows with swatches, tags, what uses
+each theme, Edit / Open, Copy to edit…; New theme (kit fields, ColorFields for its colours that hand the form each
+keystroke — `onText`: a value that is not a hex stays as typed and the form's line says why; "Make the theme" follows
+the typed accent); the site panel (commands only: no Studio op queues a site job).
+
+**Structure.** `LIBRARY_OPS` (app-source): the ops each Library / themes file may call — LibraryScreen the four library
+reads and `library_render`, LibraryInspector `theme_view` / `theme_edit` / `theme_copy`, ThemesScreen its list, the
+brand files, `theme_copy`, `theme_create`, `site_list`, ThemeEditor its reads, the lease, `theme_edit`, `theme_copy`,
+`preview_allow`, `scenario_blocks`, `scenario_edit`, the others none; app-wide, `library_render` is LibraryScreen's
+alone and every `theme_edit` names `if_match` in its argument object (Use in a scenario's `scenario_edit` its `hash`;
+`x.call(…)` is seen too). L5.12c fixes (review A-M2): every app file imports the api's `call` / `useCall` by their own
+names and only calls them — no alias, namespace, default or dynamic import, no re-export, never bound to another name
+— so the per-file op lists see every call. The colour constants of theme-words.ts (`SAMPLE_ACCENT`, `EMPTY_FORM`,
+`pickerValue`) are imported only by the gallery, the Themes list and the theme's fields (a lint).
+Every value from data is text in the nine files (a lint). Performance: the cards are memoised (an item compared by
+value: a re-read hands new objects), the pump read per card (`useSyncExternalStore` of its two keys), the context one
+object per theme — with 240 cards a selection renders the two cards it changes (the first one also gives the grid's tab
+stop to the selected card), Play the one, a re-read none (an e2e counts React's commits). The theme editor's sections
+are memoised on the theme shown with a stable `send` / `setDraft`, each colour row on its own value and draft: a drag
+of 30 moves renders the dragged field 30 times and nothing else of the editor (31 commits, the previews held). The on-screen observer has one root per scroller: the centre pane for the boxes inside it,
+the window for the inspector's picture (an observer rooted at the centre never saw it).
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

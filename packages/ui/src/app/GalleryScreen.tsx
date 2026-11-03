@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 import type { Appearance } from './tokens.js';
 import { POSTER_DATA_MAX } from './thumbs.js';
 import { Picture } from './Thumb.js';
+import { SAMPLE_ACCENT, okHex, pickerValue } from './theme-words.js';
 import { ShellSlot } from './shell/slots.js';
 import {
   Blocker,
@@ -23,7 +24,9 @@ import {
   Facts,
   FieldRow,
   ChoiceChips,
+  ColorField,
   ContactSheet,
+  DataTable,
   DiffTable,
   RegionOverlay,
   FrameCard,
@@ -113,6 +116,11 @@ function Column({ appearance }: { appearance: Appearance }) {
   const [seg2, setSeg2] = useState<string | null>('a');
   const [at, setAt] = useState(40);
   const [speed, setSpeed] = useState('1.5');
+  const [colour, setColour] = useState(SAMPLE_ACCENT);
+  const [dragged, setDragged] = useState<string | null>(null);
+  // L5.12c fixes: what the colour fields wrote (the kit's ColorField behaviours are tested on it: studio-e2e-kit).
+  const [writes, setWrites] = useState<string[]>([]);
+  const [dark, setDark] = useState('');
   const commands: Command[] = [
     { id: 'projects', label: 'Projects', group: 'Go to', icon: 'folder', run: () => (location.hash = '#/') },
     { id: 'gallery', label: 'UI gallery', group: 'Go to', hint: 'this page', icon: 'components', run: () => setAnswer('UI gallery') },
@@ -425,6 +433,59 @@ function Column({ appearance }: { appearance: Appearance }) {
             { key: 'b', name: 'scene request', label: 'scene request', picture: null, words: 'Loading the contact sheet…', state: 'waiting' },
           ]}
         />
+      </Section>
+      <Section title="Library and themes (a data table, a colour field)">
+        <DataTable
+          caption="Slots"
+          columns={[
+            { key: 'slot', label: 'Slot' },
+            { key: 'type', label: 'Type' },
+            { key: 'max', label: 'Max', numeric: true },
+            { key: 'what', label: 'What it is' },
+          ]}
+          rows={[
+            { key: 'title', cells: ['title', 'text', 60, 'The call to action.'] },
+            { key: 'kicker', cells: ['kicker', 'text', 40, null] },
+          ]}
+        />
+        <div className="gl-pane">
+          <ColorField
+            label="Accent"
+            hint="kicker, rules, cursor ripple"
+            value={colour}
+            picker={pickerValue(dragged ?? colour)}
+            {...(okHex(colour) ? { swatch: colour } : {})}
+            {...(dragged !== null ? { draft: dragged } : {})}
+            onDraft={setDragged}
+            onCommit={(hex) => {
+              setColour(hex);
+              setDragged(null);
+              setWrites((w) => [...w, `accent ${hex}`]);
+            }}
+            testId={`gl-colour-${appearance}`}
+          />
+          <ColorField
+            label="Dark"
+            hint="optional"
+            value={dark}
+            picker={pickerValue(dark)}
+            unset={!okHex(dark)}
+            removable
+            onDraft={() => undefined}
+            onCommit={(hex) => {
+              setDark(hex);
+              setWrites((w) => [...w, `dark ${hex}`]);
+            }}
+            onRemove={() => {
+              setDark('');
+              setWrites((w) => [...w, 'dark removed']);
+            }}
+            testId={`gl-dark-${appearance}`}
+          />
+          <span className="gl-answer" data-testid={`gl-colour-writes-${appearance}`}>
+            {writes.length ? `Written: ${writes.join(' · ')}` : 'Nothing written'}
+          </span>
+        </div>
       </Section>
       <Section title="Comments (a diff table, a region over a frame)">
         <div className="gl-region">

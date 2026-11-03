@@ -12,7 +12,7 @@
  * follows the run); Stop and Pause reach the run's job — a terminal's run has none: "press Ctrl-C there" (critique M4).
  * A screen may claim the actions slot (Prepare, the live screen, a live recording): the buttons then hide, the commands
  * stay (the screen's own outrank them where it registers some); on a run or Record route the claim also takes the
- * scenario's state line (L5.11b: a live recording's status bar is the recording's, not the remembered scenario's; L5.12a: Edit's and the Review report's too — they say the take, the edit and the review). On the Scenario screen the screen feeds what it read
+ * scenario's state line (L5.11b: a live recording's status bar is the recording's, not the remembered scenario's; L5.12a: Edit's and the Review report's too — they say the take, the edit and the review; L5.12c: the Library's and the themes' — they say the previews, the theme's writes). On the Scenario screen the screen feeds what it read
  * (no second read: critique H2); on the Project screen a selection is read once it settled for 300 ms. The one
  * confirmation sheet of a capture with sessions to confirm lives here (`SessionsSheet`).
  */
@@ -208,7 +208,7 @@ export function useStatusActions({ route, ctx, say, claimed, inApp }: StatusActi
   const inReview = route.name === 'review' || route.name === 'comments';
   const markNode = <StatusMark state={SHOOT_STATES[state].mark} word={<Txt text={`${word}${detail}`} />} />;
   const info: ReactNode =
-    ctx && slug && name && !onPrepare && !inReview && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal')) ? (
+    ctx && slug && name && !onPrepare && !inReview && !(claimed && (onRun || route.name === 'record' || route.name === 'timeline' || route.name === 'proposal' || route.name === 'library' || route.name === 'themes')) ? (
       <span className="sh-scenario" data-testid="status-scenario" data-state={state}>
         {!('scenario' in route) && (
           <span className="sh-seg" data-drop="name">

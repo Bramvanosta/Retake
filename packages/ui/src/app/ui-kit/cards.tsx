@@ -9,6 +9,8 @@
  * shows the project). Selected: the selection fill and a 2 px ring.
  * L5.10a fixes (review B-M2): the grid has as many columns as fit (CSS auto-fill); ↑ ↓ move by the row the browser laid
  * out (its computed columns). Nothing selected: no `aria-activedescendant` at all (review A-L6: never an empty one).
+ * L5.12c fixes: a selecting card can be one stop of a roving grid (`tabIndex`) and be named by its title alone
+ * (`labelledBy` / `describedBy`: the picture's alt is not said before the name — the Library, review A-L7).
  */
 import { useEffect, useId, useRef } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -26,9 +28,14 @@ interface CardProps {
   onSelect?: () => void;
   /** … or goes to a place (a link). */
   to?: Route;
+  /** L5.12c: a roving grid's stop (0) or not (-1). */
+  tabIndex?: number;
+  /** L5.12c: the ids naming and describing the selecting button (its title, its meta). */
+  labelledBy?: string;
+  describedBy?: string;
 }
 
-function Card({ kind, picture, title, meta, number, selected, onSelect, to }: CardProps & { kind: 'frame' | 'poster' }) {
+function Card({ kind, picture, title, meta, number, selected, onSelect, to, tabIndex, labelledBy, describedBy }: CardProps & { kind: 'frame' | 'poster' }) {
   const body = (
     <>
       <span className={`k-card-picture k-card-picture-${kind}`}>
@@ -48,7 +55,7 @@ function Card({ kind, picture, title, meta, number, selected, onSelect, to }: Ca
     );
   }
   return (
-    <button type="button" className={cls} aria-pressed={selected ?? false} onClick={onSelect}>
+    <button type="button" className={cls} aria-pressed={selected ?? false} onClick={onSelect} tabIndex={tabIndex} aria-labelledby={labelledBy} aria-describedby={describedBy}>
       {shown(body)}
     </button>
   );

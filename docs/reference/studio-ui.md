@@ -214,7 +214,7 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied", or a link); L5.10a: without a word, no mark (a command to copy nothing waits on); L5.11a: `compact` — the status bar's form: the mark and a few words (never cut), a ghost action — for a command, "Command…", a popover that shows the whole command wrapped beside its Copy (L5.11a fixes: what is copied is what is shown). The command is never cut (it wraps); "Copied" (or "Not copied: select the command instead") is visible | one line; the explanation on demand |
 | Checklist, ChecklistItem | an `<ol>` of checks (L5.11a): a 28 px state column (the shape), a title (h3) with its state word beside it (a visible word: the colour-only rule), its body, its actions; a hairline between items | Prepare's four checks; a short list of facts each with one state |
 | EmptyState | title, text, actions | |
-| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions | the default holds the focus; a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
+| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions; L5.12c: `content` fields, Return in a one-line text field runs the default (when on) | the default holds the focus (off: the first text field, else the first action that is on); a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
 | CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape; L5.12b (R4-Palette): 640 px (`--ui-palette-w`), "Search commands, scenes and themes", an icon per row (`icon`, decorative), Esc's key cap in the field, a footer legend (↑ ↓ Move · Return Run · Esc Close, and a `footnote`); the list is never a tab stop of its own | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
 | ChoiceChips | L5.12a: a radio group of `<button role="radio">` named by its legend; one tab stop (the checked chip), arrows / Home / End move the focus, Space / Enter picks; checked = select fill + 600 + a ring; a chip that cannot be taken is `aria-disabled`, dashed, focusable, its reason after " — "; a whole group off is dashed | a choice written at once (Edit's switches); a pick never follows the arrows (one write per pick) |
@@ -225,10 +225,15 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | NumberField | L5.12a: TextField's sibling, `type="number"`, min / max / step, Enter runs its action; no unsaved mark (a value written on Set); L5.12b: `onBlur` | a speed or a duration beside chips; a comment's region in % |
 | DiffTable | L5.12b: a change line by line — every row (no inner scroll), a sign shown and its word hidden, the line numbers, the line a `<code dir="ltr">` cell in byte order (bidi override) with edge spaces `·`, tabs `→`, unseen characters `[U+…]` and a "right-to-left text" marker; add / del rows a 3 px bar beside their sign; a title line over the table; the table named by a caption, the dots and arrows hidden from assistive technology and read as words ("2 leading spaces", "a tab") | Claude's proposal (the caller passes comment-words' `diffRowsView` rows); never a `<bdi>` inside a line (an isolate undoes byte order) |
 | RegionOverlay | L5.12b: a region over a picture by its shares (0–1), its label at the corner, dashed while drawn; `aria-hidden` (the region is said in words beside it) | presentational: the drag surface is the caller's |
+| DataTable | L5.12c: a native table — a caption (visible, or hidden and still its name), column headers `th scope="col"`, each row headed by its first cell (`th scope="row"`), a cell without a value a quiet dash; figures right-aligned (`numeric`); cells wrap (no inner scroll) | a component's slots and params; not for a list that selects (RowList) |
+| ColorField | L5.12c: one colour — the native `<input type="color">` (its well is the swatch dragged from: each move `onDraft`, its native `change` `onCommit`) and the hex typed beside it (Enter or leaving writes, once; empty and removable removes; anything else goes back), while dragged a dot of the written colour (a hex only) and "previewing #…" in words, a hint; nothing written: the well hatched and dashed (a shape, never a fade) and "not set (the picker starts at #…)" in hidden words describing both inputs; `version` (a new one shows the written value again: a refused write re-read); `onText` (the caller owns the text: every keystroke, kept as typed — a form) | the kit holds no colour: the picker's value and the swatch come from the caller (theme data); the hex field is named by the label and a hidden "hex" |
 
 L5.12b also gave the kit: Segmented options a `testId` (the comments' `filter-*`), TrackItem `to` (a tick that is a
 link: a comment's pin), Scrubber `label`, TextArea `onKeyDown` (⌘↩ posts), LinkButton `onClick` (a hand-off before it
-goes), RowListItem `status`.
+goes), RowListItem `status`. L5.12c: Sheet `content` (fields under the text, outside its description: a copy's name,
+Create with Claude's form) and an action's `disabled`; TextField `onBlur`; Switch's row layout passes its `testId`;
+(fixes) PosterCard / FrameCard `tabIndex`, `labelledBy`, `describedBy` (a roving grid's stop named by its title);
+LinkButton `id`, `labelledBy`, `tabIndex`; the token `--ui-pressed` (a pressed toggle's bar, not the focus ring's colour).
 
 ## The screens (from the canvas)
 
@@ -410,8 +415,30 @@ Studio keeps `APP_NAME` (L5.13 renames).
 - **README** — built in L5.12b on the kit: a tall text area, the save state in words, Save / Discard changes, the count
   and its cap, ⌘S; Callouts for a missing README, a notice, an error; the conflict panel and kept text (TextEditing.tsx);
   read-only with why on `readme_error`. No Markdown preview (deliberate).
-- **Library** — the components (the browser's word "Components" until L5.12). L5.12.
-- **Theme editor** — tokens and their preview. L5.12.
+- **Library** (R4-Library) — built in L5.12c (`#/p/<slug>/library[/<theme>[/<ns>/<name>]]`): the browser's Library
+  group (Components, Themes) and the project's themes (a row shows the Library in that theme); the title bar's Theme
+  select; the centre's "Components · n in <theme>", Create with Claude…, Source (Segmented), the search, the Kind chips
+  ("All (41)", "Intros (4)"), the notices, a section of poster cards per kind — a card is one selection control (a
+  pressed button named by the component's name) with Play under it inside the card's frame (a toggle with one name,
+  "Play <name>", pressed = `--ui-pressed`'s bar and a pause icon; the poster's "Playing · loop" mark says it plays),
+  Retry, Render again; the grid is one tab stop (arrows, Home / End, Escape; Enter on the selected card goes to its
+  inspector; with the inspector hidden the selected card links to its page); the inspector: the selected card's picture, facts (kind, slots, length, kit — a mark and
+  a word —, the themes that pick it), Play in the theme, Open the details, Create with Claude…, Theme default (Set as
+  default…: a Sheet, Return sets; a starter: a Sheet for the copy's name, "Copy as <name> and set"), About; nothing
+  selected: the theme's summary; the status bar: Idle / n previews queued · "Posters render while their cards are on
+  screen", Render all loops, Open the theme editor. A component's page keeps the picture large, About and the slots /
+  params as DataTables, the README as text. Create with Claude is a Sheet (Copy the prompt the default; the words kept
+  across a close). Deviation: Play stays under each poster (R4 draws cards without buttons: BL-134).
+- **Theme editor** (R4-Theme) — built in L5.12c (`#/p/<slug>/themes[/<theme>]`): the browser is the theme's sections (a
+  row brings the inspector's section and focuses it) and its components (links to the library in this theme); the centre
+  the name with Editable / Read-only and Starter / Workspace as tags, what uses it, Copy to edit… (a Sheet), the status
+  line, ONE live preview with a target Segmented (Intro · Clip with caption · Outro), Play / Restart, the held components
+  with Allow, Use in a scenario; the inspector the fields (ColorFields with the contrast lines under them, the background,
+  Type, Motion and cursor, Max zoom, Components per kind); the status bar "Ready · each change is saved and checked",
+  Undo, Redo, Extract from a website…, Use in a scenario…. The Themes list: rows with swatches, tags, what uses each,
+  Edit / Open, Copy to edit… (a Sheet); New theme; the site panel (commands only). Deviations: one preview, not R4's
+  three tiles; no "Content from <scenario>" (no data: theme_preview has no scenario target); Undo / Redo in the status
+  bar only (BL-134).
 - **Confirmation sheet** — the kit's Sheet. Built in L5.9; screens adopt it in L5.10 – L5.12. L5.11a: the capture's
   sessions confirmation (R4-Confirm) — Cancel (Escape) · "Sign in <persona> first…" (the default and the focus: the
   canvas's Return on Capture anyway is not taken — a session known to be bad would run the hooks) · Capture anyway (the

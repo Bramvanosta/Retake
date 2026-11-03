@@ -47,6 +47,8 @@ export const UI_COLOURS: Record<string, Pair> = {
   'danger-text': { dark: '#ff7b72', light: '#b42318' },
   // Marks (non-text, ≥ 3:1 where they stand)
   ring: { dark: '#4c8dff', light: '#2f6fe0' },
+  // L5.12c fixes (review A-L6): a pressed toggle's bar (Play) — its own colour, not the focus ring's.
+  pressed: { dark: '#a3c4ff', light: '#1b45ad' },
   ok: { dark: '#4cd27a', light: '#1a8d4c' },
   warn: { dark: '#f2b84b', light: '#a86d14' },
   fail: { dark: '#ff7b72', light: '#d93a30' },
@@ -113,11 +115,9 @@ export const LEGACY_COLOURS: Record<string, Pair> = {
   // The categorical tint: input actions, card segments (always with words)
   'input-tint': { light: '#f1ebfb', dark: '#2a2340' },
   'input-fg': { light: '#5b3a99', dark: '#c9b5f5' },
-  // Video surfaces, tooltips, dialogs (video stays dark in both appearances)
-  ink: { light: '#16181d', dark: '#0a0a0b' },
+  // Video surfaces (video stays dark in both appearances; L5.12c: --ink, --veil and --backdrop left with the theme
+  // editor's frame, its notes and the Library's dialog — the kit's --ui-video, --ui-overlay and --ui-backdrop draw them)
   'ink-soft': { light: '#1c1f24', dark: '#141518' },
-  veil: { light: 'rgba(255, 255, 255, 0.92)', dark: 'rgba(24, 25, 28, 0.92)' },
-  backdrop: { light: 'rgba(22, 24, 29, 0.35)', dark: 'rgba(6, 7, 8, 0.55)' },
 };
 
 const SANS = "'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";

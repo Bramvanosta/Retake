@@ -452,6 +452,63 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('studio:command', { detail: { id: 'inspector' } })));
     await expect.poll(() => page.locator('.sh-inspector').isVisible(), POLL).toBe(true);
   });
+
+  it('⚑ L5.12c fixes: the colour field writes a typed hex on Enter or when left — once (never again when left after Enter), never a text that is not a hex (it goes back), nothing on Escape or when unchanged; an empty removable field removes; the dot only while a colour is dragged', async () => {
+    await gallery();
+    const col = page.getByTestId('scope-dark');
+    const hex = col.getByTestId('gl-colour-dark-hex');
+    const writes = col.getByTestId('gl-colour-writes-dark');
+    const start = await hex.inputValue();
+    expect(start).toMatch(/^#[0-9a-f]{6}$/);
+    await expect.poll(() => writes.textContent()).toBe('Nothing written');
+    // Left unchanged: nothing.
+    await hex.focus();
+    await page.keyboard.press('Tab');
+    // Not a hex, then left: back to the written value, nothing written.
+    await hex.fill('#12');
+    await page.keyboard.press('Tab');
+    expect(await hex.inputValue()).toBe(start);
+    // A hex then Escape: back, nothing; then left: still nothing.
+    await hex.fill('#123456');
+    await hex.press('Escape');
+    expect(await hex.inputValue()).toBe(start);
+    await page.keyboard.press('Tab');
+    expect(await writes.textContent()).toBe('Nothing written');
+    // Enter writes it once; leaving the field after Enter writes nothing more (the text is the written value).
+    await hex.fill('#123456');
+    await hex.press('Enter');
+    await expect.poll(() => writes.textContent(), POLL).toBe('Written: accent #123456');
+    await page.keyboard.press('Tab');
+    await hex.focus();
+    await page.keyboard.press('Tab');
+    expect(await writes.textContent()).toBe('Written: accent #123456');
+    // A typed hex written when the field is left.
+    await hex.fill('#abc');
+    await page.keyboard.press('Tab');
+    await expect.poll(() => writes.textContent(), POLL).toBe('Written: accent #123456 · accent #abc');
+    // No swatch dot beside the well while nothing is dragged (the well is the swatch: review B-L1).
+    expect(await col.getByTestId('gl-colour-dark').locator('.k-color-swatch').count()).toBe(0);
+    // A drag: the dot shows the written colour while the well previews the draft ("previewing" in words).
+    await col.getByTestId('gl-colour-dark-picker').evaluate((el) => {
+      // (The prototype's setter: React's own value tracker then sees a change, as with a person's drag.)
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, '#00ff00');
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await expect.poll(() => col.getByTestId('gl-colour-dark').locator('.k-color-swatch').count(), POLL).toBe(1);
+    expect(await col.getByTestId('gl-colour-dark').textContent()).toContain('previewing #00ff00');
+    // The removable field: not set in words (for a screen reader too), a hex written, emptied: removed.
+    const dark = col.getByTestId('gl-dark-dark-hex');
+    expect(await col.getByTestId('gl-dark-dark-unset').textContent()).toMatch(/^not set \(the picker starts at #[0-9a-f]{6}\)$/);
+    expect(await dark.getAttribute('aria-describedby')).toBe(await col.getByTestId('gl-dark-dark-unset').getAttribute('id'));
+    await dark.fill('#222222');
+    await dark.press('Enter');
+    await expect.poll(() => writes.textContent(), POLL).toContain('dark #222222');
+    expect(await col.getByTestId('gl-dark-dark-unset').count()).toBe(0);
+    await dark.fill('');
+    await page.keyboard.press('Tab');
+    await expect.poll(() => writes.textContent(), POLL).toBe('Written: accent #123456 · accent #abc · dark #222222 · dark removed');
+    expect(errors).toEqual([]);
+  });
 });
 
 describe('the shell (L5.9 part E)', () => {

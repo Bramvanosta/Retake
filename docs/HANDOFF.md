@@ -1,9 +1,9 @@
 # Handoff — read this first in a new session
 
-Last updated: 2026-11-02, end of lot **L5.12b (Studio « Épure » 4b: frame comments, Claude's proposal, README, ⌘K)** — phases
+Last updated: 2026-11-02, end of lot **L5.12c (Studio « Épure » 4c: the Library and the theme editor)** — phases
 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.11, L5.12a, L5.12b done). **Next: L5.12c (the Library and the theme editor), then L5.12d — L5.12
-was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+L5.2, L5.2b, L5.5 – L5.11, L5.12a – c done). **Next: L5.12d (the quit sheet, motion, the end of the legacy layer) —
+L5.12 was asked as a whole.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -30,7 +30,20 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
-## State (after L5.12b)
+## State (after L5.12c)
+- **L5.12c done (2026-11-03)** — **the Library** in the shell from R4-Library: the browser's Library group and the
+  project's themes, the title-bar Theme select, Source · Kind · search, sections of poster cards (one tab stop with
+  arrow keys; Play a one-name toggle; the selection ring over the whole card), the selected card's inspector (facts,
+  Play in the theme, Open the details, Create with Claude…, Set as default…, About — rendered once, so a starter's
+  copy-and-set keeps its result after moving to the copy), the detail route with kit DataTables; Create with Claude,
+  Set as default and copy-first as kit Sheets (Return runs the default from a name field). **The Themes list and the
+  theme editor**: the theme's sections in the browser, ONE live preview with an Intro · Clip · Outro switch, ThemeFields
+  in the inspector on a new kit ColorField (drafts while dragging, writes on release; a `version` reset so a refused
+  colour is never re-sent), Copy to edit as a Sheet, the New theme form on kit fields. Write rules: LIBRARY_OPS per
+  file, every theme_edit carries if_match, and no aliased / namespace import of the api's `call` anywhere in the app
+  (`apiImportFindings`). Ratchet −603 (LibraryScreen, ThemesScreen, ThemeEditor → 0; bits 5 and main 10 left for d).
+  Tests on the Mac: **4058 — 3974 pass, 84 skipped, 0 failures in the one full run**; `pnpm test:slow` 65/65; the gated themes acceptance green once. Requirements: 668 tracked — 627 done (R-UI-49 added), 27 partial, 8 todo, 6 n/a-here. Live checks for the user: MACOS-CHECKLIST 14e (the system colour
+  picker, VoiceOver on the cards and the "not set" words, a real loop playing, 900 px).
 - **L5.12b done (2026-11-02)** — the Review mode's **Comments** view in the shell from R4-Comments: the thread list in
   the browser pane (Open · Resolved · All, "This render only", rows as links), the frame in the centre (FrameViewer:
   region drawing with the x / y / w / h fields as its keyboard alternative, the scrubber, marks and pins, typed time),
@@ -596,8 +609,8 @@ terminal, and a visible window for `--headed` runs and `studio login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.12c (the Library and the theme editor), then L5.12d** — the user asked for L5.12 as a whole (L5.12a and
-L5.12b are done). **Decided
+**Next: L5.12d (the quit sheet, motion, the end of the legacy layer)** — the user asked for L5.12 as a whole (L5.12a – c
+are done). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
@@ -1563,6 +1576,15 @@ sandbox, a hook step and compact results through Claude Code).
   `record-words.ts`, `shell/command-bus.ts` (`useScenarioGroup`), ui-kit `RadioGroup`, `RowList` / `RowCard`
   (`option`, `compact`, `aside`); tests `studio-e2e-record-keys.test.ts` (answers the record ops itself to hold a view or
   a save back). Cuts: BL-131.
+- **L5.12c done** (the Library and the theme editor; R-UI-49). Built from the L5.12 plan's part c with the critique's M5
+  cut (one preview with a target switch, not three tiles), reviewed by two reviewers (Set as default on a starter from
+  the grid losing its result when the inspector remounted on the copy's page; a refused colour re-sent on leaving the
+  hex field; the op allow-list dodged by an aliased `call`; 85 Tabs from the grid to the inspector; Play outside the
+  card's frame; the New theme form deaf to typed hex…) and fixed with mutation-checked tests (19 + 23 mutations, all
+  caught). Files: ui `LibraryScreen.tsx`, `LibraryCards.tsx`, `LibraryInspector.tsx`, `LibraryDetail.tsx`,
+  `LibraryBrowser.tsx`, `CreateSheet.tsx`, `ThemesScreen.tsx`, `ThemeEditor.tsx`, `ThemeFields.tsx`, ui-kit
+  `ColorField.tsx`, `DataTable.tsx`, `Sheet` (content, per-action disabled, initial focus, Return in a field). Cuts:
+  BL-134.
 - **L5.12b done** (Comments, the proposal, README, ⌘K; R-UI-47, R-UI-48). Built from the L5.12 plan's part b and the
   critique's M1 (the lints pinned to the files the split moved, re-pointed by name with app-wide counts), reviewed by
   two reviewers (the comments e2e file exiting 1 with every test ticked; "the banner never applies" and "the palette
@@ -1854,6 +1876,16 @@ scene ends on its wait (no cut, the 2.24 s of loading kept to the clip's end, a 
 frame).
 
 ## Notes
+Notes from L5.12c:
+- App files import the api's `call` / `useCall` only by name (no alias, namespace, default or dynamic import, no
+  re-export): `apiImportFindings` in app-source, so the per-file op lists (`LIBRARY_OPS`, `COMMENTS_OPS`, Shoot's,
+  the scenario side's) cannot be dodged.
+- ColorField drafts on `input` and writes on the native `change`; give it `version` (the file's sha256) so a 409 or a
+  new version resets the hex text; `onText` is for forms that own the text (New theme).
+- The Library's component inspector is rendered once, after the grid / detail branch, keyed by component: state like
+  SetDefault's result survives the route change to the copy.
+- The card grid is one roving tab stop; Enter on the selected card moves focus to the inspector.
+
 Notes from L5.12b:
 - Comments-side writes are checked structurally in app-source (`COMMENTS_OPS` per file, ProposalCard imported only by
   ThreadPanel, `BANNER_IMPORTS`, `threadWrites` reads `if_match` on resolve / reopen / apply; thread_reply has no

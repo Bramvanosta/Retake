@@ -82,7 +82,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.9 | Studio « Épure » 1: reference note, the Studio's design system (tokens, dark and light, components, gallery), app shell, the Geist pair bundled | M | **done** (live checks: MACOS-CHECKLIST 14b) |
 | L5.10 | Studio « Épure » 2: Project and Scenario screens | M → L, split | **done** — L5.10a (project side) and L5.10b (scenario side) (live checks: MACOS-CHECKLIST 14c) |
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M → L, split | **done** — L5.11a (prepare, live, actions, Cast) and L5.11b (the Record screen) (live checks: MACOS-CHECKLIST 14d) |
-| L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **in progress** — L5.12a (Edit, the Review report) and L5.12b (comments, proposal, README, ⌘K) done; c (Library, themes), d (quit sheet, end of legacy) next |
+| L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **in progress** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K) and L5.12c (Library, themes) done; d (quit sheet, end of legacy) next |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | todo |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | todo — right after L5.13 |
 | L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
@@ -938,6 +938,14 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   code-safe kit DiffTable) in the inspector, the banner on Edit; one status line for both Review views; the README
   editor on the kit; the ⌘K palette with icons, groups and a legend, never writing; ratchet −339. Two independent
   reviews fixed with mutation-checked tests. Cuts: BL-133. Next: L5.12c, L5.12d.
+
+### L5.12c — Studio « Épure » 4c: the Library and the theme editor (split from L5.12)
+- **Goal:** the Library from R4-Library and the Themes list / theme editor from R4-Theme inside the shell, without
+  losing any L4.7 capability.
+- **Done (2026-11-03, in a worktree):** the poster grid with the selected card's inspector and the detail page on kit
+  DataTables, Create / Set as default / copy-first as Sheets; the theme editor with one live preview and its fields on a
+  kit ColorField; the Themes list and New theme form on the kit; ratchet −603. Two independent reviews fixed with
+  mutation-checked tests. Cuts: BL-134. Next: L5.12d.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

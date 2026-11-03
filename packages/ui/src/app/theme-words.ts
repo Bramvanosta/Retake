@@ -29,6 +29,15 @@ export function pickerHex(v: unknown): string | null {
   return h.length === 4 ? `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}` : h;
 }
 
+/**
+ * L5.12c: what a colour input shows — the hex as `#rrggbb`, else white (a colour input always holds a value; the kit's
+ * ColorField draws the well hatched while nothing is written). Theme data: the kit holds no colour of its own.
+ */
+export const pickerValue = (v: unknown): string => pickerHex(v) ?? '#ffffff';
+
+/** L5.12c: a theme's sample accent for the UI gallery's colour field (the gallery holds no colour literal). */
+export const SAMPLE_ACCENT = '#8c1d2c';
+
 /** Previews of colours being dragged: at most one per this many milliseconds (five a second). */
 export const DRAFT_INTERVAL_MS = 200;
 
