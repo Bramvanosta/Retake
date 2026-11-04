@@ -46,11 +46,12 @@
  *
  *   (`build` adds launch.json — version 2, paths inside the app — and bin/retake, the launcher, before signing.)
  *
- * L5.16d, the updater: with RETAKE_UPDATE_FEED (the feed's https address: <host>/retake/latest.json, rc.json for a
- * pre-release build) AND RETAKE_UPDATE_PUBKEY (the public key `tauri signer generate` wrote), the build turns the cargo
- * `updater` feature on and the overlay gains `plugins.updater` = {pubkey, endpoints: [feed], requireSignedVersion,
- * allowDowngrades: false} — never `dangerous*`, never in the repository; one without the other is refused; neither: no
- * updater ("Updates are off in this build"). Then, after the app is verified (and notarised), the update archive:
+ * L5.16d, the updater: with RETAKE_UPDATE_FEED (the feed's https address — since L5.16f the repository's update-feed
+ * release, `<server>/<owner>/<repo>/releases/download/update-feed/latest.json`, rc.json for a pre-release build:
+ * `node scripts/release.mjs feed <version>` — any https feed for a local build) AND RETAKE_UPDATE_PUBKEY (the public
+ * key `tauri signer generate` wrote), the build turns the cargo `updater` feature on and the overlay gains
+ * `plugins.updater` = {pubkey, endpoints: [feed], requireSignedVersion, allowDowngrades: false} — never `dangerous*`,
+ * never in the repository; one without the other is refused; neither: no updater ("Updates are off in this build"). Then, after the app is verified (and notarised), the update archive:
  * Retake.app.tar.gz made by us (`COPYFILE_DISABLE=1 /usr/bin/tar -czf`: the links kept, no AppleDouble file —
  * critique H3, checked against the app: `archiveProblems`) and signed by the Tauri CLI's `signer sign --app-version`
  * with TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) — given to that one command only — then verified here against the
@@ -907,7 +908,7 @@ export function checkFeed(value) {
   try {
     u = new URL(String(value ?? '').trim());
   } catch {
-    throw new StageError('RETAKE_UPDATE_FEED is not a URL (the https address of your feed: <host>/retake/latest.json)');
+    throw new StageError('RETAKE_UPDATE_FEED is not a URL (the https address of the feed: …/releases/download/update-feed/latest.json — node scripts/release.mjs feed <version>)');
   }
   if (u.protocol !== 'https:') throw new StageError(`RETAKE_UPDATE_FEED must be https (it is ${u.protocol.replace(':', '')}): the apps refuse anything else`);
   if (u.username || u.password || u.search || u.hash) throw new StageError('RETAKE_UPDATE_FEED must not carry a user, a query or a fragment');

@@ -34,7 +34,7 @@
  * same in Rust and TypeScript; no `plugins.updater`, key, endpoint or real URL in the repository.
  */
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -523,7 +523,24 @@ describe('L5.16d: the updater, shell side (static)', () => {
     expect(upd).toMatch(/match uf::exit_step\(arm, have\) \{\s*Exit::Nothing => \{\}/);
     // Review d A-M2: the check's timeout, the download's own limits (no request timeout on the body), https only, Later
     // aborts it; A-M4: the archive kept on disk, read back and verified again at the exit.
-    expect(upd).toContain('app.updater_builder().timeout(uf::CHECK_TIMEOUT).build()');
+    // L5.16f: the check's and the download's client (the found update keeps the builder's) is https only at every hop —
+    // GitHub's releases answer with a redirect to their download host — but in the e2e build.
+    expect(upd).toContain('let https = uf::https_only(test_feed());\n    let u = app.updater_builder().timeout(uf::CHECK_TIMEOUT).configure_client(move |b| b.https_only(https)).build()');
+    expect([...upd.matchAll(/updater_builder\(\)/g)].length).toBe(1);
+    // Review f A-L8 / B-L4: no test sends an https request offline (no TLS listener here), so that an http hop is refused
+    // rests on reqwest: its redirect policy checks `https_only` at every hop (src/redirect.rs, TowerRedirectPolicy), in
+    // the version Cargo.lock pins — and the plugin applies the builder's client to the check and the download. A bump of
+    // either fails here until that is checked again; the locked source is read when cargo has it.
+    const lock = read('Cargo.lock');
+    const locked = (name: string) => new RegExp(`name = "${name}"\\nversion = "([^"]+)"`).exec(lock)?.[1];
+    expect({ reqwest: locked('reqwest'), plugin: locked('tauri-plugin-updater') }).toEqual({ reqwest: '0.13.3', plugin: '2.14.0' });
+    const registry = join(process.env.CARGO_HOME || join(homedir(), '.cargo'), 'registry', 'src');
+    for (const index of existsSync(registry) ? readdirSync(registry) : []) {
+      const redirect = join(registry, index, 'reqwest-0.13.3', 'src', 'redirect.rs');
+      if (existsSync(redirect)) expect(readFileSync(redirect, 'utf8')).toMatch(/if self\.https_only && next_url\.scheme\(\) != "https" \{\s*return Err\(crate::error::redirect\(/);
+      const updater = join(registry, index, 'tauri-plugin-updater-2.14.0', 'src', 'updater.rs');
+      if (existsSync(updater)) expect([...readFileSync(updater, 'utf8').matchAll(/if let Some\(ref configure_client\) = self\.context\.configure_client \{\s*request = configure_client\(request\);/g)].length).toBe(2);
+    }
     expect(upd).toContain('f.timeout = None;');
     expect(upd).toContain('let stop = uf::watch(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen);');
     expect(upd).toMatch(/Some\(s\) => \{\s*task\.abort\(\);/);

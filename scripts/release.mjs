@@ -9,13 +9,15 @@
  *   node scripts/release.mjs notes <version> [--signed true|false] [--updates on|off]
  *                                             the GitHub release's notes (Markdown): the CHANGELOG paragraph
  *                                             (publish-update's extractNotes), how to install, what this build is
- *   node scripts/release.mjs feed <version>   the feed an app of <version> reads, as publish-update.mjs expects it:
- *                                             <UPDATES_PUBLIC_URL>/<UPDATES_APP or retake>/<latest.json | rc.json>
+ *   node scripts/release.mjs feed <version>   the feed an app of <version> reads, as publish-update.mjs expects it
+ *                                             (L5.16f: a GitHub release of this repository):
+ *                                             <GITHUB_SERVER_URL>/<GITHUB_REPOSITORY>/releases/download/update-feed/
+ *                                             <latest.json | rc.json> — from the workflow's own context, never committed
  *   node scripts/release.mjs preflight <version> --output <file>
  *                                             what this release is made with (review e B-M1): each set of secrets
- *                                             and variables all or nothing (CONFIG_SETS) — appends signed, updates,
- *                                             upload (+ feed, pubkey) to <file> ($GITHUB_OUTPUT), says each part that
- *                                             is off, fails naming what a partial set lacks
+ *                                             and variables all or nothing (CONFIG_SETS) — appends signed, updates
+ *                                             (+ feed, pubkey) to <file> ($GITHUB_OUTPUT), says each part that is off,
+ *                                             fails naming what a partial set lacks
  *   node scripts/release.mjs files <version>  the names of the files a release attaches (dmg=, archive=, signature=:
  *                                             bundle.mjs's own names)
  */
@@ -23,7 +25,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PRODUCT, UPDATE_ARCHIVE } from '../apps/desktop/scripts/bundle.mjs';
-import { DEFAULT_APP, MinisignError, PublishError, channelOf, checkUrl, decodePublicKey, extractNotes } from './publish-update.mjs';
+import { MinisignError, PublishError, decodePublicKey, extractNotes, feedLocation, feedUrl, isPublic } from './publish-update.mjs';
 import { VERSION_RE, readVersions } from './set-version.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,9 +35,10 @@ export const dmgName = (version) => `${PRODUCT}_${version}_aarch64.dmg`;
 export const releaseFiles = (version) => ({ dmg: dmgName(version), archive: UPDATE_ARCHIVE, signature: `${UPDATE_ARCHIVE}.sig` });
 
 /**
- * What a release can be made with (review e B-M1), as three sets — each all or nothing: none of a set → that part is
+ * What a release can be made with (review e B-M1), as two sets — each all or nothing: none of a set → that part is
  * off (said); some → the run fails before anything is built, naming what is missing. Each name is a secret (of the
- * `release` environment) or a variable.
+ * `release` environment) or a variable. The update's publication needs nothing more (L5.16f): the feed is a release of
+ * this repository, written with the workflow's own job token.
  */
 export const CONFIG_SETS = {
   apple: {
@@ -45,20 +48,17 @@ export const CONFIG_SETS = {
   },
   updater: {
     what: 'An app that updates itself',
-    names: { TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable', UPDATES_PUBLIC_URL: 'variable' },
-    off: 'Updates are off in this build: the updater needs the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets and the RETAKE_UPDATE_PUBKEY and UPDATES_PUBLIC_URL variables — docs/RELEASING.md',
-  },
-  upload: {
-    what: 'The update published to your update host',
-    names: { UPDATES_UPLOAD_TOKEN: 'secret', UPDATES_UPLOAD_URL: 'variable' },
-    off: 'The update is not published: no UPDATES_UPLOAD_TOKEN secret and UPDATES_UPLOAD_URL variable — publish it by hand (docs/RELEASING.md)',
+    names: { TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' },
+    off: 'Updates are off in this build: the updater needs the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets and the RETAKE_UPDATE_PUBKEY variable — docs/RELEASING.md',
   },
 };
 
 /**
  * The preflight's verdict from what the workflow can see (`env`): a secret's presence as HAS_SECRET_<NAME>=true|false
  * (`secrets.<NAME> != ''`: never its value), a variable's value as <NAME>; and each name in the other store
- * (HAS_VAR_<NAME> for a secret's name, HAS_SECRET_<NAME> for a variable's) — "a variable, not a secret" is said.
+ * (HAS_VAR_<NAME> for a secret's name, HAS_SECRET_<NAME> for a variable's) — "a variable, not a secret" is said; with the
+ * updater, REPO_PRIVATE / REPO_VISIBILITY (the repository as the API describes it, read with the job token): an app that
+ * updates itself needs a public repository (review f A-L3) — refused here, not after the release is public.
  * Returns `{ outputs, warnings, errors }`.
  */
 export function preflight(version, env = process.env) {
@@ -74,19 +74,23 @@ export function preflight(version, env = process.env) {
     on[set] = missing.length === 0;
     if (on[set]) continue;
     if (missing.length === all.length && !misplaced.length) {
-      if (set !== 'upload' || on.updater) warnings.push(off);
+      warnings.push(off);
       continue;
     }
     const why = missing.map(([n, k]) => `${n} (${elsewhere(n, k) ? `set as a ${k === 'secret' ? 'variable' : 'secret'}: it must be a ${k}` : `a ${k}, not set`})`);
     errors.push(`${what} needs all of ${all.map(([n]) => n).join(', ')} — or none: missing ${why.join(', ')}`);
   }
-  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off', upload: on.updater && on.upload ? 'on' : 'off' };
-  if (on.upload && !on.updater) warnings.push('UPDATES_UPLOAD_TOKEN and UPDATES_UPLOAD_URL are set but updates are off in this build: nothing is published');
+  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off' };
   if (on.updater) {
     try {
       outputs.feed = feedFor(version, env);
     } catch (e) {
-      errors.push(`UPDATES_PUBLIC_URL: ${e.message}`);
+      errors.push(`The update feed: ${e.message}`);
+    }
+    const repo = { private: env.REPO_PRIVATE === 'false' ? false : env.REPO_PRIVATE === 'true' ? true : undefined, visibility: env.REPO_VISIBILITY?.trim() || undefined };
+    if (!isPublic(repo)) {
+      const seen = env.REPO_PRIVATE?.trim() ? `private: ${env.REPO_PRIVATE.trim()}, visibility: ${env.REPO_VISIBILITY?.trim() || '?'}` : 'its visibility unknown';
+      errors.push(`The update feed: the repository is not public (${seen}) — an installed app downloads its updates with no credentials: make the repository public, or remove the updater set (an app without updates)`);
     }
     const pub = env.RETAKE_UPDATE_PUBKEY.trim();
     try {
@@ -95,13 +99,6 @@ export function preflight(version, env = process.env) {
       outputs.pubkey = pub;
     } catch (e) {
       errors.push(`RETAKE_UPDATE_PUBKEY is not a public key (the content of the .pub file \`tauri signer generate\` wrote): ${e.message}`);
-    }
-  }
-  if (on.upload) {
-    try {
-      checkUrl(env.UPDATES_UPLOAD_URL.trim(), 'UPDATES_UPLOAD_URL');
-    } catch (e) {
-      errors.push(e.message);
     }
   }
   return { outputs, warnings, errors };
@@ -146,12 +143,14 @@ export function releaseNotes(version, { signed, updates, changelog = join(REPO, 
   return `${lines.join('\n')}\n`;
 }
 
-/** The feed an app of `version` reads — exactly what publish-update.mjs accepts as RETAKE_UPDATE_FEED for it. */
+/**
+ * The feed an app of `version` reads — exactly what publish-update.mjs accepts as RETAKE_UPDATE_FEED for it: the
+ * channel's file on this repository's `update-feed` release (GITHUB_REPOSITORY, GITHUB_SERVER_URL or GitHub's own — the
+ * workflow's own context).
+ */
 export function feedFor(version, env = process.env) {
   if (!VERSION_RE.test(String(version ?? ''))) throw new ReleaseError(`"${version}" is not a version (no leading v)`);
-  if (!env.UPDATES_PUBLIC_URL?.trim()) throw new ReleaseError('UPDATES_PUBLIC_URL is not set (the https address the apps download from)');
-  const app = env.UPDATES_APP?.trim() || DEFAULT_APP;
-  return `${checkUrl(env.UPDATES_PUBLIC_URL.trim(), 'UPDATES_PUBLIC_URL')}/${app}/${channelOf(version)}`;
+  return feedUrl(version, feedLocation(env));
 }
 
 /** The command line's flags after the positional argument: `--signed true|false`, `--updates on|off`. */
@@ -186,7 +185,7 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       for (const e of errors) process.stdout.write(`::error::${e}\n`);
       if (errors.length) process.exit(1);
       appendFileSync(rest[1], Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(''));
-      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates} upload=${outputs.upload}\n`);
+      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates}\n`);
     } else if (command === 'files') {
       if (!VERSION_RE.test(String(arg ?? ''))) throw new ReleaseError(`"${arg}" is not a version (no leading v)`);
       process.stdout.write(Object.entries(releaseFiles(arg)).map(([k, v]) => `${k}=${v}\n`).join(''));

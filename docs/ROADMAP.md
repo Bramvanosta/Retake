@@ -84,7 +84,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.11 | Studio « Épure » 3: Shoot screens (prepare, live rehearsal, record) | M → L, split | **done** — L5.11a (prepare, live, actions, Cast) and L5.11b (the Record screen) (live checks: MACOS-CHECKLIST 14d) |
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **done** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K), L5.12c (Library, themes), L5.12d (quit sheet, end of legacy, motion) (live checks: MACOS-CHECKLIST 14e) |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **done** — L5.13a the rename, L5.13b the mark (2026-11-03) |
-| L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–e: engine, app + DMG, first run, updater, releases from GitHub Actions (2026-11-04) |
+| L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–f: engine, app + DMG, first run, updater, releases from GitHub Actions, the feed on a GitHub release (2026-11-04) |
 | L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
 | L5.15 | Renders on the GPU with a lighter load | S | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
@@ -969,7 +969,8 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   the Set-up sheet (the command, Claude Code and Claude Desktop on a click), two copies said. L5.16d — the updater on a
   static feed of the person's own. L5.16e — releases by GitHub Actions (build without secrets, signing on a fresh
   runner), docs/RELEASING.md. Two independent reviews per part fixed with mutation-checked tests. Cuts: BL-137 – BL-145.
-  The first tagged run is the person's (MACOS-CHECKLIST 15b). Next: L5.14.
+  L5.16f — the update feed on a GitHub release (no self-hosted host). The first tagged run is the person's
+  (MACOS-CHECKLIST 15b). Next: L5.14.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

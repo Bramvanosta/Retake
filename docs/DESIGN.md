@@ -5133,7 +5133,7 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater; L5.16e: releases from GitHub Actions)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater; L5.16e: releases from GitHub Actions; L5.16f: the update feed on a GitHub release)
 
 R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
 resolver, and behaves exactly as before when there is no bundle (a repository checkout).
@@ -5561,9 +5561,10 @@ the app's name — no product name in the shell's sources).
 
 ### 4p (d). The updater (L5.16d)
 
-R-APP-16 – R-APP-18. Modelled on a static update feed on the person's own host: a check at launch at most once a
-day, the notes and Install and Restart on a click, the archive's signature checked against the key compiled into the
-app — the host can withhold an update, never forge one.
+R-APP-16 – R-APP-18. Modelled on a static update feed — since L5.16f files of the repository's own GitHub releases (the
+person's decision, 2026-11-04: no self-hosted update host): a check at launch at most once a day, the notes and Install
+and Restart on a click, the archive's signature checked against the key compiled into the app — whoever writes the
+releases can withhold an update, never forge one.
 
 **Which build updates itself** (critique H2). `tauri-plugin-updater` 2.14.0 (pinned, optional, cached: `cargo …
 --offline --locked`) is behind the cargo `updater` feature, and `update::register` adds it only when the config carries
@@ -5587,18 +5588,65 @@ link — Chromium's framework's included —, no `._` entry, nothing outside `Re
 CLI's `signer sign --app-version <the app's Info.plist version>` with `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) given
 to that one command only, and the `.sig` checked against the public key in Node before the build ends.
 
-**The feed** (`scripts/publish-update.mjs`). `<app>/v<version>/<archive>`, `<app>/v<version>/platforms/<platform>.json`
-({signature, url}), `<app>/rc.json` (every version) and `<app>/latest.json` (stable ones), `UPDATES_APP` = `retake`.
-Nothing is uploaded before the archive's minisign signature is verified in Node against `RETAKE_UPDATE_PUBKEY` (the key
-ids, Ed25519 over the BLAKE2b-512 prehash — or the data for a legacy `Ed` signature —, the global signature over the
-trusted comment, its `version:` equal to the version published: the apps require it). The feed is never edited: rebuilt
-from the platform files present (a re-run heals a race); a channel at a newer version is left alone; a version already
-published with another archive (its platform file names another signature) is not replaced without `--force`; only
-`darwin-aarch64` is accepted (the archive is the Apple-silicon app); `RETAKE_UPDATE_FEED`, when set, must be the
-version's channel at `UPDATES_PUBLIC_URL`. The upload address answers an authenticated GET (404: missing). No default host:
-`UPDATES_UPLOAD_URL` and `UPDATES_PUBLIC_URL` (both https) and `UPDATES_UPLOAD_TOKEN` are required. The notes: `--notes`,
-else the summary paragraph of the version's CHANGELOG section (plain text), else its bullets' leads, else
-"Retake <version>".
+**The feed** (`scripts/publish-update.mjs`; L5.16f: on GitHub releases, through the REST API with Node's `fetch`). Each
+version's release holds `Retake.app.tar.gz`, its `.sig` and `platform-<platform>.json` ({signature, url}); one fixed
+release, `update-feed` — a pre-release created by the first publication with `make_latest: false`, so GitHub never
+shows it as the latest (and `releases/latest/download/…` would skip the rc channel anyway) — holds `rc.json` (every
+version) and `latest.json` (stable ones). The apps read `<server>/<owner>/<repo>/releases/download/update-feed/<channel>`
+(`feedUrl`; `release.mjs feed` from GITHUB_SERVER_URL + GITHUB_REPOSITORY), public downloads with no credentials, so
+the repository must be public. Environment: GITHUB_TOKEN (contents: write — the workflow's job token, `gh auth token` by
+hand), GITHUB_REPOSITORY (`<owner>/<repo>`, checked), RETAKE_UPDATE_PUBKEY; GITHUB_API_URL / GITHUB_SERVER_URL default
+to GitHub's own, https only. The order: (1) nothing is requested before the archive's minisign signature is verified in
+Node against `RETAKE_UPDATE_PUBKEY` (the key ids, Ed25519 over the BLAKE2b-512 prehash — or the data for a legacy `Ed`
+signature —, the global signature over the trusted comment, its `version:` equal to the version published: the apps
+require it), the version, platforms (`darwin-aarch64` only: the archive is the Apple-silicon app), the repository name,
+the https addresses and `RETAKE_UPDATE_FEED` (when set: this version's channel on this repository) checked; (2) reads
+before any write — the repository is public (`private: false`, `visibility: public`), `v<version>` is a published release
+(GitHub's by-tag lookup answers 404 for a draft, whose files would answer 404 to the apps), and what it holds already is
+these bits (the archive and `.sig`: size, and the API's `sha256:` digest when given; a platform file: the same signature
+and URL) — other bits are refused with no override: a public release's files are never replaced, a fixed build is a new
+version (`--force` is gone); (3) the version's release gains only what it lacks (archive, `.sig`, platform file — the
+workflow's `attach` job attached the first two to the draft); (4) the feed, never edited: rebuilt from every platform
+file the version's release holds (a re-run heals a race) — this run's platform from the entry it checked, which the
+file read back must equal (review f A-L1: a mismatch, or a file read back that is not JSON, fails before the feed) —,
+and each channel replaced unless it serves a newer version. A channel kept at a version that has no published release
+(a hand-placed or forged feed: it freezes every app) is a `::warning::` of the run, which stays green — the version's
+release is complete and which feed is right is a person's call (review f A-L2). A file in GitHub's `starter` state (an
+interrupted upload, never downloadable) on the version's release is deleted before this run uploads its own (A-L7).
+**A channel replaced** (`replaceAsset`): GitHub can neither overwrite an asset nor rename one onto a taken name, so the
+new file is uploaded whole as `<name>.tmp-<run>` (run = GITHUB_RUN_ID + random), then the old one deleted and the new
+one renamed. Before each delete every file of that name is looked at again (review f A-M1): one that appeared since the
+check (not the asset compared) holding this version or a newer one is kept and ours dropped (`kept <v>`), an older one
+deleted. A rename refused (another run took the name, or a list not up to date yet) is tried again after a pause, four
+tries in all. The temporary file is dropped only when the name is held by an equal or newer feed; otherwise the run
+keeps it and fails saying the channel may be MISSING and to re-run the publication (review f A-M2) — a re-run writes
+the channel and removes it, as it removes any temporary file of an interrupted run after its rename. The channel is
+missing only between the DELETE and the PATCH (the test measures it), never half written. **Requests** (review f A-M2,
+B-L1, B-L2, A-L4): each has a timeout (30 s; 15 min for an upload over 1 MiB — the archive by hand); GET, DELETE and
+PATCH are asked again after a 5xx, a 429, a 403 with Retry-After or no request left, or a network error / timeout
+(pauses 1, 2, 4, 8 s; Retry-After honoured up to 60 s) — never an upload or a creation; a 422 on creating
+`update-feed` means "exists" only with GitHub's `already_exists`; the token goes to the API and to a release's
+`upload_url` only when that is the API's own upload host (`uploads.<host>` for `api.<host>`, else the API's host:
+Enterprise Server). A file read back follows up to three redirects to GitHub's storage, each https, none with the
+token, at most 1 MiB (announced or received); a read that fails stops the run (a failed read is never taken for
+"absent": that could move a channel back); a file that is not JSON is treated as absent and rewritten. The workflow's `publish` job runs one at a time in the repository (job concurrency `release-publish`):
+two tags never rewrite the feed together. The notes: `--notes`, else the summary paragraph of the version's CHANGELOG
+section (plain text), else its bullets' leads, else "Retake <version>".
+
+**Following GitHub's redirects** (L5.16f). GitHub answers a release file's download address with a redirect to its
+download host. The plugin's reqwest client follows redirects by default (up to 10, any host); `ask_feed` builds the
+updater with `configure_client(|b| b.https_only(update_flow::https_only(test_feed)))` — reqwest refuses a non-https
+URL on the first request and on every redirect (its redirect policy checks `https_only` per hop) — and the found update
+keeps the builder's client for the download, so the check and the archive accept a redirect to another https host and
+refuse http anywhere on the way; `fetch_archive` still refuses a non-https archive address up front. Any https host is
+followed — the trust is the archive's signature, not the host. No test proves the http refusal at run time (it needs
+an https first hop: a TLS listener, a certificate and a trust override the repository does not have): it rests on
+reqwest 0.13.3 (`src/redirect.rs`, the redirect policy's per-hop check) and the plugin 2.14.0 applying the client to
+the check and the download, both read in the locked sources; desktop-config.test.ts pins those two versions so a bump
+fails until it is checked again (review f A-L8 / B-L4). The e2e build's
+127.0.0.1 feed alone is http (`is_test_feed`); its feed server now answers both the feed and the archive with a 302 to a
+second server on the next port, and the test checks both hops were followed. Measured (2026-11-04): the gated end to end 3 / 3 in 304 s,
+both hops of the check and of the download followed, the real update 13.7 s from launch to the restarted 0.2.1.
 
 **The flow** (`desktop_core::update_flow` holds the rules; update.rs the I/O).
 - *When*: at launch when due — never checked, a day since the last successful check, a clock that went back, or a
@@ -5662,8 +5710,9 @@ the real update 13.4 s from launch to the restarted 0.2.1, the verified archive 
 ### 4p (e). Releases from GitHub Actions (L5.16e)
 
 R-APP-08 (the release run). The person's decision (2026-11-04): the repository is public on GitHub and releases are made
-there, from a tag, on GitHub-hosted runners — the DMG attached to a public GitHub release, the update published to the
-person's own update host. docs/RELEASING.md is the person's guide; `.github/workflows/release.yml` the workflow.
+there, from a tag, on GitHub-hosted runners — the DMG attached to a public GitHub release, the update published in the
+repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the person's guide;
+`.github/workflows/release.yml` the workflow.
 
 - **Five jobs; the keys never meet dependency code** (review e A-H1: on a hosted runner every step runs as the same
   user and a process left by one step outlives it, reading files and other processes' environments — `buildEnv` is no
@@ -5685,9 +5734,10 @@ person's own update host. docs/RELEASING.md is the person's guide; `.github/work
   then **refused unless the release is still a draft** (review e A-M4 / B-M2: a public release's files are never
   replaced — a re-run after the publish fails there; a fixed build is a new version), the assets this build does not
   make removed (a re-run with another configuration leaves nothing stale), the files uploaded (`--clobber`), the notes
-  completed. `publish` (ubuntu, `environment: release`): public (latest or pre-release), then — updates on — the archive
+  completed. `publish` (ubuntu, `environment: release` — no secret since L5.16f: the environment is the gate before the
+  release goes public —, one at a time across tags): public (latest or pre-release), then — updates on — the archive
   and .sig fetched from the release (a missing one fails the job; review e B-M3: no `|| true` anywhere) and published
-  with `publish-update.mjs` when the upload pair is set (else a warning: publish by hand).
+  with `publish-update.mjs`, the job token as GITHUB_TOKEN and the public key from the release job's output.
 - **The sign entry** (`apps/desktop/scripts/release.mjs`: `finishApp` + `sign --app <dir>/Retake.app --out <dir>
   [--release] [--app-version <v>] [--tauri-cli <dir>]`): its whole import graph is Node.js built-ins and repository
   files (`release-workflow.test.ts` walks it: bundle.mjs, sign.mjs, desktop.mjs, publish-update.mjs). A release
@@ -5703,18 +5753,20 @@ person's own update host. docs/RELEASING.md is the person's guide; `.github/work
   CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7).
   `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
   the same `finishApp` in the same process.
-- **What is configured: three sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
+- **What is configured: two sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
   The Apple set (seven secrets: certificate, its password, identity, team, API key id, issuer, .p8), the updater set
-  (the key and its password as secrets, `RETAKE_UPDATE_PUBKEY` and `UPDATES_PUBLIC_URL` as variables), the upload
-  pair (`UPDATES_UPLOAD_TOKEN` secret, `UPDATES_UPLOAD_URL` variable). None of a set: that part is off and said (an ad
-  hoc build "Not notarised … Open Anyway"; "Updates are off in this build"; the update not published). Some: the run
+  (the key and its password as secrets, `RETAKE_UPDATE_PUBKEY` as a variable; L5.16f dropped the update host's
+  `UPDATES_PUBLIC_URL` and the upload pair: the feed's address comes from the run's context). None of a set: that part
+  is off and said (an ad hoc build "Not notarised … Open Anyway"; "Updates are off in this build"). Some: the run
   fails in the release job, before anything is built, naming each missing name — and "set as a variable: it must be a
   secret" (or the reverse) when the name sits in the other store: the release job sees each secret only as
   `secrets.X != ''` (true / false, never its value) and each variable by value, so a name in the wrong store *is*
-  detectable. With the updater on, the feed (`release.mjs feed`) and the public key are checked there too and handed
-  to the build job as outputs (public values). The sign job checks its own set again first (review e B-L4).
+  detectable. With the updater on, the feed (`release.mjs feed`: GITHUB_SERVER_URL + GITHUB_REPOSITORY), the repository
+  public (review f A-L3 / B-L5: the step before reads `gh api repos/<repo>` with the job token — `private`,
+  `visibility` — and the preflight refuses one that is not public, or unknown, before anything is built; publish-update
+  checks it again) and the public key are checked there too and handed to the build job as outputs (public values). The sign job checks its own set again first (review e B-L4).
 - **The release environment** (review e A-M1): secrets live in the `release` environment, which only `release`
-  (presence only), `sign` and `publish` reference; RELEASING.md has the person give it a deployment rule for `v*`
+  (presence only), `sign` and `publish` (no secret: the gate) reference; RELEASING.md has the person give it a deployment rule for `v*`
   tags only, add a tag ruleset (only they create, update or delete `v*`) and protect main — GitHub settings, made by
   the person.
 - **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved
@@ -5745,7 +5797,8 @@ person's own update host. docs/RELEASING.md is the person's guide; `.github/work
   `source=Notarized Developer ID` — its exit status alone passes on a Mac with relaxed assessments.
 - **Secrets and the token** (held by `release-workflow.test.ts`, which also runs the step scripts in bash against
   stand-ins of `gh` and `security`): top-level `contents: read`, `contents: write` only on release / attach / publish
-  (the jobs that call `gh`, none runs a build tool); the job token only in the four steps that call `gh`; no secret in
+  (the jobs that call `gh`, none runs a build tool); the job token only in the four steps that call `gh` and in
+  publish › Publish the update (L5.16f: publish-update.mjs, our script, as GITHUB_TOKEN); no `UPDATES_*` name; no secret in
   a workflow / job env, a `with`, an `if` or a script; key material bound in sign › Signing material only (no build
   tool, no `gh`, `umask 077`); `persist-credentials: false` on every checkout; only `push: tags: v*`.
 - **Not covered**: build provenance (an attestation of what the build job built) — BACKLOG BL-145; the build job is
@@ -5755,7 +5808,9 @@ person's own update host. docs/RELEASING.md is the person's guide; `.github/work
   downloads it; to resolve before any sale (README's licence note says so).
 - **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
   `security -i`, the setup-node binary's sha256 and the CDN browsers' digests meet the real runner on the first tagged
-  run; the notarised DMG on a clean account and an update through the feed are the person's (MACOS-CHECKLIST 15b, 15d).
+  run, and the GitHub REST calls of publish-update.mjs (tested against a local stand-in of the API only) meet GitHub on
+  the first publication; the notarised DMG on a clean account and an update through the feed are the person's
+  (MACOS-CHECKLIST 15b, 15d).
   Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
 
 ## 5. Fixture product (`fixtures/wholesale`)

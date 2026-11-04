@@ -12,9 +12,9 @@
 //!   native alert when the window shows no Studio page (never the feed's notes: they are not signed).
 //! - Install and Restart (the sheet's click through the server's `desktop_update` op, or the native alert): refused when
 //!   off, unwritable or with nothing found — the Studio's sheet says why from the state, the native path in an alert;
-//!   the archive is downloaded (https only, a byte cap, a stall and a total limit — `watch`; Later aborts it) and
-//!   verified (the plugin: minisign against the key compiled in, the signed version must equal the announced one, never
-//!   a downgrade), then kept in a 0600 file of the app's cache folder (not in memory); then it waits while a job of this
+//!   the archive is downloaded (https only at every hop, redirects included; a byte cap, a stall and a total limit —
+//!   `watch`; Later aborts it) and verified (the plugin: minisign against the key compiled in, the signed version must
+//!   equal the announced one, never a downgrade), then kept in a 0600 file of the app's cache folder (not in memory); then it waits while a job of this
 //!   workspace runs or waits (Later stops the wait, removes the file); then a quit through the quit guard
 //!   (Action::Update: the page's sheet, else the native alert, asks about unsaved text). The person's answer holds
 //!   however long the question waits (`Arm`). On Now, RunEvent::Exit stops the owned server gracefully and `finish`
@@ -651,8 +651,11 @@ fn restart(app: &AppHandle) {
 async fn ask_feed(app: &AppHandle) -> Result<Option<(Found, String, String)>, String> {
     use tauri_plugin_updater::UpdaterExt;
     // The feed must answer within CHECK_TIMEOUT (the plugin's request timeout); the download has its own limits
-    // (`watch`), so the found update carries none (a request timeout counts the whole body).
-    let u = app.updater_builder().timeout(uf::CHECK_TIMEOUT).build().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
+    // (`watch`), so the found update carries none (a request timeout counts the whole body). The client of the check and
+    // of the download (the found update keeps the builder's) is https only at every hop, the redirects GitHub's releases
+    // answer with included (update_flow `https_only`; the e2e build's 127.0.0.1 feed aside).
+    let https = uf::https_only(test_feed());
+    let u = app.updater_builder().timeout(uf::CHECK_TIMEOUT).configure_client(move |b| b.https_only(https)).build().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?;
     Ok(u.map(|mut f| {
         f.timeout = None;
         let (v, n) = (f.version.clone(), f.body.clone().unwrap_or_default());
@@ -664,8 +667,9 @@ async fn ask_feed(_: &AppHandle) -> Result<Option<(Found, String, String)>, Stri
     Err("this build has no updater".into())
 }
 
-/// The archive: https only (the e2e test's 127.0.0.1 feed aside — review d A-M2: the plugin only warns), every chunk
-/// reported to `watch`, verified by the plugin before it is returned.
+/// The archive: https only (the e2e test's 127.0.0.1 feed aside — review d A-M2: the plugin only warns) — its address
+/// here, and every redirect on the way to GitHub's download host in the client (`ask_feed`) —, every chunk reported to
+/// `watch`, verified by the plugin before it is returned.
 #[cfg(feature = "updater")]
 async fn fetch_archive(f: &Found, p: &uf::Progress) -> Result<Vec<u8>, String> {
     if f.download_url.scheme() != "https" && !(test_feed() && f.download_url.as_str().starts_with("http://127.0.0.1:")) {

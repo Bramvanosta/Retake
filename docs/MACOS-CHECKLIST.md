@@ -1797,14 +1797,25 @@ On the copy in /Applications, ideally a fresh account (no `~/Retake`, no `~/.ret
    a Capture from the app says the job runs in the other copy (its "queued" line in the status bar names its version
    and folder), the Welcome inspector's Worker row names it, and `retake doctor` (either copy) warns in its MCP line.
 
-### 15d. An update against your feed (L5.16d — your host and your key; nothing in the test suite reaches them)
+### 15d. An update through the feed (L5.16d; L5.16f: the repository's `update-feed` release — your key; nothing in the test suite reaches GitHub)
 
 Once: the key (`pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w <file>`, private key + password in your password
-manager). Build version N with `RETAKE_UPDATE_FEED=https://<host>/retake/latest.json` and `RETAKE_UPDATE_PUBKEY`
-(README "Releasing an update"), install it from its DMG into /Applications; then bump the version
-(`node scripts/set-version.mjs <N+1>`, `--check` says nothing is left behind), write its CHANGELOG paragraph, build N+1
-the same way with `TAURI_SIGNING_PRIVATE_KEY=<the key file's path>`, and `node scripts/publish-update.mjs <N+1> …`
-(your upload address must answer an authenticated GET: 404 for a missing file).
+manager). The simplest: two releases from the workflow (15b) — N, installed from its DMG into /Applications, then N+1.
+By hand instead (README "Releasing an update"): build N with `RETAKE_UPDATE_FEED=$(GITHUB_REPOSITORY=<owner>/<repo> node
+scripts/release.mjs feed <N>)` and `RETAKE_UPDATE_PUBKEY`, install it from its DMG into /Applications; then bump the
+version (`node scripts/set-version.mjs <N+1>`, `--check` says nothing is left behind), write its CHANGELOG paragraph,
+build N+1 the same way with `TAURI_SIGNING_PRIVATE_KEY=<the key file's path>`, publish its GitHub release (`gh release
+create v<N+1> --verify-tag …`), and `GITHUB_TOKEN=<token> GITHUB_REPOSITORY=<owner>/<repo> node
+scripts/publish-update.mjs <N+1> …` (a fine-grained token limited to the repository, *Contents: Read and write*,
+rather than your whole account's `gh auth token`; the repository public, immutable releases off).
+
+0. **The feed on GitHub.** The repository's releases list `update-feed` as a *Pre-release* (never *Latest*), holding
+   `latest.json` and `rc.json` only (no `*.tmp-*` file left); `v<N+1>` holds the archive, its `.sig` and
+   `platform-darwin-aarch64.json`. `curl -sL <server>/<owner>/<repo>/releases/download/update-feed/latest.json` (signed
+   out: no token) names N+1 — `-L` because GitHub answers with a redirect to its download host, which the app follows
+   too. Note how long the publish step took, and whether its log shows a request asked again ("asked again in …")
+   or a `::warning::`. With the `update-feed` tag ruleset set (RELEASING): deleting or moving the `update-feed` tag
+   from the web or `git push --delete` is refused, and the next publication still replaces the two files.
 
 1. **The offer.** Open N: the status bar says "Update available · vN+1" within a few seconds (or Help › Check for
    Updates…). The sheet shows your CHANGELOG paragraph as text, Later · Install and Restart; VoiceOver reads the title
@@ -1838,10 +1849,12 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
 0. **The settings hold**: the run's `release`, `sign` and `publish` jobs show the `release` environment; a `v*` tag
    pushed by someone else (or by you from a branch that is not main, on a scratch repository) is refused by the
    ruleset; a push straight to main is refused.
-1. `release` passes (the tag is the version, the commit is on main; "What is configured" says signed=true updates=on
-   upload=on) and a draft release appears with the CHANGELOG paragraph. A tag that is not the version (try `v9.9.9` on
+1. `release` passes (the tag is the version, the commit is on main; "The repository's visibility" prints nothing but
+   succeeds — the job token may read the repository — and "What is configured" says signed=true updates=on;
+   its `feed` output is `<server>/<owner>/<repo>/releases/download/update-feed/latest.json`) and a draft release appears with the CHANGELOG paragraph. A tag that is not the version (try `v9.9.9` on
    a scratch branch: it is refused before anything is built — delete that tag afterwards). Remove one secret of a set
-   (on a scratch fork): the run fails in "What is configured", naming it.
+   (on a scratch fork): the run fails in "What is configured", naming it. On a private scratch repository with the
+   updater set, the run fails there too ("the repository is not public"), before `build`.
 2. `build`: "Node.js is the pinned binary" and `check-pins` pass — **if either fails with a digest, the runner's
    download lays files out differently from this Mac's**: check the run's own install, then record the digest it
    printed (`apps/desktop/bundle/node.json` / `browsers.json`, DESIGN §4p (e)) and tag again. Note the job's time
@@ -1852,8 +1865,11 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
    keychain. Note the notarisation times.
 4. `attach`: the draft gets the DMG, `Retake.app.tar.gz` + `.sig` and `SHA256SUMS-macos.txt`; its notes say "notarised
    by Apple" and "It updates itself".
-5. `publish`: the release is public (*Latest*); the log shows the archive and platform file uploaded and `latest.json`
-   and `rc.json` written; `curl <UPDATES_PUBLIC_URL>/retake/latest.json` names 0.2.1.
+5. `publish`: the release is public (*Latest*); the log shows `v0.2.1/platform-darwin-aarch64.json` uploaded (the
+   archive and `.sig` were attached by `attach`), `update-feed` created on this first publication (a *Pre-release*, not
+   *Latest*) and `update-feed/rc.json → 0.2.1`, `update-feed/latest.json → 0.2.1`; `curl -sL
+   <server>/<owner>/<repo>/releases/download/update-feed/latest.json` names 0.2.1 (15d step 0). The job used no secret
+   (the job token only).
 6. **On another account (or another Mac)**: download the DMG from the release page with a browser (it carries the
    quarantine mark), compare its SHA-256 with `SHA256SUMS-macos.txt`, open it, drag Retake to Applications, open it —
    **no Gatekeeper prompt at all**, no Open Anyway. `spctl -a -vv /Applications/Retake.app` says "accepted" and
@@ -1863,7 +1879,8 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
 8. **Re-runs**: before `publish` has run, *Re-run failed jobs* on a failed job replaces the draft's files (`attach`
    removes what the new build does not make). After the release is public, a re-run of `sign` + `attach` (*Re-run all
    jobs*) fails in `attach` ("public already: … tag a new version") and the public files stay as downloaded; a re-run
-   of `publish` alone says "already public" and only heals the feed.
+   of `publish` alone says "already public", uploads nothing to `v0.2.1` and rewrites the same feed (no `*.tmp-*` file
+   left on `update-feed`).
 9. A release without the Apple secrets (on a fork or after removing the whole set): the notes say "Not notarised …
    Open Anyway", and the downloaded DMG needs Open Anyway once.
 
@@ -1871,7 +1888,6 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
 `pnpm desktop:release --out <folder> --ffmpeg <ffmpeg folder>` (the ad hoc layout, then the same `release.mjs`
 `finishApp` the workflow's `sign` job runs) with `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID` and
 `APPLE_KEYCHAIN_PROFILE` (once: `xcrun notarytool store-credentials <profile> --apple-id … --team-id …`, which asks for
-the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + ``APPLE_KEYCHAIN_PROFILE` (once: `xcrun notarytool store-credentials <profile> --apple-id … --team-id …`, which asks for
 the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`. Expected: the ad hoc
 app re-signed with your identity (payload, shell, app), the app notarised (as a zip) and stapled, the DMG signed, notarised and
 stapled, then the checks — the team of every signature, `spctl -a -vv -t exec` on the app, `spctl -a -vv -t open

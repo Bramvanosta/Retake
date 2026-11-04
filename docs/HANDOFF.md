@@ -33,6 +33,17 @@ automatically with themeable components, and let Claude operate everything throu
    audit, own media, raw export validation).
 
 ## State (after L5.16)
+- **L5.16f done (2026-11-04)** — the update feed moved to GitHub (the person's decision: no self-hosted host): a fixed
+  `update-feed` pre-release holds `latest.json` / `rc.json`, each tag's release its archive, `.sig` and
+  `platform-darwin-aarch64.json`; `scripts/publish-update.mjs` publishes through the GitHub REST API with the workflow's
+  own token (checks before any request; the version's release must be public and hold the same bits; a channel replaced
+  through a temporary asset, re-read before each delete, never moved back, never left missing by our side; request
+  timeouts and retries), the feed URL from the workflow's context (`scripts/release.mjs feed`), the repository's
+  visibility checked in the preflight, the app's updater client https-only on every redirect. No `UPDATES_*` setting
+  any more: the person sets the seven Apple secrets, the two updater secrets and `RETAKE_UPDATE_PUBKEY`
+  (docs/RELEASING.md, which also asks for a ruleset on the `update-feed` tag and immutable releases OFF). Tests: the last
+  full run 4436 — 4335 pass, 101 skipped, 0 failures; the gated update end to end 3/3 through redirects. Next: L5.14,
+  then L5.15, then the first release (the person tags v0.2.0).
 - **L5.16 done (2026-11-04)** — the standalone app, in five parts. **L5.16a**: a relocatable engine — one resolver
   order for every tool (retake.yaml → RETAKE_FFMPEG / FFPROBE → the app's own → PATH, `bundle.json` beside core), every
   ffmpeg spawn through it, the H.264 fallback to VideoToolbox, `retake init`, version 0.2.0 everywhere, the staged tree
@@ -690,8 +701,8 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.14 (captures first on pg-boss) per the roadmap**, only when the user asks (L5.16 is done: the
-standalone app, its releases from GitHub Actions and the updater). **Decided
+**Next: L5.14 (captures first), then L5.15, then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16
+is done: the standalone app, its releases from GitHub Actions, the updater on a GitHub release feed). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and

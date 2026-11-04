@@ -519,6 +519,15 @@ pub fn exit_step(arm: Arm, have_archive: bool) -> Exit {
 /// The feed's answer must come within this (the plugin's request timeout for the check).
 pub const CHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Whether every request of the updater — the check, the download, and each redirect either follows — must be https
+/// (L5.16f: the feed and the archives are files of GitHub releases, which answer with a redirect to GitHub's download
+/// host). Any https host is followed, an http one refused, at every hop: the plugin's reqwest client is built with
+/// `https_only` (update.rs `configure_client`), which reqwest applies to the first request and to each redirect. The
+/// e2e build's feed on 127.0.0.1 (`is_test_feed`) alone is http.
+pub fn https_only(test_feed: bool) -> bool {
+    !test_feed
+}
+
 /// When a download is stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Limits {
@@ -924,6 +933,16 @@ mod tests {
         assert!(!is_test_feed(true, &["https://downloads.example.test/retake/latest.json"]));
         assert!(!is_test_feed(true, &["http://127.0.0.1:4990/x.json", "http://downloads.example.test/x.json"]));
         assert!(!is_test_feed(true, &[]));
+    }
+
+    /// L5.16f: every request and every redirect https (GitHub's releases redirect to their download host), but in the
+    /// e2e build.
+    #[test]
+    fn https_at_every_hop_but_in_the_e2e_build() {
+        assert!(https_only(false));
+        assert!(!https_only(true));
+        assert!(https_only(is_test_feed(false, &["http://127.0.0.1:4990/retake/latest.json"])));
+        assert!(https_only(is_test_feed(true, &["https://github.example.test/o/r/releases/download/update-feed/latest.json"])));
     }
 
     /// Review d A-M2: the download's limits — size (received or announced), a stall, the total, Later.

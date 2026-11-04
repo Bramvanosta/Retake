@@ -3,7 +3,8 @@
  * keychain): .github/workflows/release.yml read as data (its triggers, permissions, environments, pinned actions,
  * where each secret and the job token go, which job runs dependency code — never the one holding the keys) and its
  * step scripts run in bash against stand-ins (gh, security) — the preflight, the artifact's check, the signing
- * material, the files collected, the attach to a draft only, the update fetched; scripts/release.mjs (the tag is the
+ * material, the files collected, the attach to a draft only, the update fetched and published with the job token alone
+ * (L5.16f: the feed is the repository's update-feed release, no update host); scripts/release.mjs (the tag is the
  * version, the notes, the feed publish-update.mjs accepts, the preflight's sets, the files' names);
  * apps/desktop/scripts/ci-keychain.sh against a recording `security` (the temporary keychain, the search list put
  * back, no password on a command line, the files removed whatever security says); the sign entry's import graph
@@ -94,7 +95,7 @@ function runStep(s: Step, env: Record<string, string>, bin?: string) {
 /**
  * A recording `gh` on a scratch PATH: each call one JSON line in calls.log; `release view --json isDraft` answers
  * FAKE_DRAFT, `--json assets` the names in FAKE_ASSETS (comma-separated); `release download` copies each --pattern
- * file of FAKE_RELEASE_DIR into --dir.
+ * file of FAKE_RELEASE_DIR into --dir; `api` prints FAKE_API (what its --jq would print).
  */
 function fakeGh() {
   const bin = dir('fake-gh');
@@ -106,6 +107,7 @@ fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(a) + '\\n');
 const opt = (f) => a.filter((x, i) => a[i - 1] === f);
 if (a[0] === 'release' && a[1] === 'view' && a.includes('isDraft')) console.log(process.env.FAKE_DRAFT);
 else if (a[0] === 'release' && a[1] === 'view' && a.includes('assets')) for (const x of (process.env.FAKE_ASSETS || '').split(',').filter(Boolean)) console.log(x);
+else if (a[0] === 'api') process.stdout.write(process.env.FAKE_API || '');
 else if (a[0] === 'release' && a[1] === 'download') for (const p of opt('--pattern')) { const f = path.join(process.env.FAKE_RELEASE_DIR, p); if (fs.existsSync(f)) fs.copyFileSync(f, path.join(opt('--dir')[0], p)); }
 `);
   chmodSync(join(bin, 'gh'), 0o755);
@@ -157,9 +159,9 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
     expect(wf.concurrency).toEqual({ group: 'release-${{ github.ref }}', 'cancel-in-progress': false });
   });
 
-  it('the release environment (its secrets, its v*-only deployment rule) on the jobs that need a secret only: release (presence only), sign, publish', () => {
+  it('the release environment (its secrets, its v*-only deployment rule) on release (presence only) and sign, and on publish as the gate before the release goes public — publish binds no secret', () => {
     expect(Object.entries(jobs).filter(([, j]) => j.environment).map(([k, j]) => `${k}:${j.environment}`)).toEqual(['release:release', 'sign:release', 'publish:release']);
-    for (const [name, j] of Object.entries(jobs)) if (!j.environment) expect(JSON.stringify(j), name).not.toMatch(/secrets\./);
+    for (const [name, j] of Object.entries(jobs)) if (!j.environment || name === 'publish') expect(JSON.stringify(j), name).not.toMatch(/secrets\./);
     // The release job reads no secret's value: presence only.
     for (const s of jobs.release!.steps) for (const v of Object.values(s.env ?? {})) if (/secrets\./.test(String(v))) expect(String(v), label({ job: 'release', ...s })).toMatch(PRESENCE);
   });
@@ -294,17 +296,22 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(2);
   });
 
-  it('the job token only in steps that call gh, holding no secret; the upload token only where the update is published', () => {
+  it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
     const withToken = allSteps.filter(usesToken);
-    expect(withToken.map(label)).toEqual(['release › Create the release (draft)', 'attach › Attach to the draft release', 'publish › Publish the release', 'publish › Fetch the signed update archive']);
+    expect(withToken.map(label)).toEqual(['release › The repository\'s visibility', 'release › Create the release (draft)', 'attach › Attach to the draft release', 'publish › Publish the release', 'publish › Fetch the signed update archive', 'publish › Publish the update']);
     for (const s of withToken) {
-      expect(CALLS_GH.test(s.run ?? ''), label(s)).toBe(true);
+      expect(CALLS_GH.test(s.run ?? '') || label(s) === 'publish › Publish the update', label(s)).toBe(true);
       expect(secretsOf(s), label(s)).toEqual({});
+      expect(BUILD_TOOL.test(s.run ?? ''), label(s)).toBe(false);
     }
     for (const s of allSteps) if (CALLS_GH.test(s.run ?? '')) expect(usesToken(s), label(s)).toBe(true);
-    const upload = allSteps.filter((s) => Object.values(secretsOf(s)).includes('UPDATES_UPLOAD_TOKEN'));
-    expect(upload.map(label)).toEqual(['publish › Publish the update']);
-    expect(CALLS_GH.test(upload[0]!.run!) || usesToken(upload[0]!)).toBe(false);
+    // The publication: the job token as GITHUB_TOKEN (what publish-update.mjs reads), our script only.
+    const p = step('publish', 'Publish the update');
+    expect(p.env!.GITHUB_TOKEN).toBe('${{ github.token }}');
+    expect(p.run!.split('\n').filter((l) => /\bnode\b/.test(l)).map((l) => l.trim().split(' ').slice(0, 2).join(' '))).toEqual(['RETAKE_UPDATE_FEED=$(node scripts/release.mjs', 'node scripts/publish-update.mjs']);
+    expect(raw).not.toMatch(/UPDATES_|update host/);
+    // One publication at a time across tags: two runs never rewrite the feed together.
+    expect((jobs.publish as any).concurrency).toEqual({ group: 'release-publish', 'cancel-in-progress': false });
   });
 
   it('every secret a step binds, its script (or the script it runs) uses; the sign step unsets the empty ones (an unset secret arrives as "")', () => {
@@ -383,7 +390,7 @@ describe('release.yml: what it runs', () => {
     const v = step('release', 'The tag is the version');
     expect(v.run).toMatch(/node scripts\/set-version\.mjs --check\n/);
     expect(v.run).toMatch(/node scripts\/release\.mjs tag "\$GITHUB_REF_NAME" >> "\$GITHUB_OUTPUT"/);
-    const config = ['signed', 'updates', 'upload', 'feed', 'pubkey', 'dmg', 'archive', 'signature'];
+    const config = ['signed', 'updates', 'feed', 'pubkey', 'dmg', 'archive', 'signature'];
     expect(jobs.release!.outputs).toEqual({ version: '${{ steps.version.outputs.version }}', prerelease: '${{ steps.version.outputs.prerelease }}', ...Object.fromEntries(config.map((k) => [k, `\${{ steps.config.outputs.${k} }}`])) });
     expect(step('release', 'The tagged commit is on main').run).toMatch(/git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
     expect((jobs.release!.steps[0]!.with as any)['fetch-depth']).toBe(0);
@@ -397,10 +404,10 @@ describe('release.yml: what it runs', () => {
     expect(JSON.stringify({ ...jobs, release: undefined })).not.toMatch(/set-version\.mjs/);
   });
 
-  it('what is configured: the step binds each name of the three sets as it must (a secret\'s presence, a variable\'s value, each in the other store\'s presence too) and runs the preflight', async () => {
+  it('what is configured: the step binds each name of the two sets as it must (a secret\'s presence, a variable\'s value, each in the other store\'s presence too) and runs the preflight', async () => {
     const { CONFIG_SETS } = await releaseModule();
     const s = step('release', 'What is configured');
-    const want: Record<string, string> = { VERSION: '${{ steps.version.outputs.version }}' };
+    const want: Record<string, string> = { VERSION: '${{ steps.version.outputs.version }}', REPO_PRIVATE: '${{ steps.repository.outputs.private }}', REPO_VISIBILITY: '${{ steps.repository.outputs.visibility }}' };
     for (const { names } of Object.values(CONFIG_SETS) as Array<{ names: Record<string, string> }>) {
       for (const [name, kind] of Object.entries(names)) {
         if (kind === 'secret') {
@@ -416,13 +423,26 @@ describe('release.yml: what it runs', () => {
     expect(s.run).toBe('set -eu\nnode scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"\nnode scripts/release.mjs files "$VERSION" >> "$GITHUB_OUTPUT"\n');
   });
 
+  it('the repository\'s visibility, run (review f A-L3): read with the job token through gh api, handed to the preflight as private= / visibility=', () => {
+    const s = step('release', 'The repository\'s visibility');
+    expect(s.id).toBe('repository');
+    expect(s.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
+    const steps = jobs.release!.steps.map((x) => x.name);
+    expect(steps.indexOf('The repository\'s visibility')).toBe(steps.indexOf('What is configured') - 1);
+    const gh = fakeGh();
+    const r = runStep(s, { GH_REPO: 'example-owner/example-repo', FAKE_API: 'private=false\nvisibility=public\n' }, gh.bin);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.outputs).toEqual({ private: 'false', visibility: 'public' });
+    expect(gh.calls()).toEqual([['api', 'repos/example-owner/example-repo', '--jq', '"private=\\(.private)", "visibility=\\(.visibility)"']]);
+  });
+
   it('what is configured, run: nothing → an ad hoc build without updates (each said); a partial set fails naming what is missing, a variable entered as a secret said so', async () => {
     const { CONFIG_SETS } = await releaseModule();
     const s = step('release', 'What is configured');
     const none = Object.fromEntries(Object.keys(s.env!).filter((k) => k.startsWith('HAS_')).map((k) => [k, 'false']));
     const off = runStep(s, { ...none, VERSION: '0.2.0' });
     expect(off.status, off.stderr).toBe(0);
-    expect(off.outputs).toMatchObject({ signed: 'false', updates: 'off', upload: 'off', dmg: 'Retake_0.2.0_aarch64.dmg', archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
+    expect(off.outputs).toEqual({ signed: 'false', updates: 'off', dmg: 'Retake_0.2.0_aarch64.dmg', archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
     expect(off.stdout).toMatch(/::warning::No Apple signing set[\s\S]*::warning::Updates are off in this build/);
     const apple = Object.fromEntries(Object.keys(CONFIG_SETS.apple.names).map((k) => [`HAS_SECRET_${k}`, 'true']));
     const signed = runStep(s, { ...none, ...apple, VERSION: '0.2.0' });
@@ -432,6 +452,25 @@ describe('release.yml: what it runs', () => {
     expect(partial.stdout).toMatch(/::error::A Developer ID build, notarised needs all of .* — or none: missing APPLE_API_KEY_P8 \(a secret, not set\)/);
     expect(partial.stdout).toMatch(/::error::An app that updates itself .* missing TAURI_SIGNING_PRIVATE_KEY \(a secret, not set\), .*RETAKE_UPDATE_PUBKEY \(set as a secret: it must be a variable\)/);
     expect(partial.outputs.signed).toBeUndefined();
+    // The updater set: its feed is this repository's update-feed release, from the run's own context (L5.16f).
+    const { generateKeyPairSync } = await import('node:crypto');
+    const raw32 = (generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(12);
+    const pubkey = Buffer.from(`untrusted comment: minisign public key\n${Buffer.concat([Buffer.from('Ed'), Buffer.alloc(8, 7), raw32]).toString('base64')}\n`).toString('base64');
+    const updater = { ...none, HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true', HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'true', RETAKE_UPDATE_PUBKEY: pubkey, VERSION: '0.3.0-rc.1' };
+    const here = { GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' };
+    const on = runStep(s, { ...updater, ...here });
+    expect(on.status, on.stdout).toBe(0);
+    expect(on.outputs).toMatchObject({ updates: 'on', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey });
+    const nowhere = runStep(s, { ...updater, REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' });
+    expect(nowhere.status).toBe(1);
+    expect(nowhere.stdout).toMatch(/::error::The update feed: GITHUB_REPOSITORY is not set/);
+    // Review f A-L3: a repository that is not public is refused here, before anything is built — not after the release.
+    const hidden = runStep(s, { ...updater, ...here, REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' });
+    expect(hidden.status).toBe(1);
+    expect(hidden.stdout).toMatch(/::error::The update feed: the repository is not public \(private: true, visibility: private\) — an installed app downloads its updates with no credentials/);
+    expect(hidden.outputs.updates).toBeUndefined();
+    // Without the updater, the visibility does not matter.
+    expect(runStep(s, { ...none, VERSION: '0.2.0', REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' }).status).toBe(0);
   });
 });
 
@@ -508,7 +547,7 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(readFileSync(join(temp, 'notes.md'), 'utf8')).toMatch(/Not notarised[\s\S]*Updates are off/);
   });
 
-  it('the fetch, run (review e B-M3): with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version\'s channel', () => {
+  it('the fetch, run (review e B-M3): with updates on, the archive and its .sig come from the release — a missing one fails the job; the publish step builds the feed of the version\'s channel on this repository and hands it to publish-update.mjs', () => {
     const s = step('publish', 'Fetch the signed update archive');
     expect(s.if).toBe("needs.release.outputs.updates == 'on'");
     const gh = fakeGh();
@@ -523,9 +562,20 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
     expect(readdirSync(join(ok.temp, 'update')).sort()).toEqual([files.ARCHIVE, files.SIGNATURE]);
     expect(gh.calls().pop()).toEqual(['release', 'download', 'v0.2.0', '--dir', join(ok.temp, 'update'), '--pattern', files.ARCHIVE, '--pattern', files.SIGNATURE]);
     const publish = step('publish', 'Publish the update');
-    expect(publish.if).toBe("needs.release.outputs.updates == 'on' && needs.release.outputs.upload == 'on'");
+    expect(publish.if).toBe("needs.release.outputs.updates == 'on'");
+    expect(publish.env).toEqual({ VERSION: '${{ needs.release.outputs.version }}', ARCHIVE: '${{ needs.release.outputs.archive }}', SIGNATURE: '${{ needs.release.outputs.signature }}', RETAKE_UPDATE_PUBKEY: '${{ needs.release.outputs.pubkey }}', GITHUB_TOKEN: '${{ github.token }}' });
     expect(publish.run).toMatch(/RETAKE_UPDATE_FEED=\$\(node scripts\/release\.mjs feed "\$VERSION"\)\n\s*export RETAKE_UPDATE_FEED\n[\s\S]*node scripts\/publish-update\.mjs "\$VERSION" --artifact "\$D\/\$ARCHIVE" --signature "\$D\/\$SIGNATURE"/);
-    expect(step('publish', 'The update is not published').if).toBe("needs.release.outputs.updates == 'on' && needs.release.outputs.upload != 'on'");
+    expect(() => step('publish', 'The update is not published')).toThrow(/no step/);
+    // Run (no network: it stops before any request): the feed of the version's channel on the run's repository passes
+    // publish-update's check, then the archive (no gzip here) is refused; without GITHUB_REPOSITORY, no feed.
+    writeFileSync(join(ok.temp, 'update', files.ARCHIVE), 'not a gzip');
+    const ctx = { ...files, VERSION: '0.2.0', RUNNER_TEMP: ok.temp, RETAKE_UPDATE_PUBKEY: 'k', GITHUB_TOKEN: 't', GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', GITHUB_API_URL: 'https://api.github.example.test' };
+    const pubRun = runStep(publish, ctx);
+    expect(pubRun.status).toBe(1);
+    expect(pubRun.stderr).toMatch(/^publish-update: .*Retake\.app\.tar\.gz is not a gzip archive/m);
+    const noRepo = runStep(publish, { ...ctx, GITHUB_REPOSITORY: '' });
+    expect(noRepo.status).toBe(1);
+    expect(noRepo.stderr).toMatch(/^release: GITHUB_REPOSITORY is not set/m);
   });
 });
 
@@ -602,31 +652,39 @@ describe('scripts/release.mjs', () => {
     for (const bad of [['0.2.0', '--signed', 'yes'], ['0.2.0', '--updates', 'maybe'], ['0.2.0', '--other', 'x'], ['v0.2.0']]) expect(run(...bad).status, bad.join(' ')).toBe(1);
   });
 
-  it('preflight (review e B-M1): each set all or nothing — none: off and said; all: on (the feed of the channel, the key checked); some: an error naming each missing name and its store', async () => {
+  it('preflight (review e B-M1): each set all or nothing — none: off and said; all: on (the feed of the channel on this repository, the key checked); some: an error naming each missing name and its store', async () => {
     const { preflight, CONFIG_SETS } = await releaseModule();
     const { generateKeyPairSync } = await import('node:crypto');
     // A minisign public key as `tauri signer generate` writes it: base64 of its text file (algorithm Ed, key id, key).
     const raw32 = (generateKeyPairSync('ed25519').publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(12);
     const pub = Buffer.from(`untrusted comment: minisign public key\n${Buffer.concat([Buffer.from('Ed'), Buffer.alloc(8, 7), raw32]).toString('base64')}\n`).toString('base64');
     const secrets = (set: string, v = 'true') => Object.fromEntries(Object.entries(CONFIG_SETS[set].names as Record<string, string>).filter(([, k]) => k === 'secret').map(([n]) => [`HAS_SECRET_${n}`, v]));
-    const updater = { ...secrets('updater'), RETAKE_UPDATE_PUBKEY: pub, UPDATES_PUBLIC_URL: 'https://updates.example.com' };
-    const upload = { ...secrets('upload'), UPDATES_UPLOAD_URL: 'https://upload.example.com' };
+    const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' };
+    const updater = { ...secrets('updater'), RETAKE_UPDATE_PUBKEY: pub, ...repo };
+    // L5.16f: two sets — the update host's upload set is gone, the feed needs no setting of its own.
+    expect(Object.keys(CONFIG_SETS)).toEqual(['apple', 'updater']);
+    expect(CONFIG_SETS.updater.names).toEqual({ TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' });
     const none = preflight('0.2.0', {});
-    expect(none).toEqual({ outputs: { signed: 'false', updates: 'off', upload: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off], errors: [] });
-    const all = preflight('0.3.0-rc.1', { ...secrets('apple'), ...updater, ...upload });
-    expect(all).toEqual({ outputs: { signed: 'true', updates: 'on', upload: 'on', feed: 'https://updates.example.com/retake/rc.json', pubkey: pub }, warnings: [], errors: [] });
-    expect(preflight('0.2.0', updater).warnings).toEqual([CONFIG_SETS.apple.off, CONFIG_SETS.upload.off]);
-    expect(preflight('0.2.0', upload)).toMatchObject({ outputs: { upload: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off, expect.stringMatching(/set but updates are off in this build: nothing is published/)] });
+    expect(none).toEqual({ outputs: { signed: 'false', updates: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off], errors: [] });
+    const all = preflight('0.3.0-rc.1', { ...secrets('apple'), ...updater });
+    expect(all).toEqual({ outputs: { signed: 'true', updates: 'on', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey: pub }, warnings: [], errors: [] });
+    expect(preflight('0.2.0', updater)).toMatchObject({ outputs: { feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json' }, warnings: [CONFIG_SETS.apple.off] });
     const cases: Array<[Record<string, string>, RegExp]> = [
       [{ ...secrets('apple'), HAS_SECRET_APPLE_API_KEY_P8: 'false' }, /^A Developer ID build, notarised needs all of APPLE_CERTIFICATE, .* — or none: missing APPLE_API_KEY_P8 \(a secret, not set\)$/],
-      [{ HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(a secret, not set\), RETAKE_UPDATE_PUBKEY \(a variable, not set\), UPDATES_PUBLIC_URL \(a variable, not set\)$/],
-      [{ ...secrets('updater'), UPDATES_PUBLIC_URL: 'https://updates.example.com', HAS_SECRET_RETAKE_UPDATE_PUBKEY: 'true' }, /missing RETAKE_UPDATE_PUBKEY \(set as a secret: it must be a variable\)$/],
-      [{ HAS_VAR_UPDATES_UPLOAD_TOKEN: 'true' }, /^The update published to your update host needs .* missing UPDATES_UPLOAD_TOKEN \(set as a variable: it must be a secret\), UPDATES_UPLOAD_URL \(a variable, not set\)$/],
+      [{ HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(a secret, not set\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/],
+      [{ ...secrets('updater'), ...repo, HAS_SECRET_RETAKE_UPDATE_PUBKEY: 'true' }, /missing RETAKE_UPDATE_PUBKEY \(set as a secret: it must be a variable\)$/],
+      [{ HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY \(a secret, not set\), TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(set as a variable: it must be a secret\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/],
       [{ ...updater, RETAKE_UPDATE_PUBKEY: 'not a key' }, /^RETAKE_UPDATE_PUBKEY is not a public key .*one line of base64 expected/],
       [{ ...updater, RETAKE_UPDATE_PUBKEY: Buffer.from('untrusted comment: x\nRWQnotakey\n').toString('base64') }, /^RETAKE_UPDATE_PUBKEY is not a public key/],
-      [{ ...updater, UPDATES_PUBLIC_URL: 'http://updates.example.com' }, /^UPDATES_PUBLIC_URL: .*https/],
-      [{ ...updater, ...upload, UPDATES_UPLOAD_URL: 'http://upload.example.com' }, /UPDATES_UPLOAD_URL.*https/],
+      [{ ...updater, GITHUB_REPOSITORY: '' }, /^The update feed: GITHUB_REPOSITORY is not set/],
+      [{ ...updater, GITHUB_REPOSITORY: 'example-owner/example-repo/x' }, /^The update feed: GITHUB_REPOSITORY "example-owner\/example-repo\/x" is not <owner>\/<repo>/],
+      [{ ...updater, GITHUB_SERVER_URL: 'http://github.example.test' }, /^The update feed: GITHUB_SERVER_URL must be https/],
+      // Review f A-L3: the repository must be public (the API's description, read with the job token) — unknown is refused.
+      [{ ...updater, REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' }, /^The update feed: the repository is not public \(private: true, visibility: private\)/],
+      [{ ...updater, REPO_VISIBILITY: 'internal' }, /^The update feed: the repository is not public \(private: false, visibility: internal\)/],
+      [{ ...updater, REPO_PRIVATE: '', REPO_VISIBILITY: '' }, /^The update feed: the repository is not public \(its visibility unknown\)/],
     ];
+    expect(preflight('0.2.0', { ...updater, REPO_VISIBILITY: '' }).errors).toEqual([]);
     for (const [env, msg] of cases) {
       const r = preflight('0.2.0', env);
       expect(r.errors.length, JSON.stringify(env)).toBe(1);
@@ -637,22 +695,27 @@ describe('scripts/release.mjs', () => {
     const cli = (env: Record<string, string>) => spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'preflight', '0.2.0', '--output', out], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
     const ok = cli({});
     expect(ok.status).toBe(0);
-    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\nupload=off\n');
+    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
     const bad = cli({ HAS_SECRET_APPLE_CERTIFICATE: 'true' });
     expect(bad.status).toBe(1);
     expect(bad.stdout).toMatch(/^::warning::Updates are off[^\n]*\n::error::A Developer ID build/m);
-    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\nupload=off\n');
+    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
   });
 
-  it('feed: the very feed publish-update.mjs accepts for that version (channel by version, the URL normalised), refused without UPDATES_PUBLIC_URL', async () => {
+  it('feed: the very feed publish-update.mjs accepts for that version — the channel\'s file on the repository\'s update-feed release (GITHUB_SERVER_URL, else GitHub\'s), refused without GITHUB_REPOSITORY', async () => {
     const { feedFor } = await releaseModule();
     const { publish } = await publishModule();
-    expect(feedFor('0.2.1', { UPDATES_PUBLIC_URL: 'https://updates.example.com/' })).toBe('https://updates.example.com/retake/latest.json');
-    expect(feedFor('0.3.0-rc.1', { UPDATES_PUBLIC_URL: 'https://updates.example.com/dl//' })).toBe('https://updates.example.com/dl/retake/rc.json');
-    expect(feedFor('0.2.1', { UPDATES_PUBLIC_URL: 'https://updates.example.com', UPDATES_APP: '_probe' })).toBe('https://updates.example.com/_probe/latest.json');
-    expect(() => feedFor('0.2.1', { UPDATES_PUBLIC_URL: ' ' })).toThrow(/UPDATES_PUBLIC_URL is not set/);
-    expect(() => feedFor('0.2.1', { UPDATES_PUBLIC_URL: 'http://updates.example.com' })).toThrow(/must be https/);
-    expect(() => feedFor('v0.2.1', { UPDATES_PUBLIC_URL: 'https://updates.example.com' })).toThrow(/not a version/);
+    const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo' };
+    expect(feedFor('0.2.1', { ...repo, GITHUB_SERVER_URL: 'https://github.example.test/' })).toBe('https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json');
+    expect(feedFor('0.3.0-rc.1', { ...repo, GITHUB_SERVER_URL: 'https://github.example.test//' })).toBe('https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json');
+    expect(feedFor('0.2.1', repo)).toBe('https://github.com/example-owner/example-repo/releases/download/update-feed/latest.json');
+    expect(() => feedFor('0.2.1', { GITHUB_REPOSITORY: ' ' })).toThrow(/GITHUB_REPOSITORY is not set/);
+    expect(() => feedFor('0.2.1', { GITHUB_REPOSITORY: 'example-owner' })).toThrow(/is not <owner>\/<repo>/);
+    expect(() => feedFor('0.2.1', { ...repo, GITHUB_SERVER_URL: 'http://github.example.test' })).toThrow(/must be https/);
+    expect(() => feedFor('v0.2.1', repo)).toThrow(/not a version/);
+    // The command: what the workflow's publish step runs.
+    const cli = spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'feed', '0.2.1'], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...repo, GITHUB_SERVER_URL: 'https://github.example.test' } });
+    expect(cli.stdout).toBe('https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json\n');
     // publish() gets past its feed check with feedFor's value (and stops at the archive, which is no gzip here);
     // with the other channel's feed it stops at the feed check.
     const artifact = join(dir('publish'), 'Retake.app.tar.gz');
@@ -661,8 +724,8 @@ describe('scripts/release.mjs', () => {
       throw new Error('no network in this test');
     };
     for (const version of ['0.2.1', '0.3.0-rc.1']) {
-      const env = { UPDATES_UPLOAD_TOKEN: 't', UPDATES_UPLOAD_URL: 'https://upload.example.com', UPDATES_PUBLIC_URL: 'https://updates.example.com/', RETAKE_UPDATE_PUBKEY: 'k' };
-      const args = { version, platforms: ['darwin-aarch64'], artifact, signature: artifact, notes: null, force: false };
+      const env = { GITHUB_TOKEN: 't', ...repo, GITHUB_SERVER_URL: 'https://github.example.test/', RETAKE_UPDATE_PUBKEY: 'k' };
+      const args = { version, platforms: ['darwin-aarch64'], artifact, signature: artifact, notes: null };
       await expect(publish({ args, env: { ...env, RETAKE_UPDATE_FEED: feedFor(version, env) }, fetchImpl })).rejects.toThrow(/is not a gzip archive/);
       const other = feedFor(version.includes('-') ? '0.2.1' : '0.3.0-rc.1', env);
       await expect(publish({ args, env: { ...env, RETAKE_UPDATE_FEED: other }, fetchImpl })).rejects.toThrow(/RETAKE_UPDATE_FEED is .* but .* belongs to/);

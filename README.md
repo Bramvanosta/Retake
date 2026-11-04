@@ -4112,7 +4112,8 @@ intact afterwards; `RETAKE_TEST_BUNDLE_APP=<Retake.app>` checks a built one). `p
 developer app below, which runs this repository's CLI.
 
 **Releases are made by GitHub Actions** from a pushed `vX.Y.Z` tag (`.github/workflows/release.yml`): the DMG on a
-GitHub release, signed and notarised when the Apple secrets are set, the update published to your host —
+GitHub release, signed and notarised when the Apple secrets are set, the update published in the repository's own
+`update-feed` release —
 [docs/RELEASING.md](docs/RELEASING.md) (the `release` environment, its secrets and variables, each release, re-runs, a
 pre-release). The workflow builds the ad hoc app on one runner (`pnpm desktop:bundle --app-only`) and signs it on
 another that runs only this repository's scripts (`node apps/desktop/scripts/release.mjs sign --app <…/Retake.app>
@@ -4135,18 +4136,21 @@ The release workflow does all of this from a tag ([docs/RELEASING.md](docs/RELEA
 hand, from a checkout on your Mac — the fallback when GitHub Actions is not an option, and the reference for what the
 workflow runs.
 
-The installed apps update themselves from a **static feed on a host of your own** (any web server: public read, an
-authenticated upload) — the repository names no host, no key and no URL; all of it comes from your environment.
-The upload address must accept an authenticated `PUT` **and answer an authenticated `GET`** with the file, or `404`
-when it is missing (the publish step reads the platform files and the feeds back; any other answer stops it — an
-upload-only endpoint, or a bucket that answers `403` for a missing key, cannot be published to).
+The installed apps update themselves from a **static feed on the repository's GitHub releases** (L5.16f) — the
+repository names no account, no key and no URL; the repository comes from your environment (`GITHUB_REPOSITORY`).
+**The repository must be public**: the apps download with no credentials (a private one is refused). Its
+*immutable releases* setting must stay off (the feed's files are replaced at every release).
 
 ```
-<public URL>/retake/latest.json                    the newest STABLE version   ← stable builds read this
-<public URL>/retake/rc.json                        the newest version, pre-release or not ← pre-release builds
-<public URL>/retake/v<version>/Retake.app.tar.gz   the signed archive
-<public URL>/retake/v<version>/platforms/<platform>.json   {signature, url}
+<server>/<owner>/<repo>/releases/download/update-feed/latest.json   the newest STABLE version ← stable builds read this
+<server>/<owner>/<repo>/releases/download/update-feed/rc.json       the newest version, pre-release or not ← pre-release builds
+<server>/<owner>/<repo>/releases/download/v<version>/Retake.app.tar.gz (+ .sig)     the signed archive
+<server>/<owner>/<repo>/releases/download/v<version>/platform-<platform>.json        {signature, url}
 ```
+
+`update-feed` is one fixed release, a pre-release (never shown as the latest), created by the first publication; it
+is the only release whose files are replaced once public. GitHub answers those addresses with a redirect to its
+download host: the app follows it, https only at every hop.
 
 0. **Bump the version** — one number in about fifteen files (the root and every package's `package.json`,
    `RETAKE_VERSION` in `packages/core/src/formats.ts`, `apps/desktop/tauri.conf.json`, the Claude plugin's manifest,
@@ -4165,7 +4169,7 @@ upload-only endpoint, or a bucket that answers `403` for a missing key, cannot b
    file's content is the public key.
 2. **Build** with the feed and the key in the environment (both, or neither):
    ```sh
-   RETAKE_UPDATE_FEED=https://<your host>/retake/latest.json \
+   RETAKE_UPDATE_FEED=$(GITHUB_REPOSITORY=<owner>/<repo> node scripts/release.mjs feed <version>) \
    RETAKE_UPDATE_PUBKEY="$(cat ~/retake-updater.key.pub)" \
    TAURI_SIGNING_PRIVATE_KEY="$HOME/retake-updater.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=… \
    pnpm desktop:release --out <folder> --ffmpeg <folder>        # or desktop:bundle for an ad hoc build
@@ -4175,28 +4179,45 @@ upload-only endpoint, or a bucket that answers `403` for a missing key, cannot b
    command that signs the archive; every other child gets an allow-listed environment without either.
    A pre-release build (a version with `-rc.N`) names `…/rc.json` instead, so it is offered the next pre-release and
    the final version, and a stable build is never offered a pre-release — the build refuses a feed of the other
-   channel than its version (`latest.json` for a stable version, `rc.json` for a pre-release). The feed must be https; the overlay compiles
+   channel than its version (`latest.json` for a stable version, `rc.json` for a pre-release). `release.mjs feed`
+   prints the right one for the version (`GITHUB_SERVER_URL` when not GitHub's own). The feed must be https (any https
+   feed works for a local build); the overlay compiles
    `requireSignedVersion` and no downgrade in. Besides the app and the DMG the folder then holds
    `Retake.app.tar.gz` (made with macOS's tar: every link of the app kept, no extended attribute) and its `.sig`
    (`tauri signer sign --app-version <version>`; the private key reaches that one command only), checked against the
    public key before the build ends. Without the private key the archive is left unsigned (nothing to publish).
 3. **Write the release notes** — the paragraph under `## [<version>]` in `CHANGELOG.md`, for the person about to click
    Install and Restart (plain text: the sheet shows it as typed).
-4. **Publish**:
+4. **Publish** — first the version's GitHub release, public (`gh release create v<version> --verify-tag …`, the
+   archive and its `.sig` attached or not: the step attaches them when missing), then:
    ```sh
-   UPDATES_UPLOAD_TOKEN=… UPDATES_UPLOAD_URL=https://<upload address> UPDATES_PUBLIC_URL=https://<your host> \
+   GITHUB_TOKEN=<token> GITHUB_REPOSITORY=<owner>/<repo> \
    RETAKE_UPDATE_PUBKEY="$(cat ~/retake-updater.key.pub)" \
    node scripts/publish-update.mjs <version> --artifact <folder>/Retake.app.tar.gz --signature <folder>/Retake.app.tar.gz.sig
    ```
-   It checks the signature in Node first (the key, the archive, the signed version) and uploads nothing otherwise;
-   then the archive and its platform file, then it **rebuilds** `rc.json` (every version) and `latest.json` (stable
-   ones) from the platform files present for that version — a re-run heals a feed that lost a race, and a channel is
-   never moved back to an older version. A version already published with **another** archive is not replaced
-   unless you add `--force` (apps downloading meanwhile would get a signature mismatch and install nothing); the same
-   archive again is a re-run. Only `darwin-aarch64` is accepted for `--platforms` (the archive is the Apple-silicon
-   app). With `RETAKE_UPDATE_FEED` set (the feed you built with), it must be this version's channel on
-   `UPDATES_PUBLIC_URL`. `--notes <file>` replaces the CHANGELOG's paragraph; `UPDATES_APP` names another folder than
-   `retake` (a rehearsal: `UPDATES_APP=_probe`). Both URLs must be https.
+   It checks the signature in Node first (the key, the archive, the signed version) and writes nothing otherwise;
+   then, still before any write, that the repository is public, that `v<version>` is a **published** release (a
+   draft's files answer 404 to the apps) and that what it already holds is these very bits (the archive and `.sig`:
+   size and GitHub's sha256; the platform file: the same signature and URL). Then only what the release lacks — the
+   archive, its `.sig`, `platform-darwin-aarch64.json` — and it **rebuilds** `rc.json` (every version) and
+   `latest.json` (stable ones) on `update-feed` from the platform files the version's release holds — a re-run heals a
+   feed that lost a race, and a channel is never moved back to an older version. Other bits on a public release are
+   refused with no override (the old `--force` is gone): a fixed build is a new version. Only `darwin-aarch64` is
+   accepted for `--platforms` (the archive is the Apple-silicon app). With `RETAKE_UPDATE_FEED` set (the feed you built
+   with), it must be this version's channel on this repository. `--notes <file>` replaces the CHANGELOG's paragraph.
+   `GITHUB_API_URL` and `GITHUB_SERVER_URL` (https) default to GitHub's own; the token needs `contents: write` on the
+   repository — prefer a fine-grained token limited to this repository (*Contents: Read and write*) over
+   `$(gh auth token)`, which is your whole account's (the workflow uses its job token). The token goes to the API and
+   to the API's own upload host only (`uploads.<host>` for `api.<host>`, else the API's host); a release naming another
+   upload address is refused.
+   Every request has a timeout, and a server error, a rate limit (its `Retry-After` honoured up to a minute) or a
+   network error is asked again with a pause. A channel is replaced through `<channel>.tmp-<run>`, and looked at again
+   before each delete: a newer feed another publication wrote meanwhile is kept. **If it stops saying a channel "may
+   be MISSING"** (the old file deleted, the rename not done), every app's check fails until it is back: run the same
+   command again — it writes the channel and removes the temporary file it kept. A channel kept at a version with no
+   published release (a feed that would freeze every app) is printed as a `::warning::` and the command still succeeds
+   (a channel never moves back on its own): delete that file on `update-feed`, then publish the newest real version
+   again. A half-uploaded file of an interrupted run on the version's release is deleted and uploaded again.
 5. **Check it on a Mac with the previous version** (MACOS-CHECKLIST 15d): the status bar offers the update, Install
    and Restart lands on the new version.
 

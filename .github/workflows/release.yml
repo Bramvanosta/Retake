@@ -1,11 +1,12 @@
 # Releases from a version tag (L5.16e; docs/RELEASING.md): the macOS app's disk image on a GitHub release, its update
-# on your own update host.
+# in the feed the installed apps read — this repository's `update-feed` release (L5.16f).
 #  - a pushed tag vX.Y.Z       → a release (its update goes to latest.json and rc.json)
 #  - a pushed tag vX.Y.Z-rc.N  → a pre-release (its update goes to rc.json only)
 #
 # Five jobs; the signing keys never share a runner with dependency code (review e A-H1):
 #  - release (ubuntu): the tag is the repository's version and a commit of main; what is configured (each set of
-#    secrets and variables all or nothing: a partial set fails here, before anything is built); the release created
+#    secrets and variables all or nothing: a partial set fails here, before anything is built; the updater set needs a
+#    public repository); the release created
 #    as a DRAFT — nobody sees it yet — or edited (a re-run).
 #  - build (macOS, contents: read, NO secret): dependencies, the packages, Rust, the pinned Tauri CLI, Chromium, our
 #    ffmpeg, then the app laid out and signed ad hoc exactly as `pnpm desktop:bundle` does (`--app-only`); packed
@@ -16,8 +17,9 @@
 #    archive signed by the sha512-pinned Tauri CLI, the DMG; the outputs as an artifact.
 #  - attach (ubuntu, contents: write): refuses unless the release is still a draft (public files are never replaced),
 #    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
-#  - publish (ubuntu, `environment: release`): the release made public, then the update published
-#    (scripts/publish-update.mjs).
+#  - publish (ubuntu, `environment: release`, contents: write, one at a time across tags): the release made public, then
+#    the update published (scripts/publish-update.mjs, with the job token: the version's platform file, then the
+#    update-feed release's latest.json / rc.json — the only release whose files are replaced once public).
 #
 # No CI workflow runs the tests on pull requests or main yet (BACKLOG BL-144): nothing here checks that the tagged
 # commit's tests passed — run `pnpm build` and `pnpm test` before you tag.
@@ -28,14 +30,14 @@
 #    APPLE_TEAM_ID, APPLE_API_KEY (an App Store Connect API key's id), APPLE_API_ISSUER, APPLE_API_KEY_P8 (its .p8)
 #    — none: an ad hoc app, the notes say it is not notarised;
 #  - the updater set: TAURI_SIGNING_PRIVATE_KEY (the updater key file's content) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-#    (secrets), RETAKE_UPDATE_PUBKEY (the .pub file's content) and UPDATES_PUBLIC_URL (https) (variables) — none: an
-#    app without the updater ("Updates are off in this build");
-#  - the upload pair: UPDATES_UPLOAD_TOKEN (secret), UPDATES_UPLOAD_URL (variable, https) — none: the update is not
-#    published (publish it by hand).
+#    (secrets), RETAKE_UPDATE_PUBKEY (the .pub file's content, a variable) — none: an app without the updater ("Updates
+#    are off in this build"). The feed's address comes from the run's own context (GITHUB_SERVER_URL,
+#    GITHUB_REPOSITORY: scripts/release.mjs feed); publishing it needs no other secret than the job token.
 # Secrets live in the `release` environment (Settings › Environments › release: deployments from v* tags only);
 # variables there or in the repository. Only the jobs that reference the environment can read its secrets.
 #
-# The job token may write releases: it is handed only to the steps that call `gh`, in jobs that run no build tool.
+# The job token may write releases: it is handed only to the steps that call `gh` and to publish-update.mjs, in jobs
+# that run no build tool.
 name: Release
 
 on:
@@ -65,7 +67,6 @@ jobs:
       prerelease: ${{ steps.version.outputs.prerelease }}
       signed: ${{ steps.config.outputs.signed }}
       updates: ${{ steps.config.outputs.updates }}
-      upload: ${{ steps.config.outputs.upload }}
       feed: ${{ steps.config.outputs.feed }}
       pubkey: ${{ steps.config.outputs.pubkey }}
       dmg: ${{ steps.config.outputs.dmg }}
@@ -95,15 +96,25 @@ jobs:
             echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not a commit of main: tag a commit of main"
             exit 1
           fi
+      - name: The repository's visibility
+        id: repository
+        # An app with the updater downloads its updates with no credentials: the preflight refuses a repository that is
+        # not public (review f A-L3), before anything is built — publish-update.mjs checks it again before it writes.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh api "repos/$GH_REPO" --jq '"private=\(.private)", "visibility=\(.visibility)"' >> "$GITHUB_OUTPUT"
       - name: What is configured
         id: config
         # Each set all or nothing (a partial one fails here, naming what is missing — and "a variable, not a secret"
-        # when a name sits in the other store); the feed and the public key checked; the files' names.
+        # when a name sits in the other store); the feed (this repository's update-feed release: GITHUB_SERVER_URL and
+        # GITHUB_REPOSITORY, the run's own), the repository public and the public key checked; the files' names.
         env:
           VERSION: ${{ steps.version.outputs.version }}
-          UPDATES_PUBLIC_URL: ${{ vars.UPDATES_PUBLIC_URL }}
+          REPO_PRIVATE: ${{ steps.repository.outputs.private }}
+          REPO_VISIBILITY: ${{ steps.repository.outputs.visibility }}
           RETAKE_UPDATE_PUBKEY: ${{ vars.RETAKE_UPDATE_PUBKEY }}
-          UPDATES_UPLOAD_URL: ${{ vars.UPDATES_UPLOAD_URL }}
           HAS_SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
           HAS_SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
           HAS_SECRET_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
@@ -113,10 +124,7 @@ jobs:
           HAS_SECRET_APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 != '' }}
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
-          HAS_SECRET_UPDATES_UPLOAD_TOKEN: ${{ secrets.UPDATES_UPLOAD_TOKEN != '' }}
           HAS_SECRET_RETAKE_UPDATE_PUBKEY: ${{ secrets.RETAKE_UPDATE_PUBKEY != '' }}
-          HAS_SECRET_UPDATES_PUBLIC_URL: ${{ secrets.UPDATES_PUBLIC_URL != '' }}
-          HAS_SECRET_UPDATES_UPLOAD_URL: ${{ secrets.UPDATES_UPLOAD_URL != '' }}
           HAS_VAR_APPLE_CERTIFICATE: ${{ vars.APPLE_CERTIFICATE != '' }}
           HAS_VAR_APPLE_CERTIFICATE_PASSWORD: ${{ vars.APPLE_CERTIFICATE_PASSWORD != '' }}
           HAS_VAR_APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY != '' }}
@@ -126,7 +134,6 @@ jobs:
           HAS_VAR_APPLE_API_KEY_P8: ${{ vars.APPLE_API_KEY_P8 != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY: ${{ vars.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ vars.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
-          HAS_VAR_UPDATES_UPLOAD_TOKEN: ${{ vars.UPDATES_UPLOAD_TOKEN != '' }}
         run: |
           set -eu
           node scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"
@@ -489,10 +496,15 @@ jobs:
   publish:
     needs: [release, attach]
     runs-on: ubuntu-24.04
+    # No secret here: the environment is the gate (its reviewers, its v* rule) before the release goes public.
     environment: release
     timeout-minutes: 20
     permissions:
       contents: write
+    # One publication at a time in this repository, whatever the tag: two tags' runs never rewrite the feed together.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -535,21 +547,17 @@ jobs:
               exit 1
             fi
           done
-      - name: The update is not published
-        if: needs.release.outputs.updates == 'on' && needs.release.outputs.upload != 'on'
-        run: echo "::warning::No UPDATES_UPLOAD_TOKEN secret and UPDATES_UPLOAD_URL variable — the update is not published; publish it by hand (docs/RELEASING.md)"
       - name: Publish the update
-        if: needs.release.outputs.updates == 'on' && needs.release.outputs.upload == 'on'
-        # The signature is checked against RETAKE_UPDATE_PUBKEY before anything is uploaded; the feeds are rebuilt,
-        # never moved back (docs/RELEASING.md).
+        if: needs.release.outputs.updates == 'on'
+        # The signature is checked against the public key the app was built with before anything is written; then the
+        # version's platform file and the update-feed release's channels, rebuilt, never moved back — through the
+        # GitHub REST API with the job token (GITHUB_REPOSITORY, GITHUB_API_URL, GITHUB_SERVER_URL: the run's own).
         env:
           VERSION: ${{ needs.release.outputs.version }}
           ARCHIVE: ${{ needs.release.outputs.archive }}
           SIGNATURE: ${{ needs.release.outputs.signature }}
-          UPDATES_UPLOAD_TOKEN: ${{ secrets.UPDATES_UPLOAD_TOKEN }}
-          UPDATES_UPLOAD_URL: ${{ vars.UPDATES_UPLOAD_URL }}
-          UPDATES_PUBLIC_URL: ${{ vars.UPDATES_PUBLIC_URL }}
-          RETAKE_UPDATE_PUBKEY: ${{ vars.RETAKE_UPDATE_PUBKEY }}
+          RETAKE_UPDATE_PUBKEY: ${{ needs.release.outputs.pubkey }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -eu
           # The feed of this version's channel: publish-update.mjs checks it against the version.

@@ -129,6 +129,8 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'update_flow::tests::the_download_limits',
       'update_flow::tests::watch_stops_an_endless_or_hanging_download_and_a_later',
       'update_flow::tests::the_archive_on_disk',
+      // L5.16f: https at every hop of the check and the download (GitHub's releases redirect), but in the e2e build.
+      'update_flow::tests::https_at_every_hop_but_in_the_e2e_build',
     ]) {
       expect(out, name).toMatch(new RegExp(`${name} \\.\\.\\. ok`));
     }

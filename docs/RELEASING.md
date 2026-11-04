@@ -2,8 +2,10 @@
 
 Releases are made by GitHub Actions (L5.16e): pushing a tag `vX.Y.Z` runs `.github/workflows/release.yml`, which builds
 the macOS app on a GitHub-hosted Apple-silicon runner, signs it on another one, attaches its disk image to a GitHub
-release and publishes the update to **your own update host**. The repository names no host, no key and no account:
-everything comes from a GitHub environment's secrets and the repository's variables. Each part is all or nothing —
+release and publishes the update in **the feed the installed apps read: a release of this same repository**,
+`update-feed` (L5.16f — no update host of your own). The repository names no host, no key and no account: everything
+comes from a GitHub environment's secrets, the repository's variables and the run's own context (the repository it
+runs in). Each part is all or nothing —
 none of its settings: that part is skipped and said in the run's log; some of them: the run fails at once, naming what
 is missing. Without a single secret the workflow still makes a release: an ad hoc app, not notarised, that does not
 update itself.
@@ -22,7 +24,11 @@ All of this is in the repository's Settings on GitHub; you make it there (nothin
    secrets*), not in the repository's: a workflow file pushed on any branch could read repository secrets.
 2. **A tag ruleset** — Settings › Rules › Rulesets › New ruleset › *New tag ruleset*: target `v*`, *Restrict
    creations*, *Restrict updates*, *Restrict deletions*, with yourself (the repository admin role) as the only bypass.
-   Nobody else can make a release, and a published tag cannot be moved.
+   Nobody else can make a release, and a published tag cannot be moved. Then **a second tag ruleset** for the feed:
+   target `update-feed`, *Restrict updates* and *Restrict deletions* only — not *Restrict creations*: the first
+   publication creates that tag with the workflow's job token —, yourself as the bypass. The workflow needs no bypass:
+   replacing the feed's files never moves or deletes its tag (a deleted `update-feed` tag would turn the release into
+   a draft, and every app's check would get a 404).
 3. **main's protection** — a branch ruleset (or branch protection) on `main`: no force push, no deletion, changes
    through a pull request (you may keep yourself as a bypass). The release job only builds commits of `main`.
 4. **The variables** — Settings › Secrets and variables › Actions › *Variables* (repository variables, or the
@@ -40,13 +46,11 @@ All of this is in the repository's Settings on GitHub; you make it there (nothin
 | `TAURI_SIGNING_PRIVATE_KEY` | secret | the updater's private key file (its whole text) | updater |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | its password | updater |
 | `RETAKE_UPDATE_PUBKEY` | **variable** | the updater's public key (the `.pub` file's text): compiled into the app | updater |
-| `UPDATES_PUBLIC_URL` | **variable** | the https address the apps download from, e.g. `https://updates.example.com` | updater |
-| `UPDATES_UPLOAD_TOKEN` | secret | the upload's bearer token | upload |
-| `UPDATES_UPLOAD_URL` | **variable** | the https address the workflow uploads to | upload |
 
 - **Apple** — none: an ad hoc app (Gatekeeper: Open Anyway). All seven: signed with your Developer ID, notarised.
-- **updater** — none: no updater in the app ("Updates are off in this build"). All four: the app updates itself.
-- **upload** — none: the update is not published (publish it by hand: README › *Releasing an update*). Both: published.
+- **updater** — none: no updater in the app ("Updates are off in this build"). All three: the app updates itself, and
+  each release publishes its update in the feed — with the run's own job token, no other secret (*The update feed*
+  below).
 
 A set with a missing piece fails the run in its first job, "What is configured", before anything is built — naming the
 missing names, and saying "set as a variable: it must be a secret" (or the reverse) when you put one in the wrong
@@ -91,12 +95,46 @@ password and the `.pub` in your password manager, then: `pbcopy < ~/retake-updat
 the password → `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `pbcopy < ~/retake-updater.key.pub` → the `RETAKE_UPDATE_PUBKEY`
 **variable**.
 
-### The update host
+### The update feed: a GitHub release
 
-Any web server with public reads and an authenticated upload; the upload address must accept a `PUT` and answer a `GET`
-with the file or `404` (the contract and the layout: README › *Releasing an update*). `UPDATES_PUBLIC_URL` and
-`UPDATES_UPLOAD_URL` as variables, `UPDATES_UPLOAD_TOKEN` as a secret of the environment. An app built by the workflow
-reads `<UPDATES_PUBLIC_URL>/retake/latest.json` (a pre-release: `rc.json`).
+Nothing to set up but two settings that must stay as they are:
+
+- **The repository is public.** An installed app downloads its updates with no credentials, from the releases' public
+  download addresses. With the updater set, the `release` job reads the repository's visibility with its job token
+  (`gh api`) and refuses a repository that is not public before anything is built; the publish step checks it again.
+- **Its name and its owner stay as they are.** Every installed app carries `<server>/<owner>/<repo>/…` compiled in.
+  After a rename GitHub redirects the old addresses — until someone creates a repository with the old name; and an
+  owner's old login can be claimed by anyone, who would then serve the old apps' feed (withhold or freeze their
+  updates — never make an app install something your key did not sign). If you must rename: never reuse or give up
+  the old name (keep the old login when the owner changes), publish the next versions from the new name (their apps
+  read the new address), and know that the apps installed before stop seeing updates if the redirect ever ends — they
+  then need the new version downloaded once from its release page.
+- **Immutable releases stay OFF** (Settings › General › Releases). The feed's two files are replaced at every release,
+  and each version's release gains its platform file once public — an immutable release allows neither.
+
+The feed lives on **one fixed release, `update-feed`**, which the first publication creates (its tag too, on the
+default branch): a *pre-release*, so GitHub never shows it as the latest release, holding `latest.json` (the newest
+stable version) and `rc.json` (the newest version, pre-release or not). An app built by the workflow reads
+`<server>/<owner>/<repo>/releases/download/update-feed/latest.json` (a pre-release build: `rc.json`) — the address
+`node scripts/release.mjs feed <version>` prints from the run's context (`GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`);
+it is compiled into the app, never committed. GitHub answers that address with a redirect to its download host: the
+app follows it, https only at every hop. Each version's release holds the archive `Retake.app.tar.gz`, its `.sig` and
+`platform-darwin-aarch64.json` (`{signature, url}`); the feed is rebuilt from those platform files at every
+publication.
+
+Do not edit, delete or rename `update-feed` or its files by hand: the installed apps read them. The `v*` ruleset
+restricts creations, the `update-feed` one does not, so the workflow's token may create the `update-feed` tag. A feed
+file is replaced through a temporary name (`latest.json.tmp-<run>`: uploaded whole, then the old file deleted and the
+new one renamed), so an app checking at that instant at worst gets one failed check and asks again later. Before each
+delete the file holding the name is looked at again: a newer feed another publication wrote meanwhile is kept. Every
+request has a timeout, and a server error, a rate limit or a network error is asked again (with a pause; GitHub's
+`Retry-After` up to a minute). **A `publish` interrupted or failing between the delete and the rename** (a runner lost,
+a cancelled run, GitHub down longer than the retries) leaves that channel missing — every app's check fails until it
+is back — and its new feed kept as `<channel>.tmp-<run>`; the job's error says "may be MISSING": **re-run `publish`**
+(*Re-run failed jobs*): it writes the channel again and removes the temporary file (any temporary file of an
+interrupted run goes at the next publication). A channel at a version that has no published release — a feed file
+someone put there by hand — is never moved back by a publication: the run says so in a `::warning::` annotation and
+stays green; delete that file on `update-feed`, then re-run the newest version's `publish`.
 
 ## Each release
 
@@ -118,7 +156,7 @@ reads `<UPDATES_PUBLIC_URL>/retake/latest.json` (a pre-release: `rc.json`).
    Apple's notarisation, which can take long for a new team's first submissions):
    - `release` refuses a tag that is not the repository's version (`node scripts/set-version.mjs --check`, then
      `node scripts/release.mjs tag`) or not a commit of main, checks **what is configured** (each part all or nothing;
-     `node scripts/release.mjs preflight`), then creates the release as a **draft** with the CHANGELOG paragraph and
+     the updater only on a public repository; `node scripts/release.mjs preflight`), then creates the release as a **draft** with the CHANGELOG paragraph and
      how to install.
    - `build` (no secret at all) installs the dependencies (`pnpm install --frozen-lockfile`), Rust 1.99.1, Playwright's
      Chromium and headless shell — checked against the digests `apps/desktop/bundle/browsers.json` pins — and our
@@ -135,16 +173,22 @@ reads `<UPDATES_PUBLIC_URL>/retake/latest.json` (a pre-release: `rc.json`).
    - `attach` refuses unless the release is still a draft, removes any file of an earlier run this build does not
      make, attaches the DMG, the archive and its `.sig`, and `SHA256SUMS-macos.txt`, and completes the notes (notarised
      or "Open Anyway", updates on or off).
-   - `publish` makes the release public (*latest*, or a *pre-release*), then publishes the update with
-     `scripts/publish-update.mjs` when the upload part is set (the signature is checked against
-     `RETAKE_UPDATE_PUBKEY` before anything is uploaded). With the updater on, a missing archive or `.sig` fails it.
+   - `publish` makes the release public (*latest*, or a *pre-release*), then — the updater on — fetches the archive
+     and its `.sig` back from the release (a missing one fails it) and publishes the update with
+     `scripts/publish-update.mjs` and the job token: the signature is checked against `RETAKE_UPDATE_PUBKEY` before
+     anything is written; then the version's release must be public and hold these very bits; it gains
+     `platform-darwin-aarch64.json`, and the `update-feed` release's `rc.json` (and `latest.json` for a stable
+     version) are rebuilt — never moved back to an older version. One `publish` runs at a time in the repository,
+     whatever the tag (two runs never rewrite the feed together; GitHub may cancel a third one waiting — re-run it).
 6. **Check it** (MACOS-CHECKLIST 15b): download the DMG from the release page on another account or Mac — it opens
    with no Gatekeeper prompt — and update the previous version through the feed (15d).
 
 **A job failed?** Fix what it says (a secret, a variable), then Actions › the run › *Re-run failed jobs* — while the
 release is still a draft: a re-run edits the draft instead of failing on it and replaces its files. **Once the release
 is public its files are never replaced**: a re-run of `sign` / `attach` then fails in `attach` ("public already"), and
-a re-run of `publish` only heals the feed with the same archive. A fix in the code needs a new version (`0.2.2`):
+a re-run of `publish` only heals the feed with the same archive (publish-update.mjs refuses other bits on a public
+release — there is no override: a fixed build is a new version) — which is also the fix when `publish` says a channel
+"may be MISSING" (*The update feed* above). A fix in the code needs a new version (`0.2.2`):
 never move a tag once its release is public or its update is published (the tag ruleset stops it anyway). While the
 release is still a draft and nothing was published, you may delete the draft and the tag (`git push --delete origin
 v0.2.1`) and tag the fixed commit.
@@ -165,8 +209,11 @@ sign job refuses an app whose version (Info.plist) is not the tag's.
 
 - It runs on pushed `v*` tags only — never on a pull request — with read-only permissions by default; `contents: write`
   only on the three jobs that call `gh` (`release`, `attach`, `publish`), which run no build tool; the job token only in
-  the steps that call `gh`. Every action is GitHub's own, pinned to the commit of an exact release (the tag is written
-  beside it); checkouts keep no credential.
+  the steps that call `gh` and in `publish` › *Publish the update* (`scripts/publish-update.mjs`, plain Node: the
+  GitHub REST API through `fetch`, no other token, no other host). Every action is GitHub's own, pinned to the commit
+  of an exact release (the tag is written beside it); checkouts keep no credential.
+- The feed is not signed — only the archive is: whoever can write the repository's releases can withhold an update or
+  point the feed elsewhere, never make an app install something not signed by your updater key.
 - **The signing keys never share a runner with code from a dependency.** On a hosted runner every step runs as the same
   user, and a process one step leaves behind can read files and other processes' environments until the job ends. So
   the `build` job, which runs the dependencies' code (pnpm's packages and their scripts, cargo's build scripts,

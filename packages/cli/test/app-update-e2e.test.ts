@@ -5,7 +5,9 @@
  * - the app built twice by bundle.mjs with the e2e overlay (testUpdaterOverlay: the feed on http://127.0.0.1:<port>,
  *   the one place the plugin's insecure-transport flag is set) — 0.2.0, then 0.2.1 from the same stage and cargo
  *   target; the second build makes the update archive (Retake.app.tar.gz, our tar) and signs it with the test key;
- * - a local feed server: latest.json (publish-update.mjs `buildManifest`) and the archive;
+ * - a local feed server: latest.json (publish-update.mjs `buildManifest`) and the archive, each answered as GitHub
+ *   answers a release's file (L5.16f): a redirect to another host — here a second server on the next port — which
+ *   serves it (the client follows it, https-only aside: update_flow `https_only` is off for the e2e build alone);
  * - a scratch copy of the 0.2.0 app, run directly (test mode, never through LaunchServices) on a scratch workspace with
  *   a scratch HOME / Retake home / TMPDIR / CFFIXED_USER_HOME; RETAKE_DESKTOP_TEST_UPDATE=install clicks Install and
  *   Restart once the launch check finds the update.
@@ -13,6 +15,7 @@
  * running at 0.2.0. Then the real one: the owned server stops gracefully, the bundle is swapped, the app restarts at
  * 0.2.1 by itself (critique H3) — its signature verifies (`codesign --verify --deep --strict`), every link of the build
  * is there, no AppleDouble file, Chromium and the headless shell launch from it.
+ * RETAKE_TEST_UPDATE_PORT=<port> (default 4990; the storage stand-in takes the next one).
  * RETAKE_TEST_BUNDLE_FFMPEG=<dir> (optional) bundles that ffmpeg; RETAKE_TEST_UPDATE_REPORT=<file> writes the numbers;
  * RETAKE_TEST_KEEP=1 keeps the temp folder, RETAKE_TEST_UPDATE_REUSE=<that folder> runs again on its builds (each run's
  * app log is written there: app-<n>.log).
@@ -29,13 +32,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const ENABLED = process.env.RETAKE_TEST_UPDATE === '1' && process.platform === 'darwin' && process.arch === 'arm64';
-const PORT = 4990;
+const PORT = Number(process.env.RETAKE_TEST_UPDATE_PORT ?? 4990);
 const BIN_NAME = /^name = "([^"]+)"/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'Cargo.toml'), 'utf8'))![1];
 const LSREGISTER = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 let base: string;
 let feed: Server | undefined;
+let storage: Server | undefined;
+/** Every request the two servers got: `feed <url>` / `storage <url>`. */
+const hits: string[] = [];
 let served: { manifest: string; archive: string } = { manifest: '{}', archive: '' };
 let copy: string;
 let built: { v1: Record<string, any>; v2: Record<string, any> };
@@ -143,16 +149,25 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
       report.build = { v1: { timings_ms: v1.timings_ms, sizes: v1.sizes }, v2: { timings_ms: v2.timings_ms, sizes: v2.sizes, archive: v2.updater?.archive } };
       report.build_ms = Date.now() - t0;
     }
-    // The feed: a stand-in for the person's host, on this test's port.
+    // The feed as GitHub serves a release's files: the release's address answers with a redirect to another host (the
+    // storage, on the next port), which serves the file.
     feed = createServer((req, res) => {
-      if (req.url === '/retake/latest.json') return void res.writeHead(200, { 'content-type': 'application/json' }).end(served.manifest);
-      if (req.url === '/retake/v0.2.1/Retake.app.tar.gz' && served.archive) {
+      hits.push(`feed ${req.url}`);
+      const to = { '/retake/latest.json': 'latest.json', '/releases/download/v0.2.1/Retake.app.tar.gz': 'Retake.app.tar.gz' }[req.url ?? ''];
+      if (to) return void res.writeHead(302, { location: `http://127.0.0.1:${PORT + 1}/storage/${to}?signed=1` }).end();
+      res.writeHead(404).end();
+    });
+    storage = createServer((req, res) => {
+      hits.push(`storage ${req.url}`);
+      if (req.url === '/storage/latest.json?signed=1') return void res.writeHead(200, { 'content-type': 'application/json' }).end(served.manifest);
+      if (req.url === '/storage/Retake.app.tar.gz?signed=1' && served.archive) {
         res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(statSync(served.archive).size) });
         return void createReadStream(served.archive).pipe(res);
       }
       res.writeHead(404).end();
     });
     await new Promise<void>((r) => feed!.listen(PORT, '127.0.0.1', () => r()));
+    await new Promise<void>((r) => storage!.listen(PORT + 1, '127.0.0.1', () => r()));
     // The 0.2.0 app's scratch copy (ditto keeps links, modes and signatures) and the scratch world it runs in.
     copy = join(base, 'apps', `${built.v1.app.split('/').pop()}`);
     mkdirSync(dirname(copy), { recursive: true });
@@ -165,6 +180,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     await stopAll();
     for (const k of kids) k.kill('SIGKILL');
     await new Promise<void>((r) => (feed ? feed.close(() => r()) : r()));
+    await new Promise<void>((r) => (storage ? storage.close(() => r()) : r()));
     if (copy && existsSync(LSREGISTER)) spawnSync(LSREGISTER, ['-u', copy], { stdio: 'ignore' });
     if (process.env.RETAKE_TEST_UPDATE_REPORT) writeFileSync(process.env.RETAKE_TEST_UPDATE_REPORT, `${JSON.stringify(report, null, 1)}\n`);
     process.stdout.write(`update e2e: ${JSON.stringify(report)}\n`);
@@ -194,7 +210,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     const keyDir = join(base, 'key');
     const s = spawnSync(process.execPath, [join(base, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js'), 'signer', 'sign', '--app-version', '0.2.1', other], { encoding: 'utf8', cwd: base, env: { PATH: process.env.PATH ?? '', HOME: keyDir, TAURI_SIGNING_PRIVATE_KEY: readFileSync(join(keyDir, 'test.key'), 'utf8'), TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'e2e-test-password' } });
     expect(s.status, s.stderr).toBe(0);
-    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(`${other}.sig`, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/retake/v0.2.1/Retake.app.tar.gz` } } })) };
+    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(`${other}.sig`, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } } })) };
     const run = launch();
     await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
     await run.wait(/updates: Retake 0\.2\.1 is available/, 60_000);
@@ -214,9 +230,10 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
   it('the real update: the server stops gracefully, the bundle is swapped, the app restarts at 0.2.1 by itself — signed, whole, and Chromium launches from it', async () => {
     const pub = (await import(pathToFileURL(join(REPO, 'scripts', 'publish-update.mjs')).href)) as any;
     const a = built.v2.updater.archive;
-    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(a.signature, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/retake/v0.2.1/Retake.app.tar.gz` } } })) };
+    served = { archive: a.archive, manifest: JSON.stringify(pub.buildManifest({ version: '0.2.1', notes: 'Retake 0.2.1', pubDate: new Date().toISOString(), platforms: { 'darwin-aarch64': { signature: readFileSync(a.signature, 'utf8').trim(), url: `http://127.0.0.1:${PORT}/releases/download/v0.2.1/Retake.app.tar.gz` } } })) };
     // The check of the first run is remembered (at most once a day): forget it.
     rmSync(join(base, 'retake-home', 'desktop-updates.json'), { force: true });
+    hits.length = 0;
     const t0 = Date.now();
     const run = launch();
     await run.wait(/version 0\.2\.0 \(updates on\)/, 60_000);
@@ -227,6 +244,9 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     await run.wait(/restarted the app directly \(pid \d+\)/, 30_000);
     await run.wait(/version 0\.2\.1 \(updates on\)/, 60_000);
     report.update_ms = Date.now() - t0;
+    // L5.16f: the check and the download each followed the redirect to the other host, as with GitHub's releases.
+    expect(hits).toEqual(expect.arrayContaining(['feed /retake/latest.json', 'storage /storage/latest.json?signed=1', 'feed /releases/download/v0.2.1/Retake.app.tar.gz', 'storage /storage/Retake.app.tar.gz?signed=1']));
+    report.redirects = hits;
     const at = (re: RegExp) => run.lines.findIndex((l) => re.test(l));
     // The owned server stopped (gracefully: its exit, not a kill) before the swap.
     const stopped = at(/stopped the Studio server \(pid \d+, quit\)/);
