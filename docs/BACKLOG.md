@@ -2177,8 +2177,9 @@ and `job_end` lines); what remains:
   without `--enable-nonfree`), and Remotion encodes AAC with it. Ask Remotion (the same email as the licence question)
   or render the audio track elsewhere (our ffmpeg's AAC) before the first sale.
 
-- **The repository's own licence (2026-11-04, with the public README).** No `LICENSE` file yet: the person chooses
-  one (the reference desktop project uses MIT). Whatever it is, it covers Retake's own code only:
+- **The repository's own licence: MIT (the person's decision, 2026-11-04, with the public README).** `LICENSE` at the
+  root (copyright "The Retake authors": the repository names no person), `license` in the root package.json and both
+  Cargo manifests. It covers Retake's own code only:
   - **Remotion is not open source.** Its own licence (`node_modules/remotion/LICENSE.md`, v4: free for individuals
     and companies of up to 3 people, a Company licence from 4) binds everyone who renders with Retake, from the app or
     from source; a permissive licence on Retake does not relicense it. The README says so, and a sold or hosted Retake
@@ -2190,6 +2191,9 @@ and `job_end` lines); what remains:
     stays open whatever licence is chosen.
   - Bundled fonts keep their own licences: Geist (`packages/ui/fonts/LICENSE.txt`) and the starter templates' fonts
     (each template's `LICENSES.md`).
+  - **To do:** the app carries Retake's own code, so the MIT notice belongs in it too: the stage's `licenses/`
+    (`apps/desktop/scripts/bundle.mjs`) should copy the root `LICENSE` beside the third-party notices, checked by the
+    bundle tests.
 
 ### BL-139 — The app bundle on other platforms
 *M · cut in L5.16a · builds on: L5.16a*

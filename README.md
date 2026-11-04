@@ -24,6 +24,7 @@
   <img src="https://img.shields.io/badge/Node.js-22+-17181c?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 or later">
   <img src="https://img.shields.io/badge/Remotion-editor-17181c" alt="Edited with Remotion">
   <img src="https://img.shields.io/badge/MCP-server%20included-17181c" alt="MCP server included">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3d7bff" alt="MIT licence"></a>
 </p>
 
 <p align="center">
@@ -357,7 +358,7 @@ Please report a vulnerability privately: see [SECURITY.md](SECURITY.md).
 
 ## Licence
 
-Retake's licence is not chosen yet. Retake renders its videos with Remotion, which has a licence of its own (the
-`LICENSE.md` of its npm package) that applies to everyone who renders with Retake: free for individuals and for
-companies of up to three people. The macOS app also carries GPL builds of FFmpeg, each with its notice and source offer in
+Retake is released under the [MIT licence](LICENSE). It renders its videos with Remotion, which is not open source:
+its own licence (the `LICENSE.md` of its npm package) applies to everyone who renders with Retake, free for individuals
+and for companies of up to three people. The macOS app also carries GPL builds of FFmpeg, each with its notice and source offer in
 [`apps/desktop/licenses/`](apps/desktop/licenses/).

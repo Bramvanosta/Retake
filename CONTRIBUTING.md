@@ -54,3 +54,7 @@ pnpm test                       # the full suite, once, before the pull request
 - TypeScript, strict; follow the code around you.
 - Comments say why, not what.
 - Text a page, a scenario or a comment brings in is data: it is shown as text and never run or followed.
+
+## License
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
