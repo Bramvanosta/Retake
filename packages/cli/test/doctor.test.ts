@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { BundleInfo } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
 import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
@@ -70,7 +71,8 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
       if (cmd === '/opt/media/bin/ffprobe') return { code: 0, stdout: FFPROBE_VERSION, stderr: '' };
       return dockerAnswers(cmd, args);
     },
-    exists: (p) => existsSync(p),
+    // retake.yaml's ffmpeg has its ffprobe beside it (core resolveMediaTools looks there first).
+    exists: (p) => p === '/opt/media/bin/ffprobe' || existsSync(p),
     chromium: async (): Promise<ChromiumProbe> => ({
       path: '/Users/me/Library/Caches/ms-playwright/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium',
       source: 'playwright',
@@ -268,6 +270,99 @@ describe('retake doctor (mocked environment)', () => {
     } finally {
       await rm(broken, { recursive: true, force: true });
     }
+  });
+});
+
+describe('retake doctor from an app bundle (L5.16a): every tool line names its source, no pnpm / brew hint', () => {
+  const bundle: BundleInfo = {
+    root: '/Applications/Retake.app/Contents/Resources',
+    sealed: '/Applications/Retake.app',
+    manifest: {} as BundleInfo['manifest'],
+    paths: { node: '/R/node/bin/node', engine: '/R/engine', browsers: '/R/browsers', ffmpeg: '/R/ffmpeg/bin', templates: '/R/engine/templates', plugin: '/R/plugin' },
+  };
+  const appChromium = async (): Promise<ChromiumProbe> => ({ path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium', source: 'bundled', exists: true, launched: true, version: '141.0.7390.37', ms: 500, gpu: { accelerated: true } });
+  const answers = (bins: Record<string, string>) => async (cmd: string, args: string[]): Promise<ExecResult | null> => {
+    const tool = Object.entries(bins).find(([, path]) => path === cmd)?.[0];
+    if (!tool) return dockerAnswers(cmd, args);
+    if (args.includes('h264_videotoolbox')) return { code: 0, stdout: '', stderr: '' };
+    return { code: 0, stdout: `${tool.startsWith('ffprobe') ? 'ffprobe' : 'ffmpeg'} version 9.0.2 Copyright\n`, stderr: '' };
+  };
+  let bare: string;
+  beforeAll(async () => {
+    bare = await mkdtemp(join(tmpdir(), 'studio-doctor-bundle-'));
+    await writeFile(join(bare, 'retake.yaml'), `templates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  });
+  afterAll(async () => rm(bare, { recursive: true, force: true }));
+  const run = async (probes: DoctorProbes, root = bare) => {
+    const io = memoryIo();
+    const code = await doctorCommand(new Ui(io), { root }, { json: true }, probes);
+    return { code, checks: (JSON.parse(io.stdout()) as { checks: DoctorCheck[] }).checks };
+  };
+
+  it('bundled tools: ffmpeg, ffprobe, Chromium and the render browser say "bundled"', async () => {
+    const r = await run(macProbes({ bundle, chromium: appChromium, exec: answers({ ffmpeg: '/R/ffmpeg/bin/ffmpeg', ffprobe: '/R/ffmpeg/bin/ffprobe' }), renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }) }));
+    expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'ok', detail: '9.0.2 · /R/ffmpeg/bin/ffmpeg · bundled' });
+    expect(byName(r.checks, 'ffprobe').detail).toBe('9.0.2 · /R/ffmpeg/bin/ffprobe · bundled');
+    expect(byName(r.checks, 'Chromium').detail).toContain(' · bundled · new headless');
+    expect(byName(r.checks, 'Render browser')).toMatchObject({ status: 'ok', detail: expect.stringMatching(/headless_shell · bundled$/) });
+  });
+
+  it('the order: retake.yaml, then $RETAKE_FFMPEG, then the bundle, then PATH', async () => {
+    const all = { ffmpeg: '/opt/media/bin/ffmpeg', ffprobe: '/opt/media/bin/ffprobe', envff: '/env/ffmpeg', envfp: '/env/ffprobe', bff: '/R/ffmpeg/bin/ffmpeg', bfp: '/R/ffmpeg/bin/ffprobe', pff: '/usr/local/bin/ffmpeg', pfp: '/usr/local/bin/ffprobe' };
+    const probes = (over: Partial<DoctorProbes>) => macProbes({ chromium: appChromium, exec: answers(all), which: (c) => (c === 'ffmpeg' ? all.pff : c === 'ffprobe' ? all.pfp : null), ...over });
+    expect(byName((await run(probes({ bundle, env: { RETAKE_FFMPEG: '/env/ffmpeg' } }), ws)).checks, 'ffmpeg').detail).toMatch(/\/opt\/media\/bin\/ffmpeg · retake\.yaml$/);
+    expect(byName((await run(probes({ bundle, env: { RETAKE_FFMPEG: '/env/ffmpeg' } }))).checks, 'ffmpeg').detail).toMatch(/\/env\/ffmpeg · \$RETAKE_FFMPEG$/);
+    expect(byName((await run(probes({ bundle }))).checks, 'ffmpeg').detail).toMatch(/bundled$/);
+    expect(byName((await run(probes({ bundle: null }))).checks, 'ffmpeg').detail).toMatch(/\/usr\/local\/bin\/ffmpeg · PATH$/);
+  });
+
+  it('a damaged app: FAIL with "reinstall Retake", never a pnpm / brew command', async () => {
+    const r = await run(macProbes({
+      bundle,
+      exec: async () => null,
+      chromium: async () => ({ path: '/R/browsers/chromium-1194/x/Chromium', source: 'bundled', exists: false, launched: false }),
+      renderBrowser: () => ({ path: null, source: 'remotion', note: "the app's headless shell is missing" }),
+    }));
+    expect(r.code).toBe(EXIT.failure);
+    for (const name of ['ffmpeg', 'ffprobe', 'Chromium', 'Render browser']) {
+      const c = byName(r.checks, name);
+      expect(c.status, name).toBe('fail');
+      expect(c.hint, name).toMatch(/reinstall Retake/);
+    }
+    for (const c of r.checks) expect(`${c.detail} ${c.hint ?? ''}`).not.toMatch(/\bpnpm\b|\bbrew\b/);
+  });
+
+  it('an app without its own ffmpeg, or with $RETAKE_CHROMIUM pointing nowhere: still no pnpm / brew / Homebrew hint', async () => {
+    const noFfmpeg: BundleInfo = { ...bundle, paths: { ...bundle.paths, ffmpeg: null } };
+    const r = await run(macProbes({
+      bundle: noFfmpeg,
+      exec: async () => null,
+      which: () => null,
+      chromium: async () => ({ path: '/nowhere/Chromium', source: 'RETAKE_CHROMIUM', exists: false, launched: false }),
+      renderBrowser: () => ({ path: '/R/browsers/chromium_headless_shell-1194/chrome-mac/headless_shell', source: 'bundled' }),
+    }));
+    expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'fail', hint: expect.stringContaining('this app carries no ffmpeg of its own') });
+    expect(byName(r.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining("remove it to use the app's own") });
+    for (const c of r.checks) expect(`${c.name}: ${c.detail} ${c.hint ?? ''}`).not.toMatch(/\bpnpm\b|\bbrew\b|Homebrew/);
+  });
+
+  it('a damaged bundle (core bundleProblems) is a FAIL line of its own; a relative $RETAKE_FFMPEG is refused', async () => {
+    const r = await run(macProbes({ bundle: null, bundleProblems: () => ['bundle.json: paths.ffmpeg (../../ffmpeg) leaves the bundle'], env: { RETAKE_FFMPEG: 'tools/ffmpeg' } }));
+    expect(byName(r.checks, 'App bundle')).toMatchObject({ status: 'fail', detail: expect.stringContaining('leaves the bundle'), hint: 'reinstall Retake' });
+    expect(byName(r.checks, 'ffmpeg')).toMatchObject({ status: 'fail', detail: expect.stringMatching(/\$RETAKE_FFMPEG \(tools\/ffmpeg\) must be an absolute path/) });
+    expect((await run(macProbes({ bundleProblems: () => [] }))).checks.find((c) => c.name === 'App bundle')).toBeUndefined();
+  });
+
+  it("the MCP line checks what the MCP client gets (PATH + RETAKE_HOME only): the shell's $RETAKE_FFMPEG does not count", async () => {
+    const path = '/usr/bin:/bin';
+    // A client PATH of system folders only (no Homebrew completed in, a node folder without ffmpeg).
+    const exists = (p: string) => !/^\/(?:opt\/homebrew|usr\/local)\b/.test(p) && existsSync(p);
+    const probes = (env: Record<string, string>) =>
+      macProbes({ chromium: appChromium, env: { PATH: path, ...env }, exec: answers({ ff: '/env/ffmpeg', fp: '/env/ffprobe' }), worker: async () => null, execPath: '/nowhere/node/bin/node', exists });
+    const shellOnly = byName((await run(probes({ RETAKE_FFMPEG: '/env/ffmpeg', RETAKE_FFPROBE: '/env/ffprobe' }))).checks, 'MCP');
+    expect(shellOnly).toMatchObject({ status: 'warn', detail: expect.stringContaining('$RETAKE_FFMPEG is set in this shell only') });
+    // retake.yaml's ffmpeg is read by the server itself: nothing to check on the client's PATH.
+    expect(byName((await run(probes({ RETAKE_FFMPEG: '/env/ffmpeg' }), ws)).checks, 'MCP').detail).not.toContain('ffmpeg is not on the PATH');
   });
 });
 

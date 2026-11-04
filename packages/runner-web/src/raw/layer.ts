@@ -16,6 +16,7 @@ import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { CURSOR_LOOK, type CursorFrame } from './cursor.js';
+import { ffmpegBin } from '@retake/core';
 
 /** Atlas geometry (CSS px): each sprite in a cell, its hotspot (the cursor point / ripple centre) at `hot`. */
 export const ATLAS = { cell: 128, hot: 64, columns: 12, ripple_step_s: 1 / 120, scale_steps: 10 } as const;
@@ -139,7 +140,7 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
   }
   const W = columns * cell * opts.scale;
   const H = rows * cell * opts.scale;
-  const rgba = await run(opts.ffmpeg ?? 'ffmpeg', ['-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'], png);
+  const rgba = await run(ffmpegBin(opts.ffmpeg), ['-v', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'], png);
   if (rgba.length !== W * H * 4) throw new EncodeError(`cursor atlas: decoded ${rgba.length} bytes, expected ${W}×${H} RGBA`);
   const empty: Sprite = { dx: 0, dy: 0, w: 0, h: 0, data: Buffer.alloc(0) };
   const sprite = (i: number) => cutSprite(rgba, W, (i % columns) * cell * opts.scale, Math.floor(i / columns) * cell * opts.scale, cell * opts.scale, hot * opts.scale) ?? empty;
@@ -240,7 +241,7 @@ export async function encodeCursorLayer(opts: {
   signal?: AbortSignal;
 }): Promise<void> {
   const { width, height } = opts;
-  const bin = opts.ffmpeg ?? 'ffmpeg';
+  const bin = ffmpegBin(opts.ffmpeg);
   const child = spawn(bin, layerArgs(opts.format, width, height, opts.fps, opts.frames.length, opts.out, opts.timecode), { stdio: ['pipe', 'ignore', 'pipe'] });
   let err = '';
   child.stderr.on('data', (d: Buffer) => {

@@ -33,6 +33,7 @@ import {
   hookStepNames,
   resolveNamedHook,
   stepHookList,
+  ffmpegBin,
 } from '@retake/core';
 import type {
   AgentChannel,
@@ -121,7 +122,7 @@ export interface RunOptions {
   signal?: AbortSignal;
   /** Overrides project.config.browser. */
   browser?: BrowserConfig;
-  /** ffmpeg binary (default "ffmpeg" on PATH). */
+  /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
   /**
    * Capture without the in-page cursor (raw export for editors, L2.13: `retake run --raw --cursor none|layer`). The
@@ -1045,7 +1046,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           const t = trackOf(ev);
           const file = t ? join(dir, t.builder.info.file) : record.capture;
           return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
-        }, capture.fps, opts.ffmpeg ?? 'ffmpeg', log);
+        }, capture.fps, ffmpegBin(opts.ffmpeg), log);
   }
   // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
   let transitions: RunPerf['transitions'];

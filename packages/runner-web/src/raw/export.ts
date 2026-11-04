@@ -15,11 +15,11 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText } from '@retake/core';
-import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
+import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin } from '@retake/core';
+import type { BrowserConfig, DisplayEntry, H264Encoder, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
-import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
+import { LAYER_ENCODING, RAW_ENCODING, clipFrameFiles, concatClips, decodeVideoFrames, encodeClip, exportSchedule, probeVideo, rawCodecLabel, readFrameSource, type FrameSource, type ProbedVideo } from './encode.js';
 import { encodeCursorLayer, renderCursorAtlas, type CursorAtlas } from './layer.js';
 import { MARKER_COLORS, markersCsv, markersJson, rawMarkers, timecode, writeEdl, writeFcpxml, writeOtio, type PackageFiles, type RawMarkerKind } from './markers.js';
 import { clipFrameAt, mainSource, planRawExport, sequenceStartOf, trackSource, type RawClipPlan, type RawPlan } from './plan.js';
@@ -206,7 +206,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
     );
   }
   const emit = opts.onProgress ?? (() => undefined);
-  const ffmpeg = opts.ffmpeg ?? 'ffmpeg';
+  const ffmpeg = ffmpegBin(opts.ffmpeg);
   const notes: string[] = [];
   const warnings: string[] = [];
   emit({ stage: 'plan', done: 0, total: 1 });
@@ -257,12 +257,14 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
       return entry;
     };
     const probes = new Map<number, ProbedVideo>();
+    // The H.264 encoder the MP4 clips were really made with (one ffmpeg: the same for every clip) names their codec.
+    let h264: H264Encoder | undefined;
     for (const c of plan.clips) {
       opts.signal?.throwIfAborted();
       emit({ stage: 'clip', done: c.index, total: plan.clips.length, message: clipRel(c) });
       const { source, schedule } = await sourceOf(c);
       const out = join(work, clipRel(c));
-      await encodeClip({
+      h264 = (await encodeClip({
         source,
         files: clipFrameFiles(c, schedule),
         fps: s.fps,
@@ -274,7 +276,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         tmp,
         ffmpeg,
         signal: opts.signal,
-      });
+      })) ?? h264;
       const p = await probeVideo(out, { ffprobe: opts.ffprobe });
       if (p.frames !== c.frames) warnings.push(`${clipRel(c)}: ${p.frames} frames written, ${c.frames} planned`);
       probes.set(c.index, p);
@@ -339,7 +341,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
         await concatClips(primaries.map((c) => join(work, clipRel(c))), join(work, rel), tmp, ffmpeg, opts.signal);
         const p = await probeVideo(join(work, rel), { ffprobe: opts.ffprobe });
         if (p.frames !== plan.frames) warnings.push(`${rel}: ${p.frames} frames, the sequence has ${plan.frames}`);
-        selects = { file: rel, frames: p.frames, duration_s: round3(p.frames / s.fps), codec: enc.label, size_bytes: p.size_bytes };
+        selects = { file: rel, frames: p.frames, duration_s: round3(p.frames / s.fps), codec: rawCodecLabel(s.format, h264), size_bytes: p.size_bytes };
       }
     }
 
@@ -386,7 +388,7 @@ export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExpo
       },
       settings: {
         format: s.format,
-        codec: enc.label,
+        codec: rawCodecLabel(s.format, h264),
         fps: s.fps,
         cursor: s.cursor,
         ...(s.cursor === 'layer' ? { layer: s.layer, layer_codec: LAYER_ENCODING[s.layer].label } : {}),

@@ -50,9 +50,27 @@ Because the browser is headless and offscreen, a capture does not take over your
 ## Requirements
 
 - macOS or Linux, Node.js 22+ (an older Node.js gets a message saying so; `.nvmrc` pins 22 for nvm, and for mise when `idiomatic_version_file_enable_tools` includes `node`), pnpm 10
-- ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `retake.yaml`); used with 6.1 (Linux) and 9.0 (macOS, Homebrew)
+- ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `retake.yaml`, or `$RETAKE_FFMPEG`); used with 6.1 (Linux) and
+  9.0 (macOS, Homebrew)
 - Chromium for Playwright: `pnpm --filter @retake/runner-web exec playwright-core install chromium`
   (or point `$RETAKE_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
+
+**Where Retake finds its tools** (one order for every tool, L5.16): an explicit setting (`retake.yaml` `ffmpeg:`,
+`browser.executable`) → an explicit variable (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`,
+`$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the app's own (when Retake runs from the app bundle: its Node.js, Chromium,
+headless shell, ffmpeg, starter themes and Claude plugin) → the system's (`PATH`, Playwright's cache). From a
+repository checkout there is no bundle, so nothing changes. ffprobe is taken beside `retake.yaml`'s ffmpeg when one is
+there, else `$RETAKE_FFPROBE`, else beside `$RETAKE_FFMPEG` when one is there, else the app's, else `PATH` — a lone
+static ffmpeg in `retake.yaml` keeps the ffprobe found before. A path in `retake.yaml` (`ffmpeg: tools/ffmpeg`) is the
+workspace's (relative to its root); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPROBE` is refused (it would name another
+file in each process) — an absolute path or a command name on `PATH`. `retake doctor` names the source on each tool line
+(`retake.yaml`, `$RETAKE_FFMPEG`, `bundled`, `PATH`, `Playwright cache`); its MCP line checks the ffmpeg an MCP client
+will get (the registration carries `PATH` and `RETAKE_HOME` only, never your shell's `$RETAKE_FFMPEG`). An ffmpeg
+without libx264 (a foreign build) still encodes H.264, through the Mac's VideoToolbox (same SSIM as libx264 CRF 18 on a
+1080p render, ≈ 3× larger files; a raw package then says "VideoToolbox q:v 85" for its clips); one with neither is
+refused with the ffmpeg's path. Each H.264 site asks the ffmpeg once (`ffmpeg -encoders`, cached per path). The app's
+own ffmpeg decodes AV1 videos only where the Mac has an AV1 hardware decoder (M3 and later): it carries no software AV1
+decoder.
 - Optional: PostgreSQL client access for `sql` hooks
 - Optional: Docker with Compose v2.17+ (Docker Desktop or OrbStack) for docker-compose sandboxes (Sandbox mode)
 
@@ -102,7 +120,9 @@ it: `alias retake="node /path/to/retake/packages/cli/dist/bin.js"`.
 
 ## Your own workspace
 
-Keep your material in a folder of your own, for example:
+Keep your material in a folder of your own: `retake init ~/demo-workspace` makes one (a commented `retake.yaml`,
+`projects/` and a `.gitignore` naming `.retake/`; an existing workspace is left as it is, a non-empty folder without
+`retake.yaml` is refused). For example:
 
 ```
 ~/demo-workspace/
@@ -243,6 +263,7 @@ retake export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4
 retake schema [scenario|project|template|timeline|sandbox]    # JSON Schema on stdout
 retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
 retake auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
+retake init [dir]                                     # make a folder a workspace (retake.yaml, projects/)
 retake doctor [--project P] [--json]                  # check this machine, the workspace and a project
 retake prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
 retake mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
@@ -1786,7 +1807,9 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
 - **Assets**: the capture, fonts, logo, wordmark and music (`ds-asset:` URLs in the plan) are served by a local HTTP
   server on 127.0.0.1 (random port, random path token, Range requests, CORS) for the duration of the render.
 - **Browser**: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
-  playwright-core's browser registry: `playwright-core install chromium-headless-shell`), else Remotion's own.
+  playwright-core's browser registry: `playwright-core install chromium-headless-shell`; the app bundle's own when
+  Retake runs from it), else Remotion's own (never from the app bundle: one without its headless shell refuses to
+  render — reinstall it).
 - **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?})`
   → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `encoding`, `done`); `renderStill({plan,
   frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
@@ -4094,6 +4117,24 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   `RETAKE_TEST_SLOW=1`, a fixture capture on its timeline too); by hand: MACOS-CHECKLIST 14a (Finder, picker, keys,
   drag & drop, the Player playing, Quit during a capture, the notification permission, a banner and its click). Not
   yet: native pickers for the Studio's path fields, signing and an installer (BACKLOG BL-125, BL-36).
+- **The standalone app's payload (L5.16, in progress).** `node apps/desktop/scripts/bundle.mjs stage --out <scratch dir>
+  [--ffmpeg <dir with ffmpeg and ffprobe>]` stages, offline, everything the app will carry in
+  `Contents/Resources`: this Node.js (major 22, re-signed ad hoc), the engine (`pnpm deploy --prod`, hoisted, without
+  maps or `.d.ts`), the Chromium and headless shell revisions the engine's playwright-core pins (copied from
+  Playwright's cache, never downloaded), Remotion's compositor relinked to `@loader_path`, ffmpeg (relocatable builds
+  only; without `--ffmpeg` the system's is used), the starter themes, the Claude plugin, the licences and `bundle.json`
+  (versions, relative paths, sha256, sizes). ≈ 980 MB with ffmpeg. `bundle.mjs check <dir>` re-runs its layout check
+  (links relative and inside, no file with a second hard link, no path of the build machine in any text file, one
+  playwright-core, the browser markers empty). The stage never writes the checkout: pnpm hard-links the injected
+  workspace packages to the repository's files, so the stage gives each of them a copy of its own before writing
+  anything, copies only git-tracked templates and skills, and ends by comparing the checkout's `git status` (and the
+  bytes of every file it lists) with what it was. The staged engine runs as is: `<stage>/node/bin/node
+  <stage>/engine/dist/bin.js doctor` names every tool `bundled` (a damaged `bundle.json` is an "App bundle" FAIL line,
+  never a crash). Nothing writes inside a bundle (a workspace or one of its folders there, a project folder linked into
+  it, a `$RETAKE_HOME` there, any command's `--out` there, or a component preview next to a built-in component, is
+  refused; from it, `components preview --all` means `--workspace`). Licences: `apps/desktop/licenses/` holds our
+  ffmpeg's notices and written source offer, and the notice of Remotion's compositor (its own GPL FFmpeg build; the
+  stage refuses a compositor version the notice does not name). The app itself, signing and the DMG come next.
 
 ## Security
 

@@ -4,6 +4,8 @@
  * the worker lock; `retake worker` runs the same). stdout stays empty: whatever a library prints goes
  * to stderr, which the spawner sends to .retake/workers/worker.log.
  */
+// First: the app bundle's browsers before any module loads playwright-core (bundle-env.ts; the cli app-bundle test).
+import './bundle-env.js';
 import { WORKER_CLIENT_RE } from './jobs/lock.js';
 import { runWorker } from './jobs/worker.js';
 

@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { probeMedia } from '@retake/editor';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
+import { ffmpegBin } from '@retake/core';
 
 export interface VideoInfo {
   width: number;
@@ -62,7 +63,7 @@ export async function extractFrames(
   const filters = [`select='${selectExpr(wanted)}'`];
   if (opts.width !== opts.videoWidth || opts.height !== opts.videoHeight) filters.push(`scale=${opts.width}:${opts.height}:flags=area`);
   const args = ['-v', 'error', '-nostdin', '-i', file, '-vf', filters.join(','), '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'];
-  const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
+  const proc = spawn(ffmpegBin(), args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
   let stderr = '';
   proc.stderr.on('data', (c: Buffer) => {
     if (stderr.length < 4000) stderr += c.toString();

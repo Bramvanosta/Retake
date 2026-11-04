@@ -2138,6 +2138,45 @@ and `job_end` lines); what remains:
   favicons); a menu-bar / template-image form of the mark (none needed while the app has no status item).
 <!-- old-name:end -->
 
+### BL-137 — Relocatable-engine extras cut from L5.16a (the stage, the resolver)
+*S–M · cut in L5.16a · builds on: L5.16a · see BL-41*
+
+- **A thinner engine**: @remotion/bundler still pulls @remotion/studio, studio-server, codemods, the ElevenLabs /
+  Whisper packages (≈ 60 MB of the 314 MB engine) and the deploy keeps every `README` / `test/` folder of third-party
+  packages; a prune list per package (checked by a render from the stage) would cut them.
+- **The lockfile tool**: `pnpm install --offline --lockfile-only` dropped the platform-specific optional packages it
+  has no metadata for (Remotion's compositors) when an importer's dependencies were re-resolved (L5.16a removing
+  `@remotion/cli`); on unchanged manifests it reproduces the lockfile byte for byte. A dependency removal offline was a
+  pure deletion, done by hand; a small script (prune one importer dependency and what only it reached) in `scripts/`
+  if it happens again.
+- `retake init` options: a name for the first project, a theme copied from a starter, a git repository started.
+- Doctor's own probes under Node's permission model (docker places, `.git` above the workspace, `which` of security /
+  osascript): a doctor that degrades to "not checked" instead of throwing when a read is refused.
+- An SSIM-calibrated VideoToolbox quality per site (one q:v 85 everywhere today: same SSIM as libx264 CRF 18 on the
+  fixture's 1080p render, ≈ 3× the size) — only matters for a foreign ffmpeg without libx264.
+- A Chromium licence file of its own in the stage (today a notice pointing at chrome://credits).
+- The write guard covers the workspace, its folders, a project folder (even a link into the app), `retake init`,
+  component previews, `RETAKE_HOME` and the CLI's `--out` paths; a write a third-party library makes on its own
+  (playwright-core's 30-day `DEPENDENCIES_VALIDATED` refresh, empty) is not guarded.
+
+### BL-138 — Remotion's compositor ffmpeg before a sale (GPL source offer, fdk-aac)
+*S · found in L5.16a's review · builds on: L5.16a, BL-41 · before the first sale*
+
+- `@remotion/compositor-darwin-arm64` ships its own FFmpeg n7.1 build, GPL v2+ (`--enable-gpl`, libx264, libx265),
+  in the app (`apps/desktop/licenses/remotion-compositor/README.md`). A sold app needs a written source offer for it
+  as for our own ffmpeg: confirm where Remotion publishes the exact source and build script of each compositor
+  release, mirror them next to the disk image, and extend the offer.
+- That build also compiles in fdk-aac with `--enable-gpl` (FFmpeg's configure calls the pair non-redistributable
+  without `--enable-nonfree`), and Remotion encodes AAC with it. Ask Remotion (the same email as the licence question)
+  or render the audio track elsewhere (our ffmpeg's AAC) before the first sale.
+
+### BL-139 — The app bundle on other platforms
+*M · cut in L5.16a · builds on: L5.16a*
+
+- `apps/desktop/scripts/bundle.mjs stage` is macOS on Apple silicon only (Remotion's compositor, our ffmpeg build,
+  Playwright's browser folders and the Node.js copy are per platform). An Intel Mac (x64 or universal) or a Linux
+  engine bundle would stage the matching compositor, ffmpeg and browsers.
+
 
 ## Guard-rails for planned lots (no new scope)
 

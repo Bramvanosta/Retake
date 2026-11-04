@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
+import { insideBundle, isRelativeToolPath } from './bundle.js';
 import { FORMAT_VERSIONS } from './formats.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
 import { oldWorkspaceFileAt, oldWorkspaceFileMessage } from './legacy.js';
@@ -77,6 +78,15 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     componentsDir: dir(cfg.components_dir, 'components'),
   };
   if (cfg.browser) out.browser = cfg.browser;
-  if (cfg.ffmpeg) out.ffmpeg = expandHome(cfg.ffmpeg);
+  // A path (`tools/ffmpeg`) is the workspace's, whatever the cwd of the process reading it (a worker's is the root, the
+  // Studio's or the MCP server's another); a bare name stays a command on PATH.
+  if (cfg.ffmpeg) {
+    const ff = expandHome(cfg.ffmpeg);
+    out.ffmpeg = isRelativeToolPath(ff) ? resolve(absRoot, ff) : ff;
+  }
+  // Nothing writes inside the app bundle (bundle.ts): a workspace, or one of its folders, there is refused.
+  for (const [what, p] of [['the workspace', out.root], ['projects_dir', out.projectsDir], ['templates_dir', out.templatesDir], ['components_dir', out.componentsDir]] as const) {
+    if (insideBundle(p)) throw new ConfigError(`${what} (${p}) lies inside the Retake app, which nothing may write to: use a folder of your own`, [], file);
+  }
   return out;
 }

@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import type { z } from 'zod';
+import { insideBundle } from './bundle.js';
 import { checkProject } from './checks/project.js';
 import { FORMAT_VERSIONS } from './formats.js';
 import { readPlainFile } from './plain-file.js';
@@ -172,6 +173,8 @@ async function resolveProjectDir(dirOrSlug: string, root?: string): Promise<{ di
 export async function loadProject(dirOrSlug: string, root?: string): Promise<LoadedProject> {
   const { dir, root: wsRoot } = await resolveProjectDir(dirOrSlug, root);
   const file = join(dir, PROJECT_FILE);
+  // Runs, renders and exports are written in the project folder: never one inside the app bundle (a link into it too).
+  if (insideBundle(dir)) throw new ConfigError(`the project ${dir} lies inside the Retake app, which nothing may write to: use a folder of your own`, [], file);
   const text = await readFile(file, 'utf8');
   const { config, issues } = parseProjectYaml(text, file);
   if (!config) throw new ConfigError(issuesMessage('project', issues, file), issues, file);

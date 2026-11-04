@@ -1,10 +1,14 @@
 /**
  * The browser Remotion renders with: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell
  * (looked up through playwright-core's browser registry, so it follows PLAYWRIGHT_BROWSERS_PATH and the installed
- * revision), else none (Remotion then downloads its own headless shell).
+ * revision: the app bundle's own when Retake runs from one — core bundle.ts), else none (Remotion then downloads its own
+ * headless shell — never from an app bundle, which nothing may write to: a bundle without its headless shell is broken).
  */
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { bundleInfo, insideBundle } from '@retake/core';
+import type { BundleInfo } from '@retake/core';
+import { RenderError } from './types.js';
 
 const require = createRequire(import.meta.url);
 
@@ -13,7 +17,7 @@ export const HEADLESS_SHELL_ENV = 'RETAKE_CHROMIUM_HEADLESS_SHELL';
 export interface RenderBrowser {
   /** Executable path, or null to let Remotion use its own. */
   path: string | null;
-  source: 'env' | 'playwright' | 'remotion';
+  source: 'env' | 'bundled' | 'playwright' | 'remotion';
   /** Why the preferred source was not used (shown as a warning). */
   note?: string;
 }
@@ -33,17 +37,24 @@ export function playwrightHeadlessShell(): string | null {
   }
 }
 
-export function renderBrowser(env: NodeJS.ProcessEnv = process.env): RenderBrowser {
+export function renderBrowser(env: NodeJS.ProcessEnv = process.env, bundle: BundleInfo | null = bundleInfo(), shell: () => string | null = playwrightHeadlessShell): RenderBrowser {
+  const found = (p: string): RenderBrowser['source'] => (insideBundle(p, bundle) ? 'bundled' : 'playwright');
   const fromEnv = env[HEADLESS_SHELL_ENV];
   if (fromEnv) {
     if (existsSync(fromEnv)) return { path: fromEnv, source: 'env' };
-    const pw = playwrightHeadlessShell();
+    const pw = shell();
     const note = `$${HEADLESS_SHELL_ENV} points to a missing file (${fromEnv})`;
-    return pw ? { path: pw, source: 'playwright', note } : { path: null, source: 'remotion', note };
+    return pw ? { path: pw, source: found(pw), note } : { path: null, source: 'remotion', note };
   }
-  const pw = playwrightHeadlessShell();
-  if (pw) return { path: pw, source: 'playwright' };
+  const pw = shell();
+  if (pw) return { path: pw, source: found(pw) };
+  if (bundle) return { path: null, source: 'remotion', note: `the app's headless shell is missing (${bundle.paths.browsers}): reinstall Retake` };
   return { path: null, source: 'remotion', note: "Playwright's chromium headless shell is not installed (playwright-core install chromium-headless-shell): Remotion uses its own" };
+}
+
+/** A render may start with this browser: never Remotion's download from inside an app bundle (RenderError). */
+export function assertRenderBrowser(b: RenderBrowser, bundle: BundleInfo | null = bundleInfo()): void {
+  if (!b.path && bundle) throw new RenderError(b.note ?? "the app's headless shell is missing: reinstall Retake");
 }
 
 /**

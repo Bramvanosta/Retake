@@ -1,5 +1,6 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
-import { COMPONENT_KINDS, RETAKE_VERSION, oldHomeLine, oldHomeState, oldVarsLine, oldVarsUnread } from '@retake/core';
+import { resolve } from 'node:path';
+import { COMPONENT_KINDS, RETAKE_VERSION, assertOutsideBundle, bundleInfoOrNull, oldHomeLine, oldHomeState, oldVarsLine, oldVarsUnread } from '@retake/core';
 import type { JsonSchemaName } from '@retake/core';
 import { commentAddCommand, commentListCommand, commentReopenCommand, commentReplyCommand, commentResolveCommand } from './commands/comment.js';
 import type { CommentAddOptions, CommentListOptions, CommentWriteOptions } from './commands/comment.js';
@@ -9,6 +10,7 @@ import { doctorCommand } from './commands/doctor.js';
 import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
 import type { HookCommandOptions } from './commands/hooks.js';
+import { initCommand } from './commands/init.js';
 import { LATER_COMMANDS, SCHEMA_NAMES, laterCommand, schemaCommand } from './commands/misc.js';
 import { authStatusCommand, loginCommand } from './commands/auth.js';
 import type { AuthStatusOptions, LoginOptions } from './commands/auth.js';
@@ -77,7 +79,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .description('Retake: precise YAML scenarios → product videos captured from a real web app')
-    .version(VERSION, '-V, --version')
+    .version(bundleInfoOrNull() ? `${VERSION} (app bundle: ${bundleInfoOrNull()!.sealed})` : VERSION, '-V, --version')
     .option('-C, --root <dir>', 'workspace root (default: $RETAKE_ROOT, else the nearest folder with retake.yaml)')
     .option('-v, --verbose', 'show debug and info messages')
     .option('--no-color', 'disable colours')
@@ -89,6 +91,17 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
       writeErr: (s) => io.err(s),
       outputError: (s, write) => write(s),
     });
+  // Nothing writes inside the app bundle (core bundle.ts): every command's --out is refused there, before it starts.
+  program.hook('preAction', (_program, command) => {
+    const out = command.opts<{ out?: unknown }>().out;
+    if (typeof out === 'string' && out) assertOutsideBundle(resolve(out), `--out ${out}`, bundleInfoOrNull());
+  });
+
+  program
+    .command('init')
+    .description('make a folder a workspace: retake.yaml (every key commented), projects/ and a .gitignore; an existing workspace is left as it is, a non-empty folder refused')
+    .argument('[dir]', 'the folder (default: the current one; created when missing)')
+    .action(action((u, _g, dir: string | undefined) => initCommand(u, dir)));
 
   program
     .command('new')

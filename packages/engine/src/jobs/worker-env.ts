@@ -14,6 +14,9 @@
  * - nothing that makes node or the system load code from the workspace: NODE_OPTIONS naming a file to load
  *   (`--require`, `--import`, `--loader`…: a relative one resolves in the worker's cwd, the workspace), NODE_PATH /
  *   DYLD_* / LD_PRELOAD / LD_LIBRARY_PATH holding a relative entry or one inside the workspace;
+ * - no tool variable naming a relative path (`RETAKE_FFMPEG`, `RETAKE_FFPROBE`, `RETAKE_CHROMIUM`,
+ *   `RETAKE_CHROMIUM_HEADLESS_SHELL` = `tools/x`: it would resolve in the worker's cwd, the workspace, and name another
+ *   file than in the client — L5.16; core refuses one anyway);
  * - RETAKE_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace).
  *
  * Everything else stays: an automated sign-in's `{{env:NAME}}` secrets (project.yaml) are read by the worker from its
@@ -21,7 +24,7 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { OLD_SECRET_ENV, clientPath, isUnder, retakeHome } from '@retake/core';
+import { OLD_SECRET_ENV, clientPath, isRelativeToolPath, isUnder, retakeHome } from '@retake/core';
 
 /** Variables a worker started by a client never gets. */
 export const WORKER_ENV_DROPPED: readonly RegExp[] = [
@@ -55,6 +58,9 @@ const NODE_LOADS = /(?:^|\s)(?:-r|--require|--import|--loader|--experimental-loa
 /** Path lists that make node or the dynamic linker load code. */
 const LOAD_PATH_VARS = /^(?:NODE_PATH|DYLD_[A-Z_]+|LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT)$/;
 
+/** Variables naming a program the worker runs (a command on PATH, or an absolute path). */
+const TOOL_PATH_VARS = /^RETAKE_(?:FFMPEG|FFPROBE|CHROMIUM|CHROMIUM_HEADLESS_SHELL)$/;
+
 /** Whether a path-list variable has an entry that is relative or inside the workspace. */
 function loadsFromWorkspace(value: string, root: string, sepRe: RegExp): boolean {
   return value
@@ -77,6 +83,7 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
     if (k === 'NODE_OPTIONS' && NODE_LOADS.test(v)) continue;
     // LD_PRELOAD separates with spaces or colons; the others with the PATH delimiter.
     if (LOAD_PATH_VARS.test(k) && loadsFromWorkspace(v, root, k === 'LD_PRELOAD' ? /[\s:]+/ : new RegExp(`[${delimiter}]`))) continue;
+    if (TOOL_PATH_VARS.test(k) && isRelativeToolPath(v.trim())) continue;
     out[k] = v;
   }
   out.PATH = clientPath(o.node ?? process.execPath, env.PATH ?? '', o.exists ?? existsSync, root);

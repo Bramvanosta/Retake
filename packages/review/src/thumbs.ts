@@ -12,6 +12,7 @@
 import { spawn } from 'node:child_process';
 import type { Readable } from 'node:stream';
 import sharp from 'sharp';
+import { ffmpegBin } from '@retake/core';
 
 /** Long side of a thumbnail, at most (240 CSS px on a 2× screen). */
 export const THUMB_MAX_PX = 480;
@@ -53,7 +54,7 @@ export interface VideoFramesOptions {
   signal?: AbortSignal;
   /** The process is killed after this long (default 10 s). */
   timeoutMs?: number;
-  /** ffmpeg binary (default "ffmpeg" on PATH). */
+  /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
 }
 
@@ -113,7 +114,7 @@ export async function videoFramesAt(input: VideoInput, seconds: readonly number[
     args.push('-map', `${i}:v:0`, '-frames:v', '1', '-vf', scale, '-f', 'image2pipe', '-c:v', 'png', `pipe:${out0 + i}`);
   });
   const stdio: Array<'ignore' | 'pipe' | number> = ['ignore', 'ignore', 'pipe', ...(fds ?? []), ...seconds.map(() => 'pipe' as const)];
-  const proc = spawn(o.ffmpeg ?? 'ffmpeg', args, { stdio });
+  const proc = spawn(ffmpegBin(o.ffmpeg), args, { stdio });
   let stderr = '';
   proc.stderr?.on('data', (c: Buffer) => {
     if (stderr.length < 2000) stderr += c.toString();

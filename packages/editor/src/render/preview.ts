@@ -23,7 +23,7 @@ import { randomBytes } from 'node:crypto';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { STARTER_TEMPLATES_DIR, loadTemplate } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate } from '@retake/core';
 import type { LoadedTemplate } from '@retake/core';
 import {
   PREVIEW_FILE,
@@ -42,7 +42,7 @@ import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta 
 import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
 import { startAssetServer } from './asset-server.js';
-import { renderBrowser } from './browser.js';
+import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
 import type { BundleComponent } from './bundle.js';
 import { armNetworkGuard, browserProcessInfo, pickFreePort } from './network-guard.js';
@@ -224,7 +224,7 @@ function run(cmd: string, args: string[]): Promise<{ code: number; stderr: strin
  * gradients). Returns false when ffmpeg is not available.
  */
 async function quantizePng(src: string, out: string): Promise<boolean> {
-  const r = await run('ffmpeg', [
+  const r = await run(ffmpegBin(), [
     '-v', 'error', '-y', '-i', src,
     '-vf', 'split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=bayer:bayer_scale=4',
     '-frames:v', '1', out,
@@ -290,6 +290,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
   },
   async open(o) {
     const browser = renderBrowser();
+    assertRenderBrowser(browser);
     const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
     let puppeteer: Awaited<ReturnType<typeof openBrowser>>;
     try {
@@ -575,6 +576,8 @@ async function renderLoop(ctx: SessionContext, preview: BuiltPreview, out: strin
 
 /** Render the previews of `targets` with one theme (see the module comment): the first failure throws. */
 export async function renderComponentPreviews(opts: RenderPreviewsOptions): Promise<RenderedPreview[]> {
+  // Written next to each component unless --out: never inside the app bundle (core bundle.ts), checked before rendering.
+  if (!opts.outDir) for (const t of opts.targets) assertOutsideBundle(t.dir, `the preview of ${t.id}`);
   const tpl = opts.template;
   const jobs = opts.targets.map((target) => ({ target, variants: ['still'] as const }));
   let done = 0;

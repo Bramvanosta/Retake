@@ -228,6 +228,6 @@ export const WorkspaceFileSchema = z
       .describe('Workspace components directory (<namespace>/<name>/component.yaml), relative to the workspace root (default "components").')
       .optional(),
     browser: BrowserConfigSchema.optional(),
-    ffmpeg: nonEmpty().describe('ffmpeg binary (default: "ffmpeg" on PATH).').optional(),
+    ffmpeg: nonEmpty().describe('ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app\'s own, else "ffmpeg" on PATH.').optional(),
   })
   .meta({ id: 'Workspace', title: 'Retake workspace', description: 'retake.yaml' });

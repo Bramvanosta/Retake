@@ -1,8 +1,8 @@
 import { realpathSync, statSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import type { z } from 'zod';
+import { starterTemplatesDir } from './bundle.js';
 import { CheckContext } from './checks/context.js';
 import { checkMediaFields } from './checks/media.js';
 import { isTemplateMediaRef, resolveThemeComponents } from './components.js';
@@ -170,8 +170,8 @@ function isDirectory(p: string): boolean {
   }
 }
 
-/** The starter templates shipped with Retake (default, editorial, motion): `templates/` of the repository. */
-export const STARTER_TEMPLATES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
+/** The starter templates shipped with Retake (default, editorial, motion): the app bundle's, else `templates/` of the repository. */
+export const STARTER_TEMPLATES_DIR = starterTemplatesDir();
 
 export interface TemplateEntry {
   name: string;

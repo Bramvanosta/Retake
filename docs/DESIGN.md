@@ -5133,6 +5133,127 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
+## 4p. The standalone app (L5.16; started in L5.16a: the bundle layout and the resolver)
+
+R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
+resolver, and behaves exactly as before when there is no bundle (a repository checkout).
+
+**Layout** (`Retake.app/Contents/Resources`, or a stage folder — `apps/desktop/scripts/bundle.mjs stage`):
+
+```
+bundle.json         the manifest (below)
+node/bin/node       the building Node.js 22 (system libraries only; re-signed — ad hoc in L5.16a)
+engine/             pnpm deploy --prod of @retake/cli, hoisted (the isolated layout names the build machine's paths in
+                    .pnpm folder names), every hard-linked file given an inode of its own first (pnpm imports the
+                    injected workspace packages as hard links to the checkout's package.json and dist/ files), pnpm's
+                    own records removed, injected workspace packages' `workspace:` / `file:` specs replaced by their
+                    version, *.map / *.d.ts / .bin pruned; the compositor's bare install names rewritten to
+                    @loader_path (the hardened runtime ignores the DYLD_LIBRARY_PATH Remotion sets); engine/templates/
+                    (git-tracked files only)
+browsers/           chromium-<rev>, chromium_headless_shell-<rev>: the revisions the deployed playwright-core's
+                    browsers.json pins, from Playwright's cache (ditto, links kept); markers empty and freshly dated
+ffmpeg/bin/         ffmpeg + ffprobe handed with --ffmpeg (system libraries only), else absent (`ffmpeg: null`)
+plugin/             .claude-plugin/marketplace.json + skills/ (git-tracked; the Claude plugin marketplace)
+licenses/           node/, chromium/, remotion/, apps/desktop/licenses/** (ffmpeg/: our build's notices and written
+                    source offer; remotion-compositor/: the compositor's GPL FFmpeg build — version, configuration,
+                    source pointer; the stage refuses a compositor version it does not name), THIRD-PARTY.md
+```
+
+`bundle.json` (v 1): `app` (the one version), `node`, `playwright {core, chromium, headless_shell}`, `compositor`,
+`ffmpeg {version, licence, libx264, sha256} | null`, `minimum_macos` (`15.0`: Remotion's own libraries are built for
+it; part b puts it in Info.plist), `paths {node, engine, browsers, ffmpeg|null, templates, plugin}` relative to the
+folder holding it, `sha256`, `sizes`. The stage refuses an out folder inside the checkout or /Applications, a cache
+without the pinned browsers (the message names the one install command, the person's), an ffmpeg linking outside the
+system; it ends with `checkStage` (also `bundle.mjs check <dir>`, and the tests on a small fake stage): paths inside
+and present, every link relative and resolving inside, no regular file with a second hard link (a write to it would
+change the checkout or the store), no path of the build machine (home, checkout) in any text file of the stage
+(`.js`, `.json`, `.md`, `.yaml`… up to 8 MB each), one playwright-core, empty markers, the Mach-O files listed (thin and
+FAT magic: part b's signing walk). Stage hygiene: `xattr -cr` (after the links are broken). **The checkout is never
+written**: `stage` snapshots `git status --porcelain` with the sha256 of every file it lists before and after (a file
+already modified and written again keeps its status line; its bytes tell), and fails loudly, naming both, when they
+differ — whether the stage succeeded or not. (Found by L5.16a's reviews: the first stage rewrote nine
+`packages/*/package.json` through pnpm's hard links.) Measured (L5.16a): 977 MB = Node 110, engine 314 (after D7: `@remotion/cli`
+dropped; @remotion/bundler still needs @remotion/studio), browsers 500, ffmpeg 53 MB; ≈ 10 s on APFS.
+
+**Discovery** (core `bundle.ts`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five above core's own
+`dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
+module at `node_modules/@retake/core/` — never a folder above the app, never a stray `bundle.json` above a checkout.
+One that claims this engine but is broken (a path leaving the folder, links followed) is never thrown at import
+(`prepareBundle` and `starterTemplatesDir` go on, `bundleProblems()` keeps it, doctor shows an "App bundle" FAIL line);
+every resolver that needs the bundle (`bundleInfo()`, so `mediaTools()`) throws it: a damaged app says so instead of
+quietly using the system's tools. A playwright-core that does not load in `prepareBundle` is kept the same way.
+`sealed` is the whole `.app` around `Contents/Resources`, else the stage folder.
+
+**The resolver order** (D4, one for every tool): explicit setting → explicit variable → the bundle's → the system's.
+- ffmpeg / ffprobe — `resolveMediaTools({configured, env, bundle, exists})`: ffmpeg = retake.yaml `ffmpeg` →
+  `$RETAKE_FFMPEG` → `paths.ffmpeg` → PATH; ffprobe = beside retake.yaml's ffmpeg when one is there → `$RETAKE_FFPROBE`
+  → beside `$RETAKE_FFMPEG` when one is there → the bundle's (`paths.ffmpeg`) → PATH (a lone static ffmpeg keeps the old
+  ffprobe).
+  retake.yaml's value is made absolute against the workspace root by `loadWorkspaceConfig` when it names a path (a
+  bare name stays a command); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPROBE` is refused (BundleError: it would name
+  another file in each process's cwd), and `cleanWorkerEnv` drops a relative `RETAKE_FFMPEG` / `RETAKE_FFPROBE` /
+  `RETAKE_CHROMIUM*` from a worker a client starts. `mediaTools()` is this process's: `openWorkspace` registers — or
+  clears — the workspace's setting each time (`useWorkspaceFfmpeg`, process-wide: a CLI command, the MCP server, the
+  Studio server and a worker each serve one workspace; the one opened last wins, a test switches roots), so the sites no
+  option reached (the preview quantiser, the silent-track fix, the review's frame reader, the pixel helpers) honour
+  retake.yaml too.
+  Every spawn goes through `ffmpegBin(explicit?)` / `ffprobeBin(explicit?)`; a source lint (cli `app-bundle.test.ts`)
+  fails on a command literal `'ffmpeg'` / `'ffprobe'` anywhere else.
+- Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
+  browsers (below) — source `bundled`, else `playwright` (the cache).
+- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) →
+  Remotion's own download — never from a bundle (`assertRenderBrowser`: a bundle without its shell refuses to render).
+- Starter themes: `paths.templates`, else the repository's `templates/` (`STARTER_TEMPLATES_DIR`, so the "shipped
+  theme" checks follow); the Claude plugin marketplace: `paths.plugin`, else the folder above the entry point.
+- `retake --version` adds `(app bundle: <path>)`; doctor names each source (`retake.yaml`, `$RETAKE_FFMPEG`,
+  `bundled`, `PATH`, `Playwright cache`) on the ffmpeg, ffprobe, Chromium and new "Render browser" lines, and its
+  hints inside a bundle say "reinstall Retake" or name retake.yaml / the variables, never a pnpm / brew / Homebrew
+  command (an app without its own ffmpeg, a `$RETAKE_CHROMIUM` pointing nowhere included). Its MCP line resolves ffmpeg
+  as the MCP client's server will: with the registration's `PATH` (and `RETAKE_HOME`) only — never the shell's
+  `$RETAKE_FFMPEG`.
+
+**The browsers path never leaks** (critique M2): playwright-core reads `PLAYWRIGHT_BROWSERS_PATH` once, when its
+registry loads. `prepareBundle()` sets it to `paths.browsers`, requires playwright-core from the engine folder and
+restores the inherited value (deleted when there was none) — first thing in both entry points: `bin.js` loads
+`bundle-env.js` before `main.js`; `worker-main.ts`'s first import is `./bundle-env.js` (the worker never runs bin.js).
+Hooks, sandbox services, shells, `claude` and the worker's children see the person's own value. One playwright-core in
+the engine (checkStage) keeps the registry the engine launches from the one that was pointed.
+
+**Nothing writes inside the bundle** (critique M3): `assertOutsideBundle(path, what)` (links followed, a path not
+created yet by its nearest folder). A workspace, its projects / templates / components folder inside the bundle is
+refused by `loadWorkspaceConfig`; a project folder there (a link from `projects/` into the app included) by
+`loadProject`; a `$RETAKE_HOME` there by `retakeHome()`; any command's `--out` there by the CLI (a `preAction` hook,
+before the command runs); `retake init` refuses one; `renderComponentPreviews` refuses (before rendering) a preview
+written next to a component inside it; from a bundle `components preview --all` means `--workspace`. Not guarded: a
+write a third-party library makes on its own (below).
+Playwright rewrites `DEPENDENCIES_VALIDATED` (empty) when it is older than 30 days: the stage dates it fresh and keeps
+it empty (an empty rewrite leaves the seal intact). The L5.16a acceptance found no file newer than the run in the stage.
+
+**H.264** (core `h264.ts`): `h264Encoder(ffmpeg)` reads `-encoders` once per path — libx264 when listed (today's
+arguments, unchanged: the repository's Homebrew ffmpeg and the app's own GPL build have it), else `h264_videotoolbox`
+at q:v 85 profile high (`h264CodecArgs`; each site keeps its scale, pixel format, colour tags and `-g`), else
+H264EncoderError naming the ffmpeg; an ffmpeg that cannot list them gets today's arguments. Sites (each driven with
+a fake ffmpeg in the tests, not only its argument builder): the capture (`resolveEncoder`, whose answer run.ts takes as
+is: libx264 asked but absent → VideoToolbox, or an error — it now always runs `ffmpeg -encoders`, once per path), the
+raw export's MP4 clips (`encodeClip` returns the encoder used; the package's manifest, selects and README name it:
+"H.264 high profile (VideoToolbox q:v 85)…", never "CRF 14", `rawCodecLabel`), the 1080p export (`transcodeMp4`), and
+`encodeFrames` (no production caller: the synthetic-run test harness and R-ARCH-08's unit). Measured on 20 s of the
+fixture's 1080p render: libx264 CRF 18 SSIM 0.99891 (2.7 MB), VideoToolbox q:v 85 0.99896 (9.1 MB). Our ffmpeg build
+has FFmpeg's native AV1 decoder only (no dav1d): an AV1 video a person brings is probed everywhere but decoded by our
+ffmpeg only on a Mac with an AV1 hardware decoder (M3 and later); Remotion's compositor has its own (dav1d).
+
+**One version** (critique L3): the root package.json's `version` (0.2.0), repeated in `RETAKE_VERSION`, every
+package.json, tauri.conf.json, the Claude plugin's plugin.json and apps/desktop/Cargo.toml (+ its Cargo.lock entry); a
+test keeps them equal. Not part of it: apps/desktop/core (the `desktop-core` crate, internal to the shell), the fixture,
+component versions.
+
+**The L5.16a acceptance** ran from the stage only: `env -i`, scratch HOME and RETAKE_HOME, `PATH` = the system folders
++ the ffmpeg build folder, the staged Node: doctor (every tool `bundled`), a capture, a render and a review of the
+fixture's `quote`; then doctor and a dry run under Node's permission model (reads: the stage, the workspace, the scratch
+homes, TMPDIR; `--allow-addons` for sharp, `--allow-child-process` for Chromium / ffmpeg / hooks; doctor alone also
+probes the docker install places and `.git` above the workspace). That proves the engine's own Node.js file reads only:
+child processes and native add-ons are not confined by Node's permission model.
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

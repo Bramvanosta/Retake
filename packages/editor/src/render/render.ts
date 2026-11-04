@@ -9,14 +9,14 @@ import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { availableParallelism, cpus } from 'node:os';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject } from '@retake/core';
+import { findWorkspaceRoot, loadProject, ffmpegBin } from '@retake/core';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
 import { resolvePlanAssets } from '../summary.js';
 import { startAssetServer } from './asset-server.js';
-import { renderBrowser } from './browser.js';
+import { assertRenderBrowser, renderBrowser } from './browser.js';
 import type { RenderBrowser } from './browser.js';
 import { bundleComponentsFor, ensureBundle } from './bundle.js';
 import type { RenderBundle } from './bundle.js';
@@ -130,6 +130,10 @@ async function openSession(opts: {
     onProgress: (p) => opts.onBundleProgress?.(p, false),
   });
   opts.onBundleProgress?.(1, bundle.cached);
+  // The browser first: a bundle without its headless shell refuses before any server is started.
+  const browser = renderBrowser();
+  assertRenderBrowser(browser);
+  if (browser.note) warnings.push(browser.note);
   const server = await startAssetServer();
   const missing = Object.values(opts.plan.assets).filter((f) => !existsSync(f));
   if (missing.length > 0) {
@@ -137,8 +141,6 @@ async function openSession(opts: {
     throw new RenderError(`files of the plan are missing: ${missing.join(', ')}`);
   }
   const served = resolvePlanAssets(opts.plan, (_url, file) => server.urlFor(file));
-  const browser = renderBrowser();
-  if (browser.note) warnings.push(browser.note);
   const { openBrowser } = await remotionRenderer();
   let puppeteer: Session['puppeteer'];
   try {
@@ -308,7 +310,7 @@ async function ensureAudioTrack(file: string): Promise<void> {
   const p = await probeMedia(file);
   if (!p || p.audio_streams > 0) return;
   const tmp = `${file}.audio-${randomBytes(3).toString('hex')}.mp4`;
-  const r = await run('ffmpeg', ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp]);
+  const r = await run(ffmpegBin(), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp]);
   if (r.code !== 0) {
     await rm(tmp, { force: true });
     throw new RenderError(`the render has no audio track and ffmpeg could not add a silent one: ${r.stderr.split('\n')[0]}`);

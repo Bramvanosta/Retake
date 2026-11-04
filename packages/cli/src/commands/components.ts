@@ -1,6 +1,6 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, bundleInfo, errorsOf, warningsOf } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
 import {
   PREVIEW_FILE,
@@ -289,8 +289,11 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
     }
     targets = [{ id: v.manifest.id, dir: v.dir, entry: join(v.dir, v.manifest.entry ?? 'index.tsx'), manifest: v.manifest }];
   } else if (opts.all) {
-    targets = allPreviewTargets(reg, opts.workspace === true);
-    if (!opts.workspace) targets.push(...(await scaffoldTargets()));
+    // From an app bundle, --all means --workspace: the built-in library and the scaffolds ship inside it, sealed.
+    const workspaceOnly = opts.workspace === true || bundleInfo() !== null;
+    if (workspaceOnly && !opts.workspace && !opts.json) ui.line(ui.c.dim("the built-in components ship inside the Retake app and keep their own previews: rendering this workspace's"));
+    targets = allPreviewTargets(reg, workspaceOnly);
+    if (!workspaceOnly) targets.push(...(await scaffoldTargets()));
   } else {
     throw new CliError('name a component (id or folder) or pass --all');
   }

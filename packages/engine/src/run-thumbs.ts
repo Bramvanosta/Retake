@@ -138,7 +138,7 @@ class ThumbCache {
 export interface RunThumbsOptions {
   /** Thumbnail cache size in base64 characters (default THUMB_CACHE_BYTES). */
   cacheBytes?: number;
-  /** ffmpeg binary (default "ffmpeg" on PATH). */
+  /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
   /** Kill an ffmpeg process after this long (default 10 s). */
   ffmpegTimeoutMs?: number;

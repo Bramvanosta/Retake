@@ -10,6 +10,7 @@
  */
 import { homedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
+import { assertOutsideBundle, bundleInfoOrNull } from './bundle.js';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import { isAbsoluteUrl, scenePageEntries, splitPageOpen } from './pages.js';
@@ -27,10 +28,17 @@ export const AUTH_KEYS: readonly string[] = ['profile', 'storage_state', 'login_
 /** Default timeout of a persona check (seconds). */
 export const PERSONA_CHECK_TIMEOUT_S = 10;
 
-/** The Retake home: $RETAKE_HOME (~ expanded, made absolute), else ~/.retake. */
+/**
+ * The Retake home: $RETAKE_HOME (~ expanded, made absolute), else ~/.retake. A $RETAKE_HOME inside the app bundle is
+ * refused (BundleError): the signed-in profiles are written there, and nothing writes inside the app.
+ */
 export function retakeHome(env: NodeJS.ProcessEnv = process.env): string {
   const v = env.RETAKE_HOME;
-  if (v && v.trim() !== '') return resolve(expandHome(v.trim()));
+  if (v && v.trim() !== '') {
+    const home = resolve(expandHome(v.trim()));
+    assertOutsideBundle(home, '$RETAKE_HOME', bundleInfoOrNull());
+    return home;
+  }
   return join(homedir(), '.retake');
 }
 

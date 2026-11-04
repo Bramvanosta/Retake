@@ -10,8 +10,8 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, insideFolder, loadProject } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject } from '@retake/core';
+import type { H264Encoder, LoadedProject } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
@@ -221,6 +221,22 @@ const SUFFIX: Record<ExportFormat, string> = {
 };
 
 /**
+ * The 1080p MP4 transcode of a master at another size: H.264 (libx264 CRF 18 medium; VideoToolbox when the ffmpeg has no
+ * libx264 — core h264.ts), yuv420p, BT.709 tags, the audio copied. Exported for tests.
+ */
+export function mp4TranscodeArgs(input: string, size: readonly [number, number], enc: H264Encoder, out: string): string[] {
+  const codec = h264CodecArgs(enc, ['-c:v', 'libx264', '-crf', '18', '-preset', 'medium']);
+  return ['-i', input, '-vf', `scale=${size[0]}:${size[1]}:flags=lanczos`, ...codec, '-pix_fmt', 'yuv420p', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'copy', '-movflags', '+faststart', out];
+}
+
+/** The 1080p MP4 transcode itself, with the H.264 encoder `bin` has (core h264Encoder). Returns it. Exported for tests. */
+export async function transcodeMp4(bin: string, input: string, size: readonly [number, number], out: string, signal?: AbortSignal): Promise<H264Encoder> {
+  const enc = await h264Encoder(bin);
+  await ffmpeg(bin, mp4TranscodeArgs(input, size, enc, out), signal);
+  return enc;
+}
+
+/**
  * Export `render` to `formats` (default: mp4_1080p, webm, gif_preview). Each format is written under a temporary name
  * and renamed when complete; a format that fails is reported in `failures` and the others still go out. The manifest
  * (`manifest.json`) keeps the entries of formats exported earlier into the same folder.
@@ -239,7 +255,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   if (!existsSync(record.file)) throw new ExportError(`the video of render ${record.id} is missing (${record.file})`);
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
-  const bin = opts.ffmpeg ?? 'ffmpeg';
+  const bin = ffmpegBin(opts.ffmpeg);
   const dir = resolve(opts.out ?? join(project.dir, 'exports', record.id));
   await mkdir(dir, { recursive: true });
   const emit = opts.onProgress ?? (() => undefined);
@@ -313,7 +329,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
           await rename(tmp, file);
           out = await finish(format, file, 'copy', t0);
         } else {
-          await ffmpeg(bin, ['-i', record.file, '-vf', `scale=${base[0]}:${base[1]}:flags=lanczos`, '-c:v', 'libx264', '-crf', '18', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-c:a', 'copy', '-movflags', '+faststart', tmp], opts.signal);
+          await transcodeMp4(bin, record.file, base, tmp, opts.signal);
           await rename(tmp, file);
           out = await finish(format, file, 'transcode', t0);
         }

@@ -19,6 +19,8 @@ export * from './video.js';
 export * from './tutorial.js';
 export * from './pages.js';
 export * from './media.js';
+export * from './bundle.js';
+export * from './h264.js';
 export * from './destructive.js';
 export * from './access.js';
 export * from './display.js';

@@ -57,6 +57,8 @@ const KNOWN = new Set([
   'EngineError',
   'RunOptionError',
   'SandboxTakeError',
+  'BundleError',
+  'H264EncoderError',
 ]);
 
 export function errorMessage(e: unknown): string {

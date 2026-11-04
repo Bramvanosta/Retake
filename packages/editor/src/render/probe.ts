@@ -1,5 +1,6 @@
 /** ffprobe of media files (optional: a render record says what its file holds when ffprobe is on PATH). */
 import { execFile } from 'node:child_process';
+import { ffprobeBin } from '@retake/core';
 
 export interface Probe {
   duration_s: number;
@@ -24,7 +25,7 @@ export function run(cmd: string, args: string[]): Promise<{ code: number; stdout
 
 /** ffprobe of a media file; undefined when ffprobe is not available. */
 export async function probeMedia(file: string): Promise<Probe | undefined> {
-  const r = await run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames:format=duration', '-of', 'json', file]);
+  const r = await run(ffprobeBin(), ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames:format=duration', '-of', 'json', file]);
   if (r.code !== 0) return undefined;
   try {
     const j = JSON.parse(r.stdout) as { streams: Array<Record<string, string | number>>; format: { duration?: string } };

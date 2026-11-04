@@ -26,10 +26,14 @@ if (nodeMajor < MIN_NODE) {
     .then(([fs, url]) => {
       // argv[1] may be a symbolic link to this file (ln -s …/dist/bin.js ~/.local/bin/retake, npm bin links): main.js
       // sits next to the real file, where a static import would have found it.
-      const real = (fs as { realpathSync(p: string): string }).realpathSync(process.argv[1]);
-      return load(new URL('main.js', (url as { pathToFileURL(p: string): URL }).pathToFileURL(real))) as Promise<{
-        main: (argv: string[]) => Promise<number>;
-      }>;
+      const real = (url as { pathToFileURL(p: string): URL }).pathToFileURL((fs as { realpathSync(p: string): string }).realpathSync(process.argv[1]));
+      // bundle-env.js first: an app bundle's browsers before main.js loads playwright-core (the cli app-bundle test).
+      return load(new URL('bundle-env.js', real)).then(
+        () =>
+          load(new URL('main.js', real)) as Promise<{
+            main: (argv: string[]) => Promise<number>;
+          }>,
+      );
     })
     .then(async ({ main }) => {
       const code = await main(process.argv);

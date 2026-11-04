@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin } from '@retake/core';
 import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
@@ -234,7 +234,7 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
       let text = '';
       let p: ReturnType<typeof spawn>;
       try {
-        p = spawn(o.ffprobe ?? 'ffprobe', args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
+        p = spawn(ffprobeBin(o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
       } catch {
         resolve(null);
         return;

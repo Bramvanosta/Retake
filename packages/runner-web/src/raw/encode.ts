@@ -10,17 +10,26 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import type { RawFormat } from '@retake/core';
+import type { H264Encoder, RawFormat } from '@retake/core';
 import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';
 import { EncodeError } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';
 import { gridFrameOf, type RawClipPlan, type RawSource } from './plan.js';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder } from '@retake/core';
 
 /** Codec settings of the clips. */
 export const RAW_ENCODING = {
   mp4: { ext: '.mp4', codec: 'h264', profile: 'High', pix_fmt: 'yuv420p', crf: 14, preset: 'medium', label: 'H.264 high profile, CRF 14, yuv420p, faststart' },
   prores: { ext: '.mov', codec: 'prores', profile: 'HQ', pix_fmt: 'yuv422p10le', label: 'Apple ProRes 422 HQ (prores_ks profile 3), yuv422p10le' },
 } as const;
+/**
+ * The codec label of a package's clips as they were really encoded: an ffmpeg without libx264 encodes the MP4 clips
+ * with VideoToolbox (core h264.ts), whose files the label must not call CRF 14.
+ */
+export function rawCodecLabel(format: RawFormat, h264?: H264Encoder): string {
+  if (format === 'mp4' && h264 === 'h264_videotoolbox') return `H.264 high profile (VideoToolbox q:v ${H264_VIDEOTOOLBOX_QUALITY}), yuv420p, faststart`;
+  return RAW_ENCODING[format].label;
+}
 /**
  * Codec settings of the cursor layers. `pix_fmt` is what the encoder is fed; the manifest reports each layer's pixel
  * format as ffprobe reads it back (ProRes 4444 decodes as yuva444p12le; VP9 keeps its alpha in a side channel that
@@ -66,7 +75,7 @@ export async function readFrameSource(runDir: string, src: RawSource): Promise<F
 }
 
 /** Fallback: decode the source's CFR video once (JPEG q 2), frame m stamped at m / fps. */
-export async function decodeVideoFrames(runDir: string, src: RawSource, fps: number, tmp: string, ffmpeg = 'ffmpeg', signal?: AbortSignal): Promise<FrameSource> {
+export async function decodeVideoFrames(runDir: string, src: RawSource, fps: number, tmp: string, ffmpeg: string = ffmpegBin(), signal?: AbortSignal): Promise<FrameSource> {
   const video = join(runDir, src.video);
   if (!existsSync(video)) throw new EncodeError(`the run has neither its frames nor its video for ${src.track === 'main' ? 'the capture' : `page ${src.track}`} (${video})`);
   const dir = join(tmp, `decoded-${src.track}`);
@@ -93,7 +102,7 @@ export function exportSchedule(source: FrameSource, duration: number, fps: numbe
 }
 
 /** ffmpeg arguments of a clip encoded from a numbered frame sequence. */
-export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: number; frames: number; width: number; height: number; format: RawFormat; timecode: string; out: string }): string[] {
+export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: number; frames: number; width: number; height: number; format: RawFormat; timecode: string; out: string; h264?: H264Encoder }): string[] {
   const enc = RAW_ENCODING[opts.format];
   const w = Math.max(2, Math.round(opts.width / 2) * 2);
   const h = opts.format === 'mp4' ? Math.max(2, Math.round(opts.height / 2) * 2) : opts.height;
@@ -102,7 +111,7 @@ export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: n
   const tags = ['-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709'];
   const codec =
     opts.format === 'mp4'
-      ? ['-c:v', 'libx264', '-profile:v', 'high', '-preset', RAW_ENCODING.mp4.preset, '-crf', String(RAW_ENCODING.mp4.crf), '-g', String(opts.fps), '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
+      ? [...h264CodecArgs(opts.h264 ?? 'libx264', ['-c:v', 'libx264', '-profile:v', 'high', '-preset', RAW_ENCODING.mp4.preset, '-crf', String(RAW_ENCODING.mp4.crf)]), '-g', String(opts.fps), '-pix_fmt', 'yuv420p', '-movflags', '+faststart']
       : ['-c:v', 'prores_ks', '-profile:v', '3', '-vendor', 'apl0', '-pix_fmt', 'yuv422p10le'];
   return [
     '-y', '-hide_banner', '-loglevel', 'error',
@@ -112,7 +121,10 @@ export function clipArgs(opts: { seq: string; ext: string; jpeg: boolean; fps: n
   ];
 }
 
-/** Encode a clip: link its frames into a numbered sequence under `tmp`, encode, remove the sequence. */
+/**
+ * Encode a clip: link its frames into a numbered sequence under `tmp`, encode, remove the sequence. Returns the H.264
+ * encoder used for an MP4 clip (libx264, or VideoToolbox with an ffmpeg without it), undefined for ProRes.
+ */
 export async function encodeClip(opts: {
   source: FrameSource;
   files: readonly string[];
@@ -125,18 +137,21 @@ export async function encodeClip(opts: {
   tmp: string;
   ffmpeg?: string;
   signal?: AbortSignal;
-}): Promise<void> {
+}): Promise<H264Encoder | undefined> {
   const seq = join(opts.tmp, 'seq');
   await materialize(opts.source.dir, opts.files, seq, opts.source.ext);
   try {
-    await runFfmpeg(opts.ffmpeg ?? 'ffmpeg', clipArgs({ seq, ext: opts.source.ext, jpeg: opts.source.jpeg, fps: opts.fps, frames: opts.files.length, width: opts.width, height: opts.height, format: opts.format, timecode: opts.timecode, out: opts.out }), opts.signal);
+    const bin = ffmpegBin(opts.ffmpeg);
+    const h264 = opts.format === 'mp4' ? await h264Encoder(bin) : undefined;
+    await runFfmpeg(bin, clipArgs({ seq, ext: opts.source.ext, jpeg: opts.source.jpeg, fps: opts.fps, frames: opts.files.length, width: opts.width, height: opts.height, format: opts.format, timecode: opts.timecode, out: opts.out, ...(h264 ? { h264 } : {}) }), opts.signal);
+    return h264;
   } finally {
     await rm(seq, { recursive: true, force: true }).catch(() => undefined);
   }
 }
 
 /** One continuous file of clips of one size and codec (stream copy; each clip starts on a key frame), timecode 0. */
-export async function concatClips(files: readonly string[], out: string, tmp: string, ffmpeg = 'ffmpeg', signal?: AbortSignal): Promise<void> {
+export async function concatClips(files: readonly string[], out: string, tmp: string, ffmpeg: string = ffmpegBin(), signal?: AbortSignal): Promise<void> {
   const list = join(tmp, 'selects.txt');
   await writeFile(list, files.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
   const faststart = out.endsWith('.mp4') ? ['-movflags', '+faststart'] : [];
@@ -165,7 +180,7 @@ export interface ProbedVideo {
 export function probeVideo(file: string, opts: { ffprobe?: string; count?: boolean } = {}): Promise<ProbedVideo> {
   const args = ['-v', 'error', ...(opts.count ? ['-count_frames'] : []), '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,profile,pix_fmt,width,height,r_frame_rate,nb_frames,nb_read_frames,duration:stream_tags=timecode,alpha_mode:format=duration,size:format_tags=timecode', '-of', 'json', file];
   return new Promise((ok, fail) => {
-    execFile(opts.ffprobe ?? 'ffprobe', args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(ffprobeBin(opts.ffprobe), args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) return fail(new EncodeError(`ffprobe failed on ${file}: ${String(stderr).trim() || err.message}`));
       try {
         const j = JSON.parse(stdout) as { streams?: Array<Record<string, unknown> & { tags?: Record<string, string> }>; format?: { duration?: string; size?: string; tags?: Record<string, string> } };

@@ -6,6 +6,7 @@
 import { execFile } from 'node:child_process';
 import { mkdir, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { ffmpegBin } from '@retake/core';
 
 /** Hz of the four chords (root, third, fifth, bass an octave below the root). */
 const CHORDS = [
@@ -40,7 +41,7 @@ export async function generateTestTrack(out: string, opts: { seconds?: number; f
   const tmp = `${out}.tmp-${process.pid}.m4a`;
   const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=exprs='${e}|${e}':s=48000:d=${seconds}`, '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', tmp];
   await new Promise<void>((resolve, reject) => {
-    execFile(opts.ffmpeg ?? 'ffmpeg', args, (err, _stdout, stderr) => {
+    execFile(ffmpegBin(opts.ffmpeg), args, (err, _stdout, stderr) => {
       if (err) reject(new Error(`ffmpeg could not make the test track: ${String(stderr).trim().split('\n')[0] || err.message}`));
       else resolve();
     });

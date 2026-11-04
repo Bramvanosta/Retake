@@ -2492,7 +2492,7 @@ export interface WorkspaceConfig {
   /** Workspace components (`<namespace>/<name>/component.yaml`), scanned before the built-in library. */
   componentsDir: string;
   browser?: BrowserConfig;
-  /** ffmpeg binary (default: "ffmpeg" on PATH). */
+  /** ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app's own, else "ffmpeg" on PATH. */
   ffmpeg?: string;
 }
 

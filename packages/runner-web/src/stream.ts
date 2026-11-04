@@ -10,6 +10,7 @@
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { rm } from 'node:fs/promises';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffmpegEncoders } from '@retake/core';
 import type { CaptureEncoder } from '@retake/core';
 import { EncodeError } from './errors.js';
 
@@ -120,7 +121,7 @@ export interface StreamEncoderOptions {
 }
 
 /** VideoToolbox's constant quality for capture.mp4: SSIM 0.9985 vs the screencast frames (libx264 medium CRF 16: 0.9989). */
-export const VIDEOTOOLBOX_QUALITY = 85;
+export const VIDEOTOOLBOX_QUALITY = H264_VIDEOTOOLBOX_QUALITY;
 /** Thumbnail size of `onThumb` (16 × 9 cells of 6 × 6 pixels). */
 export const THUMB_W = 96;
 export const THUMB_H = 54;
@@ -157,7 +158,7 @@ const encoderChecks = new Map<string, Promise<boolean>>();
  * Can this ffmpeg encode with VideoToolbox here? A one-frame encode, checked once per binary (a Mac without the
  * hardware encoder, or an ffmpeg built without it, falls back to libx264).
  */
-export function videotoolboxWorks(ffmpeg = 'ffmpeg'): Promise<boolean> {
+export function videotoolboxWorks(ffmpeg: string = ffmpegBin()): Promise<boolean> {
   let p = encoderChecks.get(ffmpeg);
   if (!p) {
     p = new Promise<boolean>((resolve) => {
@@ -177,10 +178,18 @@ export function videotoolboxWorks(ffmpeg = 'ffmpeg'): Promise<boolean> {
   return p;
 }
 
-/** The encoder `capture.encoder` names (auto: VideoToolbox when it works here). */
+/**
+ * The encoder `capture.encoder` names (auto: VideoToolbox when it works here, else libx264). An ffmpeg without
+ * libx264 (L5.16: a foreign build, the system's when the app carries none) never gets libx264: VideoToolbox when it
+ * works, else an error naming that ffmpeg.
+ */
 export async function resolveEncoder(want: CaptureEncoder | undefined, ffmpeg?: string): Promise<Exclude<CaptureEncoder, 'auto'>> {
-  if (want === 'libx264') return 'libx264';
-  if (await videotoolboxWorks(ffmpeg)) return 'videotoolbox';
+  const bin = ffmpegBin(ffmpeg);
+  const list = await ffmpegEncoders(bin);
+  const noX264 = list !== null && !list.has('libx264');
+  if (want === 'libx264' && !noX264) return 'libx264';
+  if (await videotoolboxWorks(bin)) return 'videotoolbox';
+  if (noX264) throw new EncodeError(`${bin} has no libx264 and cannot encode with VideoToolbox here: use an ffmpeg built with libx264 (retake.yaml "ffmpeg", or $RETAKE_FFMPEG)`);
   return 'libx264';
 }
 
@@ -225,7 +234,7 @@ export class StreamEncoder {
   start(): void {
     if (this.child) return;
     const args = streamArgs({ ...this.opts, thumbs: this.opts.onThumb !== undefined });
-    const child = spawn(this.opts.ffmpeg ?? 'ffmpeg', args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'] });
+    const child = spawn(ffmpegBin(this.opts.ffmpeg), args, { stdio: ['pipe', this.opts.onThumb ? 'pipe' : 'ignore', 'pipe'] });
     this.child = child;
     child.stderr?.on('data', (d: Buffer) => {
       this.stderr = (this.stderr + d.toString()).slice(-4000);
@@ -236,7 +245,7 @@ export class StreamEncoder {
     });
     this.exited = new Promise((resolve) => {
       child.on('error', (e: NodeJS.ErrnoException) => {
-        this.failed ??= e.code === 'ENOENT' ? `${this.opts.ffmpeg ?? 'ffmpeg'} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
+        this.failed ??= e.code === 'ENOENT' ? `${ffmpegBin(this.opts.ffmpeg)} not found: install ffmpeg or set "ffmpeg" in retake.yaml` : e.message;
         resolve(null);
       });
       child.on('close', (code) => resolve(code));
@@ -298,7 +307,7 @@ export class StreamEncoder {
     if (this.failed || code !== 0) {
       const why = this.failed ?? `exited with code ${code}`;
       await rm(this.opts.out, { force: true }).catch(() => undefined);
-      throw new EncodeError(`${this.opts.ffmpeg ?? 'ffmpeg'} ${why}: ${this.stderr.trim().split('\n').slice(-6).join(' | ')}`.trim());
+      throw new EncodeError(`${ffmpegBin(this.opts.ffmpeg)} ${why}: ${this.stderr.trim().split('\n').slice(-6).join(' | ')}`.trim());
     }
     return { frames: count };
   }

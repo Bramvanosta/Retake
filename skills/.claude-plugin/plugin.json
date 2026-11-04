@@ -1,6 +1,6 @@
 {
  "name": "retake",
- "version": "0.1.0",
+ "version": "0.2.0",
  "description": "Claude skills for authoring scenarios, themes and components with Retake, and the Retake MCP server on one workspace.",
  "author": {
   "name": "Retake"

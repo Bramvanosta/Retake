@@ -10,6 +10,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
+import { ffprobeBin } from './bundle.js';
 import { MEDIA_COMPONENTS, MEDIA_FILE_KINDS } from './types.js';
 import type { BBox, MediaFileFields, MediaFileKind, OverlayAnchor, OverlaySpec } from './types.js';
 
@@ -153,9 +154,9 @@ function ratio(v: unknown): number {
   return b ? a / b : Number(a) || 0;
 }
 
-/** The ffprobe of the environment: $RETAKE_FFPROBE, else `ffprobe` on PATH. */
+/** This process's ffprobe (bundle.ts: retake.yaml `ffmpeg`'s folder → $RETAKE_FFPROBE / $RETAKE_FFMPEG's → the app's → PATH). */
 export function ffprobeCommand(): string {
-  return process.env.RETAKE_FFPROBE || 'ffprobe';
+  return ffprobeBin();
 }
 
 /** Interpret ffprobe's JSON (`-show_streams -show_format`) — pure, exported for tests. */

@@ -2,8 +2,8 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve } from '@retake/core';
-import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools } from '@retake/core';
+import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -55,6 +55,12 @@ export interface DoctorProbes {
   list?(dir: string): string[] | null;
   /** The text of a small regular file (not a link; ≤ 64 KB), or null: the `.gitignore` files "Before Retake" reads. */
   read?(file: string): string | null;
+  /** The app bundle this engine runs from (L5.16, core bundleInfo), or null / absent: a repository checkout. */
+  bundle?: BundleInfo | null;
+  /** What is wrong with the app bundle (core bundleProblems: a damaged manifest, playwright-core not loading). */
+  bundleProblems?(): string[];
+  /** The browser renders use (editor renderBrowser): the "Render browser" line; absent, no line. */
+  renderBrowser?(): { path: string | null; source: string; note?: string };
 }
 
 /** The largest file the `read` probe reads (a `.gitignore`). */
@@ -153,6 +159,9 @@ export function systemProbes(): DoctorProbes {
     },
     chromium: async (browser) => (await import('@retake/runner-web')).probeChromium(browser),
     execPath: process.execPath,
+    bundle: bundleInfoOrNull(),
+    bundleProblems,
+    renderBrowser: systemRenderBrowser,
     worker: async (root) => {
       const w = await (await import('@retake/engine')).liveWorker(root);
       return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}) } : null;
@@ -173,21 +182,48 @@ export function systemProbes(): DoctorProbes {
 
 const firstLine = (s: string) => s.split('\n').find((l) => l.trim())?.trim() ?? '';
 
-/** ffmpeg / ffprobe: configured path (retake.yaml `ffmpeg`, ffprobe next to it) or PATH. */
+/** How a doctor line names where a tool comes from (L5.16: every tool line says it). */
+const SOURCE_WORDS: Record<MediaToolSource, string> = { 'retake.yaml': 'retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'bundled', PATH: 'PATH' };
+
+/**
+ * The ffmpeg / ffprobe doctor checks: core resolveMediaTools with the probes' environment (or `env`: what another
+ * process gets) and bundle; a refused setting (a relative $RETAKE_FFMPEG) as its message.
+ */
+function doctorMediaTools(p: DoctorProbes, configured: string | undefined, env: NodeJS.ProcessEnv = p.env): MediaTools | { error: string } {
+  try {
+    return resolveMediaTools({ configured: configured ? expandHome(configured) : undefined, env, bundle: p.bundle ?? null, exists: p.exists });
+  } catch (e) {
+    return { error: errorMessage(e) };
+  }
+}
+
+/** Where to get an ffmpeg, said the way this install can act on it (an app never sends the person to Homebrew). */
+function ffmpegHint(p: DoctorProbes): string {
+  return p.bundle
+    ? 'this app carries no ffmpeg of its own: set "ffmpeg: /path/to/ffmpeg" in retake.yaml, or $RETAKE_FFMPEG (an ffmpeg 5.1+ with libx264 or VideoToolbox)'
+    : 'install ffmpeg (macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg), or set "ffmpeg: /path/to/ffmpeg" in retake.yaml';
+}
+
+/**
+ * ffmpeg / ffprobe, in the resolver's order (core bundle.ts): retake.yaml `ffmpeg` (ffprobe next to it) →
+ * $RETAKE_FFMPEG / $RETAKE_FFPROBE → the app's own → PATH; the line names the source.
+ */
 async function mediaTool(p: DoctorProbes, name: 'ffmpeg' | 'ffprobe', configured: string | undefined): Promise<DoctorCheck> {
-  const ffmpegPath = configured ? expandHome(configured) : undefined;
-  const cmd = ffmpegPath ? (name === 'ffmpeg' ? ffmpegPath : join(dirname(ffmpegPath), 'ffprobe')) : name;
+  const tools = doctorMediaTools(p, configured);
+  if ('error' in tools) return { status: 'fail', name, detail: tools.error, hint: 'make it an absolute path (or unset it)' };
+  const cmd = name === 'ffmpeg' ? tools.ffmpeg : tools.ffprobe;
+  const source = SOURCE_WORDS[name === 'ffmpeg' ? tools.ffmpegSource : tools.ffprobeSource];
   const where = cmd.includes('/') ? cmd : p.which(cmd);
   const res = where ? await p.exec(where, ['-version'], 10_000) : null;
   if (!where || !res) {
     return {
       status: 'fail',
       name,
-      detail: `${cmd} not found`,
-      hint: `install ffmpeg (macOS: brew install ffmpeg · Debian/Ubuntu: apt install ffmpeg)${name === 'ffmpeg' ? ', or set "ffmpeg: /path/to/ffmpeg" in retake.yaml' : ''}`,
+      detail: `${cmd} not found (${source})`,
+      hint: p.bundle && source === 'bundled' ? `the app's ${name} is missing: reinstall Retake, or set "ffmpeg: /path/to/ffmpeg" in retake.yaml` : ffmpegHint(p),
     };
   }
-  if (res.code !== 0) return { status: 'fail', name, detail: `${where} -version failed: ${firstLine(res.stderr) || `exit ${res.code}`}` };
+  if (res.code !== 0) return { status: 'fail', name, detail: `${where} -version failed (${source}): ${firstLine(res.stderr) || `exit ${res.code}`}` };
   const version = /version\s+(\S+)/.exec(res.stdout)?.[1] ?? firstLine(res.stdout);
   // `-fps_mode` (the review, the raw export) needs 5.1+; snapshot builds ("N-…", "2025-…-git") are not judged.
   const m = /^n?(\d+)\.(\d+)/.exec(version);
@@ -195,11 +231,13 @@ async function mediaTool(p: DoctorProbes, name: 'ffmpeg' | 'ffprobe', configured
     return {
       status: 'fail',
       name,
-      detail: `${version} · ${where} (needs ${MIN_FFMPEG.join('.')}+)`,
-      hint: 'upgrade ffmpeg (macOS: brew upgrade ffmpeg · Debian/Ubuntu: a release with ffmpeg 5.1 or later)',
+      detail: `${version} · ${where} · ${source} (needs ${MIN_FFMPEG.join('.')}+)`,
+      hint: p.bundle
+        ? `point retake.yaml "ffmpeg:" / $RETAKE_FFMPEG at an ffmpeg ${MIN_FFMPEG.join('.')}+, or remove it to use the app's own`
+        : 'upgrade ffmpeg (macOS: brew upgrade ffmpeg · Debian/Ubuntu: a release with ffmpeg 5.1 or later)',
     };
   }
-  return { status: 'ok', name, detail: `${version} · ${where}` };
+  return { status: 'ok', name, detail: `${version} · ${where} · ${source}` };
 }
 
 function nodeCheck(p: DoctorProbes): DoctorCheck {
@@ -209,14 +247,24 @@ function nodeCheck(p: DoctorProbes): DoctorCheck {
     : { status: 'fail', name: 'Node.js', detail: `${p.nodeVersion} (needs ${MIN_NODE_MAJOR}+)`, hint: `install Node.js ${MIN_NODE_MAJOR} or later (e.g. nvm install ${MIN_NODE_MAJOR})` };
 }
 
-function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): DoctorCheck {
-  const src = c.source === 'playwright' ? 'Playwright' : c.source;
+/** How a doctor line names a browser's source. */
+function browserSource(source: string): string {
+  return source === 'playwright' ? 'Playwright cache' : source === 'env' ? 'RETAKE_CHROMIUM_HEADLESS_SHELL' : source;
+}
+
+function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bundle?: BundleInfo | null): DoctorCheck {
+  const src = browserSource(c.source);
+  const fromApp = !!bundle && c.source === 'bundled';
   if (!c.path || !c.exists) {
     return {
       status: 'fail',
       name: 'Chromium',
       detail: c.path ? `not found at ${c.path} (${src})` : 'no Chromium known to Playwright',
-      hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary',
+      hint: fromApp
+        ? "the app's Chromium is missing: reinstall Retake — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary"
+        : bundle
+          ? "point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary that exists, or remove it to use the app's own"
+          : 'pnpm --filter @retake/runner-web exec playwright-core install chromium — or point $RETAKE_CHROMIUM / browser.executable at a Chromium or Chrome binary',
     };
   }
   if (!c.launched) {
@@ -224,11 +272,31 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): Do
       status: 'fail',
       name: 'Chromium',
       detail: `${c.path} (${src}) did not launch headless: ${c.error ?? 'no page rendered'}`,
-      hint: 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
+      hint: fromApp
+        ? 'reinstall Retake (its Chromium did not start)'
+        : bundle
+          ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
+          : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
     };
   }
   const mode = browser?.channel === 'headless-shell' ? 'headless shell' : 'new headless';
-  return { status: 'ok', name: 'Chromium', detail: `${c.version ?? '?'} · ${c.path} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
+  return { status: 'ok', name: 'Chromium', detail: `${c.version ?? '?'} · ${c.path} · ${src} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
+}
+
+/** The browser renders use (L5.16): its source; an app without its headless shell is broken (FAIL). */
+function renderBrowserCheck(p: DoctorProbes): DoctorCheck | null {
+  const b = p.renderBrowser?.();
+  if (!b) return null;
+  const name = 'Render browser';
+  if (b.path) return { status: b.note ? 'warn' : 'ok', name, detail: `${b.path} · ${browserSource(b.source)}`, ...(b.note ? { hint: b.note } : {}) };
+  if (p.bundle) return { status: 'fail', name, detail: "the app's headless shell is missing", hint: 'reinstall Retake' };
+  return { status: 'warn', name, detail: "Remotion's own headless shell (downloaded at the first render)", ...(b.note ? { hint: b.note } : {}) };
+}
+
+/** editor's renderBrowser, loaded when doctor runs (the editor is not loaded for every command). */
+let renderBrowserFn: (() => { path: string | null; source: string; note?: string }) | undefined;
+function systemRenderBrowser(): { path: string | null; source: string; note?: string } {
+  return renderBrowserFn ? renderBrowserFn() : { path: null, source: 'remotion' };
 }
 
 /**
@@ -253,7 +321,9 @@ export function gpuCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): 
 /** The encoder captures feed during the take (L5.7): the Mac's hardware H.264 encoder through ffmpeg, else libx264. */
 export async function captureEncoderCheck(p: DoctorProbes, configured: string | undefined): Promise<DoctorCheck | null> {
   if (p.platform !== 'darwin') return { status: 'ok', name: 'Capture encoder', detail: 'libx264 (preset veryfast) during the take' };
-  const cmd = configured ? expandHome(configured) : (p.which('ffmpeg') ?? null);
+  const tools = doctorMediaTools(p, configured);
+  if ('error' in tools) return null;
+  const cmd = tools.ffmpeg.includes('/') ? tools.ffmpeg : (p.which(tools.ffmpeg) ?? null);
   if (!cmd) return null;
   const res = await p.exec(cmd, ['-hide_banner', '-loglevel', 'error', '-f', 'lavfi', '-i', 'color=c=black:s=256x144:r=30', '-frames:v', '2', '-c:v', 'h264_videotoolbox', '-f', 'null', '-'], 15_000);
   if (res && res.code === 0) return { status: 'ok', name: 'Capture encoder', detail: 'hardware H.264 (VideoToolbox) during the take' };
@@ -261,7 +331,7 @@ export async function captureEncoderCheck(p: DoctorProbes, configured: string | 
     status: 'warn',
     name: 'Capture encoder',
     detail: `ffmpeg cannot encode with VideoToolbox here${res ? ` (${firstLine(res.stderr) || `exit ${res.code}`})` : ''}: captures encode with libx264 during the take (more CPU)`,
-    hint: 'a Homebrew ffmpeg has VideoToolbox (brew install ffmpeg)',
+    hint: p.bundle ? 'reinstall Retake, or set "ffmpeg:" in retake.yaml to an ffmpeg with VideoToolbox' : 'a Homebrew ffmpeg has VideoToolbox (brew install ffmpeg)',
   };
 }
 
@@ -389,7 +459,7 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
   );
   const templates = await listTemplates(ws.root).catch(() => []);
   if (!templates.length) {
-    out.push({ status: 'warn', name: 'Templates', detail: `no templates in ${ws.templatesDir}`, hint: "copy a starter from the repository's templates/ folder" });
+    out.push({ status: 'warn', name: 'Templates', detail: `no templates in ${ws.templatesDir}`, hint: p.bundle ? "the app's starter themes are missing: reinstall Retake" : "copy a starter from the repository's templates/ folder" });
   }
   for (const t of templates) {
     try {
@@ -480,7 +550,7 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
           status: env === defaultEnv ? 'fail' : 'warn',
           name,
           detail: `${url} unreachable: ${r.error ?? 'no answer'}`,
-          hint: /localhost|127\.0\.0\.1/.test(url) ? 'start the app first (the bundled fixture: pnpm fixture)' : 'check the URL, your VPN / network, or the environment status',
+          hint: /localhost|127\.0\.0\.1/.test(url) ? (p.bundle ? 'start the app first' : 'start the app first (the bundled fixture: pnpm fixture)') : 'check the URL, your VPN / network, or the environment status',
         });
       }
     }
@@ -573,10 +643,16 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   } else if (node === exec && /\/v?\d+\.\d+\.\d+\//.test(node)) {
     warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (retake mcp --print-config), or point it at a version manager alias' });
   }
-  if (!ws.ffmpeg) {
-    const path = clientPath(node, p.env.PATH ?? '', p.exists);
+  // What the MCP client's server gets: the registration's PATH and RETAKE_HOME only (mcp config-snippet) — never the
+  // shell's $RETAKE_FFMPEG / $RETAKE_FFPROBE.
+  const path = clientPath(node, p.env.PATH ?? '', p.exists);
+  const served = doctorMediaTools(p, ws.ffmpeg, { PATH: path });
+  if (!('error' in served) && served.ffmpegSource === 'PATH') {
     if (whichOnPath('ffmpeg', { PATH: path }, p.platform)) parts.push('ffmpeg on the PATH it registers');
-    else warns.push({ detail: 'ffmpeg is not on the PATH a GUI client gets from the registration', hint: 'install ffmpeg (Homebrew), or set ffmpeg: in retake.yaml' });
+    else {
+      const shellOnly = p.env.RETAKE_FFMPEG?.trim() ? ' ($RETAKE_FFMPEG is set in this shell only: the registration does not carry it)' : '';
+      warns.push({ detail: `ffmpeg is not on the PATH a GUI client gets from the registration${shellOnly}`, hint: p.bundle ? 'set ffmpeg: in retake.yaml' : 'install ffmpeg (Homebrew), or set ffmpeg: in retake.yaml' });
+    }
   }
   const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
   parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''})` : 'worker idle (a client starts it with its first job)');
@@ -676,8 +752,13 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
 /** Every doctor check, in display order. */
 export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions; refused?: string } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
+  const damaged = probes.bundleProblems?.() ?? [];
+  if (damaged.length) out.push({ status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' });
   const chromium = await probes.chromium(ws.browser);
-  out.push(chromiumCheck(chromium, ws.browser));
+  out.push(chromiumCheck(chromium, ws.browser, probes.bundle));
+  if (probes.renderBrowser === systemRenderBrowser) renderBrowserFn = (await import('@retake/editor')).renderBrowser;
+  const render = renderBrowserCheck(probes);
+  if (render) out.push(render);
   const gpu = gpuCheck(chromium, ws.browser);
   if (gpu) out.push(gpu);
   const ffmpeg = await mediaTool(probes, 'ffmpeg', ws.ffmpeg);

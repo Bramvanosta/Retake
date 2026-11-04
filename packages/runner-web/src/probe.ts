@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
-import type { BrowserConfig } from '@retake/core';
+import { bundleInfo, insideBundle } from '@retake/core';
+import type { BrowserConfig, BundleInfo } from '@retake/core';
 import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
 import type { GpuInfo, SystemInfoReply } from './session.js';
 import { wallNow } from './util.js';
@@ -10,7 +11,7 @@ export interface ChromiumProbe {
   /** Executable the runner launches (null when Playwright knows none). */
   path: string | null;
   /** Where the path comes from. */
-  source: 'browser.executable' | 'RETAKE_CHROMIUM' | 'playwright';
+  source: 'browser.executable' | 'RETAKE_CHROMIUM' | 'bundled' | 'playwright';
   exists: boolean;
   /** Browser version reported after a successful launch. */
   version?: string;
@@ -24,14 +25,19 @@ export interface ChromiumProbe {
   gpu?: GpuInfo;
 }
 
-/** The executable the runner would use, and where that choice comes from. */
-export function chromiumExecutable(browser?: BrowserConfig): { path: string | null; source: ChromiumProbe['source'] } {
+/**
+ * The executable the runner would use, and where that choice comes from: `browser.executable` → `$RETAKE_CHROMIUM` →
+ * playwright-core's registry — the app bundle's browsers when Retake runs from one (core `prepareBundle`), else
+ * Playwright's cache.
+ */
+export function chromiumExecutable(browser?: BrowserConfig, bundle: BundleInfo | null = bundleInfo()): { path: string | null; source: ChromiumProbe['source'] } {
   if (browser?.executable) return { path: browser.executable, source: 'browser.executable' };
   if (process.env.RETAKE_CHROMIUM) return { path: process.env.RETAKE_CHROMIUM, source: 'RETAKE_CHROMIUM' };
   try {
-    return { path: chromium.executablePath() || null, source: 'playwright' };
+    const path = chromium.executablePath() || null;
+    return { path, source: path && insideBundle(path, bundle) ? 'bundled' : 'playwright' };
   } catch {
-    return { path: null, source: 'playwright' };
+    return { path: null, source: bundle ? 'bundled' : 'playwright' };
   }
 }
 
@@ -41,7 +47,7 @@ export async function probeChromium(browser?: BrowserConfig, opts: { launch?: bo
   const out: ChromiumProbe = { path, source, exists: !!path && existsSync(path), launched: false };
   if (opts.launch === false || !out.exists) return out;
   const t0 = wallNow();
-  const executablePath = source === 'playwright' ? undefined : (path ?? undefined);
+  const executablePath = source === 'playwright' || source === 'bundled' ? undefined : (path ?? undefined);
   const channel = executablePath ? undefined : browser?.channel === 'headless-shell' ? undefined : (browser?.channel ?? 'chromium');
   let b: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   try {

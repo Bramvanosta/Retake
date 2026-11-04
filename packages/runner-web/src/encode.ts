@@ -3,6 +3,7 @@ import { copyFile, link, mkdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { EncodeError } from './errors.js';
 import type { FrameIndexEntry } from './recorder.js';
+import { ffmpegBin, h264CodecArgs, h264Encoder } from '@retake/core';
 
 export interface EncodeOptions {
   fps: number;
@@ -12,7 +13,7 @@ export interface EncodeOptions {
   /** Output size in pixels (default: the frames' own size). */
   width?: number;
   height?: number;
-  /** ffmpeg binary (default "ffmpeg" on PATH). */
+  /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
   ffmpeg?: string;
   preset?: string;
   /** Frames are JPEG (full-range BT.601) → convert to limited-range BT.709 for HD players. */
@@ -100,18 +101,20 @@ export async function encodeFrames(framesDir: string, index: FrameIndexEntry[], 
   const size = opts.width && opts.height ? `${Math.round(opts.width / 2) * 2}:${Math.round(opts.height / 2) * 2}` : 'trunc(iw/2)*2:trunc(ih/2)*2';
   const range = opts.jpeg === false ? '' : ':in_range=full:in_color_matrix=bt601';
   const filters = [`scale=${size}:flags=lanczos${range}:out_range=tv:out_color_matrix=bt709`, 'format=yuv420p'];
+  const bin = ffmpegBin(opts.ffmpeg);
+  const codec = h264CodecArgs(await h264Encoder(bin), ['-c:v', 'libx264', '-preset', opts.preset ?? 'medium', '-crf', String(opts.crf)]);
   const args = [
     '-y', '-hide_banner', '-loglevel', 'error',
     '-framerate', String(opts.fps), '-start_number', '0', '-i', join(seqDir, `%06d.${ext}`),
     '-vf', filters.join(','),
-    '-c:v', 'libx264', '-preset', opts.preset ?? 'medium', '-crf', String(opts.crf),
+    ...codec,
     '-color_range', 'tv', '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709',
     '-frames:v', String(schedule.length),
     '-movflags', '+faststart', '-an',
     out,
   ];
   try {
-    await run(opts.ffmpeg ?? 'ffmpeg', args, opts.signal);
+    await run(bin, args, opts.signal);
   } finally {
     await rm(seqDir, { recursive: true, force: true }).catch(() => undefined);
   }

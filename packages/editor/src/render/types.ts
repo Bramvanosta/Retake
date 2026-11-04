@@ -114,7 +114,7 @@ export interface RenderRecord {
   probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };
   concurrency: number;
   bundle: { hash: string; cached: boolean; ms: number };
-  browser: { path: string | null; source: 'env' | 'playwright' | 'remotion' };
+  browser: { path: string | null; source: 'env' | 'bundled' | 'playwright' | 'remotion' };
   timings: { plan_ms: number; bundle_ms: number; render_ms: number; total_ms: number };
   /** Plan warnings and render warnings. */
   warnings: string[];

@@ -1,0 +1,42 @@
+{
+ "comment": "The sources of Retake's own ffmpeg (scripts/build-ffmpeg.mjs): every archive pinned by URL and sha256. The build refuses an archive whose sha256 differs. The same list is the written source offer in apps/desktop/licenses/ffmpeg/. The x264 (GitLab) and libvpx (GitHub) archives are generated on request by the forge and are not guaranteed byte-stable: a pin that starts failing means re-verify and re-pin, never skip the check (the verified archives are kept for the release, part e).",
+ "min_macos": "15.0",
+ "sources": [
+  {
+   "name": "ffmpeg",
+   "version": "9.0.2",
+   "license": "GPL-2.0-or-later as configured (--enable-gpl, libx264); LGPL-2.1-or-later otherwise",
+   "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+   "file": "ffmpeg-9.0.2.tar.xz",
+   "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e",
+   "verification": "upstream publishes an OpenPGP signature (.asc, key FCF986EA15E6E293A5644F10B4322F04D67658D8, ffmpeg-devel) and no checksum; the key was not on the build machine, so the sha256 was matched against an independent pin of the same release instead"
+  },
+  {
+   "name": "x264",
+   "version": "0.165 (stable branch, commit b35605ace3ddf7c1a5d67a2eb553f034aef41d55)",
+   "license": "GPL-2.0-or-later",
+   "url": "https://code.videolan.org/videolan/x264/-/archive/b35605ace3ddf7c1a5d67a2eb553f034aef41d55/x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2",
+   "file": "x264-b35605ace3ddf7c1a5d67a2eb553f034aef41d55.tar.bz2",
+   "sha256": "6eeb82934e69fd51e043bd8c5b0d152839638d1ce7aa4eea65a3fedcf83ff224",
+   "verification": "no upstream checksum; the stable branch snapshot (archive comment = this commit) and this commit's archive have identical trees; sha256 recorded at download"
+  },
+  {
+   "name": "libvpx",
+   "version": "1.17.0",
+   "license": "BSD-3-Clause (+ PATENTS grant)",
+   "url": "https://github.com/webmproject/libvpx/archive/refs/tags/v1.17.0.tar.gz",
+   "file": "libvpx-1.17.0.tar.gz",
+   "sha256": "1020f184046187baa2985dbde38e0691f49c44088bca7a1842b0236c6081dc0a",
+   "verification": "no upstream checksum (a generated tag archive); sha256 recorded at download, and it matches an independent pin of the same tag"
+  },
+  {
+   "name": "opus",
+   "version": "1.6.1",
+   "license": "BSD-3-Clause",
+   "url": "https://downloads.xiph.org/releases/opus/opus-1.6.1.tar.gz",
+   "file": "opus-1.6.1.tar.gz",
+   "sha256": "6ffcb593207be92584df15b32466ed64bbec99109f007c82205f0194572411a1",
+   "verification": "matches upstream's published SHA256SUMS.txt (same folder)"
+  }
+ ]
+}

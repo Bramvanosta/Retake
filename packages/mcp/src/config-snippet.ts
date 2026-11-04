@@ -7,7 +7,8 @@
  */
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { clientPath, retakeHome } from '@retake/core';
+import { bundleInfo, clientPath, retakeHome } from '@retake/core';
+import type { BundleInfo } from '@retake/core';
 
 export { clientPath };
 
@@ -130,10 +131,15 @@ export function mcpHttpTokenExport(tokenFile: string): string {
 }
 
 /**
- * The repository folder holding the local plugin marketplace (`.claude-plugin/marketplace.json`) the retake entry point
- * belongs to: the first such folder above it, or undefined (an install without the repository's `skills/`).
+ * The folder holding the local plugin marketplace (`.claude-plugin/marketplace.json` + `skills/`): the app bundle's
+ * `plugin/` when Retake runs from one (L5.16), else the first such folder above the retake entry point (the repository),
+ * or undefined (an install without the repository's `skills/`).
  */
-export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolean = existsSync): string | undefined {
+export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolean = existsSync, bundle: BundleInfo | null = bundleInfo()): string | undefined {
+  if (bundle) {
+    const dir = bundle.paths.plugin;
+    return exists(join(dir, '.claude-plugin', 'marketplace.json')) && exists(join(dir, 'skills', '.claude-plugin', 'plugin.json')) ? dir : undefined;
+  }
   let dir = dirname(bin);
   try {
     dir = dirname(realpathSync(bin));

@@ -8,8 +8,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** The version of the package (`retake --version`, run.json `engine.retake`). */
-export const RETAKE_VERSION = '0.1.0';
+/**
+ * The version of Retake (`retake --version`, run.json `engine.retake`, the app). One number: the root package.json's,
+ * repeated here, in every package.json, apps/desktop/tauri.conf.json, skills/.claude-plugin/plugin.json and
+ * apps/desktop/Cargo.toml (a test keeps them equal).
+ */
+export const RETAKE_VERSION = '0.2.0';
 
 /** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
 export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 } as const;
