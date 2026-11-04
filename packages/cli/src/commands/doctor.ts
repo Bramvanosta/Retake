@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, zshQuote } from '@retake/core';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -658,7 +658,47 @@ function lockText(s: string): string {
   return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '?').slice(0, 300);
 }
 
+/**
+ * The `App updates` line: what the desktop app remembers of its checks (core readUpdateChecks). `build`: what the
+ * app's launch.json says of its build (bundle.mjs `launchJson`: `updates` on / off; null for a build from before it) —
+ * a build made without a feed and a key never checks (review d A-L9).
+ */
+export function updateCheck(env: Record<string, string | undefined>, home: string, now = Date.now(), build: 'on' | 'off' | null = null): DoctorCheck {
+  const name = 'App updates';
+  if (build === 'off') return { status: 'ok', name, detail: 'updates are off in this build (made without an update feed): a newer version comes from its disk image' };
+  let checks;
+  try {
+    checks = readUpdateChecks(env.RETAKE_HOME?.trim() ? retakeHome(env as NodeJS.ProcessEnv) : join(home, '.retake'));
+  } catch {
+    checks = { checked: null, failed: null };
+  }
+  const off = updateChecksOff(env[UPDATE_DISABLE_ENV]) ? ` · ${UPDATE_DISABLE_ENV} is set here (the app started from this shell checks nothing)` : '';
+  if (checks.failed && checks.failed.failure === 'install') return { status: 'warn', name, detail: `the update to ${checks.failed.version} could not be installed: the app kept this version${off}`, hint: 'open the app: Help › Check for Updates… tries again, or install the new version from its disk image' };
+  if (checks.checked === null) return { status: 'ok', name, detail: `not checked yet — the app checks at launch, at most once a day (Help › Check for Updates…)${off}` };
+  const when = new Date(checks.checked * 1000).toISOString().replace('T', ' ').slice(0, 16);
+  const days = Math.floor((now / 1000 - checks.checked) / 86_400);
+  return days > 30 ? { status: 'warn', name, detail: `last successful check ${when} UTC, ${days} days ago${off}`, hint: 'open the app (it checks at launch), or Help › Check for Updates… — a feed that cannot be read says so there' } : { status: 'ok', name, detail: `last successful check ${when} UTC${off}` };
+}
+
 export function appChecks(p: DoctorProbes): DoctorCheck[] {
+  const out = appCommandChecks(p);
+  // L5.16d (critique L7): an installed app's update checks — the last successful one, an install that failed, off.
+  const home = p.env.HOME?.trim();
+  if (p.bundle?.sealed.endsWith('.app') && home) out.push(updateCheck(p.env, home, Date.now(), launchUpdates((p.read ?? readSmallFile)(join(p.bundle.root, 'launch.json')))));
+  return out;
+}
+
+/** launch.json's `updates` (bundle.mjs: "on" in a build with an update feed, "off" otherwise); null when absent. */
+export function launchUpdates(text: string | null): 'on' | 'off' | null {
+  try {
+    const u = (JSON.parse(text ?? 'null') as { updates?: unknown } | null)?.updates;
+    return u === 'on' || u === 'off' ? u : null;
+  } catch {
+    return null;
+  }
+}
+
+function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   const out: DoctorCheck[] = [];
   const b = p.bundle ?? null;
   const app = b && b.sealed.endsWith('.app') ? b : null;

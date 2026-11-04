@@ -60,6 +60,7 @@ import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
 import { DesktopPipe, desktopOps } from './desktop.js';
 import { SetupState, setupOps, systemSetupContext } from './setup-ops.js';
+import { UpdateState, updateOps } from './update-ops.js';
 import type { SetupContext } from './setup-ops.js';
 import { z } from 'zod';
 
@@ -149,7 +150,7 @@ const ROUTES: Record<string, RouteSpec> = {
   '/v1/live': { methods: ['POST'], token: true, api: true, maxBody: SMALL_BODY_MAX },
 };
 /** Ops that write but never nudge the job watch: the tabs' unsaved reports, the page's word to the desktop shell. */
-const NO_NUDGE = new Set<string>(['unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done']);
+const NO_NUDGE = new Set<string>(['unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done', 'desktop_update']);
 const CALL: RouteSpec = { methods: ['POST'], token: true, api: true, maxBody: CALL_BODY_MAX };
 const CALL_PREFIX = '/v1/call/';
 
@@ -218,6 +219,8 @@ export interface StudioServer {
   desktop: DesktopPipe;
   /** L5.16c: the Set-up sheet's state (the folder the shell's panel gave, the notification state it said). */
   setup: { state: SetupState; context(): SetupContext };
+  /** L5.16d: the desktop app's update state, as its shell said it (desktop_update_status). */
+  update: UpdateState;
   /**
    * `f` runs after each op that succeeded and is not read-only (NO_NUDGE excepted): the supervised server's job
    * watch polls at once (a Studio submit shows in the desktop shell without waiting). Returns the unsubscribe.
@@ -278,6 +281,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const unsaved = new UnsavedBoard(engine.workspace.projectsDir);
   const desktop = new DesktopPipe();
   const setupState = new SetupState();
+  const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
   const tools = uiTools([
     ...indexOps(live),
@@ -296,6 +300,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...unsavedOps(unsaved),
     ...desktopOps(desktop),
     ...setupOps({ pipe: desktop, state: setupState, ctx: setupContext, workspace: engine.workspace.root }),
+    ...updateOps({ pipe: desktop, state: updateState }),
   ]);
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
@@ -482,6 +487,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     unsaved,
     desktop,
     setup: { state: setupState, context: setupContext },
+    update: updateState,
     onWrite: (f) => {
       writeListeners.add(f);
       return () => writeListeners.delete(f);

@@ -20,6 +20,9 @@
 //!   Quit / Open Workspace… with jobs running or unsaved text in the Studio asks first (nothing pending: instant);
 //!   the restart alert names the unsaved text still in the window (Not Now its default). An attached server has no
 //!   pipe: neither (said once). SIGTERM / SIGINT / SIGHUP end any question of the shell (macos::end_modals).
+//! - L5.16d: the updater (update.rs; a build with the `updater` feature and a feed only): the check at launch (at most
+//!   once a day) and Help › Check for Updates…, the Studio's update sheet through the pipe, Install and Restart as a quit
+//!   through the guard, the swap and the restart at RunEvent::Exit.
 
 mod child;
 mod guard;
@@ -27,6 +30,7 @@ mod logfilter;
 mod macos;
 mod menu;
 mod notify;
+mod update;
 
 use desktop_core as dc;
 use std::path::{Path, PathBuf};
@@ -261,6 +265,8 @@ fn show(app: &AppHandle, shell: &Arc<Shell>, session: Session) {
         set_route(w, line.port, route);
     }
     *lock(&shell.session) = Some(session);
+    // L5.16d: a new owned server learns the update's state.
+    update::server_ready(app);
 }
 
 /// `--route`: once the page has taken its code out of the URL, go to that screen (debug builds and tests only).
@@ -556,8 +562,13 @@ fn read_only_volume(p: &Path) -> bool {
     unsafe { libc::statfs(c.as_ptr(), &mut st) == 0 && (st.f_flags & libc::MNT_RDONLY as u32) != 0 }
 }
 
-/// L5.16c: one line for the owned server's stdin (the Set-up sheet's answers); false without an owned server.
+/// L5.16c: one line for the owned server's stdin (the Set-up sheet's answers; L5.16d: the update's state); false without
+/// an owned server, or for a line the server would drop (over SHELL_LINE_MAX bytes: review d B-L4).
 pub(crate) fn send_to_server(line: &str) -> bool {
+    if !dc::setup::fits_shell_line(line) {
+        log("a line for the Studio server was longer than its stdin takes: not sent");
+        return false;
+    }
     let Some(app) = APP.get() else { return false };
     let Some(shell) = app.try_state::<Arc<Shell>>().map(|s| s.inner().clone()) else { return false };
     let s = lock(&shell.session);
@@ -587,6 +598,13 @@ pub(crate) fn setup_request(a: dc::SetupAction) {
             }
         }
     });
+}
+
+/// L5.16d: the update sheet's click (a pipe line of the owned server, from the person's click in the page).
+pub(crate) fn update_request(a: dc::UpdateAction) {
+    let Some(app) = APP.get() else { return };
+    let h = app.clone();
+    let _ = app.run_on_main_thread(move || update::from_page(&h, a));
 }
 
 /// L5.16c: Help › Set Up …, Install / Uninstall the retake Command…: the page's Set-up sheet (the command's section for
@@ -672,12 +690,15 @@ fn main() {
 
     let context = tauri::generate_context!();
     let _ = APP_NAME.set(context.package_info().name.clone());
-    let app = tauri::Builder::default()
+    let version = context.package_info().version.to_string();
+    // L5.16d: the updater plugin, in a build that has it and a feed in its config only.
+    let app = update::register(tauri::Builder::default(), &context)
         .menu(|app| menu::build(app, app_name()))
         .on_menu_event(|app, event| match event.id().as_ref() {
             menu::OPEN_WORKSPACE => open_other(app),
             menu::SHOW_WINDOW => show_window(app),
             id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),
+            menu::CHECK_UPDATES => update::check_menu(app),
             // L5.9: a page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
             id => {
                 if let Some(js) = menu::page_command_js(id) {
@@ -710,6 +731,8 @@ fn main() {
             if bundled && loc != dc::InstallLocation::Ok {
                 log(&format!("{}: {}", dc::setup::location_words(loc), dc::setup::MOVE_TO_APPLICATIONS));
             }
+            // L5.16d: the version and whether it updates itself (the gated update test reads this line).
+            log(&format!("{} version {version} ({})", app_name(), update::summary(loc)));
             // L5.16c: the installed app's first run — no workspace yet: create ~/Retake, choose a folder, or quit.
             let first = match first {
                 None if bundled => match first_run(&shell) {
@@ -727,8 +750,12 @@ fn main() {
                 None => {
                     log("no workspace opened: quit");
                     h.exit(0);
+                    return Ok(());
                 }
             }
+            // L5.16d: the update's state and the launch check, once the first workspace is served (its server learns
+            // the state; an install never races the start).
+            update::start(&h, shell.home.clone(), loc);
             Ok(())
         })
         .build(context);
@@ -749,6 +776,8 @@ fn main() {
                 Some(s) => log(&format!("quit: the attached Studio server (pid {}) keeps running", s.server.line.pid)),
                 None => log("quit"),
             }
+            // L5.16d: Install and Restart approved by the guard — the swap, then the restart (else nothing).
+            update::finish(h);
             logfilter::finish();
         }
         _ => {}

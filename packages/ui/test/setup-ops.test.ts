@@ -421,6 +421,7 @@ describe('the rest', () => {
     expect(parseShellLine(`{"type":"cli_folder","path":"/${'\u20ac'.repeat(2000)}"}`)).toEqual({ type: 'cli_folder', path: `/${'\u20ac'.repeat(2000)}` });
     const cli = await readFile(join(__dirname, '..', '..', 'cli', 'src', 'commands', 'ui.ts'), 'utf8');
     expect(cli).toContain(`stdinClosed((l) => shellLine(l), ${SHELL_LINE_MAX})`);
-    expect(cli).toContain('shellLine = (l) => void applyShellLine(server.setup, root, l);');
+    // L5.16d: the update's state goes through the same reader (update-ops.test.ts).
+    expect(cli).toContain('shellLine = (l) => void applyShellLine(server.setup, root, l, server.update);');
   });
 });

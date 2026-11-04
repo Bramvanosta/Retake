@@ -27,6 +27,8 @@ pub const SHOW_WINDOW: &str = "show-window";
 pub const SET_UP: &str = "set-up";
 pub const CLI_INSTALL: &str = "cli-install";
 pub const CLI_REMOVE: &str = "cli-remove";
+/// L5.16d: Help › Check for Updates… (update.rs: an alert with the answer, or the Studio's update sheet).
+pub const CHECK_UPDATES: &str = "check-updates";
 
 /// A macOS standard item.
 #[derive(Clone, Copy)]
@@ -97,6 +99,7 @@ pub const MENUS: &[(&str, &[Item])] = &[
         "Help",
         &[
             Item::Cmd { id: SET_UP, label: "Set Up {app}…", accelerator: None, enabled: true },
+            Item::Cmd { id: CHECK_UPDATES, label: "Check for Updates…", accelerator: None, enabled: true },
             Item::Separator,
             Item::Cmd { id: CLI_INSTALL, label: "Install the retake Command…", accelerator: None, enabled: true },
             Item::Cmd { id: CLI_REMOVE, label: "Uninstall the retake Command…", accelerator: None, enabled: true },

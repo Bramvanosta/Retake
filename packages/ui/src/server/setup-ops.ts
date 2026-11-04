@@ -29,6 +29,7 @@ import { execFile } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
+import type { UpdateState } from './update-ops.js';
 import {
   CLI_NAME,
   LAUNCHER_REL,
@@ -154,9 +155,14 @@ export class SetupState {
  * One line the desktop shell wrote on the supervised server's stdin (cli ui.ts → here): the folder picked in its
  * native panel (checked now: SetupState.chose), the notification state; anything else is dropped. True when taken.
  */
-export function applyShellLine(setup: { state: SetupState; context(): SetupContext }, workspace: string, line: string): boolean {
+export function applyShellLine(setup: { state: SetupState; context(): SetupContext }, workspace: string, line: string, update?: UpdateState): boolean {
   const m = parseShellLine(line);
   if (!m) return false;
+  // L5.16d: the update's state (update-ops.ts), kept for desktop_update_status.
+  if (m.type === 'update') {
+    update?.apply(m);
+    return update !== undefined;
+  }
   if (m.type === 'cli_folder') setup.state.chose(m.path, setup.context(), workspace);
   else if (m.type === 'cli_folder_open') setup.state.chosen = { panel: 'open' };
   else if (m.type === 'cli_folder_cancelled') setup.state.chosen = { panel: 'cancelled' };

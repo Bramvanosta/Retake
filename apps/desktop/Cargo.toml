@@ -23,10 +23,18 @@ libc = "0.2"
 # L5.2b: job notifications (UNUserNotificationCenter) — already in Cargo.lock through objc2-ui-kit; no new package.
 block2 = "0.6"
 objc2-user-notifications = { version = "0.3", default-features = false, features = ["std", "bitflags", "block2", "UNUserNotificationCenter", "UNNotification", "UNNotificationContent", "UNNotificationRequest", "UNNotificationResponse", "UNNotificationTrigger"] }
+# L5.16d: the signed updater — only in a build made with the `updater` feature (bundle.mjs, when the build is given a
+# feed and a public key); the developer build never has it. Pinned like tauri; its crates are in Cargo.lock either way.
+tauri-plugin-updater = { version = "=2.14.0", optional = true }
+# The config's `plugins` section is embedded as serde_json values by tauri::generate_context! (only an updater build has
+# one): already in Cargo.lock through tauri.
+serde_json = { version = "1", optional = true }
 
 [features]
 # What the Tauri CLI sets for a production build (pnpm desktop:build): no dev server, no inspector.
 custom-protocol = ["tauri/custom-protocol"]
+# L5.16d: register tauri-plugin-updater (its `plugins.updater` config comes from bundle.mjs's generated overlay only).
+updater = ["dep:tauri-plugin-updater", "dep:serde_json"]
 
 [profile.dev]
 # Small debug builds (critique L1): line tables for our crate, none for dependencies.

@@ -162,6 +162,11 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                     crate::setup_request(a);
                     continue;
                 }
+                // L5.16d: the update sheet's click (Install and Restart, Later) — through the server's desktop_update op.
+                PipeMsg::Update(a) => {
+                    crate::update_request(a);
+                    continue;
+                }
                 // The server's framing newline (review A L3): nothing to say, nothing changed.
                 PipeMsg::Blank => continue,
                 PipeMsg::Ignored(why) => {

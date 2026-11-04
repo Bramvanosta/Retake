@@ -106,14 +106,24 @@ pub fn setup_page_js(section: Option<&str>) -> Option<String> {
 /// The longest path the shell writes on the server's stdin (ui desktop.ts parseShellLine: 4096 characters).
 pub const SHELL_PATH_MAX: usize = 4096;
 
+/// The longest line the shell writes on the server's stdin, in BYTES (UTF-8, its newline not counted): ui desktop.ts
+/// SHELL_LINE_MAX and the CLI's stdin reader drop anything longer (L5.16d review B-L4: a cap in characters is not one in
+/// bytes — a JSON escape is 6 bytes, a character up to 4).
+pub const SHELL_LINE_MAX: usize = 8192;
+
+/// A line the server will take: at most SHELL_LINE_MAX bytes, no newline inside.
+pub fn fits_shell_line(line: &str) -> bool {
+    line.len() <= SHELL_LINE_MAX && !line.contains(['\n', '\r'])
+}
+
 /// The line that gives the server the folder picked for the command: an absolute UTF-8 path, no NUL / newline, at
-/// most SHELL_PATH_MAX characters; None otherwise (then the cancelled line is sent).
+/// most SHELL_PATH_MAX characters, the line within SHELL_LINE_MAX bytes; None otherwise (then the cancelled line is sent).
 pub fn cli_folder_line(path: &Path) -> Option<String> {
     let s = path.to_str()?;
     if !path.is_absolute() || s.chars().count() > SHELL_PATH_MAX || s.contains(['\0', '\n', '\r']) {
         return None;
     }
-    Some(format!("{{\"type\":\"cli_folder\",\"path\":{}}}", json::quote(s)))
+    Some(format!("{{\"type\":\"cli_folder\",\"path\":{}}}", json::quote(s))).filter(|l| fits_shell_line(l))
 }
 
 pub const CLI_FOLDER_CANCELLED_LINE: &str = "{\"type\":\"cli_folder_cancelled\"}";
@@ -196,6 +206,10 @@ mod tests {
         assert_eq!(cli_folder_line(Path::new("/a\nb")), None);
         assert_eq!(cli_folder_line(&PathBuf::from(format!("/{}", "a".repeat(SHELL_PATH_MAX)))), None);
         assert!(cli_folder_line(&PathBuf::from(format!("/{}", "a".repeat(SHELL_PATH_MAX - 1)))).is_some());
+        // L5.16d review B-L4: the line's cap counts bytes — 4095 four-byte characters fit the path's 4096 characters, not
+        // the server's 8192 bytes.
+        assert_eq!(cli_folder_line(&PathBuf::from(format!("/{}", "\u{1f600}".repeat(SHELL_PATH_MAX - 1)))), None);
+        assert!(fits_shell_line(&"a".repeat(SHELL_LINE_MAX)) && !fits_shell_line(&"a".repeat(SHELL_LINE_MAX + 1)) && !fits_shell_line("a\nb"));
         assert_eq!(notifications_line(Some(true)), r#"{"type":"notifications","state":"on"}"#);
         assert_eq!(notifications_line(Some(false)), r#"{"type":"notifications","state":"off"}"#);
         assert_eq!(notifications_line(None), r#"{"type":"notifications","state":"unknown"}"#);

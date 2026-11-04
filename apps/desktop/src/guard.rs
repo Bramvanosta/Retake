@@ -32,6 +32,10 @@
 //! - A panic in the hook answers Now (catch_unwind): an app that cannot quit is worse than a question not asked.
 //! - Open Workspace… stays native (BL-135: through the page it would turn a synchronous menu callback into an async
 //!   flow); it drops a page question first.
+//! - L5.16d: Install and Restart is a quit armed by update.rs — the same flow in Action::Update's words; once this hook
+//!   took it for the update, the choice holds however long its question waits (update_flow Arm). Now approves the
+//!   install (RunEvent::Exit then swaps and restarts); a Cancel (the page's, the alert's, another question up) or a page
+//!   question dropped disarms it.
 
 use crate::{app_name, log};
 use desktop_core::guard_flow::{new_id, SHOWN_WITHIN_MS};
@@ -89,7 +93,9 @@ fn decide() -> NSApplicationTerminateReply {
     let Some(app) = APP.get() else { return NSApplicationTerminateReply::TerminateNow };
     // No server of this app's own (none, or an attached one: no pipe), or nothing pending: no question.
     let pending = if other_modal || quit_now { None } else { crate::current_pending(app) };
-    let action = quit_action(quit_reason());
+    // L5.16d: Install and Restart's quit (armed by its click) asks in its own words; a logout / restart keeps its own.
+    let reason = quit_reason();
+    let action = if reason.is_none() && crate::update::take_quit() { Action::Update } else { quit_action(reason) };
     let question = pending.as_ref().and_then(|p| {
         let q = guard_question(p, action, app_name());
         if q.is_none() && action == Action::SystemRestart && !p.is_empty() {
@@ -99,21 +105,35 @@ fn decide() -> NSApplicationTerminateReply {
     });
     // L5.12d: the page is asked for a plain Quit only (loginwindow never waits on a web page), with the window on the
     // Studio's own origin (the player's would swallow the event), unless test mode keeps the native alert.
-    let page = question.is_some() && action == Action::Quit && page_question_on() && crate::window_on_studio(app);
+    let page = question.is_some() && matches!(action, Action::Quit | Action::Update) && page_question_on() && crate::window_on_studio(app);
     let ask_ = Ask { now: now_ms(), other_modal, quit_now, question, page, new_id: if page { fresh_id() } else { String::new() } };
     let (reply, fx) = crate::lock(&FLOW).terminate(ask_);
     run(app, fx);
+    let update = action == Action::Update;
     match reply {
-        Reply::Now => NSApplicationTerminateReply::TerminateNow,
+        Reply::Now => {
+            // L5.16d: nothing to ask (or a page's Install and Restart re-entered): the update installs at the exit — a
+            // signal's quit never does.
+            if update && !quit_now {
+                crate::update::approved();
+            }
+            NSApplicationTerminateReply::TerminateNow
+        }
         Reply::Cancel if other_modal => {
             // Another question of the shell is up (Open Workspace…, the restart alert, the picker): answered first (L13).
             log("quit: another question is open — answer it first");
+            if update {
+                crate::update::cancelled(app);
+            }
             NSApplicationTerminateReply::TerminateCancel
         }
         Reply::Cancel => NSApplicationTerminateReply::TerminateCancel,
         Reply::Native(q) => match ask(app, &q) {
             Answer::Proceed => {
-                log("quit: Quit Anyway");
+                log(if update { "quit: Install and Restart" } else { "quit: Quit Anyway" });
+                if update {
+                    crate::update::approved();
+                }
                 NSApplicationTerminateReply::TerminateNow
             }
             Answer::QuitNow => {
@@ -122,6 +142,9 @@ fn decide() -> NSApplicationTerminateReply {
             }
             Answer::Cancel => {
                 log("quit cancelled: the app stays open");
+                if update {
+                    crate::update::cancelled(app);
+                }
                 NSApplicationTerminateReply::TerminateCancel
             }
         },
@@ -206,19 +229,31 @@ pub fn from_page(msg: PipeMsg) {
                 return;
             }
             log(if proceed { "quit: Quit Anyway (in the window)" } else { "quit cancelled in the window: the app stays open" });
+            if !proceed {
+                // L5.16d: Install and Restart's question cancelled: the update waits for the next click.
+                crate::update::cancelled(app);
+            }
             run(app, fx);
         }
         _ => {}
     }
 }
 
-/// The page question up now is dropped (the server gone, a signal, another question of the shell): its sheet closes.
+/// The page question up now is dropped (the server gone, a signal, another question of the shell): its sheet closes —
+/// L5.16d: and Install and Restart's quit, when it was that question's, is cancelled (the update back to Available).
 pub fn drop_page_question(app: &AppHandle) {
     let fx = crate::lock(&FLOW).drop_asked();
     if !fx.is_empty() {
         log("quit: the question in the window was dropped");
     }
     run(app, fx);
+    crate::update::cancelled(app);
+}
+
+/// L5.16d: a quit question is up in the page (update.rs does not arm its own quit meanwhile: an answer to that question
+/// would install).
+pub fn page_question_up() -> bool {
+    crate::lock(&FLOW).asked_id().is_some()
 }
 
 /// The `kAEQuitReason` of the quit Apple event being handled (logout, restart, shut down); None for ⌘Q, the menu, the

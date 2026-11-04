@@ -2227,6 +2227,26 @@ and `job_end` lines); what remains:
   Retake") — it could name the missing folder and wait for its disk (review c B-L5).
 
 
+### BL-143 — Updater extras cut from L5.16d
+*S–M · cut in L5.16d · builds on: L5.16d*
+
+- **Delta updates and a staged rollout**: every update downloads the whole app (≈ 400 MB archive); the feed has no
+  percentage or cohort.
+- **An admin install** for an app in a folder this account may not write (a root-owned /Applications): today the sheet
+  says to install from the disk image; the plugin's privileged path (an administrator prompt from AppleScript) is never
+  reached from the background flow.
+- **The Help menu's state**: Check for Updates… is always enabled; an "Update available" item or a menu badge needs the
+  shell to keep a menu in sync with the update's state.
+- **Other running copies told before the swap**: processes started from the old bundle (another workspace's worker, an
+  MCP server Claude started) keep their loaded code; a count of them in the sheet (libproc, plan §7) was not built — an
+  idle worker hands over by itself (critique M6).
+- **A feed that expires**: a frozen `latest.json` stops updates silently; doctor warns after 30 days without a
+  successful check (critique L7), the feed itself carries no expiry or signature of its own.
+- **The download's progress** in the sheet (bytes received): it says "Downloading" until the archive is checked.
+- **A download streamed to disk**: the plugin gathers the archive in memory until it has verified it (the byte cap
+  bounds that: 1.5 GB), then the shell writes it to its cache folder and drops it; streaming it to the file would take
+  a download of our own (or a newer plugin).
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

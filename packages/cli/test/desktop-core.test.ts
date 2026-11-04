@@ -13,7 +13,8 @@
  * question's flow (guard_flow: page first, the native alert after 1.5 s without an ack, ids taken once, APPROVED
  * expiring and cleared by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines. L5.16c:
  * the installed app's location (translocated, read-only, /Volumes), the first-run answers, the `studio:setup` event and
- * the Set-up sheet's pipe and stdin lines. Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
+ * the Set-up sheet's pipe and stdin lines. L5.16d: the updater's rules (update_flow) and the update sheet's pipe line.
+ * Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
  * title, on Windows, on macOS without the Xcode command line tools (checked with `xcode-select -p` BEFORE cargo runs:
  * the `cc` shim would open their install dialog), without rustc / cargo, or with a Rust older than 1.70 (the crate
  * declares no `rust-version`).
@@ -49,7 +50,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
     const out = `${r.stdout}\n${r.stderr}`;
     expect(r.status, out).toBe(0);
     const m = /test result: ok\. (\d+) passed; 0 failed/.exec(out);
-    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(61);
+    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(77);
     for (const name of [
       'a_line_with_any_other_host_scheme_port_or_shape_is_refused',
       'navigation_exact_origins_only',
@@ -107,6 +108,27 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       'the_setup_event_has_a_constant_shape',
       'the_lines_for_the_server',
       'setup_lines_are_strict',
+      // L5.16d: the updater's rules (update_flow) — which build updates itself, the daily check, what an install
+      // waits for or refuses, the server's lines, the remembered checks — and the update sheet's pipe line.
+      'update_flow::tests::the_disable_variable',
+      'update_flow::tests::which_app_updates_itself',
+      'update_flow::tests::a_check_at_most_once_a_day',
+      'update_flow::tests::install_requests_wait_for_jobs_and_refuse_what_cannot_work',
+      'update_flow::tests::versions_and_notes',
+      'update_flow::tests::the_lines_for_the_server',
+      'update_flow::tests::the_remembered_checks',
+      'update_flow::tests::dates_and_alerts',
+      'update_lines_are_strict',
+      // Review d: the line's byte cap, Install and Restart held once asked, checks refused during an install and due
+      // after a failed one, no install without the click outside the e2e build, the download's limits and watch, the
+      // archive on disk.
+      'update_flow::tests::the_available_line_fits_the_servers_byte_cap',
+      'update_flow::tests::install_and_restart_holds_once_asked',
+      'update_flow::tests::checks_during_an_install_and_after_a_failed_one',
+      'update_flow::tests::no_install_without_the_click_outside_the_e2e_build',
+      'update_flow::tests::the_download_limits',
+      'update_flow::tests::watch_stops_an_endless_or_hanging_download_and_a_later',
+      'update_flow::tests::the_archive_on_disk',
     ]) {
       expect(out, name).toMatch(new RegExp(`${name} \\.\\.\\. ok`));
     }

@@ -320,6 +320,40 @@ export function readAppSettings(home: string): AppSettings {
   }
 }
 
+/**
+ * L5.16d: what the desktop app remembers of its update checks — `<home>/desktop-updates.json`, written by the shell
+ * (desktop_core update_flow `write_remembered`; a static test compares the file name): the last successful check
+ * (seconds since 1970) and an install that failed (said by the app's next launch, and kept until a newer check, an
+ * install or the person's Later: review d B-L2). Doctor shows both (critique L7: a feed that stopped moving is
+ * visible). Unreadable or foreign: nothing.
+ */
+export const UPDATES_FILE = 'desktop-updates.json';
+/** Turns the app's update checks off (desktop_core update_flow DISABLE_ENV). */
+export const UPDATE_DISABLE_ENV = 'RETAKE_DISABLE_UPDATE_CHECK';
+export interface UpdateChecks {
+  checked: number | null;
+  failed: { failure: string; version: string } | null;
+}
+export function readUpdateChecks(home: string): UpdateChecks {
+  const none: UpdateChecks = { checked: null, failed: null };
+  try {
+    const v = JSON.parse(readFileSync(join(home, UPDATES_FILE), 'utf8')) as Record<string, unknown> | null;
+    if (!v || typeof v !== 'object' || Array.isArray(v) || v.version !== 1) return none;
+    const checked = typeof v.checked === 'number' && Number.isSafeInteger(v.checked) && v.checked >= 0 ? v.checked : null;
+    const f = v.failed as Record<string, unknown> | null | undefined;
+    const failed = f && typeof f === 'object' && ['check', 'download', 'install', 'not_writable'].includes(f.failure as string) && typeof f.version === 'string' && /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(f.version) && f.version.length <= 64 ? { failure: f.failure as string, version: f.version } : null;
+    return { checked, failed };
+  } catch {
+    return none;
+  }
+}
+
+/** RETAKE_DISABLE_UPDATE_CHECK's value turns the checks off (1, true or yes: update_flow `disabled`). */
+export function updateChecksOff(v: string | undefined): boolean {
+  const t = (v ?? '').trim().toLowerCase();
+  return t === '1' || t === 'true' || t === 'yes';
+}
+
 /** Merge `patch` into the settings (`null` removes a key), written whole and atomically (0600; the home 0700). */
 export function writeAppSettings(home: string, patch: { [K in keyof AppSettings]?: AppSettings[K] | null }): AppSettings {
   const next: Record<string, unknown> = { ...readAppSettings(home) };

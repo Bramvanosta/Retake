@@ -84,6 +84,15 @@ pub fn install() {
     *INSTALLED.lock().unwrap_or_else(|e| e.into_inner()) = Some(Installed { original, done: rx });
 }
 
+/// L5.16d: a copy of the real stderr for a process this one starts and outlives no more (test mode's restart after an
+/// update): fd 2 is the filter's pipe, whose reader dies with this process — a child writing there would lose its lines
+/// and fail on its first one after the exit. None when the filter is not installed (fd 2 is the real one: inherit it).
+pub fn real_stderr() -> Option<std::process::Stdio> {
+    let original = INSTALLED.lock().unwrap_or_else(|e| e.into_inner()).as_ref().map(|i| i.original)?;
+    let fd = unsafe { libc::dup(original) };
+    (fd >= 0).then(|| std::process::Stdio::from(unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) }))
+}
+
 /// Put the real stderr back on fd 2 (closing the pipe's last writer) and let the filter print what is left.
 pub fn finish() {
     let taken = INSTALLED.lock().unwrap_or_else(|e| e.into_inner()).take();

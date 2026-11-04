@@ -1797,6 +1797,38 @@ On the copy in /Applications, ideally a fresh account (no `~/Retake`, no `~/.ret
    a Capture from the app says the job runs in the other copy (its "queued" line in the status bar names its version
    and folder), the Welcome inspector's Worker row names it, and `retake doctor` (either copy) warns in its MCP line.
 
+### 15d. An update against your feed (L5.16d — your host and your key; nothing in the test suite reaches them)
+
+Once: the key (`pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w <file>`, private key + password in your password
+manager). Build version N with `RETAKE_UPDATE_FEED=https://<host>/retake/latest.json` and `RETAKE_UPDATE_PUBKEY`
+(README "Releasing an update"), install it from its DMG into /Applications; then bump the version
+(`node scripts/set-version.mjs <N+1>`, `--check` says nothing is left behind), write its CHANGELOG paragraph, build N+1
+the same way with `TAURI_SIGNING_PRIVATE_KEY=<the key file's path>`, and `node scripts/publish-update.mjs <N+1> …`
+(your upload address must answer an authenticated GET: 404 for a missing file).
+
+1. **The offer.** Open N: the status bar says "Update available · vN+1" within a few seconds (or Help › Check for
+   Updates…). The sheet shows your CHANGELOG paragraph as text, Later · Install and Restart; VoiceOver reads the title
+   and the notes. Later closes it; the button stays.
+2. **With a job running** (a capture): Install and Restart says "Waiting for a job"; Help › Check for Updates… now says
+   an update is under way (not a fresh check); Later stops waiting; again, and let the capture end: the app quits by
+   itself, comes back at N+1 (About Retake says it), on the same workspace — this is the one run of the real restart
+   (Tauri's, through LaunchServices), which no automated test covers. Note how long the status bar's "Downloading"
+   lasted and that `~/Library/Caches/local.retake.desktop/updates/` is empty afterwards.
+3. **Unsaved text** in a tab (a README being edited): the quit question appears in the window with "Install the update
+   and restart Retake?"; Cancel keeps everything (the update waits in the status bar). Again, leave the question open
+   for more than ten minutes, then Install and Restart: it still installs and restarts.
+4. **An MCP session open** (Claude Code on this workspace) during the update: note what it says after the restart (its
+   server process keeps the old code until Claude restarts it).
+5. **The signature.** `codesign --verify --deep --strict -vv /Applications/Retake.app` and `spctl -a -vv
+   /Applications/Retake.app` after the update; with a release build, `xcrun stapler validate` too.
+6. **Refusals.** From the DMG itself (or a copy in Downloads opened once): Help › Check for Updates… says to move the
+   app to Applications. A non-admin account with a root-owned /Applications: the sheet stays open and says to install
+   from the disk image (no admin prompt), and so does the status bar. `RETAKE_DISABLE_UPDATE_CHECK=1 open -a Retake` (from Terminal: the variable reaches the app):
+   Help › Check for Updates… says the checks are off.
+7. **doctor** in Terminal: the `App updates` line shows the date of the last check (a DMG built without the two
+   variables: "updates are off in this build").
+8. **A feed that does not move**: leave it at N for a while — doctor warns after 30 days.
+
 ### 15b. The release run (L5.16, part e — your Developer ID; nothing in the test suite reaches it)
 
 `pnpm desktop:release --out <folder> --ffmpeg <ffmpeg folder>` with `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID` and

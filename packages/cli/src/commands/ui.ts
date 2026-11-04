@@ -171,7 +171,8 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     for (const k of ['log', 'info', 'debug'] as const) console[k] = (...a: unknown[]) => console.error(...a);
     startSupervisor({ server: launched.server, out: { write: (t) => write(t), once: (e, f) => process.stdout.once(e, f) }, log: (m) => ui.line(m) });
     const server = launched.server;
-    shellLine = (l) => void applyShellLine(server.setup, root, l);
+    // L5.16d: and the update's state (the Studio's status bar and update sheet).
+    shellLine = (l) => void applyShellLine(server.setup, root, l, server.update);
   }
   const reason = await Promise.race([stopping, ...ended]);
   await launched.server.close();

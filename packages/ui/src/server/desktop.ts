@@ -20,6 +20,8 @@
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
 import type { ToolDef } from '@retake/mcp';
+import { parseUpdateLine } from './update-ops.js';
+import type { UpdateLine } from './update-ops.js';
 
 /** The quit question's id (desktop_core guard_flow `id_ok`): 22 base64url characters. */
 export const QUIT_ID_RE = /^[A-Za-z0-9_-]{22}$/;
@@ -39,8 +41,8 @@ export type SetupAction = (typeof SETUP_ACTIONS)[number];
 /** The longest line the shell writes on the server's stdin (bytes). */
 export const SHELL_LINE_MAX = 8192;
 
-/** A line the desktop shell wrote on the supervised server's stdin (L5.16c). */
-export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_folder_open' } | { type: 'cli_folder_cancelled' } | { type: 'notifications'; state: 'on' | 'off' | 'unknown' };
+/** A line the desktop shell wrote on the supervised server's stdin (L5.16c; L5.16d: the update's state). */
+export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_folder_open' } | { type: 'cli_folder_cancelled' } | { type: 'notifications'; state: 'on' | 'off' | 'unknown' } | UpdateLine;
 
 /**
  * One line of the shell on stdin, or null for anything but its exact shapes: `{"type":"cli_folder_open"}` (its native
@@ -48,6 +50,7 @@ export type ShellLine = { type: 'cli_folder'; path: string } | { type: 'cli_fold
  * <absolute>}` (the folder the person picked there), `{"type":"cli_folder_cancelled"}` (none: cancelled, or the panel
  * could not open while another question was up), `{"type":"notifications","state":"on"|"off"|"unknown"}`. Strict: no
  * other field, a path absolute, one line, no NUL, at most 4096 characters; the line at most SHELL_LINE_MAX bytes (UTF-8).
+ * L5.16d: `{"type":"update","state":…}` — the update's state (update-ops.ts parseUpdateLine: fixed keys per state).
  */
 export function parseShellLine(line: string): ShellLine | null {
   if (Buffer.byteLength(line, 'utf8') > SHELL_LINE_MAX) return null;
@@ -64,6 +67,7 @@ export function parseShellLine(line: string): ShellLine | null {
   if (o.type === 'cli_folder_open' && keys === 'type') return { type: 'cli_folder_open' };
   if (o.type === 'cli_folder_cancelled' && keys === 'type') return { type: 'cli_folder_cancelled' };
   if (o.type === 'notifications' && keys === 'state,type' && (o.state === 'on' || o.state === 'off' || o.state === 'unknown')) return { type: 'notifications', state: o.state };
+  if (o.type === 'update') return parseUpdateLine(o);
   return null;
 }
 
@@ -107,6 +111,11 @@ export class DesktopPipe {
    */
   setup(action: SetupAction): void {
     this.send(this.need(), JSON.stringify({ type: 'setup', action }));
+  }
+
+  /** L5.16d: the update sheet's click for the shell (update-ops.ts `desktop_update`): Install and Restart, or Later. */
+  update(action: 'install' | 'later'): void {
+    this.send(this.need(), JSON.stringify({ type: 'update', action }));
   }
 
   private send(w: (line: string) => boolean, line: string): void {

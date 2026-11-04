@@ -4,15 +4,17 @@
  * that is not Retake's, another retake first on this shell's PATH) — a fake app and a scratch HOME only — and the
  * workspace's worker running another copy of Retake (critique M6). L5.16c fixes: another copy is told by its app's
  * identifier (review c B-M3), the rm hint quotes the path (A-L7), a same copy of another version is said (B-L1), the
- * lock's text has no hidden characters in this terminal (A-L4).
+ * lock's text has no hidden characters in this terminal (A-L4). L5.16d: the app's update checks (critique L7) — the
+ * date of the last successful check (desktop-updates.json, written by the shell), an install that failed, a stale feed,
+ * RETAKE_DISABLE_UPDATE_CHECK.
  */
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { APP_BUNDLE_ID, RETAKE_VERSION, writeAppSettings } from '@retake/core';
+import { APP_BUNDLE_ID, RETAKE_VERSION, UPDATES_FILE, readUpdateChecks, writeAppSettings } from '@retake/core';
 import type { BundleInfo } from '@retake/core';
-import { appChecks, doctorChecks } from '../src/commands/doctor.js';
+import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'doctor-app-')));
@@ -47,6 +49,7 @@ describe('doctor: App location and the retake command', () => {
     expect(appChecks(probes({ bundle: app.bundle, env }))).toEqual([
       { status: 'ok', name: 'App location', detail: app.bundle.sealed },
       { status: 'ok', name: 'retake command', detail: "not installed · the app's Help › Install the retake Command… links it" },
+      { status: 'ok', name: 'App updates', detail: 'not checked yet — the app checks at launch, at most once a day (Help › Check for Updates…)' },
     ]);
     symlinkSync(app.launcher, join(bin, 'retake'));
     expect(appChecks(probes({ bundle: app.bundle, env }))[1]).toEqual({ status: 'ok', name: 'retake command', detail: `${join(bin, 'retake')} → this app` });
@@ -150,5 +153,51 @@ describe('doctor: the workspace\'s worker of another copy of Retake (critique M6
     expect(odd.detail).not.toMatch(/[\u0000-\u001f\u202e]/);
     expect(odd.detail).toContain('0.1.0?[2J');
     expect(odd.detail).toContain('started by mcp?');
+  });
+});
+
+describe('doctor: App updates (L5.16d, critique L7)', () => {
+  const now = Date.UTC(2026, 10, 10, 12, 0) ;
+  const write = (dir: string, text: string) => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, UPDATES_FILE), text);
+  };
+  it('never checked, the last successful check, a stale one, a failed install, the checks off; a foreign file reads as nothing', () => {
+    const { home } = setup();
+    const rh = join(home, '.retake-scratch');
+    const env = { HOME: home, RETAKE_HOME: rh };
+    expect(updateCheck(env, home, now)).toEqual({ status: 'ok', name: 'App updates', detail: 'not checked yet — the app checks at launch, at most once a day (Help › Check for Updates…)' });
+    write(rh, JSON.stringify({ version: 1, checked: Math.floor(now / 1000) - 3600, failed: null }));
+    expect(updateCheck(env, home, now)).toEqual({ status: 'ok', name: 'App updates', detail: 'last successful check 2026-11-10 11:00 UTC' });
+    write(rh, JSON.stringify({ version: 1, checked: Math.floor(now / 1000) - 40 * 86_400, failed: null }));
+    const stale = updateCheck(env, home, now);
+    expect(stale.status).toBe('warn');
+    expect(stale.detail).toBe('last successful check 2026-10-01 12:00 UTC, 40 days ago');
+    write(rh, JSON.stringify({ version: 1, checked: 1, failed: { failure: 'install', version: '0.2.1' } }));
+    expect(updateCheck(env, home, now)).toMatchObject({ status: 'warn', detail: 'the update to 0.2.1 could not be installed: the app kept this version' });
+    expect(updateCheck({ ...env, RETAKE_DISABLE_UPDATE_CHECK: '1' }, home, now).detail).toMatch(/ · RETAKE_DISABLE_UPDATE_CHECK is set here/);
+    for (const bad of ['{"version":2,"checked":5}', 'not json', '{"version":1,"checked":"5","failed":{"failure":"install","version":"v1"}}']) {
+      write(rh, bad);
+      expect(readUpdateChecks(rh), bad).toEqual({ checked: null, failed: null });
+    }
+    // Only an installed app has the line (a checkout or a staged tree has no updater).
+    expect(appChecks(probes({ env: { ...env, PATH: '/usr/bin' } })).map((c) => c.name)).not.toContain('App updates');
+  });
+
+  it('review d A-L9: a build made without an update feed says so (its launch.json), whatever the remembered checks say', () => {
+    const { home, app } = setup();
+    const rh = join(home, '.retake-scratch');
+    const env = { HOME: home, RETAKE_HOME: rh, PATH: '/usr/bin' };
+    const off = { status: 'ok', name: 'App updates', detail: 'updates are off in this build (made without an update feed): a newer version comes from its disk image' };
+    expect(updateCheck(env, home, now, 'off')).toEqual(off);
+    const line = () => appChecks(probes({ bundle: app.bundle, env })).find((c) => c.name === 'App updates');
+    // No launch.json (or one from before L5.16d): the remembered checks.
+    expect(line()?.detail).toMatch(/^not checked yet/);
+    writeFileSync(join(app.bundle.root, 'launch.json'), JSON.stringify({ version: 2, bundled: true, updates: 'off' }));
+    write(rh, JSON.stringify({ version: 1, checked: Math.floor(now / 1000) - 3600, failed: null }));
+    expect(line()).toEqual(off);
+    writeFileSync(join(app.bundle.root, 'launch.json'), JSON.stringify({ version: 2, bundled: true, updates: 'on' }));
+    expect(line()?.detail).toMatch(/^last successful check /);
+    expect([launchUpdates('{"updates":"on"}'), launchUpdates('{"updates":"off"}'), launchUpdates('{"updates":true}'), launchUpdates('not json'), launchUpdates(null), launchUpdates('null')]).toEqual(['on', 'off', null, null, null, null]);
   });
 });

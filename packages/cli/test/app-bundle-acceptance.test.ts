@@ -8,7 +8,8 @@
  * Then, from the built app only — no repository on PATH (/usr/bin:/bin:/usr/sbin:/sbin), a scratch HOME, RETAKE_HOME
  * and TMPDIR, nothing else in the environment:
  * - the launcher (Contents/Resources/bin/retake, directly and through a link): `--version` names the app bundle;
- *   `doctor --json`: Node.js, Chromium, the render browser, ffmpeg and ffprobe are the app's (`bundled`);
+ *   `doctor --json`: Node.js, Chromium, the render browser, ffmpeg and ffprobe are the app's (`bundled`); L5.16d: its
+ *   `App updates` line says "updates are off in this build" (no feed given to this build: launch.json `updates`);
  * - `retake init` makes a workspace, the fixture project is copied in (its hosts on ports 4970–4973, where this test
  *   serves the fixture product), `run northfield-fixture quote` captures it and `render … --review` renders it with the
  *   app's headless shell (the render record says `bundled`), the review passes;
@@ -240,6 +241,9 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
       expect(check(name).detail, name).toMatch(/bundled/);
     }
     expect(check('MCP').detail).toContain(join(app, 'Contents', 'Resources', 'node', 'bin', 'node'));
+    // L5.16d (review d A-L9): a bundle built without an update feed says so (its launch.json `updates: "off"`).
+    expect(JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'launch.json'), 'utf8')).updates).toBe('off');
+    expect(check('App updates').detail).toMatch(/^updates are off in this build/);
   });
 
   it('a workspace by retake init, then a capture and a render of the fixture quote through the launcher', async () => {

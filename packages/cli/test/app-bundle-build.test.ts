@@ -228,7 +228,10 @@ describe('one allow-listed environment for every child of the build (critique M1
       xattr: 'exit 0',
       plutil: "echo '{}'",
     });
-    const env = { ...SECRETS, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: join(tmp, 'home'), KEEP_ME: '1' };
+    // L5.16d: the updater's two variables are checked by the build itself (a feed and a key, or neither): left out
+    // here — buildEnv's own test above shows they never reach a child.
+    const { RETAKE_UPDATE_FEED: _feed, RETAKE_UPDATE_PUBKEY: _key, ...secrets } = SECRETS;
+    const env = { ...secrets, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: join(tmp, 'home'), KEEP_ME: '1' };
     // The stand-ins sign nothing: the build stops at the app's checks — after every child kind before it has run.
     const stage = fakeStage();
     try {
@@ -584,7 +587,10 @@ describe('launch.json version 2 and the launcher', () => {
   it('launch.json v2: relative paths inside Resources, bundled, the module lookup guard first — what desktop_core::launch_config reads', async () => {
     const { launchJson, LAUNCHER, GUARD } = await bundleModule();
     const v2 = launchJson({ paths: { node: 'node/bin/node', engine: 'engine' } });
-    expect(v2).toEqual({ version: 2, bundled: true, node: 'node/bin/node', cli: 'engine/dist/bin.js', preload: 'node/guard.cjs' });
+    // L5.16d (review d A-L9): whether the build updates itself (doctor reads it; the shell ignores the key).
+    expect(v2).toEqual({ version: 2, bundled: true, node: 'node/bin/node', cli: 'engine/dist/bin.js', preload: 'node/guard.cjs', updates: 'off' });
+    expect(launchJson({ paths: { node: 'node/bin/node', engine: 'engine' } }, { updates: true }).updates).toBe('on');
+    expect(readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8')).toContain('launchJson(manifest, { updates: !!updates })');
     expect(LAUNCHER).toBe('bin/retake');
     expect(GUARD).toBe('node/guard.cjs');
     const rs = readFileSync(join(APP, 'core', 'src', 'config.rs'), 'utf8');

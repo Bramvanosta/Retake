@@ -78,4 +78,6 @@ export type { Launched } from './server/launch.js';
 export { DESKTOP_OPS, DesktopAnswerInput, DesktopPipe, QUIT_ID_RE, SETUP_ACTIONS, SHELL_LINE_MAX, SHOWN_PER_MIN, desktopOps, parseShellLine } from './server/desktop.js';
 export type { SetupAction, ShellLine } from './server/desktop.js';
 export { PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SetupState, applyShellLine, setupOps, systemSetupContext } from './server/setup-ops.js';
+export { UPDATE_ACTIONS, UPDATE_CLICKS_PER_MIN, UPDATE_FAILURES, UPDATE_NOTES_MAX, UPDATE_OFF_REASONS, UPDATE_OPS, UPDATE_STATES, UpdateState, installable, parseUpdateLine, updateOps } from './server/update-ops.js';
+export type { UpdateLine } from './server/update-ops.js';
 export type { SetupContext } from './server/setup-ops.js';

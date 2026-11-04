@@ -21,6 +21,8 @@ pub enum Action {
     LogOut,
     /// A restart or shut down of the Mac (review B M2): the jobs stop; jobs alone never hold it (no question).
     SystemRestart,
+    /// L5.16d: Install and Restart (update_flow) — a quit that installs the downloaded update, then restarts.
+    Update,
 }
 
 /// `kAEQuitReason` values (AERegistry.h) of a quit Apple event.
@@ -179,13 +181,14 @@ pub fn guard_question(p: &Pending, action: Action, app: &str) -> Option<Question
             Action::OpenWorkspace => "These jobs keep running; this window stops following them:",
             Action::LogOut => "These jobs stop when you log out (the jobs worker ends with your session):",
             Action::SystemRestart => "These jobs stop when the Mac restarts or shuts down:",
+            Action::Update => "These jobs keep running; they may fail once the app is replaced:",
         };
         parts.push(format!("{lead}\n{}", bullets(p.jobs.iter().map(job_line).collect(), p.jobs_total, "job", "jobs")));
         // Review B L5: a recording the Studio started is ended and saved from its Record screen only.
         if p.jobs.iter().any(|j| j.kind == JobKind::StudioRecording) {
             parts.push(
                 match action {
-                    Action::Quit | Action::OpenWorkspace => {
+                    Action::Quit | Action::OpenWorkspace | Action::Update => {
                         "A recording started in the Studio keeps its window open: close that window to end it, then save it from the Record screen when this workspace is open again."
                     }
                     Action::LogOut | Action::SystemRestart => "A recording started in the Studio stops too: what it recorded is kept — save it from the Record screen next time.",
@@ -200,6 +203,7 @@ pub fn guard_question(p: &Pending, action: Action, app: &str) -> Option<Question
     let (title, go) = match action {
         Action::Quit | Action::LogOut | Action::SystemRestart => (format!("Quit {app}?"), "Quit Anyway"),
         Action::OpenWorkspace => ("Open another workspace?".to_string(), "Open Anyway"),
+        Action::Update => (format!("Install the update and restart {app}?"), "Install and Restart"),
     };
     // Critique M3: losing text is never the default button (Return); jobs only keep running, so going on is.
     let destructive = text_at_stake;
@@ -320,7 +324,7 @@ mod tests {
                 jobs[0] = j(JobKind::StudioRecording);
             }
             let p = Pending { unsaved: vec![u(longest_u); LIST_MAX], unsaved_total: 1_000_000, jobs, jobs_total: 1_000_000, unknown: true };
-            for action in [Action::Quit, Action::OpenWorkspace, Action::LogOut, Action::SystemRestart] {
+            for action in [Action::Quit, Action::OpenWorkspace, Action::LogOut, Action::SystemRestart, Action::Update] {
                 let q = guard_question(&p, action, APP).unwrap();
                 assert!(page_fits(&q), "{action:?}: {} units", units(&q.text));
                 worst = worst.max(units(&q.text));
@@ -357,6 +361,12 @@ mod tests {
         assert_eq!(o.title, "Open another workspace?");
         assert_eq!(o.buttons, ["Open Anyway", "Cancel"]);
         assert!(o.text.starts_with("These jobs keep running; this window stops following them:\n"));
+        // L5.16d: Install and Restart asks like Quit (unsaved text: Cancel is the default), in its own words.
+        let u = guard_question(&p, Action::Update, APP).unwrap();
+        assert_eq!(u.title, "Install the update and restart Retake?");
+        assert_eq!((u.buttons, u.proceed, u.cancel, u.destructive), (["Cancel", "Install and Restart"], 1, 0, true));
+        assert!(u.text.contains("These jobs keep running; they may fail once the app is replaced:\n"));
+        assert_eq!(guard_question(&Pending::default(), Action::Update, APP), None);
         // The server died: jobs gone, the unsaved text still named (critique L2).
         let mut gone = p.clone();
         gone.server_gone();

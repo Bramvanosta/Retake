@@ -44,6 +44,17 @@
  *
  *   (`build` adds launch.json — version 2, paths inside the app — and bin/retake, the launcher, before signing.)
  *
+ * L5.16d, the updater: with RETAKE_UPDATE_FEED (the feed's https address: <host>/retake/latest.json, rc.json for a
+ * pre-release build) AND RETAKE_UPDATE_PUBKEY (the public key `tauri signer generate` wrote), the build turns the cargo
+ * `updater` feature on and the overlay gains `plugins.updater` = {pubkey, endpoints: [feed], requireSignedVersion,
+ * allowDowngrades: false} — never `dangerous*`, never in the repository; one without the other is refused; neither: no
+ * updater ("Updates are off in this build"). Then, after the app is verified (and notarised), the update archive:
+ * Retake.app.tar.gz made by us (`COPYFILE_DISABLE=1 /usr/bin/tar -czf`: the links kept, no AppleDouble file —
+ * critique H3, checked against the app: `archiveProblems`) and signed by the Tauri CLI's `signer sign --app-version`
+ * with TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) — given to that one command only — then verified here against the
+ * public key (scripts/publish-update.mjs `verifyMinisign`). Without the private key the archive stays unsigned and
+ * the report says so (nothing to publish).
+ *
  * `checkStage(dir)` is the layout check run at the end and by the tests on a small fake stage. Never writes inside the checkout or /Applications (`checkFolder`):
  * pnpm imports the injected workspace packages as hard links to the checkout's own files (package.json, dist/), so
  * `deployEngine` gives every linked file of the deploy an inode of its own before anything is written (`breakHardLinks`),
@@ -56,6 +67,7 @@ import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdi
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { MinisignError, decodePublicKey, verifyMinisign } from '../../../scripts/publish-update.mjs';
 import { APP_CATEGORY, LOCAL_NETWORK_USAGE, icns } from './desktop.mjs';
 import { SignError, notarizeApp, notarizeDmg, readTable, signApp, signDmg, signPayload, signer, verifyApp, verifyRelease } from './sign.mjs';
 
@@ -663,9 +675,11 @@ export const LAUNCHER = 'bin/retake';
 /**
  * The bundled app's launch.json (version 2, read by the shell's desktop_core::launch_config): paths inside Resources —
  * the Node.js, the engine's entry and the module lookup guard the shell loads first (`node --require <preload> <cli>`).
+ * L5.16d (review d A-L9): `updates` — "on" in a build made with an update feed, "off" otherwise (doctor says so; the
+ * shell ignores the key).
  */
-export function launchJson(manifest) {
-  return { version: 2, bundled: true, node: manifest.paths.node, cli: `${manifest.paths.engine}/dist/bin.js`, preload: GUARD };
+export function launchJson(manifest, { updates = false } = {}) {
+  return { version: 2, bundled: true, node: manifest.paths.node, cli: `${manifest.paths.engine}/dist/bin.js`, preload: GUARD, updates: updates ? 'on' : 'off' };
 }
 
 /** The keys Tauri merges into its generated Info.plist (bundle.macOS.infoPlist): the local network words, the category. */
@@ -757,18 +771,166 @@ export function tauriCli(dest, store = pnpmStore(), pins = TAURI_CLI_PINS) {
   return join(dest, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 }
 
-/** `tauri build`'s arguments: the app bundle only, unsigned (we sign), the overlay, cargo --locked (and --offline). */
-export function tauriBuildArgs(overlay, offline) {
-  return ['build', '--bundles', 'app', '--no-sign', '--ci', '--config', overlay, '--', '--locked', ...(offline ? ['--offline'] : [])];
+/**
+ * `tauri build`'s arguments: the app bundle only, unsigned (we sign), the overlay, the cargo features (L5.16d: `updater`
+ * when the build has a feed and a key), cargo --locked (and --offline).
+ */
+export function tauriBuildArgs(overlay, offline, features = []) {
+  return ['build', '--bundles', 'app', '--no-sign', '--ci', '--config', overlay, ...(features.length ? ['--features', features.join(',')] : []), '--', '--locked', ...(offline ? ['--offline'] : [])];
 }
 
 /** Run `tauri build` (cliJs: the CLI's tauri.js) in apps/desktop with `buildEnv(env)`, cargo's target in `targetDir`. */
-export function tauriBuild({ cliJs, overlay, targetDir, env = process.env, offline = false, node = process.execPath }) {
+export function tauriBuild({ cliJs, overlay, targetDir, env = process.env, offline = false, node = process.execPath, features = [] }) {
   const tauriEnv = buildEnv(env, { CARGO_TARGET_DIR: targetDir, ...(offline ? { CARGO_NET_OFFLINE: 'true' } : {}) });
-  const r = spawnSync(node, [cliJs, ...tauriBuildArgs(overlay, offline)], { cwd: APP_DIR, env: tauriEnv, stdio: ['ignore', 'inherit', 'inherit'] });
+  const r = spawnSync(node, [cliJs, ...tauriBuildArgs(overlay, offline, features)], { cwd: APP_DIR, env: tauriEnv, stdio: ['ignore', 'inherit', 'inherit'] });
   if (r.error) throw new StageError(`tauri build could not start: ${r.error.message}`);
   if (r.status !== 0) throw new StageError(`tauri build failed (${r.status})${offline ? ' — offline: a crate missing from the cargo cache needs `cargo fetch --locked` once with a network' : ''}`);
   return join(targetDir, 'release', 'bundle', 'macos', `${PRODUCT}.app`);
+}
+
+// ---- L5.16d: the updater ----------------------------------------------------------------------------------------
+
+/** The update archive's name (what publish-update.mjs uploads; the plugin skips its first path component). */
+export const UPDATE_ARCHIVE = `${PRODUCT}.app.tar.gz`;
+
+/**
+ * The feed's address as the app compiles it in: https, no user, query or fragment, a `.json` file (latest.json, or
+ * rc.json for a pre-release build). Returns it; StageError otherwise.
+ */
+export function checkFeed(value) {
+  let u;
+  try {
+    u = new URL(String(value ?? '').trim());
+  } catch {
+    throw new StageError('RETAKE_UPDATE_FEED is not a URL (the https address of your feed: <host>/retake/latest.json)');
+  }
+  if (u.protocol !== 'https:') throw new StageError(`RETAKE_UPDATE_FEED must be https (it is ${u.protocol.replace(':', '')}): the apps refuse anything else`);
+  if (u.username || u.password || u.search || u.hash) throw new StageError('RETAKE_UPDATE_FEED must not carry a user, a query or a fragment');
+  if (!u.pathname.endsWith('.json')) throw new StageError('RETAKE_UPDATE_FEED names the feed file itself (…/latest.json, or …/rc.json for a pre-release build)');
+  return u.href;
+}
+
+/** The public key as the app compiles it in: a Tauri (minisign Ed25519) public key, base64 as `tauri signer generate` writes it. */
+export function checkPubkey(value) {
+  try {
+    decodePublicKey(value);
+  } catch (e) {
+    if (e instanceof MinisignError) throw new StageError(`RETAKE_UPDATE_PUBKEY: ${e.message} — the content of the .pub file \`tauri signer generate\` wrote`);
+    throw new StageError('RETAKE_UPDATE_PUBKEY is not a public key (the content of the .pub file `tauri signer generate` wrote)');
+  }
+  return String(value).trim();
+}
+
+/**
+ * The feed's channel follows the app's version (review d B-L3): a pre-release build reads rc.json, a stable one
+ * latest.json — anything else would put that install base on the wrong channel for good. Returns the feed.
+ */
+export function checkChannel(feed, version) {
+  const want = String(version).includes('-') ? 'rc.json' : 'latest.json';
+  if (new URL(feed).pathname.split('/').pop() !== want) throw new StageError(`RETAKE_UPDATE_FEED must end in /${want} for version ${version} (${want === 'rc.json' ? 'a pre-release reads rc.json' : 'a stable version reads latest.json'})`);
+  return feed;
+}
+
+/**
+ * The updater's build inputs: null (neither variable: no updater), or {feed, pubkey}; one without the other is refused,
+ * so is a feed of the other channel than `version` (the app's: tauri.conf.json).
+ */
+export function updaterSettings(env = process.env, version = CONF.version) {
+  const feed = env.RETAKE_UPDATE_FEED?.trim();
+  const pubkey = env.RETAKE_UPDATE_PUBKEY?.trim();
+  if (!feed && !pubkey) return null;
+  if (!feed || !pubkey) throw new StageError('RETAKE_UPDATE_FEED and RETAKE_UPDATE_PUBKEY go together: set both for an app that updates itself, or neither');
+  return { feed: checkChannel(checkFeed(feed), version), pubkey: checkPubkey(pubkey) };
+}
+
+/**
+ * The overlay's updater part for a release or a person's bundle: the plugin's config (H2: the plugin needs it at
+ * start; `requireSignedVersion` binds a signature to its version, `allowDowngrades: false` keeps "newer only") — never
+ * a `dangerous*` key.
+ */
+export function updaterOverlay({ feed, pubkey }) {
+  return { plugins: { updater: { pubkey: checkPubkey(pubkey), endpoints: [checkFeed(feed)], requireSignedVersion: true, allowDowngrades: false } } };
+}
+
+/**
+ * The gated end-to-end test's overlay ONLY (never the command line's): a feed on 127.0.0.1 over http — the one place
+ * insecure-transport flag of the plugin is set — and the app's version (the test builds 0.2.0 and 0.2.1).
+ */
+export function testUpdaterOverlay({ port, pubkey, version }) {
+  if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new StageError('testUpdaterOverlay: a port of 1024–65535');
+  return {
+    ...(version ? { version } : {}),
+    plugins: { updater: { pubkey: checkPubkey(pubkey), endpoints: [`http://127.0.0.1:${port}/retake/latest.json`], requireSignedVersion: true, allowDowngrades: false, dangerousInsecureTransportProtocol: true } },
+  };
+}
+
+/**
+ * `tar`'s arguments for the update archive of `appDir/<product>.app` (run as /usr/bin/tar with COPYFILE_DISABLE=1, which
+ * stops an older macOS tar from adding AppleDouble `._` entries): no extended attribute, ACL, file flag or Mac metadata
+ * either (bsdtar 3.5 on macOS 26 writes extended attributes as pax headers otherwise — com.apple.provenance among them).
+ */
+export function updateArchiveArgs(appDir, archive, product = PRODUCT) {
+  return ['--no-mac-metadata', '--no-xattrs', '--no-acls', '--no-fflags', '-czf', archive, '-C', appDir, `${product}.app`];
+}
+
+/** The symbolic links under `dir`. */
+export function linkCount(dir) {
+  return walk(dir).filter((p) => lstatSync(p).isSymbolicLink()).length;
+}
+
+/**
+ * What `tar -tvzf` lists that the updater must not install (critique H3): an AppleDouble `._` entry, an entry outside
+ * `<product>.app/` (absolute, `..`), and a link count other than the app's (`links`: linkCount of the app).
+ */
+export function archiveProblems(listing, links, product = PRODUCT) {
+  const rows = String(listing).split('\n').filter((l) => l.trim());
+  const problems = [];
+  let got = 0;
+  for (const row of rows) {
+    if (row.startsWith('l')) got++;
+    // `tar -tv` rows: mode links owner group size date… path [-> target]; the path follows the time column.
+    const m = /\d{1,2}:\d{2}\s+(.+?)(?: -> .*)?$/.exec(row) ?? /\s\d{4}\s+(.+?)(?: -> .*)?$/.exec(row);
+    const path = m ? m[1] : row.trim().split(/\s+/).pop();
+    const parts = path.split('/');
+    if (parts.some((x) => x.startsWith('._'))) problems.push(`${path}: an AppleDouble entry`);
+    if (path.startsWith('/') || parts.includes('..') || (parts[0] !== `${product}.app`)) problems.push(`${path}: outside ${product}.app/`);
+  }
+  if (got !== links) problems.push(`${got} links in the archive, ${links} in the app`);
+  return problems;
+}
+
+/** Make the update archive of `app` in `dir` and check it; returns its path. */
+export function makeUpdateArchive(app, dir, { env = childEnv } = {}) {
+  const archive = join(dir, UPDATE_ARCHIVE);
+  rmSync(archive, { force: true });
+  run('/usr/bin/tar', updateArchiveArgs(dirname(app), archive, basename(app, '.app')), { env: { ...env, COPYFILE_DISABLE: '1' } });
+  const problems = archiveProblems(run('/usr/bin/tar', ['-tvzf', archive], { env }), linkCount(app), basename(app, '.app'));
+  if (problems.length) throw new StageError(`the update archive fails its checks:\n  ${problems.slice(0, 8).join('\n  ')}`);
+  return archive;
+}
+
+/**
+ * Sign the archive (`<archive>.sig`) with the Tauri CLI, bound to `version` (`--app-version`: the apps require it),
+ * the private key from TAURI_SIGNING_PRIVATE_KEY (its text, or the path of its file) and _PASSWORD — passed to this
+ * one command only (every other child gets buildEnv) — then check the signature with `pubkey`. Returns the .sig path;
+ * null without a private key (the archive stays unsigned).
+ */
+export function signUpdateArchive({ cliJs, archive, version, pubkey, env = process.env, node = process.execPath }) {
+  let key = env.TAURI_SIGNING_PRIVATE_KEY?.trim();
+  if (!key) return null;
+  if (!key.includes('\n') && existsSync(key) && statSync(key).isFile()) key = readFileSync(key, 'utf8').trim();
+  const signEnv = buildEnv(env, { TAURI_SIGNING_PRIVATE_KEY: key, ...(env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD !== undefined ? { TAURI_SIGNING_PRIVATE_KEY_PASSWORD: env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD } : {}) });
+  const r = spawnSync(node, [cliJs, 'signer', 'sign', '--app-version', version, archive], { encoding: 'utf8', env: signEnv, cwd: dirname(archive) });
+  if (r.error) throw new StageError(`tauri signer could not start: ${r.error.message}`);
+  // The CLI's output names neither the key nor the password; only its exit status and last line are reported.
+  if (r.status !== 0) throw new StageError(`tauri signer sign failed (${r.status}): ${(r.stderr || '').trim().split('\n').slice(-1)[0] ?? ''}`);
+  const sig = `${archive}.sig`;
+  try {
+    verifyMinisign({ data: readFileSync(archive), signatureB64: readFileSync(sig, 'utf8'), pubkeyB64: pubkey, version });
+  } catch (e) {
+    throw new StageError(`the update archive's signature does not check against RETAKE_UPDATE_PUBKEY: ${e.message}`);
+  }
+  return sig;
 }
 
 /** `hdiutil create`'s arguments: `src` (the app + the Applications link) as an APFS, lzfse-compressed (ULFO) image. */
@@ -915,9 +1077,15 @@ function claimOut(dir) {
  * CLI is checked against (tauri-cli.json; a fake store's in tests — the command line never passes it). Returns the
  * report.
  */
-export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS }) {
+export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true }) {
   const child = buildEnv(env);
   const s = signer(mode, env, child);
+  // L5.16d: the updater from RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY (checked before anything is built); `updater`
+  // (the gated test's testUpdaterOverlay) and `dmg: false` are tests' only — the command line passes neither.
+  const updates = testUpdater ? { overlay: testUpdater, pubkey: testUpdater.plugins.updater.pubkey } : (() => {
+    const u = updaterSettings(env);
+    return u ? { overlay: updaterOverlay(u), pubkey: u.pubkey } : null;
+  })();
   const table = entries ?? readTable();
   if (!out) throw new StageError('desktop:bundle needs a scratch folder: --out <dir> or RETAKE_BUNDLE_OUT (never inside the checkout)');
   const dir = checkFolder(out, '--out', env);
@@ -941,7 +1109,7 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   if (!reuse) stage({ out: stageDir, ffmpeg, env });
   const manifest = JSON.parse(readFileSync(join(stageDir, 'bundle.json'), 'utf8'));
   if (!existsSync(join(stageDir, GUARD))) throw new StageError(`${join(stageDir, GUARD)} is missing: a stage from before the module lookup guard — stage again`);
-  writeFileSync(join(stageDir, 'launch.json'), `${JSON.stringify(launchJson(manifest), null, 1)}\n`);
+  writeFileSync(join(stageDir, 'launch.json'), `${JSON.stringify(launchJson(manifest, { updates: !!updates }), null, 1)}\n`);
   mkdirSync(join(stageDir, dirname(LAUNCHER)), { recursive: true });
   copyFileSync(join(APP_DIR, 'bundle', 'retake.sh'), join(stageDir, LAUNCHER));
   chmodSync(join(stageDir, LAUNCHER), 0o755);
@@ -958,13 +1126,13 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   icns(icon, child);
   writeFileSync(join(dir, 'Info.plist'), infoPlistExtras());
   const overlay = join(dir, 'tauri.bundle.json');
-  writeFileSync(overlay, `${JSON.stringify(bundleOverlay({ stage: stageDir, icon, infoPlist: join(dir, 'Info.plist') }), null, 1)}\n`);
+  writeFileSync(overlay, `${JSON.stringify({ ...bundleOverlay({ stage: stageDir, icon, infoPlist: join(dir, 'Info.plist') }), ...(updates ? updates.overlay : {}) }, null, 1)}\n`);
   const cliJs = tauriCli(join(dir, 'tauri-cli'), pnpmStore(), tauriPins);
   const ownTarget = env.CARGO_TARGET_DIR && !within(realOf(REPO), realOf(resolve(env.CARGO_TARGET_DIR))) ? resolve(env.CARGO_TARGET_DIR) : join(dir, 'target');
   const saved = saveGenerated(REPO, dir);
   let built;
   try {
-    built = tauriBuild({ cliJs, overlay, targetDir: ownTarget, env, offline });
+    built = tauriBuild({ cliJs, overlay, targetDir: ownTarget, env, offline, features: updates ? ['updater'] : [] });
   } finally {
     restoreGenerated(REPO, saved);
   }
@@ -984,17 +1152,29 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   const links = [...sealed.values()].filter((v) => v.startsWith('link ')).length;
   say('verify', `app signed and verified (${links} links kept${mode === 'release' ? ', notarised and stapled' : ''})`);
 
+  // 3b. L5.16d: the update archive (an app with the updater only), signed when the private key is given.
+  let update = null;
+  if (updates) {
+    const version = JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents', 'Info.plist')])).CFBundleShortVersionString;
+    const archive = makeUpdateArchive(app, dir, { env: child });
+    const sig = signUpdateArchive({ cliJs, archive, version, pubkey: updates.pubkey, env });
+    update = { version, archive, signature: sig, size: statSync(archive).size, links: linkCount(app) };
+    say('update', sig ? `update archive made and signed (${archive})` : `update archive made, NOT signed: no TAURI_SIGNING_PRIVATE_KEY (${archive})`);
+  }
+
   // 4. The DMG: the app and an Applications link, then checked (release: signed, notarised, stapled, then the team,
   //    Gatekeeper and both tickets).
-  symlinkSync('/Applications', join(appDir, 'Applications'));
-  const dmg = join(dir, `${PRODUCT}_${manifest.app}_aarch64.dmg`);
-  run('hdiutil', dmgCreateArgs({ src: appDir, dmg }));
-  signDmg(s, dmg);
-  if (mode === 'release') notarizeDmg(s, dmg);
-  const dmgProblems = verifyDmg(dmg, join(dir, 'mnt'), { env: child });
-  if (mode === 'release') dmgProblems.push(...verifyRelease(app, dmg, s));
-  if (dmgProblems.length) throw new StageError(`the DMG fails its checks:\n  ${dmgProblems.join('\n  ')}`);
-  say('dmg', `DMG made and verified (${dmg})`);
+  const dmg = makeDmg ? join(dir, `${PRODUCT}_${manifest.app}_aarch64.dmg`) : null;
+  if (dmg) {
+    symlinkSync('/Applications', join(appDir, 'Applications'));
+    run('hdiutil', dmgCreateArgs({ src: appDir, dmg }));
+    signDmg(s, dmg);
+    if (mode === 'release') notarizeDmg(s, dmg);
+    const dmgProblems = verifyDmg(dmg, join(dir, 'mnt'), { env: child });
+    if (mode === 'release') dmgProblems.push(...verifyRelease(app, dmg, s));
+    if (dmgProblems.length) throw new StageError(`the DMG fails its checks:\n  ${dmgProblems.join('\n  ')}`);
+    say('dmg', `DMG made and verified (${dmg})`);
+  }
 
   if (repoSnapshot(REPO) !== before) throw new StageError(`the build changed the checkout (${REPO}): restore it`);
   const report = {
@@ -1002,7 +1182,8 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
     app,
     dmg,
     version: manifest.app,
-    sizes: { app: sizeOf(app), dmg: statSync(dmg).size, payload: sizeOf(stageDir) },
+    sizes: { app: sizeOf(app), dmg: dmg ? statSync(dmg).size : null, payload: sizeOf(stageDir) },
+    updater: updates ? { feed: updates.overlay.plugins.updater.endpoints[0], archive: update } : null,
     signatures: plan.items.length,
     mach_o: plan.machO.length,
     links,

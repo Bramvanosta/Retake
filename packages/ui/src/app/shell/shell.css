@@ -354,7 +354,8 @@
 }
 
 /* L5.12d: the desktop app's quit question (QuitSheet.tsx): the shell's lines and bullets as it wrote them. */
-.sh-quit-text {
+.sh-quit-text,
+.sh-update-text {
   display: block;
   white-space: pre-line;
   overflow-wrap: anywhere;
@@ -368,7 +369,8 @@ dialog.k-sheet[data-testid='setup-sheet'] {
   overflow-y: auto;
 }
 .sh-setup-path,
-.sh-setup-pre {
+.sh-setup-pre,
+.sh-update-notes {
   display: block;
   overflow-wrap: anywhere;
 }
@@ -392,4 +394,28 @@ dialog.k-sheet[data-testid='setup-sheet'] {
 .sh-setup-confirm > p {
   flex-basis: 100%;
   margin: 0;
+}
+
+/* L5.16d: the update sheet's release notes (the feed's plain text: line breaks kept, long ones scroll). */
+.sh-update-notes {
+  white-space: pre-wrap;
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  color: var(--ui-text-2);
+}
+/* The sheet is rendered inside the status bar (its button's): it does not inherit the bar's one-line text (a long
+   refusal wraps inside the sheet). */
+dialog.k-sheet[data-testid='update-sheet'] {
+  white-space: normal;
+}
+/* Review d A-L3: the notes scroll from the keyboard (a focusable, named region): the kit's focus ring. */
+.sh-update-notes:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 2px;
+}
+.sh-update .k-btn {
+  vertical-align: baseline;
 }

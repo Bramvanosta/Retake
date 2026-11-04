@@ -5133,7 +5133,7 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater)
 
 R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
 resolver, and behaves exactly as before when there is no bundle (a repository checkout).
@@ -5556,6 +5556,106 @@ an empty folder made the workspace) 1.6 s. Every child ran with CFFIXED_USER_HOM
 image": config.rs, rules.rs, child.rs's usage exit; notify.rs's one line is reached only outside an app bundle). The
 Help menu: Set Up Retake…, Install the retake Command…, Uninstall the retake Command… (no keys; `{app}` in a label is
 the app's name — no product name in the shell's sources).
+
+### 4p (d). The updater (L5.16d)
+
+R-APP-16 – R-APP-18. Modelled on a static update feed on the person's own host: a check at launch at most once a
+day, the notes and Install and Restart on a click, the archive's signature checked against the key compiled into the
+app — the host can withhold an update, never forge one.
+
+**Which build updates itself** (critique H2). `tauri-plugin-updater` 2.14.0 (pinned, optional, cached: `cargo …
+--offline --locked`) is behind the cargo `updater` feature, and `update::register` adds it only when the config carries
+`plugins.updater` with a key and an endpoint — the plugin refuses to start without its key, and its
+`requireSignedVersion` / insecure-transport switches exist only there. `bundle.mjs` turns both on together, only when
+`RETAKE_UPDATE_FEED` (https, no user / query / fragment, the `.json` file itself) and `RETAKE_UPDATE_PUBKEY` (a minisign
+Ed25519 key, decoded) are set — one alone is refused before anything is built: the generated overlay (scratch, never
+committed) gains `plugins.updater = {pubkey, endpoints: [feed], requireSignedVersion: true, allowDowngrades: false}`
+and cargo `--features updater`. The release overlay never has a `dangerous*` key; the gated test's overlay
+(`testUpdaterOverlay`, reachable from no command line) alone has the insecure-transport flag, for its feed on
+127.0.0.1. `tauri.conf.json`, the crates and the sources carry no `plugins.updater`, key, endpoint or real host (a static
+test). Any other build — the developer app, a bundle without the two variables — says "Updates are off in this build"
+(launch.json's `updates`: "on" / "off", which doctor reads). The feed's channel follows the version (`checkChannel`,
+review d B-L3): a stable build must name `…/latest.json`, a pre-release `…/rc.json`. The plugin is used from Rust only:
+no capability grants its commands to the page.
+
+**The archive** (critique H3). Ours, not Tauri's: `COPYFILE_DISABLE=1 /usr/bin/tar --no-mac-metadata --no-xattrs
+--no-acls --no-fflags -czf Retake.app.tar.gz -C <dir> Retake.app` (macOS 26's bsdtar writes extended attributes as pax
+headers, an older one AppleDouble `._` entries: neither travels), checked against the app (`archiveProblems`: every
+link — Chromium's framework's included —, no `._` entry, nothing outside `Retake.app/`), then signed by the pinned Tauri
+CLI's `signer sign --app-version <the app's Info.plist version>` with `TAURI_SIGNING_PRIVATE_KEY` (+ `_PASSWORD`) given
+to that one command only, and the `.sig` checked against the public key in Node before the build ends.
+
+**The feed** (`scripts/publish-update.mjs`). `<app>/v<version>/<archive>`, `<app>/v<version>/platforms/<platform>.json`
+({signature, url}), `<app>/rc.json` (every version) and `<app>/latest.json` (stable ones), `UPDATES_APP` = `retake`.
+Nothing is uploaded before the archive's minisign signature is verified in Node against `RETAKE_UPDATE_PUBKEY` (the key
+ids, Ed25519 over the BLAKE2b-512 prehash — or the data for a legacy `Ed` signature —, the global signature over the
+trusted comment, its `version:` equal to the version published: the apps require it). The feed is never edited: rebuilt
+from the platform files present (a re-run heals a race); a channel at a newer version is left alone; a version already
+published with another archive (its platform file names another signature) is not replaced without `--force`; only
+`darwin-aarch64` is accepted (the archive is the Apple-silicon app); `RETAKE_UPDATE_FEED`, when set, must be the
+version's channel at `UPDATES_PUBLIC_URL`. The upload address answers an authenticated GET (404: missing). No default host:
+`UPDATES_UPLOAD_URL` and `UPDATES_PUBLIC_URL` (both https) and `UPDATES_UPLOAD_TOKEN` are required. The notes: `--notes`,
+else the summary paragraph of the version's CHANGELOG section (plain text), else its bullets' leads, else
+"Retake <version>".
+
+**The flow** (`desktop_core::update_flow` holds the rules; update.rs the I/O).
+- *When*: at launch when due — never checked, a day since the last successful check, a clock that went back, or a
+  failed install remembered (`launch_check_due`: the restarted app asks again at once, review d B-M2) — remembered in
+  `<Retake home>/desktop-updates.json` (0600, atomic; doctor reads it: "App updates", critique L7, a warning after 30
+  days); Help › Check for Updates… now, its answer in an alert (up to date, off, could not check — each with the last
+  successful check's date) or the Studio's sheet — refused, and said, while a check, a download, a wait or the install's
+  quit is under way (`check_refused`, review d B-M1: a check then would drop the archive the wait holds). The feed
+  must answer within 30 s (the plugin's request timeout). `RETAKE_DISABLE_UPDATE_CHECK=1` (true, yes) turns the
+  checks off; an app running from a translocated copy or a read-only disk is off too ("move it to Applications": the
+  plugin's renames need a writable folder on its volume — critique H1); /Volumes (an external disk) is allowed.
+- *What the Studio sees*: one stdin line per state (`off` + reason, `idle`, `checking`, `available` + version, notes,
+  date, `downloading`, `waiting` + jobs, `installing`, `failed` + failure and `retry`) with fixed keys, a checked
+  version, the feed's notes cleaned (no control, bidi or zero-width character, ≤ 2,000 characters, the line cut to the
+  server's 8,192 BYTES: `fits_shell_line`, shared with part c's folder line — review d B-L4); the server parses them
+  again (update-ops.ts), `desktop_update_status` gives the notes under `untrusted`, the page shows them through Txt in
+  a named, keyboard-scrollable region; the native alert never shows them (the feed is not signed). "Update available ·
+  vX" is a kit Button in the status bar (a live button while a step runs: it reopens the sheet); its kit Sheet has the
+  notes and Later · Install and Restart; then the progress (downloading and checking, waiting for N jobs — Later stops
+  waiting —, installing) or the failure in words — the sheet stays open on a refusal ("not writable": install the new
+  version from its disk image, also the badge's words; off).
+- *The click*: `desktop_update` {install | later} (own op, never an MCP tool: an agent never installs and restarts the
+  app; the app's own server only; install only while an update is known — available, or a failure the shell says may
+  be tried again, never a dead button; 20 a minute; Later also acknowledges a remembered failure) writes `{"type":"update",
+  "action":…}`, the only update line the shell takes from the pipe. `install_step`: off → refused; nothing found →
+  refused; the app's folder or its parent not writable by this account → "install the new version from its disk image"
+  (no admin prompt from a background flow: the plugin's privileged path is never reached); jobs of this workspace
+  running or queued → wait (critique M6: an idle worker hands over by itself when its code changes; a running one is
+  waited for, a queued one would start on the old engine); else a quit.
+- *The install*: the archive is downloaded (https only — the e2e build's 127.0.0.1 feed aside —, at most 1.5 GB
+  received or announced, stopped after 60 s without a byte or 2 h in all: `watch`, a seam unit-tested with an endless
+  and a hanging producer; Later aborts it) and verified (the plugin: the key compiled in, the signed version equal to
+  the announced one, never older), then kept in a 0600 file of the app's cache folder (`updates/update-<pid>.tar.gz`,
+  the folder 0700 — never held in memory through the wait; removed after the install, on Later, and at the next start
+  when its process is gone); then the quit goes through the existing guard as `Action::Update` ("Install the update and
+  restart Retake?" — unsaved text asks, the page's sheet first, the native alert after 1.5 s; jobs listed there "keep
+  running; they may fail once the app is replaced"). The arming (`Arm`, review d A-M1): the posted `terminate:` must
+  reach the guard within 10 s (else back to Available); once the guard took it for the update, the person's answer
+  holds however long the question stays open; it is never armed while a quit question is up in the page; Now approves
+  it (a signal's quit never does); Cancel, Later or a dropped page question disarms it. At RunEvent::Exit, after the
+  owned server stopped gracefully, `finish` reads the file and lets the plugin verify it again and swap the bundle
+  (`renamex_np` RENAME_SWAP on APFS, the previous app restored on a failure) and restarts — Tauri's restart
+  (LaunchServices, `open -n`, the log filter flushed first) for a person, the new binary started directly in test mode
+  (never LaunchServices; the old process waits 1.5 s so its child's test mode, decided from its parent, holds; the
+  click by itself only in a build made with the e2e overlay: `test_install_allowed`). An approved install with no
+  archive left remembers the failure and restarts (an approved click never just closes the app). A swap that fails
+  restarts the old app, which says so and checks again (`failed` kept until a check finds no update or another version,
+  an install succeeds, or the person's Later); a swap whose old app could not be put back (the plugin's fallback path)
+  says where it was left in an alert, and nothing restarts. The non-test restart path runs in no automated test
+  (MACOS-CHECKLIST 15d).
+- What an update replaces: the whole `.app`; the Retake home, workspaces, the command's link and the Claude
+  registrations point at the same paths. Processes still running from the old bundle (another workspace's worker, an
+  MCP server Claude started) keep their loaded code; an idle worker hands over (critique M6). Cut to BACKLOG BL-143:
+  counting those processes before the swap, an admin install, delta updates, the download's progress.
+
+**Measured** (the gated end to end, 2026-11-03): the two builds 188 s — 0.2.0 117 s (stage 15.7 s, payload signing 4.5 s, `tauri build` 56.4 s with a cold cargo target and the plugin, verification 16.4 s, the archive and its signature 23.5 s), 0.2.1 from the same stage and target 71 s (`tauri build` 22.7 s); app 941 MB (no ffmpeg in that run), archive 345 MB (344,896,177 bytes), its 5 links those of the app, signed for 0.2.1 by the CLI with the test key. A feed whose signature (same key, same version) is of other bytes: the plugin refused the download ("The signature verification failed"), the app kept running at 0.2.0, nothing installed. The real update: 13.0 s from the launch of the 0.2.0 copy to the restarted app's first line — check, download and check of the 345 MB archive from 127.0.0.1, the quit (nothing pending: no question), the owned server stopped gracefully in 22 ms, the swap, the restart; the restarted 0.2.1 served the workspace with a server of its own; `codesign --verify --deep --strict` passed on the swapped app, every link there, no AppleDouble file; Chromium 141.0.7390.37 (new headless) and the headless shell launched from it with its own Node.js. Whole test 225 s, 3 / 3. Two findings of that test, fixed: `tauri::generate_context!` embeds a config's `plugins` as serde_json values (the `updater` feature adds the optional `serde_json`, already locked); test mode's restart gave the child the log filter's pipe as stderr, whose reader ends with the old process — the restarted app lost its lines and hung on the first one (it now gets the real stderr: `logfilter::real_stderr`). Re-run after the review d fixes (2026-11-03): 3 / 3 in
+230 s — builds 188 s (0.2.0 116 s, 0.2.1 71 s), archive 344,931,374 bytes, the forged feed refused and nothing kept,
+the real update 13.4 s from launch to the restarted 0.2.1, the verified archive kept in the app's cache folder
+(scratch HOME) until the install and gone after it; the gated desktop-shell black box 18 / 18 (one slow case skipped).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

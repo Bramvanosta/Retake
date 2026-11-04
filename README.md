@@ -4064,6 +4064,24 @@ macOS 15 or later, Apple silicon.
    Studio's own Capture / Rehearse / Render ("queued" line) and an MCP submit say when it is another copy (version,
    path; to an agent, the path only under `untrusted` in engine_info). A signed-in profile is never opened by an older Chromium than
    the one that opened it last (that would downgrade it and may lose its sessions): the run says which copy to use.
+8. **Updates.** An app built with a feed (below: *Releasing an update*) checks it at launch, at most once a day, and
+   Help › Check for Updates… asks now (an alert says "up to date", "off" or "could not check", with the date of the
+   last successful check). When a newer version is out, the Studio's status bar shows **Update available · vX**; the
+   click opens a sheet with its release notes (plain text) and **Later · Install and Restart** — nothing installs
+   without that click. Install and Restart downloads the update (https only, at most 1.5 GB, stopped after a minute
+   without data; Later stops it) and checks its signature against the public key compiled into the app (and that it
+   was signed for that very version, never an older one), keeps it in the app's cache folder, waits while a job of
+   this workspace runs or waits (Later stops waiting and removes the download), asks the usual quit question if a tab
+   holds unsaved text — your answer holds however long the question stays open — stops the Studio server, swaps the
+   app in place and restarts it. A check while an install is under way is refused, with a word why. An update that
+   cannot be installed keeps the app you have and says so at its next start, which checks the feed again at once (the
+   sheet offers Install and Restart again only when the feed still has it; doctor says it until then). Workspaces,
+   the Retake home, the command's link and the Claude registrations stay valid (they point at the same app). An app
+   run from a translocated copy or a read-only disk does not update ("move it to Applications"); one in a folder this
+   account may not write (a root-owned /Applications) says, in the sheet and the status bar, to install the new
+   version from its disk image. `RETAKE_DISABLE_UPDATE_CHECK=1` in the app's environment turns the checks off;
+   `retake doctor` shows the last successful check (`App updates`). A build without a feed — the developer app, a
+   bundle built without the two variables — says "Updates are off in this build" (doctor too).
 
 **Building the app and the DMG** (from a checkout, offline once the caches are filled):
 
@@ -4078,7 +4096,7 @@ every file checked against the sha512 pinned in `apps/desktop/bundle/tauri-cli.j
 the shell and the app, verifies them (signatures, entitlements, Resources byte for byte against the signed payload),
 then makes and checks the DMG (`hdiutil`, APFS, compressed; no Finder scripting). Every tool the build runs gets an
 allow-listed environment: no credential of your shell (Apple, updater keys, registry or cloud tokens) reaches pnpm,
-cargo's build scripts or anything else. Everything lands in the folder you name — a folder of its own: empty (or a
+cargo's build scripts or anything else (the updater's private key reaches only the command that signs the update archive: *Releasing an update* below). Everything lands in the folder you name — a folder of its own: empty (or a
 previous build's), never in the checkout, /Applications, ~/Library, your home folder itself or the Desktop / Documents
 / Downloads folder itself (a folder inside them is fine) — `app/Retake.app`, `Retake_<version>_aarch64.dmg` and
 `bundle-report.json` (≈ 1 GB app, ≈ 420 MB DMG, ≈ 3 min with a cold cargo cache; the folder needs ≈ 4 GB free while
@@ -4099,6 +4117,75 @@ profile you store once with `xcrun notarytool store-credentials <profile>`, or a
 (`APPLE_API_KEY`, `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH` — the .p8 file). An Apple ID password is not taken:
 notarytool would show it to every process on its command line. The app is notarised as a zip, then stapled; the DMG is
 signed, notarised and stapled; then the team of every signature, Gatekeeper and both tickets are checked.
+
+### Releasing an update
+
+The installed apps update themselves from a **static feed on a host of your own** (any web server: public read, an
+authenticated upload) — the repository names no host, no key and no URL; all of it comes from your environment.
+The upload address must accept an authenticated `PUT` **and answer an authenticated `GET`** with the file, or `404`
+when it is missing (the publish step reads the platform files and the feeds back; any other answer stops it — an
+upload-only endpoint, or a bucket that answers `403` for a missing key, cannot be published to).
+
+```
+<public URL>/retake/latest.json                    the newest STABLE version   ← stable builds read this
+<public URL>/retake/rc.json                        the newest version, pre-release or not ← pre-release builds
+<public URL>/retake/v<version>/Retake.app.tar.gz   the signed archive
+<public URL>/retake/v<version>/platforms/<platform>.json   {signature, url}
+```
+
+0. **Bump the version** — one number in about fifteen files (the root and every package's `package.json`,
+   `RETAKE_VERSION` in `packages/core/src/formats.ts`, `apps/desktop/tauri.conf.json`, the Claude plugin's manifest,
+   `apps/desktop/Cargo.toml` and its `Cargo.lock` entry):
+   ```sh
+   node scripts/set-version.mjs <version>     # writes it everywhere (only each file's version field)
+   node scripts/set-version.mjs --check       # lists a file that disagrees (packages/cli/test/app-bundle.test.ts checks it too)
+   pnpm build
+   ```
+   The archive is signed for the version the app was built with and published for the one you name: a partial bump
+   gives a refused publish ("signed for version X, not Y") or a disk image named after the old version.
+1. **The signing key, once.** `pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w ~/retake-updater.key` (the CLI
+   version the bundle step pins) — keep the private key and its password in your password
+   manager: **lose them and the installed apps can never be updated again** (they trust that key only). The `.pub`
+   file's content is the public key.
+2. **Build** with the feed and the key in the environment (both, or neither):
+   ```sh
+   RETAKE_UPDATE_FEED=https://<your host>/retake/latest.json \
+   RETAKE_UPDATE_PUBKEY="$(cat ~/retake-updater.key.pub)" \
+   TAURI_SIGNING_PRIVATE_KEY="$HOME/retake-updater.key" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=… \
+   pnpm desktop:release --out <folder> --ffmpeg <folder>        # or desktop:bundle for an ad hoc build
+   ```
+   `TAURI_SIGNING_PRIVATE_KEY` is the key file's **path**, not its text: the key itself is never in the environment
+   of pnpm, its hooks or the build — bundle.mjs reads the file and hands its text (and the password) to the one
+   command that signs the archive; every other child gets an allow-listed environment without either.
+   A pre-release build (a version with `-rc.N`) names `…/rc.json` instead, so it is offered the next pre-release and
+   the final version, and a stable build is never offered a pre-release — the build refuses a feed of the other
+   channel than its version (`latest.json` for a stable version, `rc.json` for a pre-release). The feed must be https; the overlay compiles
+   `requireSignedVersion` and no downgrade in. Besides the app and the DMG the folder then holds
+   `Retake.app.tar.gz` (made with macOS's tar: every link of the app kept, no extended attribute) and its `.sig`
+   (`tauri signer sign --app-version <version>`; the private key reaches that one command only), checked against the
+   public key before the build ends. Without the private key the archive is left unsigned (nothing to publish).
+3. **Write the release notes** — the paragraph under `## [<version>]` in `CHANGELOG.md`, for the person about to click
+   Install and Restart (plain text: the sheet shows it as typed).
+4. **Publish**:
+   ```sh
+   UPDATES_UPLOAD_TOKEN=… UPDATES_UPLOAD_URL=https://<upload address> UPDATES_PUBLIC_URL=https://<your host> \
+   RETAKE_UPDATE_PUBKEY="$(cat ~/retake-updater.key.pub)" \
+   node scripts/publish-update.mjs <version> --artifact <folder>/Retake.app.tar.gz --signature <folder>/Retake.app.tar.gz.sig
+   ```
+   It checks the signature in Node first (the key, the archive, the signed version) and uploads nothing otherwise;
+   then the archive and its platform file, then it **rebuilds** `rc.json` (every version) and `latest.json` (stable
+   ones) from the platform files present for that version — a re-run heals a feed that lost a race, and a channel is
+   never moved back to an older version. A version already published with **another** archive is not replaced
+   unless you add `--force` (apps downloading meanwhile would get a signature mismatch and install nothing); the same
+   archive again is a re-run. Only `darwin-aarch64` is accepted for `--platforms` (the archive is the Apple-silicon
+   app). With `RETAKE_UPDATE_FEED` set (the feed you built with), it must be this version's channel on
+   `UPDATES_PUBLIC_URL`. `--notes <file>` replaces the CHANGELOG's paragraph; `UPDATES_APP` names another folder than
+   `retake` (a rehearsal: `UPDATES_APP=_probe`). Both URLs must be https.
+5. **Check it on a Mac with the previous version** (MACOS-CHECKLIST 15d): the status bar offers the update, Install
+   and Restart lands on the new version.
+
+The end-to-end check of the updater, offline on this Mac (two app builds, ≈ 3 GB in a temp folder, a test key made for
+the run, a feed on 127.0.0.1): `RETAKE_TEST_UPDATE=1 npx vitest run packages/cli/test/app-update-e2e.test.ts`.
 
 ## Desktop app (macOS)
 

@@ -72,6 +72,7 @@ import { RECORD_OPS } from './record-ops.js';
 import { UNSAVED_OPS } from './unsaved.js';
 import { DESKTOP_OPS } from './desktop.js';
 import { SETUP_OPS } from './setup-ops.js';
+import { UPDATE_OPS } from './update-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 import type { PlayerServer } from './player.js';
@@ -985,4 +986,4 @@ export const SCENARIO_OPS = ['scenario_blocks', 'scenario_actions', 'run_thumbs'
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS, ...DESKTOP_OPS, ...SETUP_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS, ...DESKTOP_OPS, ...SETUP_OPS, ...UPDATE_OPS] as const;

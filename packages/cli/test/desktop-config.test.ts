@@ -28,6 +28,10 @@
  * L5.12d: the quit question asked in the page — the detail's keys, the events and the id rule compared between the
  * shell (guard_flow.rs), the page (shell/quit.ts) and the server (desktop.ts); no TerminateLater; the page only for a
  * plain Quit on the Studio's origin (test mode's RETAKE_DESKTOP_TEST_QUIT=native aside); every exit closes it.
+ * L5.16d: the updater — tauri-plugin-updater 2.14.0, optional, behind the cargo `updater` feature, registered only with
+ * a feed and a key in the config (the only `.plugin(` of the shell; still no command, handler or capability); Help ›
+ * Check for Updates…; Install and Restart as a quit through the guard; the lists of the update line and the click the
+ * same in Rust and TypeScript; no `plugins.updater`, key, endpoint or real URL in the repository.
  */
 import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -36,8 +40,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
 import { QUIT_CLOSE_EVENT, QUIT_DETAIL_KEYS, QUIT_EVENT, QUIT_ID_RE as PAGE_QUIT_ID_RE, QUIT_LABEL_MAX, QUIT_TEXT_MAX } from '../../ui/src/app/shell/quit.js';
-import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS } from '../../ui/src/server/desktop.js';
+import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS, SHELL_LINE_MAX } from '../../ui/src/server/desktop.js';
 import { SETUP_EVENT, SETUP_SECTIONS } from '../../ui/src/app/shell/setup.js';
+import { UPDATE_EVENT } from '../../ui/src/app/shell/update.js';
+import { UPDATE_ACTIONS, UPDATE_FAILURES, UPDATE_OFF_REASONS, UPDATE_STATES } from '../../ui/src/server/update-ops.js';
+import { UPDATES_FILE, UPDATE_DISABLE_ENV } from '../../core/src/app-setup.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
@@ -89,7 +96,11 @@ describe('desktop shell configuration (L5.2, static)', () => {
       expect(text, relative(REPO, f)).not.toMatch(/dangerousRemote|"remote"\s*:|\bremote\s*=\s*\{|"permissions"\s*:/);
     }
     const src = rustSources();
-    expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler|generate_handler!|\.plugin\(|open_devtools|\bdevtools\(/);
+    expect(src).not.toMatch(/#\[tauri::command\]|invoke_handler|generate_handler!|open_devtools|\bdevtools\(/);
+    // L5.16d: one plugin, the updater, in a build with the `updater` feature and a configured feed only (its commands
+    // stay unreachable: no capability grants them).
+    expect([...src.matchAll(/\.plugin\(/g)].length).toBe(1);
+    expect(read('src/update.rs')).toMatch(/#\[cfg\(feature = "updater"\)\]\s*\{\s*let _ = BUILT\.set\(configured\);\s*if configured \{\s*return builder\.plugin\(tauri_plugin_updater::Builder::new\(\)\.build\(\)\);/);
   });
 
   it('the window: ephemeral WebKit store, WebKit drag & drop, every download cancelled, every capture denied, no new-window handler, one init script and two evals, one Command (node)', () => {
@@ -115,12 +126,16 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(src).toMatch(/pub\(crate\) fn eval_in_window\(app: &AppHandle, js: String\) \{\n\s*if let Some\(w\) = app\.get_webview_window\(WINDOW\) \{\n\s*let _ = w\.eval\(js\);/);
     expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    eval_in_window(app, js);');
     // L5.16c: and the Help menu's Set-up sheet (desktop_core setup_page_js: a constant shape).
-    expect(src.match(/eval_in_window\(/g)).toHaveLength(5);
+    // L5.16d: and Help › Check for Updates…'s `studio:update` (update_flow update_page_js: a constant).
+    expect(src.match(/eval_in_window\(/g)).toHaveLength(6);
+    expect(src).toContain('crate::eval_in_window(&h, uf::update_page_js());');
     expect(src).toContain('if let Some(js) = dc::setup::setup_page_js(section) {\n        eval_in_window(app, js);');
     expect(read('src/guard.rs').match(/crate::eval_in_window\(app, js\)/g)).toHaveLength(2);
     // L5.16c: and the first run's `retake init` — the same Node.js, both argv only.
-    expect(src.match(/Command::new\(/g)).toHaveLength(2);
+    // L5.16d: plus the restart of test mode — the app's own binary, directly (never a shell, never LaunchServices).
+    expect(src.match(/Command::new\(/g)).toHaveLength(3);
     expect(src.match(/Command::new\(&cfg\.node\)/g)).toHaveLength(2);
+    expect(src.match(/std::process::Command::new\(&exe\)/g)).toHaveLength(1);
     expect(src).not.toMatch(/"sh"|"\/bin\/sh"|"bash"|"-c"|osascript/);
     // Review A L4: a release build removes the code loaders from the child's environment.
     expect(read('src/child.rs')).toMatch(/if !cfg!\(debug_assertions\) \{\n\s*for \(k, _\) in std::env::vars_os\(\) \{\n\s*if k\.to_str\(\)\.is_some_and\(child_env_dropped\) \{\n\s*cmd\.env_remove\(&k\);/);
@@ -140,7 +155,13 @@ describe('desktop shell configuration (L5.2, static)', () => {
 
   it('Cargo.toml: a short dependency allow-list, Tauri with no extra feature, objc2-app-kit without default features; the rules crate has no dependency', () => {
     const toml = read('Cargo.toml');
-    expect([...section(toml, 'dependencies').keys()].sort()).toEqual(['block2', 'desktop-core', 'libc', 'objc2', 'objc2-app-kit', 'objc2-foundation', 'objc2-user-notifications', 'tauri']);
+    expect([...section(toml, 'dependencies').keys()].sort()).toEqual(['block2', 'desktop-core', 'libc', 'objc2', 'objc2-app-kit', 'objc2-foundation', 'objc2-user-notifications', 'serde_json', 'tauri', 'tauri-plugin-updater']);
+    // L5.16d: the updater pinned and optional — only the `updater` feature (bundle.mjs, with a feed and a key) has it.
+    expect(section(toml, 'dependencies').get('tauri-plugin-updater')).toBe('{ version = "=2.14.0", optional = true }');
+    // serde_json: tauri::generate_context! embeds the config's `plugins` as serde_json values (an updater build only).
+    expect(section(toml, 'dependencies').get('serde_json')).toBe('{ version = "1", optional = true }');
+    expect(section(toml, 'features').get('updater')).toBe('["dep:tauri-plugin-updater", "dep:serde_json"]');
+    expect(section(toml, 'features').get('default')).toBeUndefined();
     // L5.2b: the notification crates without default features, their feature list pinned (L4: NSBundle declared, not
     // borrowed from tao's feature unification).
     expect(section(toml, 'dependencies').get('objc2-user-notifications')).toBe(
@@ -167,7 +188,8 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect(coreTest.indexOf("spawnSync('xcode-select', ['-p']")).toBeGreaterThan(0);
     expect(coreTest.indexOf("spawnSync('xcode-select', ['-p']")).toBeLessThan(coreTest.indexOf("spawnSync('cargo'"));
     expect(readFileSync(join(REPO, 'packages', 'cli', 'test', 'desktop-shell.test.ts'), 'utf8')).toMatch(/const ENABLED = WANTED && existsSync\(CLI\) && spawnSync\('cargo'/);
-    expect(read('Cargo.lock')).not.toMatch(/name = "tauri-plugin-/);
+    // L5.16d: the updater is the one Tauri plugin in the lockfile.
+    expect([...read('Cargo.lock').matchAll(/name = "(tauri-plugin-[a-z-]+)"/g)].map((m) => m[1])).toEqual(['tauri-plugin-updater']);
   });
 
   it('L5.2b: the quit guard and notifications — the hook added, UN behind the bundle check and never in test mode, no terminate from a Tauri closure', () => {
@@ -278,8 +300,9 @@ describe('desktop shell configuration (L5.2, static)', () => {
     // No TerminateLater (critique H1: a reply from a tao callback hangs); the re-entry is request_terminate's post.
     expect(src.replace(/\/\/[^\n]*/g, '')).not.toMatch(/TerminateLater|replyToApplicationShouldTerminate/);
     expect(guard).toMatch(/Effect::Terminate => \{\n(?:\s*\/\/[^\n]*\n)*\s*let _ = app\.run_on_main_thread\(request_terminate\);/);
-    // The page is asked for a plain Quit only, on the Studio's own origin, unless test mode keeps the native alert.
-    expect(guard).toContain('let page = question.is_some() && action == Action::Quit && page_question_on() && crate::window_on_studio(app);');
+    // The page is asked for a plain Quit only (L5.16d: and Install and Restart's quit), on the Studio's own origin, unless
+    // test mode keeps the native alert.
+    expect(guard).toContain('let page = question.is_some() && matches!(action, Action::Quit | Action::Update) && page_question_on() && crate::window_on_studio(app);');
     expect(guard).toMatch(/fn page_question_on\(\) -> bool \{\n\s*!\(crate::test_mode\(\) && std::env::var\("RETAKE_DESKTOP_TEST_QUIT"\)/);
     expect(main).toMatch(/fn window_on_studio\([\s\S]{0,400}dc::loopback_port\(url\.as_str\(\)\)\.is_some_and\(\|\(p, _\)\| p == studio\)/);
     // The window is shown before the dispatch (the flow's effects in order: guard_flow tests), the id logged in test mode only.
@@ -433,6 +456,7 @@ describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (s
     const help = /\(\s*"Help",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
     expect([...help.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]])).toEqual([
       ['SET_UP', 'Set Up {app}…'],
+      ['CHECK_UPDATES', 'Check for Updates…'],
       ['CLI_INSTALL', 'Install the retake Command…'],
       ['CLI_REMOVE', 'Uninstall the retake Command…'],
     ]);
@@ -465,3 +489,84 @@ describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (s
   });
 });
 
+
+describe('L5.16d: the updater, shell side (static)', () => {
+  it('Help › Check for Updates…, the update click from the pipe, Install and Restart through the quit guard, the swap at the exit', () => {
+    const main = read('src/main.rs');
+    expect(main).toContain('menu::CHECK_UPDATES => update::check_menu(app),');
+    expect(main).toContain('let app = update::register(tauri::Builder::default(), &context)');
+    // The swap runs after the owned server stopped (RunEvent::Exit), never before.
+    expect(main).toMatch(/Some\(s\) if s\.server\.owned\(\) => s\.server\.stop\("quit"\),[\s\S]{0,400}?update::finish\(h\);/);
+    expect(read('src/child.rs')).toContain('PipeMsg::Update(a) => {\n                    crate::update_request(a);');
+    const guard = read('src/guard.rs');
+    // Review d A-M1: the hook takes the quit for the update (update_flow Arm: then no clock).
+    expect(guard).toContain('let action = if reason.is_none() && crate::update::take_quit() { Action::Update } else { quit_action(reason) };');
+    // Approved only on Now without a signal, or the person's Install and Restart; every Cancel disarms — a page
+    // question dropped too (review d A-L1).
+    expect(guard).toMatch(/Reply::Now => \{[\s\S]{0,300}?if update && !quit_now \{\s*crate::update::approved\(\);/);
+    expect([...guard.matchAll(/crate::update::cancelled\(app\)/g)].length).toBe(4);
+    expect(guard).toMatch(/pub fn drop_page_question\(app: &AppHandle\) \{[\s\S]*?run\(app, fx\);\s*crate::update::cancelled\(app\);\s*\}/);
+    const upd = read('src/update.rs');
+    // Review d A-L1: the update never arms while a quit question is up in the page (its answer would install).
+    expect(upd).toContain('if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() || guard::page_question_up() {');
+    // Test mode restarts the binary directly; LaunchServices (Tauri's restart) only outside it, the log filter flushed
+    // first (review d A-L6: the restart exits the process).
+    expect(upd).toMatch(/fn restart\(app: &AppHandle\) \{\s*if test_mode\(\) \{[\s\S]*?std::process::Command::new\(&exe\)[\s\S]*?return;\s*\}\s*crate::logfilter::finish\(\);\s*app\.restart\(\);/);
+    expect(upd).not.toMatch(/\/usr\/bin\/open|osascript/);
+    // …with the real stderr: the log filter's pipe dies with the old process (the e2e test's first run lost every line).
+    expect(upd).toContain('if let Some(err) = crate::logfilter::real_stderr() {\n            cmd.stderr(err);');
+    // The launch check starts once the first workspace is served (an install never races the start).
+    expect(main).toMatch(/Some\(s\) => show\(&h, &shell, s\),[\s\S]{0,600}?update::start\(&h, shell\.home\.clone\(\), loc\);/);
+    // The test hook only in test mode and an e2e build (review d A-L7); the install only after the guard approved it.
+    expect(upd).toContain('if uf::test_install_allowed(test_mode(), std::env::var("RETAKE_DESKTOP_TEST_UPDATE").ok().as_deref(), test_feed()) {');
+    expect(upd).toContain('let _ = TEST_FEED.set(uf::is_test_feed(insecure, &endpoints));');
+    expect(upd).toMatch(/match uf::exit_step\(arm, have\) \{\s*Exit::Nothing => \{\}/);
+    // Review d A-M2: the check's timeout, the download's own limits (no request timeout on the body), https only, Later
+    // aborts it; A-M4: the archive kept on disk, read back and verified again at the exit.
+    expect(upd).toContain('app.updater_builder().timeout(uf::CHECK_TIMEOUT).build()');
+    expect(upd).toContain('f.timeout = None;');
+    expect(upd).toContain('let stop = uf::watch(&progress, &uf::DOWNLOAD, || task.inner().is_finished(), || GEN.load(Ordering::SeqCst) != gen);');
+    expect(upd).toMatch(/Some\(s\) => \{\s*task\.abort\(\);/);
+    expect(upd).toMatch(/if f\.download_url\.scheme\(\) != "https" && !\(test_feed\(\) && f\.download_url\.as_str\(\)\.starts_with\("http:\/\/127\.0\.0\.1:"\)\) \{\s*return Err/);
+    expect(upd).toContain('uf::write_archive(&cache, std::process::id(), &bytes)');
+    expect(upd).not.toMatch(/bytes: Option<Vec<u8>>/);
+    expect(upd).toMatch(/f\.install\(bytes\)\.map_err/);
+    // Review d A-L3: the native alert never shows the feed's notes.
+    expect(upd).toContain('uf::available_alert(app_name(), &current(app), version);');
+    // Review d B-M1: Help's check refused (and said) while an install is under way.
+    expect(upd).toContain('uf::check_refused(&u.state, app_name())');
+  });
+
+  it('one list each side: the update event, its states, reasons, failures and clicks, the remembered file, the disable variable', () => {
+    const flow = read('core/src/update_flow.rs');
+    expect(flow).toContain(`pub const UPDATE_EVENT: &str = "${UPDATE_EVENT}";`);
+    expect(flow).toContain(`pub const UPDATES_FILE: &str = "${UPDATES_FILE}";`);
+    expect(flow).toContain(`pub const DISABLE_ENV: &str = "${UPDATE_DISABLE_ENV}";`);
+    const wire = (fn: string) => [...(new RegExp(`pub fn ${fn}\\(self\\) -> &'static str \\{[\\s\\S]*?\\n    \\}`).exec(flow)?.[0] ?? '').matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1]);
+    expect(wire('wire').length).toBeGreaterThan(0);
+    const off = /impl Off \{[\s\S]*?\n\}/.exec(flow)?.[0] ?? '';
+    expect([...off.matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_OFF_REASONS]);
+    const failure = /impl Failure \{[\s\S]*?\n\}/.exec(flow)?.[0] ?? '';
+    expect([...(/pub fn wire\(self\)[\s\S]*?\n    \}/.exec(failure)?.[0] ?? '').matchAll(/=> "([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_FAILURES]);
+    const states = [...flow.matchAll(/head\("([a-z]+)"\)/g)].map((m) => m[1]);
+    expect([...states].sort()).toEqual([...UPDATE_STATES].sort());
+    const pipe = read('core/src/pipe.rs');
+    expect([...(/UpdateAction \{ ([^}]+) \}/.exec(pipe)?.[1] ?? '').matchAll(/"([a-z_]+)"/g)].map((m) => m[1])).toEqual([...UPDATE_ACTIONS]);
+    // Review d B-L4: the stdin line cap in bytes, the same number on both sides.
+    expect(read('core/src/setup.rs')).toContain(`pub const SHELL_LINE_MAX: usize = ${SHELL_LINE_MAX};`);
+  });
+
+  it('nothing of a feed in the repository: no plugins.updater, key or endpoint in the config, the crates or the shell; no real URL', () => {
+    const conf = read('tauri.conf.json');
+    expect(JSON.parse(conf).plugins).toBeUndefined();
+    const sources = [conf, read('Cargo.toml'), read('core/Cargo.toml'), rustSources(), ...readdirSync(join(APP, 'core', 'src')).map((f) => read(join('core', 'src', f)))].join('\n');
+    expect(sources).not.toMatch(/"pubkey"\s*:|"endpoints"\s*:|untrusted comment: minisign|RW[A-Za-z0-9+/]{50,}|dW50cnVzdGVkIGNvbW1lbnQ6/);
+    // Every host named: an IP literal or a one-label name (the rules' tests), an example / .test name, Tauri's schema.
+    for (const m of sources.matchAll(/https?:\/\/(?:[^/@\s"']*@)?(\[[^\]\s]*\]?|[^/:\s"'<>)\]]+)/g)) {
+      expect(m[1], m[0]).toMatch(/^(?:\[.*|[\d.]+|[a-z0-9-]+|(?:[a-z0-9.-]+\.)?example\.(?:com|net|org)|[a-z0-9.-]+\.(?:example|test)|schema\.tauri\.app|\{[^}]*\}?)$/);
+    }
+    // The bundle's scripts carry no key or real host either (the feed and the key come from the environment).
+    const scripts = ['scripts/bundle.mjs', 'scripts/sign.mjs'].map(read).join('\n') + readFileSync(join(REPO, 'scripts', 'publish-update.mjs'), 'utf8');
+    expect(scripts).not.toMatch(/RW[A-Za-z0-9+/]{50,}|dW50cnVzdGVkIGNvbW1lbnQ6|updates\.[a-z]+\.(?:com|dev|net|org|io)/);
+  });
+});

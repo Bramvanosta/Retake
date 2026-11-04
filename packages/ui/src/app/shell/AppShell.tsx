@@ -15,7 +15,8 @@
  * Render ⌘B, Stop ⌘. from the app's menu; the palette's Scenario group in a browser tab, which binds none of the four),
  * routed through the command bus (command-bus.ts: a screen or a live recording outranks the defaults by priority).
  * L5.12d: in the desktop app, the quit question as a kit Sheet (QuitSheet.tsx: `studio:quit`, answered through
- * `desktop_answer`); a browser tab has none (only the app's window is ever asked).
+ * `desktop_answer`); a browser tab has none (only the app's window is ever asked). L5.16d: in the app's window, the
+ * update's button in the status bar and its sheet (UpdateSheet.tsx).
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
@@ -44,6 +45,7 @@ import { setSay } from './say.js';
 import { useStatusActions } from './StatusActions.js';
 import { QuitSheet } from './QuitSheet.js';
 import { SetupSheet } from './SetupSheet.js';
+import { UpdateControl } from './UpdateSheet.js';
 
 export interface ProjectList {
   root: string;
@@ -543,6 +545,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
                     {UPDATES[updates]}
                   </span>
                 )}
+                {inApp && <UpdateControl />}
               </span>
             }
             info={
