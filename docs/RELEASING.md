@@ -8,7 +8,8 @@ comes from a GitHub environment's secrets, the repository's variables and the ru
 runs in). Each part is all or nothing —
 none of its settings: that part is skipped and said in the run's log; some of them: the run fails at once, naming what
 is missing. Without a single secret the workflow still makes a release: an ad hoc app, not notarised, that does not
-update itself.
+update itself. Last, with a deploy key of yours, it writes the app's casks into your Homebrew tap (*The Homebrew tap*
+below) — a step whose failure fails nothing.
 
 The same steps by hand, on your Mac, stay possible: [docs/guide/desktop-app.md](guide/desktop-app.md#releasing-an-update) › *Install the app (macOS)* › *Releasing an update*
 (`pnpm desktop:release`, then `scripts/publish-update.mjs`).
@@ -46,11 +47,18 @@ All of this is in the repository's Settings on GitHub; you make it there (nothin
 | `TAURI_SIGNING_PRIVATE_KEY` | secret | the updater's private key file (its whole text) | updater |
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | secret | its password | updater |
 | `RETAKE_UPDATE_PUBKEY` | **variable** | the updater's public key (the `.pub` file's text): compiled into the app | updater |
+| `HOMEBREW_TAP_DEPLOY_KEY` | secret | the private half of an SSH deploy key with write access to the tap's repository only (its whole text) | Homebrew |
+| `HOMEBREW_TAP_REPOSITORY` | **variable** | the tap's repository, `<owner>/homebrew-tap` | Homebrew |
 
 - **Apple** — none: an ad hoc app (Gatekeeper: Open Anyway). All seven: signed with your Developer ID, notarised.
 - **updater** — none: no updater in the app ("Updates are off in this build"). All three: the app updates itself, and
   each release publishes its update in the feed — with the run's own job token, no other secret (*The update feed*
   below).
+- **Homebrew** — none: the tap is not updated (said). Both: each release writes the casks into the tap, last (*The
+  Homebrew tap* below) — only a notarised one (the Apple set): an ad hoc build leaves the tap as it is (said), since a
+  Homebrew install has no way past Gatekeeper's Open Anyway. GitHub itself only (not GitHub Enterprise Server: the
+  step pins GitHub's SSH host key); the repository's name must start with `homebrew-`. Either mistake fails "What is
+  configured" before anything is built.
 
 A set with a missing piece fails the run in its first job, "What is configured", before anything is built — naming the
 missing names, and saying "set as a variable: it must be a secret" (or the reverse) when you put one in the wrong
@@ -136,6 +144,58 @@ interrupted run goes at the next publication). A channel at a version that has n
 someone put there by hand — is never moved back by a publication: the run says so in a `::warning::` annotation and
 stays green; delete that file on `update-feed`, then re-run the newest version's `publish`.
 
+### The Homebrew tap
+
+`brew install --cask <owner>/tap/retake` installs the app from your tap — a public repository on GitHub named
+`homebrew-tap` (Homebrew's short name `<owner>/tap` reads `<owner>/homebrew-tap`: the variable names the repository,
+`<owner>/homebrew-tap`, never the short name), which this task does not create: make it once on GitHub (a README is
+enough).
+Each release's `publish` job, last, clones it, writes its casks with `scripts/homebrew-cask.mjs` and pushes them:
+
+- `Casks/retake.rb` follows the stable versions; `Casks/retake@beta.rb` follows every version, pre-releases included,
+  so it is never behind the stable one. The two conflict (one or the other). A cask is never moved back to an older
+  version: a re-run of an old tag leaves it as it is. A cask whose version the script cannot read is left alone and
+  the step says so (fix it by hand). `brew livecheck` follows GitHub's latest release for `retake` and every release
+  whose tag is a version, pre-releases included, for `retake@beta`.
+- Each installs the release's DMG (`Retake_<version>_aarch64.dmg`, checked against its line of
+  `SHA256SUMS-macos.txt`, itself checked against the sha256 the `sign` job gave it) on macOS 15 or later, Apple silicon
+  only; links the `retake` command into Homebrew's `bin` (`binary`: a link to the launcher inside the app, which finds
+  its app through the link — the Set-up sheet, which looks in Homebrew's bin folders whatever the app's PATH, and
+  `retake doctor` read it as this app's command). With the updater set the casks say `auto_updates true` (the app
+  updates itself through its feed: `brew upgrade` then leaves it unless `--greedy`); without it they do not, so
+  `brew upgrade` brings each new version. `brew uninstall` quits a running Retake first; `--zap` also removes what
+  macOS and the app keep under `~/Library` (named by the bundle identifier) — never `~/.retake`, where your signed-in
+  profiles, the approval key and the settings live.
+- Where the release lives comes from the run's own context (`GITHUB_SERVER_URL`, `GITHUB_REPOSITORY`); the tap's
+  repository from the `HOMEBREW_TAP_REPOSITORY` variable. Neither is written in this repository.
+
+Once, from a checkout, with the `gh` command signed in as the tap's owner:
+
+```sh
+K=$(mktemp -d)   # a private temporary folder: the private key never sits in your home folder
+ssh-keygen -t ed25519 -N "" -C "retake releases" -f "$K/tap-key"
+gh repo deploy-key add "$K/tap-key.pub" --repo <owner>/homebrew-tap --allow-write --title "retake releases"
+gh secret set HOMEBREW_TAP_DEPLOY_KEY --env release < "$K/tap-key"
+gh variable set HOMEBREW_TAP_REPOSITORY --body "<owner>/homebrew-tap"
+rm -r "$K"
+```
+
+The key has no passphrase (the workflow cannot type one: its SSH runs in batch mode and fails at once on any
+prompt).
+
+(The secret goes into the `release` environment like every other; the same can be done in the repositories' Settings
+› Deploy keys / Secrets and variables.) A deploy key may write that one repository and nothing else — the workflow's job
+token is never used to push to another repository. Revoke it there (Settings › Deploy keys) if it ever leaks.
+
+The step trusts GitHub's published SSH host key, pinned in the workflow (never one learnt on first use), writes the key
+to a file only the runner's user reads and removes it when the step ends, commits as `github-actions[bot]` and pushes
+only when a cask changed. It runs after the release is public and the update published; it is `continue-on-error`:
+a failure (a revoked key, a tap that is gone) fails nothing — the release and the update are out already — and the
+job's last step says it as a warning of the run ("The Homebrew tap was not updated"). To redo it, re-run the `publish` job alone (the run's page › `publish` › *Re-run this job*): the release
+is public already, the update the same bits, then the tap step runs again. By hand, from a checkout of the tap:
+`GITHUB_REPOSITORY=<owner>/<repo> node scripts/homebrew-cask.mjs v<version> --sums SHA256SUMS-macos.txt --updates on
+--tap <tap>` (`--updates off` for a build without the updater), then commit and push there.
+
 ## Each release
 
 1. **The version**, everywhere it is written, then the tests (no CI workflow runs them on main yet — BACKLOG BL-144):
@@ -180,8 +240,11 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
      `platform-darwin-aarch64.json`, and the `update-feed` release's `rc.json` (and `latest.json` for a stable
      version) are rebuilt — never moved back to an older version. One `publish` runs at a time in the repository,
      whatever the tag (two runs never rewrite the feed together; GitHub may cancel a third one waiting — re-run it).
+     Last — with the Homebrew set — the tap's casks are written and pushed (*The Homebrew tap* above; its failure fails
+     nothing).
 6. **Check it** (MACOS-CHECKLIST 15b): download the DMG from the release page on another account or Mac — it opens
-   with no Gatekeeper prompt — and update the previous version through the feed (15d).
+   with no Gatekeeper prompt —, `brew install --cask <owner>/tap/retake` installs the same version, and update the
+   previous version through the feed (15d).
 
 **A job failed?** Fix what it says (a secret, a variable), then Actions › the run › *Re-run failed jobs* — while the
 release is still a draft: a re-run edits the draft instead of failing on it and replaces its files. **Once the release
@@ -212,6 +275,9 @@ sign job refuses an app whose version (Info.plist) is not the tag's.
   the steps that call `gh` and in `publish` › *Publish the update* (`scripts/publish-update.mjs`, plain Node: the
   GitHub REST API through `fetch`, no other token, no other host). Every action is GitHub's own, pinned to the commit
   of an exact release (the tag is written beside it); checkouts keep no credential.
+- The Homebrew tap's deploy key is bound by `publish`'s last step only, which holds no job token and calls no `gh`;
+  the clone trusts GitHub's pinned host key only (no other known-hosts file, no prompt); `continue-on-error` is that
+  step's (and its checksum download's) alone — nothing else in the workflow may fail quietly.
 - The feed is not signed — only the archive is: whoever can write the repository's releases can withhold an update or
   point the feed elsewhere, never make an app install something not signed by your updater key.
 - **The signing keys never share a runner with code from a dependency.** On a hosted runner every step runs as the same

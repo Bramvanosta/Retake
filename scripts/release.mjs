@@ -16,7 +16,8 @@
  *   node scripts/release.mjs preflight <version> --output <file>
  *                                             what this release is made with (review e B-M1): each set of secrets
  *                                             and variables all or nothing (CONFIG_SETS) — appends signed, updates
- *                                             (+ feed, pubkey) to <file> ($GITHUB_OUTPUT), says each part that is off,
+ *                                             (+ feed, pubkey), tap (+ tap_repository) to <file> ($GITHUB_OUTPUT),
+ *                                             says each part that is off,
  *                                             fails naming what a partial set lacks
  *   node scripts/release.mjs files <version>  the names of the files a release attaches (dmg=, archive=, signature=:
  *                                             bundle.mjs's own names)
@@ -25,7 +26,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { PRODUCT, UPDATE_ARCHIVE } from '../apps/desktop/scripts/bundle.mjs';
-import { MinisignError, PublishError, decodePublicKey, extractNotes, feedLocation, feedUrl, isPublic } from './publish-update.mjs';
+import { GITHUB_SERVER, MinisignError, PublishError, checkRepository, checkUrl, decodePublicKey, extractNotes, feedLocation, feedUrl, isPublic } from './publish-update.mjs';
 import { VERSION_RE, readVersions } from './set-version.mjs';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -35,10 +36,11 @@ export const dmgName = (version) => `${PRODUCT}_${version}_aarch64.dmg`;
 export const releaseFiles = (version) => ({ dmg: dmgName(version), archive: UPDATE_ARCHIVE, signature: `${UPDATE_ARCHIVE}.sig` });
 
 /**
- * What a release can be made with (review e B-M1), as two sets — each all or nothing: none of a set → that part is
+ * What a release can be made with (review e B-M1), as three sets — each all or nothing: none of a set → that part is
  * off (said); some → the run fails before anything is built, naming what is missing. Each name is a secret (of the
  * `release` environment) or a variable. The update's publication needs nothing more (L5.16f): the feed is a release of
- * this repository, written with the workflow's own job token.
+ * this repository, written with the workflow's own job token. The Homebrew tap (another repository: a deploy key that
+ * may write it and nothing else, never the job token) is the last step of `publish`, whose failure fails nothing.
  */
 export const CONFIG_SETS = {
   apple: {
@@ -51,6 +53,11 @@ export const CONFIG_SETS = {
     names: { TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' },
     off: 'Updates are off in this build: the updater needs the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets and the RETAKE_UPDATE_PUBKEY variable — docs/RELEASING.md',
   },
+  homebrew: {
+    what: 'The Homebrew tap\'s casks',
+    names: { HOMEBREW_TAP_DEPLOY_KEY: 'secret', HOMEBREW_TAP_REPOSITORY: 'variable' },
+    off: 'No Homebrew tap: the casks need the HOMEBREW_TAP_DEPLOY_KEY secret and the HOMEBREW_TAP_REPOSITORY variable (<owner>/<repo>) — docs/RELEASING.md',
+  },
 };
 
 /**
@@ -58,7 +65,9 @@ export const CONFIG_SETS = {
  * (`secrets.<NAME> != ''`: never its value), a variable's value as <NAME>; and each name in the other store
  * (HAS_VAR_<NAME> for a secret's name, HAS_SECRET_<NAME> for a variable's) — "a variable, not a secret" is said; with the
  * updater, REPO_PRIVATE / REPO_VISIBILITY (the repository as the API describes it, read with the job token): an app that
- * updates itself needs a public repository (review f A-L3) — refused here, not after the release is public.
+ * updates itself needs a public repository (review f A-L3) — refused here, not after the release is public. The
+ * Homebrew set: only with the Apple set (an ad hoc build leaves the tap as it is, said), its repository
+ * `<owner>/homebrew-<name>`, GitHub's own server only (GITHUB_SERVER_URL; the step pins GitHub's SSH host key).
  * Returns `{ outputs, warnings, errors }`.
  */
 export function preflight(version, env = process.env) {
@@ -80,7 +89,31 @@ export function preflight(version, env = process.env) {
     const why = missing.map(([n, k]) => `${n} (${elsewhere(n, k) ? `set as a ${k === 'secret' ? 'variable' : 'secret'}: it must be a ${k}` : `a ${k}, not set`})`);
     errors.push(`${what} needs all of ${all.map(([n]) => n).join(', ')} — or none: missing ${why.join(', ')}`);
   }
-  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off' };
+  // The tap only for a notarised build: Homebrew installs with no way past Gatekeeper's Open Anyway.
+  const tapOn = on.homebrew && on.apple;
+  if (on.homebrew && !on.apple) warnings.push(HOMEBREW_AD_HOC);
+  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off', tap: tapOn ? 'on' : 'off' };
+  if (tapOn) {
+    // The tap the last step of `publish` clones over SSH with the deploy key (scripts/homebrew-cask.mjs writes it).
+    const before = errors.length;
+    const given = env.HOMEBREW_TAP_REPOSITORY.trim();
+    let repo = null;
+    try {
+      repo = checkRepository(given);
+    } catch {
+      errors.push(`HOMEBREW_TAP_REPOSITORY "${given}" is not <owner>/<repo> (the tap's repository, as GitHub names it)`);
+    }
+    if (repo && !/^homebrew-[A-Za-z0-9._-]+$/.test(repo.split('/')[1])) errors.push(`HOMEBREW_TAP_REPOSITORY "${repo}": a tap's repository is named homebrew-<name> (Homebrew's rule: \`brew tap <owner>/tap\` reads <owner>/homebrew-tap) — set <owner>/homebrew-tap`);
+    // GitHub only: the step pins GitHub's SSH host key, and Homebrew's livecheck reads GitHub's releases.
+    let server = null;
+    try {
+      server = checkUrl(env.GITHUB_SERVER_URL?.trim() || GITHUB_SERVER, 'GITHUB_SERVER_URL');
+    } catch (e) {
+      errors.push(`The Homebrew tap: ${e.message}`);
+    }
+    if (server && server !== GITHUB_SERVER) errors.push(`The Homebrew tap needs GitHub itself (${GITHUB_SERVER}): this run's server is ${server} — remove the Homebrew set (HOMEBREW_TAP_DEPLOY_KEY, HOMEBREW_TAP_REPOSITORY)`);
+    if (repo && errors.length === before) outputs.tap_repository = repo;
+  }
   if (on.updater) {
     try {
       outputs.feed = feedFor(version, env);
@@ -103,6 +136,9 @@ export function preflight(version, env = process.env) {
   }
   return { outputs, warnings, errors };
 }
+
+/** The Homebrew set without the Apple set: the tap is left as it is (an ad hoc build would ask for Open Anyway). */
+export const HOMEBREW_AD_HOC = 'The Homebrew tap is not updated by an ad hoc build: Homebrew installs it with no way past Gatekeeper\'s Open Anyway — the tap waits for a notarised release (the Apple set) — docs/RELEASING.md';
 
 export class ReleaseError extends Error {}
 
@@ -185,7 +221,7 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       for (const e of errors) process.stdout.write(`::error::${e}\n`);
       if (errors.length) process.exit(1);
       appendFileSync(rest[1], Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(''));
-      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates}\n`);
+      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates} tap=${outputs.tap}\n`);
     } else if (command === 'files') {
       if (!VERSION_RE.test(String(arg ?? ''))) throw new ReleaseError(`"${arg}" is not a version (no leading v)`);
       process.stdout.write(Object.entries(releaseFiles(arg)).map(([k, v]) => `${k}=${v}\n`).join(''));

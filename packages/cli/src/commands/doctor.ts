@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, runsLauncher, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -722,7 +722,9 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   const st = cliLinkState(link, launcher);
   const name = 'retake command';
   const first = cliOnPath(dirname(link), p.env.PATH ?? '').first;
-  const firstNote = first && first !== link ? ` · ${tildePath(first)} comes first on this PATH` : '';
+  // A retake first on the PATH that resolves to this app's launcher (a Homebrew cask's link) is this app's command.
+  const firstIsThis = !!first && !!app && runsLauncher(first, launcher);
+  const firstNote = first && first !== link && !firstIsThis ? ` · ${tildePath(first)} comes first on this PATH` : '';
   if (st.state === 'other_app' && st.dangling) {
     out.push({ status: 'warn', name, detail: `${tildePath(link)} points to a Retake app that is gone (${st.target}): the command fails`, hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${pastePath(link)}` });
   } else if (!app) {
@@ -733,6 +735,8 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
     out.push({ status: 'warn', name, detail: `${tildePath(link)} runs another copy of Retake (${st.target})`, hint: 'point it at this one: Help › Install the retake Command… (Replace)' });
   } else if (st.state === 'foreign') {
     out.push({ status: 'warn', name, detail: `${tildePath(link)} is not Retake's command (${st.what}${st.target ? ` → ${st.target}` : ''}): the app leaves it as it is`, hint: 'remove or rename it yourself to install the command from the app, or choose another folder there' });
+  } else if (firstIsThis) {
+    out.push({ status: 'ok', name, detail: `${tildePath(first!)} → this app (a link another tool made, such as Homebrew's cask)` });
   } else {
     out.push({ status: 'ok', name, detail: `not installed${first ? ` (${tildePath(first)} is on this PATH)` : ''} · the app's Help › Install the retake Command… links it` });
   }

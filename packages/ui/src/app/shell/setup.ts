@@ -43,6 +43,10 @@ export interface CliStatus {
   on_path: boolean;
   first: string | null;
   first_is_this: boolean;
+  /** The first retake on the PATH resolves to this app's launcher (another tool's link to it, such as Homebrew's cask). */
+  first_runs_this?: boolean;
+  /** Homebrew's link to this app's launcher in one of its bin folders (whatever the app's PATH), or null. */
+  brew_link?: string | null;
   path_line: string;
   profile: string;
 }
@@ -72,13 +76,23 @@ export interface StepState {
   word: string;
 }
 
+/** Another tool's link to this app's launcher: Homebrew's (its bin folders), else the PATH's first retake when it is one. */
+export function anotherToolLink(c: CliStatus): string | null {
+  return c.brew_link ?? (c.first && c.first_runs_this ? c.first : null);
+}
+
+/** No link of the app's own, but another tool linked this app's command (Homebrew's cask): installed already. */
+export function linkedByAnotherTool(c: CliStatus): boolean {
+  return c.state === 'absent' && c.installed === null && anotherToolLink(c) !== null;
+}
+
 /** This app's command is in another folder than the one shown (a folder chosen since): Uninstall first. */
 export function installedElsewhere(c: CliStatus): boolean {
   return c.installed !== null && c.installed !== c.link;
 }
 
 export function cliStep(c: CliStatus): StepState {
-  if (c.state === 'ours' || installedElsewhere(c)) return { state: 'ok', word: 'Installed' };
+  if (c.state === 'ours' || installedElsewhere(c) || linkedByAnotherTool(c)) return { state: 'ok', word: 'Installed' };
   if (c.state === 'foreign') return { state: 'attention', word: 'Blocked: another file is there' };
   if (c.state === 'other_app') return { state: 'attention', word: c.dangling ? 'Broken: its app is gone' : 'Conflict: another copy' };
   return { state: 'idle', word: 'Ready to install' };
@@ -87,6 +101,7 @@ export function cliStep(c: CliStatus): StepState {
 /** What lies at the command's place, in a sentence. */
 export function cliSentence(c: CliStatus): string {
   if (installedElsewhere(c)) return `This app's retake is ${c.installed}. To put it in ${c.dir} instead, Uninstall it first.`;
+  if (linkedByAnotherTool(c)) return `${anotherToolLink(c)} runs this app's retake: a link another tool made (Homebrew's cask, for example), which that tool removes.`;
   switch (c.state) {
     case 'ours':
       return `${c.link} runs this app's retake.`;
@@ -115,6 +130,8 @@ export function runningSentence(running: boolean | null | undefined): string | n
 
 /** Which `retake` the app's PATH finds — the app cannot see your shell's PATH (a new Terminal window says the truth). */
 export function pathSentence(c: CliStatus): string {
+  if (c.first && c.first !== c.link && c.first_runs_this) return `${c.first} comes first on the PATH this app was given, and it runs this app's retake.`;
+  if (linkedByAnotherTool(c)) return `A new Terminal window finds it when Homebrew's folder is on its PATH (Homebrew's own set-up adds it).`;
   if (!c.on_path) return `${c.dir} is not on the PATH this app was given. If a new Terminal window does not find retake, add this line to ${c.profile}:`;
   if (c.first_is_this) return `${c.dir} is on the PATH this app was given, and its retake comes first.`;
   if (c.first && c.first !== c.link) return `Another retake comes first on the PATH this app was given: ${c.first}.`;

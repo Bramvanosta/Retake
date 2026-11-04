@@ -19,7 +19,9 @@
 #    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
 #  - publish (ubuntu, `environment: release`, contents: write, one at a time across tags): the release made public, then
 #    the update published (scripts/publish-update.mjs, with the job token: the version's platform file, then the
-#    update-feed release's latest.json / rc.json — the only release whose files are replaced once public).
+#    update-feed release's latest.json / rc.json — the only release whose files are replaced once public); last, the
+#    Homebrew tap's casks (scripts/homebrew-cask.mjs; pushed with a deploy key of the tap, never the job token) — a
+#    failure there fails nothing: the release and the update are out already.
 #
 # No CI workflow runs the tests on pull requests or main yet (BACKLOG BL-144): nothing here checks that the tagged
 # commit's tests passed — run `pnpm build` and `pnpm test` before you tag.
@@ -32,7 +34,10 @@
 #  - the updater set: TAURI_SIGNING_PRIVATE_KEY (the updater key file's content) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 #    (secrets), RETAKE_UPDATE_PUBKEY (the .pub file's content, a variable) — none: an app without the updater ("Updates
 #    are off in this build"). The feed's address comes from the run's own context (GITHUB_SERVER_URL,
-#    GITHUB_REPOSITORY: scripts/release.mjs feed); publishing it needs no other secret than the job token.
+#    GITHUB_REPOSITORY: scripts/release.mjs feed); publishing it needs no other secret than the job token;
+#  - the Homebrew set: HOMEBREW_TAP_DEPLOY_KEY (a secret: the private half of an SSH deploy key with write access to
+#    the tap's repository only) and HOMEBREW_TAP_REPOSITORY (a variable: the tap, <owner>/homebrew-<name>) — none, or
+#    an ad hoc build (no Apple set): the tap is not updated (said); GitHub's own server only.
 # Secrets live in the `release` environment (Settings › Environments › release: deployments from v* tags only);
 # variables there or in the repository. Only the jobs that reference the environment can read its secrets.
 #
@@ -72,6 +77,8 @@ jobs:
       dmg: ${{ steps.config.outputs.dmg }}
       archive: ${{ steps.config.outputs.archive }}
       signature: ${{ steps.config.outputs.signature }}
+      tap: ${{ steps.config.outputs.tap }}
+      tap_repository: ${{ steps.config.outputs.tap_repository }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -125,6 +132,9 @@ jobs:
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
           HAS_SECRET_RETAKE_UPDATE_PUBKEY: ${{ secrets.RETAKE_UPDATE_PUBKEY != '' }}
+          HOMEBREW_TAP_REPOSITORY: ${{ vars.HOMEBREW_TAP_REPOSITORY }}
+          HAS_SECRET_HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
+          HAS_SECRET_HOMEBREW_TAP_REPOSITORY: ${{ secrets.HOMEBREW_TAP_REPOSITORY != '' }}
           HAS_VAR_APPLE_CERTIFICATE: ${{ vars.APPLE_CERTIFICATE != '' }}
           HAS_VAR_APPLE_CERTIFICATE_PASSWORD: ${{ vars.APPLE_CERTIFICATE_PASSWORD != '' }}
           HAS_VAR_APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY != '' }}
@@ -134,6 +144,7 @@ jobs:
           HAS_VAR_APPLE_API_KEY_P8: ${{ vars.APPLE_API_KEY_P8 != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY: ${{ vars.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ vars.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          HAS_VAR_HOMEBREW_TAP_DEPLOY_KEY: ${{ vars.HOMEBREW_TAP_DEPLOY_KEY != '' }}
         run: |
           set -eu
           node scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"
@@ -494,9 +505,11 @@ jobs:
 
   # The files are attached: the release goes public, then the update points at files that exist.
   publish:
-    needs: [release, attach]
+    # sign: its SHA256SUMS-macos.txt's own sha256, which the tap's checksum is checked against.
+    needs: [release, sign, attach]
     runs-on: ubuntu-24.04
-    # No secret here: the environment is the gate (its reviewers, its v* rule) before the release goes public.
+    # The environment is the gate (its reviewers, its v* rule) before the release goes public; its one secret here is the
+    # tap's deploy key, in the last step only.
     environment: release
     timeout-minutes: 20
     permissions:
@@ -565,3 +578,73 @@ jobs:
           export RETAKE_UPDATE_FEED
           D="$RUNNER_TEMP/update"
           node scripts/publish-update.mjs "$VERSION" --artifact "$D/$ARCHIVE" --signature "$D/$SIGNATURE"
+      # The Homebrew tap (docs/RELEASING.md › The Homebrew tap): `retake` follows the stable versions, `retake@beta` every
+      # version. Last, and a failure here fails nothing (continue-on-error): the release and the update are out already.
+      - name: The DMG's checksum, for the tap
+        id: tap-sums
+        if: needs.release.outputs.tap == 'on'
+        continue-on-error: true
+        # From the public release, with the job token (gh), checked against the sha256 the sign job gave it (as attach
+        # does); the next step reads the DMG's own line of it.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SUMS_SHA256: ${{ needs.sign.outputs.sums }}
+        run: |
+          set -eu
+          if ! printf '%s\n' "$SUMS_SHA256" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::The sign job gave no sha256 of SHA256SUMS-macos.txt"
+            exit 1
+          fi
+          D="$RUNNER_TEMP/tap-sums"
+          rm -rf "$D"
+          mkdir -p "$D"
+          gh release download "$GITHUB_REF_NAME" --dir "$D" --pattern SHA256SUMS-macos.txt
+          (cd "$D" && echo "$SUMS_SHA256  SHA256SUMS-macos.txt" | shasum -a 256 -c)
+          echo "file=$D/SHA256SUMS-macos.txt" >> "$GITHUB_OUTPUT"
+      - name: Update the Homebrew tap
+        id: tap
+        if: needs.release.outputs.tap == 'on' && steps.tap-sums.outcome == 'success'
+        continue-on-error: true
+        # The deploy key (it may write the tap's repository and nothing else) into a 0600 file, removed when the step ends
+        # whatever happens; GitHub's published SSH host key pinned (never trusted on first use); a shallow clone of the
+        # tap, the casks written (never moved back to an older version), committed and pushed only when they changed.
+        # No job token here: it may not write another repository. UPDATES: the casks say auto_updates only for a build
+        # with the updater (an upgrade skips an auto-updating cask unless --greedy).
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          UPDATES: ${{ needs.release.outputs.updates }}
+          TAP_REPOSITORY: ${{ needs.release.outputs.tap_repository }}
+          SUMS: ${{ steps.tap-sums.outputs.file }}
+          TAP_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+        run: |
+          set -eu
+          umask 077
+          if [ -z "${TAP_KEY:-}" ]; then
+            echo "::error::The release environment lacks HOMEBREW_TAP_DEPLOY_KEY (the release job saw it: was it removed since?) — the tap is not updated"
+            exit 1
+          fi
+          K="$RUNNER_TEMP/tap-key"
+          H="$RUNNER_TEMP/tap-known-hosts"
+          T="$RUNNER_TEMP/tap"
+          trap 'rm -f "$K" "$H"' EXIT
+          rm -rf "$T"
+          printf '%s\n' "$TAP_KEY" > "$K"
+          chmod 600 "$K"
+          unset TAP_KEY
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$H"
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i $K -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$H -o GlobalKnownHostsFile=/dev/null"
+          git clone --depth 1 "git@github.com:$TAP_REPOSITORY.git" "$T"
+          node scripts/homebrew-cask.mjs "$GITHUB_REF_NAME" --sums "$SUMS" --updates "$UPDATES" --tap "$T"
+          cd "$T"
+          git add Casks
+          if git diff --cached --quiet; then
+            echo "The casks are unchanged"
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "retake $VERSION"
+          git push origin HEAD
+      - name: The tap was not updated
+        # A failure above stays quiet in a green run: said as a warning of the run.
+        if: needs.release.outputs.tap == 'on' && (steps.tap-sums.outcome == 'failure' || steps.tap.outcome == 'failure')
+        run: echo "::warning::The Homebrew tap was not updated (see the steps above) — the release and the update are out; once fixed, re-run the publish job alone"

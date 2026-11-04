@@ -159,6 +159,30 @@ function samePath(a: string, b: string): boolean {
   }
 }
 
+/**
+ * Whether `command` (a `retake` the PATH finds) runs this app's `launcher`: the file itself, or a link (or a chain of
+ * links) that resolves to it — another tool's link, such as the one a Homebrew cask's `binary` makes, is this app's
+ * command too (the launcher finds its app from its real path).
+ */
+export function runsLauncher(command: string, launcher: string): boolean {
+  return !!command && !!launcher && samePath(command, launcher);
+}
+
+/**
+ * Homebrew's bin folders (Apple silicon, Intel), where a cask's `binary` links the command. Looked at whatever the
+ * app's PATH: an app opened from Finder or the Dock gets launchd's PATH, which has neither.
+ */
+export const HOMEBREW_BINS: readonly string[] = ['/opt/homebrew/bin', '/usr/local/bin'];
+
+/** The first `<folder>/retake` of `folders` that runs this app's launcher (another tool's link to it), or null. */
+export function launcherLinkIn(folders: readonly string[], launcher: string): string | null {
+  for (const f of folders) {
+    const p = join(f, CLI_NAME);
+    if (runsLauncher(p, launcher)) return p;
+  }
+  return null;
+}
+
 /** What lies at `link` (the command's place), compared with `launcher` (this app's). */
 export function cliLinkState(link: string, launcher: string): CliLink {
   let st;

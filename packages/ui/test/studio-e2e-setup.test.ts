@@ -19,7 +19,7 @@
  * cancel; the process list read only while the Claude Desktop step is in view, at most every 5 s.
  * Screenshots go to RETAKE_UI_SHOTS when set.
  */
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -66,6 +66,8 @@ const machine = (o: Partial<SetupContext> = {}): SetupContext => ({
   readOnly: () => false,
   processes: async () => (psCalls++, ''),
   desktopConfig,
+  // No Homebrew folder of this machine is looked at: a test injects its own.
+  brewBins: [],
   ...o,
 });
 
@@ -247,6 +249,33 @@ describe('the Set-up sheet', () => {
     await expect.poll(() => isOpen(again), POLL).toBe(false);
     expect(errors).toEqual([]);
     await again.close();
+  }, 120_000);
+
+  it('review M1: Homebrew\'s link to this app (a Finder launch: no Homebrew folder on the app\'s PATH) — Command line "Installed", no Install button, no PATH line to copy', async () => {
+    // On its own: no link of the app's own left by an earlier case (the default folder's).
+    rmSync(join(home, '.local', 'bin', 'retake'), { force: true });
+    const brew = join(base, 'brew', 'bin');
+    mkdirSync(brew, { recursive: true });
+    symlinkSync(join(app.root, 'bin', 'retake'), join(brew, 'retake'));
+    ctx = machine({ brewBins: [brew] });
+    const p = await open(true, '#/setup');
+    await expect.poll(() => isOpen(p), POLL).toBe(true);
+    const d = sheet(p);
+    await expect.poll(() => d.getByTestId('setup-cli').locator('.k-check-word').innerText(), POLL).toBe('Installed');
+    expect(await d.getByTestId('setup-cli').innerText()).toContain(`${join(brew, 'retake')} runs this app's retake`);
+    expect(await d.getByTestId('setup-cli-install').count()).toBe(0);
+    expect(await d.getByTestId('setup-cli-path').count()).toBe(0);
+    expect(await d.getByTestId('setup-cli').innerText()).not.toContain('export PATH=');
+    // Without it: Install and the PATH line are back.
+    rmSync(join(brew, 'retake'));
+    await p.reload();
+    await expect.poll(() => isOpen(p), POLL).toBe(true);
+    await expect.poll(() => sheet(p).getByTestId('setup-cli').locator('.k-check-word').innerText(), POLL).toBe('Ready to install');
+    expect(await sheet(p).getByTestId('setup-cli-install').count()).toBe(1);
+    expect(await sheet(p).getByTestId('setup-cli-path').count()).toBe(1);
+    ctx = machine();
+    expect(errors).toEqual([]);
+    await p.close();
   }, 120_000);
 
   it('critique H1: from a translocated copy — "Move Retake to Applications", the command and Claude off (its a11y tour)', async () => {
