@@ -1850,7 +1850,7 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
    pushed by someone else (or by you from a branch that is not main, on a scratch repository) is refused by the
    ruleset; a push straight to main is refused.
 1. `release` passes (the tag is the version, the commit is on main; "The repository's visibility" prints nothing but
-   succeeds — the job token may read the repository — and "What is configured" says signed=true updates=on;
+   succeeds — the job token may read the repository — and "What is configured" says signed=true updates=on tap=on;
    its `feed` output is `<server>/<owner>/<repo>/releases/download/update-feed/latest.json`) and a draft release appears with the CHANGELOG paragraph. A tag that is not the version (try `v9.9.9` on
    a scratch branch: it is refused before anything is built — delete that tag afterwards). Remove one secret of a set
    (on a scratch fork): the run fails in "What is configured", naming it. On a private scratch repository with the
@@ -1869,7 +1869,25 @@ deployment rule, the tag ruleset and main's protection set once). Bump to the ne
    archive and `.sig` were attached by `attach`), `update-feed` created on this first publication (a *Pre-release*, not
    *Latest*) and `update-feed/rc.json → 0.2.1`, `update-feed/latest.json → 0.2.1`; `curl -sL
    <server>/<owner>/<repo>/releases/download/update-feed/latest.json` names 0.2.1 (15d step 0). The job used no secret
-   (the job token only).
+   but the tap's deploy key, in its last step (the job token for the rest).
+5b. **The Homebrew tap** (docs/RELEASING.md › The Homebrew tap: the `homebrew-tap` repository, its deploy key with
+   write access, the `HOMEBREW_TAP_DEPLOY_KEY` secret and the `HOMEBREW_TAP_REPOSITORY` variable set once): the last
+   step "Update the Homebrew tap" cloned over SSH with no host-key prompt and pushed one commit `retake 0.2.1` by
+   github-actions[bot] adding `Casks/retake.rb` and `Casks/retake@beta.rb` (both 0.2.1, the DMG's sha256 of
+   `SHA256SUMS-macos.txt`). On a Mac without Retake: `brew install --cask <owner>/tap/retake` installs
+   /Applications/Retake.app (0.2.1, no Gatekeeper prompt) and `which retake` is Homebrew's link — `retake doctor` says
+   "retake command … → this app (a link another tool made …)", no warning; the app opened from Finder: the Set-up sheet's
+   Command line says "Installed" (`/opt/homebrew/bin/retake runs this app's retake …`), with no Install button and no
+   PATH line. `brew livecheck --cask <owner>/tap/retake` finds 0.2.1; after a pre-release `v0.3.0-rc.1`,
+   `brew livecheck --cask <owner>/tap/retake@beta` finds 0.3.0-rc.1 (not 0.2.1); `brew install --cask
+   <owner>/tap/retake@beta` refuses while `retake` is installed (conflict). `brew uninstall --zap --cask retake` removes
+   the app, the link and the ~/Library folders — `~/.retake` stays. A re-run of `publish` alone says "The casks are
+   unchanged" and pushes nothing; a pre-release (`v0.3.0-rc.1`) moves `retake@beta` only. Without the two settings the
+   step is skipped ("No Homebrew tap" in "What is configured"); a release without the Apple set leaves the tap as it is
+   ("not updated by an ad hoc build"); with a revoked key the step fails, the run stays green and shows the warning
+   "The Homebrew tap was not updated". Without the updater set, the casks have no `auto_updates` line and `brew
+   upgrade` (no `--greedy`) brings the next version. With Retake running, `brew uninstall --cask retake` quits it
+   first.
 6. **On another account (or another Mac)**: download the DMG from the release page with a browser (it carries the
    quarantine mark), compare its SHA-256 with `SHA256SUMS-macos.txt`, open it, drag Retake to Applications, open it —
    **no Gatekeeper prompt at all**, no Open Anyway. `spctl -a -vv /Applications/Retake.app` says "accepted" and

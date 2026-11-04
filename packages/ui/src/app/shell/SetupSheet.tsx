@@ -21,7 +21,7 @@ import { Txt } from '../bits.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
 import { Blocker, Button, Callout, Checklist, ChecklistItem, Sheet } from '../ui-kit/index.js';
-import { SETUP_EVENT, cliSentence, cliStep, desktopStep, installedElsewhere, notificationsStep, panelSentence, parseSetupDetail, pathSentence, runningSentence, unavailableSentence } from './setup.js';
+import { SETUP_EVENT, cliSentence, cliStep, desktopStep, installedElsewhere, linkedByAnotherTool, notificationsStep, panelSentence, parseSetupDetail, pathSentence, runningSentence, unavailableSentence } from './setup.js';
 import type { SetupStatus } from './setup.js';
 
 type Busy = string | null;
@@ -271,7 +271,7 @@ export function SetupSheet({ route }: { route: Route }) {
             testId="setup-cli"
             actions={
               <>
-                {cli.state !== 'ours' && cli.state !== 'foreign' && !installedElsewhere(cli) && (
+                {cli.state !== 'ours' && cli.state !== 'foreign' && !installedElsewhere(cli) && !linkedByAnotherTool(cli) && (
                   <Button variant="primary" disabled={!placed || !!busy} busy={isBusy('cli:setup_cli_install')} data-testid="setup-cli-install" onClick={() => act('cli:setup_cli_install', () => call<Record<string, unknown>>('setup_cli_install', { folder: cli.chosen ? 'chosen' : 'default', replace: cli.state === 'other_app' }), (r) => ({ step: 'cli', state: 'ok', text: `Installed: ${String(r.path)}` }))}>
                     {cli.state === 'other_app' ? 'Replace' : 'Install retake'}
                   </Button>
@@ -295,7 +295,7 @@ export function SetupSheet({ route }: { route: Route }) {
             <p>
               <Txt text={pathSentence(cli)} />
             </p>
-            {!cli.on_path && <Blocker fix={{ copy: cli.path_line, label: 'Copy line' }} testId="setup-cli-path" />}
+            {!cli.on_path && !cli.first_runs_this && !linkedByAnotherTool(cli) && <Blocker fix={{ copy: cli.path_line, label: 'Copy line' }} testId="setup-cli-path" />}
             <p>Check it: open a new Terminal window and run retake doctor.</p>
             {confirm === 'cli-remove' && (
               <div className="sh-setup-confirm" role="group" aria-label="Uninstall the command">

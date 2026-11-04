@@ -23,6 +23,7 @@ import { OWN_OPS, PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SHELL_LINE_MAX, 
 import type { SetupContext, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from './http.js';
+import { cliSentence, cliStep, linkedByAnotherTool, pathSentence } from '../src/app/shell/setup.js';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'setup-ops-')));
 const ws = join(base, 'ws');
@@ -54,6 +55,8 @@ const machine = (o: Partial<SetupContext> = {}): SetupContext => ({
   readOnly: () => false,
   processes: async () => (psCalls++, running),
   desktopConfig,
+  // No Homebrew folder of this machine is looked at: a test injects its own.
+  brewBins: [],
   ...o,
 });
 
@@ -165,6 +168,71 @@ describe('the retake command', () => {
     expect(readFileSync(join(home, '.local', 'bin', 'retake'), 'utf8')).toContain('pnpm retake');
     expect((await call('setup_status')).body.data.cli).toMatchObject({ state: 'foreign', what: 'file' });
     rmSync(join(home, '.local', 'bin', 'retake'));
+  });
+
+  it('a link another tool made to this app (a Homebrew cask\'s `binary`) first on the app\'s PATH: installed, this app\'s command — no Install, no PATH line, no "another retake"', async () => {
+    freshWindow();
+    const brew = join(base, 'brew-bin');
+    mkdirSync(brew, { recursive: true });
+    symlinkSync(join(app.root, 'bin', 'retake'), join(brew, 'retake'));
+    try {
+      ctx = machine({ env: { ...machine().env, PATH: `${brew}:/usr/bin:/bin` } });
+      const cli = (await call('setup_status')).body.data.cli;
+      expect(cli).toMatchObject({ state: 'absent', installed: null, on_path: false, first: join(brew, 'retake'), first_is_this: false, first_runs_this: true });
+      expect(linkedByAnotherTool(cli)).toBe(true);
+      expect(cliStep(cli)).toEqual({ state: 'ok', word: 'Installed' });
+      expect(cliSentence(cli)).toBe(`${join(brew, 'retake')} runs this app's retake: a link another tool made (Homebrew's cask, for example), which that tool removes.`);
+      expect(pathSentence(cli)).toBe(`${join(brew, 'retake')} comes first on the PATH this app was given, and it runs this app's retake.`);
+      // The app's own link as well: still this app's command, and the sentence about the PATH stays calm.
+      expect((await call('setup_cli_install')).body.data.result).toBe('created');
+      const both = (await call('setup_status')).body.data.cli;
+      expect(both).toMatchObject({ state: 'ours', first_runs_this: true });
+      expect(linkedByAnotherTool(both)).toBe(false);
+      expect(cliStep(both)).toEqual({ state: 'ok', word: 'Installed' });
+      expect(pathSentence(both)).not.toMatch(/Another retake/);
+      expect((await call('setup_cli_remove')).body.data.result).toBe('removed');
+      // Uninstall never touches the other tool's link.
+      expect(readlinkSync(join(brew, 'retake'))).toBe(join(app.root, 'bin', 'retake'));
+      // A link to another copy of Retake first on the PATH: not this app's — said as another retake.
+      rmSync(join(brew, 'retake'));
+      const old = fakeApp(join(base, 'OldApps'));
+      symlinkSync(join(old.root, 'bin', 'retake'), join(brew, 'retake'));
+      const elsewhere = (await call('setup_status')).body.data.cli;
+      expect(elsewhere).toMatchObject({ state: 'absent', first: join(brew, 'retake'), first_runs_this: false });
+      expect(cliStep(elsewhere)).toEqual({ state: 'idle', word: 'Ready to install' });
+    } finally {
+      rmSync(join(brew, 'retake'), { force: true });
+      ctx = machine();
+    }
+  });
+
+  it('review M1: Homebrew\'s bin folders are looked at whatever the app\'s PATH (a Finder launch has launchd\'s PATH): its link to this app is installed', async () => {
+    freshWindow();
+    const silicon = join(base, 'brew-silicon', 'bin');
+    const intel = join(base, 'brew-intel', 'bin');
+    mkdirSync(silicon, { recursive: true });
+    mkdirSync(intel, { recursive: true });
+    symlinkSync(join(app.root, 'bin', 'retake'), join(intel, 'retake'));
+    try {
+      ctx = machine({ brewBins: [silicon, intel] });
+      const cli = (await call('setup_status')).body.data.cli;
+      expect(cli).toMatchObject({ state: 'absent', installed: null, on_path: false, first: null, first_runs_this: false, brew_link: join(intel, 'retake') });
+      expect(linkedByAnotherTool(cli)).toBe(true);
+      expect(cliStep(cli)).toEqual({ state: 'ok', word: 'Installed' });
+      expect(cliSentence(cli)).toBe(`${join(intel, 'retake')} runs this app's retake: a link another tool made (Homebrew's cask, for example), which that tool removes.`);
+      expect(pathSentence(cli)).toBe("A new Terminal window finds it when Homebrew's folder is on its PATH (Homebrew's own set-up adds it).");
+      // A link to another copy, or a file, in Homebrew's folder is not this app's command.
+      rmSync(join(intel, 'retake'));
+      writeFileSync(join(intel, 'retake'), '#!/bin/sh\n');
+      chmodSync(join(intel, 'retake'), 0o755);
+      const file = (await call('setup_status')).body.data.cli;
+      expect(file.brew_link).toBeNull();
+      expect(linkedByAnotherTool(file)).toBe(false);
+      expect(cliStep(file)).toEqual({ state: 'idle', word: 'Ready to install' });
+    } finally {
+      rmSync(join(intel, 'retake'), { force: true });
+      ctx = machine();
+    }
   });
 
   it('another folder: the shell\'s panel (a pipe line), its answer on stdin checked, then installed there; a bad one said', async () => {

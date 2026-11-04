@@ -481,7 +481,9 @@ Studio keeps `APP_NAME` (L5.13 renames).
   open it again"), its paths as mono text, its commands as Blockers to copy (the zsh PATH line, the two `claude plugin`
   lines, the Claude Desktop entry), and its actions: Install retake / Replace · Choose a Folder… · Uninstall… (an inline
   confirmation, destructive), Run, Add to Claude Desktop… / Replace… (an inline confirmation showing the file and the
-  entry), Allow…. An action's outcome is a Callout under its item (`role="alert"` when it failed); Claude Code's output
+  entry), Allow…. Another tool's link to this app's launcher — in Homebrew's bin folders (`/opt/homebrew/bin`,
+  `/usr/local/bin`, looked at whatever the app's PATH: `brew_link`) or first on the app's PATH (`first_runs_this`) —
+  makes Command line "Installed", with no Install button and no PATH line to copy. An action's outcome is a Callout under its item (`role="alert"` when it failed); Claude Code's output
   and the Claude Desktop entry there now are text (`Txt`: markup shown, controls made visible). Done is the default; it
   alone remembers the sheet (Escape closes it without that: it opens again at the next start). It opens by itself at
   the first start, on the shell's `studio:setup` event (Help › Set Up Retake…, Install / Uninstall the retake Command…)

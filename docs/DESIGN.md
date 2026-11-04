@@ -5753,7 +5753,7 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7).
   `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
   the same `finishApp` in the same process.
-- **What is configured: two sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
+- **What is configured: three sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
   The Apple set (seven secrets: certificate, its password, identity, team, API key id, issuer, .p8), the updater set
   (the key and its password as secrets, `RETAKE_UPDATE_PUBKEY` as a variable; L5.16f dropped the update host's
   `UPDATES_PUBLIC_URL` and the upload pair: the feed's address comes from the run's context). None of a set: that part
@@ -5765,8 +5765,31 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   public (review f A-L3 / B-L5: the step before reads `gh api repos/<repo>` with the job token — `private`,
   `visibility` — and the preflight refuses one that is not public, or unknown, before anything is built; publish-update
   checks it again) and the public key are checked there too and handed to the build job as outputs (public values). The sign job checks its own set again first (review e B-L4).
+  The Homebrew set (the tap's deploy key as a secret, `HOMEBREW_TAP_REPOSITORY` as a variable, checked as
+  `<owner>/homebrew-<name>`, Homebrew's naming): outputs `tap` and `tap_repository` for `publish`'s last steps — `tap`
+  on only with the Apple set too (an ad hoc build leaves the tap as it is, a warning: Homebrew has no way past Open
+  Anyway) and on GitHub's own server (the step pins GitHub's host key; another GITHUB_SERVER_URL is refused).
+- **The Homebrew tap** (the person's request, 2026-11-04; RELEASING.md › The Homebrew tap). After the release is public
+  and the update published, `publish` (which needs `sign`) downloads the release's SHA256SUMS-macos.txt with the job
+  token and checks it against the sign job's `sums`, then a step holding only the tap's deploy key (no token, no `gh`)
+  writes it to a 0600 file (removed by an EXIT trap), pins GitHub's published ed25519 host key (no other known-hosts
+  file, StrictHostKeyChecking=yes, BatchMode=yes), clones the tap shallow, runs `scripts/homebrew-cask.mjs` with the
+  release's `updates` and commits as github-actions[bot] and pushes (`origin HEAD`) only when a cask changed. Both steps
+  are `continue-on-error` — the only ones in the workflow; a last step turns a failure of either into a `::warning::`.
+  The script: `retake` (stable versions, livecheck `github_latest`), `retake@beta` (every version, livecheck
+  `github_releases` with a block — the strategy alone skips pre-releases — keeping every non-draft release whose tag
+  matches a version regex: `update-feed` never does), `depends_on macos: :sequoia` (the string form is deprecated),
+  `auto_updates true` only with the updater, `uninstall quit:` the bundle id, never moved back, an unreadable version
+  left alone; the release's location
+  from GITHUB_SERVER_URL / GITHUB_REPOSITORY, the DMG name from `release.mjs dmgName`, the bundle id from
+  tauri.conf.json (zap: Application Support, Caches, the two binarycookies, HTTPStorages, Preferences, Saved Application
+  State, WebKit — never `~/.retake`); every interpolated value checked against a strict pattern (no quote, `#`, `{`, backslash,
+  newline). `binary` links the launcher (it resolves links); core `runsLauncher` makes doctor and the Set-up sheet read
+  a first-on-PATH link that resolves to this app's launcher as this app's command (`first_runs_this`), and the sheet
+  also looks in Homebrew's bin folders whatever the app's PATH (core `HOMEBREW_BINS`, `launcherLinkIn`: `brew_link`) —
+  an app opened from Finder gets launchd's PATH, which has neither.
 - **The release environment** (review e A-M1): secrets live in the `release` environment, which only `release`
-  (presence only), `sign` and `publish` (no secret: the gate) reference; RELEASING.md has the person give it a deployment rule for `v*`
+  (presence only), `sign` and `publish` (the gate; its one secret the tap's deploy key, in its last step) reference; RELEASING.md has the person give it a deployment rule for `v*`
   tags only, add a tag ruleset (only they create, update or delete `v*`) and protect main — GitHub settings, made by
   the person.
 - **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved

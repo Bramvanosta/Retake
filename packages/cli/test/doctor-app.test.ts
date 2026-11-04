@@ -63,6 +63,28 @@ describe('doctor: App location and the retake command', () => {
     expect(c.detail).toContain(`${join(other, 'retake')} comes first on this PATH`);
   });
 
+  it('a link another tool made to this app (a Homebrew cask\'s `binary`) first on the PATH is this app\'s command — never "comes first", never a warning', () => {
+    const { home, bin, app } = setup();
+    const env = { HOME: home, RETAKE_HOME: join(home, '.retake-scratch'), PATH: '/usr/bin:/bin' };
+    const brew = join(home, 'brew', 'bin');
+    mkdirSync(brew, { recursive: true });
+    symlinkSync(app.launcher, join(brew, 'retake'));
+    // Only Homebrew's link: this app's command.
+    expect(appChecks(probes({ bundle: app.bundle, env: { ...env, PATH: `${brew}:/usr/bin` } }))[1]).toEqual({ status: 'ok', name: 'retake command', detail: `${join(brew, 'retake')} → this app (a link another tool made, such as Homebrew's cask)` });
+    // Both links, Homebrew's first: both run this app — no warning.
+    symlinkSync(app.launcher, join(bin, 'retake'));
+    expect(appChecks(probes({ bundle: app.bundle, env: { ...env, PATH: `${brew}:${bin}:/usr/bin` } }))[1]).toEqual({ status: 'ok', name: 'retake command', detail: `${join(bin, 'retake')} → this app` });
+    // A link to another copy of Retake first on the PATH still warns.
+    const old = fakeApp(join(base, `brew-old-${n}`));
+    rmSync(join(brew, 'retake'));
+    symlinkSync(old.launcher, join(brew, 'retake'));
+    const c = appChecks(probes({ bundle: app.bundle, env: { ...env, PATH: `${brew}:${bin}:/usr/bin` } }))[1]!;
+    expect(c.status).toBe('warn');
+    expect(c.detail).toContain(`${join(brew, 'retake')} comes first on this PATH`);
+    rmSync(join(bin, 'retake'));
+    expect(appChecks(probes({ bundle: app.bundle, env: { ...env, PATH: `${brew}:/usr/bin` } }))[1]).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^not installed \(.*is on this PATH\)/) });
+  });
+
   it('the link the app recorded (app.json), a link to another copy, a file that is not Retake\'s', () => {
     const { home, bin, app } = setup();
     const env = { HOME: home, RETAKE_HOME: join(home, '.retake-scratch'), PATH: '/usr/bin' };

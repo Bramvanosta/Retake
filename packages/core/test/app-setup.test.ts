@@ -40,6 +40,9 @@ import {
   readAppSettings,
   removeCliLink,
   runClaudeSteps,
+  runsLauncher,
+  HOMEBREW_BINS,
+  launcherLinkIn,
   setupSeen,
   writeAppSettings,
   writeDesktopEntry,
@@ -206,6 +209,38 @@ describe('the retake command (plan §4)', () => {
     // The identifier is the app's (apps/desktop tauri.conf.json).
     const conf = JSON.parse(readFileSync(join(__dirname, '..', '..', '..', 'apps', 'desktop', 'tauri.conf.json'), 'utf8')) as { identifier: string };
     expect(conf.identifier).toBe(APP_BUNDLE_ID);
+  });
+
+  it('another tool\'s link to this app\'s launcher (a Homebrew cask\'s `binary`) runs this app: a link, a chain of links, the file itself — never another copy, a dangling link or a look-alike', () => {
+    const { launcher } = fakeApp(scratch('apps'));
+    const other = fakeApp(scratch('other-apps'));
+    const brew = scratch('brew-bin');
+    symlinkSync(launcher, join(brew, 'retake'));
+    expect(runsLauncher(join(brew, 'retake'), launcher)).toBe(true);
+    const chain = scratch('chain');
+    symlinkSync(join(brew, 'retake'), join(chain, 'retake'));
+    expect(runsLauncher(join(chain, 'retake'), launcher)).toBe(true);
+    expect(runsLauncher(launcher, launcher)).toBe(true);
+    // Run through the link: the launcher's own script runs (the real one finds its app from its real path).
+    expect(spawnSync(join(brew, 'retake'), ['doctor'], { encoding: 'utf8' }).stdout).toBe('Retake doctor\n');
+    expect(runsLauncher(other.launcher, launcher)).toBe(false);
+    const toOther = scratch('to-other');
+    symlinkSync(other.launcher, join(toOther, 'retake'));
+    expect(runsLauncher(join(toOther, 'retake'), launcher)).toBe(false);
+    const copy = scratch('copy');
+    writeFileSync(join(copy, 'retake'), readFileSync(launcher));
+    expect(runsLauncher(join(copy, 'retake'), launcher)).toBe(false);
+    const dangling = scratch('dangling');
+    symlinkSync(join(base, 'gone', 'Retake.app', 'Contents', 'Resources', 'bin', 'retake'), join(dangling, 'retake'));
+    expect(runsLauncher(join(dangling, 'retake'), launcher)).toBe(false);
+    expect(runsLauncher('', launcher)).toBe(false);
+    expect(runsLauncher(join(brew, 'retake'), '')).toBe(false);
+    // Homebrew's bin folders (looked at whatever the PATH): the first one whose retake runs this app.
+    expect(HOMEBREW_BINS).toEqual(['/opt/homebrew/bin', '/usr/local/bin']);
+    const empty = scratch('brew-empty');
+    expect(launcherLinkIn([empty, toOther, copy, dangling, chain, brew], launcher)).toBe(join(chain, 'retake'));
+    expect(launcherLinkIn([empty, toOther, copy, dangling], launcher)).toBeNull();
+    expect(launcherLinkIn([], launcher)).toBeNull();
   });
 
   it('says which retake the given PATH finds first and gives the zsh line to copy (never a profile edit)', () => {

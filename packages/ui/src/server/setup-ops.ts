@@ -58,6 +58,9 @@ import {
   removeCliLink,
   retakeHome,
   runClaudeSteps,
+  runsLauncher,
+  HOMEBREW_BINS,
+  launcherLinkIn,
   setupSeen,
   writeAppSettings,
   writeDesktopEntry,
@@ -95,6 +98,8 @@ export interface SetupContext {
   desktopConfig: string;
   /** Is this an executable file (the `claude` candidates, the PATH's `retake`)? */
   isExec?(p: string): boolean;
+  /** Homebrew's bin folders, looked at whatever the PATH (default core HOMEBREW_BINS; tests inject scratch ones). */
+  brewBins?: readonly string[];
   /** The Claude Code run's time limit (ms; default core CLAUDE_RUN_MS). */
   claudeTimeoutMs?: number;
 }
@@ -327,6 +332,10 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
             on_path: path.onPath,
             first: path.first,
             first_is_this: path.first !== null && path.first === link && now.state === 'ours',
+            // Another tool's link to this app's launcher (a Homebrew cask's) first on the PATH: this app's command too.
+            first_runs_this: path.first !== null && runsLauncher(path.first, launcher),
+            // Homebrew's link to this app, whatever the app's PATH (a Finder launch has no Homebrew folder on it).
+            brew_link: launcherLinkIn(ctx.brewBins ?? HOMEBREW_BINS, launcher),
             path_line: zshPathLine(dir, ctx.home),
             profile: ZSH_PROFILE,
           },

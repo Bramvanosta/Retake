@@ -12,7 +12,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -149,7 +149,7 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
 
   it('five jobs in a chain; reads by default, contents: write only on the jobs that call gh; one run per tag at a time, never cancelled', () => {
     expect(Object.keys(jobs)).toEqual(['release', 'build', 'sign', 'attach', 'publish']);
-    expect([jobs.build!.needs, jobs.sign!.needs, jobs.attach!.needs, jobs.publish!.needs]).toEqual(['release', ['release', 'build'], ['release', 'sign'], ['release', 'attach']]);
+    expect([jobs.build!.needs, jobs.sign!.needs, jobs.attach!.needs, jobs.publish!.needs]).toEqual(['release', ['release', 'build'], ['release', 'sign'], ['release', 'sign', 'attach']]);
     expect(wf.permissions).toEqual({ contents: 'read' });
     for (const [name, j] of Object.entries(jobs)) {
       const gh = j.steps.some((s) => CALLS_GH.test(s.run ?? ''));
@@ -159,9 +159,11 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
     expect(wf.concurrency).toEqual({ group: 'release-${{ github.ref }}', 'cancel-in-progress': false });
   });
 
-  it('the release environment (its secrets, its v*-only deployment rule) on release (presence only) and sign, and on publish as the gate before the release goes public — publish binds no secret', () => {
+  it('the release environment (its secrets, its v*-only deployment rule) on release (presence only) and sign, and on publish as the gate before the release goes public — publish binds one secret, the tap\'s deploy key, in its last step', () => {
     expect(Object.entries(jobs).filter(([, j]) => j.environment).map(([k, j]) => `${k}:${j.environment}`)).toEqual(['release:release', 'sign:release', 'publish:release']);
-    for (const [name, j] of Object.entries(jobs)) if (!j.environment || name === 'publish') expect(JSON.stringify(j), name).not.toMatch(/secrets\./);
+    for (const [name, j] of Object.entries(jobs)) if (!j.environment) expect(JSON.stringify(j), name).not.toMatch(/secrets\./);
+    const publishSecrets = jobs.publish!.steps.flatMap((s) => (JSON.stringify(s).match(/secrets\.[A-Z0-9_]+/g) ?? []).map((x) => `${s.name} › ${x}`));
+    expect(publishSecrets).toEqual(['Update the Homebrew tap › secrets.HOMEBREW_TAP_DEPLOY_KEY']);
     // The release job reads no secret's value: presence only.
     for (const s of jobs.release!.steps) for (const v of Object.values(s.env ?? {})) if (/secrets\./.test(String(v))) expect(String(v), label({ job: 'release', ...s })).toMatch(PRESENCE);
   });
@@ -184,7 +186,11 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
     expect(checkouts.map((s) => s.job).sort()).toEqual(['attach', 'build', 'publish', 'release', 'sign']);
     for (const s of checkouts) expect((s.with as any)?.['persist-credentials'], label(s)).toBe(false);
     for (const s of allSteps) if (s.run) expect(s.run, label(s)).not.toContain('${{');
-    expect(raw).not.toMatch(/\|\|\s*true\b|continue-on-error/);
+    expect(raw).not.toMatch(/\|\|\s*true\b/);
+    // One exception: the Homebrew tap, last, whose failure fails nothing (the release and the update are out already).
+    expect(allSteps.filter((s) => (s as any)['continue-on-error'] !== undefined).map((s) => `${label(s)}: ${(s as any)['continue-on-error']}`)).toEqual(['publish › The DMG\'s checksum, for the tap: true', 'publish › Update the Homebrew tap: true']);
+    expect(raw.match(/continue-on-error:/g)?.length).toBe(2);
+    for (const j of Object.values(jobs)) expect((j as any)['continue-on-error']).toBeUndefined();
   });
 
   it('macOS 15 on Apple silicon for both macOS jobs; Node.js exactly the pinned one everywhere (apps/desktop/bundle/node.json)', async () => {
@@ -218,7 +224,7 @@ describe('release.yml: the keys never share a runner with dependency code (revie
   });
 
   it('the sign entry\'s whole import graph is Node.js built-ins and files of this repository — no package, no dynamic import (the sign job installs none)', () => {
-    for (const entry of ['apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'scripts/publish-update.mjs']) {
+    for (const entry of ['apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'scripts/publish-update.mjs', 'scripts/homebrew-cask.mjs']) {
       const g = importGraph(join(REPO, entry));
       expect(g.bare, entry).toEqual([]);
       // One dynamic import in the graph: desktop.mjs build() (`pnpm desktop:build`, the developer app — its own command,
@@ -298,7 +304,7 @@ describe('release.yml: secrets and the job token go only where they are used', (
 
   it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
     const withToken = allSteps.filter(usesToken);
-    expect(withToken.map(label)).toEqual(['release › The repository\'s visibility', 'release › Create the release (draft)', 'attach › Attach to the draft release', 'publish › Publish the release', 'publish › Fetch the signed update archive', 'publish › Publish the update']);
+    expect(withToken.map(label)).toEqual(['release › The repository\'s visibility', 'release › Create the release (draft)', 'attach › Attach to the draft release', 'publish › Publish the release', 'publish › Fetch the signed update archive', 'publish › Publish the update', 'publish › The DMG\'s checksum, for the tap']);
     for (const s of withToken) {
       expect(CALLS_GH.test(s.run ?? '') || label(s) === 'publish › Publish the update', label(s)).toBe(true);
       expect(secretsOf(s), label(s)).toEqual({});
@@ -390,7 +396,7 @@ describe('release.yml: what it runs', () => {
     const v = step('release', 'The tag is the version');
     expect(v.run).toMatch(/node scripts\/set-version\.mjs --check\n/);
     expect(v.run).toMatch(/node scripts\/release\.mjs tag "\$GITHUB_REF_NAME" >> "\$GITHUB_OUTPUT"/);
-    const config = ['signed', 'updates', 'feed', 'pubkey', 'dmg', 'archive', 'signature'];
+    const config = ['signed', 'updates', 'feed', 'pubkey', 'dmg', 'archive', 'signature', 'tap', 'tap_repository'];
     expect(jobs.release!.outputs).toEqual({ version: '${{ steps.version.outputs.version }}', prerelease: '${{ steps.version.outputs.prerelease }}', ...Object.fromEntries(config.map((k) => [k, `\${{ steps.config.outputs.${k} }}`])) });
     expect(step('release', 'The tagged commit is on main').run).toMatch(/git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
     expect((jobs.release!.steps[0]!.with as any)['fetch-depth']).toBe(0);
@@ -442,8 +448,8 @@ describe('release.yml: what it runs', () => {
     const none = Object.fromEntries(Object.keys(s.env!).filter((k) => k.startsWith('HAS_')).map((k) => [k, 'false']));
     const off = runStep(s, { ...none, VERSION: '0.2.0' });
     expect(off.status, off.stderr).toBe(0);
-    expect(off.outputs).toEqual({ signed: 'false', updates: 'off', dmg: 'Retake_0.2.0_aarch64.dmg', archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
-    expect(off.stdout).toMatch(/::warning::No Apple signing set[\s\S]*::warning::Updates are off in this build/);
+    expect(off.outputs).toEqual({ signed: 'false', updates: 'off', tap: 'off', dmg: 'Retake_0.2.0_aarch64.dmg', archive: 'Retake.app.tar.gz', signature: 'Retake.app.tar.gz.sig' });
+    expect(off.stdout).toMatch(/::warning::No Apple signing set[\s\S]*::warning::Updates are off in this build[\s\S]*::warning::No Homebrew tap/);
     const apple = Object.fromEntries(Object.keys(CONFIG_SETS.apple.names).map((k) => [`HAS_SECRET_${k}`, 'true']));
     const signed = runStep(s, { ...none, ...apple, VERSION: '0.2.0' });
     expect(signed.outputs.signed).toBe('true');
@@ -579,20 +585,177 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
   });
 });
 
+/**
+ * A `git` on a scratch PATH for the tap step: `clone <url> <dir>` makes a real repository at <dir> from FAKE_TAP (a
+ * folder copied in, then committed) and records GIT_SSH_COMMAND and the key file it names as they are at that moment;
+ * `push` is recorded only; everything else is the system's git. FAKE_CLONE_FAIL=1: the clone fails.
+ */
+function fakeGit() {
+  const bin = dir('fake-git');
+  const log = join(bin, 'calls.log');
+  writeFileSync(join(bin, 'git'), `#!${process.execPath}
+const fs = require('node:fs'), cp = require('node:child_process');
+const a = process.argv.slice(2);
+const sub = a.find((x, i) => !x.startsWith('-') && a[i - 1] !== '-c');
+const ssh = process.env.GIT_SSH_COMMAND || '';
+const key = (/ -i (\\S+)/.exec(ssh) || [])[1];
+const hosts = (/UserKnownHostsFile=(\\S+)/.exec(ssh) || [])[1];
+const seen = { argv: a, ssh, key: key && fs.existsSync(key) ? { text: fs.readFileSync(key, 'utf8'), mode: fs.statSync(key).mode & 0o777 } : null, hosts: hosts && fs.existsSync(hosts) ? fs.readFileSync(hosts, 'utf8') : null, tapKeyEnv: process.env.TAP_KEY ?? null };
+fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(seen) + '\\n');
+const real = (args, cwd) => cp.spawnSync('/usr/bin/git', args, { cwd, stdio: 'inherit' }).status;
+if (sub === 'clone') {
+  if (process.env.FAKE_CLONE_FAIL === '1') { console.error('fatal: could not read from remote repository'); process.exit(128); }
+  const to = a[a.length - 1];
+  fs.cpSync(process.env.FAKE_TAP, to, { recursive: true });
+  real(['init', '-q', '-b', 'main'], to);
+  real(['add', '-A'], to);
+  process.exit(real(['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', 'seed'], to));
+}
+if (sub === 'push') process.exit(0);
+process.exit(real(a, process.cwd()));
+`);
+  chmodSync(join(bin, 'git'), 0o755);
+  return { bin, calls: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l) as { argv: string[]; ssh: string; key: { text: string; mode: number } | null; hosts: string | null; tapKeyEnv: string | null }) : []) };
+}
+
+describe('release.yml: the Homebrew tap, last, a failure that fails nothing', () => {
+  const tapSteps = () => jobs.publish!.steps.slice(-3, -1);
+
+  it('the last steps of publish, after the update; only with the Homebrew set; the checksum with the job token (gh), the tap with the deploy key alone — no token, no gh, no build tool; a failure said as a warning', () => {
+    expect(jobs.publish!.steps.slice(-3).map((s) => s.name)).toEqual(['The DMG\'s checksum, for the tap', 'Update the Homebrew tap', 'The tap was not updated']);
+    const names = jobs.publish!.steps.map((s) => s.name);
+    expect(names.indexOf('Publish the update')).toBe(names.length - 4);
+    // A failure stays quiet in a green run (continue-on-error): the last step says it as a warning of the run.
+    const warn = jobs.publish!.steps.at(-1)!;
+    expect(warn.if).toBe("needs.release.outputs.tap == 'on' && (steps.tap-sums.outcome == 'failure' || steps.tap.outcome == 'failure')");
+    expect(warn.run).toMatch(/^echo "::warning::The Homebrew tap was not updated/);
+    expect(warn.env).toBeUndefined();
+    expect((warn as any)['continue-on-error']).toBeUndefined();
+    const [sums, tap] = tapSteps() as [Step, Step];
+    expect(sums.id).toBe('tap-sums');
+    expect(sums.if).toBe("needs.release.outputs.tap == 'on'");
+    expect(tap.if).toBe("needs.release.outputs.tap == 'on' && steps.tap-sums.outcome == 'success'");
+    expect(tap.id).toBe('tap');
+    expect(sums.env).toEqual({ GH_TOKEN: '${{ github.token }}', SUMS_SHA256: '${{ needs.sign.outputs.sums }}' });
+    expect(sums.run).toMatch(/gh release download "\$GITHUB_REF_NAME" --dir "\$D" --pattern SHA256SUMS-macos\.txt\n/);
+    expect(tap.env).toEqual({ VERSION: '${{ needs.release.outputs.version }}', UPDATES: '${{ needs.release.outputs.updates }}', TAP_REPOSITORY: '${{ needs.release.outputs.tap_repository }}', SUMS: '${{ steps.tap-sums.outputs.file }}', TAP_KEY: '${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}' });
+    expect(usesToken(tap) || CALLS_GH.test(tap.run!) || BUILD_TOOL.test(tap.run!)).toBe(false);
+    // The deploy key nowhere else; the tap's repository from the preflight (a variable, checked there), never a default.
+    expect(allSteps.filter((s) => JSON.stringify(s).includes('HOMEBREW_TAP_DEPLOY_KEY')).map(label)).toEqual(['release › What is configured', 'publish › Update the Homebrew tap']);
+    expect(raw.match(/vars\.HOMEBREW_TAP_REPOSITORY/g)?.length).toBe(1);
+    expect(step('release', 'What is configured').env!.HOMEBREW_TAP_REPOSITORY).toBe('${{ vars.HOMEBREW_TAP_REPOSITORY }}');
+    expect(jobs.release!.outputs!.tap_repository).toBe('${{ steps.config.outputs.tap_repository }}');
+  });
+
+  it('the key: a 0600 file in RUNNER_TEMP, out of the environment before git runs, removed when the step ends; GitHub\'s published host key pinned, nothing else trusted', () => {
+    const run = step('publish', 'Update the Homebrew tap').run!;
+    expect(run).toMatch(/^set -eu\numask 077\n/);
+    expect(run).toContain(`echo "${GITHUB_HOST_KEY}" > "$H"`);
+    expect(run).toMatch(/trap 'rm -f "\$K" "\$H"' EXIT\n/);
+    expect(run.indexOf('trap ')).toBeLessThan(run.indexOf('printf \'%s\\n\' "$TAP_KEY" > "$K"'));
+    expect(run).toMatch(/chmod 600 "\$K"\n\s*unset TAP_KEY\n/);
+    const ssh = /export GIT_SSH_COMMAND="([^"]+)"/.exec(run)![1]!;
+    for (const o of ['-F /dev/null', '-i $K', 'IdentitiesOnly=yes', 'BatchMode=yes', 'StrictHostKeyChecking=yes', 'UserKnownHostsFile=$H', 'GlobalKnownHostsFile=/dev/null']) expect(ssh, o).toContain(o);
+    expect(run).toMatch(/git clone --depth 1 "git@github\.com:\$TAP_REPOSITORY\.git" "\$T"\n\s*node scripts\/homebrew-cask\.mjs "\$GITHUB_REF_NAME" --sums "\$SUMS" --updates "\$UPDATES" --tap "\$T"\n/);
+    expect(run).toMatch(/if git diff --cached --quiet; then[\s\S]*exit 0\n\s*fi\n[\s\S]*commit -m "retake \$VERSION"\n\s*git push origin HEAD\n?$/);
+    expect(run).toContain(`user.email="${GITHUB_BOT_EMAIL}"`);
+  });
+
+  it('the checksum, run: the release\'s SHA256SUMS-macos.txt downloaded and checked against the sign job\'s sha256 (as attach does), its path handed on; another file or no sha256 fails', () => {
+    const s = step('publish', 'The DMG\'s checksum, for the tap');
+    const gh = fakeGh();
+    const rel = dir('tap-release');
+    writeFileSync(join(rel, 'SHA256SUMS-macos.txt'), 'sums');
+    const sha = createHash('sha256').update('sums').digest('hex');
+    const r = runStep(s, { FAKE_RELEASE_DIR: rel, SUMS_SHA256: sha }, gh.bin);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.outputs.file).toBe(join(r.temp, 'tap-sums', 'SHA256SUMS-macos.txt'));
+    expect(readFileSync(r.outputs.file!, 'utf8')).toBe('sums');
+    for (const bad of ['0'.repeat(64), '', 'not-a-sum']) {
+      const b = runStep(s, { FAKE_RELEASE_DIR: rel, SUMS_SHA256: bad }, gh.bin);
+      expect(b.status, bad).not.toBe(0);
+      expect(b.outputs.file, bad).toBeUndefined();
+    }
+    expect(runStep(s, { FAKE_RELEASE_DIR: rel, SUMS_SHA256: '' }, gh.bin).stdout).toMatch(/::error::The sign job gave no sha256 of SHA256SUMS-macos\.txt/);
+  });
+
+  it('the tap, run (a recording git, never the network): no key → said, nothing run; a first run writes both casks, commits as the bot and pushes; a re-run changes nothing and pushes nothing; the key file goes whatever happens', () => {
+    const s = step('publish', 'Update the Homebrew tap');
+    const git = fakeGit();
+    const tapSeed = dir('tap-seed');
+    writeFileSync(join(tapSeed, 'README.md'), '# tap\n');
+    const temp = dir('tap-temp');
+    const sha = 'c'.repeat(64);
+    writeFileSync(join(temp, 'sums.txt'), `${'d'.repeat(64)}  Retake.app.tar.gz\n${sha}  Retake_0.2.0_aarch64.dmg\n`);
+    const env = { RUNNER_TEMP: temp, VERSION: '0.2.0', UPDATES: 'on', TAP_REPOSITORY: 'example-owner/homebrew-tap', SUMS: join(temp, 'sums.txt'), TAP_KEY: 'deploy-key-canary', FAKE_TAP: tapSeed, GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test' };
+    const nokey = runStep(s, { ...env, TAP_KEY: '' }, git.bin);
+    expect(nokey.status).toBe(1);
+    expect(nokey.stdout).toMatch(/::error::The release environment lacks HOMEBREW_TAP_DEPLOY_KEY/);
+    expect(git.calls()).toEqual([]);
+    const first = runStep(s, env, git.bin);
+    expect(first.status, first.stderr + first.stdout).toBe(0);
+    const calls = git.calls();
+    const clone = calls.find((c) => c.argv.includes('clone'))!;
+    expect(clone.argv).toEqual(['clone', '--depth', '1', 'git@github.com:example-owner/homebrew-tap.git', join(temp, 'tap')]);
+    expect(clone.key).toEqual({ text: 'deploy-key-canary\n', mode: 0o600 });
+    expect(clone.hosts).toBe(`${GITHUB_HOST_KEY}\n`);
+    expect(calls.every((c) => c.tapKeyEnv === null)).toBe(true);
+    expect(calls.map((c) => c.argv.find((x, i) => !x.startsWith('-') && c.argv[i - 1] !== '-c'))).toEqual(['clone', 'add', 'diff', 'commit', 'push']);
+    expect(calls.find((c) => c.argv.includes('commit'))!.argv).toEqual(['-c', 'user.name=github-actions[bot]', '-c', `user.email=${GITHUB_BOT_EMAIL}`, 'commit', '-m', 'retake 0.2.0']);
+    expect(readFileSync(join(temp, 'tap', 'Casks', 'retake.rb'), 'utf8')).toContain(`sha256 "${sha}"`);
+    expect(readFileSync(join(temp, 'tap', 'Casks', 'retake@beta.rb'), 'utf8')).toContain('version "0.2.0"');
+    expect(readFileSync(join(temp, 'tap', 'Casks', 'retake.rb'), 'utf8')).toMatch(/^ {2}auto_updates true$/m);
+    expect(calls.find((c) => c.argv.includes('push'))!.argv).toEqual(['push', 'origin', 'HEAD']);
+    expect(clone.ssh).toContain('BatchMode=yes');
+    expect(existsSync(join(temp, 'tap-key')) || existsSync(join(temp, 'tap-known-hosts'))).toBe(false);
+    expect(first.stdout + first.stderr).not.toMatch(/canary/);
+    // A re-run: the tap already holds these casks (the clone gives them back) — no commit, no push.
+    const seeded = dir('tap-seeded');
+    cpSync(join(temp, 'tap', 'Casks'), join(seeded, 'Casks'), { recursive: true });
+    const before = git.calls().length;
+    const again = runStep(s, { ...env, FAKE_TAP: seeded }, git.bin);
+    expect(again.status, again.stderr).toBe(0);
+    expect(again.stdout).toMatch(/The casks are unchanged/);
+    expect(git.calls().slice(before).map((c) => c.argv.find((x, i) => !x.startsWith('-') && c.argv[i - 1] !== '-c'))).toEqual(['clone', 'add', 'diff']);
+    // A build without the updater: the casks say no auto_updates (UPDATES from the release job).
+    const noUpdates = runStep(s, { ...env, VERSION: '0.2.1', GITHUB_REF_NAME: 'v0.2.1', UPDATES: 'off', FAKE_TAP: seeded }, git.bin);
+    expect(noUpdates.status, noUpdates.stderr).toBe(1);
+    expect(noUpdates.stderr).toMatch(/expected one line for Retake_0\.2\.1_aarch64\.dmg/);
+    writeFileSync(join(temp, 'sums.txt'), `${sha}  Retake_0.2.1_aarch64.dmg\n`);
+    expect(runStep(s, { ...env, VERSION: '0.2.1', GITHUB_REF_NAME: 'v0.2.1', UPDATES: 'off', FAKE_TAP: seeded }, git.bin).status).toBe(0);
+    expect(readFileSync(join(temp, 'tap', 'Casks', 'retake.rb'), 'utf8')).not.toMatch(/auto_updates/);
+    // The clone fails (a key without write access, a wrong repository): the step fails, the key file is gone anyway.
+    const failed = runStep(s, { ...env, FAKE_CLONE_FAIL: '1' }, git.bin);
+    expect(failed.status).not.toBe(0);
+    expect(existsSync(join(temp, 'tap-key'))).toBe(false);
+  });
+});
+
 /** sha256 of words that must never appear in the release files (a reference app, an account): only their hashes here. */
 const DENIED = new Set(['a1d648cffa6e2ba0f94c51f51e0cb8f2be4fa6c3d227176016291f9ce64e90e7', '73562ffe71a5ff592fad20a1ffbd06c0bee1cb5106de93e23643188f2fda0690']);
-const RELEASE_FILES = ['.github/workflows/release.yml', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'docs/RELEASING.md', 'apps/desktop/bundle/node.json', 'apps/desktop/bundle/browsers.json'];
+const RELEASE_FILES = ['.github/workflows/release.yml', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'scripts/homebrew-cask.mjs', 'docs/RELEASING.md', 'apps/desktop/bundle/node.json', 'apps/desktop/bundle/browsers.json'];
+/** GitHub's own names, in the tap step only (a Homebrew tap lives on GitHub): its published SSH host key, its SSH address, its Actions bot. */
+const GITHUB_HOST_KEY = 'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl';
+const GITHUB_BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com';
+const GITHUB_OWN = [GITHUB_HOST_KEY, 'git@github.com:', GITHUB_BOT_EMAIL];
+/** The workflow without GitHub's own names (each exactly once, in the tap step: checked below). */
+const rawOwnless = GITHUB_OWN.reduce((t, g) => t.split(g).join(''), raw);
 
 describe('the release files stay generic', () => {
-  it('no host, domain, account or repository of anyone in the workflow, the keychain script, the helper or RELEASING.md', () => {
+  it('no host, domain, account or repository of anyone in the workflow, the keychain script, the helpers or RELEASING.md — GitHub\'s own names in the tap step only', () => {
+    const tapRun = step('publish', 'Update the Homebrew tap').run!;
+    for (const g of GITHUB_OWN) {
+      expect(raw.split(g).length - 1, g).toBe(1);
+      expect(tapRun, g).toContain(g);
+    }
     for (const f of RELEASE_FILES) {
-      const text = readFileSync(join(REPO, f), 'utf8');
+      const text = f === '.github/workflows/release.yml' ? rawOwnless : readFileSync(join(REPO, f), 'utf8');
       for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) expect(DENIED.has(createHash('sha256').update(word).digest('hex')), `${f}: a denied word`).toBe(false);
       for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
       for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
     }
     // The workflow names its repository only through github.repository; its actions' owners are GitHub's and the toolchain's.
-    expect(raw).not.toMatch(/github\.com|ghcr\.io|@users\.noreply/);
+    expect(rawOwnless).not.toMatch(/github\.com|ghcr\.io|@users\.noreply/);
     for (const m of raw.matchAll(/uses:\s*([\w.-]+)\//g)) expect(m[1]).toBe('actions');
   });
 
@@ -661,14 +824,30 @@ describe('scripts/release.mjs', () => {
     const secrets = (set: string, v = 'true') => Object.fromEntries(Object.entries(CONFIG_SETS[set].names as Record<string, string>).filter(([, k]) => k === 'secret').map(([n]) => [`HAS_SECRET_${n}`, v]));
     const repo = { GITHUB_REPOSITORY: 'example-owner/example-repo', GITHUB_SERVER_URL: 'https://github.example.test', REPO_PRIVATE: 'false', REPO_VISIBILITY: 'public' };
     const updater = { ...secrets('updater'), RETAKE_UPDATE_PUBKEY: pub, ...repo };
-    // L5.16f: two sets — the update host's upload set is gone, the feed needs no setting of its own.
-    expect(Object.keys(CONFIG_SETS)).toEqual(['apple', 'updater']);
+    // L5.16f: the update host's upload set is gone, the feed needs no setting of its own; the Homebrew tap is a third set.
+    expect(Object.keys(CONFIG_SETS)).toEqual(['apple', 'updater', 'homebrew']);
     expect(CONFIG_SETS.updater.names).toEqual({ TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' });
+    expect(CONFIG_SETS.homebrew.names).toEqual({ HOMEBREW_TAP_DEPLOY_KEY: 'secret', HOMEBREW_TAP_REPOSITORY: 'variable' });
+    const tap = { HAS_SECRET_HOMEBREW_TAP_DEPLOY_KEY: 'true', HOMEBREW_TAP_REPOSITORY: 'example-owner/homebrew-tap' };
     const none = preflight('0.2.0', {});
-    expect(none).toEqual({ outputs: { signed: 'false', updates: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off], errors: [] });
+    expect(none).toEqual({ outputs: { signed: 'false', updates: 'off', tap: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off, CONFIG_SETS.homebrew.off], errors: [] });
     const all = preflight('0.3.0-rc.1', { ...secrets('apple'), ...updater });
-    expect(all).toEqual({ outputs: { signed: 'true', updates: 'on', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey: pub }, warnings: [], errors: [] });
-    expect(preflight('0.2.0', updater)).toMatchObject({ outputs: { feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json' }, warnings: [CONFIG_SETS.apple.off] });
+    expect(all).toEqual({ outputs: { signed: 'true', updates: 'on', tap: 'off', feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/rc.json', pubkey: pub }, warnings: [CONFIG_SETS.homebrew.off], errors: [] });
+    // The tap with a notarised build (GitHub's own server: GITHUB_SERVER_URL unset or GitHub's), whatever the updater.
+    const { GITHUB_SERVER, HOMEBREW_AD_HOC } = { ...(await publishModule()), ...(await releaseModule()) };
+    expect(preflight('0.2.0', { ...secrets('apple'), ...tap, HOMEBREW_TAP_REPOSITORY: ' example-owner/homebrew-tap ' })).toEqual({ outputs: { signed: 'true', updates: 'off', tap: 'on', tap_repository: 'example-owner/homebrew-tap' }, warnings: [CONFIG_SETS.updater.off], errors: [] });
+    expect(preflight('0.2.0', { ...secrets('apple'), ...tap, GITHUB_SERVER_URL: `${GITHUB_SERVER}/` }).outputs.tap).toBe('on');
+    // An ad hoc build never updates the tap: off and said (Homebrew has no way past Open Anyway).
+    expect(preflight('0.2.0', tap)).toEqual({ outputs: { signed: 'false', updates: 'off', tap: 'off' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.updater.off, HOMEBREW_AD_HOC], errors: [] });
+    expect(HOMEBREW_AD_HOC).toMatch(/^The Homebrew tap is not updated by an ad hoc build/);
+    // Homebrew's naming (homebrew-<name>) and GitHub's own server, refused before anything is built.
+    const tapErr = (env: Record<string, string>) => preflight('0.2.0', { ...secrets('apple'), ...tap, ...env });
+    expect(tapErr({ HOMEBREW_TAP_REPOSITORY: 'example-owner/tap' })).toMatchObject({ outputs: { tap: 'on' }, errors: ['HOMEBREW_TAP_REPOSITORY "example-owner/tap": a tap\'s repository is named homebrew-<name> (Homebrew\'s rule: `brew tap <owner>/tap` reads <owner>/homebrew-tap) — set <owner>/homebrew-tap'] });
+    expect(tapErr({ HOMEBREW_TAP_REPOSITORY: 'example-owner/my-homebrew-tap' }).errors).toHaveLength(1);
+    expect(tapErr({ HOMEBREW_TAP_REPOSITORY: 'example-owner/tap' }).outputs.tap_repository).toBeUndefined();
+    expect(tapErr({ GITHUB_SERVER_URL: 'https://github.example.test' }).errors).toEqual([`The Homebrew tap needs GitHub itself (${GITHUB_SERVER}): this run's server is https://github.example.test — remove the Homebrew set (HOMEBREW_TAP_DEPLOY_KEY, HOMEBREW_TAP_REPOSITORY)`]);
+    expect(tapErr({ GITHUB_SERVER_URL: 'http://x.example.test' }).errors).toEqual(['The Homebrew tap: GITHUB_SERVER_URL must be https (it is http)']);
+    expect(preflight('0.2.0', updater)).toMatchObject({ outputs: { feed: 'https://github.example.test/example-owner/example-repo/releases/download/update-feed/latest.json' }, warnings: [CONFIG_SETS.apple.off, CONFIG_SETS.homebrew.off] });
     const cases: Array<[Record<string, string>, RegExp]> = [
       [{ ...secrets('apple'), HAS_SECRET_APPLE_API_KEY_P8: 'false' }, /^A Developer ID build, notarised needs all of APPLE_CERTIFICATE, .* — or none: missing APPLE_API_KEY_P8 \(a secret, not set\)$/],
       [{ HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: 'true' }, /^An app that updates itself needs .* missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD \(a secret, not set\), RETAKE_UPDATE_PUBKEY \(a variable, not set\)$/],
@@ -683,6 +862,13 @@ describe('scripts/release.mjs', () => {
       [{ ...updater, REPO_PRIVATE: 'true', REPO_VISIBILITY: 'private' }, /^The update feed: the repository is not public \(private: true, visibility: private\)/],
       [{ ...updater, REPO_VISIBILITY: 'internal' }, /^The update feed: the repository is not public \(private: false, visibility: internal\)/],
       [{ ...updater, REPO_PRIVATE: '', REPO_VISIBILITY: '' }, /^The update feed: the repository is not public \(its visibility unknown\)/],
+      // The Homebrew set: all or nothing, each name in its store, the tap's repository <owner>/<repo>.
+      [{ HAS_SECRET_HOMEBREW_TAP_DEPLOY_KEY: 'true' }, /^The Homebrew tap's casks needs all of HOMEBREW_TAP_DEPLOY_KEY, HOMEBREW_TAP_REPOSITORY — or none: missing HOMEBREW_TAP_REPOSITORY \(a variable, not set\)$/],
+      [{ HOMEBREW_TAP_REPOSITORY: 'example-owner/homebrew-tap', HAS_VAR_HOMEBREW_TAP_DEPLOY_KEY: 'true' }, /missing HOMEBREW_TAP_DEPLOY_KEY \(set as a variable: it must be a secret\)$/],
+      [{ HAS_SECRET_HOMEBREW_TAP_DEPLOY_KEY: 'true', HAS_SECRET_HOMEBREW_TAP_REPOSITORY: 'true' }, /missing HOMEBREW_TAP_REPOSITORY \(set as a secret: it must be a variable\)$/],
+      [{ ...secrets('apple'), ...tap, HOMEBREW_TAP_REPOSITORY: 'example-owner/homebrew-tap.git"; x' }, /^HOMEBREW_TAP_REPOSITORY "example-owner\/homebrew-tap\.git"; x" is not <owner>\/<repo>/],
+      [{ ...secrets('apple'), ...tap, HOMEBREW_TAP_REPOSITORY: 'git@example.test:o/t' }, /^HOMEBREW_TAP_REPOSITORY .* is not <owner>\/<repo>/],
+      [{ ...secrets('apple'), ...tap, HOMEBREW_TAP_REPOSITORY: 'example-owner/tap' }, /^HOMEBREW_TAP_REPOSITORY "example-owner\/tap": a tap's repository is named homebrew-<name>/],
     ];
     expect(preflight('0.2.0', { ...updater, REPO_VISIBILITY: '' }).errors).toEqual([]);
     for (const [env, msg] of cases) {
@@ -695,11 +881,12 @@ describe('scripts/release.mjs', () => {
     const cli = (env: Record<string, string>) => spawnSync(process.execPath, [join(REPO, 'scripts', 'release.mjs'), 'preflight', '0.2.0', '--output', out], { encoding: 'utf8', env: { PATH: process.env.PATH ?? '', ...env } });
     const ok = cli({});
     expect(ok.status).toBe(0);
-    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
+    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\ntap=off\n');
+    expect(ok.stdout).toMatch(/^signed=false updates=off tap=off$/m);
     const bad = cli({ HAS_SECRET_APPLE_CERTIFICATE: 'true' });
     expect(bad.status).toBe(1);
-    expect(bad.stdout).toMatch(/^::warning::Updates are off[^\n]*\n::error::A Developer ID build/m);
-    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\n');
+    expect(bad.stdout).toMatch(/^::warning::Updates are off[^\n]*\n::warning::No Homebrew tap[^\n]*\n::error::A Developer ID build/m);
+    expect(readFileSync(out, 'utf8')).toBe('signed=false\nupdates=off\ntap=off\n');
   });
 
   it('feed: the very feed publish-update.mjs accepts for that version — the channel\'s file on the repository\'s update-feed release (GITHUB_SERVER_URL, else GitHub\'s), refused without GITHUB_REPOSITORY', async () => {
