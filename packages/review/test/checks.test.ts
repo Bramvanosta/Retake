@@ -284,7 +284,7 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     expect(f.map((x) => x.code)).toEqual(['write-blocked', 'write-blocked', 'write-blocked']);
     // One per method and path (two /api/track POSTs), at the output frame of the first: inside the request scene.
     expect(f[0]).toMatchObject({ severity: 'warning', at: { segment: 'request', scene: 'request' } });
-    expect(f[0].message).toBe('a write was stopped: POST https://shop.northfield.example/api/track ×2 — the app saw a network error and may show it; add a mock (README: Environments)');
+    expect(f[0].message).toBe('a write was stopped: POST https://shop.northfield.example/api/track ×2 — the app saw a network error and may show it; add a mock (docs/guide/environments.md)');
     const clip = ctx.plan.segments.find((x): x is ClipSegment => x.id === 'request')!;
     expect(clip.srcFrames[f[0].at!.frame! - clip.from] / ctx.plan.source.fps).toBeCloseTo(20.2, 0);
     expect(f[1].message).toMatch(/^a write was stopped before the capture started: PATCH https:\/\/shop\.northfield\.example\/api\/profile/);
@@ -296,7 +296,7 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     const rw = checkEnvironment(
       ctxPlanned(withEnv({ name: 'local', access: 'read-write', writes: [{ t: 20.2, method: 'POST', url: 'https://api.example.com/reset', outcome: 'blocked', via: 'page', protected_by: 'production' }] })),
     );
-    expect(rw.map((x) => x.message)).toEqual(['a write was stopped: POST https://api.example.com/reset — a host of read-only environment production: the app saw a network error and may show it (README: Environments)']);
+    expect(rw.map((x) => x.message)).toEqual(['a write was stopped: POST https://api.example.com/reset — a host of read-only environment production: the app saw a network error and may show it (docs/guide/environments.md)']);
   });
 
   it('url-hidden: only where the layout draws the URL, at the first local address, never naming the local host', () => {
@@ -309,14 +309,14 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
       ['url-hidden', 'request'],
       ['url-hidden', 'proposal'],
     ]);
-    expect(browser[0].message).toBe('discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)');
+    expect(browser[0].message).toBe('discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in project.yaml environments and render again (docs/guide/environments.md)');
     expect(JSON.stringify(browser)).not.toMatch(/localhost/);
     // The plan's warning about it reaches the report masked (V4).
     const planned = ctxPlanned(local, { frame: 'browser' });
     expect(planned.plan.warnings.join('\n')).toMatch(/localhost:4402/);
     const notes = checkRender(planned).filter((x) => x.code === 'plan-warning');
     expect(notes.map((x) => x.message)).toEqual([
-      'a local URL outside the pages of environment qa has no display URL (a local page): the browser bar shows no address for it — declare it as a page with a display: in project.yaml and render again (README: Environments)',
+      'a local URL outside the pages of environment qa has no display URL (a local page): the browser bar shows no address for it — declare it as a page with a display: in project.yaml and render again (docs/guide/environments.md)',
     ]);
     // The run's environment declared in project.yaml with display URLs: they apply at edit time (V2) — nothing to say,
     // and the review names URLs through the table the edit used.
@@ -331,10 +331,10 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
     const sandbox = ctxPlanned(withEnv({ name: 'sandbox', access: 'read-write', sandbox: { name: 'sandbox', provider: 'process', strategy: 'reseed' } }), { frame: 'browser' });
     const hidden = checkEnvironment(sandbox).filter((x) => x.code === 'url-hidden');
     expect(hidden[0].message).toBe(
-      'discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox sandbox (services.<service>.pages) and render again (README: Sandbox mode)',
+      'discover: the browser bar shows no address while the page is at / (a local page) — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox sandbox (services.<service>.pages) and render again (docs/guide/sandbox.md)',
     );
     expect(sandbox.plan.warnings).toEqual([
-      expect.stringMatching(/^a local URL outside the pages of environment sandbox has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it — declare it as a page with a display: in sandbox\/sandbox\.yaml \(services\.<service>\.pages\) and render again \(README: Sandbox mode\)$/),
+      expect.stringMatching(/^a local URL outside the pages of environment sandbox has no display URL \(http:\/\/localhost:4402\): the browser bar shows no address for it — declare it as a page with a display: in sandbox\/sandbox\.yaml \(services\.<service>\.pages\) and render again \(docs\/guide\/sandbox\.md\)$/),
     ]);
   });
 

@@ -412,6 +412,6 @@ export function sandboxAdviceText(a: SandboxAdvice, slug: string, cli = 'retake'
   const holds = a.holds.length > 1 ? `${a.holds.slice(0, -1).join(', ')} and ${a.holds[a.holds.length - 1]}` : a.holds[0];
   return {
     detail: `none — environment ${a.env} films this machine with ${holds}: each take starts from whatever the last one (or a hand-made reset) left`,
-    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${cli} sandbox init ${slug} writes a sandbox.yaml to fill in (README "Sandbox mode"), then ${cli} run ${slug} <scenario> --env sandbox --sandbox`,
+    hint: `a sandbox starts a copy of the product, seeds it and resets it before every take (Postgres snapshot, mailbox emptied, demo accounts): ${cli} sandbox init ${slug} writes a sandbox.yaml to fill in (docs/guide/sandbox.md), then ${cli} run ${slug} <scenario> --env sandbox --sandbox`,
   };
 }

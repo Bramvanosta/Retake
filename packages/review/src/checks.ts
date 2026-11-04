@@ -1076,8 +1076,8 @@ export function checkEnvironment(ctx: CheckContext): Finding[] {
         'write-blocked',
         `a write was stopped${when}: ${w.method} ${url}${w.operation ? ` (${w.operation})` : ''}${count > 1 ? ` ×${count}` : ''}${w.via === 'hook' ? ' from a js hook' : w.via === 'sign-in' ? ' from the automated sign-in' : ''} — ` +
           (w.protected_by
-            ? `a host of read-only environment ${w.protected_by}: the app saw a network error and may show it (README: Environments)`
-            : 'the app saw a network error and may show it; add a mock (README: Environments)'),
+            ? `a host of read-only environment ${w.protected_by}: the app saw a network error and may show it (docs/guide/environments.md)`
+            : 'the app saw a network error and may show it; add a mock (docs/guide/environments.md)'),
         frame !== undefined ? locate(ctx, frame) : undefined,
       ),
     );
@@ -1097,8 +1097,8 @@ export function checkEnvironment(ctx: CheckContext): Finding[] {
           'warning',
           'url-hidden',
           ctx.timeline?.environment?.sandbox
-            ? `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox ${ctx.timeline.environment.sandbox.name} (services.<service>.pages) and render again (README: Sandbox mode)`
-            : `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in project.yaml environments and render again (README: Environments)`,
+            ? `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in the sandbox.yaml of sandbox ${ctx.timeline.environment.sandbox.name} (services.<service>.pages) and render again (docs/guide/sandbox.md)`
+            : `${label}: the browser bar shows no address while the page is at ${localPath(hidden.url)} — a local URL without a display URL: add display: to its page in project.yaml environments and render again (docs/guide/environments.md)`,
           locate(ctx, s.from + Math.max(0, Math.min(hidden.frame, s.durationInFrames - 1))),
         ),
       );

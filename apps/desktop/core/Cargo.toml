@@ -7,7 +7,7 @@ name = "desktop-core"
 version = "0.1.0"
 edition = "2021"
 publish = false
-license = "UNLICENSED"
+license = "MIT"
 
 # Its own workspace: built alone it needs no registry (the shell's Tauri tree is not resolved).
 [workspace]

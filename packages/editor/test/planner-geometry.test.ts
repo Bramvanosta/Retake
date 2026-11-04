@@ -188,7 +188,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
     const none = edit(realTimeline('quote'), 'local', bare);
     expect(urlAt(clip(none, 'proposal'), 0)).toBeUndefined();
     expect(none.warnings).toEqual([
-      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to environments.local.shop in project.yaml and render again (README: Environments)',
+      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to environments.local.shop in project.yaml and render again (docs/guide/environments.md)',
     ]);
     // A sandbox environment (L1.8): its pages live in its sandbox.yaml, under the service that serves them (I9).
     const sandboxed: LoadedProject = {
@@ -199,7 +199,7 @@ describe('device and window layouts through the planner (L2.7)', () => {
       },
     };
     expect(edit(realTimeline('quote'), 'box', sandboxed).warnings).toEqual([
-      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to services.fixture.pages.shop in sandbox/box.yaml and render again (README: Sandbox mode)',
+      'page "shop" has no display URL (http://localhost:4402): the browser bar shows no address for it — add display: to services.fixture.pages.shop in sandbox/box.yaml and render again (docs/guide/sandbox.md)',
     ]);
   });
 

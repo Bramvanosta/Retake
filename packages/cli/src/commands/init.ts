@@ -7,7 +7,7 @@ import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 
 /** The retake.yaml `retake init` writes: every key commented, the defaults working as they are. */
-export const INIT_WORKSPACE_YAML = `# Retake workspace (README › Your own workspace). Every key is optional.
+export const INIT_WORKSPACE_YAML = `# Retake workspace (docs/guide/workspace.md). Every key is optional.
 version: 1
 # projects_dir: projects       # one folder per product (retake new <slug>)
 # templates_dir: templates     # your themes (the starter themes ship with Retake)

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Move Retake's one version number (L5.16d review d B-M3, README "Releasing an update"): every file that carries it,
+ * Move Retake's one version number (L5.16d review d B-M3, docs/guide/desktop-app.md "Releasing an update"): every file that carries it,
  * the same list packages/cli/test/app-bundle.test.ts "one version number" checks — the root and every package's
  * package.json, RETAKE_VERSION (core formats.ts), apps/desktop/tauri.conf.json, the Claude plugin's manifest, the
  * desktop crate's Cargo.toml and its Cargo.lock entry. Only the version field of each changes.

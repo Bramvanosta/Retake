@@ -191,8 +191,8 @@ describe('the Claude skills in skills/', () => {
     expect(then).toContain('a run keeps the theme it was captured with: after the project\'s theme changed in project.yaml, pass template per render');
   });
 
-  it("README's skill table states the frame-comments loop with the re-capture, as the skills do (L3.8 review M2)", () => {
-    const readme = readFileSync(join(REPO, 'README.md'), 'utf8');
+  it("the guide's skill table states the frame-comments loop with the re-capture, as the skills do (L3.8 review M2)", () => {
+    const readme = readFileSync(join(REPO, 'docs', 'guide', 'mcp.md'), 'utf8');
     const row = readme.split('\n').find((l) => l.startsWith('| `retake-scenario` |'))!;
     expect(row).toContain('(`comments_list` → change → `run_capture` for a scenario change → render → `review` → `comment_reply` / `comment_resolve`)');
     expect(row).not.toContain('`comments_list` → change → render');

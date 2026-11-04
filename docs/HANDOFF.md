@@ -24,7 +24,8 @@ automatically with themeable components, and let Claude operate everything throu
 5. References: `docs/reference/look.md` (measured target look), `docs/reference/choreography.md` (field-tested
    cursor/click/typing rules), `docs/design-brief.md` + the mock-up canvas (Studio screens 1–7 and video frames in two
    themes): https://claude.ai/artifact/CEa9o9do5hr9AcLBajLRye (private to the owner).
-6. `README.md` — usage, scenario language reference, CLI.
+6. `README.md` — the front page; `docs/guide/` — usage, scenario language reference, CLI (the README's reference
+   sections since 2026-11-04; `docs/guide/README.md` maps an old "README › section" note to its page).
 7. `docs/BACKLOG.md` — everything outside the locked MVP (unprioritised), guard-rails to apply when L1.2–L5.2
    start, recorder precisions for L3.4/L4.8, open decisions; **maintained by hand** from now on (the scratch files of its
    first version are not in the repo: edit it directly, next free id BL-130); `docs/COMPETITION.md` — competitive study

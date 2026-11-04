@@ -8,7 +8,7 @@ version = "0.2.0"
 edition = "2021"
 rust-version = "1.90"
 publish = false
-license = "UNLICENSED"
+license = "MIT"
 
 [build-dependencies]
 tauri-build = { version = "=2.7.4", features = [] }

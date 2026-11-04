@@ -2163,7 +2163,8 @@ and `job_end` lines); what remains:
 *S · found in L5.16a's review · builds on: L5.16a, BL-41 · before the first sale*
 
 - **Accepted 2026-11-04 for own-use releases; resolve before any sale** (the person's decision with L5.16e: the
-  public GitHub releases ship the compositor as it is; README's licence note says so). A public release is still
+  public GitHub releases ship the compositor as it is; the licence note of `docs/guide/desktop-app.md` and the
+  README's Licence section say so). A public release is still
   distribution: anyone can download the DMG, so the GPL source offer for the compositor's FFmpeg applies to those
   copies as it would to a sold one — the risk accepted is that offer being incomplete and fdk-aac being in the build
   until this item is done.
@@ -2175,6 +2176,24 @@ and `job_end` lines); what remains:
 - That build also compiles in fdk-aac with `--enable-gpl` (FFmpeg's configure calls the pair non-redistributable
   without `--enable-nonfree`), and Remotion encodes AAC with it. Ask Remotion (the same email as the licence question)
   or render the audio track elsewhere (our ffmpeg's AAC) before the first sale.
+
+- **The repository's own licence: MIT (the person's decision, 2026-11-04, with the public README).** `LICENSE` at the
+  root (copyright "The Retake authors": the repository names no person), `license` in the root package.json and both
+  Cargo manifests. It covers Retake's own code only:
+  - **Remotion is not open source.** Its own licence (`node_modules/remotion/LICENSE.md`, v4: free for individuals
+    and companies of up to 3 people, a Company licence from 4) binds everyone who renders with Retake, from the app or
+    from source; a permissive licence on Retake does not relicense it. The README says so, and a sold or hosted Retake
+    needs the parked Remotion decision (Open decisions) first.
+  - **The DMG carries GPL programs**: our ffmpeg / ffprobe (GPL v2+ with x264, `scripts/build-ffmpeg.mjs`) and
+    Remotion's compositor with its own GPL FFmpeg. They ship as separate programs beside Retake's code (an aggregate),
+    which a permissive or a copyleft licence for Retake both allow, as long as each keeps its notice and written
+    source offer (`apps/desktop/licenses/`) and Retake never links them into its own code. The fdk-aac point above
+    stays open whatever licence is chosen.
+  - Bundled fonts keep their own licences: Geist (`packages/ui/fonts/LICENSE.txt`) and the starter templates' fonts
+    (each template's `LICENSES.md`).
+  - **To do:** the app carries Retake's own code, so the MIT notice belongs in it too: the stage's `licenses/`
+    (`apps/desktop/scripts/bundle.mjs`) should copy the root `LICENSE` beside the third-party notices, checked by the
+    bundle tests.
 
 ### BL-139 — The app bundle on other platforms
 *M · cut in L5.16a · builds on: L5.16a*

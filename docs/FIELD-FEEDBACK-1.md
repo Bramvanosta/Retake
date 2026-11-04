@@ -131,7 +131,7 @@ findings: compact keeps every error and at most 30 warnings with their messages 
   drop `capture: {keep_frames: …}` (L5.7: no frames by default). `retake prune <project>` frees what older takes and
   renders hold.
 - Write a `sandbox.yaml` (docker-compose or process provider) for the Postgres snapshot, the mailbox and the seed,
-  and film with `retake run … --sandbox` (since L5.8 `retake doctor --project` says when one is missing; README "A
+  and film with `retake run … --sandbox` (since L5.8 `retake doctor --project` says when one is missing; docs/guide/sandbox.md "A
   stage sandbox" for a product shipped as images).
-- Replace the side script that polled the database with named hooks and `hook:` steps (L5.8, README "Hooks during
+- Replace the side script that polled the database with named hooks and `hook:` steps (L5.8, docs/guide/scenarios.md "Hooks during
   the take").

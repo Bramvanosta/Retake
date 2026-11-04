@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The desktop shell's commands (L5.2; README "Desktop app (macOS)") — `pnpm desktop:<command>`:
+ * The desktop shell's commands (L5.2; docs/guide/desktop-app.md "Desktop app (macOS)") — `pnpm desktop:<command>`:
  *
  * - `dev [--root <workspace>] [--route '#/p/…']` — a debug build, run with this Node.js and the repository's built CLI
  *   (RETAKE_NODE / RETAKE_CLI: a debug build honours them).
@@ -56,7 +56,7 @@ function fail(message, code = 1) {
 function cargo(args, manifest = join(APP_DIR, 'Cargo.toml'), dir = target) {
   const env = { ...process.env, CARGO_TARGET_DIR: dir, ...(offline ? { CARGO_NET_OFFLINE: 'true' } : {}) };
   const r = spawnSync('cargo', [...args, '--locked', ...(offline ? ['--offline'] : []), '--manifest-path', manifest], { stdio: 'inherit', env });
-  if (r.error && r.error.code === 'ENOENT') fail('the desktop shell needs Rust (cargo on PATH) and the Xcode command line tools: README › Desktop app (macOS)', 2);
+  if (r.error && r.error.code === 'ENOENT') fail('the desktop shell needs Rust (cargo on PATH) and the Xcode command line tools: docs/guide/desktop-app.md › Desktop app (macOS)', 2);
   if (r.status !== 0) {
     fail(`cargo ${args[0]} failed${offline ? ' (offline: a crate missing from the cargo cache needs `cargo fetch --locked` once with a network)' : ''}`, r.status ?? 1);
   }
@@ -191,7 +191,7 @@ async function build() {
   copyFileSync(join(target, 'release', BIN), join(app, 'Contents', 'MacOS', BIN));
   chmodSync(join(app, 'Contents', 'MacOS', BIN), 0o755);
   icns(join(app, 'Contents', 'Resources', 'icon.icns'));
-  // What the app runs (README): this Node.js (by a path that survives a patch upgrade) and this repository's CLI.
+  // What the app runs (docs/guide/desktop-app.md): this Node.js (by a path that survives a patch upgrade) and this repository's CLI.
   writeFileSync(join(app, 'Contents', 'Resources', 'launch.json'), `${JSON.stringify({ version: 1, node: stableNodePath(process.execPath), cli: CLI }, null, 2)}\n`);
   // Ad hoc: a local signature (no identity, no entitlement) so macOS runs the bundle as one app.
   run('codesign', ['--force', '--sign', '-', app]);

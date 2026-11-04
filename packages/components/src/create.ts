@@ -141,6 +141,6 @@ ${description?.trim() || `A ${kind} component.`}
   \`react\`, \`remotion\` and \`@retake/components/kit\`.
 
 Check it with \`retake components validate ${id}\`. Use it from a template (\`components: {${kind}: ${id}}\`) or a
-scenario (see the README of Retake, section "Components").
+scenario (see docs/guide/themes-and-components.md of Retake, section "Components").
 `;
 }

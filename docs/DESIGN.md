@@ -297,7 +297,7 @@ HookContext = {
     backticks, a variable the script reads (`read`, `mapfile`, `printf -v`, a `for` loop, a function's `$1`) or may
     have set (after `source` / `.`, `export $(…)`, `eval` of computed text), a computed psql / pg_dump database,
     `-d` value, mongosh address or git repository.
-  - Residual risk (README Security, BACKLOG BL-57): what programs do on their own — their configuration, script
+  - Residual risk (docs/guide/security.md, BACKLOG BL-57): what programs do on their own — their configuration, script
     files, hosts they compute or read, code piped into a shell, commands in containers or on remote machines, network
     tools the scanner does not know (socat, ncat, ftp…); in the hook tab, worker WebSockets, service / shared workers,
     WebTransport / WebRTC, preconnects, redirect hops inside cross-site frames, a link popup's first request.
@@ -5074,7 +5074,7 @@ for the web app.
   time `ps` gives for its pid, as the worker lock's rule — the folder is agent-writable, and a pid alone could name any
   process of the person), `retake ui`, `retake mcp`, a worker, `retake sandbox up / reset`, a sandbox take
   (`run --sandbox`, CLI or job), `retake env reset` and a recording refuse to start beside it; the fix says what to stop,
-  or to remove the file when no old Studio or worker runs, and the CLI prints every refusal's fix line. Hooks, components and an MCP registration naming old names are README's grep
+  or to remove the file when no old Studio or worker runs, and the CLI prints every refusal's fix line. Hooks, components and an MCP registration naming old names are the upgrade guide's grep
   commands ("Upgrading from Demo Studio").
 - **Safety lists keep the old names.** `.demo-studio/` stays in AGENT_WRITABLE_PATHS (its files — page dumps, drafts —
   are never run as code: dropping it would have widened trust); a worker a client starts never gets
@@ -5805,7 +5805,7 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   trusted to build what the tag says (the sign job signs what it is handed).
 - **Licence** (BACKLOG BL-138): the app ships Remotion's compositor's FFmpeg build (GPL, fdk-aac compiled in) —
   accepted on 2026-11-04 for the person's own releases, though a public release is distribution to anyone who
-  downloads it; to resolve before any sale (README's licence note says so).
+  downloads it; to resolve before any sale (the licence note of docs/guide/desktop-app.md and the README's Licence section say so).
 - **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
   `security -i`, the setup-node binary's sha256 and the CDN browsers' digests meet the real runner on the first tagged
   run, and the GitHub REST calls of publish-update.mjs (tested against a local stand-in of the API only) meet GitHub on

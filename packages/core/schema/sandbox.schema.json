@@ -286,7 +286,7 @@
             "mailpit",
             "http"
           ],
-          "description": "mailpit: the Mailpit API; http: the generic JSON shape (see the README)."
+          "description": "mailpit: the Mailpit API; http: the generic JSON shape (see docs/guide/scenarios.md)."
         },
         "url": {
           "type": "string",

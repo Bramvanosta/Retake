@@ -27,7 +27,7 @@ function pickPersona(project: LoadedProject, envName: string, personas: Resolved
     throw new LoginOptionError(
       withPersonas.length
         ? `environment "${envName}" of ${project.slug} has no personas: pick an environment that has some with --env (${withPersonas.join(', ')})`
-        : `project "${project.slug}" declares no sign-in for environment "${envName}": name its accounts in auth.personas of project.yaml (README: "Signing in: personas and sessions")`,
+        : `project "${project.slug}" declares no sign-in for environment "${envName}": name its accounts in auth.personas of project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
       false,
     );
   }
@@ -56,7 +56,7 @@ export function loginTarget(project: LoadedProject, opts: { env?: string; person
     if (opts.auto) throw new LoginOptionError('--auto runs a persona\'s login steps: name the account in auth.personas with `login:` steps (the single-account auth.profile has none)', true);
     if (!legacy.profileDir) {
       throw new LoginOptionError(
-        `project "${project.slug}" has no browser profile for environment "${env.name}": name its accounts in auth.personas of project.yaml (README: "Signing in: personas and sessions")`,
+        `project "${project.slug}" has no browser profile for environment "${env.name}": name its accounts in auth.personas of project.yaml (docs/guide/environments.md: "Signing in: personas and sessions")`,
         false,
       );
     }

@@ -366,8 +366,8 @@ export function planEdit(input: PlanEditInput): EditPlan {
     const where = sandbox ? `services.${service ?? '<service>'}.pages.${page}` : `environments.${envName}.${page}`;
     warnings.add(
       page !== undefined
-        ? `page "${page}" has no display URL (${origin}): the browser bar shows no address for it — add display: to ${where} in ${manifest} and render again (README: ${sandbox ? 'Sandbox mode' : 'Environments'})`
-        : `a local URL outside the pages of environment ${envName ?? '(unknown)'} has no display URL (${origin}): the browser bar shows no address for it — declare it as a page with a display: in ${sandbox ? `${manifest} (services.<service>.pages)` : 'project.yaml'} and render again (README: ${sandbox ? 'Sandbox mode' : 'Environments'})`,
+        ? `page "${page}" has no display URL (${origin}): the browser bar shows no address for it — add display: to ${where} in ${manifest} and render again (${sandbox ? 'docs/guide/sandbox.md' : 'docs/guide/environments.md'})`
+        : `a local URL outside the pages of environment ${envName ?? '(unknown)'} has no display URL (${origin}): the browser bar shows no address for it — declare it as a page with a display: in ${sandbox ? `${manifest} (services.<service>.pages)` : 'project.yaml'} and render again (${sandbox ? 'docs/guide/sandbox.md' : 'docs/guide/environments.md'})`,
     );
   };
 

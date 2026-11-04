@@ -53,7 +53,7 @@ const TAGGED: Readonly<Record<string, string>> = {
   'vitest.config.ts': 'the old variables are dropped from the test environment',
   'packages/ui/src/app/shell/AppShell.tsx': "the Studio's notice of the old home",
   'apps/desktop/core/src/config.rs': "the desktop app's hint for a folder holding the old workspace file",
-  'README.md': 'the upgrade section',
+  'docs/guide/upgrading.md': 'the upgrade guide',
   'docs/DESIGN.md': 'the L5.13 section',
   'docs/BACKLOG.md': 'the history line, BL-136',
   'docs/MACOS-CHECKLIST.md': 'the upgrade check (14f)',

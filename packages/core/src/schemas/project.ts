@@ -120,7 +120,7 @@ const EnvironmentSchema = keyedUnion(
 
 /** The fields of a test mailbox (project.yaml `mailbox`, sandbox.yaml `mailbox`). */
 export const mailboxShape = {
-  provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see the README).'),
+  provider: z.enum(['mailpit', 'http']).describe('mailpit: the Mailpit API; http: the generic JSON shape (see docs/guide/scenarios.md).'),
   url: httpUrl().describe('Base URL of the mailbox API, e.g. http://localhost:8025 (its host must be allowed).'),
   poll_ms: z.number().int().min(100).max(10_000).describe('Polling interval in ms (default 500).').optional(),
   headers: z

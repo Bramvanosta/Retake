@@ -523,7 +523,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('mcp')
-    .description('MCP server over stdio (or HTTP with --http) so a Claude session (Claude Code, Claude desktop) can drive Retake: projects, scenarios, runs, sessions, sandboxes (README "MCP")')
+    .description('MCP server over stdio (or HTTP with --http) so a Claude session (Claude Code, Claude desktop) can drive Retake: projects, scenarios, runs, sessions, sandboxes (docs/guide/mcp.md)')
     .option('--print-config', 'print the registration for Claude Code (.mcp.json, claude mcp add) and Claude desktop instead of serving')
     .option('--http', 'serve over Streamable HTTP on 127.0.0.1 (with a stable token in the Retake home) instead of stdio; with --print-config: the HTTP registration')
     .option('--port <n>', 'with --http: listen on this port (default 47820; 0: a free one)')
