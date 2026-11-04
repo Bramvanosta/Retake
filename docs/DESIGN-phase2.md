@@ -196,7 +196,7 @@ per param value (does not scale to numbers). Contract:
 only `react` and the kit) used by `createComponent` and, as stand-ins, by the render pipeline until the library lands. Props added for kinds that need
 them: `area` (caption: the layout's caption rect), `anchor` (overlay: target box in output px), `direction`
 (transition: `exiting` around the outgoing segment, `entering` around the incoming one, drawn on top; `screen` = the
-wrapped segment). The kit (`@retake/components/kit`) is documented in the README, section "Components".
+wrapped segment). The kit (`@retake/components/kit`) is documented in `docs/guide/themes-and-components.md`, section "Components".
 
 ### 1.4 Themes (templates) pick components
 Template gains (additive, core types + `TemplateSchema` / `TemplateFileSchema`):

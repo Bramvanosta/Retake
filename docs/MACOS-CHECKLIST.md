@@ -923,7 +923,7 @@ counts. On the real project of the first field use (its own workspace), the prod
 
 1. **Doctor.** `retake doctor --project <slug>`: a `Sandbox` WARN names the local environment and what it holds (its
    database, the mailbox, the reset hooks) and the command that scaffolds a sandbox.
-2. **A sandbox.** `retake sandbox init <slug>` and fill the sandbox.yaml (README "Sandbox mode": a dev-server recipe,
+2. **A sandbox.** `retake sandbox init <slug>` and fill the sandbox.yaml (docs/guide/sandbox.md "Sandbox mode": a dev-server recipe,
    or "A stage sandbox" for the product's images with a `.env` of versions). `retake sandbox up <slug>`, then
    `export APP_VERSION=not-this-one` (any name your `.env` sets) and `retake sandbox up <slug>` again: the containers
    keep the `.env`'s version (`docker ps`). Two takes with `retake run <slug> <scenario> --sandbox` show the same data.
@@ -1282,7 +1282,7 @@ and no test hears a screen reader. The workspace of 13a with a capture, a render
 
 ## 14a. The desktop app (L5.2)
 
-What the automated tests cannot reach: the gated test (`RETAKE_TEST_DESKTOP=1`, README "Desktop app (macOS)")
+What the automated tests cannot reach: the gated test (`RETAKE_TEST_DESKTOP=1`, docs/guide/desktop-app.md "Desktop app (macOS)")
 starts the built binary directly with a test bundle id, never from Finder, never with a click or a key; it proves the
 page loaded through the server's counters and looks at a screenshot. Needs Rust (`cargo`) and the Xcode command line
 tools. `pnpm build`, then `pnpm desktop:build` (prints the path of `Retake.app` under `apps/desktop/target/`).
@@ -1674,7 +1674,7 @@ preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `
 ### 14f. The rename on this Mac: upgrading your own installation, the app's new identity (L5.13a)
 
 On your own installation (signed-in profiles in `~/.demo-studio`), with the build from before L5.13 still in place.
-Nothing of the new build moves your files: each step below is yours (README "Upgrading from Demo Studio").
+Nothing of the new build moves your files: each step below is yours (docs/guide/upgrading.md).
 
 1. **Before moving anything.** Quit the Demo Studio app, stop `studio ui`, Claude's sessions and the worker. Pull and
    `pnpm install --frozen-lockfile --offline && pnpm build`. `node packages/cli/dist/bin.js --version` (not `pnpm
@@ -1685,7 +1685,7 @@ Nothing of the new build moves your files: each step below is yours (README "Upg
    ignores `.demo-studio/` but not `.retake/`). `retake ui` on that workspace is refused with the rename command.
 2. **An old Studio still running.** Start the OLD app (or the old `studio ui`) again, then the new `retake ui` /
    `retake mcp` on the same workspace: both refuse, naming the old pid and what to quit. Quit the old one.
-3. **Move.** Follow README's steps 3–7: the home, `studio.yaml` → `retake.yaml`, the `.demo-studio/` folders, your
+3. **Move.** Follow the upgrade guide's steps 3–7: the home, `studio.yaml` → `retake.yaml`, the `.demo-studio/` folders, your
    variables (`grep -rn DEMO_STUDIO_` in your product repository), the kit import of your components, the MCP / plugin
    registration (`claude mcp remove demo-studio`… then `retake mcp --print-config`). `retake doctor` until no
    "Before Retake" line is left. `retake auth status`: every persona signed in as before (no new sign-in needed). A
@@ -1722,7 +1722,7 @@ By hand (no test sees the Dock, Finder or a real tab's favicon): `pnpm desktop:b
 
 ### 15a. The DMG, the drag and the first launch (L5.16b)
 
-What the gated acceptance cannot reach (`RETAKE_TEST_BUNDLE=1`, README "Install the app (macOS)": it builds the app,
+What the gated acceptance cannot reach (`RETAKE_TEST_BUNDLE=1`, docs/guide/desktop-app.md "Install the app (macOS)": it builds the app,
 runs its command and starts its binary directly — never Finder, never a mount under /Volumes, never Gatekeeper).
 `pnpm build`, then `pnpm desktop:bundle --out <scratch> --ffmpeg <ffmpeg folder>`: `<scratch>/Retake_<version>_aarch64.dmg`.
 Quit any Retake developer app first (`pnpm desktop:build`'s has the same bundle id). Best on a second user account
@@ -1801,7 +1801,7 @@ On the copy in /Applications, ideally a fresh account (no `~/Retake`, no `~/.ret
 
 Once: the key (`pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w <file>`, private key + password in your password
 manager). The simplest: two releases from the workflow (15b) — N, installed from its DMG into /Applications, then N+1.
-By hand instead (README "Releasing an update"): build N with `RETAKE_UPDATE_FEED=$(GITHUB_REPOSITORY=<owner>/<repo> node
+By hand instead (docs/guide/desktop-app.md "Releasing an update"): build N with `RETAKE_UPDATE_FEED=$(GITHUB_REPOSITORY=<owner>/<repo> node
 scripts/release.mjs feed <N>)` and `RETAKE_UPDATE_PUBKEY`, install it from its DMG into /Applications; then bump the
 version (`node scripts/set-version.mjs <N+1>`, `--check` says nothing is left behind), write its CHANGELOG paragraph,
 build N+1 the same way with `TAURI_SIGNING_PRIVATE_KEY=<the key file's path>`, publish its GitHub release (`gh release

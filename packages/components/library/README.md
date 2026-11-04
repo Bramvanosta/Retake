@@ -3,7 +3,7 @@
 Components shipped with Retake, one folder per component: `library/<namespace>/<name>/` with a
 `component.yaml` manifest, an `index.tsx` implementation, its generated `preview.png` (960×540, the editorial theme,
 the manifest's preview samples) + `preview.json` sidecar, and a README.md showing the preview, the slots and the params
-(see the README of the repository, section "Components", and `docs/DESIGN-phase2.md` §1).
+(see `docs/guide/themes-and-components.md` of the repository, section "Components", and `docs/DESIGN-phase2.md` §1).
 
 The registry scans this folder after the workspace `components/` folder: a workspace component with the same id
 overrides the built-in one (with a warning).

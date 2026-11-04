@@ -189,9 +189,9 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
 }
 
 pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError> {
-    // The child gets the app's environment (README: Finder launches), less the code loaders in a release build. The
-    // bundled app's (launch.json version 2): its module lookup guard first (`--require`: NODE_OPTIONS is dropped), and
-    // ws's optional native addons off (the guard already keeps them from being found above the app).
+    // The child gets the app's environment (docs/guide/desktop-app.md: "From Finder"), less the code loaders in a release
+    // build. The bundled app's (launch.json version 2): its module lookup guard first (`--require`: NODE_OPTIONS is
+    // dropped), and ws's optional native addons off (the guard already keeps them from being found above the app).
     let mut cmd = Command::new(&cfg.node);
     if let Some(preload) = &cfg.preload {
         cmd.arg("--require").arg(preload);

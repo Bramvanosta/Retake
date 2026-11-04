@@ -11,7 +11,7 @@ Before L5.13 the tool was called Demo Studio (command `studio`, home `~/.demo-st
 2. `docs/ROADMAP.md` — lots, status, working agreement; `node scripts/requirements.mjs --lot <id>` lists a lot's
    requirements (source of truth: `docs/requirements.json`).
 3. `docs/SPEC.md` (brief), `docs/DESIGN.md` + `docs/DESIGN-phase2.md` (contracts), `docs/reference/look.md`
-   (target look), `README.md` (usage, scenario language, CLI).
+   (target look), `README.md` (the front page) and `docs/guide/` (usage, scenario language, CLI: the reference).
 4. `docs/AGENTS.md` — how a lot is run with sub-agents (plan, critique, worktree, reviews, fixes) and the rules every
    sub-agent follows.
 

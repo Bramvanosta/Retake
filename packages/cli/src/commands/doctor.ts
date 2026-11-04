@@ -793,7 +793,7 @@ const BEFORE = 'Before Retake';
  * environment, the old workspace file (`refused`: the load failed on it), the old tool folders of the workspace and its
  * projects with their pending rollback journals (critique L9), a `.gitignore` that ignores the old folder and not
  * `.retake/` (review B M1). Hooks, components and the MCP registration that still
- * name an old name are the grep commands of README's upgrade section.
+ * name an old name are the grep commands of the upgrade guide (docs/guide/upgrading.md).
  */
 export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused?: string): DoctorCheck[] {
   const out: DoctorCheck[] = [];

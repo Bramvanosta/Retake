@@ -1532,7 +1532,7 @@ export interface BrowserConfig {
 
 /**
  * A test mailbox the runner reads with `wait_for_email`. `mailpit`: the Mailpit API (GET <url>/api/v1/messages and
- * <url>/api/v1/message/<ID>); `http`: the generic JSON shape documented in the README (GET <url>/messages and
+ * <url>/api/v1/message/<ID>); `http`: the generic JSON shape documented in docs/guide/scenarios.md (GET <url>/messages and
  * <url>/messages/<id>). Its host must be allowed (localhost, an environment host or `allow_hosts`).
  */
 export interface MailboxConfig {

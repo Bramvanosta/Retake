@@ -64,7 +64,7 @@ export interface PreparedRun {
  */
 export function pickSandboxEnv(project: LoadedProject, env: string | undefined, scenarioEnv: string | undefined): string {
   const names = sandboxNames(project);
-  if (!names.length) throw new RunOptionError(`--sandbox resets a sandbox before the take, and project ${project.slug} has none: add \`sandboxes:\` to project.yaml (see the README, "Sandbox mode")`);
+  if (!names.length) throw new RunOptionError(`--sandbox resets a sandbox before the take, and project ${project.slug} has none: add \`sandboxes:\` to project.yaml (see docs/guide/sandbox.md)`);
   if (env !== undefined) {
     if (!names.includes(env)) throw new RunOptionError(`--sandbox resets a sandbox before the take: environment ${env} is not a sandbox (sandboxes: ${names.join(', ')})`);
     return env;

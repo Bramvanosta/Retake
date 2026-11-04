@@ -207,8 +207,8 @@ intro: {component: acme/launch-intro}                    # in a scenario
 `retake components preview acme/launch-intro` renders its `preview.png`. A component usable as several kinds declares
 them (`kind: card` + `kinds: [intro, outro, interstitial, overlay]`) and reads `props.as`; a box-filling overlay
 component receives its box as `props.anchor` when the step gives `anchor` / `rect` / `scale`. The kit also exports
-`VideoFile`, `ImageFile` and `LottieFile`, to put a file inside your own frame. The README's "Components" section has
-the full contract.
+`VideoFile`, `ImageFile` and `LottieFile`, to put a file inside your own frame. The guide's [Components](guide/themes-and-components.md#components)
+section has the full contract.
 
 ## 5. The output of a Claude motion or design skill
 

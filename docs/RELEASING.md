@@ -10,7 +10,7 @@ none of its settings: that part is skipped and said in the run's log; some of th
 is missing. Without a single secret the workflow still makes a release: an ad hoc app, not notarised, that does not
 update itself.
 
-The same steps by hand, on your Mac, stay possible: README › *Install the app (macOS)* › *Releasing an update*
+The same steps by hand, on your Mac, stay possible: [docs/guide/desktop-app.md](guide/desktop-app.md#releasing-an-update) › *Install the app (macOS)* › *Releasing an update*
 (`pnpm desktop:release`, then `scripts/publish-update.mjs`).
 
 ## Once: GitHub's settings

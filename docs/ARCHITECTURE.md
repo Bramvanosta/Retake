@@ -123,7 +123,7 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
    reads from the paths it was given — becomes part of the Claude conversation, i.e. goes to the model provider.
    Tool outputs are kept minimal (paths and summaries; L3.2 adds a few inline images: contact sheets and preview stills,
    capped per result; L3.3 adds one marked screenshot per page inspection and the inspected page's text, under
-   `untrusted`). The README says so where MCP is set up.
+   `untrusted`). [Claude and MCP](guide/mcp.md) says so where MCP is set up.
 
 ## ADR-2 — Flat files are the source of truth (2026-10-12)
 

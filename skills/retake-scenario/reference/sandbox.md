@@ -67,5 +67,5 @@ mailbox: {provider: mailpit, url: "http://localhost:4825"}
 
 The `.env` next to compose.yaml (or another file named in sandbox.yaml's `compose:`) holds the image versions and
 settings, such as `APP_VERSION=2.14.0` for the tag of the compose file's `image:` line. A value the shell sets for the
-same name is ignored there: the file wins, so every take films the same build. README "Sandbox mode" has the whole
+same name is ignored there: the file wins, so every take films the same build. `docs/guide/sandbox.md` of the Retake repository has the whole
 format, and a "stage" sandbox for a product shipped as images.

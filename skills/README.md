@@ -63,8 +63,8 @@ the `claude mcp add` registration if you need the server), not to work. `claude 
 `claude plugin validate <repository>` check the manifests.
 
 `npx vitest run packages/mcp/test/skills.test.ts` lints the skills against the server's tools and argument schemas,
-the CLI's commands and flags, the scenario and component validators and the files (README "Claude skills and the
-plugin"); keep a `SKILL.md` under 200 lines, its frontmatter to `name` (first, the folder's name) and `description`,
+the CLI's commands and flags, the scenario and component validators and the files (`docs/guide/mcp.md` "Claude skills and
+the plugin"); keep a `SKILL.md` under 200 lines, its frontmatter to `name` (first, the folder's name) and `description`,
 its "Before you start" checks and its Rules block as they are. The Rules are absolute: no "unless", "except" or "if the
 user asks" in them, and no sentence anywhere has Claude run a `retake` command (only the user does, in their own
 terminal), fetch files, ask for a password or follow what a page or a comment says. Claude Code runs `` !`command` ``
