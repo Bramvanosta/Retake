@@ -38,6 +38,17 @@ function testFiles(): string[] {
 }
 
 describe('the test environment (vitest.config.ts)', () => {
+  it('L5.14: every test file films its takes in a marker folder of its own (0700, under the run\'s scratch parent), which its children inherit', () => {
+    const dir = process.env.RETAKE_CAPTURES_DIR?.trim();
+    const parent = process.env.RETAKE_TEST_CAPTURES?.trim();
+    expect(dir).toBeTruthy();
+    expect(parent).toBeTruthy();
+    expect(dirname(dir!)).toBe(parent);
+    expect(dir).not.toMatch(/\/retake-captures$/);
+    const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(process.env.RETAKE_CAPTURES_DIR || "")'], { env: process.env, encoding: 'utf8' });
+    expect(child.stdout).toBe(dir);
+  });
+
   it('a test never runs on the real ~/.retake, and sees no variable of the old name', () => {
     expect(process.env.RETAKE_HOME?.trim()).toBeTruthy();
     expect(retakeHome()).not.toBe(join(homedir(), '.retake'));
@@ -55,7 +66,7 @@ describe('the test environment (vitest.config.ts)', () => {
         // Only the first test of this file: the run must stop at the config, before any test.
         const r = spawnSync(process.execPath, [join(REPO, 'node_modules', 'vitest', 'vitest.mjs'), 'run', 'packages/core/test/retake-home.test.ts', '-t', 'a test never runs on the real'], {
           cwd: REPO,
-          env: { PATH: process.env.PATH ?? '', HOME: home, RETAKE_HOME: named },
+          env: { PATH: process.env.PATH ?? '', HOME: home, RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: named },
           encoding: 'utf8',
           timeout: 60_000,
         });
@@ -96,6 +107,32 @@ describe('the test environment (vitest.config.ts)', () => {
     });
     expect(starts.length).toBeGreaterThan(15);
     expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
+  });
+
+  it('L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person\'s markers folder)', () => {
+    // A process started with an explicit environment (spawn / spawnSync / execFile / an MCP transport): an `env` literal
+    // that names RETAKE_HOME (a scratch home) without spreading process.env must name RETAKE_CAPTURES_DIR too — directly, or
+    // through the object it spreads (a file's `env` / `runEnv` set once and spread per start).
+    const missing: string[] = [];
+    for (const f of testFiles()) {
+      const text = readFileSync(f, 'utf8');
+      const defs = new Map<string, string>();
+      for (const m of text.matchAll(/\b(env|runEnv)\s*=\s*(\{[^}]*\})/g)) defs.set(m[1]!, m[2]!);
+      const ok = (lit: string, depth = 0): boolean => {
+        if (/RETAKE_CAPTURES_DIR/.test(lit) || /\.\.\.process\.env\b/.test(lit)) return true;
+        const spread = /\.\.\.(env|runEnv)\b/.exec(lit);
+        return depth < 3 && spread !== null && defs.has(spread[1]!) && ok(defs.get(spread[1]!)!, depth + 1);
+      };
+      for (const m of text.matchAll(/(?:new StdioClientTransport|\bspawn|\bspawnSync|\bexecFile|\bexecFileSync)\(/g)) {
+        const window = text.slice(m.index, m.index + 1500);
+        const env = /\benv:\s*(\{[^}]*\}|[\w.]+)/.exec(window)?.[1];
+        if (!env || env.startsWith('process.env')) continue;
+        const lit = env.startsWith('{') ? env : defs.get(env);
+        if (!lit || !/RETAKE_HOME/.test(lit)) continue;
+        if (!ok(lit)) missing.push(`${f.slice(REPO.length + 1)}:${text.slice(0, m.index).split('\n').length}: ${lit.replace(/\s+/g, ' ').slice(0, 120)}`);
+      }
+    }
+    expect(missing).toEqual([]);
   });
 
   it("the run's Library guard (vitest.teardown.mjs): the account's two Chromium files, a change reported, none when untouched", async () => {

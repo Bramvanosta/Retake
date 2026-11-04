@@ -963,7 +963,7 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
     async run(a, { engine }) {
       // One chain for the workspace's exports (L5.12a fixes, review B-M3 / A-L8): the check and the submit of two clicks,
       // two tabs or two renders never interleave — one export per render, at most REVIEW_EXPORTS_OPEN at once (the worker
-      // runs one job at a time anyway: the cap keeps a page from queueing an export, possibly a re-render, of every render).
+      // runs one heavy job at a time anyway: the cap keeps a page from queueing an export, possibly a re-render, of every render).
       const sub = await oneAtATime('review_export', async () => {
         const open = await engine.jobs.list({ kinds: ['export'], states: ['queued', 'running'] });
         const busy = open.find((j) => j.input.kind === 'export' && j.input.project === a.project && j.input.render_id === a.render_id);

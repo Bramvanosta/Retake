@@ -53,6 +53,9 @@ import type { ExitCode } from './errors.js';
 import { processIo } from './io.js';
 import type { Io } from './io.js';
 import { Ui } from './ui.js';
+
+/** L5.14: heavy commands wait for a take filming on this Mac, then yield to later ones; `--no-wait` skips both. */
+const NO_WAIT = 'start at once even while a take films on this Mac (default: wait for it, then go on at background priority during later takes)';
 import type { GlobalOptions } from './workspace.js';
 
 export const VERSION = RETAKE_VERSION;
@@ -149,6 +152,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--selects', 'with --raw: also one continuous selects file of the clips')
     .option('--no-cuts', 'with --raw: keep the loading inside scenes')
     .option('--out <dir>', 'with --raw: package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
+    .option('--no-wait', 'with --raw: export at once even while another take films (default: wait for it, then yield to later takes)')
     .action(action((u, g, p: string, s: string, o: RunCommandOptions) => runCommand(u, g, p, s, o)));
 
   program
@@ -197,6 +201,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--no-cuts', 'keep the loading inside scenes (page loads before a scene are never in a clip)')
     .option('--out <dir>', 'package folder (default exports/<run>-raw-<format><fps>-<cursor>/)')
     .option('--json', 'print the package manifest as JSON')
+    .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, r: string, o: ExportCaptureCommandOptions) => exportCaptureCommand(u, g, p, r, o)));
 
   program
@@ -234,6 +239,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--concurrency <n>', 'frames rendered in parallel (default: 3/4 of the CPUs, at most 8)')
     .option('--json', 'print the render record (without the plan) as JSON')
     .option('--review', 'review the render right after it (retake review: sheets, key frames, report)')
+    .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, s: string, o: RenderCommandOptions) => renderCommand(u, g, p, s, o)));
 
   program
@@ -247,6 +253,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--scenario <name>', 'with "latest": the latest render of this scenario')
     .option('--strict', 'exit with 1 when the review is not clean (errors or warnings)')
     .option('--json', 'print the review result (report.json) as JSON')
+    .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, r: string, o: ReviewCommandOptions) => reviewCommand(u, g, p, r, o)));
 
   program
@@ -260,6 +267,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--gif-start <s>', 'start of the GIF preview, seconds (default: around the first marker, else the start)')
     .option('--concurrency <n>', 'frames rendered in parallel by re-rendered formats')
     .option('--json', 'print the export manifest as JSON')
+    .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, r: string, o: ExportCommandOptions) => exportCommand(u, g, p, r, o)));
 
   program
@@ -275,6 +283,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--square', 'a frame of the square 1:1 variant')
     .option('--out <file>', 'PNG file to write')
     .option('--json', 'print the result as JSON')
+    .option('--no-wait', NO_WAIT)
     .action(action((u, g, p: string, s: string, o: StillCommandOptions) => stillCommand(u, g, p, s, o)));
 
   const hooks = program.command('hooks').description('run hooks or replay rollbacks outside a capture');

@@ -143,7 +143,7 @@ export interface RunJobView {
   id: string;
   state: JobRecord['state'];
   /** Queued: how many jobs run or wait before it, and the one running. */
-  queue?: { ahead: number; running?: string };
+  queue?: { ahead: number; running?: string; held_by?: 'take' };
   cancel_requested_at?: string;
   /** L4.4: a pause was asked (the run pauses before its next step; `paused` says when it is). */
   pause_requested_at?: string;
@@ -315,7 +315,8 @@ export interface Engine {
     cancel(id: string): Promise<JobRecord>;
     /** Wait until the job finishes or `timeoutMs` passes; returns it as it is then. */
     wait(id: string, opts: WaitOptions): Promise<JobRecord>;
-    position(id: string): Promise<{ ahead: number; running?: string } | undefined>;
+    /** Where a queued job stands: jobs ahead of it in its lane, the one running, `held_by: 'take'` (a heavy job a take holds). */
+    position(id: string): Promise<{ ahead: number; running?: string; held_by?: 'take' } | undefined>;
     /** The worker serving the workspace, when one runs. */
     worker(): Promise<WorkerLockRecord | null>;
   };

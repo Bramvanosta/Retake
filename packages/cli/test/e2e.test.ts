@@ -5,6 +5,7 @@
  */
 import { execFile, spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
@@ -242,6 +243,81 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     const typed = tl.events.filter((e) => e.action === 'type');
     // React's state followed the clear: the search navigated to q=Selowa (not "zzSelowa"); typed at search speed.
     expect(typed[1].data).toMatchObject({ clear: 'setter', rate: 'search', cps: 10 });
+  });
+
+  it('L5.14: a capture holds one filming marker while it films — none while its setup or teardown hooks run (sampled inside them), none after; a dry run writes none', async () => {
+    const dir = process.env.RETAKE_CAPTURES_DIR!;
+    expect(dir).toBeTruthy();
+    const markers = async () => (await readdir(dir).catch(() => [] as string[])).filter((n) => /^k_.*\.json$/.test(n));
+    // The hooks call this server, which reads the markers folder before it answers (review B M1: sampled during them).
+    const inHook: Record<string, string[]> = {};
+    const server = createServer((req, res) => {
+      void markers().then(async (names) => {
+        inHook[req.url ?? '?'] = names;
+        await new Promise((r) => setTimeout(r, 300));
+        res.end('ok');
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    const port = (server.address() as { port: number }).port;
+    await writeFile(
+      join(ws, 'projects', 'e2e', 'scenarios', 'gated.yaml'),
+      SCENARIO.replace('video: short', 'video: gated')
+        .replace('setup:\n', `setup:\n  - name: sample-setup\n    http: {method: POST, url: "http://127.0.0.1:${port}/setup"}\n`)
+        .replace('teardown:\n', `teardown:\n  - name: sample-teardown\n    http: {method: POST, url: "http://127.0.0.1:${port}/teardown"}\n`),
+    );
+    const seen: string[][] = [];
+    let polling = true;
+    const poll = (async () => {
+      while (polling) {
+        seen.push(await markers());
+        await new Promise((r) => setTimeout(r, 25));
+      }
+    })();
+    try {
+      const r = await retake('run', 'e2e', 'gated', '--hooks', 'run');
+      const dry = await retake('run', 'e2e', 'short', '--dry', '--until', 'import.1');
+      polling = false;
+      await poll;
+      expect(r.code, r.err).toBe(EXIT.ok);
+      expect(dry.code, dry.err).toBe(EXIT.ok);
+      expect(inHook).toEqual({ '/setup': [], '/teardown': [] });
+      expect(new Set(seen.flat()).size).toBe(1);
+      expect(seen.some((s) => s.length === 1)).toBe(true);
+      expect(await readdir(dir)).toEqual([]);
+    } finally {
+      polling = false;
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+  });
+
+  it('L5.14a fixes (review B H2): run --raw waits for another take before its raw export, then exports', async () => {
+    // Another take: a marker of a live sibling process (not an ancestor of this one), beating from here.
+    const dir = process.env.RETAKE_CAPTURES_DIR!;
+    const sib = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+    const out = join(ws, 'raw-waited');
+    try {
+      const start = await new Promise<string>((resolve) => {
+        const tryRead = () => execFile('ps', ['-o', 'lstart=', '-p', String(sib.pid)], { env: { ...process.env, LC_ALL: 'C' } }, (_e, o) => (String(o).trim() ? resolve(String(o).trim()) : setTimeout(tryRead, 50)));
+        tryRead();
+      });
+      const file = join(dir, 'k_01KA00000000000000000000RW.json');
+      const write = () => void writeFile(file, JSON.stringify({ v: 1, pid: sib.pid, started_at: new Date(start).toISOString(), ws: '0'.repeat(32), source: 'cli' }), { mode: 0o600 });
+      write();
+      const beat = setInterval(write, 1000);
+      const io = memoryIo();
+      const running = main(['node', 'retake', '--root', ws, 'run', 'e2e', 'short', '--raw', '--cursor', 'none', '--out', out], io);
+      const deadline = Date.now() + 120_000;
+      while (!io.stderr().includes('waiting for a take') && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
+      expect(io.stderr()).toContain('waiting for a take to finish (elsewhere on this Mac) before exporting');
+      expect(existsSync(out)).toBe(false);
+      clearInterval(beat);
+      await rm(file, { force: true });
+      expect(await running, io.stderr()).toBe(EXIT.ok);
+      expect(existsSync(out)).toBe(true);
+    } finally {
+      sib.kill('SIGKILL');
+    }
   });
 
   it('dry-runs up to a step with a screenshot per step', async () => {

@@ -20,7 +20,7 @@
 import { randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE, JobInputSchema } from '@retake/core';
+import { JOB_ID_RE, JobInputSchema, isFilming, jobClass } from '@retake/core';
 import type { JobInput, JobKind, JobState } from '@retake/core';
 import { EngineError } from '../errors.js';
 import { newJobId } from './ids.js';
@@ -97,7 +97,7 @@ export interface JobFilter {
 /** Names of the files a submit may add to a job folder (no path, no hidden file). */
 const JOB_FILE_RE = /^[a-z][a-z0-9-]{0,30}\.(?:yaml|json|txt)$/;
 /** The job folder's own files: never written by a submit. */
-const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'stop', 'browser.json', 'live.json', 'events.jsonl']);
+const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'stop', 'browser.json', 'live.json', 'events.jsonl', 'yield.json']);
 
 export class FileJobQueue {
   readonly dir: string;
@@ -183,7 +183,9 @@ export class FileJobQueue {
       }
     } else if (rec.state === 'running') {
       if (!rec.worker || !(await isAlive(rec.worker))) {
-        return interrupted(rec, this.cli, `the worker${rec.worker ? ` (pid ${rec.worker.pid})` : ''} stopped while the job ran (killed, crashed or the machine slept through a restart)`);
+        // L5.14: a heavy job's `worker` is its job process (its claiming worker is `supervisor`).
+        const who = rec.supervisor ? 'its job process' : 'the worker';
+        return interrupted(rec, this.cli, `${who}${rec.worker ? ` (pid ${rec.worker.pid})` : ''} stopped while the job ran (killed, crashed or the machine slept through a restart)`);
       }
     }
     return rec;
@@ -311,6 +313,25 @@ export class FileJobQueue {
     }
   }
 
+  /**
+   * Give a claimed job back to the queue (L5.14: its job process refused to start on another build) — only the worker
+   * that claimed it, before anything ran.
+   */
+  async unclaim(id: string): Promise<void> {
+    await rm(join(this.jobDir(id), 'claim'), { force: true });
+  }
+
+  /** <job>/yield.json (L5.14): written by the worker while a running heavy job yields to a filming take. */
+  yieldFile(id: string): string {
+    return join(this.jobDir(id), 'yield.json');
+  }
+
+  /** The seq of the last event written (0: none) — a second writer of a job's events goes on from there. */
+  async lastSeq(id: string): Promise<number> {
+    const events = await this.events(id);
+    return events.length ? events[events.length - 1]!.seq : 0;
+  }
+
   /** Write job.json — only the worker holding the job's claim calls this. */
   async write(rec: JobRecord): Promise<void> {
     const { cancel_requested_at: _c, pause_requested_at: _p, derived: _d, ...stored } = rec;
@@ -348,22 +369,42 @@ export class FileJobQueue {
   }
 
   /**
-   * Where a queued job stands: how many jobs run or wait before it (0: it is next). Undefined when it is not queued.
+   * Where a queued job stands in its lane (L5.14: the worker runs one capture and one heavy job at a time, captures
+   * first): how many jobs of the same class run or wait before it (0: it is next). Undefined when it is not queued.
+   * `held_by: 'take'` (review B M4): a heavy job that cannot start now — a filming take of this workspace waits in the
+   * queue, or a take films on this Mac (a filming marker holds) — whatever its place in its lane.
    */
-  async position(id: string): Promise<{ ahead: number; running?: string } | undefined> {
+  async position(id: string): Promise<{ ahead: number; running?: string; held_by?: 'take' } | undefined> {
     let ahead = 0;
     let running: string | undefined;
     let mine: JobRecord | undefined;
+    const recs: JobRecord[] = [];
     for (const other of await this.ids()) {
       const stored = await this.stored(other);
       if (!stored || FINISHED_JOB_STATES.has(stored.state)) continue;
       const rec = await this.derive(stored);
       if (other === id) mine = rec;
-      else if (rec.state === 'running') running = other;
-      else if (rec.state === 'queued' && !mine) ahead++;
+      else recs.push(rec);
     }
     if (mine?.state !== 'queued') return undefined;
-    return { ahead: ahead + (running ? 1 : 0), ...(running ? { running } : {}) };
+    const lane = jobClass(mine.kind);
+    for (const rec of recs) {
+      if (jobClass(rec.kind) !== lane) continue;
+      if (rec.state === 'running') running = rec.id;
+      // Captures go before every heavy job whatever their age; within a lane, the oldest first.
+      else if (rec.state === 'queued' && rec.id < id) ahead++;
+    }
+    let held = false;
+    if (lane === 'heavy') {
+      for (const rec of recs) {
+        if (rec.state === 'queued' && isFilming(rec.input) && !rec.cancel_requested_at && (await this.claimOf(rec.id)) === undefined) held = true;
+      }
+      if (!held) {
+        const { FilmingWatch } = await import('./captures.js');
+        held = (await new FilmingWatch({ root: this.root }).scan().catch(() => ({ holding: false }))).holding;
+      }
+    }
+    return { ahead: ahead + (running ? 1 : 0), ...(running ? { running } : {}), ...(held ? { held_by: 'take' as const } : {}) };
   }
 }
 
@@ -376,7 +417,8 @@ export function jobProject(input: JobInput): string | undefined {
   return 'project' in input ? input.project : undefined;
 }
 
-function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
+/** A job closed as interrupted (derived for a dead worker; written by the worker that saw its job process die). */
+export function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
   const i = rec.input;
   if (i.kind === 'site') {
     return {

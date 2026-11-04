@@ -132,6 +132,12 @@ export const jobList = defineTool({
   },
 });
 
+/** Where a queued job stands, in words (L5.14: a heavy job a take holds waits for it whatever its place). */
+function queueWords(position: { ahead: number; running?: string; held_by?: 'take' }): string {
+  if (position.held_by === 'take') return `waiting for a take to finish${position.ahead ? ` (${plural(position.ahead, 'job')} ahead)` : ''}`;
+  return position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue';
+}
+
 export const jobStatus = defineTool({
   name: 'job_status',
   title: 'Status of a job',
@@ -155,7 +161,7 @@ export const jobStatus = defineTool({
       // A recording: while the window is open, what the user does; once finished, the draft read from its folder.
       const { recordOutput } = await import('./authoring.js');
       const out = await recordOutput(engine, job);
-      const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
+      const ahead = position ? [queueWords(position)] : [];
       // The result is the data itself: not repeated under `job`.
       const { result: _result, ...rest } = jobData(job);
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...rest, ...(position ? { queue: position } : {}) } } };
@@ -164,7 +170,7 @@ export const jobStatus = defineTool({
       // A site extraction that outlived template_from_site's wait: the same result (site.json read back, images included).
       const { siteOutput } = await import('./theme.js');
       const out = await siteOutput(engine, job);
-      const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
+      const ahead = position ? [queueWords(position)] : [];
       const { result: _result, ...rest } = jobData(job);
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...rest, ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
     }
@@ -172,13 +178,13 @@ export const jobStatus = defineTool({
       // An inspection that outlived page_inspect's wait: the same result (marked screenshot included), with the job.
       const { inspectOutput } = await import('./inspect.js');
       const out = await inspectOutput(engine, job, [], level);
-      const ahead = position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : [];
+      const ahead = position ? [queueWords(position)] : [];
       return { summary: [out.summary, ...ahead].join('\n'), data: { ...out.data, job: { ...jobData(job), ...(position ? { queue: position } : {}) } }, ...(out.images ? { images: out.images } : {}) };
     }
     return {
       summary: [
         jobLine(job),
-        ...(position ? [position.ahead ? `${plural(position.ahead, 'job')} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next in the queue'] : []),
+        ...(position ? [queueWords(position)] : []),
         // A failure that can quote the product (a page, a caption, a component's error): only under untrusted.error.
         ...(job.error ? [jobErrorLine(job)!] : []),
         ...(job.result?.kind === 'run' && job.input.kind === 'run' ? [`run_status {project: "${job.input.project}", run_id: "${job.result.run_id}"} has the run's details`] : []),

@@ -45,7 +45,8 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 2. **Every long task an MCP client (or, since L4.2, the Studio) starts is a job.** Dry runs, captures, hooks, environment resets, sign-ins,
    sandbox up / reset, and (L3.2) renders, reviews, exports and component / theme previews have a serialisable, versioned payload (core `JobInputSchema`, v1), sit in a queue the engine
    owns (files under `<workspace>/.retake/jobs/`), and are executed by the workspace's worker, which *pulls* them
-   in a process of its own (one worker per workspace, one job at a time; the MCP process never opens a browser).
+   in a process of its own (one worker per workspace; one capture at a time, and beside it one heavy job in a job
+   process of its own that waits and yields while a take films — L5.14, DESIGN §4q; the MCP process never opens a browser).
    The CLI keeps running its commands inline through the same engine functions (native options, errors and exit
    codes), so a terminal and a Claude session run the same code; its runs and renders (videos, stills, export re-renders) are recorded in the job history
    (`history.jsonl`) without a job. A remote worker later reads the same queue contract, with no change to callers.

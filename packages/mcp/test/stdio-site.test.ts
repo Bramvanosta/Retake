@@ -39,7 +39,7 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: string
       PATH: process.env.PATH ?? '',
       CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
       HOME: process.env.HOME ?? '',
-      RETAKE_HOME: join(ws, '.home'),
+      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(ws, '.home'),
       RETAKE_WORKER_IDLE_MS: '1500',
       RETAKE_UNSAFE_TEST_RESOLVE: site.resolveEnv,
     },

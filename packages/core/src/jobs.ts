@@ -22,6 +22,44 @@ export const JOB_KINDS = ['run', 'hooks', 'env_reset', 'auth_login', 'sandbox_up
 export type JobKind = (typeof JOB_KINDS)[number];
 
 /**
+ * Captures first (L5.14, BL-116): which of a worker's two slots runs a kind. A `capture` job (a take, what prepares one,
+ * a sign-in, a recording, an inspection) is claimed before any `heavy` one whatever their age, and runs in the worker
+ * itself; a `heavy` job (renders and what re-renders, reviews, previews, site extractions) runs in a job process of its
+ * own, starts only while no filming take runs or waits (`isFilming`), and yields during a take that starts after it. A
+ * new kind does not type-check until it picks a class.
+ */
+export type JobClass = 'capture' | 'heavy';
+export const JOB_CLASS = {
+  run: 'capture',
+  hooks: 'capture',
+  env_reset: 'capture',
+  auth_login: 'capture',
+  sandbox_up: 'capture',
+  sandbox_reset: 'capture',
+  inspect: 'capture',
+  record: 'capture',
+  render: 'heavy',
+  review: 'heavy',
+  export: 'heavy',
+  preview: 'heavy',
+  site: 'heavy',
+} as const satisfies Record<JobKind, JobClass>;
+
+/** The class of a stored kind: an unknown one (a newer client's) is a capture, so the worker refuses it as before. */
+export function jobClass(kind: unknown): JobClass {
+  return typeof kind === 'string' && Object.hasOwn(JOB_CLASS, kind) ? JOB_CLASS[kind as JobKind] : 'capture';
+}
+
+/**
+ * A filming take (L5.14): a `run` job of mode `capture` (a dry run, a recording, a sign-in, an inspection, hooks and
+ * sandboxes go first but film nothing, so they hold no heavy work).
+ */
+export function isFilming(input: unknown): boolean {
+  const i = (input ?? {}) as { kind?: unknown; mode?: unknown };
+  return i.kind === 'run' && i.mode === 'capture';
+}
+
+/**
  * Who submitted a job (recorded; shapes the safety rules applied at submit). `ui` (L4.1): the Studio web app, under the
  * agent's trust (the worker runs every job under trust `mcp` whoever submitted it).
  */
@@ -418,8 +456,8 @@ export const InspectJobInputSchema = z.strictObject({
 
 /**
  * A recording (L3.4, R-MCP-24): a HEADED browser window opens on the machine the worker runs on, at `path` of the
- * environment page `page`, for a HUMAN to perform a flow and close the window — the job waits for it (it holds the queue
- * like a headed sign-in; at most RETAKE_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
+ * environment page `page`, for a HUMAN to perform a flow and close the window — the job waits for it (it holds the
+ * worker's capture slot like a headed sign-in, not its heavy work: L5.14; at most RETAKE_RECORD_MAX_MIN, default 30 min). Nobody drives the window through the job:
  * no field carries a step, a URL or typed text. A draft scenario is made from what the person did, saved as
  * scenarios/<scenario>.yaml when the name is free (under agent trust), and checked by a headless dry replay. The
  * recording's folder <project>/.retake/records/<rec_id>/ is reserved by its id at submit. The environment's own

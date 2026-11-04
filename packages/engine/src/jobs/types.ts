@@ -424,6 +424,11 @@ export interface JobRecord {
   finished_at?: string;
   /** The worker that claimed it. */
   worker?: JobWorkerInfo;
+  /**
+   * L5.14: the jobs worker that claimed a heavy job a job process of its own runs (`worker` is then that process). The
+   * job process ends the job (interrupted) when this worker stops.
+   */
+  supervisor?: JobWorkerInfo;
   progress?: JobProgress;
   result?: JobResult;
   /** Why the job could not run (or was cancelled / interrupted). */

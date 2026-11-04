@@ -27,6 +27,7 @@ import { openProjectBySlug } from '../projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import { isAlive } from './proc.js';
+import { signalablePid } from './signal.js';
 import type { ProcessIdentity } from './proc.js';
 import type { SubmitContext } from './run-job.js';
 import type { FileJobQueue } from './queue.js';
@@ -285,7 +286,8 @@ export async function killRecordedBrowser(queue: FileJobQueue, job: JobRecord, l
   } catch {
     browser = undefined;
   }
-  if (browser && Number.isInteger(browser.pid) && browser.pid > 1 && browser.started_at && (await isAlive(browser))) {
+  // signal.ts's rule (L5.14a fixes): never a pid of 0 / 1 / -1, this process or its own group.
+  if (browser && signalablePid(browser.pid) && browser.started_at && (await isAlive(browser))) {
     for (const target of [-browser.pid, browser.pid]) {
       try {
         process.kill(target, 'SIGKILL');

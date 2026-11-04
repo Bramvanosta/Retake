@@ -192,7 +192,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     report.build_ms = Date.now() - t0;
     const home = join(base, 'home');
     for (const d of ['home', 'retake-home', 'tmp', 'bin']) mkdirSync(join(base, d), { recursive: true });
-    env = { HOME: home, CFFIXED_USER_HOME: home, RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off' };
+    env = { HOME: home, CFFIXED_USER_HOME: home, RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off' };
     launcher = join(app, 'Contents', 'Resources', 'bin', 'retake');
     symlinkSync(launcher, join(base, 'bin', 'retake'));
     libraryBefore = libraryEntries();

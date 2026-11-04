@@ -31,6 +31,12 @@ if (!process.env.CFFIXED_USER_HOME?.trim()) process.env.CFFIXED_USER_HOME = proc
 const cfHome = process.env.CFFIXED_USER_HOME.trim();
 if (real(cfHome) === real(userInfo().homedir)) throw new Error(`CFFIXED_USER_HOME is ${cfHome}, the account's home: tests use a scratch one (unset it)`);
 
+// L5.14 (captures first): the filming markers live in one folder per user on this Mac (engine captures.ts). A test run
+// never uses the person's: a scratch parent per run (removed by vitest.teardown.mjs) in which vitest.setup.ts gives every
+// test file a folder of its own (RETAKE_CAPTURES_DIR), so a take filmed by one file never holds a render of another.
+if (!process.env.RETAKE_TEST_CAPTURES?.trim()) process.env.RETAKE_TEST_CAPTURES = process.env.RETAKE_TEST_CAPTURES_MADE = mkdtempSync(join(tmpdir(), 'retake-test-captures-'));
+const capturesRoot = process.env.RETAKE_TEST_CAPTURES.trim();
+
 const pkg = (name: string) => fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
 const kit = fileURLToPath(new URL('./packages/components/src/kit/index.ts', import.meta.url));
 
@@ -58,7 +64,8 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
-    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome },
+    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome, RETAKE_TEST_CAPTURES: capturesRoot },
+    setupFiles: ['./vitest.setup.ts'],
     // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR); warns when the run
     // changed Chromium's files in the account's ~/Library (L5.16 Library hygiene).
     globalSetup: ['./vitest.teardown.mjs'],

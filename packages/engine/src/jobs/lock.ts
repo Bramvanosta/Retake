@@ -1,6 +1,6 @@
 /**
- * The worker lock (<workspace>/.retake/workers/worker.lock): one worker per workspace, so one job at a time
- * (concurrency 1: a capture is CPU- and GPU-heavy). It holds the worker's pid, start time and build. Created whole and
+ * The worker lock (<workspace>/.retake/workers/worker.lock): one worker per workspace, so one capture and one heavy job
+ * at a time (L5.14: captures first; a heavy job yields during a take — a capture is CPU- and GPU-heavy). It holds the worker's pid, start time and build. Created whole and
  * atomically (sandbox createExclusive); a lock whose process is gone — or whose pid belongs to another program now — is
  * stale and taken over under a breaker (sandbox breakStale), so two workers finding one stale lock never both take it.
  */

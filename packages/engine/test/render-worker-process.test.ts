@@ -1,6 +1,8 @@
 /**
  * L3.2: a render job's worker killed with SIGKILL mid-render (the worker in a process of its own, from the sources).
- * Remotion starts its Chromium detached: the browser outlives the worker. The job reads `interrupted` (with the
+ * L5.14: a heavy job runs in a job process of its own (detached, its own group): a crash is the worker AND its job
+ * process killed (both SIGKILLed here); the worker alone killed, its job process ends the job itself. Remotion starts
+ * its Chromium detached: the browser outlives both. The job reads `interrupted` (with the
  * `retake render` a human runs); the next worker kills the browser the job recorded (pid AND start time), removes its
  * temporary profile, the version lock and the partial video — no orphan headless shell is left. Synthetic capture, no
  * fixture product. The same for an export killed mid re-render (its browser and partial files), and a review killed
@@ -50,6 +52,21 @@ async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false>
     if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
     await new Promise((r) => setTimeout(r, 100));
   }
+}
+
+/** A crash: the worker and the job process running `jobId` (its group: not the detached browser) SIGKILLed. */
+async function crash(w: { child: ChildProcess; exited: Promise<number | null> }, jobId: string): Promise<number> {
+  const job = await queue.stored(jobId);
+  const pid = job?.worker?.pid;
+  if (!pid || pid === w.child.pid) throw new Error(`job ${jobId} does not run in a job process (${JSON.stringify(job?.worker)})`);
+  w.child.kill('SIGKILL');
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    /* gone */
+  }
+  await w.exited;
+  return pid;
 }
 
 const alive = (pid: number) => {
@@ -115,8 +132,7 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
     expect(browser.pid).toBeGreaterThan(1);
     expect(browser.started_at).toBeTruthy();
     expect(browser.user_data_dir).toMatch(/puppeteer_dev_chrome_profile-/);
-    w.child.kill('SIGKILL');
-    await w.exited;
+    await crash(w, sub.job.id);
 
     // The browser outlived its worker (Remotion starts it detached): what the next worker must clean up.
     expect(alive(browser.pid)).toBe(true);
@@ -140,6 +156,32 @@ describe.skipIf(!canRender)('a render job whose worker is killed', () => {
     const last = JSON.parse((await readFile(historyFile(root), 'utf8')).trim().split('\n').at(-1)!) as Record<string, unknown>;
     expect(last).toMatchObject({ kind: 'render', state: 'interrupted', render: { id: sub.render_id }, counted: { renders: 0 } });
   }, LONG);
+
+  it('L5.14: SIGKILL of the worker alone: its job process ends the render itself — interrupted, its browser closed, the lock and the partial video removed, no submit needed', async () => {
+    const sub = await engine.renders.submit({ project: 'demo', scenario: 'synthetic' });
+    const renders = join(root, 'projects', 'demo', 'renders');
+    const w = startWorker('--idle-exit', '5000');
+    const browserFile = queue.browserFile(sub.job.id);
+    const running = await waitFor('the render running in its job process, its browser recorded', async () => {
+      const j = await queue.get(sub.job.id);
+      return j?.state === 'running' && (j.progress?.steps_done ?? 0) > 0 && existsSync(browserFile) ? j : undefined;
+    });
+    const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
+    expect(running.supervisor?.pid).toBe(w.child.pid);
+    const jobPid = running.worker!.pid;
+    expect(jobPid).not.toBe(w.child.pid);
+    w.child.kill('SIGKILL');
+    await w.exited;
+    const job = await waitFor('interrupted, written by the job process', async () => {
+      const j = await queue.stored(sub.job.id);
+      return j?.state === 'interrupted' ? j : undefined;
+    }, 30_000);
+    expect(job.error?.message).toMatch(/^interrupted: its jobs worker \(pid \d+\) stopped while the job ran/);
+    await waitFor('the job process gone', async () => !alive(jobPid), 10_000);
+    await waitFor('the browser gone', async () => !alive(browser.pid), 10_000);
+    expect(existsSync(browser.user_data_dir!)).toBe(false);
+    expect(await readdir(renders)).toEqual([]);
+  }, LONG);
 });
 
 describe.skipIf(!canRender)('review and export jobs whose worker is killed', () => {
@@ -160,8 +202,7 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
       return j?.state === 'running' && (j.progress?.fraction ?? 0) > 0.1 && existsSync(browserFile);
     });
     const browser = JSON.parse(await readFile(browserFile, 'utf8')) as RecordedBrowser;
-    w.child.kill('SIGKILL');
-    await w.exited;
+    await crash(w, sub.job.id);
     expect(alive(browser.pid)).toBe(true);
     const job = await waitFor('interrupted', async () => {
       const j = await queue.get(sub.job.id);
@@ -195,15 +236,13 @@ describe.skipIf(!canRender)('review and export jobs whose worker is killed', () 
     const sub = await engine.reviews.submit({ project: 'demo', render_id: renderId, fps: 2, previous: false });
     const w = startWorker('--idle-exit', '5000');
     await waitFor('the review running', async () => (await queue.get(sub.job.id))?.state === 'running', 60_000);
-    w.child.kill('SIGKILL');
-    await w.exited;
+    const dead = await crash(w, sub.job.id);
     const job = await waitFor('interrupted', async () => {
       const j = await queue.get(sub.job.id);
       return j?.state === 'interrupted' ? j : undefined;
     }, 10_000);
     expect(job.error?.message).toContain(`the previous review of ${renderId} is kept`);
     // As if it died between the two renames of the swap: the previous review set aside, the new one unfinished.
-    const dead = w.child.pid!;
     if (existsSync(final)) await rename(final, `${final}.old-${dead}-abcdef`);
     await mkdir(`${final}.tmp-${dead}-123456`, { recursive: true });
 

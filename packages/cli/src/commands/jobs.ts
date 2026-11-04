@@ -171,9 +171,9 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   const approvals = 'approvals' in job.input ? (job.input.approvals ?? []) : [];
   row('by', `${job.input.submitted_by}${approvals.length ? ` · ${approvals.length} ${job.input.kind === 'site' ? 'URL' : 'hook'} approval${approvals.length === 1 ? '' : 's'} given at submit` : ''}`);
   row('created', job.created_at);
-  if (job.started_at) row('started', `${job.started_at}${job.worker ? ` (worker pid ${job.worker.pid})` : ''}`);
+  if (job.started_at) row('started', `${job.started_at}${job.worker ? (job.supervisor ? ` (job process pid ${job.worker.pid}, worker pid ${job.supervisor.pid})` : ` (worker pid ${job.worker.pid})`) : ''}`);
   if (job.finished_at) row('finished', `${job.finished_at}${job.started_at ? ` · ${formatMs(Date.parse(job.finished_at) - Date.parse(job.started_at))}` : ''}`);
-  if (position) row('queue', position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
+  if (position) row('queue', position.held_by === 'take' ? `waiting for a take to finish${position.ahead ? ` · ${position.ahead} ahead` : ''}` : position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
   const p = job.progress;
   if (p && job.state === 'running') row('progress', progressText(p));
   const outcome = jobOutcome(job);

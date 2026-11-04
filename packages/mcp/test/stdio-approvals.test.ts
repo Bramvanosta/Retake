@@ -41,7 +41,7 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: Array<
       PATH: process.env.PATH ?? '',
       CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
       HOME: process.env.HOME ?? '',
-      RETAKE_HOME: home,
+      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: home,
       RETAKE_WORKER_IDLE_MS: '1500',
       // A human who never answers: refused after 1.5 s here (10 min by default).
       RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500',

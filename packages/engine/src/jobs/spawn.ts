@@ -41,8 +41,8 @@ function tsxLoader(from: string): string | undefined {
   }
 }
 
-/** The command line of a worker for `root`: the engine's worker-main entry, built or from the sources. */
-export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { command: string; args: string[] } {
+/** node's arguments up to the worker-main entry (built, or the sources through tsx with the `source` condition). */
+function entryArgs(): string[] {
   const here = fileURLToPath(import.meta.url); // …/engine/(dist|src)/jobs/spawn.(js|ts)
   const fromSources = here.endsWith('.ts');
   const entry = join(dirname(dirname(here)), fromSources ? 'worker-main.ts' : 'worker-main.js');
@@ -54,9 +54,28 @@ export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { co
   } else {
     args.push(...bundleNodeArgs());
   }
-  args.push(entry, '--root', root);
+  args.push(entry);
+  return args;
+}
+
+/** The command line of a worker for `root`: the engine's worker-main entry, built or from the sources. */
+export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { command: string; args: string[] } {
+  const args = entryArgs();
+  args.push('--root', root);
   if (opts.idleExitMs !== undefined) args.push('--idle-exit', String(opts.idleExitMs));
   if (opts.startedBy !== undefined && WORKER_CLIENT_RE.test(opts.startedBy)) args.push('--started-by', opts.startedBy);
+  return { command: process.execPath, args };
+}
+
+/**
+ * The command line of a job process (L5.14): the worker's own entry in `--job` mode, for one heavy job the worker
+ * claimed. `--build` is the worker's stamp: the job process refuses to start on another build (exit 3). Its folders come
+ * in RETAKE_JOB_BUILD_DIRS (critique H1: a worker run in-process by a test resolves the packages otherwise than a
+ * process started from the sources, so the job process stamps the worker's folders, not its own).
+ */
+export function jobProcessCommand(root: string, job: { id: string; kind: string; build: string; supervisor: number }): { command: string; args: string[] } {
+  const args = entryArgs();
+  args.push('--job', job.id, '--kind', job.kind, '--root', root, '--build', job.build, '--supervisor', String(job.supervisor));
   return { command: process.execPath, args };
 }
 

@@ -154,7 +154,7 @@ export const runCapture = defineTool({
   name: 'run_capture',
   title: 'Capture a scenario',
   description:
-    'Capture a scenario: its setup hooks, every scene filmed in a headless browser (capture.mp4 + timeline.json), its teardown and rollbacks. A job runs it in the background, one job at a time; this call returns at once (or waits up to wait_s) with the run id — follow it with run_status {wait_s}, stop it with run_cancel. sandbox: true resets the sandbox environment to its seed first. Setup / teardown hooks that are destructive or run shell commands need a human: the user is asked to approve them before anything is queued ("confirm: true" in the file does not count here); a decline, or a client that cannot ask, refuses the call with the command a human runs.',
+    'Capture a scenario: its setup hooks, every scene filmed in a headless browser (capture.mp4 + timeline.json), its teardown and rollbacks. A job runs it in the background (one capture at a time; renders, reviews and exports wait or yield while it films); this call returns at once (or waits up to wait_s) with the run id — follow it with run_status {wait_s}, stop it with run_cancel. sandbox: true resets the sandbox environment to its seed first. Setup / teardown hooks that are destructive or run shell commands need a human: the user is asked to approve them before anything is queued ("confirm: true" in the file does not count here); a decline, or a client that cannot ask, refuses the call with the command a human runs.',
   input: z.strictObject({
     ...runInput,
     sandbox: z.boolean().optional().describe('Reset the sandbox environment (sandbox.yaml) to its seed before the take: up if needed, health, reset.'),

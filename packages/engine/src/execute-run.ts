@@ -6,7 +6,7 @@
  */
 import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@retake/core';
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@retake/core';
-import type { ConfirmHook, LiveSink, PauseGate } from '@retake/runner-web';
+import type { ConfirmHook, FilmingEvent, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
@@ -143,6 +143,8 @@ export interface ExecuteRunOptions {
   live?: LiveSink;
   /** Pauses between steps (L4.4, the worker's `pause` marker): a dry run waits; a capture says it does not pause. */
   pause?: PauseGate;
+  /** Captures first (L5.14): when a capture films (runner onFilming) — the caller writes the filming marker. */
+  onFilming?: (state: FilmingEvent) => void;
 }
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
@@ -233,6 +235,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),
       ...(opts.pause ? { pause: opts.pause } : {}),
+      ...(opts.onFilming ? { onFilming: opts.onFilming } : {}),
       ...(take ? { sandbox: take.info } : {}),
       onProgress: (e) => {
         if (take && e.type === 'run_start') take.note(e.run.id);

@@ -171,17 +171,17 @@ describe.skipIf(!built)('the old-home line at CLI start (built CLI)', () => {
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
     expect(r.stderr).toBe('Retake keeps sign-ins in ~/.retake; ~/.demo-studio (from before the rename) is not read — stop the Studio, MCP clients and the worker, then: mv ~/.demo-studio ~/.retake (retake doctor says more)\n');
-    const set = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_HOME: join(tmp, 'scratch-home') }, encoding: 'utf8' });
+    const set = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(tmp, 'scratch-home') }, encoding: 'utf8' });
     expect(set.stderr).toBe('');
   });
 
   it('old variables set without their new twin: named on stderr, values never; stdout keeps the version (reviews A M4, B M4)', () => {
     const scratch = join(tmp, 'scratch-home');
-    const r = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_HOME: scratch, DEMO_STUDIO_HOME: '/Volumes/old/home', DEMO_STUDIO_ROOT: '/old/ws' }, encoding: 'utf8' });
+    const r = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: scratch, DEMO_STUDIO_HOME: '/Volumes/old/home', DEMO_STUDIO_ROOT: '/old/ws' }, encoding: 'utf8' });
     expect(r.status).toBe(0);
     expect(r.stdout.trim()).toMatch(/^\d+\.\d+\.\d+/);
     expect(r.stderr).toBe("DEMO_STUDIO_ROOT is set but no longer read: rename it RETAKE_ROOT where it is set — shell profile, the MCP registration's env\n");
-    const both = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_HOME: scratch, RETAKE_ROOT: '/w', DEMO_STUDIO_ROOT: '/old/ws', DEMO_STUDIO_SANDBOX: 'x' }, encoding: 'utf8' });
+    const both = spawnSync(process.execPath, [BIN, '--version'], { env: { ...env(), RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: scratch, RETAKE_ROOT: '/w', DEMO_STUDIO_ROOT: '/old/ws', DEMO_STUDIO_SANDBOX: 'x' }, encoding: 'utf8' });
     expect(both.stderr).toBe('');
   });
 

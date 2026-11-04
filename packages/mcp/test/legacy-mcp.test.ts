@@ -101,7 +101,7 @@ describe('MCP and the names from before the rename', () => {
     await mkdir(join(other, '.demo-studio'), { recursive: true });
     const started = new Date((await processStart(sleeper.pid!))!).toISOString();
     await writeFile(join(other, '.demo-studio', 'ui.json'), JSON.stringify({ version: 1, kind: 'ui', pid: sleeper.pid, started_at: started, port: 4999, url: 'http://127.0.0.1:4999/', token: 'x'.repeat(40), since: '2026-11-01T10:00:00.000Z' }));
-    const r = spawnSync(process.execPath, [...SOURCE_ARGS, '--root', other, 'mcp'], { cwd: REPO, env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: home, RETAKE_HOME: join(tmp, 'h2') }, input: '', encoding: 'utf8', timeout: 60_000 });
+    const r = spawnSync(process.execPath, [...SOURCE_ARGS, '--root', other, 'mcp'], { cwd: REPO, env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: home, RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(tmp, 'h2') }, input: '', encoding: 'utf8', timeout: 60_000 });
     expect(r.status).not.toBe(0);
     expect(r.stdout).toBe('');
     expect(r.stderr).toContain(`a Studio from before the rename (Demo Studio, pid ${sleeper.pid}) still runs on this workspace — this MCP server would run beside it`);

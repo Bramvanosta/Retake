@@ -1,8 +1,10 @@
 import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, writesSummary } from '@retake/engine';
+import { FilmingMarker, RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
 import type { PreparedRun } from '@retake/engine';
+import type { FilmingEvent } from '@retake/runner-web';
+import { heavyGate } from '../heavy-gate.js';
 import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { ExitCode } from '../errors.js';
@@ -30,6 +32,8 @@ export interface RunCommandOptions extends RawFlags {
   allowWrites?: boolean;
   /** Reset the sandbox environment to its seed before the take (L1.8): up if needed, health, reset. */
   sandbox?: boolean;
+  /** `--no-wait` (wait: false): the raw export starts even while another take films, at normal priority (L5.14). */
+  wait?: boolean;
 }
 
 /** Raw flags given without --raw are a usage error (they only shape the raw export). */
@@ -93,6 +97,18 @@ export async function runCommand(
     else if (level === 'warn') ui.warn(message);
     else ui.line(ui.c.dim(message));
   };
+  // Captures first (L5.14): while this capture films, heavy work of every workspace of this user waits or yields
+  // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
+  const owner = await selfIdentity();
+  let marker: FilmingMarker | null = null;
+  const onFilming = (state: FilmingEvent) => {
+    if (state === 'start' && !marker) marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
+    else if (state === 'pause' || state === 'resume') marker?.setPaused(state === 'pause');
+    else if (state === 'stop') {
+      marker?.closeSync();
+      marker = null;
+    }
+  };
   // The printer measures the run from its first event (the sandbox take is not part of it).
   let printer: ProgressPrinter | undefined;
   let record: RunRecord;
@@ -105,6 +121,7 @@ export async function runCommand(
         loginCommand: loginCommandFor(global),
         ...(opts.allowWrites ? { allowWrites: true } : {}),
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
+        ...(opts.dry ? {} : { onFilming }),
       },
       {
         issues: (issues, file) => {
@@ -127,6 +144,8 @@ export async function runCommand(
   } catch (e) {
     fail(errorText(e));
     return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
+  } finally {
+    (marker as FilmingMarker | null)?.closeSync();
   }
   // The workspace's job history counts CLI runs too (best effort: never fails the run).
   await appendHistory(ws.root, {
@@ -142,11 +161,15 @@ export async function runCommand(
   if (record.status !== 'succeeded') return EXIT.failure;
   if (rawFlags) {
     if (!json) ui.line();
+    // Its encodes are heavy work (critique L8): they wait for another take filming now, and yield during a later one.
+    const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
     try {
       // --json: stdout stays JSON lines — the package is one `raw_export` event after run_end.
       await rawExportOfRun(ui, ws, project, record.dir, { ...rawFlags, cursor: rawCursor }, { json, jsonLines: json });
     } catch (e) {
       return fail(`raw export: ${errorMessage(e)}`);
+    } finally {
+      await gate.dispose();
     }
   }
   return EXIT.ok;

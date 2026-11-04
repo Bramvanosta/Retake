@@ -93,6 +93,16 @@ export type { WorkerSpawnFn, WorkerSpawnOptions } from './jobs/spawn.js';
 export { WORKER_ENV_DROPPED, cleanWorkerEnv } from './jobs/worker-env.js';
 export type { WorkerEnvOptions } from './jobs/worker-env.js';
 export { runWorker } from './jobs/worker.js';
+export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HOLD_MAX_MIN, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
+export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord } from './jobs/captures.js';
+export { QosYield, REWALK_MS, parseQosTable, qosTable, taskpolicy, treeOf } from './jobs/yield.js';
+export type { QosDeps, QosProc } from './jobs/yield.js';
+export { killTree, ownProcessGroup, signalTree, signalablePid } from './jobs/signal.js';
+export type { KillFn } from './jobs/signal.js';
+export { pick, takeWaiting } from './jobs/pick.js';
+export type { PickContext, PickRecord } from './jobs/pick.js';
+export { JOB_EXIT, runJobChild } from './jobs/job-child.js';
+export { jobProcessCommand } from './jobs/spawn.js';
 export type { WorkerOptions } from './jobs/worker.js';
 export { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './jobs/types.js';
 export type {

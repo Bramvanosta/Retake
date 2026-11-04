@@ -63,6 +63,8 @@ export interface PausePoint {
   emit(e: RunProgress): void;
   save(): void;
   log(level: LogLevel, message: string): void;
+  /** Captures first (L5.14): the take stopped filming (false, once its recorders paused) or films again (true, first). */
+  filming?(on: boolean): void;
 }
 
 /** The pause logic of one run: `before(scene, step)` at the top of each step. */
@@ -92,6 +94,7 @@ export class RunPauser {
     const stopped = Promise.all(filming.map((f) => f.recorder.pause()));
     await take.sampler()?.pause().catch(() => undefined);
     await stopped;
+    this.p.filming?.(false);
     record.paused = { scene, step, since: since.toISOString() };
     this.p.save();
     this.p.emit({ type: 'pause', state: 'paused', scene, step, max_ms: maxMs });
@@ -127,6 +130,8 @@ export class RunPauser {
    */
   private async resumeTake(filming: ReturnType<PauseTake['filming']>, resumed: boolean): Promise<number> {
     const { take } = this.p;
+    // Heavy work held by this take is held again before its recorders film (L5.14).
+    if (resumed) this.p.filming?.(true);
     const resumeWall = wallNow();
     let to = resumeWall;
     if (resumed && filming.length) {

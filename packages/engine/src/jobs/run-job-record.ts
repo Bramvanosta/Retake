@@ -1,0 +1,443 @@
+/**
+ * Running one claimed job (L3.1 → L5.14): its state in job.json, its events, its history line — the code the jobs worker
+ * runs for a capture in its own process, and a job process (`worker-main --job`, job-child.ts) runs for a heavy job.
+ * One writer of job.json at a time: the claimer until the job runs, then whoever runs it.
+ */
+import { rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@retake/core';
+import type { RenderJobInput, RunJobInput } from '@retake/core';
+import type { FilmingEvent } from '@retake/runner-web';
+import type { RecordJobTestHooks } from './record-job.js';
+import type { PreviewJobTestHooks } from './preview-job.js';
+import { toEngineError } from '../errors.js';
+import type { InterruptPort } from '../interrupts.js';
+import { openProjectBySlug } from '../projects.js';
+import type { openWorkspace } from '../workspace.js';
+import { FilmingMarker } from './captures.js';
+import { processStart } from './proc.js';
+import type { ProcessIdentity } from './proc.js';
+import { interrupted, jobProject } from './queue.js';
+import type { FileJobQueue } from './queue.js';
+import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
+import { executeRunJob, finaliseReservedRun, pauseMaxMs } from './run-job.js';
+import { openLiveChannel } from './live-channel.js';
+import type { LiveChannel } from './live-channel.js';
+import { executeAuthLoginJob, signInStoppedText } from './auth-job.js';
+import { executeSandboxJob } from './sandbox-job.js';
+import { appendHistory, runCounted } from '../history.js';
+import { approvalsOf, verifiedApprovals } from './signing.js';
+import type { JobErrorView, JobEventBody, JobProgress, JobRecord, JobWorkerInfo } from './types.js';
+
+export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
+
+export interface JobRunnerContext {
+  root: string;
+  ws: Workspace;
+  queue: FileJobQueue;
+  /** How the commands a human is asked to run start ("retake -C <root>"). */
+  cli: string;
+  build: string;
+  /** Who runs the job (job.json `worker`): the worker for a capture, the job process for a heavy job. */
+  worker: JobWorkerInfo;
+  self: ProcessIdentity;
+  /** The worker that claimed it, when a job process runs it (job.json `supervisor`). */
+  supervisor?: JobWorkerInfo;
+  log: (message: string) => void;
+  rw: typeof import('@retake/runner-web');
+  interrupts: (signal: AbortSignal) => InterruptPort;
+  /** The running job's cancel and a `record` job's stop, for the process's signal handler. */
+  slot: { current?: AbortController; currentStop?: AbortController };
+  /** Ids whose stored state is final. */
+  done: Set<string>;
+  /** Write job.json, or exit: a job whose state cannot be written must not look alive. */
+  writeOrExit: (rec: JobRecord) => Promise<void>;
+  recordTest?: RecordJobTestHooks;
+  previewTest?: PreviewJobTestHooks;
+  /** Why the running job was aborted when it was not a cancel (a job process whose worker stopped): it ends interrupted. */
+  abortedBecause?: () => string | undefined;
+  /** A filming take of this process started (true), paused, resumed or stopped filming (L5.14: the worker's loop wakes). */
+  onFilming?: (on: boolean) => void;
+}
+
+export function shellQuote(s: string): string {
+  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/** A finished job's line of the history (history.jsonl). */
+export function historyOf(job: JobRecord): Parameters<typeof appendHistory>[1] {
+  const r = job.result;
+  const run = r?.kind === 'run' && job.input.kind === 'run' ? { id: r.run_id, scenario: job.input.scenario, mode: r.mode, status: r.status } : undefined;
+  const render =
+    job.input.kind === 'render' ? { id: job.input.render_id, scenario: job.input.scenario, ...(r?.kind === 'render' ? { variant: r.variant } : {}) } : undefined;
+  const review = job.input.kind === 'review' ? { render: job.input.render_id, ...(r?.kind === 'review' ? { clean: r.clean } : {}) } : undefined;
+  // An export counts the formats it re-rendered through the planner (as `retake export` does); transcodes do not count.
+  const exported = job.input.kind === 'export' ? { render: job.input.render_id, formats: r?.kind === 'export' ? r.outputs.map((o) => o.format) : [], rendered: r?.kind === 'export' ? r.rendered : 0 } : undefined;
+  const preview =
+    job.input.kind === 'preview'
+      ? { id: job.input.preview_id, target: job.input.target.kind === 'component' ? job.input.target.component : job.input.target.kind, ...(r?.kind === 'preview' ? { theme: r.theme } : {}) }
+      : undefined;
+  // An inspection counts nothing (a dry replay to read a page, not a dry run of the scenario).
+  const inspect =
+    job.input.kind === 'inspect'
+      ? { id: job.input.inspect_id, source: job.input.source.kind, ...(r?.kind === 'inspect' ? { status: r.status, reported: r.reported } : {}) }
+      : undefined;
+  // A recording counts nothing (its check replay is a check, not a dry run of a saved scenario).
+  const record = job.input.kind === 'record' ? { id: job.input.rec_id, steps: r?.kind === 'record' ? r.stats.steps : 0, saved: r?.kind === 'record' && r.saved !== null } : undefined;
+  // A site extraction counts nothing (workspace-level: no project).
+  const site = job.input.kind === 'site' ? { id: job.input.site_id, host: new URL(job.input.url).hostname, ...(r?.kind === 'site' ? { status: r.status } : {}) } : undefined;
+  const project = jobProject(job.input);
+  const started = job.started_at ? Date.parse(job.started_at) : NaN;
+  return {
+    ...(job.finished_at ? { at: job.finished_at } : {}),
+    job: job.id,
+    kind: job.kind,
+    ...(project !== undefined ? { project } : {}),
+    submitted_by: job.input.submitted_by,
+    state: job.state,
+    ...(Number.isFinite(started) && job.finished_at ? { ms: Date.parse(job.finished_at) - started } : {}),
+    ...(run ? { run } : {}),
+    ...(render ? { render } : {}),
+    ...(review ? { review } : {}),
+    ...(exported ? { export: { render: exported.render, formats: exported.formats } } : {}),
+    ...(preview ? { preview } : {}),
+    ...(inspect ? { inspect } : {}),
+    ...(record ? { record } : {}),
+    ...(site ? { site } : {}),
+    // A render counts once it wrote its video (the Remotion usage a licence would track); an export, its re-renders.
+    counted: run
+      ? runCounted(run.mode, run.status)
+      : { captures: 0, dry_runs: 0, renders: render && job.state === 'succeeded' && r?.kind === 'render' ? 1 : (exported?.rendered ?? 0) },
+  };
+}
+
+/** What in a job's input this worker does not know (a newer client's input version or kind), or null. */
+export function unknownInput(input: unknown): string | null {
+  const i = (input ?? {}) as { version?: unknown; kind?: unknown };
+  if (i.version !== JOB_INPUT_VERSION) return `input version ${JSON.stringify(i.version ?? null)} (it knows ${JOB_INPUT_VERSION})`;
+  if (!(JOB_KINDS as readonly unknown[]).includes(i.kind)) return `kind ${JSON.stringify(i.kind ?? null)} (it knows ${JOB_KINDS.join(', ')})`;
+  return null;
+}
+
+/** Running claimed jobs with `c` (a worker, or a job process). */
+export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobRecord) => Promise<void> } {
+  const { root, ws, queue, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit } = c;
+
+  /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
+  const filmingOf = (id: string): { on: (state: FilmingEvent) => void; close: () => void } => {
+    let marker: FilmingMarker | null = null;
+    const close = () => {
+      if (!marker) return;
+      marker.closeSync();
+      marker = null;
+      c.onFilming?.(false);
+    };
+    return {
+      on: (state) => {
+        if (state === 'start' && !marker) {
+          marker = FilmingMarker.open({ root, source: 'job', owner: self });
+          if (!marker) log(`job ${id}: no filming marker (the captures folder cannot be used): heavy work elsewhere is not held`);
+          c.onFilming?.(true);
+        } else if (state === 'pause' || state === 'resume') {
+          marker?.setPaused(state === 'pause');
+          c.onFilming?.(state === 'resume');
+        } else if (state === 'stop') close();
+      },
+      close,
+    };
+  };
+
+  const runJob = async (stored: JobRecord): Promise<void> => {
+    const id = stored.id;
+    let seq = 0;
+    let chain: Promise<unknown> = Promise.resolve();
+    const append = (events: JobEventBody[]) => {
+      chain = chain.then(async () => {
+        try {
+          seq = await queue.append(id, seq, events);
+        } catch (e) {
+          log(`job ${id}: events not written (${(e as Error).message})`);
+        }
+      });
+    };
+    const finish = async (rec: JobRecord, error?: JobErrorView) => {
+      await chain;
+      const final: JobRecord = { ...rec, finished_at: new Date().toISOString(), ...(error ? { error } : {}) };
+      await writeOrExit(final);
+      append([{ type: 'state', state: final.state }, { type: 'result', ...(final.result ? { result: final.result } : {}), ...(error ? { error } : {}) }]);
+      await chain;
+      done.add(id);
+      await appendHistory(root, historyOf(final));
+      log(`job ${id}: ${final.state}${error ? ` (${error.message.split('\n')[0]})` : ''}`);
+    };
+
+    // A cancel asked before the claim closes the job without running it (its reserved run too).
+    if (await queue.cancelRequested(id)) {
+      if (stored.input.kind === 'run') {
+        await finaliseRun(stored.input, 'cancelled', 'cancelled before it started');
+      }
+      if (stored.input.kind === 'render') await releaseLock(stored.input);
+      await finish({ ...stored, state: 'cancelled' }, { code: 'cancelled', message: 'cancelled before it started' });
+      return;
+    }
+    // A job this worker does not know is refused without running (never parsed as another kind).
+    const unknown = unknownInput(stored.input);
+    if (unknown) {
+      await finish(
+        { ...stored, state: 'failed' },
+        { code: 'invalid', message: `refused without running: this worker (Retake ${RETAKE_VERSION}, build ${build}) does not know job ${unknown} — submit it again once the client and the worker run the same build` },
+      );
+      return;
+    }
+    const parsed = JobInputSchema.safeParse(stored.input);
+    if (!parsed.success) {
+      await finish({ ...stored, state: 'failed' }, { code: 'invalid', message: `invalid job input: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}` });
+      return;
+    }
+    const controller = new AbortController();
+    slot.current = controller;
+    let rec: JobRecord = { ...stored, state: 'running', started_at: new Date().toISOString(), worker, ...(c.supervisor ? { supervisor: c.supervisor } : {}) };
+    await writeOrExit(rec);
+    append([{ type: 'state', state: 'running' }]);
+    log(`job ${id}: running (${stored.kind} ${jobProject(stored.input) ?? 'workspace'})`);
+
+    // Progress: job.json at most every 500 ms; nothing after the final write.
+    let closed = false;
+    let progressTimer: NodeJS.Timeout | undefined;
+    let latest: JobProgress | undefined;
+    const flushProgress = () => {
+      progressTimer = undefined;
+      if (closed || !latest) return;
+      rec = { ...rec, progress: latest };
+      const snapshot = rec;
+      chain = chain.then(() => (closed ? undefined : queue.write(snapshot).catch(() => undefined)));
+    };
+    // L4.4: a run's pause marker (a client creates and removes it), polled with the cancel marker; the runner reads the
+    // gate between steps (a capture does not film the pause).
+    const pauseGate: { requested: boolean; maxMs?: number } = { requested: false };
+    // L4.8: a `record` job's stop marker (the Studio's Stop): the window closes as if the person closed it, the draft is
+    // made and its check replay runs (a worker signal, currentStop, skips the check).
+    const stopAsked = new AbortController();
+    const cancelPoll = setInterval(() => {
+      void queue.cancelRequested(id).then((asked) => {
+        if (asked && !controller.signal.aborted) {
+          log(`job ${id}: cancel requested`);
+          controller.abort(new rw.CancelledError('run cancelled (cancel requested)'));
+        }
+      });
+      if (stored.kind === 'record' && !stopAsked.signal.aborted) {
+        void queue.stopRequested(id).then(
+          (asked) => {
+            if (asked && !stopAsked.signal.aborted) {
+              log(`job ${id}: stop requested`);
+              stopAsked.abort();
+            }
+          },
+          () => undefined,
+        );
+      }
+      if (stored.kind === 'run') {
+        void queue.pauseRequested(id).then(
+          (asked) => {
+            if (asked !== pauseGate.requested) log(`job ${id}: ${asked ? 'pause' : 'resume'} requested`);
+            pauseGate.requested = asked;
+          },
+          () => undefined,
+        );
+      }
+    }, 250);
+    let error: JobErrorView | undefined;
+    try {
+      const event = (e: JobEventBody) => append([e]);
+      // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
+      const { approvals, rejected } = await verifiedApprovals(parsed.data);
+      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed by this Retake home's key (not written by a submit): ignored` });
+      const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
+      // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
+      const base = { ws, cli, signal: controller.signal, event };
+      const onProgress = (p: JobProgress) => {
+        latest = p;
+        if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);
+      };
+      // A render browser is recorded at once (pid + start time): a worker killed mid-render leaves it running.
+      const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
+        chain = chain.then(async () => {
+          const t = await processStart(b.pid).catch(() => null);
+          await writeFile(queue.browserFile(id), `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`).catch(() => undefined);
+        });
+      };
+      switch (job.kind) {
+        case 'run': {
+          try {
+            const max = pauseMaxMs();
+            if (max !== undefined) pauseGate.maxMs = max;
+          } catch (e) {
+            event({ type: 'log', level: 'warn', message: `${(e as Error).message}: the default (30 min) applies` });
+          }
+          // The live picture's channel (L4.4): a loopback listener and live.json, for as long as the job runs.
+          let channel: LiveChannel | null = null;
+          try {
+            channel = await openLiveChannel({ queue, jobId: id, runId: job.run_id, worker: self });
+          } catch (e) {
+            log(`job ${id}: no live picture (${(e as Error).message})`);
+          }
+          // L5.14: a filming take holds heavy work of every workspace while it films (captures.ts).
+          const film = job.mode === 'capture' ? filmingOf(id) : undefined;
+          let result: Awaited<ReturnType<typeof executeRunJob>>;
+          try {
+            result = await executeRunJob({
+              ...base,
+              input: job,
+              interrupts: interrupts(controller.signal),
+              progress: onProgress,
+              ...(channel ? { live: channel.sink } : {}),
+              pause: pauseGate,
+              ...(film ? { onFilming: film.on } : {}),
+            });
+          } finally {
+            film?.close();
+            await channel?.close();
+          }
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: result.status === 'cancelled' ? 'cancelled' : 'succeeded' };
+          if (result.status === 'cancelled') error = { code: 'cancelled', message: result.untrusted?.error_message ?? 'run cancelled' };
+          break;
+        }
+        case 'hooks':
+        case 'env_reset': {
+          const result = job.kind === 'hooks' ? await executeHooksJob({ ...base, input: job }) : await executeEnvResetJob({ ...base, input: job });
+          rec = { ...rec, result, state: result.interrupted ? 'cancelled' : 'succeeded' };
+          if (result.interrupted) error = { code: 'cancelled', message: `${job.kind === 'hooks' ? 'hooks' : 'environment reset'} cancelled: the remaining hooks did not run` };
+          break;
+        }
+        case 'auth_login': {
+          const result = await executeAuthLoginJob({ ...base, input: job, interrupts: interrupts(controller.signal) });
+          rec = { ...rec, result, state: result.interrupted ? 'cancelled' : 'succeeded' };
+          if (result.interrupted) {
+            error = {
+              code: 'cancelled',
+              message: `sign-in ${result.timed_out ? 'stopped' : 'cancelled'}: ${signInStoppedText(result)}`,
+            };
+          }
+          break;
+        }
+        case 'sandbox_up':
+        case 'sandbox_reset': {
+          const result = await executeSandboxJob({ ...base, input: job, interrupts: interrupts(controller.signal) });
+          rec = { ...rec, result, state: 'succeeded' };
+          break;
+        }
+        case 'render': {
+          // Lazy: Remotion is loaded by the first render, never by a capture-only worker.
+          const { executeRenderJob } = await import('./render-job.js');
+          const result = await executeRenderJob({
+            ...base,
+            input: job,
+            progress: onProgress,
+            browser: recordBrowser,
+            jobDir: queue.jobDir(id),
+          });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'review': {
+          // Lazy: sharp and the review checks are loaded by the first review.
+          const { executeReviewJob } = await import('./review-job.js');
+          const result = await executeReviewJob({ ...base, input: job, progress: onProgress });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'export': {
+          const { executeExportJob } = await import('./export-job.js');
+          const result = await executeExportJob({ ...base, input: job, progress: onProgress, browser: recordBrowser });
+          // A cancel stops between formats: what was written stays (and is in the result).
+          const cancelled = controller.signal.aborted;
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: cancelled ? 'cancelled' : 'succeeded' };
+          if (cancelled) error = { code: 'cancelled', message: `export cancelled: ${result.outputs.length} of ${job.formats.length} formats written` };
+          break;
+        }
+        case 'preview': {
+          // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
+          const { executePreviewJob } = await import('./preview-job.js');
+          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, ...(c.previewTest ? { test: c.previewTest } : {}) });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'inspect': {
+          // Lazy: the review package (sharp) draws the marks; the runner is already loaded.
+          const { executeInspectJob } = await import('./inspect-job.js');
+          const result = await executeInspectJob({ ...base, input: job, progress: onProgress });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        case 'record': {
+          // A headed window for a person: it holds the worker's capture slot (renders go on beside it) until it is closed.
+          const { executeRecordJob } = await import('./record-job.js');
+          const stop = new AbortController();
+          slot.currentStop = stop;
+          // A Stop asked before the worker took the job (the Studio's Stop as it was taken): seen before anything opens.
+          if (!stopAsked.signal.aborted && (await queue.stopRequested(id).catch(() => false))) stopAsked.abort();
+          try {
+            const result = await executeRecordJob({ ...base, input: job, jobId: id, stop: stop.signal, finish: stopAsked.signal, progress: onProgress, ...(c.recordTest ? { test: c.recordTest } : {}) });
+            rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          } finally {
+            slot.currentStop = undefined;
+          }
+          break;
+        }
+        case 'site': {
+          // A clean browser on one public page, through the worker's CONNECT proxy; refused without its signed approval.
+          const { executeSiteJob } = await import('./site-job.js');
+          const result = await executeSiteJob({ ...base, input: job, progress: onProgress });
+          rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
+          break;
+        }
+        default: {
+          const never: never = job;
+          throw new Error(`unknown job kind ${(never as { kind: string }).kind}`);
+        }
+      }
+    } catch (e) {
+      const err = toEngineError(e);
+      const cancelled = controller.signal.aborted || err.code === 'cancelled';
+      rec = { ...rec, state: cancelled ? 'cancelled' : 'failed' };
+      error = { code: cancelled ? 'cancelled' : err.code, message: err.message, ...(err.fix ? { fix: err.fix } : {}) };
+    } finally {
+      clearInterval(cancelPoll);
+      if (progressTimer) clearTimeout(progressTimer);
+      closed = true;
+      slot.current = undefined;
+    }
+    // A job process whose worker stopped (job-child.ts): it ended itself, as interrupted rather than cancelled.
+    const orphan = c.abortedBecause?.();
+    if (orphan && rec.state === 'cancelled') {
+      error = interrupted(rec, cli, orphan).error;
+      rec = { ...rec, state: 'interrupted' };
+    }
+    if (stored.kind === 'render' || stored.kind === 'export' || stored.kind === 'preview') {
+      // The render browser is closed: its record must not outlive the job (a reused pid is never killed anyway).
+      await chain;
+      await rm(queue.browserFile(id), { force: true }).catch(() => undefined);
+    }
+    await finish(rec, error);
+  };
+
+  async function releaseLock(input: RenderJobInput): Promise<void> {
+    try {
+      const { releaseRenderLock } = await import('./render-job.js');
+      await releaseRenderLock(ws, input);
+    } catch (e) {
+      log(`render ${input.render_id}: lock not released (${(e as Error).message})`);
+    }
+  }
+
+  async function finaliseRun(input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
+    try {
+      const project = await openProjectBySlug(ws, input.project);
+      await finaliseReservedRun(join(project.dir, 'runs', input.run_id), status, message);
+    } catch (e) {
+      log(`run ${input.run_id}: not finalised (${(e as Error).message})`);
+    }
+  }
+
+  return { runJob };
+}

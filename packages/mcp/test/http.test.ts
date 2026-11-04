@@ -103,7 +103,7 @@ describe('MCP over HTTP: the same server as stdio', () => {
         command: process.execPath,
         args: ['--conditions=source', '--import', 'tsx', join(REPO, 'packages', 'cli', 'src', 'bin.ts'), '--root', ws, 'mcp'],
         cwd: REPO,
-        env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home },
+        env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: home },
         stderr: 'pipe',
       }),
     );

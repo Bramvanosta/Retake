@@ -92,7 +92,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
+      env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
@@ -147,7 +147,7 @@ describe.skipIf(!ENABLED)('fixture acceptance through MCP: capture â†’ render â†
     const out = execFileSync(
       process.execPath,
       ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'comment', 'add', 'northfield-fixture', ids.editorial!, '--marker', 'proposal', '--region', '0.67,0.42,0.12,0.08', '--json', 'Try a laptop frame for the proposal'],
-      { cwd: REPO, env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { cwd: REPO, env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
     expect(added.warnings).toEqual([]);

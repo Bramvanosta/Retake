@@ -57,7 +57,7 @@ export { busyPorts, describeListeners, listeners, parseLsof, portLabel, probePor
 export type { Listener, SandboxPort } from './ports.js';
 export { HEALTH_INTERVAL_MS, PROCESS_HEALTH_TIMEOUT_S, checkOnce, healthNow, pinHealth, pinnedAddress, pinnedRequest, serviceHealth, targetLabel, waitHealthy } from './health.js';
 export type { HealthTarget, ServiceHealth } from './health.js';
-export { bootTime, groupMembers, groupTree, identify, killGroupSync, parseBootTime, parseLstart, parseProcessTable, processStart, processStartSync, processTable, signalState, stopGroup } from './proc.js';
+export { bootTime, groupMembers, groupTree, identify, killGroupSync, parseBootTime, parseLstart, parseProcessTable, processStart, processStartSync, processTable, processTableSync, signalState, stopGroup } from './proc.js';
 export type { Known, Member, ProcInfo } from './proc.js';
 export { checkExecHosts, checkMailbox, checkSeedDatabases, clearMailbox, masker, runSeed, sandboxSecrets } from './seed.js';
 export { DEFAULT_SANDBOX_ENV, INIT_BASE_PORT, SCAFFOLD_DIR, initSandbox, schemaRef } from './init.js';

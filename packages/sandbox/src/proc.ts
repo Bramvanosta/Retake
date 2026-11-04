@@ -45,16 +45,21 @@ export function parseProcessTable(text: string): ProcInfo[] {
 
 const PS_TABLE_ARGS = ['-A', '-o', 'pid=,ppid=,pgid=,lstart='];
 
-/** Every process of this machine (empty when ps cannot run). */
+/** The longest one `ps` may take (ms): a hung `ps` never blocks a stop or a cancel (L5.14a fixes, review A L4). */
+export const PS_TIMEOUT_MS = 5_000;
+
+/** Every process of this machine (empty when ps cannot run or takes longer than PS_TIMEOUT_MS). */
 export function processTable(): Promise<ProcInfo[]> {
   return new Promise((resolve) => {
-    execFile('ps', PS_TABLE_ARGS, { env: PS_ENV, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => resolve(err && !stdout ? [] : parseProcessTable(String(stdout))));
+    execFile('ps', PS_TABLE_ARGS, { env: PS_ENV, maxBuffer: 16 * 1024 * 1024, timeout: PS_TIMEOUT_MS }, (err, stdout) =>
+      resolve(err && ((err as { killed?: boolean }).killed || !stdout) ? [] : parseProcessTable(String(stdout))),
+    );
   });
 }
 
 export function processTableSync(): ProcInfo[] {
   try {
-    return parseProcessTable(execFileSync('ps', PS_TABLE_ARGS, { env: PS_ENV, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
+    return parseProcessTable(execFileSync('ps', PS_TABLE_ARGS, { env: PS_ENV, maxBuffer: 16 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'], timeout: PS_TIMEOUT_MS }).toString());
   } catch {
     return [];
   }
@@ -63,13 +68,13 @@ export function processTableSync(): ProcInfo[] {
 /** A process's start time (epoch ms), or null when it is gone. */
 export function processStart(pid: number): Promise<number | null> {
   return new Promise((resolve) => {
-    execFile('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV }, (err, stdout) => resolve(err ? null : parseLstart(String(stdout).trim())));
+    execFile('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV, timeout: PS_TIMEOUT_MS }, (err, stdout) => resolve(err ? null : parseLstart(String(stdout).trim())));
   });
 }
 
 export function processStartSync(pid: number): number | null {
   try {
-    return parseLstart(execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim());
+    return parseLstart(execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: PS_ENV, stdio: ['ignore', 'pipe', 'ignore'], timeout: PS_TIMEOUT_MS }).toString().trim());
   } catch {
     return null;
   }

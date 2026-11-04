@@ -6,6 +6,7 @@ import { RenderError, findRun, planFileRefs, themeFileRefs } from '@retake/edito
 import type { RawExportProgress, RawExportResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
+import { heavyGate } from '../heavy-gate.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
@@ -27,6 +28,8 @@ export interface RawFlags {
 export interface ExportCaptureCommandOptions extends RawFlags {
   scenario?: string;
   json?: boolean;
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  wait?: boolean;
 }
 
 /** Validated raw flags (undefined = project `raw` / default). */
@@ -150,6 +153,8 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
     if (e instanceof RenderError) throw new CliError(e.message);
     throw e;
   }
+  // Captures first (L5.14, critique L8): its encodes are heavy work — the run was resolved before any wait.
+  const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
   const ac = new AbortController();
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);
@@ -158,5 +163,6 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
     return r.manifest.warnings.length > 0 && r.manifest.clips.length === 0 ? EXIT.failure : EXIT.ok;
   } finally {
     process.removeListener('SIGINT', onSigint);
+    await gate.dispose();
   }
 }

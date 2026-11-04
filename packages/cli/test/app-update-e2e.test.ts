@@ -173,7 +173,7 @@ describe.skipIf(!ENABLED)('the updater, end to end (L5.16d, gated: RETAKE_TEST_U
     mkdirSync(dirname(copy), { recursive: true });
     expect(spawnSync('ditto', [built.v1.app, copy]).status).toBe(0);
     for (const d of ['home', 'retake-home', 'tmp', 'ws/projects']) mkdirSync(join(base, d), { recursive: true });
-    runEnv = { HOME: join(base, 'home'), CFFIXED_USER_HOME: join(base, 'home'), RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off', RETAKE_ROOT: join(base, 'ws'), RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_UPDATE: 'install' };
+    runEnv = { HOME: join(base, 'home'), CFFIXED_USER_HOME: join(base, 'home'), RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off', RETAKE_ROOT: join(base, 'ws'), RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_UPDATE: 'install' };
   }, 30 * 60_000);
 
   afterAll(async () => {

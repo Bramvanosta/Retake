@@ -55,7 +55,8 @@ export function jobWords(j: ScenarioRenderJobView): string {
   if (j.state === 'queued') {
     const ahead = j.queue?.ahead ?? 0;
     const r = j.queue?.running;
-    const first = ahead === 0 ? 'next in the queue' : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
+    // L5.14: a render a take holds does not start before the take ends, whatever its place.
+    const first = j.queue?.held_by === 'take' ? 'waiting for a take to finish' : ahead === 0 ? 'next in the queue' : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
     const running = r ? ` (a ${r.kind.replace(/_/g, ' ')} is running${r.fraction !== undefined ? `, ${Math.round(r.fraction * 100)} %` : ''})` : '';
     return `${v} · queued — ${first}${running}`;
   }

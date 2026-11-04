@@ -175,7 +175,16 @@ export interface RunOptions {
   live?: LiveSink;
   /** Pauses between steps (L4.4, pause.ts): a dry run waits while the gate asks; a capture says it does not pause. */
   pause?: PauseGate;
+  /**
+   * Captures first (L5.14): told when a capture starts filming (capture time 0), pauses and resumes (L4.4: the pause is
+   * not filmed; `resume` comes before the recorders film again) and stops filming (its recorders stopped, before the
+   * teardown). Setup and teardown hooks, prewarm and the encode's end are not filming. Never called for a dry run.
+   */
+  onFilming?: (state: FilmingEvent) => void;
 }
+
+/** What onFilming says (L5.14). */
+export type FilmingEvent = 'start' | 'pause' | 'resume' | 'stop';
 
 /**
  * SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process — after removing the session
@@ -208,6 +217,15 @@ function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void, groups: 
   process.on('SIGINT', handler);
   process.on('SIGTERM', handler);
   return remove;
+}
+
+/** A caller's onFilming never breaks a take. */
+function tell(f: (state: FilmingEvent) => void, state: FilmingEvent): void {
+  try {
+    f(state);
+  } catch {
+    /* the caller's marker: not the take's business */
+  }
 }
 
 interface HooksState {
@@ -484,6 +502,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     });
   /** Capture time 0 is set (writes and the like are stamped from then on). */
   let captureStarted = false;
+  /** Captures first (L5.14): onFilming said `start` and not yet `stop`. */
+  let filming = false;
   let writeGuard: WriteGuardOptions | null = null;
   const inspectContext = (at: InspectContext['at'], failed: StepFailure | null): InspectContext => ({
     at,
@@ -723,6 +743,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await session.anchorClock();
     clock.t0Wall = wallNow();
     captureStarted = true;
+    if (mode === 'capture' && opts.onFilming) {
+      filming = true;
+      tell(opts.onFilming, 'start');
+    }
     if (opts.live) {
       const r = rt;
       live = new LivePreview({ sink: opts.live, page: () => r.page, pageId: (p) => session?.idOf(p), width: capture.width, height: capture.height });
@@ -782,6 +806,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           emit,
           save: () => void files.saveRecord(),
           log,
+          ...(mode === 'capture' && opts.onFilming ? { filming: (on: boolean) => tell(opts.onFilming!, on ? 'resume' : 'pause') } : {}),
           // A capture does not film the pause (L4.4): its recorders, clock and CPU sampler stop meanwhile (pause.ts).
           take: {
             clock,
@@ -876,6 +901,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       } catch (e) {
         log('error', `stopping the recorder failed: ${errorMessage(e)}`);
       }
+    }
+    // Off camera (L5.14): heavy work held for this take may go on (teardown, diagnosis and artefacts are not filming).
+    if (filming) {
+      filming = false;
+      tell(opts.onFilming!, 'stop');
     }
     if (sampler) {
       perfCpu = await sampler.stop().catch(() => undefined);

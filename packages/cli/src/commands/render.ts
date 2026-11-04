@@ -11,9 +11,12 @@ import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import { printReview, runReview } from './review.js';
+import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface RenderCommandOptions {
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  wait?: boolean;
   /** Run id, run directory or "latest" (default latest of the scenario). */
   run?: string;
   theme?: string;
@@ -37,6 +40,8 @@ export interface RenderCommandOptions {
 }
 
 export interface StillCommandOptions {
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  wait?: boolean;
   run?: string;
   /** Output frame number (required). */
   frame?: string;
@@ -177,13 +182,23 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (opts.outro === false) overrides.outro = false;
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
   warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
+  // Captures first (L5.14): the run is the one named now ("latest" resolved before any wait, critique M10).
+  let runId: string;
+  try {
+    runId = findRun(project, opts.run ?? 'latest', scenario).id;
+  } catch (e) {
+    if (e instanceof RenderError) throw new CliError(e.message);
+    throw e;
+  }
+  const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
+  if (gate.waited) ui.info(`rendering run ${runId}`);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
   const { signal, dispose } = abortOnSigint(ui);
   try {
     const record = await renderVideo({
       project,
       root: ws.root,
-      run: opts.run ?? 'latest',
+      run: runId,
       scenario,
       template: opts.theme,
       overrides,
@@ -221,6 +236,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     throw e;
   } finally {
     dispose();
+    await gate.dispose();
   }
 }
 
@@ -255,6 +271,9 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const out = opts.out
     ? resolve(opts.out)
     : join(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[plan.variant]}-f${String(frame).padStart(5, '0')}.png`);
+  // Captures first (L5.14): the run was planned (resolved) before any wait.
+  const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
+  if (gate.waited) ui.info(`rendering frame ${frame} of run ${run.id}`);
   const t0 = performance.now();
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
@@ -264,6 +283,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     throw e;
   } finally {
     ui.clearStatus();
+    await gate.dispose();
   }
   // A still is a render too (the Remotion usage a licence would track; best effort).
   await appendHistory(ws.root, { kind: 'still', project: project.slug, submitted_by: 'cli', state: 'succeeded', ms: Math.round(performance.now() - t0), counted: { captures: 0, dry_runs: 0, renders: 1 } });

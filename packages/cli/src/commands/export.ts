@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { EXPORT_FORMATS, DEFAULT_EXPORT_FORMATS, ExportError, RenderError, exportRender } from '@retake/editor';
+import { EXPORT_FORMATS, DEFAULT_EXPORT_FORMATS, ExportError, RenderError, exportRender, findRenderRecord } from '@retake/editor';
 import type { ExportFormat, ExportProgress } from '@retake/editor';
 import { appendHistory } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -9,8 +9,11 @@ import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
+import { heavyGate } from '../heavy-gate.js';
 
 export interface ExportCommandOptions {
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  wait?: boolean;
   /** Comma-separated formats (default mp4_1080p,webm,gif_preview). */
   formats?: string;
   scenario?: string;
@@ -53,6 +56,16 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gifStart !== undefined && !(gifStart >= 0)) throw new UsageError(`--gif-start "${opts.gifStart}": use seconds ≥ 0`);
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
+  // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
+  let render: string;
+  try {
+    render = renderArg === 'latest' ? (await findRenderRecord(project, renderArg, opts.scenario)).id : renderArg;
+  } catch (e) {
+    if (e instanceof ExportError || e instanceof RenderError) throw new CliError(e.message);
+    throw e;
+  }
+  const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
+  if (gate.waited) ui.info(`exporting render ${render}`);
   const ac = new AbortController();
   const onSigint = () => ac.abort();
   process.once('SIGINT', onSigint);
@@ -67,7 +80,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
     const r = await exportRender({
       project,
       root: ws.root,
-      render: renderArg,
+      render,
       scenario: opts.scenario,
       formats,
       out: opts.out ? resolve(opts.out) : undefined,
@@ -101,5 +114,6 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
     throw e;
   } finally {
     process.removeListener('SIGINT', onSigint);
+    await gate.dispose();
   }
 }

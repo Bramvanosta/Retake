@@ -1,7 +1,8 @@
 /**
  * vitest globalSetup (L5.13a reviews A L5 / B L4): at the end of a run, remove the temp RETAKE_HOME vitest.config.ts
  * made (RETAKE_TEST_HOME_MADE) — only a `retake-test-home-*` folder directly in the temp folder, never a home the shell
- * named. L5.16c fixes: likewise the scratch CFFIXED_USER_HOME it made (RETAKE_TEST_CFHOME_MADE, `retake-test-cfhome-*`).
+ * named. L5.16c fixes: likewise the scratch CFFIXED_USER_HOME it made (RETAKE_TEST_CFHOME_MADE, `retake-test-cfhome-*`);
+ * L5.14: and the parent of the test files' filming-marker folders (RETAKE_TEST_CAPTURES_MADE, `retake-test-captures-*`).
  *
  * L5.16 Library hygiene: tests leave the account's ~/Library as found. Two files there are what a Chromium of ours
  * writes when a child misses the scratch CFFIXED_USER_HOME, or writes anyway: the crash reporter's settings.dat
@@ -49,6 +50,7 @@ export default function setup() {
     };
     drop(process.env.RETAKE_TEST_HOME_MADE, process.env.RETAKE_HOME, 'retake-test-home-');
     drop(process.env.RETAKE_TEST_CFHOME_MADE, process.env.CFFIXED_USER_HOME, 'retake-test-cfhome-');
+    drop(process.env.RETAKE_TEST_CAPTURES_MADE, process.env.RETAKE_TEST_CAPTURES, 'retake-test-captures-');
     const changed = libraryChanges(files, before, libraryStamps(files));
     if (!changed.length) return;
     const text = [

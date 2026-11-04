@@ -100,6 +100,46 @@ describe('FileJobQueue', () => {
     expect((await q.list({ states: ['cancelled'] })).map((j) => j.id)).toEqual([a.id]);
   });
 
+  it('L5.14a fixes (review B M4): position per lane (captures before heavy jobs); a heavy job a take holds says held_by "take", never "next"', async () => {
+    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const root = join(ws, 'q-lanes');
+    const q = new FileJobQueue(root);
+    const review = (n: number) => q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: `quote-v${n}`, fps: 1, submitted_by: 'test' } as never);
+    const r1 = await review(1);
+    const dry = await q.enqueue({ ...INPUT, run_id: '20261017-140000-quote' });
+    const r2 = await review(2);
+    // Lanes: the dry run (a capture, newer than r1) is not ahead of r2; r1 is.
+    expect(await q.position(r2.id)).toEqual({ ahead: 1 });
+    expect(await q.position(dry.id)).toEqual({ ahead: 0 });
+    expect(await q.position(r1.id)).toEqual({ ahead: 0 });
+    // A filming take of this workspace waits in the queue: every heavy job is held by it, whatever its place.
+    const take = await q.enqueue({ ...INPUT, mode: 'capture', run_id: '20261017-140001-quote' });
+    expect(await q.position(r1.id)).toEqual({ ahead: 0, held_by: 'take' });
+    expect(await q.position(r2.id)).toEqual({ ahead: 1, held_by: 'take' });
+    expect(await q.position(dry.id)).toEqual({ ahead: 0 });
+    // Cancelled, it holds nothing.
+    await q.cancel(take.id, 'test');
+    expect(await q.position(r1.id)).toEqual({ ahead: 0 });
+    // A take filming on this Mac (a marker of another workspace, or a terminal) holds them too.
+    const m = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    try {
+      expect(await q.position(r1.id)).toEqual({ ahead: 0, held_by: 'take' });
+      expect(await q.position(dry.id)).toEqual({ ahead: 0 });
+    } finally {
+      m.closeSync();
+    }
+    expect(await q.position(r1.id)).toEqual({ ahead: 0 });
+  });
+
+  it('L5.14a fixes: a running job whose recorded worker pid is 0, 1 or -1 is derived interrupted (never a live worker)', async () => {
+    const q = new FileJobQueue(join(ws, 'q-badpid'));
+    for (const pid of [0, 1, -1]) {
+      const rec = await q.enqueue({ ...INPUT, run_id: `20261017-16000${pid + 1}-quote` });
+      await q.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: { pid, host: 'here' } });
+      expect((await q.get(rec.id))?.state, String(pid)).toBe('interrupted');
+    }
+  });
+
   it('claims are exclusive (O_EXCL), also when many race for one job', async () => {
     const q = new FileJobQueue(join(ws, 'q-claim'));
     const job = await q.enqueue(INPUT);

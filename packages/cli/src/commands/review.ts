@@ -5,10 +5,14 @@ import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
+import { findRenderRecord } from '@retake/editor';
 import { openProject, openWorkspace } from '../workspace.js';
+import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
 
 export interface ReviewCommandOptions {
+  /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
+  wait?: boolean;
   fps?: string;
   /** Render id to compare with; commander sets false for --no-previous. */
   previous?: string | false;
@@ -87,12 +91,25 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (typeof opts.previous === 'string' && opts.previous.trim() === '') throw new UsageError('--previous needs a render id (or use --no-previous)');
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
+  // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
+  let renderId = render;
+  if (render === 'latest') {
+    try {
+      renderId = (await findRenderRecord(project, render, opts.scenario)).id;
+    } catch (e) {
+      throw new CliError((e as Error).message);
+    }
+  }
+  const gate = await heavyGate(ui, { root: ws.root, what: 'reviewing', noWait: opts.wait === false });
+  if (gate.waited) ui.info(`reviewing render ${renderId}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, { project, root: ws.root, render, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, { project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;
+  } finally {
+    await gate.dispose();
   }
   if (opts.json) {
     const { thumbnails: _t, ...rest } = result;

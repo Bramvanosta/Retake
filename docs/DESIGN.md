@@ -1482,7 +1482,8 @@ panel — the same session, nothing forwarded to it.
   removed, job `cancelled`), after it only the check replay stops. Progress: `phase` = preflight / `recording · N
   actions` / draft / check with steps; events carry counts and fixed messages only (a log line when the window opens).
   The worker's history line (`record {id, steps, saved}`, counts nothing) replaces recordScenario's own. A `record` job
-  holds the queue while its window is open (one job at a time, as a headed `auth_login`). Interrupted: by its last
+  holds the worker's capture slot while its window is open (as a headed `auth_login`; renders go on beside it since
+  L5.14: it films nothing). Interrupted: by its last
   progress phase — `check`: the draft was made (`.retake/records/<rec_id>/draft.yaml`, saved under scenarios/ when
   its name was free), only the check was cut; `draft`: the draft was being made (that file if it was written);
   otherwise "no draft was made" — `fix` = `retake record …`. `pruneRecords(project, keep, except, root)` never removes the folder of a queued or
@@ -1707,11 +1708,15 @@ env?, until?, hooks?, sandbox?, run_id (reserved), submitted_by}` — strict (no
 a path. Files under `<workspace>/.retake/` (git-ignored):
 
 ```
-jobs/<id>/job.json      the record: written once by the submitter (queued), then only by the worker that claimed it
+jobs/<id>/job.json      the record: written once by the submitter (queued), then only by the worker that claimed it — or,
+                        for a heavy job (L5.14), by its job process from `running` on (`worker` = that process,
+                        `supervisor` = the worker), the worker writing the end only when the job process died first
 jobs/<id>/claim         {pid, started_at, at} — created O_EXCL: the atomic claim
 jobs/<id>/cancel        {at, by} — created O_EXCL by a cancel (run_cancel / job_cancel); the worker polls it (250 ms)
 jobs/<id>/events.jsonl  appended by the claiming worker: state changes, the runner's (redacted) progress, logs, the result
-workers/worker.lock     {pid, started_at, host, version, build, since} — one worker per workspace (concurrency 1)
+jobs/<id>/yield.json    {v, state: 'background', since, cause: here|elsewhere} — L5.14: written by the worker while a
+                        running heavy job yields to a filming take, removed after (one writer: the worker)
+workers/worker.lock     {pid, started_at, host, version, build, since} — one worker per workspace, two slots (L5.14)
 workers/worker.log      what workers print (stderr), appended
 ```
 
@@ -1783,8 +1788,10 @@ workers/worker.log      what workers print (stderr), appended
     read-write environment with a page on one is refused at submit and by the worker (`checkWorkspaceProtection`). A
     protected environment itself is not concerned (its own access applies); sandboxes neither.
 - Worker (`runWorker`, entry `worker-main.ts`; `retake worker` (hidden) runs the same): takes `worker.lock` (a live
-  holder: exit at once; a stale one is taken over under a breaker), claims the oldest queued job, checks its cancel
-  marker right after the claim, runs it, writes its final state — a write that fails makes it exit 1, so readers see
+  holder: exit at once; a stale one is taken over under a breaker), and runs two slots (L5.14, §4q): the capture slot
+  claims the oldest queued capture-class job and runs it in the worker, the heavy slot the oldest queued heavy job and
+  runs it in a job process of its own (`worker-main --job`); captures go first. Each job's cancel marker is checked
+  right after the claim; it runs, and its final state is written — a write that fails makes it exit 1, so readers see
   `interrupted` rather than a live `running`. Idle for `--idle-exit` (default 60 s): it releases the lock, looks at the
   queue once more (a job queued while a client saw it alive), then exits. It exits when `.retake/` disappears,
   and, when idle, when its build changed (`buildStamp`: version + the mtimes of the modules of the engine and of every
@@ -4767,7 +4774,7 @@ fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job whi
 `REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2
 exports are already queued or running"); the check and the submit run in one op chain for the whole workspace
 (`'review_export'`), so two clicks, two tabs or two renders never interleave (the race is tested: two calls at once on a
-render with no export yet give one job). The worker runs one job at a time anyway (one worker per workspace, its lock):
+render with no export yet give one job). The worker runs one heavy job at a time anyway (one worker per workspace, L5.14):
 the cap keeps one page from queueing an export — possibly a re-render — of every render. The answer is path-free (`job`,
 `state`, `formats`, `where` in words). The raw capture stays a command to copy, built only from a slug and a run id that
 pass their rules (`rawExportCommand`).
@@ -5812,6 +5819,119 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   the first publication; the notarised DMG on a clean account and an update through the feed are the person's
   (MACOS-CHECKLIST 15b, 15d).
   Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
+
+## 4q. Captures first (L5.14a)
+
+A take filmed on a loaded machine shows it (fewer frames during motion, more kicked frames): renders, exports, reviews,
+previews and site extractions are background work, a take is not (BL-116). Built on the file queue (decision of
+2026-11-04: no new dependency; ADR-1 unchanged, BL-117 parked).
+
+- **Classes** (core `JOB_CLASS`, `jobClass`, `isFilming`): `capture` — run, hooks, env_reset, auth_login, sandbox_up,
+  sandbox_reset, inspect, record; `heavy` — render, review, export, preview, site. An unknown kind is a capture (the
+  worker refuses it in its own process, as before). A new kind does not type-check until it picks a class. Only a
+  filming take (`run`, mode `capture`) holds heavy work; the other captures go first and stay one at a time with the
+  takes (hooks, resets and sandboxes share the hooks journal) but hold nothing (a 30-min recording window does not
+  freeze renders).
+- **Two slots per worker** (jobs/worker.ts): the capture slot runs captures in the worker (unchanged code: the live
+  channel, the test hooks, the signal rules); the heavy slot runs one heavy job in a **job process**
+  (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid>`, jobs/job-child.ts), detached
+  (a process group of its own), log in worker.log, environment = the worker's. It runs the worker's job code
+  (jobs/run-job-record.ts), writes job.json from `running` on (`worker` = itself, `supervisor` = the worker), refuses
+  another build (exit 3: the worker gives the job back — removes its claim — and hands over once both slots are empty)
+  and anything but the queued heavy job of that kind its worker claimed (exit 4: `failed`, invalid). Its build is
+  stamped over the folders the worker stamped (`RETAKE_JOB_BUILD_DIRS`: a worker run in-process by a test resolves the
+  packages otherwise than a process started from the sources). It polls its parent pid every second: its worker gone, it
+  cancels the job (teardown and clean-ups run) and ends it `interrupted` itself — macOS sends nothing to an orphaned
+  group (probe 3). A job process that dies before writing its end: the worker writes `interrupted`, its state / result
+  events numbered after the child's last one. A next worker, before any claim, gives such a process 15 s, then SIGTERM,
+  then kills its tree — only when it is provably that job's job process: a pid above 1 on this host, running with the
+  start time its record names, with a job process's command line for that job id and this workspace (review A M1);
+  any other recorded pid is left alone and the job persisted `interrupted` without its clean-ups. A record whose kind is
+  not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
+  loop (review A M2). With `previewTest` (in-process tests only) heavy jobs run in the worker, one job at a time, as
+  before.
+- **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
+  goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every
+  process of the user; 0: this process's own group; 1: launchd), the worker itself or its own group. A spawn that failed
+  has pid 0 until its `error` event.
+- **Claims** (jobs/pick.ts, pure): ids oldest first; the capture slot takes the oldest queued capture whatever the age
+  of the heavy jobs; the heavy slot takes nothing while a filming take of this workspace waits in the queue (unclaimed,
+  not cancelled — a cancelled one holds nothing), nor while something films now: the worker's own take while it films
+  (runner `onFilming`, live — not during its setup or teardown hooks, not while it is paused: review B M3), or a filming
+  marker of this user. The class comes from the kind of the job's input through this build's table; no field of
+  job.json orders the queue. While the worker's own take films and nothing heavy can start, the loop does not scan the
+  queue, nor stamp the build (the take's event loop is the worker's). A build change stops every claim (captures
+  included); hand-over waits for both slots. `once` = one job. The first signal cancels the capture and SIGTERMs the job
+  process (before any QoS release: a slow `ps` never delays it), and the worker waits for both before releasing its
+  lock; a second one kills the job process's tree. `queue.position` of a heavy job a take holds says `held_by: 'take'`
+  ("waiting for a take to finish" in `retake jobs`, MCP and the Studio), whatever its place in its lane.
+- **Filming markers** (jobs/captures.ts) — one folder per user on this Mac, not per Retake home: macOS
+  `<getconf DARWIN_USER_TEMP_DIR>/retake-captures` (0700, independent of TMPDIR), elsewhere `<RETAKE_HOME>/captures`;
+  `RETAKE_CAPTURES_DIR` replaces it (the test runner gives each test file one: vitest.setup.ts; under a test run — VITEST
+  or any RETAKE_TEST_* variable — the per-user folder is never used without it, and every test that builds a process
+  environment by hand carries it: core retake-home.test.ts). A folder that is not a real 0700 directory of the user is
+  not used (nothing holds). One file per take, `k_<ULID>.json`, created whole (tmp + rename), 0600:
+  `{v, pid, started_at, ws, source, paused?}` — `ws` is a random id of the workspace (`.retake/capture-id`), never a
+  path, slug, scenario, run or job id. Read with core `readPlainFile` (no link followed, a FIFO never blocks, at most
+  4 KB). Written from capture time 0 to the end of the scenes (runner `onFilming`: not around setup / teardown hooks or
+  the encode's end), `paused` while the take is paused (L4.4: the pause is not filmed; written back before the
+  recorders film again), removed at the end, on process exit, or by any reader once stale. Liveness: the owner rewrites
+  the file's time every 2 s; a marker counts while its time is within 10 s of now — a time in the future is no fresher —
+  AND its pid runs with the recorded start time (none recorded: only where ps cannot read one either) — a `retake run`
+  suspended with Ctrl-Z goes stale. Cap: an owner (pid + start time, not a file name) holds at most
+  `RETAKE_CAPTURE_HOLD_MAX_MIN` (default 60) of holding time, counted by each reader from its first sight of it (a gap
+  counts at most 5 s); a rewritten, renamed, or stale-removed-and-rewritten file does not restart it while its owner
+  keeps a marker within 10 s (`CAP_CARRY_MS`: two takes of one worker closer than that count as one); then heavy work
+  goes on (one worker log line). Markers owned by an ancestor of a command do not hold it (a take's own hooks).
+- **A running heavy job during a take** (jobs/yield.ts, chosen by the spike below): background QoS — `taskpolicy -b`
+  on every pid of the job process's tree (its group and every descendant: Remotion's browser is detached), walked again
+  every 2 s with `-b` for the new pids only (one `ps` per walk, with a 5 s limit, and a `/bin/sh` only when the tree grew:
+  the take's event loop may be the worker's); `taskpolicy -B` per pid when no marker holds, only for the pids the hold
+  made background (a pid at background QoS before — `ps -o pri` 4, someone's `taskpolicy -b retake render` — keeps it,
+  and so do its children; a child forked under a held pid inherited the hold's and gets `-B`); a pid whose start time
+  changed is never touched. The worker writes `<job>/yield.json` while it holds and removes it before it releases (the
+  surfaces read it in L5.14b). Cancel of a held job: it stays at background priority and ends itself (its clean-ups run);
+  its tree is killed only `cancelGraceMs` (30 s) after the cancel, then the worker writes `cancelled`. One writer of a
+  job's end: the job process, else the worker when it died first (its events appended after the file's last seq;
+  never a second `interrupted` from the scan, which skips the worker's own slots).
+- **The CLI** (cli/src/heavy-gate.ts): `retake render` (and `--review`), `still`, `export`, `review`,
+  `export-capture` and the raw export of `run --raw` wait to start while a marker holds — one line on stderr ("waiting
+  for a take to finish (in this workspace | elsewhere on this Mac) before rendering — Ctrl-C to quit, --no-wait to start
+  now"), stdout unchanged, Ctrl-C exits 130 with nothing written — then yield by background QoS on their own tree during
+  a later take (never SIGSTOP: a stopped foreground command hands the terminal back). `latest` is resolved before the
+  wait ("rendering run <id>" after one). `--no-wait` skips both. `retake run` (capture) writes a marker while it films;
+  `--dry` none. Nothing filming: one read of an empty folder.
+- **The spike (L5.14a; M4, 24 GB, the machine otherwise as quiet as it could be made; fixture `quote`, a 47 s take, a
+  61 s render of 1832 frames)**, twice: today's render (concurrency 7, software GL, libx264 CRF 16) and BL-114's
+  (angle, VideoToolbox at 4 Mb/s, concurrency 3, injected without a code change). S0: two unpaused renders give
+  identical frames today (framemd5 1832/1832, 85–93 s); BL-114's do not (1405/1832 identical, SSIM min 0.9957 — its
+  criterion is that spread). S4 (`motion_fps_min` / kicked / dropped / stalls; each condition 3 takes, every run listed
+  here; 5 takes alone first). Today: alone 60.5, 51.4, 59.7, 60.3, 60.4 fps (median 60.3, spread 9.1) / kicked 9–10 /
+  dropped 5–7 / 0 stalls; beside an untouched render 45.7, 28.4, 32.3 (median 32.3) / 14–18 / 7 / 1 stall each; beside a
+  render SIGSTOPped for the take 60.5, 29.6, 51.5 (median 51.5; the 29.6 take was disturbed by a build on the machine) /
+  7–12 / 6–8 / 0; beside a render under background QoS 41.7, 52.1, 57.3 (median 52.1; the 41.7 take is below the bar —
+  one QoS take of three today) / 10 / 5–8 / 0. BL-114: untouched 28.0, 28.9, 32.2 / 16–20 / 7–9 / stalls 3, 3, 0;
+  SIGSTOP 60.5, 60.5, 58.4 / 8–11 / 6–7 / 0; QoS 56.3, 60.7, 57.7 / 8–12 / 5–8 / 0. Pass rule on the medians:
+  ≥ alone − max(2 fps, the alone spread 9.1) = 51.2 fps, kicked ≤ alone + 2, dropped ≤ alone + 1, no stall — both
+  mechanisms pass, so QoS wins (M5: no timer of Remotion's to defeat, no stopped tree to recover, reversible without
+  root). **QoS passes today by 0.9 fps** (52.1 against 51.2), on a bar widened by the alone spread: a noisier or slower
+  machine, or one more process in the render's tree, may fail it — L5.15 (BL-114's settings) re-runs S4 for QoS against
+  this bar, and SIGSTOP stays the fallback studied below. S6, the render's frame rate before → after `-B`, all six
+  pairs: today 22.1 → 22.0, 23.5 → 23.1, 11.7 → 21.2 (the "before" sample taken while the render was still starting);
+  BL-114 24.9 → 24.5, 23.6 → 29.0, 26.5 → 26.3 — no pair slower by more than 2 % after; the frames identical after a hold
+  (1832/1832 today; BL-114 within its own spread, SSIM min 0.9956). Some Chromium processes keep `pri` 46/47 under `-b`
+  in the spike's samples (their own QoS); the integration test sees every process of a job's tree at 4. S1 (SIGSTOP
+  correctness, for the record, both settings): a stop at 40 % of the frames for 10 s, 120 s, 60 min (the cap), at 97 %,
+  right after the browser started, twice in one render (30 % and 60 %, 3 min each). With Remotion's frame timeout raised
+  (6 h) all succeeded with today's frames identical (BL-114 within its spread) and the same GPU process. With the
+  default 90 s timeout the 120 s stop failed in BOTH settings, 1 of 2 runs each: BL-114's with "Timeout (90000ms)
+  exceeded rendering the component" (probe 1 in situ), today's with an unhandled EPIPE and no error message — SIGSTOP
+  would need the timeout raised and a watchdog of active time. A stopped render holds 2.9 GB (today, 14 processes) and
+  2.2 GB (BL-114, 10 processes) for 60 min, with 21 000 and 24 600 pageouts over the hour; a 3-min stop right after the
+  browser started stretched one render from ≈ 95 s to 530 s. The stop during bundling and S2 (exports) were not reached
+  by the spike's triggers (the exports ran unstopped). The spike took ≈ 4 h 50 min (S0 6 min, S4 1 h 40 min, S1 3 h).
+- Part b (L5.14b): the surfaces (Studio words, MCP summaries, `retake jobs`, doctor, a take's `takes_beside`), the
+  measured acceptance, README and MACOS-CHECKLIST. Linux / Windows keep the wait only (BL-147).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

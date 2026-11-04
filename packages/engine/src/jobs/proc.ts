@@ -31,6 +31,8 @@ export async function processStart(pid: number): Promise<number | null> {
 
 /** Is the process `id` names still running (same pid, same start time)? */
 export async function isAlive(id: ProcessIdentity): Promise<boolean> {
+  // 0 and negative pids name groups (kill(0) is this process's own group), 1 is launchd: never a worker of ours.
+  if (!Number.isInteger(id.pid) || id.pid <= 1) return false;
   const { processStart, signalState } = await import('@retake/sandbox');
   if (id.pid === process.pid) {
     const me = await selfIdentity();

@@ -1,0 +1,457 @@
+/**
+ * L5.14a fixes (review B H2, A M1, A M2, B M3): the heavy slot's paths with a stand-in job process (a small script the
+ * in-process worker starts instead of `worker-main --job`; every signal the worker sends is recorded, and forwarded only
+ * to a stand-in) — no render needed:
+ * - a job process that exits 3 (another build) gives its job back (claim removed, still queued) and the worker hands
+ *   over to a new worker once empty; exit 1 before `running` → `interrupted` with the worker's events numbered after the
+ *   child's; exit 4 → `failed` (invalid);
+ * - a cancelled job process that ignores its cancel is killed `cancelGraceMs` later, `cancelled` (was killed);
+ * - the worker's first SIGTERM reaches its job process, and the worker exits once it ended;
+ * - recovery before the first claim: a job process a dead worker left, provably that job's, is given its grace then
+ *   SIGTERMed and the job persisted; a decoy (a pid with no start time, a start time but another command line, pid 0 / 1
+ *   / -1) is never signalled and its job ends `interrupted`;
+ * - a record whose kind is not its input's kind ends `failed` on its first claim; the honest job behind it runs and the
+ *   worker idles out (no claim / unclaim loop);
+ * - a take's setup hooks and its pause hold nothing; it holds while it films (real capture, Chromium).
+ */
+import { spawn, spawnSync } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
+import { createRequire } from 'node:module';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { hostname, tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { FileJobQueue, createEngine, processStart, readWorkerLock, runWorker } from '../src/index.js';
+import type { JobRecord } from '../src/index.js';
+import { REPO } from './helpers.js';
+
+/** The stand-in job process: `--mode` says what it does (the rest of its command line is a job process's). */
+const FAKE = `const fs = require('node:fs'); const path = require('node:path'); const os = require('node:os');
+const arg = (n) => { const i = process.argv.indexOf(n); return i >= 0 ? process.argv[i + 1] : undefined; };
+const id = arg('--job'), root = arg('--root'), mode = arg('--mode');
+const dir = path.join(root, '.retake', 'jobs', id);
+const job = () => JSON.parse(fs.readFileSync(path.join(dir, 'job.json'), 'utf8'));
+const write = (rec) => { const tmp = path.join(dir, 'job.json.fake'); fs.writeFileSync(tmp, JSON.stringify(rec)); fs.renameSync(tmp, path.join(dir, 'job.json')); };
+let seq = 0;
+const event = (e) => fs.appendFileSync(path.join(dir, 'events.jsonl'), JSON.stringify({ seq: ++seq, t: new Date().toISOString(), ...e }) + '\\n');
+const note = (what) => fs.writeFileSync(path.join(dir, 'fake-' + what), String(process.pid));
+const running = () => { write({ ...job(), state: 'running', started_at: new Date().toISOString(), worker: { pid: process.pid, host: os.hostname() } }); event({ type: 'state', state: 'running' }); };
+const end = (state) => { write({ ...job(), state, finished_at: new Date().toISOString() }); event({ type: 'state', state }); event({ type: 'result' }); };
+note('started');
+switch (mode) {
+  case 'exit3': process.exit(3);
+  case 'exit4': process.exit(4);
+  case 'event-exit1': event({ type: 'log', level: 'info', message: 'stand-in: started' }); process.exit(1);
+  case 'succeed': running(); setTimeout(() => { end('succeeded'); process.exit(0); }, 200); break;
+  case 'until-file': running(); setInterval(() => { if (fs.existsSync(path.join(dir, 'fake-finish'))) { end('succeeded'); process.exit(0); } }, 50); break;
+  case 'ignore-term': running(); process.on('SIGTERM', () => note('term')); setInterval(() => {}, 1000); break;
+  case 'term': running(); process.on('SIGTERM', () => { note('term'); end('cancelled'); process.exit(0); }); setInterval(() => {}, 1000); break;
+  case 'orphan': process.on('SIGTERM', () => { note('term'); process.exit(0); }); setInterval(() => {}, 1000); break;
+}
+`;
+
+let base: string;
+let fakeBin: string;
+const savedHome = process.env.RETAKE_HOME;
+const children: ChildProcess[] = [];
+/** Every signal a worker sent: [target, signal]. */
+let sent: Array<[number, NodeJS.Signals]> = [];
+/** Pending in-process workers (a failed test's worker is stopped after it). */
+const pending = new Set<Promise<number>>();
+let baseline: Array<(...a: unknown[]) => void> = [];
+
+/** A stand-in's pid (its command line names the stand-in script). */
+const isFake = (pid: number) => spawnSync('ps', ['-ww', '-o', 'command=', '-p', String(Math.abs(pid))], { encoding: 'utf8' }).stdout.includes(fakeBin);
+const kill = (target: number, sig: NodeJS.Signals) => {
+  sent.push([target, sig]);
+  if (isFake(target)) process.kill(target, sig);
+};
+
+async function workspace(name: string): Promise<{ root: string; queue: FileJobQueue }> {
+  const root = join(base, name);
+  await mkdir(join(root, 'projects'), { recursive: true });
+  await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\n');
+  return { root, queue: new FileJobQueue(root) };
+}
+
+/** A review job (a heavy kind; its project need not exist: the stand-in runs it). */
+const review = (q: FileJobQueue, renderId = 'held-v1') => q.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: renderId, fps: 1, submitted_by: 'test' } as never);
+
+/** The in-process worker, its job processes the stand-in in `modes[jobId]` (default: succeed). */
+function work(root: string, modes: Record<string, string>, extra: Partial<Parameters<typeof runWorker>[0]> = {}, logs: string[] = []): Promise<number> {
+  const p = runWorker({
+    root,
+    idleExitMs: 400,
+    pollMs: 50,
+    log: (m) => logs.push(m),
+    ...extra,
+    jobProcessTest: {
+      command: (j) => ({ command: process.execPath, args: [fakeBin, '--job', j.id, '--kind', j.kind, '--root', j.root, '--build', j.build, '--supervisor', String(j.supervisor), '--mode', modes[j.id] ?? 'succeed'] }),
+      kill,
+      ...extra.jobProcessTest,
+    },
+  });
+  pending.add(p);
+  void p.finally(() => pending.delete(p));
+  return p;
+}
+
+async function waitFor<T>(what: string, fn: () => Promise<T | undefined | false> | T | undefined | false, ms = 20_000): Promise<T> {
+  const deadline = Date.now() + ms;
+  for (;;) {
+    const v = await fn();
+    if (v) return v;
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+const deadPid = () => Number(spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8' }).stdout);
+const alive = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+beforeAll(async () => {
+  base = await mkdtemp(join(tmpdir(), 'retake-worker-heavy-'));
+  process.env.RETAKE_HOME = join(base, '.home');
+  // Named as a job process's entry: the recovery's command-line proof looks for `/worker-main.js `.
+  fakeBin = join(base, 'bin', 'worker-main.js');
+  await mkdir(join(base, 'bin'), { recursive: true });
+  await writeFile(fakeBin, FAKE);
+});
+
+/** The stand-ins still running (by their command line: the script is this file's own). */
+const fakes = () =>
+  spawnSync('ps', ['-A', '-ww', '-o', 'pid=,command='], { encoding: 'utf8' })
+    .stdout.split('\n')
+    .filter((l) => l.includes(fakeBin))
+    .map((l) => Number(l.trim().split(/\s+/)[0]))
+    .filter((p) => p > 1 && p !== process.pid);
+
+afterEach(async () => {
+  // A worker a failed test left: stopped as a first signal would (its job process cancelled), never killed; a stand-in
+  // left running (a mutation that drops a signal) is killed so that its worker ends.
+  for (const l of process.listeners('SIGTERM')) if (!baseline.includes(l as never)) (l as (s: string) => void)('SIGTERM');
+  for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
+  if (pending.size) await new Promise((r) => setTimeout(r, 500));
+  for (const pid of fakes()) process.kill(pid, 'SIGKILL');
+  await Promise.race([Promise.allSettled([...pending]), new Promise((r) => setTimeout(r, 15_000))]);
+  sent = [];
+});
+
+afterAll(async () => {
+  if (savedHome === undefined) delete process.env.RETAKE_HOME;
+  else process.env.RETAKE_HOME = savedHome;
+  for (const c of children) if (c.exitCode === null && c.signalCode === null) c.kill('SIGKILL');
+  if (base) await rm(base, { recursive: true, force: true });
+});
+
+describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)', () => {
+  beforeAll(() => {
+    baseline = process.listeners('SIGTERM') as never;
+  });
+
+  it('exit 3 (another build): the job is given back — claim removed, still queued — and the worker hands over once empty', async () => {
+    const { root, queue } = await workspace('exit3');
+    const job = await review(queue);
+    const logs: string[] = [];
+    expect(await work(root, { [job.id]: 'exit3' }, {}, logs)).toBe(0);
+    expect(logs.join('\n')).toMatch(/its job process runs another build: given back to the queue/);
+    expect(logs.join('\n')).toMatch(/the code changed since this worker started: handing over/);
+    expect(existsSync(join(queue.jobDir(job.id), 'fake-started'))).toBe(true);
+    // The new worker (a real one, from the sources) takes it: it runs to its end there (a review of nothing: failed).
+    const end = await waitFor(
+      'the new worker ends the job',
+      async () => {
+        const j = await queue.get(job.id);
+        return j && ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(j.state) ? j : undefined;
+      },
+      90_000,
+    );
+    expect(end.supervisor?.pid ?? end.worker?.pid).not.toBe(process.pid);
+    await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
+  }, 120_000);
+
+  it('exit 1 before `running`: interrupted, the worker\'s state / result events numbered after the child\'s; exit 4: failed (invalid)', async () => {
+    const { root, queue } = await workspace('exit1');
+    const one = await review(queue, 'a-v1');
+    const four = await review(queue, 'b-v1');
+    expect(await work(root, { [one.id]: 'event-exit1', [four.id]: 'exit4' })).toBe(0);
+    const a = (await queue.stored(one.id))!;
+    expect(a.state).toBe('interrupted');
+    expect(a.error?.message).toMatch(/its job process exited \(code 1\) before it wrote the job's end/);
+    expect((await queue.events(one.id)).map((e) => [e.seq, e.type])).toEqual([
+      [1, 'log'],
+      [2, 'state'],
+      [3, 'result'],
+    ]);
+    const b = (await queue.stored(four.id))!;
+    expect(b.state).toBe('failed');
+    expect(b.error).toMatchObject({ code: 'invalid', message: expect.stringMatching(/refused by its job process/) });
+  }, 60_000);
+
+  it('a cancelled job process that ignores its cancel is killed cancelGraceMs later: cancelled (was killed)', async () => {
+    const { root, queue } = await workspace('grace');
+    const job = await review(queue);
+    const logs: string[] = [];
+    const worker = work(root, { [job.id]: 'ignore-term' }, { cancelGraceMs: 600 }, logs);
+    const run = await waitFor('running', async () => {
+      const j = await queue.stored(job.id);
+      return j?.state === 'running' ? j : undefined;
+    });
+    const t0 = Date.now();
+    await queue.cancel(job.id, 'test');
+    expect(await worker).toBe(0);
+    expect(Date.now() - t0).toBeGreaterThanOrEqual(500);
+    const end = (await queue.stored(job.id))!;
+    expect(end.state).toBe('cancelled');
+    expect(end.error?.message).toMatch(/did not stop within 1 s and was killed/);
+    expect(logs.join('\n')).toMatch(/killing its job process/);
+    expect(sent).toContainEqual([-run.worker!.pid, 'SIGKILL']);
+    expect(alive(run.worker!.pid)).toBe(false);
+  }, 60_000);
+
+  it('the worker\'s first SIGTERM reaches its job process (before any QoS release); the worker exits once it ended', async () => {
+    const { root, queue } = await workspace('first-signal');
+    const job = await review(queue);
+    const logs: string[] = [];
+    const before = process.listeners('SIGTERM');
+    const worker = work(root, { [job.id]: 'term' }, {}, logs);
+    const run = await waitFor('running', async () => {
+      const j = await queue.stored(job.id);
+      return j?.state === 'running' ? j : undefined;
+    });
+    const mine = process.listeners('SIGTERM').filter((l) => !before.includes(l));
+    expect(mine).toHaveLength(1);
+    (mine[0] as (s: string) => void)('SIGTERM');
+    expect(await worker).toBe(0);
+    expect(sent[0]).toEqual([run.worker!.pid, 'SIGTERM']);
+    expect(existsSync(join(queue.jobDir(job.id), 'fake-term'))).toBe(true);
+    expect((await queue.stored(job.id))?.state).toBe('cancelled');
+  }, 30_000);
+
+  it('review A L4: the first signal SIGTERMs the job process at once, even while a walk of its tree is slow (QoS released after)', async () => {
+    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const { root, queue } = await workspace('slow-walk');
+    const job = await review(queue);
+    const before = process.listeners('SIGTERM');
+    // Every walk of the tree takes 3 s (a slow `ps`); a take films elsewhere, so the job is held.
+    const slowTable = async () => {
+      await new Promise((r) => setTimeout(r, 3_000));
+      return [];
+    };
+    const worker = work(root, { [job.id]: 'term' }, { jobProcessTest: { qos: { table: slowTable, apply: async () => undefined } } });
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    const take = FilmingMarker.open({ root: join(base, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    try {
+      await waitFor('held', () => existsSync(queue.yieldFile(job.id)));
+      const mine = process.listeners('SIGTERM').filter((l) => !before.includes(l));
+      const t0 = Date.now();
+      (mine[0] as (s: string) => void)('SIGTERM');
+      await waitFor('the job process got its SIGTERM', () => existsSync(join(queue.jobDir(job.id), 'fake-term')), 10_000);
+      expect(Date.now() - t0).toBeLessThan(1_500);
+      expect(await worker).toBe(0);
+    } finally {
+      take.closeSync();
+    }
+  }, 60_000);
+
+  it('review B L1: a job process that cannot start (no pid yet) is never signalled, even by a first signal right then; its job ends interrupted', async () => {
+    const { root, queue } = await workspace('no-spawn');
+    const job = await review(queue);
+    const before = process.listeners('SIGTERM');
+    const logs: string[] = [];
+    const log = (m: string) => {
+      logs.push(m);
+      // The spawn failure window: the worker holds the child, no pid, no `error` event yet.
+      if (m.includes('in job process (none)')) for (const l of process.listeners('SIGTERM').filter((x) => !before.includes(x))) (l as (s: string) => void)('SIGTERM');
+    };
+    expect(await work(root, {}, { log, jobProcessTest: { command: () => ({ command: join(base, 'missing', 'node'), args: [] }) } })).toBe(0);
+    expect(logs.join('\n')).toMatch(/its job process did not start/);
+    expect(sent).toEqual([]);
+    expect((await queue.stored(job.id))?.state).toBe('interrupted');
+  }, 30_000);
+
+  it('review A M1: recovery signals only a job process provably that job\'s (before any claim); decoys and pids 0 / 1 / -1 are left alone, their jobs interrupted', async () => {
+    const { root, queue } = await workspace('recover');
+    const dead = deadPid();
+    const supervisor = { pid: dead, started_at: new Date(Date.now() - 60_000).toISOString(), host: hostname() };
+    const asRunning = async (rec: JobRecord, worker: Record<string, unknown>) => {
+      await queue.claim(rec.id, { pid: dead });
+      await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: worker as never, supervisor });
+    };
+    // The real orphan: a job process of this job and this workspace, its start time recorded.
+    const orphanJob = await review(queue, 'orphan-v1');
+    const orphan = spawn(process.execPath, [fakeBin, '--job', orphanJob.id, '--kind', 'review', '--root', root, '--build', 'x', '--supervisor', String(dead), '--mode', 'orphan'], { stdio: 'ignore', detached: true });
+    children.push(orphan);
+    await waitFor('the orphan started', () => existsSync(join(queue.jobDir(orphanJob.id), 'fake-started')));
+    const orphanStart = await processStart(orphan.pid!);
+    await asRunning(orphanJob, { pid: orphan.pid, started_at: new Date(orphanStart!).toISOString(), host: hostname() });
+    // Decoys: a process of the user with no recorded start time; one with its start time but not a job process; pids 0, 1, -1.
+    const sleeper = spawn('sleep', ['300'], { stdio: 'ignore' });
+    children.push(sleeper);
+    const sleeperStart = await waitFor('ps sees the sleeper', () => processStart(sleeper.pid!).then((t) => t ?? undefined));
+    const decoys: Record<string, JobRecord> = {};
+    for (const [name, worker] of Object.entries({
+      'no-start': { pid: sleeper.pid, host: hostname() },
+      'not-a-job-process': { pid: sleeper.pid, started_at: new Date(sleeperStart).toISOString(), host: hostname() },
+      'another-host': { pid: orphan.pid, started_at: new Date(orphanStart!).toISOString(), host: 'another-mac.example' },
+      zero: { pid: 0, host: hostname() },
+      one: { pid: 1, host: hostname() },
+      minus: { pid: -1, host: hostname() },
+    })) {
+      decoys[name] = await review(queue, `${name}-v1`);
+      await asRunning(decoys[name]!, worker);
+    }
+    // Queued after them: claimed only once recovery is done.
+    const later = await review(queue, 'later-v1');
+    const logs: string[] = [];
+    expect(await work(root, { [later.id]: 'succeed' }, { orphanGraceMs: 300 }, logs)).toBe(0);
+    // The orphan: its grace, then a SIGTERM to it alone, its job persisted.
+    expect(sent).toEqual([[orphan.pid!, 'SIGTERM']]);
+    expect(existsSync(join(queue.jobDir(orphanJob.id), 'fake-term'))).toBe(true);
+    expect((await queue.stored(orphanJob.id))?.state).toBe('interrupted');
+    const order = logs.findIndex((l) => l.includes(`job ${orphanJob.id}: its job process`));
+    const claimed = logs.findIndex((l) => l.includes(`job ${later.id}: running`));
+    expect(order).toBeGreaterThanOrEqual(0);
+    expect(claimed).toBeGreaterThan(order);
+    // Decoys: never signalled, still running; their jobs interrupted.
+    expect(alive(sleeper.pid!)).toBe(true);
+    for (const [name, rec] of Object.entries(decoys)) expect((await queue.stored(rec.id))?.state, name).toBe('interrupted');
+    expect(logs.join('\n')).toMatch(/is not provably its job process: left alone/);
+    expect((await queue.stored(later.id))?.state).toBe('succeeded');
+  }, 60_000);
+
+  it('review A M2: a record whose kind is not its input\'s ends failed on its first claim; the honest job behind it runs; the worker idles out', async () => {
+    const { root, queue } = await workspace('mismatch');
+    const forged = await review(queue, 'forged-v1');
+    await queue.write({ ...forged, kind: 'run' });
+    const honest = await review(queue, 'honest-v1');
+    const t0 = Date.now();
+    expect(await work(root, {})).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(15_000);
+    const f = (await queue.stored(forged.id))!;
+    expect(f.state).toBe('failed');
+    expect(f.error).toMatchObject({ code: 'invalid', message: expect.stringMatching(/refused without running: .* "run" job whose input is of kind "review"/) });
+    expect(existsSync(join(queue.jobDir(forged.id), 'fake-started'))).toBe(false);
+    expect((await queue.events(forged.id)).map((e) => e.type)).toEqual(['state', 'result']);
+    expect((await queue.stored(honest.id))?.state).toBe('succeeded');
+  }, 30_000);
+});
+
+function chromiumAvailable(): boolean {
+  if (process.env.RETAKE_CHROMIUM) return existsSync(process.env.RETAKE_CHROMIUM);
+  try {
+    const require = createRequire(join(REPO, 'packages/runner-web/package.json'));
+    const { chromium } = require('playwright-core') as { chromium: { executablePath(): string } };
+    return existsSync(chromium.executablePath());
+  } catch {
+    return false;
+  }
+}
+const hasFfmpeg = spawnSync('ffmpeg', ['-version'], { stdio: 'ignore' }).status === 0;
+
+describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds heavy work while it films only (real capture)', () => {
+  let server: Server;
+  let release: (() => void) | undefined;
+  let releaseBusy: (() => void) | undefined;
+  let hookSeen = false;
+
+  beforeAll(async () => {
+    baseline = process.listeners('SIGTERM') as never;
+    server = createServer((req, res) => {
+      if (req.url === '/busy') {
+        releaseBusy = () => res.end('ok');
+        return;
+      }
+      if (req.url === '/hold') {
+        hookSeen = true;
+        release = () => res.end('ok');
+        return;
+      }
+      res.setHeader('content-type', 'text/html');
+      res.end('<!doctype html><title>Held</title><body style="font:40px sans-serif"><h1>A page filmed</h1><button>Go</button></body>');
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+  });
+  afterAll(async () => {
+    release?.();
+    releaseBusy?.();
+    await new Promise<void>((r) => server.close(() => r()));
+  });
+
+  it('review B L7: a cancelled queued take holds nothing — a render runs while the capture slot is busy (hooks), the take is closed after', async () => {
+    const { root, queue } = await workspace('cancelled-take');
+    const port = (server.address() as { port: number }).port;
+    const project = join(root, 'projects', 'w');
+    await mkdir(join(project, 'scenarios'), { recursive: true });
+    await writeFile(join(project, 'project.yaml'), ['name: W', 'environments:', '  local:', `    app: http://127.0.0.1:${port}`, ''].join('\n'));
+    await writeFile(join(project, 'scenarios', 'busy.yaml'), ['video: busy', 'setup:', '  - name: busy', '    http: {method: POST, url: "{{app}}/busy"}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', '      - hold: 0.5', ''].join('\n'));
+    const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
+    const hooks = await engine.hooks.submit({ project: 'w', source: 'busy:setup', dry: false }, { approver: { approve: async () => ({ approved: true as const }) } });
+    const take = await queue.enqueue({ version: 1, kind: 'run', project: 'w', scenario: 'busy', scenario_sha256: 'a'.repeat(64), run_id: '20261104-120000-busy', mode: 'capture', submitted_by: 'test' } as never);
+    await queue.cancel(take.id, 'test');
+    const heavy = await review(queue);
+    releaseBusy = undefined;
+    const worker = work(root, { [heavy.id]: 'succeed' });
+    await waitFor('the capture slot busy with the hooks', () => releaseBusy !== undefined);
+    await waitFor('the render done beside it', async () => (await queue.stored(heavy.id))?.state === 'succeeded');
+    expect((await queue.stored(take.id))?.state).toBe('queued');
+    releaseBusy!();
+    expect(await worker).toBe(0);
+    expect((await queue.stored(hooks.job.id))?.state).toBe('succeeded');
+    expect((await queue.stored(take.id))?.state).toBe('cancelled');
+  }, 60_000);
+
+  it('a render starts during the take\'s setup hooks, yields once it films, goes back to normal while it is paused and after it', async () => {
+    const { root, queue } = await workspace('live');
+    const port = (server.address() as { port: number }).port;
+    const project = join(root, 'projects', 'w');
+    await mkdir(join(project, 'scenarios'), { recursive: true });
+    await writeFile(join(project, 'project.yaml'), ['name: W', 'environments:', '  local:', `    app: http://127.0.0.1:${port}`, 'capture: {width: 640, height: 360, scale: 1, fps: 30}', 'template: default', ''].join('\n'));
+    await writeFile(
+      join(project, 'scenarios', 'gated.yaml'),
+      ['video: gated', 'setup:', '  - name: gate', '    http: {method: POST, url: "{{app}}/hold"}', 'pacing: {scene_start_still: 0.2}', 'scenes:', '  - id: one', '    page: app', '    open: /', '    steps:', ...Array.from({ length: 12 }, () => '      - hold: 0.5'), ''].join('\n'),
+    );
+    const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
+    const take = await engine.runs.submit({ project: 'w', scenario: 'gated', mode: 'capture', hooks: 'run' }, { approver: { approve: async () => ({ approved: true as const }) } });
+    const heavy = await review(queue);
+    const yieldFile = queue.yieldFile(heavy.id);
+    // Review B L2: the build is not stamped while the take films (a synchronous walk on the take's event loop).
+    const checks: boolean[] = [];
+    const worker = work(root, { [heavy.id]: 'until-file' }, { idleExitMs: 400, buildCheckMs: 1, jobProcessTest: { buildCheck: (filming) => void checks.push(filming) } });
+    // Setup hooks: not filming — the render starts beside them.
+    await waitFor('the setup hook', () => hookSeen);
+    await waitFor('the render running during setup', async () => (await queue.stored(heavy.id))?.state === 'running');
+    expect(existsSync(yieldFile)).toBe(false);
+    release!();
+    // Filming: the render yields.
+    await waitFor('held while the take films', () => existsSync(yieldFile));
+    // Paused (L4.4: not filmed): it holds nothing.
+    await engine.runs.pause('w', take.run_id, true);
+    await waitFor('normal priority while paused', () => !existsSync(yieldFile), 30_000);
+    await engine.runs.pause('w', take.run_id, false);
+    await waitFor('held again on resume', () => existsSync(yieldFile), 30_000);
+    // Its end: normal priority again.
+    await waitFor('the take finished', async () => {
+      const j = await queue.get(take.job.id);
+      return j && j.state !== 'queued' && j.state !== 'running' ? j : undefined;
+    }, 60_000);
+    await waitFor('normal priority after the take', () => !existsSync(yieldFile));
+    await writeFile(join(queue.jobDir(heavy.id), 'fake-finish'), '');
+    expect(await worker).toBe(0);
+    expect(checks.length).toBeGreaterThan(10);
+    expect(checks.filter(Boolean)).toEqual([]);
+    expect((await queue.stored(take.job.id))?.state).toBe('succeeded');
+    expect((await queue.stored(heavy.id))?.state).toBe('succeeded');
+    expect(readFileSync(join(queue.jobDir(heavy.id), 'fake-started'), 'utf8')).toMatch(/^\d+$/);
+  }, 120_000);
+});

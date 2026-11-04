@@ -109,6 +109,8 @@ export async function planPreview(ws: WorkspaceConfig, cli: string, req: RenderR
 export interface RenderQueueView {
   /** Jobs that run or wait before it (0: it is next). */
   ahead: number;
+  /** L5.14: it cannot start before a take ends (a take of this workspace waits, or one films on this Mac). */
+  held_by?: 'take';
   /** The job running now, with its kind and how far it is. */
   running?: { id: string; kind: string; phase?: string; fraction?: number; eta_s?: number };
 }
@@ -221,6 +223,7 @@ export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slu
         const running = pos.running ? await queue.get(pos.running) : undefined;
         queueView = {
           ahead: pos.ahead,
+          ...(pos.held_by ? { held_by: pos.held_by } : {}),
           ...(running
             ? {
                 running: {
@@ -491,6 +494,7 @@ export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, 
         const running = pos.running ? await queue.get(pos.running) : undefined;
         queueView = {
           ahead: pos.ahead,
+          ...(pos.held_by ? { held_by: pos.held_by } : {}),
           ...(running
             ? {
                 running: {

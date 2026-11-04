@@ -198,7 +198,9 @@ step that opens a dialog or a menu>}` to see what that step shows, and write the
 
 **Jobs and the worker.** A dry run, a capture, a hooks run, an environment reset, a sign-in, a sandbox up / reset, a render, a review, an export, a preview, an inspection or a recording is a *job*: the call queues it (under `<workspace>/.retake/jobs/`,
 with the run id reserved at once) and the workspace's **worker** — a separate background process the server starts,
-`.retake/workers/worker.log` — runs it, one job at a time (a capture uses the machine's CPU and GPU fully), then
+`.retake/workers/worker.log` — runs it: one capture-side job at a time (a take, hooks, a sign-in, a recording, an
+inspection) and, beside it, one render, review, export, preview or site extraction in a job process of its own that waits
+while a take films on this Mac and yields during one (a capture uses the machine's CPU and GPU fully); it
 exits after a minute without work. So no call outlives an agent's timeout: `run_dry` waits at most `wait_s`,
 `run_capture` returns at once, and `run_status {wait_s: 25}` (called again until the run is finished) or
 `job_status {job_id, wait_s: 600}` follows it with progress notifications. Results carry their JSON on one line, and

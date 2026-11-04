@@ -80,6 +80,8 @@ describe('versions and words', () => {
     expect(versionWords('quote-v12')).toBe('v12');
     expect(versionWords('quote-v3-vertical')).toBe('v3 vertical');
     expect(jobWords(job({ state: 'queued', queue: { ahead: 0 } }))).toBe('v3 · queued — next in the queue');
+    // L5.14a fixes (review B M4): a render a take holds is not "next".
+    expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' } }))).toBe('v3 · queued — waiting for a take to finish');
     expect(jobWords(job({ state: 'queued', queue: { ahead: 2, running: { id: 'j_x', kind: 'run', fraction: 0.4 } } }))).toBe('v3 · queued — 2 jobs before it (a run is running, 40 %)');
     expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2 }))).toBe('v3 · rendering 43 % · about 12 s left');
     expect(jobWords(job({ phase: 'review:sheets', fraction: 0.5, reviewing: true }))).toBe('v3 · reviewing: making the contact sheets');
