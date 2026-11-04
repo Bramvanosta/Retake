@@ -91,8 +91,14 @@ The fixture product's `quote` scenario, captured, edited and reviewed by Retake 
 ### The macOS app
 
 Download `Retake_<version>_aarch64.dmg` from the [Releases](../../releases/latest) page (macOS 15 or later, Apple
-silicon), open it and drag **Retake** onto **Applications**. The app carries everything it needs: its own Node.js,
-engine, Chromium, ffmpeg, starter themes and Claude plugin.
+silicon), open it and drag **Retake** onto **Applications**. Or with Homebrew, from the first release (v0.2.0) on:
+
+```bash
+brew install --cask bramvanosta/tap/retake        # stable releases
+brew install --cask bramvanosta/tap/retake@beta   # release candidates and stable releases
+```
+
+The app carries everything it needs: its own Node.js, engine, Chromium, ffmpeg, starter themes and Claude plugin.
 
 - **Gatekeeper.** A release notarised by Apple opens without a warning. A build that is not notarised (its release
   page says so) is refused the first time: try to open it once, then System Settings › Privacy & Security › **Open
@@ -102,8 +108,8 @@ engine, Chromium, ffmpeg, starter themes and Claude plugin.
 - **The `retake` command.** The Set-up sheet (Help › Set Up Retake…) links `~/.local/bin/retake` to the command
   inside the app, and registers Retake with Claude Code and Claude Desktop, each on a click. The command is also at
   `/Applications/Retake.app/Contents/Resources/bin/retake`.
-- **Updates.** The app checks for a new version at most once a day, shows its notes and installs only when you
-  click.
+- **Updates.** The app updates itself, installed from the DMG or with Homebrew: it checks for a new version at most
+  once a day, shows its notes and installs only when you click.
 
 More in [The desktop app](docs/guide/desktop-app.md#install-the-app-macos).
 
