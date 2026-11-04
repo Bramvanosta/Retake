@@ -69,6 +69,23 @@ pub enum LineError {
     NoWorkspace,
 }
 
+impl LineError {
+    /// Its words; `bundled` (the app's own engine, launch.json version 2): no repository command — a version gap there
+    /// is a Studio server of another copy of Retake serving the workspace, or a damaged app (L5.16).
+    pub fn text(&self, bundled: bool) -> String {
+        match (self, bundled) {
+            (LineError::WrongVersion(Some(v)), true) if *v > UI_LINE_VERSION => format!(
+                "a newer Retake serves this workspace (line version {v}, this app reads {UI_LINE_VERSION}): quit it, or install the newer Retake from its disk image"
+            ),
+            (LineError::WrongVersion(v), true) => format!(
+                "an older Retake serves this workspace (line version {}, this app reads {UI_LINE_VERSION}): stop that Studio server and open the workspace again, or install Retake again from its disk image",
+                v.map_or("none".to_string(), |v| v.to_string())
+            ),
+            _ => self.to_string(),
+        }
+    }
+}
+
 impl std::fmt::Display for LineError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -384,6 +401,13 @@ mod tests {
         assert!(v1.unwrap_err().to_string().contains("run pnpm build in the repository, then pnpm desktop:build"));
         let v3 = parse_ui_line(&line(&url, 4100, p).replace("\"v\":2", "\"v\":3"));
         assert!(v3.unwrap_err().to_string().contains("rebuild the app — pnpm desktop:build"));
+        // L5.16: the bundled app's words name no repository command.
+        for (e, says) in [(LineError::WrongVersion(Some(1)), "an older Retake serves this workspace"), (LineError::WrongVersion(None), "an older Retake"), (LineError::WrongVersion(Some(3)), "a newer Retake serves this workspace")] {
+            let t = e.text(true);
+            assert!(t.contains(says) && t.contains("disk image") && !t.contains("pnpm"), "{t}");
+            assert_eq!(e.text(false), e.to_string());
+        }
+        assert_eq!(LineError::BadUrl.text(true), LineError::BadUrl.to_string());
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"v\":2,", "")), Err(LineError::WrongVersion(None)));
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("\"ui\"", "\"job\"")), Err(LineError::WrongType));
         assert_eq!(parse_ui_line(&line(&url, 4100, p).replace("4242", "0")), Err(LineError::BadPid));

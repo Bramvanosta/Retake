@@ -20,7 +20,9 @@
     "desktop:dev": "node apps/desktop/scripts/desktop.mjs dev",
     "desktop:build": "node apps/desktop/scripts/desktop.mjs build",
     "desktop:test": "node apps/desktop/scripts/desktop.mjs test",
-    "desktop:clean": "node apps/desktop/scripts/desktop.mjs clean"
+    "desktop:clean": "node apps/desktop/scripts/desktop.mjs clean",
+    "desktop:bundle": "node apps/desktop/scripts/bundle.mjs build",
+    "desktop:release": "node apps/desktop/scripts/bundle.mjs build --release"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

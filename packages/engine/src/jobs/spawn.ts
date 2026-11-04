@@ -3,7 +3,8 @@
  * holder is alive, else a detached `node …/engine/worker-main.js --root <ws>` whose output goes to
  * .retake/workers/worker.log. It outlives the client that started it (a capture finishes with its teardown even
  * when the MCP session closes) and exits once idle. Run from the sources (tests), the same entry is started as
- * TypeScript through tsx with the packages' `source` export condition.
+ * TypeScript through tsx with the packages' `source` export condition. From an app bundle the worker gets the bundle's
+ * module lookup guard first (core bundleNodeArgs: `--require <Resources>/node/guard.cjs`, L5.16).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess, SpawnOptions } from 'node:child_process';
@@ -11,6 +12,7 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { bundleNodeArgs } from '@retake/core';
 import { WORKER_CLIENT_RE, liveWorker, workersDir } from './lock.js';
 
 /** Starts the worker process: node's `spawn` (tests inject one to see the command and the environment). */
@@ -49,6 +51,8 @@ export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { co
     const loader = tsxLoader(dirname(here));
     if (!loader) throw new Error('cannot start a worker from the sources: tsx is not installed (pnpm install)');
     args.push('--conditions=source', '--import', loader);
+  } else {
+    args.push(...bundleNodeArgs());
   }
   args.push(entry, '--root', root);
   if (opts.idleExitMs !== undefined) args.push('--idle-exit', String(opts.idleExitMs));

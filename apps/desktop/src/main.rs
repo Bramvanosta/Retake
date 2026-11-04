@@ -155,7 +155,7 @@ fn open(shell: &Shell, mut candidate: Option<(PathBuf, dc::Source)>, mut note: O
             }
             Err(e) => {
                 log("the Studio server did not start");
-                let text = format!("{}\n\nWorkspace: {}", e.text(), ws.display());
+                let text = format!("{}\n\nWorkspace: {}", e.text(shell.cfg.bundled), ws.display());
                 if macos::alert("The Studio could not start", &text, &["Choose Another Folder…", if first { "Quit" } else { "Cancel" }]) != 0 {
                     return None;
                 }
@@ -541,9 +541,8 @@ fn install_signals(app: AppHandle) {
 }
 
 fn launch_json() -> PathBuf {
-    // <App>.app/Contents/MacOS/retake-desktop → <App>.app/Contents/Resources/launch.json
-    let exe = std::env::current_exe().unwrap_or_default();
-    exe.parent().and_then(Path::parent).map(|c| c.join("Resources").join("launch.json")).unwrap_or_else(|| PathBuf::from("launch.json"))
+    // <App>.app/Contents/MacOS/retake-desktop → <App>.app/Contents/Resources/launch.json, from the binary's real path.
+    dc::launch_json_path(&std::env::current_exe().unwrap_or_default())
 }
 
 fn fatal(text: &str) -> ! {

@@ -184,6 +184,25 @@ export function overrideBundleInfo(b: BundleInfo | null | undefined): void {
   problems.clear();
 }
 
+/**
+ * The module lookup guard of a bundle (relative to its root; apps/desktop/bundle/guard.cjs, staged by bundle.mjs): code
+ * inside the bundle resolves bare specifiers inside it only, never from a `node_modules` folder above the app (DESIGN
+ * §4p). Every Node.js the app starts gets it as an argument (`bundleNodeArgs`), never through NODE_OPTIONS.
+ */
+export const BUNDLE_GUARD = 'node/guard.cjs';
+
+/**
+ * The Node.js arguments that load the bundle's guard (`--require <root>/node/guard.cjs`), to put before the script of
+ * every Node.js process started on the bundle's code (the jobs worker, the MCP registration); none in a checkout. A
+ * bundle without its guard is damaged: BundleError.
+ */
+export function bundleNodeArgs(bundle: BundleInfo | null = bundleInfo(), exists: (p: string) => boolean = existsSync): string[] {
+  if (!bundle) return [];
+  const guard = join(bundle.root, BUNDLE_GUARD);
+  if (!exists(guard)) throw new BundleError(`${guard} is missing: this copy of Retake is damaged — install it again from its disk image`);
+  return ['--require', guard];
+}
+
 /** Is `p` inside the sealed bundle (links followed; a path that does not exist yet by its nearest existing folder)? */
 export function insideBundle(p: string, bundle: BundleInfo | null = bundleInfo()): boolean {
   return !!bundle && within(bundle.sealed, real(resolve(p)));
@@ -203,11 +222,22 @@ export function assertOutsideBundle(p: string, what: string, bundle: BundleInfo 
  * Point playwright-core at the bundle's browsers for this process only (see the module comment). A no-op without a
  * bundle. Never throws (it runs first in both entry points): a damaged manifest, or a playwright-core that does not
  * load, is kept for `bundleProblems` (doctor) — a later import would otherwise quietly use the person's own Playwright
- * cache. `load` (tests) replaces the playwright-core import.
+ * cache. `load` (tests) replaces the playwright-core import. First, the bundle's module lookup guard (BUNDLE_GUARD):
+ * a process started the usual way already has it (`--require`: the launcher, the shell, the worker, the MCP
+ * registration — Node.js keeps one copy of a module); one started on the bundle's code without it (the Claude plugin's
+ * own .mcp.json names `node <cli>` only) gets it here, before playwright-core or the commands load. `guard` (tests)
+ * replaces the require.
  */
-export function prepareBundle(env: NodeJS.ProcessEnv = process.env, bundle?: BundleInfo | null, load?: () => unknown): void {
+export function prepareBundle(env: NodeJS.ProcessEnv = process.env, bundle?: BundleInfo | null, load?: () => unknown, guard: (file: string) => unknown = (f) => createRequire(import.meta.url)(f)): void {
   const b = bundle === undefined ? bundleInfoOrNull() : bundle;
   if (!b) return;
+  const guardFile = join(b.root, BUNDLE_GUARD);
+  try {
+    if (!existsSync(guardFile)) throw new Error(`${guardFile} is missing`);
+    guard(guardFile);
+  } catch (e) {
+    problems.add(`the app's module lookup guard does not load (${(e as Error).message.split('\n')[0]}): reinstall Retake`);
+  }
   const KEY = 'PLAYWRIGHT_BROWSERS_PATH';
   const had = Object.prototype.hasOwnProperty.call(env, KEY);
   const before = env[KEY];

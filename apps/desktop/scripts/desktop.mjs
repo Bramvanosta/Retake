@@ -75,6 +75,13 @@ function version() {
   return /^version = "([^"]+)"/m.exec(readFileSync(join(APP_DIR, 'Cargo.toml'), 'utf8'))[1];
 }
 
+/**
+ * macOS asks before a process of the app reaches the local network (a capture of a product on another machine of the
+ * network: the worker and its browser are the app's children — critique M8). Also the bundled app's (bundle.mjs).
+ */
+export const LOCAL_NETWORK_USAGE = `${PRODUCT} captures web apps you point it at, which may run on your local network.`;
+export const APP_CATEGORY = 'public.app-category.developer-tools';
+
 const xml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export function infoPlist(id, v) {
@@ -89,11 +96,9 @@ export function infoPlist(id, v) {
     CFBundlePackageType: 'APPL',
     CFBundleShortVersionString: v,
     CFBundleVersion: v,
-    LSApplicationCategoryType: 'public.app-category.developer-tools',
+    LSApplicationCategoryType: APP_CATEGORY,
     LSMinimumSystemVersion: '13.0',
-    // macOS asks before a process of the app reaches the local network (a capture of a product on another machine of
-    // the network: the worker and its browser are the app's children — critique M8).
-    NSLocalNetworkUsageDescription: `${PRODUCT} captures web apps you point it at, which may run on your local network.`,
+    NSLocalNetworkUsageDescription: LOCAL_NETWORK_USAGE,
   };
   const body = Object.entries(entries)
     .map(([k, v2]) => `\t<key>${k}</key>\n\t<string>${xml(v2)}</string>`)
@@ -110,8 +115,8 @@ ${body}
 `;
 }
 
-function run(cmd, args) {
-  const r = spawnSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'] });
+function run(cmd, args, env = process.env) {
+  const r = spawnSync(cmd, args, { stdio: ['ignore', 'ignore', 'inherit'], env });
   if (r.status !== 0) fail(`${cmd} failed`);
 }
 
@@ -146,9 +151,10 @@ export function drawnIconProblems(dir = join(APP_DIR, 'icons', 'iconset')) {
 
 /**
  * icon.png (1024²) → icon.icns through an iconset (sips + iconutil, both part of macOS). L5.13b: the 16 and 32 pt slots
- * are the drawn icons of icons/iconset/ (required, sizes checked), the larger ones are downscaled from icon.png.
+ * are the drawn icons of icons/iconset/ (required, sizes checked), the larger ones are downscaled from icon.png. Also
+ * the bundled app's icon (bundle.mjs, L5.16: `env`, the build's allow-listed environment).
  */
-function icns(out) {
+export function icns(out, env = process.env) {
   const problems = drawnIconProblems();
   if (problems.length) fail(`apps/desktop/icons/iconset: ${problems.join('; ')} — run pnpm -F @retake/ui gen:mark`);
   const work = mkdtempSync(join(tmpdir(), 'retake-icon-'));
@@ -159,10 +165,10 @@ function icns(out) {
     for (const size of [16, 32, 128, 256, 512]) {
       for (const [file, px] of [[`icon_${size}x${size}.png`, size], [`icon_${size}x${size}@2x.png`, size * 2]]) {
         if (file in DRAWN_ICONS) copyFileSync(join(APP_DIR, 'icons', 'iconset', file), join(set, file));
-        else run('sips', ['-z', String(px), String(px), src, '--out', join(set, file)]);
+        else run('sips', ['-z', String(px), String(px), src, '--out', join(set, file)], env);
       }
     }
-    run('iconutil', ['-c', 'icns', set, '-o', out]);
+    run('iconutil', ['-c', 'icns', set, '-o', out], env);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

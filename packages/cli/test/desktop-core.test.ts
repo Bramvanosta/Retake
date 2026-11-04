@@ -47,13 +47,18 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
     const out = `${r.stdout}\n${r.stderr}`;
     expect(r.status, out).toBe(0);
     const m = /test result: ok\. (\d+) passed; 0 failed/.exec(out);
-    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(51);
+    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(55);
     for (const name of [
       'a_line_with_any_other_host_scheme_port_or_shape_is_refused',
       'navigation_exact_origins_only',
       'redact_keeps_origins_only',
       'sanitize_strips_control_and_bidi_characters_and_caps_the_length',
       'launch_config_from_launch_json_and_debug_env',
+      // L5.16b: the bundled app's launch.json (version 2: relative paths inside the app, its own words).
+      'launch_json_v2_names_files_inside_the_app_only',
+      // L5.16b fixes: the launcher drops the shell's list (review A L4); launch.json from the binary's real path (A L5).
+      'the_launcher_drops_the_same_variables_as_the_shell',
+      'launch_json_is_found_from_the_binarys_real_path',
       'desktop_json_is_written_0600_atomically_and_read_back',
       'a_child_that_ignores_sigterm_is_killed_after_the_grace_period',
       'navigation_after_the_server_stopped_or_with_an_attached_server_gone',

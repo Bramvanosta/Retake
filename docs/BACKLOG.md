@@ -2177,6 +2177,25 @@ and `job_end` lines); what remains:
   Playwright's browser folders and the Node.js copy are per platform). An Intel Mac (x64 or universal) or a Linux
   engine bundle would stage the matching compositor, ffmpeg and browsers.
 
+### BL-140 — App bundle extras cut from L5.16b (the DMG's look, the build)
+*S–M · cut in L5.16b · builds on: L5.16b*
+
+- **A styled DMG window**: a background picture, the icon positions and the window size need Finder scripting
+  (AppleScript on a mounted image) or a hand-written `.DS_Store`; today's DMG is `hdiutil create -srcfolder` (the app
+  and an Applications link, Finder's default layout). Tauri's own DMG step (`bundle_dmg.sh`, `CI=true` to skip Finder)
+  in a CI release is the other route.
+- **The Tauri CLI as a dev dependency**: `pnpm add -D @tauri-apps/cli --offline` rewrote the lockfile without every
+  optional platform package it had no offline metadata for (esbuild, rspack, emnapi…), so `bundle.mjs` rebuilds the CLI
+  from the pnpm store, every file checked against the sha512 pinned in `apps/desktop/bundle/tauri-cli.json`. With a
+  network once, a normal `pnpm add -D @tauri-apps/cli@2.12.4` (lockfile kept whole, its integrity then in the lockfile)
+  would let `bundle.mjs` use `node_modules/.bin/tauri` instead.
+- **Faster builds**: Tauri copies the ≈ 1 GB payload from the stage into the app (≈ 10 s) and the DMG compresses it
+  again (≈ 40 s); building the app around the stage in place (clonefile copies) and a reused cargo target per checkout
+  would cut a rebuild to well under a minute.
+- **A stray package above the workspace** (`~/node_modules/react` beside a workspace in the home folder): from the app,
+  the render bundle refuses modules outside the app, the workspace and its cache (DESIGN §4p), so such a package makes
+  the bundle fail to resolve it rather than bundling a second React; a message naming the stray folder would help.
+
 
 ## Guard-rails for planned lots (no new scope)
 

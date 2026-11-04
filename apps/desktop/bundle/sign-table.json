@@ -1,0 +1,31 @@
+{
+ "v": 1,
+ "about": "What scripts/sign.mjs signs in the app's payload (Contents/Resources), inside-out, with the hardened runtime: every Mach-O file of the payload must be named here (a file entry, or the main executable of a bundle entry) or the bundle fails — a new native dependency is added on purpose. `entitlements`: a plist of entitlements/ (release); `dryDLV`: the ad hoc (dry) signature adds disable-library-validation, which an executable loading code of another signature needs when no team identifies both (ad hoc has none). Paths are relative to Resources; * stands for one path segment or part of one. The entitlements are the least an ad hoc probe proved (review A L1, DESIGN §4p: Node.js, the Renderer and GPU helpers and the headless shell JIT with allow-jit alone; the browser process and the plain helper need none); what no offline probe can prove stays: Node.js keeps disable-library-validation in release (the person's own native addons, in hooks or sandbox scripts, carry another signature than the app's), the Plugin helper keeps Chromium's own set (Retake never starts it).",
+ "entries": [
+  { "id": "node", "kind": "file", "path": "node/bin/node", "entitlements": "node", "dryDLV": false },
+  { "id": "ffmpeg", "kind": "file", "path": "ffmpeg/bin/ffmpeg", "entitlements": null, "dryDLV": false, "optional": true },
+  { "id": "ffprobe", "kind": "file", "path": "ffmpeg/bin/ffprobe", "entitlements": null, "dryDLV": false, "optional": true },
+  { "id": "esbuild", "kind": "file", "path": "engine/node_modules/esbuild/bin/esbuild", "entitlements": null, "dryDLV": false },
+  { "id": "esbuild-darwin-arm64", "kind": "file", "path": "engine/node_modules/@esbuild/darwin-arm64/bin/esbuild", "entitlements": null, "dryDLV": false },
+  { "id": "sharp", "kind": "file", "path": "engine/node_modules/@img/sharp-darwin-arm64/lib/sharp-darwin-arm64.node", "entitlements": null, "dryDLV": false },
+  { "id": "sharp-libvips", "kind": "file", "path": "engine/node_modules/@img/sharp-libvips-darwin-arm64/lib/libvips-cpp.*.dylib", "entitlements": null, "dryDLV": false },
+  { "id": "rspack", "kind": "file", "path": "engine/node_modules/@rspack/binding-darwin-arm64/rspack.darwin-arm64.node", "entitlements": null, "dryDLV": false },
+  { "id": "compositor-libraries", "kind": "file", "path": "engine/node_modules/@remotion/compositor-darwin-arm64/*.dylib", "entitlements": null, "dryDLV": false },
+  { "id": "compositor-remotion", "kind": "file", "path": "engine/node_modules/@remotion/compositor-darwin-arm64/remotion", "entitlements": null, "dryDLV": true },
+  { "id": "compositor-ffmpeg", "kind": "file", "path": "engine/node_modules/@remotion/compositor-darwin-arm64/ffmpeg", "entitlements": null, "dryDLV": true },
+  { "id": "compositor-ffprobe", "kind": "file", "path": "engine/node_modules/@remotion/compositor-darwin-arm64/ffprobe", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-libraries", "kind": "file", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Libraries/*.dylib", "entitlements": null, "dryDLV": false },
+  { "id": "chromium-crashpad-handler", "kind": "file", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/chrome_crashpad_handler", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-app-mode-loader", "kind": "file", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/app_mode_loader", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-shortcut-copier", "kind": "file", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/web_app_shortcut_copier", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-helper", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/Chromium Helper.app", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-helper-renderer", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/Chromium Helper (Renderer).app", "entitlements": "chromium-jit", "dryDLV": true },
+  { "id": "chromium-helper-gpu", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/Chromium Helper (GPU).app", "entitlements": "chromium-jit", "dryDLV": true },
+  { "id": "chromium-helper-plugin", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/Chromium Helper (Plugin).app", "entitlements": "chromium-plugin", "dryDLV": false },
+  { "id": "chromium-helper-alerts", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Helpers/Chromium Helper (Alerts).app", "entitlements": null, "dryDLV": true },
+  { "id": "chromium-framework", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework", "entitlements": null, "dryDLV": false },
+  { "id": "chromium", "kind": "bundle", "path": "browsers/chromium-*/chrome-mac/Chromium.app", "entitlements": null, "dryDLV": true },
+  { "id": "headless-shell-libraries", "kind": "file", "path": "browsers/chromium_headless_shell-*/chrome-mac/*.dylib", "entitlements": null, "dryDLV": false },
+  { "id": "headless-shell", "kind": "file", "path": "browsers/chromium_headless_shell-*/chrome-mac/headless_shell", "entitlements": "chromium-jit", "dryDLV": true }
+ ]
+}

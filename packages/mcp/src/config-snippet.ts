@@ -7,7 +7,7 @@
  */
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { bundleInfo, clientPath, retakeHome } from '@retake/core';
+import { bundleInfo, bundleInfoOrNull, bundleNodeArgs, clientPath, retakeHome } from '@retake/core';
 import type { BundleInfo } from '@retake/core';
 
 export { clientPath };
@@ -43,6 +43,8 @@ export interface McpConfigInput {
   bin: string;
   /** Default: process.execPath, through stableNodePath. */
   node?: string;
+  /** Node.js arguments before `bin` (default: an app bundle's module lookup guard, core bundleNodeArgs; none in a checkout). */
+  nodeArgs?: string[];
   env?: NodeJS.ProcessEnv;
 }
 
@@ -63,7 +65,7 @@ export function mcpServerEntry(o: McpConfigInput): McpServerEntry {
   }
   return {
     command: node,
-    args: [bin, '--root', o.root, 'mcp'],
+    args: [...(o.nodeArgs ?? bundleNodeArgs(bundleInfoOrNull())), bin, '--root', o.root, 'mcp'],
     env: {
       PATH: clientPath(node, env.PATH ?? '', existsSync, o.root),
       // absolute, as the plugin route prints it: a GUI client's cwd is not the shell's
@@ -164,7 +166,9 @@ export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolea
 export function pluginInstallCommands(o: McpConfigInput & { repo: string }): string[] {
   const e = mcpServerEntry(o);
   const env = o.env ?? process.env;
-  const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[0]], ['workspace', o.root]];
+  // The entry point is the argument before --root (an app bundle's guard comes first; the plugin's own .mcp.json starts
+  // `node cli` without it: core prepareBundle loads it then).
+  const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[e.args.indexOf('--root') - 1]!], ['workspace', o.root]];
   if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
   return [
     `claude plugin marketplace add ${shellQuote(o.repo)}`,

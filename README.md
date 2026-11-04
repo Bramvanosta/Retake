@@ -4001,6 +4001,57 @@ running: the MCP server keeps working without it.
   through MCP and no approver: a page's script cannot be told from your click, so anything that needs your approval
   stays in the terminal.
 
+## Install the app (macOS)
+
+**Retake.app** carries everything it needs — its own Node.js, engine, Chromium and render browser, ffmpeg, starter
+themes and Claude plugin (L5.16): no repository, Node.js, Homebrew or Playwright download on the Mac that runs it.
+macOS 15 or later, Apple silicon.
+
+1. Open `Retake_<version>_aarch64.dmg` and drag **Retake** onto **Applications**.
+2. Open Retake from Applications. **For now the app is signed ad hoc, not by a developer identity** (signing and
+   notarisation are the release run's, still to come): macOS refuses the first open of a downloaded copy (one that
+   carries the quarantine mark) — try to open it once, then System Settings › Privacy & Security › Open Anyway
+   (macOS 15 no longer offers Control-click › Open for it). A copy built on this Mac and never downloaded opens
+   directly.
+3. The command line is inside the app: `/Applications/Retake.app/Contents/Resources/bin/retake doctor` (every tool
+   says `bundled`). Link to it rather than copying it (a copy outside the app refuses to run). The app's code only
+   loads its own modules: a `node_modules` folder above the app (in /Applications, your home…) is never read. A link on your PATH, the first-run sheet and the Claude registrations come with the next part of
+   the lot.
+
+**Building the app and the DMG** (from a checkout, offline once the caches are filled):
+
+```sh
+pnpm build
+pnpm desktop:bundle --out <scratch folder> --ffmpeg <folder with ffmpeg + ffprobe>   # or RETAKE_BUNDLE_OUT=<folder>
+```
+
+It stages the payload, signs it ad hoc (inside-out, the hardened runtime on every binary, the entitlements of
+`apps/desktop/bundle/sign-table.json`), lays the app out with Tauri's bundler (the Tauri CLI comes from the pnpm store,
+every file checked against the sha512 pinned in `apps/desktop/bundle/tauri-cli.json`: no dependency is added), signs
+the shell and the app, verifies them (signatures, entitlements, Resources byte for byte against the signed payload),
+then makes and checks the DMG (`hdiutil`, APFS, compressed; no Finder scripting). Every tool the build runs gets an
+allow-listed environment: no credential of your shell (Apple, updater keys, registry or cloud tokens) reaches pnpm,
+cargo's build scripts or anything else. Everything lands in the folder you name — a folder of its own: empty (or a
+previous build's), never in the checkout, /Applications, ~/Library, your home folder itself or the Desktop / Documents
+/ Downloads folder itself (a folder inside them is fine) — `app/Retake.app`, `Retake_<version>_aarch64.dmg` and
+`bundle-report.json` (≈ 1 GB app, ≈ 420 MB DMG, ≈ 3 min with a cold cargo cache; the folder needs ≈ 4 GB free while
+it builds: stage, app, DMG and cargo's target). `--ffmpeg` takes a relocatable build (`node scripts/build-ffmpeg.mjs`);
+without it the app uses the system's ffmpeg. `--stage <dir>` reuses a stage (`bundle.mjs stage`). Cargo runs with
+`--locked` (`--offline` when `CARGO_NET_OFFLINE=true`). The end-to-end check of a built app is opt-in:
+`RETAKE_TEST_BUNDLE=1 RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg folder> npx vitest run
+packages/cli/test/app-bundle-acceptance.test.ts` (≈ 7 min: builds, then doctor, a capture and a render of the fixture
+through the app's own command, the app's window serving the Studio, no module loaded from above the app, the signature
+intact afterwards; `RETAKE_TEST_BUNDLE_APP=<Retake.app>` checks a built one). `pnpm desktop:build` keeps building the
+developer app below, which runs this repository's CLI.
+
+The release run — your Developer ID, notarisation, stapling — is `pnpm desktop:release --out <folder> --ffmpeg
+<folder>` (MACOS-CHECKLIST 15b). It refuses before anything runs unless `APPLE_SIGNING_IDENTITY` ("Developer ID
+Application: <name> (<TEAM>)"), `APPLE_TEAM_ID` and a notarisation credential are set: `APPLE_KEYCHAIN_PROFILE`, a
+profile you store once with `xcrun notarytool store-credentials <profile>`, or an App Store Connect API key
+(`APPLE_API_KEY`, `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH` — the .p8 file). An Apple ID password is not taken:
+notarytool would show it to every process on its command line. The app is notarised as a zip, then stapled; the DMG is
+signed, notarised and stapled; then the team of every signature, Gatekeeper and both tickets are checked.
+
 ## Desktop app (macOS)
 
 `apps/desktop` is a small Mac app around the same Studio (L5.2): a window on the workspace's own Studio server, the
@@ -4134,7 +4185,8 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   it, a `$RETAKE_HOME` there, any command's `--out` there, or a component preview next to a built-in component, is
   refused; from it, `components preview --all` means `--workspace`). Licences: `apps/desktop/licenses/` holds our
   ffmpeg's notices and written source offer, and the notice of Remotion's compositor (its own GPL FFmpeg build; the
-  stage refuses a compositor version the notice does not name). The app itself, signing and the DMG come next.
+  stage refuses a compositor version the notice does not name). The app and its DMG: [Install the app
+  (macOS)](#install-the-app-macos).
 
 ## Security
 

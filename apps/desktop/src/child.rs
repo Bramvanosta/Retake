@@ -72,10 +72,15 @@ pub enum StartError {
 }
 
 impl StartError {
-    pub fn text(&self) -> String {
+    /// Its words; `bundled` (launch.json version 2): the app's own engine — no repository command (L5.16).
+    pub fn text(&self, bundled: bool) -> String {
         match self {
             StartError::NotWorkspace(t) => t.clone(),
             StartError::Spawn(e) => format!("Node.js could not be started: {e}"),
+            StartError::Exited(Some(EXIT_USAGE), tail) if bundled => format!(
+                "retake ui refused its arguments (exit {EXIT_USAGE}): this copy of {} is damaged — install it again from its disk image.\n\n{tail}",
+                crate::app_name()
+            ),
             StartError::Exited(Some(EXIT_USAGE), tail) => format!(
                 "retake ui refused its arguments (exit {EXIT_USAGE}) — a CLI older than this app, without `ui --supervised`? Run pnpm build and pnpm desktop:build in the repository.\n\n{tail}"
             ),
@@ -174,9 +179,16 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
 }
 
 pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError> {
-    // No variable of the shell's own is added: the child gets the app's environment (README: Finder launches), less the
-    // code loaders in a release build.
+    // The child gets the app's environment (README: Finder launches), less the code loaders in a release build. The
+    // bundled app's (launch.json version 2): its module lookup guard first (`--require`: NODE_OPTIONS is dropped), and
+    // ws's optional native addons off (the guard already keeps them from being found above the app).
     let mut cmd = Command::new(&cfg.node);
+    if let Some(preload) = &cfg.preload {
+        cmd.arg("--require").arg(preload);
+    }
+    if cfg.bundled {
+        cmd.env("WS_NO_BUFFER_UTIL", "1").env("WS_NO_UTF_8_VALIDATE", "1");
+    }
     cmd.arg(&cfg.cli).arg("--root").arg(workspace).args(["ui", "--supervised"]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
     if !cfg!(debug_assertions) {
         for (k, _) in std::env::vars_os() {
@@ -259,7 +271,7 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
         }
         Err(e) => {
             fail(&mut child, stdin);
-            return Err(StartError::BadLine(e.to_string()));
+            return Err(StartError::BadLine(e.text(cfg.bundled)));
         }
     };
     if line.reused {

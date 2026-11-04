@@ -11,7 +11,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'n
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS } from '@retake/core';
+import { COMPONENT_KINDS, bundleInfoOrNull } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
 import {
   HASHED_FILE,
@@ -421,6 +421,26 @@ export function componentFilesGuard(components: readonly Pick<BundleComponent, '
 }
 
 /**
+ * The places a render bundle may take a module from when Retake runs from an app bundle (L5.16 review A H1, the render
+ * half): the app's Resources, the workspace and the bundle cache — never a `node_modules` folder above them. The
+ * bundler walks every `node_modules` folder up to `/` like Node.js; a planted `/Applications/node_modules/<optional
+ * peer>` (@remotion/studio names `@remotion/video-matting`, which the app does not hold) would otherwise be bundled into
+ * the render page. One RegExp (webpack's `resolve.restrictions` must all match: a list of paths would mean all of them):
+ * a module found elsewhere is not found, as it is without the planted folder. Real paths (webpack resolves links).
+ */
+export function renderBundleRestriction(roots: readonly string[]): RegExp {
+  const real = (p: string) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return resolve(p);
+    }
+  };
+  const all = [...new Set(roots.flatMap((r) => [resolve(r), real(r)]))].map((r) => r.replace(/[/\\]+$/, ''));
+  return new RegExp(`^(?:${all.map((r) => r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:[/\\\\]|$)`);
+}
+
+/**
  * The bundle for these components: from the cache when the hash matches, else bundled with @remotion/bundler into a
  * temporary folder renamed into place (concurrent renders never see a half-written bundle).
  */
@@ -446,6 +466,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
     await writeFile(join(tmp, 'src', 'entry.ts'), entrySource(comp.root));
     const { bundle } = await import('@remotion/bundler');
     const nodeModules = [join(EDITOR_DIR, 'node_modules'), join(dirname(dirname(kit.entry)), '..', 'node_modules')];
+    const app = bundleInfoOrNull();
     await bundle({
       entryPoint: join(tmp, 'src', 'entry.ts'),
       outDir: join(tmp, 'bundle'),
@@ -464,6 +485,7 @@ export async function ensureBundle(opts: EnsureBundleOptions): Promise<RenderBun
           // Workspace sources import siblings as "./x.js" (NodeNext): try the TypeScript file first.
           extensionAlias: { '.js': ['.ts', '.tsx', '.js'] },
           modules: [...((config.resolve?.modules as string[] | undefined) ?? ['node_modules']), ...nodeModules],
+          ...(app ? { restrictions: [renderBundleRestriction([app.root, opts.root, cacheDir])] } : {}),
         },
         plugins: [...(config.plugins ?? []), componentFilesGuard(opts.components) as never],
       }),

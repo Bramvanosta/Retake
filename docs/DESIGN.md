@@ -5133,7 +5133,7 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; started in L5.16a: the bundle layout and the resolver)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG)
 
 R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
 resolver, and behaves exactly as before when there is no bundle (a repository checkout).
@@ -5253,6 +5253,177 @@ fixture's `quote`; then doctor and a dry run under Node's permission model (read
 homes, TMPDIR; `--allow-addons` for sharp, `--allow-child-process` for Chromium / ffmpeg / hooks; doctor alone also
 probes the docker install places and `.git` above the workspace). That proves the engine's own Node.js file reads only:
 child processes and native add-ons are not confined by Node's permission model.
+
+### 4p (b). The app and the DMG, ad hoc (L5.16b)
+
+R-APP-07 – R-APP-09. `pnpm desktop:bundle --out <dir> [--ffmpeg <dir>] [--stage <dir>]` (`bundle.mjs build`;
+`RETAKE_BUNDLE_OUT` instead of `--out`): stage → sign the payload → bundle.json's hashes of the signed files → `tauri
+build` → sign the shell and the app → verify → DMG → verify the DMG. `pnpm desktop:release …` is the same run with
+`--release` (the person's own, part e). Every output lands in `<out>`, a dedicated folder (`checkFolder`, by real path —
+links followed through the deepest existing ancestor: never inside the checkout, /Applications (nor
+/System/Volumes/Data/Applications), ~/Applications or ~/Library, never the home folder or a folder holding it, never
+the Desktop / Documents / Downloads folder itself; empty, or marked `.retake-bundle` by an earlier build — a folder
+with anything else in it is refused untouched; `--stage` gets the same rule): `stage/`, `target/` (cargo;
+`CARGO_TARGET_DIR` when it is outside the checkout), `app/Retake.app` + an `Applications` link (the DMG's folder),
+`Retake_<version>_aarch64.dmg`, `tauri.bundle.json`, `Info.plist`, `icon.icns`, `entitlements/`, `tauri-cli/`,
+`bundle-report.json` (sizes, timings). About 4 GB at the peak (stage 0.93 + app 0.94 + DMG 0.40 + cargo target 1.6). The
+developer app is untouched: `pnpm desktop:build` / `desktop:dev` / `desktop:test` keep the repository's CLI and
+launch.json version 1. tauri-build writes `apps/desktop/gen/schemas` in the checkout (git-ignored): the build saves
+that folder first and puts it back as it was after `tauri build` (removed when it was absent), and the checkout's
+snapshot (`git status` + the bytes of every listed file) covers it, compared before and after the build.
+
+**One environment for every child** (critique M1, review A M1). `buildEnv` is an allow-list: PATH, HOME, USER,
+LOGNAME, SHELL, TMPDIR, LANG, `LC_*`, TERM, CI, NO_COLOR, SDKROOT, DEVELOPER_DIR, MACOSX_DEPLOYMENT_TARGET, RUSTFLAGS,
+`CARGO_*`, `RUSTUP_*`, `RUSTC*`, PNPM_HOME, `COREPACK_*` (COREPACK_ENABLE_AUTO_PIN=0 keeps pnpm from pinning itself
+into a package.json), `npm_config_*`, `XDG_*`, PLAYWRIGHT_BROWSERS_PATH — and any name that reads as a credential
+(TOKEN, SECRET, PASSW, CREDENTIAL, AUTH, PRIVATE, KEY) is dropped even where a prefix allows it. Every child of a build
+or a stage runs with it — pnpm (deploy, store path), git, otool, install_name_tool, codesign, ditto, xattr, sips,
+iconutil, plutil, hdiutil, `tauri build` and cargo (every crate's build script), xcrun, spctl — plus the build's own
+variables (CARGO_TARGET_DIR, CARGO_NET_OFFLINE). The release credentials stay in the signer object and reach only the
+tool that needs each, as arguments that are not secrets (below). A test runs a build with recording stand-ins of every
+tool kind and a fake Tauri CLI, with APPLE_*, updater keys under their current and legacy names
+(TAURI_SIGNING_PRIVATE_KEY*, TAURI_PRIVATE_KEY*, TAURI_KEY_PASSWORD) and registry / cloud tokens set: none reaches any.
+
+**Added to the payload** before signing: `launch.json` version 2 — `{"version":2,"bundled":true,"node":"node/bin/node",
+"cli":"engine/dist/bin.js","preload":"node/guard.cjs"}`, paths relative to its folder; `desktop_core::launch_config`
+accepts plain names only (no `..`, no `.`, never absolute: `Component::Normal` each), regular files whose real path
+(links followed) is still inside the folder — the rule holds without the seal (review B L2b) — `bundled: true` and
+`preload` required. The shell reads it from its binary's real path (`launch_json_path`: `current_exe()` keeps a
+link's path on macOS — review A L5). A missing or unreadable launch.json beside a `bundle.json` gets the bundled words
+too (review B L1). And `bin/retake` (from `apps/desktop/bundle/retake.sh`): it unsets what makes Node.js or the
+dynamic linker load other code — NODE_OPTIONS, NODE_PATH, NODE_REPL_EXTERNAL_MODULE, LD_PRELOAD, LD_LIBRARY_PATH,
+LD_AUDIT and every DYLD_* (the list of `desktop_core::child_env_dropped`, which the shell drops for its Studio server:
+a Rust test compares the two) — sets WS_NO_BUFFER_UTIL=1 / WS_NO_UTF_8_VALIDATE=1, follows `/bin/realpath -- "$0"` (a
+link on the PATH — part c — or a chain of links finds the app), refuses to run unless that path is
+`*.app/Contents/Resources/bin/retake` (a copy outside an app says "link to it, do not copy it") and the app's Node.js,
+engine and guard are there, then `exec`s `node --require <Resources>/node/guard.cjs <Resources>/engine/dist/bin.js`.
+`LaunchConfig.bundled` picks the shell's words: a damaged bundle says "install it again from its disk image", a version
+gap with a Studio server says another copy of Retake serves the workspace — never a pnpm command
+(`ConfigError::{Missing, Invalid, BadPath}` with their bundled flag, `LineError::text(bundled)`,
+`StartError::text(bundled)`).
+
+**The module lookup guard** (review A H1). Node.js looks a bare specifier up in every `node_modules` folder from the
+importing file to `/`, then in $HOME/.node_modules, $HOME/.node_libraries and `<prefix>/lib/node`. From Resources that
+walk leaves the app — `Retake.app/node_modules`, `/Applications/node_modules` (writable by any admin process),
+`/node_modules`, `~/node_modules` for a copy in ~/Applications — and the reviewer showed a planted `bufferutil` there
+running inside the app's Node.js (ws's optional addon, required by playwright-core). `node/guard.cjs` (+
+`guard-hooks.mjs`, from `apps/desktop/bundle/`) closes it: a module inside Resources resolves bare specifiers inside
+Resources only — CommonJS through `Module._nodeModulePaths` (also what `require.resolve(x, { paths })` uses) and
+`Module._resolveLookupPaths` (the global folders), ES modules through a `module.register` resolve hook that refuses a
+target outside Resources. A file outside Resources — the person's workspace components, a JavaScript hook, a sandbox
+script — keeps Node.js's lookup from its own folder; relative, absolute and URL specifiers are untouched. It is an
+argument, never NODE_OPTIONS (dropped): the launcher, the shell's Studio server (child.rs: `--require <preload>` + the
+WS_* variables), the jobs worker the engine spawns (`workerCommand` + core `bundleNodeArgs()`), the MCP registration
+(`mcpServerEntry`); worker threads inherit it. The render bundle's own resolver (webpack, through @remotion/bundler)
+walks `node_modules` folders upwards the same way — the gated acceptance caught it taking a planted
+`@remotion/video-matting` (an optional peer @remotion/studio names, which the app does not hold) from above the app —
+so from an app bundle `ensureBundle` passes `resolve.restrictions` = one RegExp of the app's Resources, the workspace
+and the bundle cache (`renderBundleRestriction`): a module found elsewhere is not found, as without the planted folder. `prepareBundle` (both entry points' first step) loads it too when a
+process was started on the bundle's code without it — the Claude plugin's own `.mcp.json` names `node <cli>` only —
+before playwright-core or any command loads; a missing guard is a `bundleProblems` line (doctor). Tests: a mini tree
+with canaries above the app, above Resources and in $HOME/.node_modules — CommonJS, ES modules, `require.resolve` with
+paths and a worker thread load none, the engine's own package loads, a workspace file still resolves its own
+node_modules and the folder above it (a control run without the guard loads them all); the gated acceptance plants
+canaries for every bare specifier the engine's JavaScript names but does not hold, above the built app and in the
+scratch home, and above Resources in a clone of the app.
+
+**Tauri lays the app out, nothing else** (D1, M1, M8). The bundle configuration is an overlay generated into `<out>`
+(`bundleOverlay`) and passed with `tauri build --bundles app --no-sign --ci --config <overlay> -- --locked
+[--offline]`; tauri.conf.json keeps `bundle.active: false` (a test). The overlay: `active`, `targets: ["app"]`, the
+icns made by desktop.mjs's `icns()` (the L5.13b drawn slots), `macOS.minimumSystemVersion` 15.0 (also the cargo
+build's deployment target), `macOS.infoPlist` (our extras: `NSLocalNetworkUsageDescription`,
+`LSApplicationCategoryType` — Tauri merges them), `macOS.files` mapping each top-level item of the stage to
+`Resources/<name>` (never `bundle.resources`: it dereferences links and breaks Chromium's framework). No
+`signingIdentity`, no updater, no plugin. The Tauri CLI 2.12.4 (the version the pnpm store holds; the crates are tauri
+2.12.5 / tauri-build 2.7.4 — a test ties the CLI's major.minor to the tauri crate's) is rebuilt from the pnpm store
+(`tauriCli`) and pinned (review A M2): `apps/desktop/bundle/tauri-cli.json` records the sha512 of every file of both
+packages (`@tauri-apps/cli`, `@tauri-apps/cli-darwin-arm64`: the native binary, `tauri.js`, `main.js`, `index.js`…);
+each store index must name its package and version and list exactly those files with exactly those sha512, every
+content file must match, every path must stay inside its package folder — a store whose index and files were rewritten
+together, an index naming another package or version, a path with `..`: refused ("not the pinned 2.12.4"). Upgrading
+means fetching the new version once with a network, checking it against the registry, and recording its files there.
+An offline `pnpm add -D @tauri-apps/cli` rewrote the lockfile without the optional platform packages it has no offline
+metadata for (esbuild, rspack… 1,744 lines), so no dependency is added.
+
+**Signing is ours** (`apps/desktop/scripts/sign.mjs`, D3 as amended by M1). The table is data:
+`apps/desktop/bundle/sign-table.json` (entries `{id, kind: file | bundle, path, entitlements: <plist> | null, dryDLV,
+optional?}`, paths relative to Resources, `*` within one segment) plus `apps/desktop/bundle/entitlements/*.plist`. The
+entitlements are the least an ad hoc probe with the hardened runtime proved (review A L1): Node.js without any
+entitlement dies at its first JIT (SIGTRAP), with allow-jit alone runs JIT and WebAssembly; Chromium 1194 signed with
+the plain helper and the browser process bare and the Renderer / GPU helpers and the headless shell on allow-jit alone
+rendered JavaScript, WebAssembly and WebGL (ANGLE Metal in new headless, SwiftShader in the headless shell) and took
+screenshots, while the same run with the Renderer helper and the headless shell bare did not start a page (the probe
+is sensitive). What no offline probe can prove stays: Node.js keeps disable-library-validation in release (the
+person's own native addons, in hooks or sandbox scripts, carry another signature than the app's; the app's own addons
+share its team); the Plugin helper keeps Chromium's own set (Retake never starts it).
+
+| Entry | Release entitlements | Dry adds DLV |
+|---|---|---|
+| node | allow-jit, disable-library-validation | (has it) |
+| Chromium Helper (Renderer), (GPU), headless_shell | allow-jit | yes |
+| Chromium Helper (Plugin) | allow-unsigned-executable-memory, disable-library-validation | (has it) |
+| Chromium.app, Chromium Helper, (Alerts), crashpad handler, app_mode_loader, web_app_shortcut_copier | none | yes |
+| compositor `remotion`, `ffmpeg`, `ffprobe` | none | yes |
+| every library (`*.dylib`, `*.node`, Chromium Framework.framework), esbuild ×2, our ffmpeg / ffprobe (optional) | none | no |
+| the shell (Contents/MacOS) and the outer app | none (signed after Tauri, by `signApp`) | no |
+
+`signPlan(payload)` walks every regular file (links never followed), finds each Mach-O by its magic (thin either byte
+order, FAT), and fails on one no entry covers (a file entry, or the main executable of a bundle entry: an app's
+`Contents/MacOS/*`, a framework's `Versions/<v>/<Name>`), on one two entries cover, and on an entry (not optional) that
+matches nothing; the order is inside-out (deepest path first). Every signature: `codesign --force --options runtime
+--timestamp=none -s - [--entitlements]` in dry mode; `entitlementsFor(entry, 'dry')` = the release set plus
+disable-library-validation where `dryDLV` (ad hoc has no team: an executable loading code of another ad hoc signature
+needs it), nothing else — a test compares the two sets entry by entry. Signing rewrites the Mach-O files, so
+bundle.json's sha256 values (Node.js, ffmpeg, ffprobe) are recomputed from the signed files right after
+(`refreshManifestHashes`, review B M3: bundle.json is no Mach-O — the outer signature seals it as rewritten).
+
+**The release path** (review A M4, review B M1; `pnpm desktop:release`, the person's run — MACOS-CHECKLIST 15b; tests
+go no further than recording stand-ins of codesign / xcrun / ditto / spctl). `signer('release', env)` →
+`releaseConfig` first: `APPLE_SIGNING_IDENTITY` ("Developer ID Application: … (TEAM)"), `APPLE_TEAM_ID` (the same
+team), and how notarytool authenticates — `APPLE_KEYCHAIN_PROFILE` (stored once by the person with `xcrun notarytool
+store-credentials`) or an App Store Connect API key (`APPLE_API_KEY` its id, `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH`
+the .p8 file). An Apple ID's app-specific password is refused: notarytool takes it only on its command line, where `ps`
+shows it to every local process (`notarytool submit --help`: `--password`, else a keychain profile or a key file). An
+empty variable is absent; refused, naming what is missing, before anything is staged or any tool runs (a test with
+recording stand-ins on PATH, through `build()` and through the command line's `--release`). Then: the payload, the
+shell and the app signed with the identity and `--timestamp`; the app checked; **the app notarised as a zip** (`ditto
+-c -k --keepParent Retake.app <out>/notarize/Retake-notarize.zip` → `xcrun notarytool submit <zip> --wait
+<credentials>` → the zip removed → `xcrun stapler staple Retake.app`: notarytool takes a zip, a disk image or a flat
+package, never an app folder); the DMG made from the stapled app, signed, notarised and stapled; then `verifyRelease`:
+every Mach-O of the app and the app itself signed by APPLE_TEAM_ID's team and none ad hoc, `spctl -a -vv -t exec` on
+the app, `spctl -a -vv -t open --context context:primary-signature` on the DMG, `xcrun stapler validate` on both. A
+failure's text redacts the value of every credential flag (`--keychain-profile`, `--key`, `--key-id`, `--issuer`,
+`--password`, `--apple-id`, `--team-id`, `--keychain`; `--flag value` and `--flag=value`), wherever it sits. No
+keychain is touched by the tool itself.
+
+**Verification** (every build): `codesign --verify --deep --strict --verbose=2` on the app; every Mach-O of the whole
+app has the `runtime` flag and no `get-task-allow`; each entry's entitlements read back (`codesign -d --entitlements -
+--xml`) equal the table's for the mode; the shell and the app have none (`verifyApp`). Then `appProblems` (review B M2,
+review A L6): `Contents/Resources` equals the signed stage byte for byte — `treeDigest` right after signing (every
+file's size, executable bit and sha256, every link's target) against the app's after Tauri's copy, Tauri's own
+`icon.icns` aside: a crate's build script runs between the two — no AppleDouble `._` file, no extended attribute but
+`com.apple.provenance`, Info.plist's `LSMinimumSystemVersion` 15.0 and the local network words; the checkout's snapshot
+unchanged. `com.apple.provenance`: macOS 15+ tags the files a process writes with its responsible app's provenance
+record (here the app the build was started from; a build started from another app may carry none), and `xattr -c`
+cannot remove it; an opaque id, never part of a signature — the DMG copies it on every file (17,021). Each check is a
+function the tests run on a mini app and on tiny DMGs, one mutation per rule.
+
+**The DMG** (D2): `hdiutil create -volname Retake -srcfolder <out>/app -fs APFS -format ULFO -ov <dmg>` — the app and
+an `/Applications` link, no Finder scripting, no mount to make it (a styled window: BL-140). Checked by `verifyDmg`:
+`hdiutil imageinfo` (format ULFO), then `hdiutil attach -nobrowse -readonly -noautoopen -mountpoint <out>/mnt`: the app
+inside verifies and carries no AppleDouble file or foreign attribute, the Applications link is there, nothing else on
+the volume (dot files included); detached (forced when needed).
+
+**Measured** (the gated acceptance, `RETAKE_TEST_BUNDLE=1`, M4 Mac, after the review fixes, 2026-11-03): build 108 s —
+stage 12.9 s, payload signing 4.8 s, `tauri build` 46.3 s, verification 16.6 s, DMG 26.8 s (a cold cargo cache: about
+3 min, `tauri build` ≈ 90 s); 35 signatures for 35 Mach-O files; 5 links kept; app 989 MB, DMG 425 MB (ULFO), payload
+973 MB. From the built app only (system PATH, scratch HOME / RETAKE_HOME / TMPDIR, 143 canary packages in 4 folders
+above the app and in the scratch home): doctor 1.8 s, every tool `bundled`; capture of the fixture's `quote` 50 s (25
+steps); `render --review` 83 s (1,823 frames, bundle 3.9 s, review clean, render browser `bundled`, no canary in the
+render bundle); the shell binary started directly (cwd outside the repository) served the Studio from `node --require
+<Resources>/node/guard.cjs <Resources>/engine/dist/bin.js` in 0.8 s; a clone with canaries above Resources ran doctor;
+afterwards no canary had run, bundle.json's hashes matched the files, the app still verified, nothing inside it was
+newer than the runs and ~/Library's entries for the bundle id were unchanged (names, sizes, mtimes). Whole run 268 s.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

@@ -5,15 +5,16 @@
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { BundleError, RETAKE_VERSION, overrideBundleInfo, readBundleManifest } from '@retake/core';
+import { BUNDLE_GUARD, BundleError, RETAKE_VERSION, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core';
 import type { BundleInfo } from '@retake/core';
-import { assertRenderBrowser, renderBrowser, renderComponentPreviews } from '@retake/editor';
+import { assertRenderBrowser, renderBrowser, renderBundleRestriction, renderComponentPreviews } from '@retake/editor';
 import type { RenderPreviewsOptions } from '@retake/editor';
-import { pluginMarketplaceRoot } from '@retake/mcp';
+import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/mcp';
 import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';
@@ -345,5 +346,92 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     expect(await componentsPreviewCommand(new Ui(io), { root: ws }, undefined, { all: true })).toBe(0);
     expect(io.stderr() + io.stdout()).toMatch(/built-in components ship inside the Retake app/);
     expect(io.stderr() + io.stdout()).toMatch(/every preview is up to date/);
+  });
+});
+
+describe('every Node.js started on the bundle\'s code loads its module lookup guard first (review A H1)', () => {
+  it('bundleNodeArgs: --require <Resources>/node/guard.cjs from a bundle, nothing from a checkout; a bundle without it is damaged', () => {
+    expect(BUNDLE_GUARD).toBe('node/guard.cjs');
+    expect(bundleNodeArgs(null)).toEqual([]);
+    const app = appBundle();
+    expect(() => bundleNodeArgs(app)).toThrow(/node\/guard\.cjs is missing: this copy of Retake is damaged — install it again from its disk image/);
+    writeFileSync(join(app.root, BUNDLE_GUARD), '');
+    expect(bundleNodeArgs(app)).toEqual(['--require', join(app.root, 'node', 'guard.cjs')]);
+  });
+
+  it('the MCP registration of a bundle starts its server with the guard before the entry point; the plugin route still names the entry point', () => {
+    const app = appBundle();
+    writeFileSync(join(app.root, BUNDLE_GUARD), '');
+    overrideBundleInfo(app);
+    const bin = join(app.paths.engine, 'dist', 'bin.js');
+    const e = mcpServerEntry({ root: '/w', bin, node: join(app.root, 'node', 'bin', 'node'), env: { PATH: '/usr/bin' } });
+    expect(e.args).toEqual(['--require', join(app.root, 'node', 'guard.cjs'), bin, '--root', '/w', 'mcp']);
+    expect(pluginInstallCommands({ root: '/w', bin, node: join(app.root, 'node', 'bin', 'node'), env: { PATH: '/usr/bin' }, repo: app.paths.plugin }).join('\n')).toContain(`cli=${bin}`);
+    overrideBundleInfo(null);
+    expect(mcpServerEntry({ root: '/w', bin, node: '/n/node', env: { PATH: '/usr/bin' } }).args).toEqual([bin, '--root', '/w', 'mcp']);
+  });
+
+  it('the jobs worker of a bundle (the built engine) starts with the guard before its entry', () => {
+    const app = appBundle();
+    writeFileSync(join(app.root, BUNDLE_GUARD), '');
+    const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'index.js')).href;
+    const spawn = pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'jobs', 'spawn.js')).href;
+    const script = `const core = await import(${JSON.stringify(core)});
+const { workerCommand } = await import(${JSON.stringify(spawn)});
+core.overrideBundleInfo(core.readBundleManifest(${JSON.stringify(app.root)}));
+const a = workerCommand('/w').args;
+core.overrideBundleInfo(null);
+console.log(JSON.stringify([a, workerCommand('/w').args]));`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8', cwd: REPO });
+    expect(r.status, r.stderr).toBe(0);
+    const [bundled, plain] = JSON.parse(r.stdout) as [string[], string[]];
+    const entry = join(REPO, 'packages', 'engine', 'dist', 'worker-main.js');
+    expect(bundled).toEqual(['--require', join(app.root, 'node', 'guard.cjs'), entry, '--root', '/w']);
+    expect(plain).toEqual([entry, '--root', '/w']);
+  });
+});
+
+describe('the render bundle takes no module from above the app (review A H1, the render half)', () => {
+  it('renderBundleRestriction: webpack\'s resolver (the same enhanced-resolve) finds a planted package above the roots without it, never with it; inside the roots, resolution is unchanged', async () => {
+    const base = mkdtempSync(join(tmp, 'restrict-'));
+    const res = join(base, 'Retake.app', 'Contents', 'Resources');
+    const ws = join(base, 'ws');
+    const put = (rel: string, text: string) => {
+      mkdirSync(dirname(join(base, rel)), { recursive: true });
+      writeFileSync(join(base, rel), text);
+    };
+    put('node_modules/@remotion/video-matting/package.json', '{"name":"@remotion/video-matting","main":"index.js"}');
+    put('node_modules/@remotion/video-matting/index.js', 'planted');
+    put('Retake.app/Contents/Resources/engine/node_modules/@remotion/studio/dist/x.js', '');
+    put('Retake.app/Contents/Resources/engine/node_modules/react/package.json', '{"name":"react","main":"index.js"}');
+    put('Retake.app/Contents/Resources/engine/node_modules/react/index.js', '');
+    put('ws/node_modules/local/package.json', '{"name":"local","main":"index.js"}');
+    put('ws/node_modules/local/index.js', '');
+    put('ws/components/card/index.tsx', '');
+    const webpack = createRequire(join(REPO, 'packages', 'editor', 'package.json')).resolve('webpack/package.json');
+    const { ResolverFactory, CachedInputFileSystem } = createRequire(webpack)('enhanced-resolve') as any;
+    const fs = new CachedInputFileSystem(createRequire(import.meta.url)('node:fs'), 0);
+    const resolver = (restrictions?: RegExp[]) => {
+      const r = ResolverFactory.createResolver({ fileSystem: fs, extensions: ['.js'], modules: ['node_modules', join(res, 'engine', 'node_modules')], ...(restrictions ? { restrictions } : {}) });
+      return (from: string, request: string) => new Promise<string | false>((ok) => r.resolve({}, from, request, {}, (err: Error | null, p?: string) => ok(err ? false : p ?? false)));
+    };
+    const studio = join(res, 'engine', 'node_modules', '@remotion', 'studio', 'dist');
+    const open = resolver();
+    expect(await open(studio, '@remotion/video-matting')).toBe(join(base, 'node_modules', '@remotion', 'video-matting', 'index.js'));
+    const guarded = resolver([renderBundleRestriction([res, ws, join(ws, '.retake', 'cache')])]);
+    expect(await guarded(studio, '@remotion/video-matting')).toBe(false);
+    expect(await guarded(studio, 'react')).toBe(join(res, 'engine', 'node_modules', 'react', 'index.js'));
+    expect(await guarded(join(ws, 'components', 'card'), 'react')).toBe(join(res, 'engine', 'node_modules', 'react', 'index.js'));
+    expect(await guarded(join(ws, 'components', 'card'), 'local')).toBe(join(ws, 'node_modules', 'local', 'index.js'));
+    // A root's neighbour with the same prefix is not inside it.
+    expect(renderBundleRestriction(['/a/ws']).test('/a/ws-other/x.js')).toBe(false);
+    expect(renderBundleRestriction(['/a/ws']).test('/a/ws/x.js')).toBe(true);
+    expect(renderBundleRestriction(['/a/ws']).test('/planted/a/ws/x.js')).toBe(false);
+  });
+
+  it('ensureBundle passes the restriction to the bundler when Retake runs from an app bundle (only then)', () => {
+    const src = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'bundle.ts'), 'utf8');
+    expect(src).toContain('const app = bundleInfoOrNull();');
+    expect(src).toContain('...(app ? { restrictions: [renderBundleRestriction([app.root, opts.root, cacheDir])] } : {}),');
   });
 });

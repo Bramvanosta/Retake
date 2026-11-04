@@ -101,6 +101,7 @@ export {
   planComponentIds,
   registryBundleComponents,
   registryModuleSource,
+  renderBundleRestriction,
   withCspMeta,
 } from './render/bundle.js';
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';

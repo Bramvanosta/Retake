@@ -1,0 +1,26 @@
+{
+ "v": 1,
+ "about": "The Tauri CLI bundle.mjs lays the app out with (tauriCli), rebuilt offline from the pnpm store: every file of both packages with the sha512 recorded when it was pinned (review A M2). A store whose index or files differ is refused. Upgrading: fetch the new version once with a network (pnpm dlx @tauri-apps/cli@<version> --version), check it against the npm registry, then record its files here; its major.minor must stay the tauri crate's (a test).",
+ "version": "2.12.4",
+ "packages": {
+  "@tauri-apps/cli": {
+   "CHANGELOG.md": "sha512-9PPnFA8uJwzgK1S7mSk87/bBTN4AkXVOn6nGCnicHew/myvg/qZCDACkrD7bPxpt6RmhMdjvdCd5b79q4IWX+A==",
+   "LICENSE-APACHE-2.0": "sha512-J7jAJS6uUMo84Cq3xWcGZMDIJOA+s9oQifPwoA0j5kipVry59TZFxteWdKh8TMhtEIXcM1kRvgIQ1pEzaxIYVw==",
+   "LICENSE-MIT": "sha512-qY7wQGwHjF7OyOClDD8APDCGrVPyubesubbOZSVckgoqtk6t1KdjqQS0ph6GSl/wonBf38pHaMR45xeDKDi71g==",
+   "README.md": "sha512-hn0y9l2qw4dVWiz+XZSyvwooBXCYyGELsE5dkWhgYMM9WT+UbdHTObT/uvf2UVC7H0Dl/fK5LbQSor3wjSKtPg==",
+   "append-headers.js": "sha512-GT3Rx6LhLxQAcb3/FVTAjNo1JLazXGs/Si2zh8HGODyCYDE313fbhfnEnZT6KvOfAm8RXy3lmdSLIg9ur1svcA==",
+   "config.schema.json": "sha512-Tozsb1GamDFpIQTD4iadBIVl4IvLn4Wb4BBjNOpKT74KcOuf3SgLsr4tnuDQYuy8ZlQE4r23BAcG4tcxxgo9CQ==",
+   "index.d.ts": "sha512-Gvkkj889gqUom74YAmED0xepmBvyQ/Whf77aWhpofCuiZLI2N0qys7227AlX26IeYxHhMHVgypcdkolX96HsZg==",
+   "index.js": "sha512-IN4vuu2ccfPXO38bNTCCuhm3Tt/HweBnUxs1IU/F7VtpgK4UlLzzrv2UNysWSalSjtAtIlagr3FDYXZGRD7LYA==",
+   "main.d.ts": "sha512-65UKQe/eFaG98K97RLIIC+WPRphOw33kR6zh7/EgEaE6beoJH/2K9sHqHOE5DI9jvsWGwOTD77YL8hjQotmQRg==",
+   "main.js": "sha512-F3H9iKyo1YEuG8fa5cu0ms6juOnmU4fXlzb0N2aRQ6n/FBunsb9M9qM3ype2uqJq6Ks0WyAg2B5lRXYk5IP6lw==",
+   "package.json": "sha512-JkxxwwpqkkthkngIgL79jySNt2b/5X789YL9ufXBtZoGx+sna1ThvYdJ1Te2CqYZZ3rNjrVifrzZ3tzuBXGG1w==",
+   "tauri.js": "sha512-/6WUjUL9qNDkILvNZszDLh9jDbkzSens0EABq/mRnUe2x5ikOfW8hKqF6qvtJ/KdIhUZ8bM3byqm8RXrXs1D4w=="
+  },
+  "@tauri-apps/cli-darwin-arm64": {
+   "README.md": "sha512-Mk7qUw7haZ74eTdS5I86oQ0WSwYjP+Ei1Oou7HVklJOLH+lDbXyHq5yBRuctMfR17ctEpZksYgUJH2jER1r/SA==",
+   "cli.darwin-arm64.node": "sha512-k8Vy3rabtScx+lrs6eB6wh0hlU7PuoWpJ02lh1ZYcL7QC1OfFeYvN7b2tjFovdMdlVPs+cgZulUkn6wat8v4og==",
+   "package.json": "sha512-FLidSVISo22N+gZESKVNrgm7ixv7t7t7F3vzn79PLZuBpqLlr2/+MKgUo4O/I2yOgm6pUjXN3iS/x+3PPHrPgw=="
+  }
+ }
+}

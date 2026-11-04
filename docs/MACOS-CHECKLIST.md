@@ -1718,6 +1718,47 @@ By hand (no test sees the Dock, Finder or a real tab's favicon): `pnpm desktop:b
    appearances (Safari may show a letter instead of an SVG favicon: note it — a favicon following the appearance there
    is BACKLOG BL-136).
 
+## 15. The standalone app (L5.16)
+
+### 15a. The DMG, the drag and the first launch (L5.16b)
+
+What the gated acceptance cannot reach (`RETAKE_TEST_BUNDLE=1`, README "Install the app (macOS)": it builds the app,
+runs its command and starts its binary directly — never Finder, never a mount under /Volumes, never Gatekeeper).
+`pnpm build`, then `pnpm desktop:bundle --out <scratch> --ffmpeg <ffmpeg folder>`: `<scratch>/Retake_<version>_aarch64.dmg`.
+Quit any Retake developer app first (`pnpm desktop:build`'s has the same bundle id). Best on a second user account
+(or a Mac) with no Homebrew, Node.js or Playwright on its PATH.
+
+1. **Open the DMG.** Double-click it: a Finder window with Retake and an Applications shortcut (no background picture
+   or icon layout yet: BACKLOG BL-140). Note the time it takes to verify and open (≈ 420 MB).
+2. **Drag.** Drag Retake onto Applications; it copies (≈ 1 GB). Eject the DMG.
+3. **First launch from Finder.** Double-click Retake in Applications. A copy built on this Mac opens directly; a copy
+   that was downloaded (AirDrop, a browser, a shared drive: it carries the quarantine mark) is refused once — System
+   Settings › Privacy & Security › Open Anyway, then it opens. Note every prompt macOS shows (expected: the folder
+   picker of the app; later, local network access for a LAN capture, notifications at the first job end) and anything
+   unexpected (a "damaged" message, a prompt per helper, a keychain prompt).
+4. **The app runs on its own.** Choose (or create) a workspace in the picker; the Studio opens. Shoot a short capture
+   of the fixture (or your own product) and render it: it works with no Homebrew / Node.js on PATH (a second account
+   shows it best). In Terminal: `/Applications/Retake.app/Contents/Resources/bin/retake doctor` — every tool line says
+   `bundled`; `codesign --verify --deep --strict /Applications/Retake.app` still says nothing (valid) afterwards.
+5. **Open from the DMG itself** (without dragging) once, and once from `~/Downloads`: the app may run from a read-only
+   or translocated place — note what works and what it says (the first-run sheet that warns about it comes with part c).
+6. **Remove it.** Drag Retake to the Bin; nothing of it is left in /Applications; `~/.retake` (your profiles, the
+   approval key) stays.
+7. **Attributes.** A DMG built from a session started inside an app (Terminal, an editor, Claude) carries that app's
+   `com.apple.provenance` record on every file — an opaque id macOS keeps, never part of a signature (the build's
+   checks ignore that one attribute only). `xattr -r /Applications/Retake.app | grep -v com.apple.provenance` after
+   the drag: note anything else (expected: nothing, or `com.apple.quarantine` on a downloaded copy until it is opened).
+
+### 15b. The release run (L5.16, part e — your Developer ID; nothing in the test suite reaches it)
+
+`pnpm desktop:release --out <folder> --ffmpeg <ffmpeg folder>` with `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID` and
+`APPLE_KEYCHAIN_PROFILE` (once: `xcrun notarytool store-credentials <profile> --apple-id … --team-id …`, which asks for
+the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`. Expected: the payload,
+the shell and the app signed with your identity, the app notarised (as a zip) and stapled, the DMG signed, notarised and
+stapled, then the checks — the team of every signature, `spctl -a -vv -t exec` on the app, `spctl -a -vv -t open
+--context context:primary-signature` on the DMG, `xcrun stapler validate` on both. Note the notarisation times and
+anything refused. Then 15a on a second Mac: the downloaded DMG opens with no Open Anyway step.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

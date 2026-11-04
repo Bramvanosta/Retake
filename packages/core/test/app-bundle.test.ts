@@ -121,10 +121,25 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
   it('a playwright-core that does not load with the bundle is remembered for doctor (never only swallowed)', () => {
     overrideBundleInfo(undefined);
     const bundle = readBundleManifest(fakeBundle().root);
+    writeFileSync(join(bundle.root, 'node', 'guard.cjs'), '');
     prepareBundle({}, bundle, () => {
       throw new Error('Cannot find module playwright-core');
     });
     expect(bundleProblems()).toEqual([expect.stringMatching(/playwright-core does not load \(Cannot find module playwright-core\).*reinstall Retake/)]);
+  });
+
+  it("prepareBundle loads the bundle's module lookup guard before playwright-core (a process started without --require: review A H1); a missing guard is remembered for doctor", () => {
+    overrideBundleInfo(undefined);
+    const bundle = readBundleManifest(fakeBundle().root);
+    const order: string[] = [];
+    writeFileSync(join(bundle.root, 'node', 'guard.cjs'), '');
+    prepareBundle({}, bundle, () => order.push('playwright-core'), (f) => order.push(f));
+    expect(order).toEqual([join(bundle.root, 'node', 'guard.cjs'), 'playwright-core']);
+    expect(bundleProblems()).toEqual([]);
+    rmSync(join(bundle.root, 'node', 'guard.cjs'));
+    prepareBundle({}, bundle, () => order.push('playwright-core'), (f) => order.push(f));
+    expect(order.slice(2)).toEqual(['playwright-core']);
+    expect(bundleProblems()).toEqual([expect.stringMatching(/module lookup guard does not load \(.*node\/guard\.cjs is missing\): reinstall Retake/)]);
   });
 
   it('paths leaving the bundle are refused (.., absolute, a link out)', () => {
