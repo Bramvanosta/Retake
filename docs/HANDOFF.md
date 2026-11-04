@@ -702,6 +702,12 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
+**After L5.14 and L5.15, before tagging v0.2.0: come back to the audit of 2026-11-04** (`docs/audit/`). Its
+[action plan](audit/action-plan.md) lists the tasks; T-SEC (the security fixes of the person's private report, kept out
+of this public repository until fixed) should land before the tag. Then propose the lots and backlog items of the
+action plan to the person (the MVP scope stays locked until they decide), and rerun `scripts/audit/snapshot.mjs`
+against `docs/audit/2026-11-04/summary.json`.
+
 **Next: L5.14 (captures first), then L5.15, then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16
 is done: the standalone app, its releases from GitHub Actions, the updater on a GitHub release feed). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),

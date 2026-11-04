@@ -1,0 +1,309 @@
+{
+ "commit": "1c8fc237fc7a2bdf5ac5029c1a47c80ea5484348",
+ "date": "2026-11-04",
+ "packages": {
+  "cli": {
+   "files": 34,
+   "lines": 6066,
+   "ioFiles": 15,
+   "pureFiles": 19,
+   "builtinImports": 33,
+   "retakeDeps": [
+    "components",
+    "core",
+    "editor",
+    "engine",
+    "hooks",
+    "mcp",
+    "review",
+    "runner-web",
+    "sandbox",
+    "ui"
+   ]
+  },
+  "components": {
+   "files": 38,
+   "lines": 7324,
+   "ioFiles": 8,
+   "pureFiles": 30,
+   "builtinImports": 22,
+   "retakeDeps": [
+    "core"
+   ]
+  },
+  "core": {
+   "files": 92,
+   "lines": 26108,
+   "ioFiles": 26,
+   "pureFiles": 66,
+   "builtinImports": 75,
+   "retakeDeps": []
+  },
+  "editor": {
+   "files": 36,
+   "lines": 11420,
+   "ioFiles": 14,
+   "pureFiles": 22,
+   "builtinImports": 50,
+   "retakeDeps": [
+    "components",
+    "core"
+   ]
+  },
+  "engine": {
+   "files": 82,
+   "lines": 23565,
+   "ioFiles": 58,
+   "pureFiles": 24,
+   "builtinImports": 160,
+   "retakeDeps": [
+    "components",
+    "core",
+    "editor",
+    "hooks",
+    "review",
+    "runner-web",
+    "sandbox"
+   ]
+  },
+  "hooks": {
+   "files": 20,
+   "lines": 2567,
+   "ioFiles": 8,
+   "pureFiles": 12,
+   "builtinImports": 12,
+   "retakeDeps": [
+    "core"
+   ]
+  },
+  "mcp": {
+   "files": 24,
+   "lines": 3678,
+   "ioFiles": 8,
+   "pureFiles": 16,
+   "builtinImports": 11,
+   "retakeDeps": [
+    "core",
+    "engine"
+   ]
+  },
+  "review": {
+   "files": 17,
+   "lines": 4074,
+   "ioFiles": 8,
+   "pureFiles": 9,
+   "builtinImports": 16,
+   "retakeDeps": [
+    "components",
+    "core",
+    "editor"
+   ]
+  },
+  "runner-web": {
+   "files": 72,
+   "lines": 24407,
+   "ioFiles": 42,
+   "pureFiles": 30,
+   "builtinImports": 80,
+   "retakeDeps": [
+    "core"
+   ]
+  },
+  "sandbox": {
+   "files": 16,
+   "lines": 4130,
+   "ioFiles": 13,
+   "pureFiles": 3,
+   "builtinImports": 38,
+   "retakeDeps": [
+    "core",
+    "hooks"
+   ]
+  },
+  "ui": {
+   "files": 145,
+   "lines": 37597,
+   "ioFiles": 23,
+   "pureFiles": 122,
+   "builtinImports": 42,
+   "retakeDeps": [
+    "components",
+    "core",
+    "editor",
+    "engine",
+    "mcp"
+   ]
+  }
+ },
+ "packageCycles": 0,
+ "fileCycles": 6,
+ "rules": {
+  "R1": 36,
+  "R2": 0,
+  "R3": 12,
+  "R4": 51,
+  "R5": 0,
+  "R6": 24,
+  "R7": 0
+ },
+ "sizes": {
+  "files": 576,
+  "lines": 150936,
+  "buckets": {
+   ">1000": 13,
+   "500-1000": 62,
+   "300-500": 87,
+   "<300": 414
+  },
+  "longFunctions": 57,
+  "longFunctionsPerPackage": {
+   "runner-web": 7,
+   "editor": 6,
+   "core": 6,
+   "engine": 4,
+   "cli": 1,
+   "ui": 31,
+   "review": 1,
+   "components": 1
+  }
+ },
+ "tests": {
+  "cli": {
+   "src": 6066,
+   "test": 12014,
+   "files": 38,
+   "cases": 367,
+   "gated": 22,
+   "browser": 23,
+   "spawn": 19,
+   "tmpdir": 33,
+   "noIO": 0
+  },
+  "components": {
+   "src": 7324,
+   "test": 3642,
+   "files": 20,
+   "cases": 178,
+   "gated": 0,
+   "browser": 0,
+   "spawn": 0,
+   "tmpdir": 1,
+   "noIO": 10
+  },
+  "core": {
+   "src": 26108,
+   "test": 13696,
+   "files": 51,
+   "cases": 654,
+   "gated": 4,
+   "browser": 9,
+   "spawn": 9,
+   "tmpdir": 15,
+   "noIO": 18
+  },
+  "editor": {
+   "src": 11420,
+   "test": 6715,
+   "files": 24,
+   "cases": 250,
+   "gated": 8,
+   "browser": 7,
+   "spawn": 7,
+   "tmpdir": 11,
+   "noIO": 3
+  },
+  "engine": {
+   "src": 23565,
+   "test": 15186,
+   "files": 56,
+   "cases": 505,
+   "gated": 12,
+   "browser": 11,
+   "spawn": 20,
+   "tmpdir": 51,
+   "noIO": 0
+  },
+  "hooks": {
+   "src": 2567,
+   "test": 2599,
+   "files": 12,
+   "cases": 110,
+   "gated": 1,
+   "browser": 0,
+   "spawn": 0,
+   "tmpdir": 0,
+   "noIO": 1
+  },
+  "mcp": {
+   "src": 3678,
+   "test": 6722,
+   "files": 27,
+   "cases": 151,
+   "gated": 14,
+   "browser": 10,
+   "spawn": 10,
+   "tmpdir": 22,
+   "noIO": 2
+  },
+  "review": {
+   "src": 4074,
+   "test": 1957,
+   "files": 8,
+   "cases": 72,
+   "gated": 2,
+   "browser": 0,
+   "spawn": 3,
+   "tmpdir": 3,
+   "noIO": 0
+  },
+  "runner-web": {
+   "src": 24407,
+   "test": 15753,
+   "files": 46,
+   "cases": 474,
+   "gated": 5,
+   "browser": 24,
+   "spawn": 10,
+   "tmpdir": 7,
+   "noIO": 1
+  },
+  "sandbox": {
+   "src": 4130,
+   "test": 2589,
+   "files": 8,
+   "cases": 75,
+   "gated": 5,
+   "browser": 4,
+   "spawn": 3,
+   "tmpdir": 7,
+   "noIO": 0
+  },
+  "ui": {
+   "src": 37597,
+   "test": 30768,
+   "files": 78,
+   "cases": 773,
+   "gated": 22,
+   "browser": 38,
+   "spawn": 19,
+   "tmpdir": 55,
+   "noIO": 14
+  }
+ },
+ "duplication": {
+  "blocks": 30,
+  "lines": 287,
+  "crossBlocks": 4,
+  "crossLines": 34
+ },
+ "supplyChain": {
+  "pnpmLockPackages": 556,
+  "pnpmSha512": 556,
+  "pnpmGitOrTarball": 0,
+  "cargoLockPackages": 451,
+  "cargoGitSources": 0,
+  "workflows": 1,
+  "actionUses": 16,
+  "actionUsesPinnedBySha": 16
+ }
+}
