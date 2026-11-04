@@ -22,7 +22,7 @@ import {
   writeJson,
 } from '@retake/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
-import type { FilmingEvent, LiveSink, PauseGate } from '@retake/runner-web';
+import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -348,7 +348,7 @@ export interface RunJobContext {
   /** L4.4: the job's pause marker, as the worker polls it. */
   pause?: PauseGate;
   /** L5.14: when the take films (the worker writes its filming marker). */
-  onFilming?: (state: FilmingEvent) => void;
+  onFilming?: (state: FilmingEvent) => void | FilmingReport;
 }
 
 /** The environment variable that changes the longest pause of a run (minutes). */

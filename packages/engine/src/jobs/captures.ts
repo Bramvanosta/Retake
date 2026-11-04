@@ -255,6 +255,8 @@ export class FilmingMarker {
 /** A live marker as a reader sees it: whether it is of this workspace, how long it held, whether it reached the cap. */
 export interface LiveTake {
   name: string;
+  /** Its owner's pid (doctor checks that it is a Retake process; never shown to an agent). */
+  pid: number;
   here: boolean;
   paused: boolean;
   held_ms: number;
@@ -300,10 +302,15 @@ interface Owner {
 
 const START_TOLERANCE_MS = 2000;
 
-function capMs(env: NodeJS.ProcessEnv): number {
+/** The cap in minutes: RETAKE_CAPTURE_HOLD_MAX_MIN (1 min … 24 h), else HOLD_MAX_MIN. */
+export function capMinutes(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.RETAKE_CAPTURE_HOLD_MAX_MIN?.trim();
   const n = raw ? Number(raw) : HOLD_MAX_MIN;
-  return (Number.isFinite(n) && n > 0 ? Math.min(n, 24 * 60) : HOLD_MAX_MIN) * 60_000;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 24 * 60) : HOLD_MAX_MIN;
+}
+
+function capMs(env: NodeJS.ProcessEnv): number {
+  return capMinutes(env) * 60_000;
 }
 
 /** A gap between two scans counts at most this much holding time (a suspended reader does not cap a take). */
@@ -412,7 +419,7 @@ export class FilmingWatch {
     this.forget(present, now);
     for (const l of live) {
       const o = this.owners.get(l.key)!;
-      const take: LiveTake = { name: l.name, here: typeof l.rec.ws === 'string' && this.here(l.rec.ws), paused: l.paused, held_ms: o.heldMs, capped: o.capped, source: l.rec.source === 'job' || l.rec.source === 'cli' ? l.rec.source : 'other' };
+      const take: LiveTake = { name: l.name, pid: l.rec.pid, here: typeof l.rec.ws === 'string' && this.here(l.rec.ws), paused: l.paused, held_ms: o.heldMs, capped: o.capped, source: l.rec.source === 'job' || l.rec.source === 'cli' ? l.rec.source : 'other' };
       out.takes.push(take);
       if (!l.paused && !o.capped && !l.ignored) {
         out.holding = true;
@@ -421,6 +428,108 @@ export class FilmingWatch {
       }
     }
     return out;
+  }
+}
+
+/** What a take saw beside it while it filmed (runner-web FilmingReport: run.json `perf.machine`). */
+export interface TakeBesideReport {
+  takes_beside: number;
+  heavy_slowed: boolean;
+}
+
+/**
+ * A filming take's view of what runs beside it (L5.14, critique L9: the caller samples, the runner only records): every
+ * `everyMs` while it films, the other takes filming on this Mac (live, unpaused markers but its own) and whether heavy
+ * work of its workspace's jobs worker runs slowed — `slowed`: the worker's own hold when the take runs in the worker,
+ * else its one file `.retake/workers/held.json` (HELD_FILE). Never a walk of the job folders (review A H1: the take's
+ * event loop). `onFirst` is told once when another take films beside it.
+ */
+export class TakeBeside {
+  private max = 0;
+  private slowed = false;
+  private timer: NodeJS.Timeout | undefined;
+  private busy = false;
+  private told = false;
+  private readonly watch: FilmingWatch;
+
+  constructor(
+    private readonly o: {
+      root: string;
+      /** The take's own marker file name (not counted). */
+      own: () => string | undefined;
+      onFirst?: (where: 'here' | 'elsewhere') => void;
+      /** Heavy work of the workspace's worker runs slowed now (default: its held file says so). */
+      slowed?: () => boolean;
+      env?: NodeJS.ProcessEnv;
+      everyMs?: number;
+    },
+  ) {
+    this.watch = new FilmingWatch({ root: o.root, ...(o.env ? { env: o.env } : {}) });
+  }
+
+  start(): void {
+    if (this.timer) return;
+    void this.sample();
+    this.timer = setInterval(() => void this.sample(), this.o.everyMs ?? BEAT_MS);
+    this.timer.unref();
+  }
+
+  /** Sampling stops; what it saw. */
+  stop(): TakeBesideReport {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = undefined;
+    return { takes_beside: this.max, heavy_slowed: this.slowed };
+  }
+
+  /** One sample (tests call it directly). */
+  async sample(): Promise<void> {
+    if (this.busy) return;
+    this.busy = true;
+    try {
+      const own = this.o.own();
+      const st = await this.watch.scan();
+      const others = st.takes.filter((t) => t.name !== own && !t.paused);
+      if (others.length > this.max) this.max = others.length;
+      if (others.length && !this.told) {
+        this.told = true;
+        this.o.onFirst?.(others.some((t) => t.here) ? 'here' : 'elsewhere');
+      }
+      if (!this.slowed) this.slowed = (this.o.slowed ?? (() => workerHolds(this.o.root)))();
+    } catch {
+      /* the next sample tries again */
+    } finally {
+      this.busy = false;
+    }
+  }
+}
+
+/**
+ * Whether a command line (ps `command=`) is one of the processes that film a take and own its marker (review A L3): a
+ * jobs worker (`…/worker-main.js`, a capture runs in it) or the CLI's `run` (`…/bin.js … run …`, `retake … run …`).
+ * Doctor warns about a marker whose owner is anything else (another node process included).
+ */
+export function isTakeOwnerCommand(cmd: string): boolean {
+  return /\/worker-main\.(?:js|ts)(?:\s|$)/.test(cmd) || /(?:^|\/)(?:bin\.js|retake)\s(?:.*\s)?run(?:\s|$)/.test(cmd);
+}
+
+/**
+ * `.retake/workers/held.json`: written by the jobs worker while it runs heavy work slowed for a take (state
+ * `background`), removed when it lets it go — one file a take outside the worker reads (TakeBeside).
+ */
+export const HELD_FILE = 'held.json';
+
+export function heldFile(root: string): string {
+  return join(stateDir(root), 'workers', HELD_FILE);
+}
+
+/** The workspace's worker runs heavy work slowed now (its held file, read as an enum only). */
+export function workerHolds(root: string): boolean {
+  const read = readPlainFile(heldFile(root), MARKER_MAX_BYTES);
+  if (!read.ok) return false;
+  try {
+    return (JSON.parse(read.bytes.toString('utf8')) as { state?: unknown }).state === 'background';
+  } catch {
+    return false;
   }
 }
 

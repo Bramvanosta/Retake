@@ -439,6 +439,24 @@ export interface JobRecord {
   pause_requested_at?: string;
   /** The state was derived when reading (the stored one is older: a worker died, or a cancel came before it started). */
   derived?: true;
+  /**
+   * L5.14, derived when reading: a heavy job (core JOB_CLASS) a filming take holds — `waiting`: queued, it starts once
+   * the take ends; `background`: running, slowed (background priority) during the take, from its worker's yield.json;
+   * `past_cap`: running at normal priority although a take still films, because that take has held heavy work for longer
+   * than the cap (RETAKE_CAPTURE_HOLD_MAX_MIN). `cause`: the take films in this workspace, or elsewhere on this Mac
+   * (never named). Fixed words, a time and a number only.
+   */
+  yield?: JobYield;
+}
+
+/** A heavy job held by a filming take (JobRecord.yield). */
+export interface JobYield {
+  state: 'waiting' | 'background' | 'past_cap';
+  cause: 'here' | 'elsewhere';
+  /** When it began (running only: when its worker lowered its priority, or let it go on past the cap). */
+  since?: string;
+  /** past_cap: the cap (minutes). */
+  cap_min?: number;
 }
 
 export type JobEventBody =

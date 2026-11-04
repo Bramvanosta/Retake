@@ -33,7 +33,7 @@ import type { InterruptPort } from '../interrupts.js';
 import { refuseBesideOldHolder } from '../legacy.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
-import { FilmingWatch } from './captures.js';
+import { FilmingWatch, capMinutes, heldFile } from './captures.js';
 import { JOB_EXIT } from './job-child.js';
 import { WorkerLock, workersDir } from './lock.js';
 import { pick } from './pick.js';
@@ -47,6 +47,7 @@ import { FINISHED_JOB_STATES } from './types.js';
 import type { JobRecord, JobWorkerInfo } from './types.js';
 import { killTree, signalTree, signalablePid } from './signal.js';
 import type { KillFn } from './signal.js';
+import { approvalsUsedDir, consumeApprovals, pruneUsedApprovals, recordDigest, restoreApprovals } from './signing.js';
 import { QosYield } from './yield.js';
 import type { QosDeps } from './yield.js';
 
@@ -84,12 +85,14 @@ export interface WorkerOptions {
    * signals the worker sends (signal.ts still checks every target first).
    */
   jobProcessTest?: {
-    command?: (job: { id: string; kind: string; root: string; build: string; supervisor: number }) => { command: string; args: string[] };
+    command?: (job: { id: string; kind: string; root: string; build: string; supervisor: number; digest: string }) => { command: string; args: string[] };
     kill?: KillFn;
     /** The QoS hold's process table and taskpolicy. */
     qos?: Partial<QosDeps>;
     /** Told of each build check (whether the worker's take films then). */
     buildCheck?: (filming: boolean) => void;
+    /** The build changed (as if its stamp had): critique L4's test. */
+    buildChanged?: () => boolean;
   };
 }
 
@@ -101,6 +104,8 @@ interface HeavyChild {
   exit: Promise<void>;
   exited?: { code: number | null; signal: NodeJS.Signals | null };
   qos: QosYield;
+  /** Its yield.json says a take held it past the cap (it goes on at normal priority). */
+  pastCap?: boolean;
   /** When this worker first saw the job's cancel marker. */
   cancelSeen?: number;
   killed?: 'cancel';
@@ -348,6 +353,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       if (capture) capture.filming = on;
       wake.fn?.();
     },
+    heavySlowed: () => heavy?.qos.held === true,
   });
 
   /**
@@ -390,7 +396,8 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   /**
    * Claim a job (re-read: it may have changed since the scan); undefined when someone else took it, or when it was refused
    * at once — review A M2: a record whose kind is not its input's kind (which a job process would refuse) ends `failed`
-   * on its first claim, never claimed and given back in a loop.
+   * on its first claim, never claimed and given back in a loop. A job's approvals are taken as it is claimed (signing.ts
+   * consumeApprovals): a job whose approvals were taken before (a job folder made again under the same id) is refused.
    */
   const claim = async (id: string): Promise<JobRecord | undefined> => {
     const stored = await queue.stored(id);
@@ -413,7 +420,24 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       });
       return undefined;
     }
+    // Review B L4: a record that cannot be written is said as such (not as approvals taken before).
+    const consumed = await consumeApprovals(stored).then(
+      (ok) => (ok ? null : `refused without running: the approvals of job ${id} were taken by an earlier claim of that id (approvals are bound to their job) — submit it again`),
+      (e: unknown) => `not run: the record of the approvals workers took (${approvalsUsedDir()}) cannot be written (${(e as Error).message}) — fix it, then submit the job again`,
+    );
+    if (consumed) {
+      started++;
+      ended++;
+      await closeJob({ ...stored, state: 'failed', finished_at: new Date().toISOString(), error: { code: 'refused', message: consumed } });
+      return undefined;
+    }
     return stored;
+  };
+
+  /** Give a claimed job back to the queue unrun: its claim and the approvals its claim took. */
+  const unclaim = async (id: string): Promise<void> => {
+    await restoreApprovals(id).catch(() => undefined);
+    await queue.unclaim(id);
   };
 
   let started = 0;
@@ -439,7 +463,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const startHeavy = async (stored: JobRecord): Promise<void> => {
     started++;
     await mkdir(workersDir(root), { recursive: true });
-    const job = { id: stored.id, kind: stored.kind, build, supervisor: process.pid };
+    const job = { id: stored.id, kind: stored.kind, build, supervisor: process.pid, digest: recordDigest(stored) };
     const { command, args } = o.jobProcessTest?.command ? o.jobProcessTest.command({ ...job, root }) : jobProcessCommand(root, job);
     const out = openSync(join(workersDir(root), 'worker.log'), 'a');
     let child;
@@ -487,7 +511,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     }
     const { code, signal } = h.exited ?? { code: null, signal: null };
     if (code === JOB_EXIT.buildChanged && stored.state === 'queued') {
-      await queue.unclaim(h.id);
+      await unclaim(h.id);
       buildChanged = true;
       log(`job ${h.id}: its job process runs another build: given back to the queue, handing over once idle`);
       return;
@@ -539,16 +563,20 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const watch = new FilmingWatch({ root });
   let filmingLive = false;
   let filmingCause: 'here' | 'elsewhere' | undefined;
-  const capMin = () => Number(process.env.RETAKE_CAPTURE_HOLD_MAX_MIN) || 60;
+  /** A live take that films but reached the cap (it holds nothing any more): said on the running heavy job. */
+  let filmingCapped: 'here' | 'elsewhere' | undefined;
   const scanFilming = async (): Promise<void> => {
     try {
       const st = await watch.scan();
       filmingLive = st.holding;
       filmingCause = st.cause;
-      for (const _ of st.newlyCapped) log(`a take has held heavy work for over ${capMin()} min: heavy work goes on`);
+      const capped = st.takes.filter((t) => t.capped && !t.paused);
+      filmingCapped = capped.length ? (capped.some((t) => t.here) ? 'here' : 'elsewhere') : undefined;
+      for (const _ of st.newlyCapped) log(`a take has held heavy work for over ${capMinutes()} min: heavy work goes on`);
     } catch (e) {
       log(`the filming markers could not be read (${(e as Error).message}): heavy work is not held`);
       filmingLive = false;
+      filmingCapped = undefined;
     }
   };
 
@@ -562,13 +590,25 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
         const cause = own ? 'here' : (filmingCause ?? 'elsewhere');
         log(`job ${h.id}: background priority while a take films (${cause === 'here' ? 'in this workspace' : 'elsewhere on this Mac'})`);
         await writeFile(queue.yieldFile(h.id), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString(), cause })}\n`).catch(() => undefined);
+        h.pastCap = false;
       }
       await h.qos.hold();
-    } else if (h.qos.held) {
-      // yield.json goes first: whoever sees normal priority again sees it gone (review B H1).
-      await rm(queue.yieldFile(h.id), { force: true }).catch(() => undefined);
-      await h.qos.release();
-      log(`job ${h.id}: normal priority again`);
+    } else {
+      if (h.qos.held) {
+        // yield.json goes first: whoever sees normal priority again sees it gone (review B H1).
+        await rm(queue.yieldFile(h.id), { force: true }).catch(() => undefined);
+        await h.qos.release();
+        log(`job ${h.id}: normal priority again`);
+      }
+      // The cap reached (a take still films, but has held heavy work for over the cap): said on the job, not only logged.
+      if (filmingCapped && !h.pastCap) {
+        h.pastCap = true;
+        await writeFile(queue.yieldFile(h.id), `${JSON.stringify({ v: 1, state: 'past_cap', since: new Date().toISOString(), cause: filmingCapped, cap_min: capMinutes() })}\n`).catch(() => undefined);
+        log(`job ${h.id}: a take has held heavy work for over ${capMinutes()} min: this job goes on at normal priority`);
+      } else if (!filmingCapped && h.pastCap) {
+        h.pastCap = false;
+        await rm(queue.yieldFile(h.id), { force: true }).catch(() => undefined);
+      }
     }
     // Critique M3: a cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
     // is killed only when it has not ended `cancelGraceMs` after the cancel.
@@ -580,12 +620,24 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     }
   };
 
+  /** `.retake/workers/held.json` follows the heavy job's hold: what a take filmed outside this worker reads (TakeBeside). */
+  let heldWritten = false;
+  const syncHeld = async (): Promise<void> => {
+    const on = heavy?.qos.held === true && !heavy.exited;
+    if (on === heldWritten) return;
+    heldWritten = on;
+    if (on) await writeFile(heldFile(root), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString() })}\n`).catch(() => undefined);
+    else await rm(heldFile(root), { force: true }).catch(() => undefined);
+  };
+
   // ── the loop ──
   let lastBuildCheck = Date.now();
   let handover = false;
   let buildChanged = false;
   try {
     await recoverOrphans();
+    await pruneUsedApprovals().catch(() => undefined);
+    await import('@retake/hooks').then((h) => h.pruneDoneRollbacks()).catch(() => undefined);
     for (;;) {
       if (stopping) break;
       const idle = !capture && !heavy;
@@ -602,6 +654,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       }
       await scanFilming();
       if (heavy) await steerHeavy(heavy);
+      await syncHeld();
       // Claims. Not while a take of this worker films and the heavy slot has nothing to take (critique M6: the take's
       // event loop is this process's), nor after a build change (critique L4: captures included), nor past `once`.
       let claimed = false;
@@ -621,7 +674,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
           const id = pick(records, { slot: 'heavy', filmingLive: filmingLive || capture?.filming === true });
           const stored = id ? await claim(id) : undefined;
           if (stored) {
-            if (jobClass(stored.kind) !== 'heavy' || jobClass(stored.input?.kind) !== 'heavy') await queue.unclaim(stored.id);
+            if (jobClass(stored.kind) !== 'heavy' || jobClass(stored.input?.kind) !== 'heavy') await unclaim(stored.id);
             else {
               await startHeavy(stored);
               claimed = true;
@@ -661,7 +714,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       if (Date.now() - lastBuildCheck >= buildCheckMs && capture?.filming !== true) {
         lastBuildCheck = Date.now();
         o.jobProcessTest?.buildCheck?.(capture?.filming ?? false);
-        if (buildStamp(dirs) !== build) {
+        if (o.jobProcessTest?.buildChanged?.() === true || buildStamp(dirs) !== build) {
           if (!buildChanged && !empty) log('the code changed since this worker started: no new job here, handing over once the running ones end');
           buildChanged = true;
           continue;
@@ -677,7 +730,9 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
       heavy = undefined;
       await onHeavyExit(h);
     }
+    await syncHeld();
   } finally {
+    if (heldWritten) await rm(heldFile(root), { force: true }).catch(() => undefined);
     process.off('SIGINT', onSignal);
     process.off('SIGTERM', onSignal);
     process.off('unhandledRejection', onRejection);

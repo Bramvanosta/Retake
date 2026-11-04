@@ -20,7 +20,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import type { AuthStatus, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
+import type { AuthStatus, HeldWork, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
 import { call, useConnection } from '../api.js';
 import type { Connection, Loaded } from '../api.js';
 import { Txt } from '../bits.js';
@@ -28,6 +28,7 @@ import { APP_NAME } from '../brand.js';
 import { readmeKey, useDirty } from '../drafts.js';
 import { useEventMode, useEvents } from '../events.js';
 import type { EventMode } from '../events.js';
+import { heldShortWords, heldWords } from '../render-words.js';
 import { hrefTo } from '../route.js';
 import type { Route } from '../route.js';
 import { AppMark, Button, CommandPalette, COMMAND_EVENT, IconButton, Menu, SegmentedLinks, SourceList, StatusBar, StatusMark, isMenuCommand, modalOpen, studioShell } from '../ui-kit/index.js';
@@ -57,6 +58,8 @@ interface EngineInfoData {
   version: string;
   root: string;
   worker: { pid: number; started_by?: string } | null;
+  /** L5.14: what a filming take holds of this workspace's jobs (absent from an older server). */
+  held?: HeldWork | null;
   /** L5.13: the sign-ins of before the rename are left in the old home; old variables are set — neither is read. */
   legacy?: { old_home?: string; old_home_var?: string; old_vars?: string[] };
 }
@@ -114,6 +117,21 @@ function useEngineInfo(): EngineInfoData | null {
       window.clearInterval(t);
     };
   }, [tick]);
+  return v;
+}
+
+/**
+ * L5.14 (captures first): what a filming take holds of this workspace's jobs — engine_info's `held`, then each jobs
+ * event's (the server says it with every change of a job, a hold included: the job stream's signature has it).
+ */
+function useHeld(info: EngineInfoData | null): HeldWork | null {
+  const [v, set] = useState<HeldWork | null>(null);
+  useEffect(() => {
+    if (info && info.held !== undefined) set(info.held ?? null);
+  }, [info]);
+  useEvents((e) => {
+    if (e.type === 'jobs' && e.held !== undefined) set(e.held ?? null);
+  });
   return v;
 }
 
@@ -228,6 +246,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
   const connection = useConnection();
   const updates = useEventMode();
   const info = useEngineInfo();
+  const held = useHeld(info);
   const main = useRef<HTMLElement>(null);
   const projects = list.state === 'ready' ? list.data.projects : [];
   const openSlug = PROJECT_ROUTES.has(route.name) ? slugOf(route) : null;
@@ -539,6 +558,14 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
               <span className="sh-connection" data-testid="connection" data-updates={updates}>
                 <StatusMark state={conn.state} word={conn.word} />
                 {info && <span>{info.worker ? ' · worker running' : ' · worker idle'}</span>}
+                {held && (
+                  <span className="sh-seg" data-testid="held" data-held={held.state}>
+                    {' · '}
+                    {/* Review B L6: the long words, or at 1000 px and less their short form (shell.css). */}
+                    <span className="sh-held-long">{heldWords(held)}</span>
+                    <span className="sh-held-short">{heldShortWords(held)}</span>
+                  </span>
+                )}
                 {connection === 'online' && UPDATES[updates] && (
                   <span className="sh-seg" data-drop="updates">
                     {' · '}

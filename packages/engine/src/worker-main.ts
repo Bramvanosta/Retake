@@ -4,8 +4,8 @@
  * the worker lock; `retake worker` runs the same). stdout stays empty: whatever a library prints goes
  * to stderr, which the spawner sends to .retake/workers/worker.log.
  *
- * L5.14: `--job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid>` runs one heavy job a worker claimed
- * (jobs/job-child.ts), as a process of its own; only a worker starts it so.
+ * L5.14: `--job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>` runs one heavy job a
+ * worker claimed (jobs/job-child.ts), as a process of its own; only a worker starts it so.
  */
 // First: the app bundle's browsers before any module loads playwright-core (bundle-env.ts; the cli app-bundle test).
 import './bundle-env.js';
@@ -33,12 +33,13 @@ if (job !== undefined) {
   const supervisor = Number(arg('--supervisor'));
   const kind = arg('--kind');
   const build = arg('--build');
-  if (!kind || !build || !Number.isInteger(supervisor) || supervisor <= 1) {
-    process.stderr.write('worker-main --job: --kind, --build and --supervisor <pid> are required\n');
+  const digest = arg('--digest');
+  if (!kind || !build || !Number.isInteger(supervisor) || supervisor <= 1 || !digest || !/^[0-9a-f]{64}$/.test(digest)) {
+    process.stderr.write('worker-main --job: --kind, --build, --supervisor <pid> and --digest <sha256> are required\n');
     process.exit(JOB_EXIT.refused);
   }
   const dirs = passedBuildDirs(process.env.RETAKE_JOB_BUILD_DIRS);
-  runJobChild({ root, id: job, kind, build, supervisor, ...(dirs ? { dirs } : {}) })
+  runJobChild({ root, id: job, kind, build, supervisor, digest, ...(dirs ? { dirs } : {}) })
     .then((code) => process.exit(code))
     .catch((e: unknown) => {
       process.stderr.write(`job process: ${e instanceof Error ? (e.stack ?? e.message) : String(e)}\n`);

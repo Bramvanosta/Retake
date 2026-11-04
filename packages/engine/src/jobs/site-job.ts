@@ -272,6 +272,8 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
 export interface SiteJobContext {
   ws: WorkspaceConfig;
   cli: string;
+  /** The job's id: its approval is signed for it (signing.ts). */
+  jobId: string;
   input: SiteJobInput;
   signal: AbortSignal;
   event(e: JobEventBody): void;
@@ -279,8 +281,8 @@ export interface SiteJobContext {
 }
 
 /** Whether the job carries a verified (signed) human approval of exactly its URL. */
-export async function siteApproved(input: SiteJobInput): Promise<boolean> {
-  const { approvals } = await verifiedApprovals(input);
+export async function siteApproved(input: SiteJobInput, jobId: string, root: string): Promise<boolean> {
+  const { approvals } = await verifiedApprovals(input, { jobId, root });
   const want = siteApprovalFingerprint(input.url);
   return approvals.some((a) => a.fingerprint === want);
 }
@@ -384,7 +386,7 @@ export function siteView(ws: WorkspaceConfig, siteId: string, url: SiteUrl, raw:
 /** Execute a `site` job: the approval and the URL checked again, the extraction, the draft, the pruning. */
 export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult> {
   const { input } = ctx;
-  if (!(await siteApproved(input))) {
+  if (!(await siteApproved(input, ctx.jobId, ctx.ws.root))) {
     throw new EngineError('refused', `refused without running: a site job runs only with a human's approval of its exact URL, signed when it was submitted — this one has none (a job file not written by a submit, or edited since)`, {
       fix: siteCommandLine(ctx.cli, input.url),
     });

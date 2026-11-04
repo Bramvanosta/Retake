@@ -4,7 +4,7 @@
  * Every value here is a trusted word (ids, phases, numbers); untrusted text (a failure's message, a finding's message)
  * stays with the caller, shown through Txt.
  */
-import type { RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
+import type { HeldWork, JobYield, RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
 
 /** Why Render is off on a proposal's preview (Edit and the status bar say it the same, in every state of Edit). */
@@ -48,6 +48,37 @@ export function etaWords(s: number | undefined): string {
   return `about ${Math.round(s / 60)} min left`;
 }
 
+const WHERE: Record<JobYield['cause'], string> = { here: 'in this workspace', elsewhere: 'elsewhere on this Mac' };
+
+/**
+ * L5.14 (captures first): what a take does to a heavy job, in words — as engine yieldWords says it to MCP and the
+ * terminal ("waiting for a take to finish (in this workspace)", "slowed during a take (elsewhere on this Mac)").
+ */
+export function yieldWords(y: JobYield): string {
+  const where = WHERE[y.cause] ?? WHERE.elsewhere;
+  if (y.state === 'past_cap') return `going on: a take (${where}) has held heavy work for ${y.cap_min ? `over ${y.cap_min} min` : 'longer than the cap'}`;
+  return `${y.state === 'waiting' ? 'waiting for a take to finish' : 'slowed during a take'} (${where})`;
+}
+
+/** The status bar's segment (engine heldWorkWords): "a render is slowed during a take (in this workspace)". */
+export function heldWords(h: HeldWork): string {
+  const what = h.count > 1 ? `${h.count} jobs` : `${/^[aeiou]/.test(h.kind) ? 'an' : 'a'} ${h.kind.replace(/_/g, ' ')}`;
+  if (h.state === 'background') return `${what} ${h.count > 1 ? 'are' : 'is'} slowed during a take (${WHERE[h.cause] ?? WHERE.elsewhere})`;
+  if (h.state === 'past_cap') return `${what} ${h.count > 1 ? 'go' : 'goes'} on: a take (${WHERE[h.cause] ?? WHERE.elsewhere}) has held heavy work for longer than the cap`;
+  return `${what} ${h.count > 1 ? 'wait' : 'waits'} for a take to finish (${WHERE[h.cause] ?? WHERE.elsewhere})`;
+}
+
+/**
+ * heldWords' short form for a narrow status bar (review B L6: shown at 1000 px and less, where the long one is dropped):
+ * "a render waits for a take", "2 jobs slowed by a take", "a render past a take's cap".
+ */
+export function heldShortWords(h: HeldWork): string {
+  const what = h.count > 1 ? `${h.count} jobs` : `${/^[aeiou]/.test(h.kind) ? 'an' : 'a'} ${h.kind.replace(/_/g, ' ')}`;
+  if (h.state === 'background') return `${what} slowed by a take`;
+  if (h.state === 'past_cap') return `${what} past a take's cap`;
+  return `${what} ${h.count > 1 ? 'wait' : 'waits'} for a take`;
+}
+
 /** What a queued or running render job is doing, in one line (its queue position, phase, percentage, time left). */
 export function jobWords(j: ScenarioRenderJobView): string {
   const v = versionWords(j.render_id);
@@ -56,13 +87,14 @@ export function jobWords(j: ScenarioRenderJobView): string {
     const ahead = j.queue?.ahead ?? 0;
     const r = j.queue?.running;
     // L5.14: a render a take holds does not start before the take ends, whatever its place.
-    const first = j.queue?.held_by === 'take' ? 'waiting for a take to finish' : ahead === 0 ? 'next in the queue' : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
+    const first = j.yield?.state === 'waiting' ? yieldWords(j.yield) : j.queue?.held_by === 'take' ? 'waiting for a take to finish' : ahead === 0 ? 'next in the queue' : `${ahead} ${ahead === 1 ? 'job' : 'jobs'} before it`;
     const running = r ? ` (a ${r.kind.replace(/_/g, ' ')} is running${r.fraction !== undefined ? `, ${Math.round(r.fraction * 100)} %` : ''})` : '';
     return `${v} · queued — ${first}${running}`;
   }
   const pct = j.fraction !== undefined && !j.reviewing ? ` ${Math.round(j.fraction * 100)} %` : '';
-  const eta = !j.reviewing ? etaWords(j.eta_s) : '';
-  return `${v} · ${phaseWords(j.phase)}${pct}${eta ? ` · ${eta}` : ''}`;
+  const eta = !j.reviewing && j.yield?.state !== 'background' ? etaWords(j.eta_s) : '';
+  const held = j.yield ? ` · ${yieldWords(j.yield)}` : '';
+  return `${v} · ${phaseWords(j.phase)}${pct}${eta ? ` · ${eta}` : ''}${held}`;
 }
 
 export type ReviewTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';

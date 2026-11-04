@@ -399,7 +399,7 @@ const RunPerfSchema = z
       })
       .describe('CPU seconds per process group over the take (Chromium browser / GPU / renderer / other, retake, encoder, product).')
       .optional(),
-    machine: z.strictObject({ cpus: z.number().int().min(1), load_mean: z.number().min(0), load_max: z.number().min(0) }),
+    machine: z.strictObject({ cpus: z.number().int().min(1), load_mean: z.number().min(0), load_max: z.number().min(0), takes_beside: z.number().int().min(0).optional(), heavy_slowed: z.literal(true).optional() }),
     gpu: z
       .strictObject({ accelerated: z.boolean(), renderer: z.string().optional(), software: z.array(z.string()).optional() })
       .describe("Chromium's own GPU feature report.")

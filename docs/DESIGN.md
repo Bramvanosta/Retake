@@ -225,12 +225,14 @@ runHooks(hooks: HookStep[], ctx: HookContext, opts: { phase: 'setup' | 'teardown
 //   teardown: runs every hook even if some fail (collects errors)
 class Journal {                      // rollback journal persisted as JSON: runs/<id>/hooks-journal.json (captures),
                                      // <project>/.retake/journals/<id>.json (retake hooks run / env reset)
-  static open(file: string): Promise<Journal>
-  record(entry: JournalEntry): Promise<void>         // executed hook + its rollback action (if any)
+  static open(file: string, opts?: { keyFile?: string }): Promise<Journal>
+  record(entry: JournalEntry): Promise<void>         // executed hook + its rollback action (if any); signed (L5.14)
+  isSigned(entry: JournalEntry): boolean             // L5.14: written by Retake with this home (valid `sig`)
   pending(): JournalEntry[]                          // executed with rollback not yet done
   rollbackAll(ctx: HookContext): Promise<HookResult[]>   // reverse order, marks entries rolled back
 }
 findPendingJournals(projectDir: string): Promise<string[]>  // both locations, pending entries only, newest id first (env_reset)
+openPendingJournals(projectDir) / rollbackJournals(list, ctx)  // L5.14: open once, list, replay exactly what was listed
 findJournal(projectDir: string, id: string): string | null  // runs/<id>/hooks-journal.json, else .retake/journals/<id>.json
 standaloneJournalFile(projectDir: string, id: string): string
 checkHostAllowed(url: string, project: LoadedProject): void  // throws HookSecurityError
@@ -1597,8 +1599,8 @@ retake list                                   # projects
 retake validate <project> <scenario|file>     # exit 1 on errors; prints file:line:col messages
 retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json] [--sandbox]
 retake hooks run <project> <file.yaml|scenario:setup|scenario:teardown|reset> [--yes] [--allow-writes]
-retake hooks rollback <project> [id] [--allow-writes]   # replay pending rollback journals (run id or journal id)
-retake env reset <project> [--allow-writes]   # project.reset hooks + pending journals
+retake hooks rollback <project> [id] [--allow-writes] [--replay-unsigned] [--dry]   # replay pending rollback journals (run id or journal id); lists them first (unsigned ones in full)
+retake env reset <project> [--allow-writes] [--replay-unsigned] [--dry]   # project.reset hooks + pending journals (listed first); --replay-unsigned: a terminal only, y/N per entry
 retake sandbox init <project> [--env E] [--force] [--json]                                  # §3.8b scaffold
 retake sandbox up|down|reset|status|logs <project> [--env E] [--no-seed] [--build] [--volumes] [--reseed] [--json] [service] [--lines N] [--follow]   # §3.8b
 retake schema [scenario|project|template|timeline|sandbox]  # print JSON Schema
@@ -1763,12 +1765,52 @@ workers/worker.log      what workers print (stderr), appended
   `hookFiles`: its sql / js file and its rollback's, and every relative word of its shell command that names an
   existing file under its working directory: `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`): a script changed
   after the approval is refused. *Signed* (`jobs/signing.ts`): `FileJobQueue.enqueue` signs each approval —
-  `sig` = HMAC-SHA256 over the canonical job input (without its approvals) and the approval, with the key
-  `<RETAKE_HOME>/approvals.key` (32 random bytes in hex, 0600 in a 0700 folder, created on the first approval);
-  the worker keeps only approvals whose signature verifies (`verifiedApprovals`; the others are dropped with a `warn`
-  event, their hooks refused), so a job.json written by anything but a submit carries no approval. Whoever can read
-  the Retake home can sign: it guards against a forged job file, not against a process running as the user with access
-  to `~/.retake` (which holds the sessions too).
+  `sig` = HMAC-SHA256 over its workspace (the real path of the queue's root), the job's id, the canonical job input
+  (without its approvals) and the approval (payload `v: 3` since L5.14), with the Retake home's key
+  `<RETAKE_HOME>/approvals.key` (core `home-key.ts`: 32 random bytes in hex, 0600, created whole on first use — written
+  to a temporary file and hard-linked into place, so a reader never sees a partial key and of two processes making it
+  at once the second reads the first's — its folder made 0700, an existing one open to others closed to 0700 then,
+  never the account's home folder); the worker keeps only approvals whose signature verifies for that
+  job (`verifiedApprovals`; the others are dropped with a `warn` event, their hooks refused), so a job.json written by
+  anything but a submit carries no approval. *Bound to their job* (L5.14): approvals are signed for their job's id in
+  its workspace (a job.json copied under another id, or into another workspace sharing the home, verifies none — a
+  moved workspace's queued jobs too: submit them again), and the worker consumes them when it claims the job
+  (`consumeApprovals`: `<RETAKE_HOME>/approvals-used/<job id>` created once with the claimed record's digest; given back
+  only when the worker returns the job to the queue unrun; kept a year): a job folder made again under the id of a job
+  that was already claimed ends `failed` ("refused without running") at its claim; a record that cannot be written
+  ends the job `failed` with that reason ("the record of the approvals workers took … cannot be written"), never as
+  approvals taken before. A heavy job's process gets the
+  digest of the record its worker claimed (`--digest`: sha256 of the id and input) and refuses any other record
+  (exit 4). Whoever can read the Retake home can sign: it guards against a forged job file, not against a process
+  running as the user with access to `~/.retake` (which holds the sessions too).
+- **Rollback journals are signed** (L5.14, hooks `journal.ts`): every entry Retake writes — a capture's, `retake hooks
+  run`'s, an environment reset's, by the worker or the CLI — carries `sig` = HMAC-SHA256 with the Retake home's key over
+  where its journal stands and the whole entry (its `seq` included), signed again on every save (its status,
+  attempts…). Where it stands (`JournalPlace`): the real path of its project's folder (which names the workspace), that
+  folder's own name, the location (`run`: `runs/<id>/hooks-journal.json`; `journals`: `.retake/journals/<id>.json`;
+  `file`: any other journal, by its folder) and the journal's path there. An entry is trusted only with a valid
+  signature, a `seq` no other entry of its journal repeats, and a `started_at` less than a year old; each trusted
+  entry's rollback is replayed once — `<RETAKE_HOME>/rollbacks-done/<sha256 of its identity>` (where its journal stands,
+  its seq, its start, its rollback: the same through its attempts) is created (exclusively) before it runs, removed when
+  the rollback fails (it may be tried again), pruned after a year by a worker's start — so a copy of the entry in any
+  earlier state is refused once it succeeded ("Retake replayed this rollback before"). An untrusted entry
+  (a journal placed or edited by something else; copied into another project or workspace, moved between `runs/` and
+  `.retake/journals/`, duplicated; a journal of an older Retake or another home; a workspace moved since) is never
+  signed by a later save and is not replayed with trust `mcp` — an environment reset job, a capture's teardown: the
+  result says `refused`, "not signed by this Retake home for this journal … a person can review it and replay it from a
+  terminal" (no flag is handed to the agent; no approval prompt is offered for it: the simpler safe choice). In a
+  terminal `retake hooks rollback` and `retake env reset` list every pending rollback before replaying, with its journal
+  file; an untrusted entry is shown in full (`rollbackActionLines`: every field of its action as it would run, its
+  templates filled from the data it carries, never a secret resolved, every control, bidirectional or invisible
+  character written out — its description is the writer's words and is not shown for it), and is not replayed (exit 1;
+  `--dry` lists it and exits 0). `--replay-unsigned` works only in an interactive terminal (a usage error otherwise)
+  and asks about each untrusted entry, shown in full again, y/N (no by default): the entry asked about is the one that
+  runs (the journal is read once). Never replayed, whoever asks: an untrusted `sql` rollback (it would connect with the
+  environment's database URL), `js` (the environment's signed-in page), one that references a secret (`{{env:…}}`,
+  `{{keychain:…}}`), a `shell` one on a sandbox environment (its variables); a `shell` one said yes to runs with a bare
+  environment (PATH, HOME, the user, shell, temp folder and locale, Retake's own variables), not the rest of the
+  terminal's. A capture never replays an untrusted entry (a journal found in its run folder at its start was not its
+  own).
 - **What work submitted through MCP may reference** (core `agent-trust.ts`; the agent writes scenarios, README.md and
   new projects, and reads what runs return). Checked at `scenario_validate` / `scenario_save` (as errors), at submit
   (`checkAgentTrust`: `refused` with the `retake` command) and again where it runs (the runner with `hookTrust: 'mcp'`
@@ -5820,7 +5862,7 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   (MACOS-CHECKLIST 15b, 15d).
   Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
 
-## 4q. Captures first (L5.14a)
+## 4q. Captures first (L5.14)
 
 A take filmed on a loaded machine shows it (fewer frames during motion, more kicked frames): renders, exports, reviews,
 previews and site extractions are background work, a take is not (BL-116). Built on the file queue (decision of
@@ -5834,11 +5876,12 @@ previews and site extractions are background work, a take is not (BL-116). Built
   freeze renders).
 - **Two slots per worker** (jobs/worker.ts): the capture slot runs captures in the worker (unchanged code: the live
   channel, the test hooks, the signal rules); the heavy slot runs one heavy job in a **job process**
-  (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid>`, jobs/job-child.ts), detached
+  (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`, jobs/job-child.ts), detached
   (a process group of its own), log in worker.log, environment = the worker's. It runs the worker's job code
   (jobs/run-job-record.ts), writes job.json from `running` on (`worker` = itself, `supervisor` = the worker), refuses
   another build (exit 3: the worker gives the job back — removes its claim — and hands over once both slots are empty)
-  and anything but the queued heavy job of that kind its worker claimed (exit 4: `failed`, invalid). Its build is
+  and anything but the queued heavy job of that kind its worker claimed — the very record, by its digest (§4b) — (exit 4:
+  `failed`, invalid). Its build is
   stamped over the folders the worker stamped (`RETAKE_JOB_BUILD_DIRS`: a worker run in-process by a test resolves the
   packages otherwise than a process started from the sources). It polls its parent pid every second: its worker gone, it
   cancels the job (teardown and clean-ups run) and ends it `interrupted` itself — macOS sends nothing to an orphaned
@@ -5882,15 +5925,17 @@ previews and site extractions are background work, a take is not (BL-116). Built
   `RETAKE_CAPTURE_HOLD_MAX_MIN` (default 60) of holding time, counted by each reader from its first sight of it (a gap
   counts at most 5 s); a rewritten, renamed, or stale-removed-and-rewritten file does not restart it while its owner
   keeps a marker within 10 s (`CAP_CARRY_MS`: two takes of one worker closer than that count as one); then heavy work
-  goes on (one worker log line). Markers owned by an ancestor of a command do not hold it (a take's own hooks).
+  goes on, and that is said: the running heavy job's yield reads `past_cap` ("going on: a take … has held heavy work for
+  over 60 min"), the terminal command prints one line. Markers owned by an ancestor of a command do not hold it (a take's
+  own hooks).
 - **A running heavy job during a take** (jobs/yield.ts, chosen by the spike below): background QoS — `taskpolicy -b`
   on every pid of the job process's tree (its group and every descendant: Remotion's browser is detached), walked again
   every 2 s with `-b` for the new pids only (one `ps` per walk, with a 5 s limit, and a `/bin/sh` only when the tree grew:
   the take's event loop may be the worker's); `taskpolicy -B` per pid when no marker holds, only for the pids the hold
   made background (a pid at background QoS before — `ps -o pri` 4, someone's `taskpolicy -b retake render` — keeps it,
   and so do its children; a child forked under a held pid inherited the hold's and gets `-B`); a pid whose start time
-  changed is never touched. The worker writes `<job>/yield.json` while it holds and removes it before it releases (the
-  surfaces read it in L5.14b). Cancel of a held job: it stays at background priority and ends itself (its clean-ups run);
+  changed is never touched. The worker writes `<job>/yield.json` (`{v, state: background | past_cap, since, cause,
+  cap_min?}`) while it holds, or while a take past the cap still films, and removes it before it releases. Cancel of a held job: it stays at background priority and ends itself (its clean-ups run);
   its tree is killed only `cancelGraceMs` (30 s) after the cancel, then the worker writes `cancelled`. One writer of a
   job's end: the job process, else the worker when it died first (its events appended after the file's last seq;
   never a second `interrupted` from the scan, which skips the worker's own slots).
@@ -5930,8 +5975,60 @@ previews and site extractions are background work, a take is not (BL-116). Built
   2.2 GB (BL-114, 10 processes) for 60 min, with 21 000 and 24 600 pageouts over the hour; a 3-min stop right after the
   browser started stretched one render from ≈ 95 s to 530 s. The stop during bundling and S2 (exports) were not reached
   by the spike's triggers (the exports ran unstopped). The spike took ≈ 4 h 50 min (S0 6 min, S4 1 h 40 min, S1 3 h).
-- Part b (L5.14b): the surfaces (Studio words, MCP summaries, `retake jobs`, doctor, a take's `takes_beside`), the
-  measured acceptance, README and MACOS-CHECKLIST. Linux / Windows keep the wait only (BL-147).
+- **Surfaces (L5.14b)**: readers derive `JobRecord.yield` — `{state: waiting | background | past_cap, cause: here |
+  elsewhere, since?, cap_min?}`: `waiting` for a queued heavy job while a take holds heavy work (a filming take of this
+  workspace queued, or a filming marker: `FileJobQueue.takeHold`, read once per list, per JobsWatch poll and per
+  Activity feed, and reading only the jobs the queue has not seen finished — review A M1: a finished job.json is read
+  once per queue, not at every poll), `background` / `past_cap` from a running heavy job's yield.json; never written
+  back. yield.json and the queued records are in agent-writable job folders: they are read as enums, a time and a
+  bounded number only (review A L4) — a forged one can make a row say "slowed", nothing more. Fixed words only (engine `held.ts`, the Studio's render-words.ts):
+  "waiting for a take to finish (in this workspace | elsewhere on this Mac)", "slowed during a take (…)", "going on: a
+  take (…) has held heavy work for over N min" — the other workspace is never named. MCP: `job_status`, `job_list`,
+  `render_status` say them with the enum in `data.yield`; `engine_info` has `held` (`{state, cause, kind, count}` of
+  this workspace's jobs) and a "Captures first:" sentence. `retake jobs` puts the words on the job's line (`jobs status`:
+  a `held` row with the time). The Studio: a render row's words on the Review report and the scenario screen (no time
+  left while slowed: it would be wrong), the "Lately" feed, and the status bar's segment ("a render is slowed during a
+  take (…)") — from engine_info, then from each jobs event (`held`; the job stream's signature has the yield, so a
+  hold shows within one poll); at 1000 px and less it keeps its short form ("a render slowed by a take") where the
+  other segments drop (docs/reference/studio-ui.md). `retake doctor` has a "Captures first" line: the takes filming now (counted: in this
+  workspace / elsewhere, paused, past the cap), the markers' folder (never made by doctor), whether background priority
+  is available (`/usr/sbin/taskpolicy`), the cap; WARN when the folder cannot be used or a marker's owner is not a
+  Retake process — its command line a jobs worker (`…/worker-main.js`) or the CLI's `run` (engine `isTakeOwnerCommand`;
+  review A L3: another node process is not one) — it holds renders up to the cap. A take's report (run.json
+  `perf.machine`): `takes_beside` — the most other unpaused takes filming at once while it filmed — and `heavy_slowed`
+  — heavy work (a render, review, export, preview or site extraction) of its workspace's jobs worker ran at background
+  priority during it (not counted: a terminal `retake render`, which has no job, and another workspace's work);
+  sampled every 2 s by the take's owner (engine `TakeBeside`, critique L9: the runner only records the answer of
+  `onFilming('stop')`) without reading any job folder (review A H1: the take's event loop) — a take in the worker asks
+  the worker's own hold, a terminal take reads the one file the worker keeps while it holds heavy work
+  (`.retake/workers/held.json`, state `background`, removed when it lets go); one warning when another take films
+  beside it; `choppyCause` says
+  "another take filmed at the same time on this Mac" before "the machine was busy". Linux / Windows keep the wait only
+  (BL-147).
+- **Measured acceptance (L5.14b)**: `packages/ui/test/captures-first-acceptance.test.ts`
+  (gated `RETAKE_TEST_CAPTURES_FIRST=1`, ≈ 10 min, run by hand with the machine quiet): from the Studio's own submits
+  (`scenario_run`, `scenario_render`) with the worker it starts, `quote` without the two hooks a Studio submit cannot
+  approve; 3 takes alone, a reference render (its speed measured), then 3 times a render running and a take submitted.
+  *The rule* (review B M2 / M3): first a quiet machine — the 1-minute load average at the start at most half the cores,
+  each alone take's highest load at most 1.5 × the cores, the alone takes' motion fps within 10 fps of each other (the spike's quiet alone takes spread 9.1) — else
+  the test fails "machine not quiet — re-run" and concludes nothing (a noisy alone set must not widen the bar it is
+  judged by: the first version's bar, the alone median − max(2, the alone spread), let three takes at half the alone
+  speed pass on a loaded machine). Then fixed bars: every take beside a render films motion at ≥ the alone median − 2
+  fps; the beside takes' median dropped and kicked frames ≤ the most the alone takes had; freezes ≤ the alone takes'
+  most. The render is measured before the take (4 s of rendering at least), during it and after it: slower during,
+  after ≥ 0.8 × before; the job process and at least half of its tree at `ps -o pri` 4 during the take (a few Chromium
+  processes keep a priority of their own, 46 / 47), and every process that was at 4 and still runs is not after it.
+  Run of 2026-11-04 15:37 (M4, before this rule; other sessions' load up to 18, its alone takes' highest load 12.35 /
+  7.19 / 4.61 on 10 cores): alone motion fps at worst 58.5 / 57.7 / 58.7 (spread 1.0: quiet by the gate), dropped 8 /
+  4 / 4, kicked 10 / 10 / 10, no freeze; beside a render 57.7 / 58.6 / 56.5 (the lowest equal to the bar 56.5: it
+  passes the fixed bar with no margin), dropped 4 / 6 / 10 (median 6 ≤ the alone most 8; one take at 10, above it),
+  kicked 8 / 9 / 9, no freeze; each take started 245–375 ms after its submit (never behind the render); the render at
+  6.1–6.5 frames/s while the take filmed, 26.6–27.5 after it — its speed before the take was not measured in that run
+  (the "before" window never had two samples: the take was submitted at 5 % of the render's progress, reached as its
+  frames started); every process of its job process at `ps -o pri` 4 during the take, 31 / 46 / 47 after; frames
+  identical to the reference (framemd5 1816 / 1816, three times); each take's report `takes_beside: 0, heavy_slowed:
+  true`. A later run with the machine loaded by other work (load up to 31 on 10 cores; one alone take at 26.9 fps)
+  failed on kicked (median 14 against 12) — the new rule refuses that run as not quiet instead.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

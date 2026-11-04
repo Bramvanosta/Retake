@@ -33,6 +33,44 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L5.14)
+- **L5.14 done (2026-11-04)** — captures first, on the file queue (the person's decision: no new dependency; BL-117 is
+  parked). **L5.14a**: core `JOB_CLASS` / `jobClass` / `isFilming` (the class from the worker's view, never a job field);
+  `packages/engine/src/jobs/` — `pick.ts` (pure claim order: captures first), `captures.ts` (per-user filming markers in
+  `getconf DARWIN_USER_TEMP_DIR`/retake-captures, 0700, `RETAKE_CAPTURES_DIR` to override, a heartbeat, a cap of
+  `RETAKE_CAPTURE_HOLD_MAX_MIN` = 60 keyed on pid + start time, a random workspace id), `yield.ts` (background QoS by
+  `taskpolicy -b/-B` on a held heavy job's whole tree, new pids only, the QoS before kept), `job-child.ts` + `worker-main
+  --job` (a heavy job in its own process group), `signal.ts` (one guard for every signal: never -1, 0, 1, the worker or
+  its group), the worker's two slots, recovery that proves a job process (host, start time, command line) before
+  signalling it; the CLI's `heavy-gate.ts` (`render`, `still`, `export`, `review`, `export-capture`, `run --raw`'s export
+  wait, then yield; `--no-wait`); `vitest.setup.ts` gives every test file its own markers folder (**never export
+  `RETAKE_CAPTURES_DIR` for a whole suite**: the files then share one folder and hold each other). **L5.14b**: a held job's
+  `yield` derived on read (`jobs/held.ts`: waiting / background / past_cap, "in this workspace" / "elsewhere on this
+  Mac", never another workspace's name) in MCP (`job_status`, `job_list`, `render_status`, `engine_info.held`), `retake
+  jobs`, the Studio's render rows, Lately and status bar, doctor's "Captures first" line; the take's sampler reads the
+  worker's own hold (`.retake/workers/held.json` for a terminal take), never the job folders; a take's report
+  `perf.machine.takes_beside` / `heavy_slowed`. Trust: core `home-key.ts` (the home key created atomically, the home
+  0700); rollback-journal entries signed with it for where their journal stands (project, runs/ vs .retake/journals/,
+  relative path, seq) and replayed once (`<RETAKE_HOME>/rollbacks-done/`); work submitted through MCP or the Studio
+  replays only signed entries; a terminal lists first and replays an unsigned entry only with `--replay-unsigned` on a
+  TTY, per entry, never a sql / js one, one with secrets or a shell one on a sandbox; approvals signed for the job id and
+  workspace (payload v3) and used once at claim (`<RETAKE_HOME>/approvals-used/`, given back on unclaim); the job process
+  refuses a claimed record whose digest differs (`--digest`, exit 4). **Journals from before L5.14 or another home** need a
+  person in a terminal (`--replay-unsigned`). Measured spike and acceptance in DESIGN §4q; the gated acceptance
+  (`RETAKE_TEST_CAPTURES_FIRST=1 npx vitest run packages/ui/test/captures-first-acceptance.test.ts`, ~10 min) concludes
+  only on a quiet Mac. Tests on the Mac: the last full run **4538 — 4435 pass, 102 skipped, 1 failure** (capture-pause B1,
+  a load flake: 3/3 green alone; the first full run's failures came from a shared markers folder, see above, plus one
+  real one fixed — an unstyled class name); `pnpm test:slow` 65/65; `pnpm test:pg` 20/20; the gated desktop shell 19/19;
+  Docker 6/7 (K6, the environment as before). Requirements: 700 tracked — 657 done, 29 partial, 8 todo, 6 n/a-here.
+  **The measured acceptance has not concluded with its final rule**: three runs on 2026-11-04 refused ("machine not
+  quiet" — other sessions' load; one alone take at 24.5 fps), the quiet gate's alone spread then set to the spike's
+  (10 fps); the person chose to commit and run it with L5.15 (R-CAP-03's gap). Run 3 under the first rule: beside takes
+  57.7 / 58.6 / 56.5 fps against alone 58.5 / 57.7 / 58.7, the render slowed to ~6 frames/s and back to ~27, frames
+  identical.
+  Cuts: BL-146 – BL-151 (one take at a time per Mac, Linux / Windows, one heavy job per machine, other workspaces' queued
+  takes, adoption of a held job, SIGSTOP with its numbers). Next: L5.15 (it re-runs the spike's S4 for QoS with BL-114's
+  settings), then the first release.
+
 ## State (after L5.16)
 - **L5.16f done (2026-11-04)** — the update feed moved to GitHub (the person's decision: no self-hosted host): a fixed
   `update-feed` pre-release holds `latest.json` / `rc.json`, each tag's release its archive, `.sig` and
@@ -708,11 +746,12 @@ of this public repository until fixed) should land before the tag. Then propose 
 action plan to the person (the MVP scope stays locked until they decide), and rerun `scripts/audit/snapshot.mjs`
 against `docs/audit/2026-11-04/summary.json`.
 
-**Next: L5.14 (captures first), then L5.15, then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16
-is done: the standalone app, its releases from GitHub Actions, the updater on a GitHub release feed). **Decided
+**Next: L5.15 (renders on the GPU), then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16 and
+L5.14 are done: the standalone app and its releases, then captures first on the file queue). L5.14 signed rollback
+journals and bound approvals to their job (DESIGN §4q); check the audit's action plan for what T-SEC still lists. **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
-2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and
+2026-10-29), captures first (L5.14, BL-116; on the file queue since 2026-11-04, BL-117 parked), renders on the GPU (L5.15, BL-114) — then L5.3 and
 L5.4 (ROADMAP "L5.9 – L5.15"). In progress first: L5.2b (the desktop app's job notifications and a quit confirmation). L5.2's shell is ready for the redesign: one `TITLE_BAR` switch for the integrated title bar, the menu from one
 command table (⌘R, ⇧⌘R, ⌘B, ⌘. left free), no forced appearance; the sheets' design (a confirm through the supervised
 pipe) is in DESIGN §4j, not built. Pending

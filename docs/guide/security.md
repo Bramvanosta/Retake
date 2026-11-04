@@ -101,7 +101,16 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
 - **Everything is journaled.** Each executed hook and its rollback is recorded in `runs/<id>/hooks-journal.json`
   (captures) or `.retake/journals/<id>.json` (`retake hooks run`, `retake env reset`); `retake env reset`
-  replays whatever is still pending in both.
+  replays whatever is still pending in both. Journal entries are signed with the key of your Retake home
+  (`~/.retake/approvals.key`) when written, over where their journal stands (its project and workspace, runs/ or
+  .retake/journals/, its id) and the whole entry: work submitted through MCP or the Studio, and a capture's own
+  teardown, replay only entries signed for that journal (another one — older, moved, copied or edited — is refused and
+  said: a person can review it in a terminal), and each signed rollback once (`~/.retake/rollbacks-done/`). A terminal
+  lists what it replays first and asks about an unsigned entry, shown in full, only with `--replay-unsigned` — never a
+  sql or js one, one with secrets or a shell one on a sandbox.
+- **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
+  and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
+  again under the id of a job that already ran, runs no approved hook.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

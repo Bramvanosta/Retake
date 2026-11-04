@@ -83,7 +83,7 @@ export const envReset = defineTool({
   name: 'env_reset',
   title: 'Reset an environment',
   description:
-    'Put an environment back as the hooks found it, as a job: replay every pending rollback (journals of captures and hook runs, most recent first — also those an interrupted job left), then run the project\'s reset hooks. dry (default true) only describes them. With dry: false, reset hooks that are destructive or run shell commands are approved by the user first (else refused with the command a human runs); rollbacks are never asked about (they undo).',
+    'Put an environment back as the hooks found it, as a job: replay every pending rollback (journals of captures and hook runs, most recent first — also those an interrupted job left), then run the project\'s reset hooks. dry (default true) only describes them. With dry: false, reset hooks that are destructive or run shell commands are approved by the user first (else refused with the command a human runs); rollbacks are never asked about (they undo). Only the rollbacks Retake recorded in their journal with this Retake home are replayed: an older journal, or one moved, copied or edited, is refused and said — a person can review it and replay it from a terminal.',
   input: z.strictObject({
     project: projectSlug,
     env: envName.optional().describe("Environment (default: the project's default_env)."),

@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ScenarioRenderJobView, ScenarioRendersView } from '@retake/engine';
-import { findingAt, findingFrame, jobVersionNote, jobWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords } from '../src/app/render-words.js';
+import { findingAt, findingFrame, heldShortWords, heldWords, jobVersionNote, jobWords, phaseWords, rendersEventAction, reviewBadge, sameVersion, shownJobsOf, versionNote, versionWords, yieldWords } from '../src/app/render-words.js';
 
 const H = 'a'.repeat(64);
 const job = (o: Partial<ScenarioRenderJobView> = {}): ScenarioRenderJobView => ({
@@ -86,6 +86,17 @@ describe('versions and words', () => {
     expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2 }))).toBe('v3 · rendering 43 % · about 12 s left');
     expect(jobWords(job({ phase: 'review:sheets', fraction: 0.5, reviewing: true }))).toBe('v3 · reviewing: making the contact sheets');
     expect(jobWords(job({ cancel_requested: true }))).toBe('v3 · stopping…');
+    // L5.14b: what a take does to it — waiting (where), slowed (no time left said: it would be wrong), past the cap.
+    expect(jobWords(job({ state: 'queued', queue: { ahead: 0, held_by: 'take' }, yield: { state: 'waiting', cause: 'elsewhere' } }))).toBe('v3 · queued — waiting for a take to finish (elsewhere on this Mac)');
+    expect(jobWords(job({ phase: 'rendering', fraction: 0.431, eta_s: 12.2, yield: { state: 'background', cause: 'here', since: '2026-11-04T14:02:00.000Z' } }))).toBe('v3 · rendering 43 % · slowed during a take (in this workspace)');
+    expect(jobWords(job({ phase: 'rendering', fraction: 0.5, eta_s: 30, yield: { state: 'past_cap', cause: 'here', cap_min: 60 } }))).toBe('v3 · rendering 50 % · about 30 s left · going on: a take (in this workspace) has held heavy work for over 60 min');
+    expect(heldWords({ state: 'background', cause: 'elsewhere', kind: 'render', count: 1 })).toBe('a render is slowed during a take (elsewhere on this Mac)');
+    expect(heldWords({ state: 'waiting', cause: 'here', kind: 'review', count: 2 })).toBe('2 jobs wait for a take to finish (in this workspace)');
+    // Review B L6: the narrow status bar's short form.
+    expect(heldShortWords({ state: 'background', cause: 'elsewhere', kind: 'render', count: 1 })).toBe('a render slowed by a take');
+    expect(heldShortWords({ state: 'waiting', cause: 'here', kind: 'review', count: 2 })).toBe('2 jobs wait for a take');
+    expect(heldShortWords({ state: 'past_cap', cause: 'here', kind: 'export', count: 1 })).toBe("an export past a take's cap");
+    expect(yieldWords({ state: 'waiting', cause: 'here' })).toBe('waiting for a take to finish (in this workspace)');
     expect(phaseWords('<b>odd</b>')).toBe('boddb');
     expect(reviewBadge({ state: 'clean', counts: { error: 0, warning: 0, info: 2 } })).toEqual({ words: 'clean', tone: 'success' });
     expect(reviewBadge({ state: 'warnings', counts: { error: 0, warning: 1, info: 0 } })).toEqual({ words: '1 warning', tone: 'warning' });

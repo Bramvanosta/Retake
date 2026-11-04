@@ -19,7 +19,7 @@ import { editor, planRenderRequest } from './jobs/render-job.js';
 import type { RenderRequest } from './jobs/render-job.js';
 import type { FileJobQueue } from './jobs/queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
-import type { JobProgress, JobRecord, RenderJobResult } from './jobs/types.js';
+import type { JobProgress, JobRecord, JobYield, RenderJobResult } from './jobs/types.js';
 
 export interface PlanPreviewSegment {
   id: string;
@@ -122,6 +122,8 @@ export interface RenderJobView {
   progress?: JobProgress;
   cancel_requested_at?: string;
   error?: JobRecord['error'];
+  /** L5.14: a take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
+  yield?: JobYield;
 }
 
 export interface RenderStatusView {
@@ -244,6 +246,7 @@ export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slu
       ...(queueView ? { queue: queueView } : {}),
       ...(job.progress ? { progress: job.progress } : {}),
       ...(job.cancel_requested_at ? { cancel_requested_at: job.cancel_requested_at } : {}),
+      ...(job.yield ? { yield: job.yield } : {}),
       ...(job.error ? { error: { ...job.error, message: job.state === 'failed' ? 'the render failed: its message is untrusted.error' : job.error.message } } : {}),
     };
     if (job.state === 'failed' && job.error) view.untrusted.error = job.error.message;
@@ -293,6 +296,8 @@ export interface ScenarioRenderJobView {
   /** Queued: what runs before it. */
   queue?: RenderQueueView;
   cancel_requested: boolean;
+  /** L5.14: a take holds it — waiting to start, or slowed while it runs (JobRecord.yield). */
+  yield?: JobYield;
 }
 
 /** A render of the scenario that was written (renders/<id>.json), newest first. */
@@ -524,6 +529,7 @@ export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, 
       reviewing: j.state === 'running' && (p?.phase ?? '').startsWith('review:'),
       ...(queueView ? { queue: queueView } : {}),
       cancel_requested: j.cancel_requested_at !== undefined,
+      ...(j.yield ? { yield: j.yield } : {}),
     });
   }
 

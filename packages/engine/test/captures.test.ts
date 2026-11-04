@@ -306,3 +306,42 @@ describe('the owner of a marker (L5.14)', () => {
     o.child.kill('SIGKILL');
   });
 });
+
+describe('what a take saw beside it (L5.14b)', () => {
+  it('the most other unpaused takes at once (its own marker not counted), told once with where; a heavy job of its workspace slowed', async () => {
+    const { TakeBeside } = await import('../src/index.js');
+    clear();
+    const mine = FilmingMarker.open({ root: wsA, source: 'job', owner: me, env })!;
+    const told: string[] = [];
+    const beside = new TakeBeside({ root: wsA, own: () => mine.name, onFirst: (w) => told.push(w), env, everyMs: 60_000 });
+    await beside.sample();
+    expect(told).toEqual([]);
+    const b1 = FilmingMarker.open({ root: wsB, source: 'cli', owner: me, env })!;
+    const b2 = FilmingMarker.open({ root: wsB, source: 'cli', owner: me, env })!;
+    b2.setPaused(true);
+    await beside.sample();
+    const a2 = FilmingMarker.open({ root: wsA, source: 'cli', owner: me, env })!;
+    await beside.sample();
+    a2.closeSync();
+    b1.closeSync();
+    await beside.sample();
+    expect(told).toEqual(['elsewhere']);
+    // Heavy work of its workspace at background priority: what its worker's held file says (review A H1: never a job
+    // folder — a job's yield.json alone says nothing to it).
+    const { heldFile } = await import('../src/index.js');
+    const job = join(wsA, '.retake', 'jobs', `j_${ulid()}`);
+    await mkdir(job, { recursive: true });
+    writeFileSync(join(job, 'yield.json'), JSON.stringify({ v: 1, state: 'background', cause: 'here' }));
+    await mkdir(join(wsA, '.retake', 'workers'), { recursive: true });
+    writeFileSync(heldFile(wsA), JSON.stringify({ v: 1, state: 'past_cap' }));
+    await beside.sample();
+    expect(beside.stop()).toEqual({ takes_beside: 2, heavy_slowed: false });
+    writeFileSync(heldFile(wsA), JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString() }));
+    const again = new TakeBeside({ root: wsA, own: () => mine.name, env, everyMs: 60_000 });
+    await again.sample();
+    expect(again.stop()).toEqual({ takes_beside: 0, heavy_slowed: true });
+    b2.closeSync();
+    mine.closeSync();
+    await rm(join(wsA, '.retake'), { recursive: true, force: true });
+  });
+});

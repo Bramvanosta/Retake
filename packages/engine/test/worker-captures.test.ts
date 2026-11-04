@@ -15,7 +15,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, FilmingMarker, JOB_EXIT, createEngine, runJobChild, runWorker, selfIdentity, treeOf, workersDir } from '../src/index.js';
+import { FileJobQueue, FilmingMarker, JOB_EXIT, createEngine, recordDigest, runJobChild, runWorker, selfIdentity, treeOf, workersDir } from '../src/index.js';
 import type { Engine, JobRecord, ProcessIdentity, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
@@ -220,7 +220,7 @@ describe('a job process (L5.14a)', () => {
     const rec = await q.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: 'held-v1', fps: 1, submitted_by: 'test' } as never);
     expect(await q.claim(rec.id, me)).toBe(true);
     const log: string[] = [];
-    expect(await runJobChild({ root: ws, id: rec.id, kind: 'review', build: 'not-this-one', supervisor: process.pid, log: (m) => log.push(m) })).toBe(JOB_EXIT.buildChanged);
+    expect(await runJobChild({ root: ws, id: rec.id, kind: 'review', build: 'not-this-one', supervisor: process.pid, digest: recordDigest(rec), log: (m) => log.push(m) })).toBe(JOB_EXIT.buildChanged);
     expect(await q.stored(rec.id)).toMatchObject({ state: 'queued' });
     expect(await q.events(rec.id)).toEqual([]);
   });
@@ -232,13 +232,18 @@ describe('a job process (L5.14a)', () => {
     const take = await q.enqueue({ version: 1, kind: 'run', project: 'demo', scenario: 's', scenario_sha256: 'a'.repeat(64), run_id: '20260101-120000-s', mode: 'capture', submitted_by: 'test' } as never);
     await q.claim(take.id, me);
     const quiet = { log: () => undefined };
-    expect(await runJobChild({ root: ws, id: take.id, kind: 'run', build, supervisor: process.pid, ...quiet })).toBe(JOB_EXIT.refused);
+    expect(await runJobChild({ root: ws, id: take.id, kind: 'run', build, supervisor: process.pid, digest: recordDigest(take), ...quiet })).toBe(JOB_EXIT.refused);
     const review = await q.enqueue({ version: 1, kind: 'review', project: 'demo', render_id: 'held-v1', fps: 1, submitted_by: 'test' } as never);
     // Not claimed by that worker, or another kind than the one asked.
-    expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: process.pid, ...quiet })).toBe(JOB_EXIT.refused);
+    const digest = recordDigest(review);
+    expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: process.pid, digest, ...quiet })).toBe(JOB_EXIT.refused);
     await q.claim(review.id, me);
-    expect(await runJobChild({ root: ws, id: review.id, kind: 'render', build, supervisor: process.pid, ...quiet })).toBe(JOB_EXIT.refused);
-    expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: 999_999, ...quiet })).toBe(JOB_EXIT.refused);
+    expect(await runJobChild({ root: ws, id: review.id, kind: 'render', build, supervisor: process.pid, digest, ...quiet })).toBe(JOB_EXIT.refused);
+    expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: 999_999, digest, ...quiet })).toBe(JOB_EXIT.refused);
+    // Review A L6: job.json rewritten after the claim (another record under that id): not the record its worker claimed.
+    const claimed = (await q.stored(review.id))!;
+    await q.write({ ...claimed, input: { ...(claimed.input as object), render_id: 'other-v1' } as never });
+    expect(await runJobChild({ root: ws, id: review.id, kind: 'review', build, supervisor: process.pid, digest, ...quiet })).toBe(JOB_EXIT.refused);
     expect((await q.stored(take.id))?.state).toBe('queued');
     expect((await q.stored(review.id))?.state).toBe('queued');
   });

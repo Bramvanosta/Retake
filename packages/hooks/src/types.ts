@@ -57,6 +57,13 @@ export interface HookContext {
    */
   trust?: HookTrust;
   /**
+   * L5.14: replay a rollback whose journal entry Retake did not sign for its journal (journal.ts) when this says yes to
+   * it — never with trust `mcp`, never a sql or js one, one that references secrets or a shell one on a sandbox. The
+   * CLI's `--replay-unsigned` asks the person in the terminal about each entry, shown in full (`file`: its journal).
+   * Default: refused.
+   */
+  replayUnsigned?: boolean | ((entry: JournalEntry, file: string) => boolean | Promise<boolean>);
+  /**
    * The channel trust-`mcp` work came through, for the wording of its refusals (L4.2): `studio` (the Studio web app:
    * "from the Studio", "run it in a terminal") or `mcp` (default: "through MCP").
    */
@@ -198,6 +205,8 @@ export interface JournalEntry {
   /** Last failed rollback attempt (the entry stays pending). */
   rollback_error?: string;
   rollback_attempts?: number;
+  /** L5.14: HMAC-SHA256 with the Retake home's key over the journal's id and the entry (journal.ts), hex. */
+  sig?: string;
 }
 
 export type NewJournalEntry = Omit<JournalEntry, 'seq'>;

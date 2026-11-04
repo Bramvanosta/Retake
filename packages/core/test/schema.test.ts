@@ -229,6 +229,11 @@ describe('zod schemas', () => {
     expect(perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false })).toBe(
       'no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off',
     );
+    // L5.14b: what ran beside the take (captures first) is recorded and said.
+    const beside = { ...run.perf!, machine: { ...run.perf!.machine, takes_beside: 1, heavy_slowed: true as const } };
+    expect(RunRecordSchema.safeParse({ ...run, perf: beside }).success).toBe(true);
+    expect(RunRecordSchema.safeParse({ ...run, perf: { ...beside, machine: { ...beside.machine, heavy_slowed: false } } }).success).toBe(false);
+    expect(perfSummary(beside)).toMatch(/ · another take filmed beside it · heavy work \(a render, review or export\) was slowed during it$/);
     expect(DEFAULT_CAPTURE).toMatchObject({ quality: 90, keep_frames: false });
     expect(CapturePartialSchema.safeParse({ encoder: 'videotoolbox', prewarm: true, keep_frames: true }).success).toBe(true);
     expect(CapturePartialSchema.safeParse({ encoder: 'nvenc' }).success).toBe(false);

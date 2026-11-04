@@ -93,8 +93,10 @@ export type { WorkerSpawnFn, WorkerSpawnOptions } from './jobs/spawn.js';
 export { WORKER_ENV_DROPPED, cleanWorkerEnv } from './jobs/worker-env.js';
 export type { WorkerEnvOptions } from './jobs/worker-env.js';
 export { runWorker } from './jobs/worker.js';
-export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HOLD_MAX_MIN, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
-export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord } from './jobs/captures.js';
+export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HELD_FILE, HOLD_MAX_MIN, TakeBeside, heldFile, isTakeOwnerCommand, workerHolds, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capMinutes, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
+export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord, TakeBesideReport } from './jobs/captures.js';
+export { heldWork, heldWorkWords, yieldWords } from './jobs/held.js';
+export type { HeldWork } from './jobs/held.js';
 export { QosYield, REWALK_MS, parseQosTable, qosTable, taskpolicy, treeOf } from './jobs/yield.js';
 export type { QosDeps, QosProc } from './jobs/yield.js';
 export { killTree, ownProcessGroup, signalTree, signalablePid } from './jobs/signal.js';
@@ -116,6 +118,7 @@ export type {
   JobEventBody,
   JobProgress,
   JobRecord,
+  JobYield,
   JobResult,
   JobWorkerInfo,
   ExportJobResult,
@@ -310,7 +313,7 @@ export type { Entitlements } from './entitlements.js';
 export { SHELL_SEED_REASON, agentChannel, checkAgentTrust, seedApprovalItems } from './approvals.js';
 export { checkNewProjectHosts, checkWorkspaceProtection, protectedHostOf, workspaceProtectedHosts } from './protected-hosts.js';
 export type { WorkspaceProtectedHost } from './protected-hosts.js';
-export { APPROVAL_KEY_FILE, approvalKeyFile, approvalsOf, signApprovals, verifiedApprovals } from './jobs/signing.js';
+export { APPROVALS_USED_DIR, APPROVAL_KEY_FILE, approvalKeyFile, approvalsOf, approvalsUsedDir, consumeApprovals, pruneUsedApprovals, recordDigest, restoreApprovals, signApprovals, verifiedApprovals } from './jobs/signing.js';
 export { DEFAULT_BRAND_BASE, PACKAGE_ROOT, THEME_PROVENANCE_FILE, createThemeFromBrand, fileNameFace, replaceProblem } from './brand/create.js';
 export type { ThemeCreateOptions, ThemeCreated, ThemeFontView } from './brand/create.js';
 export { SITE_KEEP, checkSiteUrl, executeSiteJob, extractSiteForAuthor, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readSite, siteApproved, siteCommandLine, siteDir, siteDraft, siteHostConflicts, siteRoot, siteView, submitSiteJob } from './jobs/site-job.js';

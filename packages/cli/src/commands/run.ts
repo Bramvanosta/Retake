@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { FilmingMarker, RunOptionError, SandboxTakeError, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
+import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
 import type { PreparedRun } from '@retake/engine';
-import type { FilmingEvent } from '@retake/runner-web';
+import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 import { heavyGate } from '../heavy-gate.js';
 import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -101,13 +101,22 @@ export async function runCommand(
   // (engine captures.ts) — from capture time 0 to the end of its scenes, not around its hooks; none for a dry run.
   const owner = await selfIdentity();
   let marker: FilmingMarker | null = null;
-  const onFilming = (state: FilmingEvent) => {
-    if (state === 'start' && !marker) marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
-    else if (state === 'pause' || state === 'resume') marker?.setPaused(state === 'pause');
+  // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
+  let beside: TakeBeside | undefined;
+  const onFilming = (state: FilmingEvent): FilmingReport | undefined => {
+    if (state === 'start' && !marker) {
+      marker = FilmingMarker.open({ root: ws.root, source: 'cli', owner });
+      beside = new TakeBeside({ root: ws.root, own: () => marker?.name, onFirst: (where) => emitNote('warn', `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine`) });
+      beside.start();
+    } else if (state === 'pause' || state === 'resume') marker?.setPaused(state === 'pause');
     else if (state === 'stop') {
       marker?.closeSync();
       marker = null;
+      const report = beside?.stop();
+      beside = undefined;
+      return report;
     }
+    return undefined;
   };
   // The printer measures the run from its first event (the sandbox take is not part of it).
   let printer: ProgressPrinter | undefined;
@@ -146,6 +155,7 @@ export async function runCommand(
     return e instanceof SandboxTakeError && e.interrupted ? EXIT.interrupted : EXIT.failure;
   } finally {
     (marker as FilmingMarker | null)?.closeSync();
+    (beside as TakeBeside | undefined)?.stop();
   }
   // The workspace's job history counts CLI runs too (best effort: never fails the run).
   await appendHistory(ws.root, {

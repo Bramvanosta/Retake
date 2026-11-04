@@ -1,11 +1,27 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile, readdir } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
-import { readOnlyHookMessage, rollbackWriteReason, writeJson } from '@retake/core';
+import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
+import {
+  BIDI_CONTROL_CHARS,
+  INVISIBLE_FORMAT_CHARS,
+  canonicalJson,
+  collectSecretRefs,
+  homeKey,
+  homeKeyFile,
+  homeSign,
+  homeSigned,
+  interpolateDeep,
+  readHomeKey,
+  readOnlyHookMessage,
+  rollbackWriteReason,
+  sandboxOf,
+  writeJson,
+} from '@retake/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { executeRollback } from './kinds/index.js';
 import { logger, redactText } from './secrets.js';
-import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntry } from './types.js';
+import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntry, RollbackAction } from './types.js';
 import { isRecord, nowIso } from './util.js';
 
 export const JOURNAL_FILE = 'hooks-journal.json';
@@ -73,29 +89,202 @@ function validate(value: unknown, file: string): JournalFile {
   };
 }
 
+export interface JournalOptions {
+  /**
+   * The signing key's file (default the Retake home's, core homeKeyFile). The record of the rollbacks replayed
+   * (ROLLBACKS_DONE_DIR) is kept beside it.
+   */
+  keyFile?: string;
+}
+
+/**
+ * `<RETAKE_HOME>/rollbacks-done/<sha256 of an entry's identity>`: the signed entries whose rollback was replayed. Its
+ * identity — where its journal stands, its seq, its start and its rollback — stays the same through its attempts, so
+ * no copy of it, in any state, is replayed after it succeeded once.
+ */
+export const ROLLBACKS_DONE_DIR = 'rollbacks-done';
+/** A signed entry older than this (its `started_at`) is not trusted any more: the record of its replay may be gone. */
+export const ROLLBACKS_DONE_KEEP_MS = 365 * 24 * 3600_000;
+
+/**
+ * Where a journal stands, as its entries' signatures cover it: the real path of its project's folder (which names the
+ * workspace), that folder's own name, the location (`run`: runs/<id>/hooks-journal.json; `journals`:
+ * .retake/journals/<id>.json; `file`: any other journal, by its folder) and the journal's path in it. An entry signed in
+ * one journal does not verify in another — another project or workspace, the other location, another id.
+ */
+interface JournalPlace {
+  project: string;
+  name: string;
+  kind: 'run' | 'journals' | 'file';
+  rel: string;
+}
+
+/** The real path of `p`: its nearest existing folder resolved (links included), the rest as written. */
+async function realPathOf(p: string): Promise<string> {
+  const rest: string[] = [];
+  let at = resolve(p);
+  for (;;) {
+    try {
+      return join(await realpath(at), ...rest.reverse());
+    } catch {
+      const up = dirname(at);
+      if (up === at) return join(at, ...rest.reverse());
+      rest.push(basename(at));
+      at = up;
+    }
+  }
+}
+
+async function placeOf(file: string): Promise<JournalPlace> {
+  const abs = resolve(file);
+  const dir = dirname(abs);
+  if (basename(abs) === JOURNAL_FILE && basename(dirname(dir)) === 'runs') {
+    const project = dirname(dirname(dir));
+    return { project: await realPathOf(project), name: basename(project), kind: 'run', rel: `runs/${basename(dir)}/${JOURNAL_FILE}` };
+  }
+  if (basename(dir) === 'journals' && basename(dirname(dir)) === '.retake') {
+    const project = dirname(dirname(dir));
+    return { project: await realPathOf(project), name: basename(project), kind: 'journals', rel: `${JOURNALS_DIR}/${basename(abs)}` };
+  }
+  return { project: await realPathOf(dir), name: basename(dir), kind: 'file', rel: basename(abs) };
+}
+
+/** What an entry's signature covers: where its journal stands (JournalPlace) and the whole entry (its seq included) but its signature. */
+function signedText(place: JournalPlace, e: JournalEntry): string {
+  const { sig: _s, ...rest } = e;
+  return canonicalJson({ v: 2, journal: place, entry: rest });
+}
+
+function doneFile(keyFile: string, place: JournalPlace, e: JournalEntry): string {
+  const identity = canonicalJson({ v: 1, journal: place, seq: e.seq, started_at: e.started_at, rollback: e.rollback ?? null });
+  return join(dirname(keyFile), ROLLBACKS_DONE_DIR, createHash('sha256').update(identity).digest('hex'));
+}
+
+/** Remove the records of rollbacks replayed longer ago than ROLLBACKS_DONE_KEEP_MS (a worker's start). */
+export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: number = Date.now()): Promise<void> {
+  const dir = join(dirname(keyFile), ROLLBACKS_DONE_DIR);
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (!/^[0-9a-f]{64}$/.test(name)) continue;
+    const st = await stat(join(dir, name)).catch(() => undefined);
+    if (st && now - st.mtimeMs > ROLLBACKS_DONE_KEEP_MS) await rm(join(dir, name), { force: true }).catch(() => undefined);
+  }
+}
+
+// eslint-disable-next-line no-control-regex
+const HIDDEN_RE = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'gu');
+
+/** Text of a journal shown to a person: every control, bidirectional or invisible character written out (`\u{1b}`), newlines kept. */
+function visible(s: string): string {
+  return s.replace(HIDDEN_RE, (ch) => `\\u{${ch.codePointAt(0)!.toString(16)}}`);
+}
+
+/**
+ * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
+ * resolved: an action that references one is shown as written) — one line per field, every character visible
+ * (L5.14: what a person reads before replaying an entry Retake did not sign).
+ */
+export function rollbackActionLines(action: RollbackAction): string[] {
+  let a: RollbackAction = action;
+  if (!collectSecretRefs(action).size) {
+    try {
+      const d = action.data ?? {};
+      a = interpolateDeep(action, { pages: d.pages ?? {}, vars: d.vars ?? {}, hooks: d.hooks ?? {}, run: d.run, extra: d.extra, secrets: () => undefined });
+    } catch {
+      a = action;
+    }
+  }
+  const out: string[] = [];
+  const field = (name: string, value: unknown) => {
+    if (value === undefined) return;
+    out.push(`${name}: ${visible(typeof value === 'string' ? value : JSON.stringify(value))}`);
+  };
+  field('kind', a.kind);
+  switch (a.kind) {
+    case 'shell':
+      field('run', a.run);
+      field('cwd', a.cwd);
+      for (const [k, v] of Object.entries(a.env ?? {})) field(`env ${k}`, v);
+      field('timeout (s)', a.timeout);
+      break;
+    case 'http':
+      field('method', (a.request.method ?? 'GET').toUpperCase());
+      field('url', a.request.url);
+      for (const [k, v] of Object.entries(a.request.headers ?? {})) field(`header ${k}`, v);
+      field('json', a.request.json);
+      field('body', a.request.body);
+      break;
+    case 'sql':
+      field('db', a.db);
+      field('file', a.file);
+      field('query', a.query);
+      break;
+    case 'js':
+      field('page', a.page);
+      field('code', a.code);
+      break;
+  }
+  return out;
+}
+
+/**
+ * Why an entry Retake did not sign is never replayed, whoever asks, or null: a sql one (it connects with the
+ * environment's database URL), a js one (it runs in the environment's signed-in page), one that references a secret, a
+ * shell one on a sandbox environment (it would get the sandbox's variables).
+ */
+function unsignedNever(action: RollbackAction, env: string, ctx: HookContext): string | null {
+  const byHand = 'if it is right, run it by hand';
+  if (action.kind === 'sql') return `an unsigned sql rollback is never replayed (it would connect with the environment's database): ${byHand}`;
+  if (action.kind === 'js') return `an unsigned js rollback is never replayed (it would run in the environment's signed-in page): ${byHand}`;
+  if (collectSecretRefs(action).size) return `it references secrets — an unsigned entry is never given secrets: ${byHand}`;
+  if (action.kind === 'shell' && sandboxOf(ctx.project, env)) return `it would run with the variables of sandbox ${env} — an unsigned entry is never given them: ${byHand}`;
+  return null;
+}
+
 /**
  * Rollback journal of executed hooks, persisted atomically as JSON after every change
  * (runs/<id>/hooks-journal.json for captures, .retake/journals/<id>.json for standalone hook runs).
  * Not safe for concurrent use by several processes.
+ *
+ * L5.14: every entry Retake writes is signed with the Retake home's key (core home-key.ts) over where its journal
+ * stands (JournalPlace: project, workspace, location, id) and its whole content (its seq included), signed again on
+ * every save. An entry is trusted only with a valid signature, a seq no other entry of its journal has, and a
+ * `started_at` within ROLLBACKS_DONE_KEEP_MS; a trusted entry's rollback is replayed once (ROLLBACKS_DONE_DIR: a copy
+ * of the entry, as it was before, is not replayed again). An entry read back untrusted — a journal placed or edited by
+ * something else, copied or moved from elsewhere, of an older Retake — is never re-signed and never replayed with
+ * trust `mcp` (refused, and said); elsewhere only when a person, shown the action in full, says yes to it
+ * (`replayUnsigned`: the CLI's `--replay-unsigned`, in a terminal), and never a sql or js one, one that references a
+ * secret, or a shell one on a sandbox environment (its variables).
  */
 export class Journal {
   private writing: Promise<void> = Promise.resolve();
   private rolling: Promise<unknown> = Promise.resolve();
+  /** Entries written by this process or read back with a valid signature: the only ones signed on save. */
+  private readonly trusted = new WeakSet<JournalEntry>();
 
   private constructor(
     readonly file: string,
     private readonly data: JournalFile,
+    private readonly keyFile: string,
+    private readonly place: JournalPlace,
   ) {}
 
   /** Load a journal, or start an empty one (the file is created on the first record). */
-  static async open(file: string): Promise<Journal> {
+  static async open(file: string, opts: JournalOptions = {}): Promise<Journal> {
+    const keyFile = opts.keyFile ?? homeKeyFile();
+    const place = await placeOf(file);
     let text: string;
     try {
       text = await readFile(file, 'utf8');
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') {
         const now = nowIso();
-        return new Journal(file, { version: 1, created_at: now, updated_at: now, entries: [] });
+        return new Journal(file, { version: 1, created_at: now, updated_at: now, entries: [] }, keyFile, place);
       }
       throw new JournalError(`cannot read hooks journal ${file}: ${errorMessage(e)}`, file);
     }
@@ -105,11 +294,27 @@ export class Journal {
     } catch (e) {
       throw new JournalError(`hooks journal ${file} is not valid JSON: ${errorMessage(e)}`, file);
     }
-    return new Journal(file, validate(parsed, file));
+    const journal = new Journal(file, validate(parsed, file), keyFile, place);
+    const key = await readHomeKey(keyFile);
+    const seqs = new Map<number, number>();
+    for (const e of journal.data.entries) seqs.set(e.seq, (seqs.get(e.seq) ?? 0) + 1);
+    const now = Date.now();
+    for (const e of journal.data.entries) {
+      // A seq repeated in one journal (an entry duplicated) and an entry older than the record of replays: neither is trusted.
+      const started = Date.parse(e.started_at);
+      if (seqs.get(e.seq) !== 1 || !Number.isFinite(started) || now - started > ROLLBACKS_DONE_KEEP_MS) continue;
+      if (homeSigned(key, signedText(place, e), e.sig)) journal.trusted.add(e);
+    }
+    return journal;
   }
 
   get entries(): readonly JournalEntry[] {
     return this.data.entries;
+  }
+
+  /** Whether Retake wrote this entry with this home (this process, or a valid signature when read). */
+  isSigned(entry: JournalEntry): boolean {
+    return this.trusted.has(entry);
   }
 
   /** Append an entry (a fresh `seq` is always assigned) and persist the journal. */
@@ -122,8 +327,10 @@ export class Journal {
   /** Append in memory only (call save()); lets callers keep the entry even when saving fails. */
   add(entry: NewJournalEntry | JournalEntry): JournalEntry {
     const seq = this.data.entries.reduce((m, e) => Math.max(m, e.seq), 0) + 1;
-    const stored: JournalEntry = { ...entry, seq };
+    const { sig: _s, ...rest } = entry as JournalEntry;
+    const stored: JournalEntry = { ...rest, seq };
     this.data.entries.push(stored);
+    this.trusted.add(stored);
     return stored;
   }
 
@@ -131,6 +338,14 @@ export class Journal {
   save(): Promise<void> {
     const run = async () => {
       this.data.updated_at = nowIso();
+      // Signed again as written (status, attempts…); a key that cannot be made leaves them unsigned (then only a
+      // terminal replays them, on request).
+      const key = await homeKey(this.keyFile).catch(() => undefined);
+      for (const e of this.data.entries) {
+        if (!this.trusted.has(e)) continue;
+        if (key) e.sig = homeSign(key, signedText(this.place, e));
+        else delete e.sig;
+      }
       await writeJson(this.file, this.data);
     };
     const next = this.writing.catch(() => undefined).then(run);
@@ -195,6 +410,27 @@ export class Journal {
       journal_seq: entry.seq,
     };
     const label = `rollback of #${entry.seq} (${entry.description})`;
+    const refuse = (error: string) => {
+      log('error', `${label} refused: ${error}`);
+      return { ...base, ok: false, status: 'refused' as const, error, ms: Date.now() - t0 };
+    };
+    const signed = this.trusted.has(entry);
+    // L5.14: an entry Retake did not write here (untrusted) is never replayed with trust `mcp`, and elsewhere only when a
+    // person says yes to it, shown in full — never a sql or js one, one with secrets, or a shell one on a sandbox.
+    if (!signed) {
+      const where = `${journalId(this.file)} #${entry.seq}`;
+      const unsigned = `its journal entry (${where}) is not signed by this Retake home for this journal — Retake did not record it here (placed, edited, copied or moved by something else, or written by an older Retake)`;
+      if (ctx.trust === 'mcp') return refuse(`not replayed: ${unsigned}; a person can review it and replay it from a terminal`);
+      const never = unsignedNever(action, entry.env ?? ctx.env.name, ctx);
+      if (ctx.dryRun) {
+        const would = never ?? (ctx.replayUnsigned ? 'replayed only if you say yes to it, shown in full' : 'not replayed without --replay-unsigned');
+        log('info', `${label} [dry]: not signed by this Retake home: ${would}`);
+        return { ...base, ok: true, status: 'dry', message: `not executed (dry run); not signed by this Retake home: ${would}`, ms: Date.now() - t0 };
+      }
+      if (never) return refuse(`not replayed: ${unsigned}, and ${never}`);
+      const asked = typeof ctx.replayUnsigned === 'function' ? await ctx.replayUnsigned(entry, this.file) : ctx.replayUnsigned === true;
+      if (!asked) return refuse(`not replayed: ${unsigned}; ${ctx.replayUnsigned ? 'you said no' : 'look at it, then replay it with --replay-unsigned in a terminal'}`);
+    }
     // L1.7: a replay writes on the environment the hook ran in — checked against that environment's access, not the
     // command's (`retake env reset` on a read-write environment never replays a production write without --allow-writes).
     const access = (entry.env !== undefined ? ctx.accessOf?.(entry.env) : undefined) ?? ctx.access;
@@ -204,16 +440,38 @@ export class Journal {
       log('error', `${label} refused: ${error}`);
       return { ...base, ok: false, status: 'refused', error, ms: Date.now() - t0 };
     }
+    // A signed entry's rollback runs once: a copy of the entry as it was before its replay is refused; a failed one may
+    // be tried again (its record is removed).
+    const done = signed ? doneFile(this.keyFile, this.place, entry) : undefined;
+    const twice = 'Retake replayed this rollback before (this journal entry, or a copy of it as it was then): it is not replayed twice';
     if (ctx.dryRun) {
+      if (done && existsSync(done)) return refuse(`not replayed: ${twice}`);
       log('info', `${label} [dry]: would run ${action.description}`);
       return { ...base, ok: true, status: 'dry', message: 'not executed (dry run)', ms: Date.now() - t0 };
+    }
+    if (done) {
+      try {
+        await mkdir(dirname(done), { recursive: true, mode: 0o700 });
+        await writeFile(done, `${JSON.stringify({ at: nowIso() })}\n`, { flag: 'wx', mode: 0o600 });
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code === 'EEXIST') return refuse(`not replayed: ${twice}`);
+        return refuse(`not replayed: the record of replayed rollbacks (${dirname(done)}) cannot be written: ${errorMessage(e)}`);
+      }
     }
     log('info', `${label}: ${action.description}`);
     let message: string;
     try {
       // The entry's own environment: a sql rollback reaches its databases (a sandbox's own), never the command's.
-      message = await executeRollback(action, { ctx, log, readOnly: access?.mode === 'read-only', ...(entry.env !== undefined ? { env: entry.env } : {}) });
+      message = await executeRollback(action, {
+        ctx,
+        log,
+        readOnly: access?.mode === 'read-only',
+        ...(entry.env !== undefined ? { env: entry.env } : {}),
+        ...(signed ? {} : { unsigned: true }),
+      });
     } catch (e) {
+      // Not run (or not to the end): it may be tried again.
+      if (done) await rm(done, { force: true }).catch(() => undefined);
       const error = redactText(ctx, errorMessage(e));
       entry.rollback_error = error;
       entry.rollback_attempts = (entry.rollback_attempts ?? 0) + 1;
@@ -322,20 +580,44 @@ export interface JournalRollback {
   error?: string;
 }
 
-/** env_reset helper: roll back every pending journal of a project, most recent run first. */
-export async function rollbackPendingJournals(
-  projectDir: string,
-  ctx: HookContext,
-  opts: JournalLocations = {},
-): Promise<JournalRollback[]> {
-  const out: JournalRollback[] = [];
+/** A journal with pending rollbacks, opened (or why it could not be). */
+export interface PendingJournal {
+  file: string;
+  journal?: Journal;
+  error?: string;
+}
+
+/** The pending journals of a project, opened once: what a replay will do (the CLI lists it before replaying it). */
+export async function openPendingJournals(projectDir: string, opts: JournalLocations & JournalOptions = {}): Promise<PendingJournal[]> {
+  const out: PendingJournal[] = [];
   for (const file of await findPendingJournals(projectDir, opts)) {
     try {
-      const journal = await Journal.open(file);
-      out.push({ file, results: await journal.rollbackAll(ctx) });
+      out.push({ file, journal: await Journal.open(file, opts) });
     } catch (e) {
-      out.push({ file, results: [], error: redactText(ctx, errorMessage(e)) });
+      out.push({ file, error: errorMessage(e) });
     }
   }
   return out;
+}
+
+/** Roll back journals opened by openPendingJournals: exactly what was listed, most recent run first. */
+export async function rollbackJournals(list: readonly PendingJournal[], ctx: HookContext): Promise<JournalRollback[]> {
+  const out: JournalRollback[] = [];
+  for (const p of list) {
+    if (!p.journal) {
+      out.push({ file: p.file, results: [], error: redactText(ctx, p.error ?? 'cannot be opened') });
+      continue;
+    }
+    try {
+      out.push({ file: p.file, results: await p.journal.rollbackAll(ctx) });
+    } catch (e) {
+      out.push({ file: p.file, results: [], error: redactText(ctx, errorMessage(e)) });
+    }
+  }
+  return out;
+}
+
+/** env_reset helper: roll back every pending journal of a project, most recent run first. */
+export async function rollbackPendingJournals(projectDir: string, ctx: HookContext, opts: JournalLocations & JournalOptions = {}): Promise<JournalRollback[]> {
+  return rollbackJournals(await openPendingJournals(projectDir, opts), ctx);
 }

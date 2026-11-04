@@ -8,15 +8,21 @@ export {
   Journal,
   JOURNAL_FILE,
   JOURNALS_DIR,
+  ROLLBACKS_DONE_DIR,
+  ROLLBACKS_DONE_KEEP_MS,
   findJournal,
   findPendingJournals,
   isPending,
   journalId,
+  openPendingJournals,
+  pruneDoneRollbacks,
+  rollbackActionLines,
+  rollbackJournals,
   rollbackPendingJournals,
   standaloneJournalFile,
   supersedePendingJournals,
 } from './journal.js';
-export type { JournalLocations, JournalRollback } from './journal.js';
+export type { JournalLocations, JournalOptions, JournalRollback, PendingJournal } from './journal.js';
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
 export { describeHook, describeRollback, hookKindOf } from './describe.js';

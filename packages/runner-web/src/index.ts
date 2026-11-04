@@ -3,7 +3,7 @@
  * real input, CDP screencast capture and a timeline of every step (docs/DESIGN.md §3).
  */
 export { DISK_FREE_MIN_GB, DISK_FREE_MIN_SHARE, choppyCause, diskCheck, motionWarnings, runScenario } from './run.js';
-export type { FilmingEvent, RunOptions } from './run.js';
+export type { FilmingEvent, FilmingReport, RunOptions } from './run.js';
 export { LIVE_FPS_MAX, LIVE_JPEG_QUALITY, LIVE_MAX_WIDTH, LivePreview } from './live-preview.js';
 export type { LiveFrame, LivePreviewOptions, LiveSink } from './live-preview.js';
 export { PAUSE_MAX_MS, RESUME_FRAME_MS, RunPauser } from './pause.js';

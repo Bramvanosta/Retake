@@ -97,6 +97,23 @@ describe('heavyGate (L5.14a)', () => {
     await gate.dispose();
   });
 
+  it('L5.14b: a take past the cap (RETAKE_CAPTURE_HOLD_MAX_MIN) holds no more, and that is said: the command starts', async () => {
+    const take = FilmingMarker.open({ root: ws, source: 'job', owner: me })!;
+    try {
+      const { io, ui: u } = ui();
+      const t0 = Date.now();
+      const gate = await heavyGate(u, { root: ws, what: 'rendering', pollMs: 50, env: { ...process.env, RETAKE_CAPTURE_HOLD_MAX_MIN: '0.01' } });
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(500);
+      expect(gate.waited).toBe(true);
+      expect(io.stderr()).toBe(
+        'waiting for a take to finish (in this workspace) before rendering — Ctrl-C to quit, --no-wait to start now\n! a take has held heavy work for over 0.01 min: rendering starts now\n',
+      );
+      await gate.dispose();
+    } finally {
+      take.closeSync();
+    }
+  });
+
   it('--no-wait: neither waits nor yields', async () => {
     const take = FilmingMarker.open({ root: join(ws, 'elsewhere'), source: 'job', owner: me })!;
     const { io, ui: u } = ui();

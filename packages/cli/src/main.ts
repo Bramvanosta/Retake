@@ -304,6 +304,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('[id]', 'run id (folder under runs/) or hooks journal id (.retake/journals/<id>.json)')
     .option('--env <name>', 'environment')
     .option('--allow-writes', 'replay rollbacks of a production environment (only where project.yaml sets access: read-write)')
+    .option('--replay-unsigned', 'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)')
     .option('--dry', 'describe the rollbacks without executing them')
     .action(action((u, g, p: string, r: string | undefined, o: HookCommandOptions) => hooksRollbackCommand(u, g, p, r, o)));
 
@@ -315,6 +316,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
     .option('--allow-writes', 'write to a production environment (only where project.yaml sets access: read-write)')
+    .option('--replay-unsigned', 'ask about each rollback Retake did not record in its journal with this home (shown in full, y/N; in a terminal only; never a sql or js one, one with secrets or on a sandbox)')
     .option('--dry', 'describe without executing')
     .action(action((u, g, p: string, o: HookCommandOptions) => envResetCommand(u, g, p, o)));
 

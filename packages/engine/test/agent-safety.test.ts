@@ -4,13 +4,14 @@
  * production hosts, and nothing runs read-write on them; approvals are signed with the Retake home's key; a run whose
  * job was cancelled before any worker took it is listed `cancelled`; the build stamp covers every runtime package.
  */
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { EngineError, buildDirs, createEngine, executeHooksJob, openWorkspace, signApprovals, verifiedApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, openWorkspace, pruneUsedApprovals, restoreApprovals, signApprovals, verifiedApprovals } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -135,7 +136,8 @@ describe('a run whose job was cancelled before any worker took it', () => {
   });
 });
 
-describe('approvals are signed with the Retake home key', () => {
+describe('approvals are signed with the Retake home key, for their job', () => {
+  const jobId = 'j_01K9AZ0000000000000000000A';
   const input: RunJobInput = {
     version: 1, kind: 'run', project: 'w', scenario: 'short', scenario_sha256: 'a'.repeat(64), mode: 'dry', run_id: '20261017-120000-short', submitted_by: 'mcp',
     approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
@@ -144,12 +146,16 @@ describe('approvals are signed with the Retake home key', () => {
   it('the key is created 0600 in a 0700 folder; only the signed input verifies', async () => {
     const home = join(ws, 'sign-home');
     const keyFile = join(home, 'approvals.key');
-    expect(await signApprovals({ ...input, approvals: [] }, keyFile)).toEqual({ ...input, approvals: [] });
+    expect(await signApprovals({ ...input, approvals: [] }, { jobId, root: ws, keyFile })).toEqual({ ...input, approvals: [] });
     await expect(stat(keyFile)).rejects.toThrow(); // no approval, no key
-    const signed = await signApprovals(input, keyFile);
+    const signed = await signApprovals(input, { jobId, root: ws, keyFile });
     expect((await stat(keyFile)).mode & 0o777).toBe(0o600);
     expect((await stat(home)).mode & 0o777).toBe(0o700);
-    expect(await verifiedApprovals(signed, keyFile)).toEqual({ approvals: signed.approvals, rejected: 0 });
+    expect(await verifiedApprovals(signed, { jobId, root: ws, keyFile })).toEqual({ approvals: signed.approvals, rejected: 0 });
+    // L5.14: bound to their job — the same input under another job id verifies nothing.
+    expect((await verifiedApprovals(signed, { jobId: 'j_01K9AZ0000000000000000000B', root: ws, keyFile })).rejected).toBe(1);
+    // …and to their workspace: the same job in another workspace (another root) verifies nothing.
+    expect((await verifiedApprovals(signed, { jobId, root: join(ws, 'projects'), keyFile })).rejected).toBe(1);
     // Anything else of the job changed, the approval copied to another job, no signature, another key: rejected.
     for (const forged of [
       { ...signed, mode: 'capture' as const },
@@ -157,9 +163,50 @@ describe('approvals are signed with the Retake home key', () => {
       { ...signed, approvals: [{ ...signed.approvals![0], fingerprint: 'c'.repeat(64) }] },
       { ...input },
     ]) {
-      expect((await verifiedApprovals(forged, keyFile)).rejected).toBe(1);
+      expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
     }
-    expect((await verifiedApprovals(signed, join(ws, 'other-home', 'approvals.key'))).rejected).toBe(1);
+    expect((await verifiedApprovals(signed, { jobId, root: ws, keyFile: join(ws, 'other-home', 'approvals.key') })).rejected).toBe(1);
+  });
+});
+
+describe('a claim takes its job\'s approvals once (L5.14, review B M1)', () => {
+  const approvals = [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation' as const, at: '2026-10-17T12:00:00.000Z' }];
+  const rec = (id: string, withApprovals = true) => ({ id, input: { version: 1, kind: 'hooks', project: 'w', source: 'hooks/x.yaml', dry: false, submitted_by: 'mcp', ...(withApprovals ? { approvals } : {}) } as never });
+
+  it('once per id; none without approvals; an id older than the record kept is refused; restore gives them back; a record that cannot be written throws', async () => {
+    const env = { ...process.env, RETAKE_HOME: join(ws, 'consume-home') };
+    const id = `j_${ulid()}`;
+    expect(await consumeApprovals(rec(`j_${ulid()}`, false), env)).toBe(true);
+    await expect(stat(join(ws, 'consume-home', APPROVALS_USED_DIR))).rejects.toThrow(); // nothing taken, nothing written
+    expect(await consumeApprovals(rec(id), env)).toBe(true);
+    expect(await consumeApprovals(rec(id), env)).toBe(false);
+    await restoreApprovals(id, env);
+    expect(await consumeApprovals(rec(id), env)).toBe(true);
+    // A job id older than a year: its record may be pruned — refused.
+    expect(await consumeApprovals(rec(`j_${ulid()}`), env, Date.now() + 366 * 24 * 3600_000)).toBe(false);
+    expect(await consumeApprovals(rec('not-a-job-id'), env)).toBe(false);
+    // The record's folder not writable: an error, never "taken before".
+    await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o500);
+    try {
+      await expect(consumeApprovals(rec(`j_${ulid()}`), env)).rejects.toThrow(/EACCES|permission/i);
+    } finally {
+      await chmod(join(ws, 'consume-home', APPROVALS_USED_DIR), 0o700);
+    }
+  });
+
+  it('pruneUsedApprovals removes the records older than a year only (and nothing that is not one)', async () => {
+    const env = { ...process.env, RETAKE_HOME: join(ws, 'prune-home') };
+    const fresh = `j_${ulid()}`;
+    const old = `j_${ulid()}`;
+    await consumeApprovals(rec(fresh), env);
+    await consumeApprovals(rec(old), env);
+    const dir = join(ws, 'prune-home', APPROVALS_USED_DIR);
+    await writeFile(join(dir, 'notes.txt'), '');
+    const then = new Date(Date.now() - 366 * 24 * 3600_000);
+    await utimes(join(dir, old), then, then);
+    await utimes(join(dir, 'notes.txt'), then, then);
+    await pruneUsedApprovals(env);
+    expect((await readdir(dir)).sort()).toEqual([fresh, 'notes.txt'].sort());
   });
 });
 

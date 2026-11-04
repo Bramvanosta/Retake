@@ -30,7 +30,7 @@ cloud offers, marketplace, distribution) is a future topic: the items and decisi
   background work whose duration does not matter, and wait for (or pause during) the takes (BL-116). A render's file
   size is not a concern; renders on the GPU (angle) are accepted (BL-114). The job queue moves to pg-boss over an
   embedded Postgres shipped by npm, in principle (BL-117: nothing to install apart; amends ADR-1 for the queue's state
-  only).
+  only). *2026-11-04: BL-117 parked — the file queue stays; captures first was built on it (L5.14).*
 - **2026-10-12 — Voice-over is an evolution.** The MVP keeps its silent track (R-ED-18); narration from a file (BL-46),
   AI voice-over (BL-12) and SRT/VTT subtitles (BL-30) stay in this backlog.
 - **2026-10-12 — Commercialisation later.** First a local tool for our own use; the open decisions below that are about
@@ -1662,8 +1662,11 @@ take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurren
   conversion — to profile). Previews and stills (`preview.ts`) open their own browser: same options there.
 
 ### BL-117 — The job queue on pg-boss over an embedded Postgres
-*L · decided in principle 2026-10-28 · amends ADR-1 · builds on: L3.1, L4.1, L4.4, L4.8 · carries BL-116 · lot L5.14
-(2026-10-29)*
+*L · decided in principle 2026-10-28 · **parked 2026-11-04 — the file queue stays; captures first was built on it
+(L5.14)** · would amend ADR-1 · builds on: L3.1, L4.1, L4.4, L4.8*
+
+Parked: on 2026-11-04 the person chose no new dependency; captures first (BL-116) was built on the file queue in
+L5.14 (DESIGN §4q). What follows is kept as the study, should a standard queue be wanted later.
 
 Replace the file queue's state (`packages/engine/src/jobs/`, ≈ 5,800 lines with the job kinds; `FileJobQueue` used by
 `engine.ts`, `renders.ts`, `reviews.ts`, `record.ts`, the index's `jobs-watch.ts` and the Studio server's live
@@ -1730,7 +1733,13 @@ from the embedded package, in TMPDIR). ADR-1 and DESIGN's queue sections rewritt
 drained before the switch (a local tool: no migration of queued jobs).
 
 ### BL-116 — Captures first: heavy jobs wait for the takes
-*M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction · lot L5.14 (2026-10-29)*
+*M · decided 2026-10-28 · builds on: L3.1 (job queue), L4.4 (pause) · replaces BL-89's direction · **done in L5.14 (file
+queue)***
+
+Done in L5.14 on the file queue (DESIGN §4q): job classes, two slots per worker (heavy jobs in a job process), a filming
+marker per user on this Mac, heavy work waiting while a take films and a running one slowed by background priority
+(the spike chose it over SIGSTOP: BL-151), the CLI's wait and `--no-wait`, the surfaces and the measured acceptance.
+The text below is the decision as it was taken.
 
 The load under a take is what must be controlled: a loaded machine shows in the take (fewer frames during motion,
 freezes the edit has to cut, more kicked frames). Renders, exports, reviews and previews are background work whose
@@ -2294,6 +2303,55 @@ and `job_end` lines); what remains:
   attestation, pinned like the other actions, `id-token: write` + `attestations: write` on that job only) and, on the
   release page, how to check it (`gh attestation verify`) would let anyone tie a DMG to the tagged commit and the
   workflow run. Not needed for own-use releases.
+
+### BL-146 — One filming take at a time on this Mac
+*S · cut from L5.14*
+
+Two takes may film at once today (a terminal's `retake run` beside a Studio take, two workspaces): each says it ("another
+take films … at the same time") and records `perf.machine.takes_beside`, and `choppyCause` names it. Serialising them —
+the second waits, as a render does — would keep each take's machine to itself; it needs a wait in `retake run` and a
+capture slot that looks at other workspaces' markers, with the same cap.
+
+### BL-147 — Captures first on Linux and Windows
+*S · cut from L5.14*
+
+Elsewhere than macOS the markers live in `<RETAKE_HOME>/captures` and heavy work only waits to start: there is no
+background QoS to lower a running render's priority without root (`nice` cannot be reversed by the user). Options:
+SIGSTOP / SIGCONT on Linux (with the timeout and watchdog work of BL-151), job objects on Windows, or the wait only.
+
+### BL-148 — One heavy job per machine, and a light lane
+*S · cut from L5.14*
+
+Each workspace's worker runs one heavy job: two workspaces render at once. One heavy job per machine (a heavy marker
+beside the filming ones), and a light lane so a component preview never waits behind a long 4K export.
+
+### BL-149 — Queued takes of other workspaces hold heavy work too
+*S · cut from L5.14*
+
+A take queued in workspace B holds B's renders, not A's: A's render may start in the second before B's worker claims and
+films the take (then it is slowed at once). A "queued take" marker written at submit would close that window; it needs
+a liveness for a submitter that has gone away.
+
+### BL-150 — A held heavy job adopted by the next worker
+*S · cut from L5.14*
+
+A job process whose worker died ends its job (`interrupted`) and a next worker stops what is left of it. Adopting it
+instead (the next worker becomes its supervisor and lets it finish) would save a long render; it needs a hand-over of the
+supervisor identity and of the QoS hold.
+
+### BL-151 — Pausing a render (SIGSTOP) instead of slowing it during a take
+*M · cut from L5.14 — the spike's numbers kept here for later*
+
+L5.14a's spike measured both mechanisms on the M4 (fixture `quote`, a 47 s take, a 61 s render of 1832 frames; DESIGN
+§4q has every run): takes alone 60.5 / 51.4 / 59.7 / 60.3 / 60.4 fps at worst during motion (median 60.3, spread 9.1);
+beside a render SIGSTOPped for the take 60.5 / 29.6 (disturbed) / 51.5 today, 60.5 / 60.5 / 58.4 with BL-114's
+settings; beside a render under background QoS 41.7 / 52.1 / 57.3 today, 56.3 / 60.7 / 57.7 with BL-114's. Both
+passed the bar (median ≥ 51.2); QoS was chosen (no timer to defeat, nothing stopped to recover, reversible without
+root) with a margin of 0.9 fps today. SIGSTOP would need: Remotion's frame timeout raised (with today's 90 s a 120 s stop
+failed 1 of 2 renders in both settings: a timeout, or an EPIPE), a watchdog of active time instead, the stopped tree
+recovered after a worker crash (macOS sends nothing to an orphaned group), and the memory it holds (2.9 GB today, 2.2 GB
+with BL-114's settings, for a 60-min stop: 21 000 / 24 600 pageouts). Frames stayed identical after every stop with
+the 6 h timeout. Worth it if QoS proves too weak on a smaller Mac (MACOS-CHECKLIST 16.6) or with L5.15's settings.
 
 ## Guard-rails for planned lots (no new scope)
 

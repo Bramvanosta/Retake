@@ -7,14 +7,14 @@ import { rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@retake/core';
 import type { RenderJobInput, RunJobInput } from '@retake/core';
-import type { FilmingEvent } from '@retake/runner-web';
+import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
 import type { openWorkspace } from '../workspace.js';
-import { FilmingMarker } from './captures.js';
+import { FilmingMarker, TakeBeside } from './captures.js';
 import { processStart } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { interrupted, jobProject } from './queue.js';
@@ -58,6 +58,8 @@ export interface JobRunnerContext {
   abortedBecause?: () => string | undefined;
   /** A filming take of this process started (true), paused, resumed or stopped filming (L5.14: the worker's loop wakes). */
   onFilming?: (on: boolean) => void;
+  /** The worker's heavy job runs slowed now (its own hold, review A H1): what a take of this worker reports. */
+  heavySlowed?: () => boolean;
 }
 
 export function shellQuote(s: string): string {
@@ -124,8 +126,9 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
   const { root, ws, queue, cli, build, worker, self, log, rw, interrupts, slot, done, writeOrExit } = c;
 
   /** The filming marker of a capture take (L5.14): written at capture time 0, paused with the take, removed at its end. */
-  const filmingOf = (id: string): { on: (state: FilmingEvent) => void; close: () => void } => {
+  const filmingOf = (id: string, event: (e: JobEventBody) => void): { on: (state: FilmingEvent) => void | FilmingReport; close: () => void } => {
     let marker: FilmingMarker | null = null;
+    let beside: TakeBeside | undefined;
     const close = () => {
       if (!marker) return;
       marker.closeSync();
@@ -138,12 +141,30 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
           marker = FilmingMarker.open({ root, source: 'job', owner: self });
           if (!marker) log(`job ${id}: no filming marker (the captures folder cannot be used): heavy work elsewhere is not held`);
           c.onFilming?.(true);
+          // What films or renders beside the take (run.json perf.machine), and one warning when another take films.
+          beside = new TakeBeside({
+            root,
+            own: () => marker?.name,
+            ...(c.heavySlowed ? { slowed: c.heavySlowed } : {}),
+            onFirst: (where) => event({ type: 'log', level: 'warn', message: `another take films ${where === 'here' ? 'in this workspace' : 'elsewhere on this Mac'} at the same time: both share the machine` }),
+          });
+          beside.start();
         } else if (state === 'pause' || state === 'resume') {
           marker?.setPaused(state === 'pause');
           c.onFilming?.(state === 'resume');
-        } else if (state === 'stop') close();
+        } else if (state === 'stop') {
+          close();
+          const report = beside?.stop();
+          beside = undefined;
+          return report;
+        }
+        return undefined;
       },
-      close,
+      close: () => {
+        beside?.stop();
+        beside = undefined;
+        close();
+      },
     };
   };
 
@@ -250,8 +271,8 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     try {
       const event = (e: JobEventBody) => append([e]);
       // Only approvals a submit signed count (signing.ts): the others are dropped, their hooks refused.
-      const { approvals, rejected } = await verifiedApprovals(parsed.data);
-      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed by this Retake home's key (not written by a submit): ignored` });
+      const { approvals, rejected } = await verifiedApprovals(parsed.data, { jobId: id, root });
+      if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
       const base = { ws, cli, signal: controller.signal, event };
@@ -282,7 +303,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
             log(`job ${id}: no live picture (${(e as Error).message})`);
           }
           // L5.14: a filming take holds heavy work of every workspace while it films (captures.ts).
-          const film = job.mode === 'capture' ? filmingOf(id) : undefined;
+          const film = job.mode === 'capture' ? filmingOf(id, event) : undefined;
           let result: Awaited<ReturnType<typeof executeRunJob>>;
           try {
             result = await executeRunJob({
@@ -387,7 +408,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
         case 'site': {
           // A clean browser on one public page, through the worker's CONNECT proxy; refused without its signed approval.
           const { executeSiteJob } = await import('./site-job.js');
-          const result = await executeSiteJob({ ...base, input: job, progress: onProgress });
+          const result = await executeSiteJob({ ...base, jobId: id, input: job, progress: onProgress });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
         }

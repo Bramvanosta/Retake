@@ -73,9 +73,9 @@ export function workerCommand(root: string, opts: WorkerSpawnOptions = {}): { co
  * in RETAKE_JOB_BUILD_DIRS (critique H1: a worker run in-process by a test resolves the packages otherwise than a
  * process started from the sources, so the job process stamps the worker's folders, not its own).
  */
-export function jobProcessCommand(root: string, job: { id: string; kind: string; build: string; supervisor: number }): { command: string; args: string[] } {
+export function jobProcessCommand(root: string, job: { id: string; kind: string; build: string; supervisor: number; digest: string }): { command: string; args: string[] } {
   const args = entryArgs();
-  args.push('--job', job.id, '--kind', job.kind, '--root', root, '--build', job.build, '--supervisor', String(job.supervisor));
+  args.push('--job', job.id, '--kind', job.kind, '--root', root, '--build', job.build, '--supervisor', String(job.supervisor), '--digest', job.digest);
   return { command: process.execPath, args };
 }
 

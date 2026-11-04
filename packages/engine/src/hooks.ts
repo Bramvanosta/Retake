@@ -140,6 +140,8 @@ export interface HookContextOptions {
   loginCommand: LoginCommandOf;
   /** Stops the hooks (a running shell command, the next hooks): a job's cancel. */
   signal?: AbortSignal;
+  /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
+  replayUnsigned?: HookContext['replayUnsigned'];
 }
 
 /**
@@ -203,6 +205,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.trust ? { trust: o.trust } : {}),
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
+    ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
     evalInPage: async (pageKey, code) => {
       const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);

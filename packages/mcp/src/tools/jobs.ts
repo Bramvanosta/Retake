@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { JOB_ID_RE, JOB_STATES } from '@retake/core';
-import { jobProject } from '@retake/engine';
+import { jobProject, yieldWords } from '@retake/engine';
 import type { JobRecord } from '@retake/engine';
 import type { ToolImage } from '../result.js';
 import { projectSlug } from '../schema.js';
@@ -105,7 +105,9 @@ export function jobLine(j: JobRecord): string {
               : r.kind === 'site'
                 ? ` · ${r.status === 'ok' ? `${r.candidates.length} logo candidates` : 'the page could not be read'}`
                 : ` · ${r.reset ? `reset ${r.reset.strategy}` : 'up, no seed needed'}`;
-  return `${j.id} ${what} in ${jobProject(j.input) ?? 'the workspace'}: ${j.state}${progress}${result}${j.cancel_requested_at && j.state !== 'cancelled' ? ' (cancel requested)' : ''}`;
+  // L5.14: a heavy job a filming take holds (data: `yield`, an enum; where the take films is never named).
+  const held = j.yield ? ` · ${yieldWords(j.yield)}` : '';
+  return `${j.id} ${what} in ${jobProject(j.input) ?? 'the workspace'}: ${j.state}${held}${progress}${result}${j.cancel_requested_at && j.state !== 'cancelled' ? ' (cancel requested)' : ''}`;
 }
 
 export const jobList = defineTool({

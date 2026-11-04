@@ -7,7 +7,8 @@
  * `--no-wait` skips both. A take's own hooks never wait for it (markers owned by an ancestor of this process do not
  * hold). Nothing filming: one read of an empty folder, no line, no delay.
  */
-import { FilmingWatch, QosYield, ancestorPids } from '@retake/engine';
+import { FilmingWatch, QosYield, ancestorPids, capMinutes } from '@retake/engine';
+import type { FilmingState } from '@retake/engine';
 import { CliError, EXIT } from './errors.js';
 import type { Ui } from './ui.js';
 
@@ -34,6 +35,9 @@ export interface HeavyGate {
 }
 
 const NO_GATE: HeavyGate = { waited: false, dispose: async () => undefined };
+
+/** A take still films but has held heavy work for longer than the cap (it holds nothing any more). */
+const pastCap = (st: FilmingState) => !st.holding && st.takes.some((t) => t.capped && !t.paused);
 
 /** Wait while a take films, then yield during later ones; Ctrl-C while waiting exits interrupted, nothing written. */
 export async function heavyGate(ui: Ui, o: HeavyGateOptions): Promise<HeavyGate> {
@@ -64,9 +68,12 @@ export async function heavyGate(ui: Ui, o: HeavyGateOptions): Promise<HeavyGate>
       process.off('SIGTERM', onSignal);
     }
   }
+  // The cap reached is said, not only obeyed: a take films but has held heavy work for longer than the cap.
+  if (pastCap(st)) ui.warn(`a take has held heavy work for over ${capMinutes(o.env ?? process.env)} min: ${o.what} starts now`);
   // During a later take: background priority for this command and every process it started, back after the take.
   const qos = o.qos ?? new QosYield(process.pid, { group: false, self: true });
   let busy = false;
+  let capSaid = pastCap(st);
   const timer = setInterval(() => {
     if (busy) return;
     busy = true;
@@ -76,7 +83,13 @@ export async function heavyGate(ui: Ui, o: HeavyGateOptions): Promise<HeavyGate>
         if (now.holding) {
           if (!qos.held) ui.debug(`a take started (${now.cause === 'here' ? 'in this workspace' : 'elsewhere on this Mac'}): ${o.what} goes on at background priority`);
           await qos.hold();
-        } else if (qos.held) await qos.release();
+        } else {
+          if (qos.held) await qos.release();
+          if (pastCap(now) && !capSaid) {
+            capSaid = true;
+            ui.warn(`a take has held heavy work for over ${capMinutes(o.env ?? process.env)} min: ${o.what} goes on at normal priority`);
+          } else if (!now.takes.length) capSaid = false;
+        }
       } catch {
         /* the next poll tries again */
       } finally {

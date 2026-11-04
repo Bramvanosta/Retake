@@ -6,7 +6,7 @@
 import { resolve } from 'node:path';
 import { JOB_ID_RE, JOB_STATES } from '@retake/core';
 import type { JobState } from '@retake/core';
-import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject } from '@retake/engine';
+import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject, yieldWords } from '@retake/engine';
 import type { Engine, JobRecord } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -148,7 +148,9 @@ export async function jobsListCommand(ui: Ui, global: GlobalOptions, opts: JobsL
     const progress = j.state === 'running' && p ? ` · ${progressText(p)}` : '';
     const outcome = jobOutcome(j);
     const cancel = j.cancel_requested_at && (j.state === 'running' || j.state === 'queued') ? c.yellow(' · cancel requested') : '';
-    ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
+    // L5.14: a heavy job a filming take holds (waiting to start, or slowed while it runs).
+    const held = j.yield ? c.yellow(` · ${yieldWords(j.yield)}`) : '';
+    ui.result(`${c.dim(j.id)}  ${stateText(ui, j.state)} ${jobProject(j.input) ?? 'workspace'} · ${jobWhat(j)}${held}${progress}${outcome ? ` · ${outcome}` : ''}${cancel} ${c.dim(`(${ago(j.created_at, now)}, by ${j.input.submitted_by})`)}`);
   }
   ui.line(c.dim(`worker: ${worker ? `running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''}, since ${ago(worker.since, now)})` : 'not running (an MCP client or the Studio starts it when it submits a job)'}`));
   return EXIT.ok;
@@ -173,7 +175,8 @@ export async function jobsStatusCommand(ui: Ui, global: GlobalOptions, id: strin
   row('created', job.created_at);
   if (job.started_at) row('started', `${job.started_at}${job.worker ? (job.supervisor ? ` (job process pid ${job.worker.pid}, worker pid ${job.supervisor.pid})` : ` (worker pid ${job.worker.pid})`) : ''}`);
   if (job.finished_at) row('finished', `${job.finished_at}${job.started_at ? ` · ${formatMs(Date.parse(job.finished_at) - Date.parse(job.started_at))}` : ''}`);
-  if (position) row('queue', position.held_by === 'take' ? `waiting for a take to finish${position.ahead ? ` · ${position.ahead} ahead` : ''}` : position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
+  if (position) row('queue', position.held_by === 'take' ? `${job.yield ? yieldWords(job.yield) : 'waiting for a take to finish'}${position.ahead ? ` · ${position.ahead} ahead` : ''}` : position.ahead ? `${position.ahead} ahead${position.running ? ` (running: ${position.running})` : ''}` : 'next');
+  if (job.yield?.state === 'background') row('held', `${yieldWords(job.yield)}${job.yield.since ? ` since ${job.yield.since}` : ''}`);
   const p = job.progress;
   if (p && job.state === 'running') row('progress', progressText(p));
   const outcome = jobOutcome(job);

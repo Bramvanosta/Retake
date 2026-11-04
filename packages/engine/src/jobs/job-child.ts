@@ -1,12 +1,13 @@
 /**
  * A job process (L5.14): one heavy job (core JOB_CLASS) a jobs worker claimed, run in a process of its own so the worker
  * can take a capture beside it and lower its priority during a take without touching the take (yield.ts). Started by the
- * worker (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid>`) detached, in a process
+ * worker (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`) detached, in a process
  * group of its own; it runs the worker's job code (run-job-record.ts) and writes the job's state from `running` on.
  *
  * - It refuses to start (exit 3, nothing written) on another build than its worker's: the worker gives the job back.
  * - It refuses anything but the heavy job of that kind its worker claimed (exit 4): a raced or edited job.json never
- *   makes it run a take (critique L1).
+ *   makes it run a take (critique L1), nor another record than the one its worker claimed (its digest: the job id and
+ *   input the worker checked, approvals included — signing.ts).
  * - Its worker gone (its parent pid changed), it cancels the job — teardown and clean-ups run — and ends it
  *   `interrupted`: a job process never outlives its worker for long (probe 3: no kernel safety net on macOS).
  * - Signals as a worker's: the first SIGINT / SIGTERM cancels the job (teardown runs), a second quits at once.
@@ -19,6 +20,7 @@ import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { selfIdentity } from './proc.js';
 import { FileJobQueue } from './queue.js';
+import { recordDigest } from './signing.js';
 import { createJobRunner, shellQuote } from './run-job-record.js';
 import type { JobRecord } from './types.js';
 
@@ -33,6 +35,8 @@ export interface JobChildOptions {
   build: string;
   /** The worker's pid (the job's claim names it). */
   supervisor: number;
+  /** recordDigest of the record the worker claimed. */
+  digest: string;
   /** The folders the worker stamped (RETAKE_JOB_BUILD_DIRS); default this process's own. */
   dirs?: readonly string[];
   log?: (message: string) => void;
@@ -71,7 +75,15 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
   const queue = new FileJobQueue(root, cli);
   const stored = await queue.stored(o.id).catch(() => undefined);
   const claim = await queue.claimOf(o.id).catch(() => undefined);
-  if (!stored || stored.state !== 'queued' || stored.kind !== o.kind || stored.input?.kind !== stored.kind || jobClass(stored.kind) !== 'heavy' || claim?.pid !== o.supervisor) {
+  if (
+    !stored ||
+    stored.state !== 'queued' ||
+    stored.kind !== o.kind ||
+    stored.input?.kind !== stored.kind ||
+    jobClass(stored.kind) !== 'heavy' ||
+    claim?.pid !== o.supervisor ||
+    recordDigest(stored) !== o.digest
+  ) {
     log(`job ${o.id}: not the queued ${o.kind} job its worker (pid ${o.supervisor}) claimed: refused`);
     return JOB_EXIT.refused;
   }

@@ -20,6 +20,11 @@ export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'> & {
    * sandbox's own, L1.8), not the command's. Undefined: the context's.
    */
   env?: string;
+  /**
+   * L5.14: the entry was not signed by this Retake home (a person said yes to it in a terminal): a shell rollback runs
+   * with a bare environment (PATH, HOME, the locale and Retake's own variables), not the rest of the terminal's.
+   */
+  unsigned?: boolean;
 };
 
 /** The folder hook files and shell working directories are relative to: `ctx.baseDir`, else the project dir. */

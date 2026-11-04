@@ -10,7 +10,10 @@
  *   worker polls it with the cancel marker and ends the recording as if its window were closed (the check replay runs);
  * - live.json (L4.4, a running `run` job): the live channel's port and token, 0600, written and removed by the claiming
  *   worker (jobs/live-channel.ts);
- * - events.jsonl: appended by the claiming worker only.
+ * - events.jsonl: appended by the claiming worker only;
+ * - yield.json (L5.14, a running heavy job): written and removed by the worker that claimed it while the job yields to a
+ *   filming take (background priority); readers derive the job's `yield` from it, and `waiting` for a queued heavy job
+ *   while a take holds heavy work.
  *
  * Readers never write. What a dead worker cannot write is derived when reading: a `running` job whose worker is gone
  * (pid + start time) is `interrupted`; a `queued` job with a cancel marker and no claim is `cancelled`. The next worker
@@ -28,7 +31,7 @@ import { isAlive } from './proc.js';
 import { signApprovals } from './signing.js';
 import type { ProcessIdentity } from './proc.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
-import type { JobEvent, JobEventBody, JobRecord } from './types.js';
+import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 
 /** <workspace>/.retake: machine-local state of a workspace (git-ignored). */
 export function stateDir(root: string): string {
@@ -101,6 +104,9 @@ const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'sto
 
 export class FileJobQueue {
   readonly dir: string;
+  private watch?: import('./captures.js').FilmingWatch;
+  /** Ids whose job.json was read finished (final: never read again by takeHold). */
+  private readonly finished = new Set<string>();
 
   /** `cli`: how the commands a human is asked to run start ("retake -C <root>"). */
   constructor(
@@ -126,8 +132,8 @@ export class FileJobQueue {
     }
     const id = newJobId();
     const dir = join(this.dir, id);
-    // Its approvals are signed (signing.ts): the worker honours no approval a submit did not write.
-    const signed = await signApprovals(parsed.data);
+    // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
+    const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
     await mkdir(dir, { recursive: true });
     for (const [name, text] of Object.entries(opts.files ?? {})) {
       if (!JOB_FILE_RE.test(name) || JOB_RESERVED_FILES.has(name)) throw new EngineError('invalid', `invalid job file name "${name.slice(0, 40)}"`);
@@ -141,7 +147,9 @@ export class FileJobQueue {
   /** job.json as stored (no derivation); undefined when there is none (yet). */
   async stored(id: string): Promise<JobRecord | undefined> {
     const rec = await readJsonFile<JobRecord>(join(this.jobDir(id), 'job.json'));
-    return rec && typeof rec === 'object' && rec.id === id ? rec : undefined;
+    if (!(rec && typeof rec === 'object' && rec.id === id)) return undefined;
+    if (FINISHED_JOB_STATES.has(rec.state)) this.finished.add(id);
+    return rec;
   }
 
   async claimOf(id: string): Promise<ClaimRecord | undefined> {
@@ -159,14 +167,17 @@ export class FileJobQueue {
     }
   }
 
-  /** A job as clients see it: its stored record with the cancel request and the derived states. */
-  async get(id: string): Promise<JobRecord | undefined> {
+  /** A job as clients see it: its stored record with the cancel request and the derived states (`hold`: as derive's). */
+  async get(id: string, opts: { hold?: () => Promise<'here' | 'elsewhere' | undefined> } = {}): Promise<JobRecord | undefined> {
     const rec = await this.stored(id);
-    return rec ? this.derive(rec) : undefined;
+    return rec ? this.derive(rec, opts) : undefined;
   }
 
-  /** Derive what a dead worker could not write, and the cancel request. Writes nothing. */
-  async derive(stored: JobRecord): Promise<JobRecord> {
+  /**
+   * Derive what a dead worker could not write, the cancel request and a heavy job's yield. Writes nothing. `hold`: what
+   * holds heavy work now, read once for a whole list (takeHold).
+   */
+  async derive(stored: JobRecord, opts: { hold?: () => Promise<'here' | 'elsewhere' | undefined> } = {}): Promise<JobRecord> {
     const rec: JobRecord = { ...stored };
     const cancelAt = FINISHED_JOB_STATES.has(rec.state) ? undefined : await this.cancelOf(rec.id);
     if (cancelAt) rec.cancel_requested_at = cancelAt;
@@ -174,12 +185,16 @@ export class FileJobQueue {
       const pauseAt = await this.pauseOf(rec.id);
       if (pauseAt) rec.pause_requested_at = pauseAt;
     }
+    const heavy = jobClass(rec.kind) === 'heavy';
     if (rec.state === 'queued') {
       const claim = await this.claimOf(rec.id);
       if (claim) {
         if (!(await isAlive(claim))) return interrupted(rec, this.cli, `the worker (pid ${claim.pid}) stopped right after taking the job, before it started`);
       } else if (cancelAt) {
         return { ...rec, state: 'cancelled', finished_at: cancelAt, error: { code: 'cancelled', message: 'cancelled before it started' }, derived: true };
+      } else if (heavy) {
+        const cause = await (opts.hold ?? (() => this.takeHold()))();
+        if (cause) rec.yield = { state: 'waiting', cause };
       }
     } else if (rec.state === 'running') {
       if (!rec.worker || !(await isAlive(rec.worker))) {
@@ -187,8 +202,39 @@ export class FileJobQueue {
         const who = rec.supervisor ? 'its job process' : 'the worker';
         return interrupted(rec, this.cli, `${who}${rec.worker ? ` (pid ${rec.worker.pid})` : ''} stopped while the job ran (killed, crashed or the machine slept through a restart)`);
       }
+      if (heavy) {
+        const y = await this.yieldOf(rec.id);
+        if (y) rec.yield = y;
+      }
     }
     return rec;
+  }
+
+  /** A running heavy job's yield.json (written by its worker), checked: fixed words and a time only, or undefined. */
+  async yieldOf(id: string): Promise<JobYield | undefined> {
+    const y = await readJsonFile<{ state?: unknown; cause?: unknown; since?: unknown; cap_min?: unknown }>(this.yieldFile(id));
+    if (!y || typeof y !== 'object' || (y.state !== 'background' && y.state !== 'past_cap')) return undefined;
+    const since = typeof y.since === 'string' && Number.isFinite(Date.parse(y.since)) ? new Date(Date.parse(y.since)).toISOString() : undefined;
+    const cap = y.state === 'past_cap' && typeof y.cap_min === 'number' && Number.isInteger(y.cap_min) && y.cap_min > 0 && y.cap_min <= 1440 ? y.cap_min : undefined;
+    return { state: y.state, cause: y.cause === 'here' ? 'here' : 'elsewhere', ...(since ? { since } : {}), ...(cap ? { cap_min: cap } : {}) };
+  }
+
+  /**
+   * What holds this workspace's heavy work now (L5.14, review B M4): a filming take of this workspace waiting in the
+   * queue (`here`), else a filming marker of this user (captures.ts: `here` when its workspace is this one); undefined
+   * when nothing does. Reads only the jobs this queue has not seen finished (review A M1: a finished job's job.json is
+   * read once, not at every call); callers read it once per list or poll.
+   */
+  async takeHold(): Promise<'here' | 'elsewhere' | undefined> {
+    for (const id of await this.ids()) {
+      if (this.finished.has(id)) continue;
+      const s = await this.stored(id).catch(() => undefined);
+      if (s?.state === 'queued' && isFilming(s.input) && (await this.cancelOf(id)) === undefined && (await this.claimOf(id)) === undefined) return 'here';
+    }
+    const { FilmingWatch } = await import('./captures.js');
+    this.watch ??= new FilmingWatch({ root: this.root });
+    const st = await this.watch.scan().catch(() => undefined);
+    return st?.holding ? (st.cause ?? 'elsewhere') : undefined;
   }
 
   /** Job ids, oldest first. */
@@ -205,6 +251,8 @@ export class FileJobQueue {
   async list(f: JobFilter = {}): Promise<JobRecord[]> {
     const out: JobRecord[] = [];
     const limit = f.limit ?? 50;
+    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
+    const once = () => (hold ??= this.takeHold());
     for (const id of (await this.ids()).reverse()) {
       if (out.length >= limit) break;
       const stored = await this.stored(id);
@@ -213,7 +261,7 @@ export class FileJobQueue {
       if (f.kinds && !f.kinds.includes(stored.kind)) continue;
       if (f.runId !== undefined && !(stored.input.kind === 'run' && stored.input.run_id === f.runId)) continue;
       if (f.renderId !== undefined && !('render_id' in stored.input && stored.input.render_id === f.renderId)) continue;
-      const rec = await this.derive(stored);
+      const rec = await this.derive(stored, { hold: once });
       if (f.states && !f.states.includes(rec.state)) continue;
       out.push(rec);
     }
@@ -334,7 +382,7 @@ export class FileJobQueue {
 
   /** Write job.json — only the worker holding the job's claim calls this. */
   async write(rec: JobRecord): Promise<void> {
-    const { cancel_requested_at: _c, pause_requested_at: _p, derived: _d, ...stored } = rec;
+    const { cancel_requested_at: _c, pause_requested_at: _p, derived: _d, yield: _y, ...stored } = rec;
     await writeAtomic(join(this.jobDir(rec.id), 'job.json'), JSON.stringify(stored, null, 2) + '\n');
   }
 
@@ -379,10 +427,12 @@ export class FileJobQueue {
     let running: string | undefined;
     let mine: JobRecord | undefined;
     const recs: JobRecord[] = [];
+    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
+    const once = () => (hold ??= this.takeHold());
     for (const other of await this.ids()) {
       const stored = await this.stored(other);
       if (!stored || FINISHED_JOB_STATES.has(stored.state)) continue;
-      const rec = await this.derive(stored);
+      const rec = await this.derive(stored, { hold: once });
       if (other === id) mine = rec;
       else recs.push(rec);
     }
@@ -394,16 +444,7 @@ export class FileJobQueue {
       // Captures go before every heavy job whatever their age; within a lane, the oldest first.
       else if (rec.state === 'queued' && rec.id < id) ahead++;
     }
-    let held = false;
-    if (lane === 'heavy') {
-      for (const rec of recs) {
-        if (rec.state === 'queued' && isFilming(rec.input) && !rec.cancel_requested_at && (await this.claimOf(rec.id)) === undefined) held = true;
-      }
-      if (!held) {
-        const { FilmingWatch } = await import('./captures.js');
-        held = (await new FilmingWatch({ root: this.root }).scan().catch(() => ({ holding: false }))).holding;
-      }
-    }
+    const held = lane === 'heavy' && (await once()) !== undefined;
     return { ahead: ahead + (running ? 1 : 0), ...(running ? { running } : {}), ...(held ? { held_by: 'take' as const } : {}) };
   }
 }

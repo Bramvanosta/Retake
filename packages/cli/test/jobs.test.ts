@@ -82,6 +82,29 @@ describe('retake jobs', () => {
     await q.cancel(review.id, 'test');
   });
 
+  it('L5.14b: the list says what a take does to a heavy job — waiting (where), slowed while it runs (status: since when)', async () => {
+    const { FilmingMarker, selfIdentity } = await import('@retake/engine');
+    const { hostname } = await import('node:os');
+    const q = new FileJobQueue(ws);
+    const review = await q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: 'quote-v2', fps: 1, submitted_by: 'test' } as never);
+    const m = FilmingMarker.open({ root: join(ws, 'another-workspace'), source: 'cli', owner: await selfIdentity() })!;
+    try {
+      const list = await retake('jobs');
+      expect(list.out).toMatch(new RegExp(`^${review.id}  queued +northfield-fixture · review quote-v2 · waiting for a take to finish \\(elsewhere on this Mac\\)`, 'm'));
+      expect((await retake('jobs', 'status', review.id)).out).toMatch(/queue +waiting for a take to finish \(elsewhere on this Mac\)/);
+      const me = { ...(await selfIdentity()), host: hostname() };
+      await q.write({ ...(await q.stored(review.id))!, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me });
+      const { writeFile } = await import('node:fs/promises');
+      await writeFile(q.yieldFile(review.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
+      expect((await retake('jobs')).out).toMatch(/review quote-v2 · slowed during a take \(elsewhere on this Mac\)/);
+      expect((await retake('jobs', 'status', review.id)).out).toMatch(/held +slowed during a take \(elsewhere on this Mac\) since 2026-11-04T14:02:00\.000Z/);
+      expect((await retake('jobs', '--json')).out).not.toContain('another-workspace');
+    } finally {
+      m.closeSync();
+      await q.write({ ...(await q.stored(review.id))!, state: 'cancelled', finished_at: new Date().toISOString() });
+    }
+  });
+
   it('usage errors: a malformed id or an unknown state (exit 2); an unknown job (exit 1)', async () => {
     expect((await retake('jobs', 'status', 'nope')).code).toBe(EXIT.usage);
     expect((await retake('jobs', '--state', 'sleeping')).code).toBe(EXIT.usage);

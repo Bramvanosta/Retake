@@ -179,12 +179,22 @@ export interface RunOptions {
    * Captures first (L5.14): told when a capture starts filming (capture time 0), pauses and resumes (L4.4: the pause is
    * not filmed; `resume` comes before the recorders film again) and stops filming (its recorders stopped, before the
    * teardown). Setup and teardown hooks, prewarm and the encode's end are not filming. Never called for a dry run.
+   * Its answer to `stop` is what the take saw beside it (run.json `perf.machine`).
    */
-  onFilming?: (state: FilmingEvent) => void;
+  onFilming?: (state: FilmingEvent) => void | FilmingReport;
 }
 
 /** What onFilming says (L5.14). */
 export type FilmingEvent = 'start' | 'pause' | 'resume' | 'stop';
+
+/**
+ * What a take saw beside it while it filmed (L5.14, the caller's captures sampler): the most other takes filming at once
+ * on this Mac, and whether a heavy job of its workspace ran slowed (background priority) during it.
+ */
+export interface FilmingReport {
+  takes_beside: number;
+  heavy_slowed: boolean;
+}
 
 /**
  * SIGINT/SIGTERM abort the run (teardown still runs); a second signal kills the process — after removing the session
@@ -219,12 +229,14 @@ function installSignalHandlers(onSignal: (sig: NodeJS.Signals) => void, groups: 
   return remove;
 }
 
-/** A caller's onFilming never breaks a take. */
-function tell(f: (state: FilmingEvent) => void, state: FilmingEvent): void {
+/** A caller's onFilming never breaks a take; its report (to `stop`) is kept only when well formed. */
+function tell(f: (state: FilmingEvent) => void | FilmingReport, state: FilmingEvent): FilmingReport | undefined {
   try {
-    f(state);
+    const r = f(state);
+    return r && Number.isInteger(r.takes_beside) && r.takes_beside >= 0 && typeof r.heavy_slowed === 'boolean' ? { takes_beside: r.takes_beside, heavy_slowed: r.heavy_slowed } : undefined;
   } catch {
     /* the caller's marker: not the take's business */
+    return undefined;
   }
 }
 
@@ -290,10 +302,13 @@ export function choppyCause(m: { gpu?: GpuInfo; cpu?: RunPerfCpu; machine: RunPe
   const figures: string[] = [];
   if (m.gpu) figures.push(m.gpu.accelerated ? `GPU hardware accelerated${m.gpu.renderer ? ` (${m.gpu.renderer})` : ''}` : `no GPU acceleration (${m.gpu.renderer ?? 'software'})`);
   figures.push(`machine load up to ${m.machine.load_max.toFixed(1)} on ${m.machine.cpus} cores`);
+  if (m.machine.takes_beside) figures.push(`${m.machine.takes_beside === 1 ? 'another take' : `${m.machine.takes_beside} other takes`} filming beside it`);
+  if (m.machine.heavy_slowed) figures.push('heavy work (a render, review or export) slowed during the take');
   const cores = (x: number) => (x / Math.max(0.001, m.seconds)).toFixed(2);
   if (m.cpu) figures.push(`Chromium ${cores(m.cpu.browser + m.cpu.gpu + m.cpu.renderer + m.cpu.chromium_other)} cores (renderer ${cores(m.cpu.renderer)}, GPU process ${cores(m.cpu.gpu)})`);
   let why: string;
   if (m.gpu && !m.gpu.accelerated) why = 'the browser renders in software: run `retake doctor` (browser.channel: headless-shell has no GPU)';
+  else if ((m.machine.takes_beside ?? 0) > 0) why = 'another take filmed at the same time on this Mac: film one take at a time';
   else if (m.machine.load_max > m.machine.cpus) why = 'the machine was busy with other work: film when it is quiet';
   else if (m.cpu && m.cpu.renderer / Math.max(0.001, m.seconds) > 0.8) why = "the page's own rendering is heavy (large blurs or shadows, animations): its renderer stayed busy";
   else if (m.cpu?.browsers && m.cpu.browsers.length > 1 && m.cpu.browsers.some((b) => b.cpu / Math.max(0.001, m.seconds) > 0.5)) why = 'several browsers (one per persona) rendered at once';
@@ -903,13 +918,14 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       }
     }
     // Off camera (L5.14): heavy work held for this take may go on (teardown, diagnosis and artefacts are not filming).
+    let beside: FilmingReport | undefined;
     if (filming) {
       filming = false;
-      tell(opts.onFilming!, 'stop');
+      beside = tell(opts.onFilming!, 'stop');
     }
     if (sampler) {
       perfCpu = await sampler.stop().catch(() => undefined);
-      perfMachine = sampler.machine();
+      perfMachine = { ...sampler.machine(), ...(beside ? { takes_beside: beside.takes_beside, ...(beside.heavy_slowed ? { heavy_slowed: true as const } : {}) } : {}) };
       // R-FLD-25: a persona's page that costs CPU while nobody films it (measured on the fixture: ≈ 0.02 core).
       for (const b of perfCpu?.browsers ?? []) {
         if (!b.unfilmed || b.unfilmed.seconds < 4 || b.unfilmed.cpu / b.unfilmed.seconds <= UNFILMED_WARN_CORES) continue;

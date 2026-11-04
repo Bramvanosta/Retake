@@ -278,6 +278,29 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
 (≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached.
 
+### Captures first: a take never waits for a render
+
+A take films in real time, so it gets the machine first; renders, reviews, exports, previews and site extractions are
+background work that can wait. On your Mac, for your user (every workspace, the Studio, Claude and the terminal alike):
+
+- **A take never waits behind a render.** In a workspace the worker runs one take (or hooks, a sign-in, a recording)
+  and, beside it, one render, review, export or preview in a process of its own.
+- **Heavy work that has not started waits while a take films** — from the first filmed frame to the end of the scenes,
+  not during the setup or teardown hooks, not while the take is paused. A render that is already running is **slowed**
+  (macOS background priority) while the take films, and goes back to full speed after it; its frames are the same.
+- **It is said everywhere**: "waiting for a take to finish (in this workspace / elsewhere on this Mac)" and "slowed
+  during a take" in the Studio (the render's row and the status bar), through MCP and in `retake jobs`; `retake doctor`
+  has a "Captures first" line (the takes filming now, the markers' folder, whether background priority is available).
+  A take's report says whether another take filmed beside it and whether heavy work of its workspace's worker (a
+  render, review or export) was slowed during it — a terminal `retake render`, which has no job, and the work of another
+  workspace are not counted there.
+- **In a terminal**, `retake render`, `still`, `export`, `review`, `export-capture` and `run --raw`'s export wait to
+  start while a take films (one line on stderr; Ctrl-C quits with nothing written), then run at background priority
+  during a later take. `--no-wait` starts at once and never slows down. `retake run` (not `--dry`) counts as a take.
+- **A cap**: a take holds heavy work for at most `RETAKE_CAPTURE_HOLD_MAX_MIN` minutes (default 60) — then the work
+  goes on, and that is said too. Linux and Windows only wait (no background priority).
+- An update of the app waits for running jobs, a render held by a take included.
+
 ## Variants, 4K, music and export
 
 **Vertical 9:16 and square 1:1** (`--vertical`, `--square`, `overrides.variant`): the same run, theme and scenario,

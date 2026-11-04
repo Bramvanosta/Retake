@@ -2308,8 +2308,14 @@ export interface RunPerf {
   seconds: number;
   /** CPU seconds per process group over the take, sampled from the system's process table (absent when it failed). */
   cpu?: RunPerfCpu;
-  /** The machine during the take: logical CPUs and the 1-minute load average (mean and highest). */
-  machine: { cpus: number; load_mean: number; load_max: number };
+  /**
+   * The machine during the take: logical CPUs and the 1-minute load average (mean and highest). L5.14 (captures first):
+   * `takes_beside` — the most other takes filming at once on this Mac while it filmed (absent: not sampled, a run before
+   * L5.14); `heavy_slowed` — heavy work (a render, a review, an export, a preview, a site extraction) of its workspace's
+   * jobs worker ran slowed at background priority during it. Not counted: a terminal `retake render` that waited or
+   * slowed itself (it has no job), heavy work of another workspace.
+   */
+  machine: { cpus: number; load_mean: number; load_max: number; takes_beside?: number; heavy_slowed?: true };
   /** Chromium's GPU status (its own feature report): hardware accelerated or not, and the features that fell back to software. */
   gpu?: { accelerated: boolean; renderer?: string; software?: string[] };
   /** Chromium's frame-rate limiter was on (browser.frame_rate_limit). */

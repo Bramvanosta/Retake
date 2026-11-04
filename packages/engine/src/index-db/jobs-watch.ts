@@ -2,14 +2,18 @@
  * Job changes for the Studio's event stream (L4.1, critique B2): never from the index — unfinished jobs are read live
  * from the queue at each poll (their derived states included: a running job whose worker was killed reads
  * `interrupted` with no file changed), finished ones are history. Each poll reads only the jobs that are new since the
- * last one and those that were unfinished then: a handful of job.json files, whatever the queue's length.
+ * last one and those that were unfinished then: a handful of job.json files, whatever the queue's length — and, when a
+ * heavy job is queued, what holds heavy work once per poll (queue.takeHold: the unfinished jobs and the markers).
  */
+import { heldWork } from '../jobs/held.js';
+import type { HeldWork } from '../jobs/held.js';
 import { FileJobQueue } from '../jobs/queue.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
 import type { JobRecord } from '../jobs/types.js';
 
 function signature(j: JobRecord): string {
-  return JSON.stringify([j.state, j.progress ?? null, j.cancel_requested_at ?? null, j.started_at ?? null, j.finished_at ?? null]);
+  // L5.14: a heavy job held or let go by a take is a change (the Studio says it within one poll).
+  return JSON.stringify([j.state, j.progress ?? null, j.cancel_requested_at ?? null, j.started_at ?? null, j.finished_at ?? null, j.yield?.state ?? null, j.yield?.cause ?? null]);
 }
 
 export class JobsWatch {
@@ -32,6 +36,11 @@ export class JobsWatch {
     return this.records.get(id);
   }
 
+  /** L5.14: what a filming take holds of this workspace's jobs at the last poll (heavy jobs waiting or slowed). */
+  held(): HeldWork | undefined {
+    return heldWork([...this.records.values()].filter((j) => !FINISHED_JOB_STATES.has(j.state)));
+  }
+
   /** Ids of the jobs that appeared or changed since the last poll (none on the first: it only takes stock). */
   async poll(): Promise<string[]> {
     const ids = await this.queue.ids();
@@ -50,8 +59,11 @@ export class JobsWatch {
     // stay unknown, so the next poll looks at them again (known, they were never read again: a job queued and finished
     // between two polls, or with a poll in that window, was never told).
     const unread = new Set<string>();
+    // What holds heavy work, read once for the whole poll (review A M1 / B L8: not once per queued heavy job).
+    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
+    const once = () => (hold ??= this.queue.takeHold());
     for (const id of look) {
-      const job = await this.queue.get(id).catch(() => undefined);
+      const job = await this.queue.get(id, { hold: once }).catch(() => undefined);
       if (!job) {
         unread.add(id);
         continue;

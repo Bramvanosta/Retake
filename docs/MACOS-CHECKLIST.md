@@ -1894,6 +1894,44 @@ stapled, then the checks — the team of every signature, `spctl -a -vv -t exec`
 --context context:primary-signature` on the DMG, `xcrun stapler validate` on both. Note the notarisation times and
 anything refused. Then 15a on a second Mac: the downloaded DMG opens with no Open Anyway step.
 
+## 16. Captures first: a take during a render, on your Mac (L5.14)
+
+The test suite measures this on a scratch copy (`RETAKE_TEST_CAPTURES_FIRST=1`); here it is your own workspace, your
+own Studio and terminal, your Mac's load. Close what you can (a browser with many tabs, a build), note the Mac's
+memory (8 / 16 / 24 GB) and keep Activity Monitor open on the CPU tab.
+
+1. **A take beside a Studio render.** In the Studio, Render a capture of `quote` (Edit's status bar), then at once
+   Capture `quote` from the Scenario screen (the fixture product running). The take starts at once (the Run screen
+   shows it filming within a few seconds — never "queued behind the render"). While it films: the render's row on the
+   Review report says "v… · rendering NN % · slowed during a take (in this workspace)" and the status bar "a render is
+   slowed during a take (in this workspace)"; in Activity Monitor the render's processes (node, "Chrome Headless
+   Shell" / Chromium helpers) show a lower CPU share. After the take: both go within a second or two, the render goes on
+   at full speed and finishes. Note the take's figures (its run.json `perf`, or what `run_status` says through Claude:
+   moves ≥ N fps, kicked, dropped, freezes) against a take of `quote` alone just before; its report says "a render was slowed during
+   it". Watch the render once: nothing odd at the moment the take started or ended.
+2. **A render queued during a take** (render after the take has started): its row says "queued — waiting for a take to
+   finish (in this workspace)"; it starts within a second of the take's end.
+3. **A terminal render during a Studio take.** In Terminal, `retake render northfield-fixture quote` while a Studio
+   take films: one line "waiting for a take to finish (in this workspace) before rendering — Ctrl-C to quit,
+   --no-wait to start now"; it starts once the take ends. Again with `--no-wait`: it starts at once (the take's report
+   then shows the load). Start a terminal render first, then a Studio take: the render goes on at background priority
+   (`ps -o pri= -p <pid>` says 4 during the take, 31 or so after).
+4. **Two workspaces.** A render in one workspace (Studio A), a take in another (Studio B, or `retake -C <B> run …`):
+   A's render row says "… (elsewhere on this Mac)" — never B's name or folder.
+5. **doctor** during a take: the "Captures first" line counts it ("1 take films now (1 in this workspace)"), names the
+   markers' folder (your user's temporary folder) and says background priority is available.
+6. **A small Mac** (8–16 GB, if you have one): the same as 1 with a 4K render (`--scale 2`): note memory pressure in
+   Activity Monitor and whether the take's figures stay within those of a take alone.
+7. **Rollbacks you did not record** (journals are signed for where they stand). Prepare a pending rollback first: a
+   take of a scenario whose setup hook has a `rollback:`, stopped with Ctrl-C during its scenes (an interrupted run
+   keeps its rollback pending; a finished run's are already rolled back, and nothing would be listed). Copy its
+   `runs/<id>/hooks-journal.json` into a new `runs/<new id>/` folder, then `retake env reset <project> --dry`: the
+   copy's entry is listed "not signed by this Retake home", every field of its rollback shown in full, and the command
+   exits 0; without `--dry` it is not replayed (exit 1). Ask Claude for `env_reset` with `dry: true` only: it refuses the
+   copy and says a person can review it from a terminal. In a terminal, `retake hooks rollback <project> <new id>
+   --replay-unsigned` asks about it (answer no). Remove the copy afterwards, then `retake hooks rollback <project> <id>` replays the
+   original once.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

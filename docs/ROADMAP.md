@@ -85,7 +85,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.12 | Studio « Épure » 4: Edit, Review, Library, Theme editor, ⌘K palette, sheets, the accessibility that goes with them | M–L → L+, split in four | **done** — L5.12a (Edit, the Review report), L5.12b (comments, proposal, README, ⌘K), L5.12c (Library, themes), L5.12d (quit sheet, end of legacy, motion) (live checks: MACOS-CHECKLIST 14e) |
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **done** — L5.13a the rename, L5.13b the mark (2026-11-03) |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–f: engine, app + DMG, first run, updater, releases from GitHub Actions, the feed on a GitHub release (2026-11-04) |
-| L5.14 | Captures first: the job queue on pg-boss over an embedded Postgres | L | todo |
+| L5.14 | Captures first: a take before renders, reviews and exports, on the file queue | L | **done** — L5.14a (the worker's two slots, the markers, background QoS, the CLI wait), L5.14b (surfaces, signed journals, approvals bound to their job, the measured acceptance) (2026-11-04) |
 | L5.15 | Renders on the GPU with a lighter load | S | todo |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
@@ -861,15 +861,15 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   bundled Node), the MCP server (registered in Claude Code / Claude Desktop from the app at first run), Chromium for
   captures, the headless shell and Remotion's compositor for renders, ffmpeg / ffprobe (our own relocatable LGPL build
   with VideoToolbox, libvpx and ProRes — Homebrew's links Homebrew libraries and is GPL with x264; Remotion's has no
-  filters), and later the queue's Postgres (L5.14). A first run (workspace, Retake home, screen and notification
+  filters). A first run (workspace, Retake home, screen and notification
   permissions, CLI and MCP offered). Developer ID signing of every embedded executable with the hardened runtime and
   the entitlements Node / Chromium need, notarisation, a DMG through Tauri's bundler, and a signed updater with its
   own feed (L5.14, L5.15 and later lots reach installed Macs as updates). The signing identity, notarisation
   credentials, updater key and feed URL come from the environment at release time, never from the repository.
   Needs from the user: approved downloads (ffmpeg sources), their own signing / notarisation run or an explicit go,
   where the updater feed lives.
-- **L5.14 — Captures first (L).** BL-117 carrying BL-116: the queue's state on pg-boss over an embedded Postgres, and a
-  capture running first, heavy jobs waiting for the takes.
+- **L5.14 — Captures first (L).** BL-116 on the file queue (decided 2026-11-04: no new dependency; BL-117, pg-boss
+  over an embedded Postgres, is parked): a capture runs first, heavy jobs wait for the takes or slow down during one.
 - **L5.15 — Renders on the GPU (S).** BL-114: angle and VideoToolbox, a lighter concurrency, measured against today.
 
 ### L5.2 — Tauri desktop shell (macOS) (M)
@@ -971,6 +971,18 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   runner), docs/RELEASING.md. Two independent reviews per part fixed with mutation-checked tests. Cuts: BL-137 – BL-145.
   L5.16f — the update feed on a GitHub release (no self-hosted host). The first tagged run is the person's
   (MACOS-CHECKLIST 15b). Next: L5.14.
+
+### L5.14 — Captures first (split in L5.14a – L5.14b)
+- **Goal:** a take never waits for, nor films beside, a render at full speed — on the file queue, no new dependency.
+- **Done (2026-11-04, in a worktree):** L5.14a — job classes from the worker's own view (capture-side vs heavy), the
+  workspace worker's two slots (captures inline, one heavy job in a job process of its own), per-user filming markers
+  with a heartbeat and a 60-minute cap, background QoS on a running heavy job's whole tree during a take (chosen by a
+  measured spike over a SIGSTOP), guarded signals and a recovery that proves a job process before signalling it, the
+  CLI's wait (`--no-wait`). L5.14b — the hold said everywhere (Studio rows and status bar, MCP, `retake jobs`, doctor),
+  a take's report notes takes beside it and slowed heavy work, rollback-journal entries signed for where they stand and
+  replayed once, approvals bound to their job and workspace and used once, the job process given a digest of its claimed
+  record, the measured acceptance from the Studio's own submits. Two independent reviews per part fixed with
+  mutation-checked tests. Cuts: BL-146 – BL-151. Next: L5.15.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

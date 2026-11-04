@@ -63,6 +63,7 @@ export * from './ids.js';
 export * from './comments.js';
 export * from './line-diff.js';
 export * from './plain-file.js';
+export * from './home-key.js';
 export * from './step-match.js';
 export * from './filmed.js';
 export * from './perf.js';

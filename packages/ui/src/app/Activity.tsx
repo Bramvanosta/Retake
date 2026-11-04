@@ -10,6 +10,7 @@ import type { ActivityItem, SearchHit } from '@retake/engine';
 import { call, errorText, useCall } from './api.js';
 import { Txt, When, shown } from './bits.js';
 import { useEvents } from './events.js';
+import { yieldWords } from './render-words.js';
 import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
 import { StatusMark, TextField } from './ui-kit/index.js';
@@ -35,6 +36,8 @@ function what(i: ActivityItem): string {
 function Item({ i, showProject }: { i: ActivityItem; showProject: boolean }) {
   const p = i.progress;
   const progress = i.state === 'running' && p ? (p.fraction !== undefined ? `${Math.round(p.fraction * 100)} %` : p.steps_total ? `${p.steps_done}/${p.steps_total} steps` : p.phase) : undefined;
+  // L5.14: a heavy job a filming take holds (waiting, slowed, or going on past the cap).
+  const held = i.source === 'queue' && i.yield ? yieldWords(i.yield) : undefined;
   // A finished run job "succeeded" when it ran to its end: the run's own status says how it went.
   const status = i.source === 'history' && i.state === 'succeeded' && i.run?.status ? i.run.status : i.state;
   const [state, word] = STATE[status] ?? ['attention', 'Status unknown'];
@@ -54,6 +57,7 @@ function Item({ i, showProject }: { i: ActivityItem; showProject: boolean }) {
       </span>
       <span className="sc-lately-meta">
         {progress && <>{shown(progress)} · </>}
+        {held && <>{shown(held)} · </>}
         {shown(BY[i.submitted_by] ?? i.submitted_by)} · <When iso={i.at} />
       </span>
     </li>

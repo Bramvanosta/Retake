@@ -24,7 +24,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { FileJobQueue, createEngine, processStart, readWorkerLock, runWorker } from '../src/index.js';
+import { APPROVALS_USED_DIR, FileJobQueue, createEngine, heldFile, processStart, readWorkerLock, runWorker, signApprovals } from '../src/index.js';
 import type { JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -179,6 +179,104 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(end.supervisor?.pid ?? end.worker?.pid).not.toBe(process.pid);
     await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
   }, 120_000);
+
+  it('review B M1: the approvals a claim took are given back with the job (exit 3): the next worker\'s claim takes them, the job is not refused', async () => {
+    const { root, queue } = await workspace('exit3-approvals');
+    const job = await review(queue, 'approved-v1');
+    // A job carrying a signed approval (as a submit writes it), so that its claim takes it.
+    const stored = (await queue.stored(job.id))!;
+    const input = await signApprovals({ ...stored.input, approvals: [{ fingerprint: 'a'.repeat(64), by: 'human-cli', at: new Date().toISOString() }] } as never, { jobId: job.id, root });
+    await writeFile(join(queue.jobDir(job.id), 'job.json'), JSON.stringify({ ...stored, input }));
+    const used = join(base, '.home', APPROVALS_USED_DIR, job.id);
+    const seen: boolean[] = [];
+    const logs: string[] = [];
+    const log = (m: string) => {
+      logs.push(m);
+      // Said right after the give-back: the record its claim made is gone by then.
+      if (/given back to the queue/.test(m)) seen.push(existsSync(used));
+    };
+    expect(await work(root, { [job.id]: 'exit3' }, { log })).toBe(0);
+    // The worker it handed over to is stopped even when an expect below fails (it would outlive the test's workspace).
+    const stopNext = () => {
+      const w = readWorkerLock(root);
+      if (w && w.pid !== process.pid && alive(w.pid)) process.kill(w.pid, 'SIGTERM');
+    };
+    try {
+      expect(seen).toEqual([false]);
+      // The new worker (a real one) claims it: its claim takes the approvals again — the job runs (a review of nothing).
+      const end = await waitFor(
+        'the new worker ends the job',
+        async () => {
+          const j = await queue.get(job.id);
+          return j && ['succeeded', 'failed', 'cancelled', 'interrupted'].includes(j.state) ? j : undefined;
+        },
+        90_000,
+      );
+      expect(end.error?.message ?? '').not.toMatch(/approvals of job .* were taken by an earlier claim/);
+      expect(end.supervisor?.pid ?? end.worker?.pid).not.toBe(process.pid);
+      expect(existsSync(used)).toBe(true);
+      await waitFor('the new worker gone', async () => (await readWorkerLock(root)) === null || undefined, 30_000);
+    } finally {
+      stopNext();
+    }
+  }, 120_000);
+
+  it('critique L4: after a build change the worker claims nothing more — a capture included — and hands over once its running job ended', async () => {
+    const { root, queue } = await workspace('l4');
+    const job = await review(queue);
+    let changed = false;
+    const logs: string[] = [];
+    const worker = work(root, { [job.id]: 'until-file' }, { buildCheckMs: 1, jobProcessTest: { buildChanged: () => changed } }, logs);
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    changed = true;
+    await waitFor('the build change seen', () => logs.some((l) => /the code changed since this worker started: no new job here/.test(l)));
+    // A capture-class job queued now (a dry run): never claimed by this worker of the old build.
+    const take = await queue.enqueue({ version: 1, kind: 'run', project: 'w', scenario: 's', scenario_sha256: 'a'.repeat(64), run_id: '20261104-150000-s', mode: 'dry', submitted_by: 'test' } as never);
+    await new Promise((r) => setTimeout(r, 1500));
+    expect(await queue.claimOf(take.id)).toBeUndefined();
+    // Cancelled before the old worker ends (no new worker is started for it), then the running job ends.
+    await queue.cancel(take.id, 'test');
+    await writeFile(join(queue.jobDir(job.id), 'fake-finish'), '');
+    expect(await worker).toBe(0);
+    expect(await queue.claimOf(take.id)).toBeUndefined();
+    expect((await queue.stored(job.id))?.state).toBe('succeeded');
+    expect(logs.join('\n')).toMatch(/the code changed since this worker started: handing over/);
+  }, 60_000);
+
+  it('the cap reached is said on the running job (yield `past_cap`, its words), not only logged; gone once the take ends', async () => {
+    const { FilmingMarker, selfIdentity, yieldWords } = await import('../src/index.js');
+    const saved = process.env.RETAKE_CAPTURE_HOLD_MAX_MIN;
+    process.env.RETAKE_CAPTURE_HOLD_MAX_MIN = '0.02';
+    const { root, queue } = await workspace('cap');
+    const job = await review(queue);
+    const logs: string[] = [];
+    const worker = work(root, { [job.id]: 'until-file' }, {}, logs);
+    let m: InstanceType<typeof FilmingMarker> | null = null;
+    try {
+      await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+      m = FilmingMarker.open({ root: join(base, 'cap-elsewhere'), source: 'cli', owner: await selfIdentity() });
+      await waitFor('slowed', async () => (await queue.get(job.id))?.yield?.state === 'background');
+      // Review A H1: while it holds heavy work the worker keeps one file a take outside it reads.
+      await waitFor('the held file', () => existsSync(heldFile(root)));
+      expect(JSON.parse(readFileSync(heldFile(root), 'utf8'))).toMatchObject({ v: 1, state: 'background' });
+      const capped = await waitFor('past the cap', async () => {
+        const y = (await queue.get(job.id))?.yield;
+        return y?.state === 'past_cap' ? y : undefined;
+      });
+      await waitFor('the held file removed with the hold', () => !existsSync(heldFile(root)));
+      expect(capped.cause).toBe('elsewhere');
+      expect(yieldWords(capped)).toMatch(/^going on: a take \(elsewhere on this Mac\) has held heavy work for longer than the cap$/);
+      expect(logs.join('\n')).toMatch(/a take has held heavy work for over 0\.02 min: this job goes on at normal priority/);
+      m!.closeSync();
+      await waitFor('said no more once the take ended', async () => (await queue.get(job.id))?.yield === undefined || undefined);
+      await writeFile(join(queue.jobDir(job.id), 'fake-finish'), '');
+      expect(await worker).toBe(0);
+    } finally {
+      m?.closeSync();
+      if (saved === undefined) delete process.env.RETAKE_CAPTURE_HOLD_MAX_MIN;
+      else process.env.RETAKE_CAPTURE_HOLD_MAX_MIN = saved;
+    }
+  }, 60_000);
 
   it('exit 1 before `running`: interrupted, the worker\'s state / result events numbered after the child\'s; exit 4: failed (invalid)', async () => {
     const { root, queue } = await workspace('exit1');
@@ -453,5 +551,8 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     expect((await queue.stored(take.job.id))?.state).toBe('succeeded');
     expect((await queue.stored(heavy.id))?.state).toBe('succeeded');
     expect(readFileSync(join(queue.jobDir(heavy.id), 'fake-started'), 'utf8')).toMatch(/^\d+$/);
+    // L5.14b: the take's report says what ran beside it — no other take, a heavy job of its workspace slowed.
+    const run = JSON.parse(readFileSync(join(project, 'runs', take.run_id, 'run.json'), 'utf8')) as { perf: { machine: Record<string, unknown> } };
+    expect(run.perf.machine).toMatchObject({ takes_beside: 0, heavy_slowed: true });
   }, 120_000);
 });

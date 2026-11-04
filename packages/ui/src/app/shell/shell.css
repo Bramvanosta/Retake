@@ -328,9 +328,13 @@
 .sh-seg {
   white-space: nowrap;
 }
+/* L5.14: what a take holds is never dropped — its short form at 1000 px and less (review B L6). */
+.sh-held-short {
+  display: none;
+}
 /* Narrow windows drop whole segments, by priority: the key caps (the menu still names the keys), the live-updates
-   word and the last take's time; then the scenario's name and the last take; the blocker's Command… keeps its icon
-   (its name stays for assistive technology). */
+   word and the last take's time; then the scenario's name and the last take, and what a take holds goes to its short
+   form; the blocker's Command… keeps its icon (its name stays for assistive technology). */
 @media (max-width: 1100px) {
   .sh-actions .k-kbd-group,
   .sh-seg[data-drop='when'],
@@ -340,8 +344,12 @@
 }
 @media (max-width: 1000px) {
   .sh-seg[data-drop='name'],
-  .sh-seg[data-drop='last'] {
+  .sh-seg[data-drop='last'],
+  .sh-held-long {
     display: none;
+  }
+  .sh-held-short {
+    display: inline;
   }
   .sh-actions .k-blocker-command .k-btn-label {
     position: absolute;

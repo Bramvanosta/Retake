@@ -15,8 +15,8 @@ retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env 
 retake inspect <project> <page|url|scenario> [--path P] [--until REF] [--persona P] [--env E] [--within T] [--target T]…
                [--limit N] [--images marked|none] [--json] [--out DIR]   # a page's elements with verified targets
 retake hooks run <project> <scenario>:setup|<scenario>:teardown|reset|<file.yaml> [--env E] [--yes] [--allow-writes] [--dry]
-retake hooks rollback <project> [run-id] [--env E] [--allow-writes] [--dry]
-retake env reset <project> [--env E] [--yes] [--allow-writes] [--dry]
+retake hooks rollback <project> [run-id] [--env E] [--allow-writes] [--replay-unsigned] [--dry]
+retake env reset <project> [--env E] [--yes] [--allow-writes] [--replay-unsigned] [--dry]
 retake sandbox init <project> [--env E] [--force] [--json]   # a docker-compose sandbox: app placeholder, Postgres, Mailpit
 retake sandbox up|down|reset <project> [--env E]     # start + seed (up: --no-seed, --build) / stop (--volumes) / back to the seed (--reseed)
 retake sandbox status <project> [--env E] [--json]   # exit 0 when up and healthy
@@ -32,18 +32,18 @@ retake theme from-site <url> [--json]              # colours, font names, logo P
 retake plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
 retake render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
               [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]
-              [--review] [--json]
-retake still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json]
+              [--review] [--json] [--no-wait]
+retake still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json] [--no-wait]
 retake export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
-              [--concurrency N] [--json]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
+              [--concurrency N] [--json] [--no-wait]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
 retake review <project> <render-id|file|latest> [--scenario S] [--fps 1|2] [--previous ID | --no-previous] [--strict]
-              [--json]
+              [--json] [--no-wait]
 retake comment add <project> <render-id|latest> (--at S | --frame N | --marker M) [--region x,y,w,h] [--scenario S]
               [--author A] [--json] "text"          # a comment on one frame of a render (Frame comments)
 retake comment list <project> [--scenario S] [--render ID|latest] [--status open|resolved|all] [--limit N] [--json]
 retake comment reply|resolve|reopen <project> <id> ["text" | --note T [--render ID]] [--author A] [--json]
 retake export-capture <project> <run-id|dir|latest> [--scenario S] [--format mp4|prores] [--fps 30|60]
-              [--cursor baked|none|layer] [--layer prores|webm] [--selects] [--no-cuts] [--out DIR] [--json]
+              [--cursor baked|none|layer] [--layer prores|webm] [--selects] [--no-cuts] [--out DIR] [--json] [--no-wait]
 retake schema [scenario|project|template|timeline|sandbox]    # JSON Schema on stdout
 retake login <project> [--env E] [--persona P] [--auto] [--page KEY] [--url URL]   # sign a persona in, save its session
 retake auth status [--project P [--env E]] [--check] [--json]   # every persona: valid / expired / never, last check
@@ -85,7 +85,13 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `<project>/.retake/journals/<id>.json` — never in `runs/`, which only holds captures; **hooks rollback**
   replays the pending rollbacks of one journal (a run id or a journal id) or of every journal; **env reset** replays
   every pending journal (captures' and standalone ones), then runs the `reset` hooks (journaled in
-  `.retake/journals/` too). `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
+  `.retake/journals/` too). Both list every pending rollback before replaying it; one that Retake did not record in
+  that journal with your Retake home (its entry is not signed: a journal from before this version, from another home,
+  moved, copied or placed by something else) is shown in full — every field as it would run — and not replayed: the
+  command exits 1, `--dry` exits 0. A person replays it with `--replay-unsigned`, in an interactive terminal only,
+  which asks about each one (y/N, no by default); an unsigned `sql` or `js` rollback, one that uses a secret, or a
+  `shell` one on a sandbox environment is never replayed (do it by hand if it is right), and a `shell` one runs without
+  the rest of your terminal's environment. A signed rollback is replayed once. `--yes` approves destructive hooks that lack `confirm: true` (otherwise you are
   asked on a terminal, or they are refused). On a read-only environment, hooks that write are refused; a replayed
   rollback is judged by the environment its hook ran in (`--allow-writes` where that is a production environment
   that allows writes).

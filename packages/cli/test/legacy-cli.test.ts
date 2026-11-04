@@ -120,7 +120,7 @@ describe('doctor: Before Retake', () => {
     });
     expect(lines(beforeRetakeChecks(p, W))).toEqual([
       'warn Before Retake: workspace folder: /scratch/ws/.demo-studio (the tool\'s folder from before the rename) is not read → stop the Studio, the worker and the project\'s sandboxes, then: mv /scratch/ws/.demo-studio /scratch/ws/.retake',
-      'warn Before Retake: project acme: /scratch/ws/projects/acme/.demo-studio (the tool\'s folder from before the rename) is not read · 2 pending rollback journals (retake env reset finds them only once moved) → stop the Studio, the worker and the project\'s sandboxes, then: mv /scratch/ws/projects/acme/.demo-studio /scratch/ws/projects/acme/.retake',
+      'warn Before Retake: project acme: /scratch/ws/projects/acme/.demo-studio (the tool\'s folder from before the rename) is not read · 2 pending rollback journals (retake env reset finds them only once moved; written before this version, a person replays them from a terminal: retake env reset acme --replay-unsigned, asked about each) → stop the Studio, the worker and the project\'s sandboxes, then: mv /scratch/ws/projects/acme/.demo-studio /scratch/ws/projects/acme/.retake',
       'warn Before Retake: project beta: /scratch/ws/projects/beta/.demo-studio (the tool\'s folder from before the rename) is not read, next to .retake/ → move what you still need from it (journals/, records/…) into /scratch/ws/projects/beta/.retake by hand, then remove it',
     ]);
   });

@@ -68,6 +68,24 @@ export interface DoctorProbes {
   bundleProblems?(): string[];
   /** The browser renders use (editor renderBrowser): the "Render browser" line; absent, no line. */
   renderBrowser?(): { path: string | null; source: string; note?: string };
+  /** L5.14, the "Captures first" line: this user's filming markers on this Mac (nothing made, nothing named); absent, no line. */
+  captures?(root: string): Promise<CapturesProbe>;
+}
+
+/** What doctor shows of captures first (L5.14). */
+export interface CapturesProbe {
+  /** The markers' folder: per user on this Mac (or RETAKE_CAPTURES_DIR: `override`). */
+  dir: string;
+  override: boolean;
+  /** The folder exists (the first take makes it). */
+  exists: boolean;
+  /** Why it is not used (captures first is then off). */
+  problem?: string;
+  /** The takes filming now: in this workspace or elsewhere, paused, past the cap, and whether a Retake process owns each. */
+  takes: Array<{ here: boolean; paused: boolean; capped: boolean; retake: boolean }>;
+  /** Background priority (taskpolicy) is available: a running heavy job is slowed during a take, not only made to wait. */
+  qos: boolean;
+  capMin: number;
 }
 
 /** The largest file the `read` probe reads (a `.gitignore`). */
@@ -169,6 +187,21 @@ export function systemProbes(): DoctorProbes {
     bundle: bundleInfoOrNull(),
     bundleProblems,
     renderBrowser: systemRenderBrowser,
+    captures: async (root) => {
+      const e = await import('@retake/engine');
+      const loc = e.capturesLocation(process.env);
+      const exists = existsSync(loc.dir);
+      // Nothing is made: an absent folder is read as "no take yet" (capturesDir would make it).
+      const usable = exists ? e.capturesDir(process.env) : { dir: null, ...(loc.problem ? { problem: loc.problem } : {}) };
+      const st = usable.dir ? await new e.FilmingWatch({ root }).scan() : { takes: [] };
+      const takes = [];
+      for (const t of st.takes) {
+        const cmd = await new Promise<string>((r) => execFile('ps', ['-ww', '-o', 'command=', '-p', String(t.pid)], { timeout: 5000, encoding: 'utf8' }, (err, out) => r(err ? '' : String(out))));
+        // Review A L3: a Retake worker or `retake run` only (any other node process is not one).
+        takes.push({ here: t.here, paused: t.paused, capped: t.capped, retake: e.isTakeOwnerCommand(cmd.trim()) });
+      }
+      return { dir: loc.dir, override: loc.override, exists, ...(usable.problem ? { problem: usable.problem } : {}), takes, qos: process.platform === 'darwin' && existsSync('/usr/sbin/taskpolicy'), capMin: e.capMinutes(process.env) };
+    },
     worker: async (root) => {
       const w = await (await import('@retake/engine')).liveWorker(root);
       return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}), version: w.version, ...(w.engine ? { engine: w.engine } : {}) } : null;
@@ -782,6 +815,42 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   return { status: 'ok', name, detail: `${parts.join(' · ')} · register: retake mcp --print-config` };
 }
 
+/**
+ * L5.14 — "Captures first": the takes filming now on this Mac for this user (counted, never named: in this workspace or
+ * elsewhere), the markers' folder, whether a running render can be slowed (background priority) or only made to wait,
+ * the cap. WARN when the folder cannot be used (captures first is off) or a marker's owner is not a Retake process (it
+ * holds renders up to the cap).
+ */
+export function capturesCheck(c: CapturesProbe): DoctorCheck {
+  const name = 'Captures first';
+  const live = c.takes.filter((t) => !t.paused);
+  const here = live.filter((t) => t.here).length;
+  const where = [...(here ? [`${here} in this workspace`] : []), ...(live.length - here ? [`${live.length - here} elsewhere on this Mac`] : [])].join(', ');
+  const capped = live.filter((t) => t.capped).length;
+  const filming = live.length
+    ? `${live.length === 1 ? '1 take films' : `${live.length} takes film`} now (${where}): renders, reviews, exports and previews wait for ${live.length === 1 ? 'it' : 'them'}${c.qos ? ' and run at background priority meanwhile' : ''}${capped ? ` — ${capped} past the ${c.capMin}-min cap, which hold${capped === 1 ? 's' : ''} nothing any more` : ''}`
+    : 'no take films now';
+  const paused = c.takes.length - live.length;
+  const parts = [
+    filming,
+    ...(paused ? [`${paused} paused (holding nothing)`] : []),
+    `markers: ${tildePath(c.dir)} (${c.override ? 'set by RETAKE_CAPTURES_DIR' : 'this user on this Mac'}${c.exists ? '' : '; made by the first take'})`,
+    c.qos ? 'a render running when a take starts is slowed (background priority)' : 'no background priority here: a running render is not slowed, new heavy jobs only wait',
+    `cap ${c.capMin} min (RETAKE_CAPTURE_HOLD_MAX_MIN)`,
+  ];
+  if (c.problem) return { status: 'warn', name, detail: [c.problem, ...parts.slice(1)].join(' · '), hint: 'captures first is off until the folder is a directory of this user, mode 0700 (or set RETAKE_CAPTURES_DIR to one)' };
+  const foreign = c.takes.filter((t) => !t.retake).length;
+  if (foreign) {
+    return {
+      status: 'warn',
+      name,
+      detail: [`${foreign === 1 ? 'a filming marker whose owner is' : `${foreign} filming markers whose owners are`} not a Retake process`, ...parts].join(' · '),
+      hint: `such a marker holds renders for up to ${c.capMin} min; if no take films, remove the k_*.json files in ${tildePath(c.dir)}`,
+    };
+  }
+  return { status: 'ok', name, detail: parts.join(' · ') };
+}
+
 const BEFORE = 'Before Retake';
 
 /**
@@ -853,7 +922,11 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
     }
     if (!p.exists(join(dir, OLD_DIR))) continue;
     const journals = (p.list?.(join(dir, OLD_DIR, 'journals')) ?? []).filter((f) => f.endsWith('.json')).length;
-    const pending = journals ? ` · ${journals} pending rollback journal${journals === 1 ? '' : 's'} (retake env reset finds them only once moved)` : '';
+    // L5.14 review B L2: written before journals were signed, they are replayed only by a person in a terminal.
+    const slug = dir === ws.root ? '<project>' : relative(ws.projectsDir, dir);
+    const pending = journals
+      ? ` · ${journals} pending rollback journal${journals === 1 ? '' : 's'} (retake env reset finds them only once moved; written before this version, a person replays them from a terminal: retake env reset ${slug} --replay-unsigned, asked about each)`
+      : '';
     const both = p.exists(join(dir, '.retake'));
     out.push({
       status: 'warn',
@@ -891,6 +964,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   out.push(await dockerCheck(probes, need));
   out.push(...(await workspaceChecks(probes, ws)));
   out.push(await mcpCheck(probes, ws));
+  if (probes.captures) out.push(capturesCheck(await probes.captures(ws.root)));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
   out.push(...beforeRetakeChecks(probes, ws, opts.refused));
   return out;

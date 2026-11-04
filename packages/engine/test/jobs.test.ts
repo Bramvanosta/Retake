@@ -332,3 +332,62 @@ describe('engine.runs.submit (no worker started)', () => {
     expect(runCommandLine('retake', { project: 'p', scenario: 's', mode: 'dry', until: 'a.1', hooks: 'run' })).toBe('retake run p s --dry --until a.1 --hooks run');
   });
 });
+
+describe('captures first in the job views (L5.14b)', () => {
+  it('a heavy job held by a take reads `yield`: waiting (queued), background or past the cap (running, from yield.json); words fixed; never written back', async () => {
+    const { FilmingMarker, JobsWatch, heldWork, heldWorkWords, selfIdentity, yieldWords } = await import('../src/index.js');
+    const { hostname } = await import('node:os');
+    const root = join(ws, 'q-yield');
+    const q = new FileJobQueue(root);
+    const review = (n: number) => q.enqueue({ version: 1, kind: 'review', project: 'northfield-fixture', render_id: `quote-v${n}`, fps: 1, submitted_by: 'test' } as never);
+    const queued = await review(1);
+    const dry = await q.enqueue({ ...INPUT, run_id: '20261104-140000-quote' });
+    expect((await q.get(queued.id))?.yield).toBeUndefined();
+    const watch = new JobsWatch(q);
+    await watch.poll();
+    expect(watch.held()).toBeUndefined();
+    // A take queued in this workspace: the heavy job waits, "in this workspace"; a dry run is never held.
+    const take = await q.enqueue({ ...INPUT, mode: 'capture', run_id: '20261104-140001-quote' });
+    expect((await q.get(queued.id))?.yield).toEqual({ state: 'waiting', cause: 'here' });
+    expect((await q.get(dry.id))?.yield).toBeUndefined();
+    // The job stream says it (its signature has the yield) and what is held.
+    expect(await watch.poll()).toEqual(expect.arrayContaining([queued.id]));
+    expect(watch.held()).toEqual({ state: 'waiting', cause: 'here', kind: 'review', count: 1 });
+    expect(heldWorkWords(watch.held()!)).toBe('a review waits for a take to finish (in this workspace)');
+    await q.cancel(take.id, 'test');
+    // A take filming elsewhere on this Mac (a marker of another workspace): "elsewhere", nothing of it named.
+    const m = FilmingMarker.open({ root: join(ws, 'q-yield-other'), source: 'cli', owner: await selfIdentity() })!;
+    try {
+      const held = (await q.list({ kinds: ['review'] }))[0]!;
+      expect(held.yield).toEqual({ state: 'waiting', cause: 'elsewhere' });
+      expect(yieldWords(held.yield!)).toBe('waiting for a take to finish (elsewhere on this Mac)');
+      expect(JSON.stringify(held)).not.toContain('q-yield-other');
+    } finally {
+      m.closeSync();
+    }
+    expect((await q.get(queued.id))?.yield).toBeUndefined();
+    // Running: background from its worker's yield.json, past the cap, anything else ignored.
+    const running = await review(2);
+    const me = { ...(await selfIdentity()), host: hostname() };
+    const stored = (await q.stored(running.id))!;
+    await q.write({ ...stored, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me });
+    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'here' }));
+    const bg = (await q.get(running.id))!;
+    expect(bg.yield).toEqual({ state: 'background', cause: 'here', since: '2026-11-04T14:02:00.000Z' });
+    expect(yieldWords(bg.yield!)).toBe('slowed during a take (in this workspace)');
+    expect(heldWork([bg, (await q.get(queued.id))!])).toEqual({ state: 'background', cause: 'here', kind: 'review', count: 1 });
+    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'past_cap', since: '2026-11-04T15:02:00.000Z', cause: 'elsewhere', cap_min: 60 }));
+    const capped = (await q.get(running.id))!;
+    expect(capped.yield).toEqual({ state: 'past_cap', cause: 'elsewhere', since: '2026-11-04T15:02:00.000Z', cap_min: 60 });
+    expect(yieldWords(capped.yield!)).toBe('going on: a take (elsewhere on this Mac) has held heavy work for over 60 min');
+    for (const bad of ['{', JSON.stringify({ state: 'paused', cause: 'here' }), JSON.stringify({ state: 'background', cause: '/Users/someone/ws', since: 'soon' })]) {
+      await writeFile(q.yieldFile(running.id), bad);
+      const y = (await q.get(running.id))!.yield;
+      if (y) expect(y).toEqual({ state: 'background', cause: 'elsewhere' });
+    }
+    // Derived only: a record written back never carries it.
+    await writeFile(q.yieldFile(running.id), JSON.stringify({ v: 1, state: 'background', cause: 'here' }));
+    await q.write((await q.get(running.id))!);
+    expect(JSON.parse(await readFile(join(q.jobDir(running.id), 'job.json'), 'utf8')).yield).toBeUndefined();
+  });
+});

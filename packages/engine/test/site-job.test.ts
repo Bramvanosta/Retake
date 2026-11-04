@@ -96,6 +96,8 @@ afterAll(async () => {
 });
 
 
+/** The job a directly executed site job belongs to (its approval is signed for it). */
+const JOB = 'j_01K9AZ0000000000000000000A';
 const approval = (url: string) => [{ fingerprint: siteApprovalFingerprint(url), by: 'human-elicitation' as const, at: new Date().toISOString() }];
 
 /** A fake extraction folder with drawn PNG candidates (what a worker would have written). */
@@ -137,7 +139,7 @@ describe('site jobs without any network', () => {
   }, 60_000);
 
   it('the job checks for itself, whatever the worker in front of it does: verified approval, URL, environment host', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // An approval of the right URL, not signed: the job verifies it itself.
     const unsigned: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') };
     await expect(executeSiteJob(ctx(unsigned))).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running/) });
@@ -146,18 +148,18 @@ describe('site jobs without any network', () => {
       ['https://10.0.0.1/', /IP address/],
       ['https://cdn.test/', /page app of environment local/],
     ] as const) {
-      const signed = await signApprovals({ version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url, submitted_by: 'mcp', approvals: approval(url) } as SiteJobInput);
+      const signed = await signApprovals({ version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url, submitted_by: 'mcp', approvals: approval(url) } as SiteJobInput, { jobId: JOB, root: ws.root });
       await expect(executeSiteJob(ctx(signed)), url).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(why) });
     }
     expect(() => siteDir(ws, '../../etc')).toThrow(/never a path/);
   });
 
   it('the extraction folder is made new by the worker: a planted folder or a linked parent is refused before any page opens', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // A folder planted under the id of a signed job: refused (never reused, nothing written into it).
     const id = newSiteId();
     await mkdir(siteDir(ws, id), { recursive: true });
-    const signed = await signApprovals({ version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') } as SiteJobInput);
+    const signed = await signApprovals({ version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') } as SiteJobInput, { jobId: JOB, root: ws.root });
     await expect(executeSiteJob(ctx(signed))).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/exists already: an extraction's folder is made by the extraction itself/) });
     expect(await readdir(siteDir(ws, id))).toEqual([]);
     // A linked site/ folder (into another workspace): refused, nothing made through it.

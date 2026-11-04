@@ -173,8 +173,9 @@ flight with their own dashed edge, no fade.)
   place when the screen moves inside itself (a thread, a frame, a run, a theme picked).
 - **Inspector.** Shown only while the screen fills it; titled sections, the inspector's field rows (a right-aligned
   label column).
-- **Status bar.** The connection (a state mark and word), the worker, live updates; a polite line for what a command
-  answered ("Open a scenario first"); the screen's actions on the right (Rehearse, ● Capture, Render: L5.11 makes them
+- **Status bar.** The connection (a state mark and word), the worker, what a filming take holds of this workspace's
+  heavy work (L5.14: "a render is slowed during a take (elsewhere on this Mac)", "2 jobs wait for a take to finish (in
+  this workspace)"; only while it holds any), live updates; a polite line for what a command answered ("Open a scenario first"); the screen's actions on the right (Rehearse, ● Capture, Render: L5.11 makes them
   act).
 
 ## Components (`packages/ui/src/app/ui-kit/`)
@@ -261,7 +262,8 @@ Studio keeps `APP_NAME` (L5.13 renames).
   unknown gate: *needs the terminal*) with Command… (a popover showing the whole command beside its Copy) or Open the
   YAML; each disabled action's full reason is its description. Key caps only in the desktop app, hidden under 1100 px;
   in a narrow window whole segments give way — "live updates" and the last take's time under 1100 px, the scenario's
-  name and the last take under 1000 px, Command… down to its icon —, the blocker's words are never cut; nothing scrolls
+  name and the last take under 1000 px, Command… down to its icon —, what a take holds is never dropped: at 1000 px and
+  less its short form ("a render slowed by a take", "2 jobs wait for a take"), the blocker's words are never cut; nothing scrolls
   sideways at 900 px. Stop and Pause act on the scenario's run with a job first (a terminal's run beside it: Ctrl-C
   there). A screen may claim the slot (Prepare, the live screen while its run goes, a live recording): the buttons hide,
   the commands stay. The polite line says command answers and a run's start, stop or refusal — never a step's progress;

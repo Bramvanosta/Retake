@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
 import { plural } from '../result.js';
@@ -24,10 +25,12 @@ export function renderStatusSummary(r: RenderStatusView): string {
   const q = job?.queue;
   const waiting =
     r.status === 'queued' && q
-      ? `queued: ${q.held_by === 'take' ? 'waiting for a take to finish' : q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
+      ? `queued: ${q.held_by === 'take' ? (job?.yield ? yieldWords(job.yield) : 'waiting for a take to finish') : q.ahead ? `${plural(q.ahead, 'job')} ahead` : 'next'}${q.running ? `, behind job ${q.running.id} (${q.running.kind}${q.running.phase ? ` · ${q.running.phase}` : ''}${pct(q.running.fraction)}${q.running.eta_s !== undefined ? `, ~${q.running.eta_s} s left` : ''})` : ''}`
       : undefined;
   const p = job?.progress;
-  const running = r.status === 'running' && p ? `running: ${p.phase ?? ''}${pct(p.fraction)}${p.steps_total ? ` · ${p.steps_done}/${p.steps_total} frames` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}` : undefined;
+  // L5.14: slowed during a take (background priority), said with its progress.
+  const slowed = job?.yield?.state === 'background' ? ` · ${yieldWords(job.yield)}` : '';
+  const running = r.status === 'running' && p ? `running: ${p.phase ?? ''}${pct(p.fraction)}${p.steps_total ? ` · ${p.steps_done}/${p.steps_total} frames` : ''}${p.eta_s !== undefined ? ` · ~${p.eta_s} s left` : ''}${slowed}` : undefined;
   const rec = r.record;
   const lines = [
     `render ${r.render_id}${r.scenario ? ` of ${r.scenario}` : ''}: ${waiting ?? running ?? r.status}`,

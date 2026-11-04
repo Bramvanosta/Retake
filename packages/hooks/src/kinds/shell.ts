@@ -31,7 +31,12 @@ interface ShellCommand {
   env?: Record<string, string>;
   /** A sandbox environment's variables (sandboxEnv), under `env`. */
   base?: Record<string, string>;
+  /** L5.14: a rollback Retake did not sign — the terminal's environment is not passed on, only BARE_ENV of it. */
+  bare?: boolean;
 }
+
+/** What a shell rollback Retake did not sign gets of the environment it is replayed in (RollbackEnv.unsigned). */
+const BARE_ENV = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM'];
 
 interface ShellOutcome {
   code: number | null;
@@ -147,8 +152,9 @@ async function resolveCwd(ctx: HookContext, cwd: string | undefined): Promise<st
 }
 
 function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
+  const inherited = cmd.bare ? Object.fromEntries(BARE_ENV.flatMap((k) => (process.env[k] !== undefined ? [[k, process.env[k]]] : []))) : process.env;
   return {
-    ...process.env,
+    ...inherited,
     // Also under the names from before L5.13, for a script that still reads them (legacy.ts; never read back).
     ...withOldOutgoingEnv({
       RETAKE_PROJECT_DIR: ctx.project.dir,
@@ -283,7 +289,9 @@ export async function rollbackShell(action: Extract<RollbackAction, { kind: 'she
   const cmd = renderDeep(template, await snapshotTemplateContext(r.ctx, action.data, template));
   // The environment the hook ran in (a sandbox's own variables: its database, not the command's).
   const base = await sandboxEnv(r.ctx, r.env ?? r.ctx.env.name, cmd.env);
-  if (base) cmd.base = base;
+  // An unsigned one never gets them (journal.ts refuses it before).
+  if (base && !r.unsigned) cmd.base = base;
+  if (r.unsigned) cmd.bare = true;
   // Checked again when replayed: a journal may be rolled back later (`retake env reset`), with another environment.
   checkHosts(r.ctx, cmd);
   return execute(r.ctx, r.log, cmd, action.timeout ?? DEFAULT_SHELL_TIMEOUT_S);

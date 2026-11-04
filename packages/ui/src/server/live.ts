@@ -174,7 +174,8 @@ export class Live {
     if (changed.length) {
       // L5.10a fixes (review A-L7): the projects of the changed jobs, so an open project's board ignores another one's.
       const projects = [...new Set(changed.map((id) => this.jobs.record(id)).map((j) => (j ? jobProject(j.input) : undefined)).filter((x): x is string => typeof x === 'string'))].sort();
-      this.send('jobs', { changed, projects });
+      // L5.14: what a filming take holds of the workspace's jobs now (fixed words and a kind; null: nothing).
+      this.send('jobs', { changed, projects, held: this.jobs.held() ?? null });
     }
     if (keys.length && generation !== undefined) this.send('index', { generation });
   }

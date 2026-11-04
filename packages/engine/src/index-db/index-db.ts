@@ -87,6 +87,8 @@ export interface ActivityItem {
   render?: { id: string; scenario?: string };
   /** A running job's progress (steps, phase, fraction). */
   progress?: JobRecord['progress'];
+  /** L5.14: a heavy job a filming take holds (waiting, slowed or past the cap: JobRecord.yield). */
+  yield?: JobRecord['yield'];
 }
 
 export interface SearchHit {
@@ -452,13 +454,16 @@ export class WorkspaceIndex {
     // Jobs whose job.json still says queued or running, with their state derived now: one whose worker died reads
     // `interrupted` (no file says so; the next worker persists it), a cancelled one before it started `cancelled`.
     const live: JobRecord[] = [];
+    // L5.14: what holds heavy work, read once for the whole feed.
+    let hold: Promise<'here' | 'elsewhere' | undefined> | undefined;
+    const once = () => (hold ??= this.queue.takeHold());
     for (const id of (await this.queue.ids()).reverse()) {
       if (this.finishedJobs.has(id)) continue;
       const stored = await this.queue.stored(id).catch(() => undefined);
       if (stored && FINISHED_JOB_STATES.has(stored.state)) this.finishedJobs.add(id);
       if (!stored || (stored.state !== 'queued' && stored.state !== 'running')) continue;
       if (o.project !== undefined && jobProject(stored.input) !== o.project) continue;
-      live.push(await this.queue.derive(stored));
+      live.push(await this.queue.derive(stored, { hold: once }));
       if (live.length >= limit) break;
     }
     const items: ActivityItem[] = live.map((j) => {
@@ -474,6 +479,7 @@ export class WorkspaceIndex {
         ...(j.kind === 'run' ? { run: { id: String(i.run_id), scenario: String(i.scenario), mode: String(i.mode) } } : {}),
         ...(typeof i.render_id === 'string' ? { render: { id: i.render_id, ...(typeof i.scenario === 'string' ? { scenario: i.scenario } : {}) } } : {}),
         ...(j.progress ? { progress: j.progress } : {}),
+        ...(j.yield ? { yield: j.yield } : {}),
       };
     });
     for (const h of this.history({ ...(o.project !== undefined ? { project: o.project } : {}), limit })) {

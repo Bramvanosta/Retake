@@ -14,6 +14,7 @@
  * Events carry slugs and job ids only (never text of a file); a subscriber re-reads through `/v1/call`.
  */
 import { useEffect, useRef, useState } from 'react';
+import type { HeldWork } from '@retake/engine';
 import { sessionEnded } from './api.js';
 import { parseSseBlock } from './sse.js';
 
@@ -47,7 +48,14 @@ export type StudioEvent =
       /** L4.8: recordings whose files changed or whose folder appeared or went (`<slug>/<rec_id>`). */
       records?: string[];
     }
-  | { type: 'jobs'; changed: string[]; /** L5.10a fixes: the projects of the changed jobs (absent from an older server). */ projects?: string[] }
+  | {
+      type: 'jobs';
+      changed: string[];
+      /** L5.10a fixes: the projects of the changed jobs (absent from an older server). */
+      projects?: string[];
+      /** L5.14: what a filming take holds of the workspace's jobs (null: nothing; absent from an older server). */
+      held?: HeldWork | null;
+    }
   | { type: 'index'; generation: number }
   | { type: 'resync' };
 
