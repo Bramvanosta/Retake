@@ -24,7 +24,9 @@ if (REAL_HOMES.some((h) => testHome === h || real(testHome) === real(h))) throw 
 // L5.16c fixes: Chromium on macOS finds ~/Library through NSHomeDirectory (the account's home, whatever HOME says) and
 // its crash reporter writes ~/Library/Application Support/Chromium/Crashpad there; CFFIXED_USER_HOME moves that home
 // for every process a test starts (the browsers of the e2e tests, captures, renders) to a scratch folder — made here
-// unless the shell names one, removed at the end of the run (vitest.teardown.mjs).
+// unless the shell names one, removed at the end of the run (vitest.teardown.mjs). A child a test starts with an env of
+// its own passes it on (core test/retake-home.test.ts checks the MCP servers'). It does not move what Chromium writes
+// through cfprefsd (~/Library/Preferences/org.chromium.Chromium.plist): vitest.teardown.mjs warns when either changed.
 if (!process.env.CFFIXED_USER_HOME?.trim()) process.env.CFFIXED_USER_HOME = process.env.RETAKE_TEST_CFHOME_MADE = mkdtempSync(join(tmpdir(), 'retake-test-cfhome-'));
 const cfHome = process.env.CFFIXED_USER_HOME.trim();
 if (real(cfHome) === real(userInfo().homedir)) throw new Error(`CFFIXED_USER_HOME is ${cfHome}, the account's home: tests use a scratch one (unset it)`);
@@ -57,7 +59,8 @@ export default defineConfig({
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
     env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome },
-    // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR).
+    // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR); warns when the run
+    // changed Chromium's files in the account's ~/Library (L5.16 Library hygiene).
     globalSetup: ['./vitest.teardown.mjs'],
     pool: 'forks',
     // Browser + ffmpeg tests are timing-sensitive: cap parallel files so a 4-CPU machine is not saturated.

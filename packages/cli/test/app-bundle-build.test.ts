@@ -254,7 +254,10 @@ describe('one allow-listed environment for every child of the build (critique M1
     // DMG is checked after it is made.
     const js = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
     expect(js).toMatch(/const saved = saveGenerated\(REPO, dir\);\s*let built;\s*try \{\s*built = tauriBuild\([^)]*\);\s*\} finally \{\s*restoreGenerated\(REPO, saved\);\s*\}/);
-    expect(js).toMatch(/run\('hdiutil', dmgCreateArgs\(\{ src: appDir, dmg \}\)\);[^]*const dmgProblems = verifyDmg\(dmg, join\(dir, 'mnt'\), \{ env: child \}\);/);
+    // L5.16e fixes: the DMG is release.mjs finishApp's (made after the app's checks; hdiutil tried again on "Resource busy").
+    const rel = readFileSync(join(APP, 'scripts', 'release.mjs'), 'utf8');
+    expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, cliJs,/);
+    expect(rel).toMatch(/hdiutil\(dmgCreateArgs\(\{ src: appDir, dmg \}\), \{ env: child, \.\.\.retry \}\);[^]*const problems = verifyDmg\(dmg, join\(out, 'mnt'\), \{ env: child, retry \}\);/);
   });
 
   it('pnpm deploy (the stage) runs with the allow-listed environment', async () => {
@@ -429,8 +432,9 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const { notarizeArgs, redactArgs, signer } = await signModule();
     const byProfile = signer('release', { ...BASE, APPLE_KEYCHAIN_PROFILE: 'profile-canary' }, {});
     const byKey = signer('release', { ...BASE, APPLE_API_KEY: 'key-id-canary', APPLE_API_ISSUER: 'issuer-canary', APPLE_API_KEY_PATH: '/keys/AuthKey.p8' }, {});
-    expect(notarizeArgs(byProfile, '/o/Retake.zip')).toEqual(['notarytool', 'submit', '/o/Retake.zip', '--wait', '--keychain-profile', 'profile-canary']);
-    expect(notarizeArgs(byKey, '/o/Retake.dmg')).toEqual(['notarytool', 'submit', '/o/Retake.dmg', '--wait', '--key', '/keys/AuthKey.p8', '--key-id', 'key-id-canary', '--issuer', 'issuer-canary']);
+    // Waited for at most NOTARY_TIMEOUT, the answer as JSON (review e B-L3: notarize reads its status).
+    expect(notarizeArgs(byProfile, '/o/Retake.zip')).toEqual(['notarytool', 'submit', '/o/Retake.zip', '--wait', '--timeout', '75m', '--output-format', 'json', '--keychain-profile', 'profile-canary']);
+    expect(notarizeArgs(byKey, '/o/Retake.dmg')).toEqual(['notarytool', 'submit', '/o/Retake.dmg', '--wait', '--timeout', '75m', '--output-format', 'json', '--key', '/keys/AuthKey.p8', '--key-id', 'key-id-canary', '--issuer', 'issuer-canary']);
     expect(() => notarizeArgs(byProfile, '/o/Retake.app')).toThrow(/a \.zip or a \.dmg, not \/o\/Retake\.app/);
     for (const s of [byProfile, byKey]) expect(notarizeArgs(s, '/o/x.zip').join(' ')).not.toMatch(/--password|--apple-id|pw/);
     // Redaction by flag, wherever the flag sits, both spellings.
@@ -442,7 +446,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const { buildEnv } = await bundleModule();
     const log = join(dir('notary-log'), 'calls');
     const record = `echo "$(basename "$0") $*" >> ${JSON.stringify(log)}`;
-    const tools = fakeTools({ ditto: `${record}\neval "z=\\\${$#}"; : > "$z"`, xcrun: record, codesign: record });
+    const tools = fakeTools({ ditto: `${record}\neval "z=\\\${$#}"; : > "$z"`, xcrun: `${record}\nif [ "$2" = submit ]; then echo '{"id":"sub-1","status":"Accepted","message":"Processing complete"}'; fi`, codesign: record });
     const full = { ...SECRETS, ...BASE, APPLE_KEYCHAIN_PROFILE: 'profile-canary', PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp };
     const s = signer('release', full, buildEnv(full));
     const app = join(dir('notary'), 'Retake.app');
@@ -452,7 +456,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const zip = join(work, 'Retake-notarize.zip');
     expect(readFileSync(log, 'utf8').trim().split('\n')).toEqual([
       `ditto -c -k --keepParent ${app} ${zip}`,
-      `xcrun notarytool submit ${zip} --wait --keychain-profile profile-canary`,
+      `xcrun notarytool submit ${zip} --wait --timeout 75m --output-format json --keychain-profile profile-canary`,
       `xcrun stapler staple ${app}`,
     ]);
     expect(existsSync(zip)).toBe(false);
@@ -461,7 +465,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     notarizeDmg(s, dmg);
     expect(readFileSync(log, 'utf8').trim().split('\n').slice(3)).toEqual([
       `codesign --force --timestamp -s ${ID} ${dmg}`,
-      `xcrun notarytool submit ${dmg} --wait --keychain-profile profile-canary`,
+      `xcrun notarytool submit ${dmg} --wait --timeout 75m --output-format json --keychain-profile profile-canary`,
       `xcrun stapler staple ${dmg}`,
     ]);
     for (const { tool, text } of tools.dumps()) {
@@ -490,7 +494,8 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     put(app, 'Contents/Resources/node/bin/node', THIN, 0o755);
     put(app, 'Contents/Resources/engine/dist/bin.js', '');
     const dmg = join(dirname(app), 'Retake.dmg');
-    const run = (codesign: string, spctl = 'exit 0', xcrun = 'exit 0') => {
+    const accepted = 'p=$(eval "echo \\${$#}"); echo "$p: accepted" >&2; echo "source=Notarized Developer ID" >&2; echo "origin=Developer ID Application: Example Maker (ABCDE12345)" >&2';
+    const run = (codesign: string, spctl = accepted, xcrun = 'exit 0') => {
       const tools = fakeTools({ codesign, spctl, xcrun });
       const s = signer('release', { ...BASE, APPLE_KEYCHAIN_PROFILE: 'p' }, { PATH: `${tools.bin}:/usr/bin:/bin` });
       return { problems: verifyRelease(app, dmg, s) as string[], calls: tools.dumps().map((d) => d.text.split('\n')[0]).sort() };
@@ -510,7 +515,43 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     const rejected = run('echo "TeamIdentifier=ABCDE12345" >&2; echo "flags=0x10000(runtime)" >&2', 'echo "rejected" >&2; exit 3', 'echo "does not have a ticket" >&2; exit 65').problems.join('\n');
     expect(rejected).toMatch(/spctl -a -vv -t exec .*: rejected/);
     expect(rejected).toMatch(/xcrun stapler validate .*Retake\.dmg: does not have a ticket/);
+    // Gatekeeper's words, not only its exit status (review e B-L2): accepted as a notarised Developer ID.
+    const team = 'echo "TeamIdentifier=ABCDE12345" >&2; echo "flags=0x10000(runtime)" >&2';
+    const unnotarised = run(team, 'p=$(eval "echo \\${$#}"); echo "$p: accepted" >&2; echo "source=Developer ID" >&2').problems.join('\n');
+    expect(unnotarised).toMatch(/spctl -a -vv -t exec .*: accepted, but not as a notarised Developer ID \(Developer ID\)/);
+    expect(unnotarised).toMatch(/spctl -a -vv -t open .*Retake\.dmg: accepted, but not as a notarised Developer ID/);
+    expect(run(team, 'exit 0').problems.join('\n')).toMatch(/spctl -a -vv -t exec .*: not accepted/);
+    const { gatekeeperProblem } = await signModule();
+    expect(gatekeeperProblem(0, '/x/Retake.app: accepted\nsource=Notarized Developer ID\norigin=Developer ID Application: E (ABCDE12345)\n')).toBeNull();
+    expect(gatekeeperProblem(0, '/x/Retake.app: accepted\nsource=Unnotarized Developer ID\n')).toMatch(/not as a notarised Developer ID \(Unnotarized Developer ID\)/);
+    expect(gatekeeperProblem(3, '/x/Retake.app: rejected\n')).toMatch(/rejected/);
     expect(() => verifyRelease(app, dmg, signer('dry'))).toThrow(/release run only/);
+  });
+
+  it.runIf(MAC)('notarize (review e B-L3): Accepted passes; Invalid says Apple\'s status and the first issues of its log (same credentials, none printed); no answer: notarytool\'s words', async () => {
+    const { notarize, signer } = await signModule();
+    const { buildEnv } = await bundleModule();
+    const log = join(dir('notarize-log'), 'calls');
+    const xcrun = (submit: string, logOut: string) => fakeTools({ xcrun: `echo "$*" >> ${JSON.stringify(log)}\nif [ "$2" = submit ]; then ${submit}; else ${logOut}; fi` });
+    const byKey = { APPLE_SIGNING_IDENTITY: ID, APPLE_TEAM_ID: 'ABCDE12345', APPLE_API_KEY: 'key-id-canary', APPLE_API_ISSUER: 'issuer-canary', APPLE_API_KEY_PATH: '/keys/canary.p8' };
+    const s = (tools: { bin: string }) => signer('release', byKey, buildEnv({ PATH: `${tools.bin}:/usr/bin:/bin`, HOME: tmp }));
+    expect(notarize(s(xcrun(`echo '{"id":"a1","status":"Accepted"}'`, 'exit 1')), '/o/Retake.dmg')).toBe('a1');
+    let message = '';
+    try {
+      notarize(s(xcrun(`echo '{"id":"b2","status":"Invalid","message":"Processing complete"}'; exit 1`, `echo '{"issues":[{"severity":"error","path":"Retake.zip/Retake.app/Contents/Resources/node/bin/node","message":"The binary is not signed with a valid Developer ID certificate."}]}'`)), '/o/Retake-notarize.zip');
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/^notarisation of Retake-notarize\.zip: Invalid — Processing complete \(submission b2\):\n  Retake\.zip\/Retake\.app\/Contents\/Resources\/node\/bin\/node: The binary is not signed with a valid Developer ID certificate\.$/);
+    expect(readFileSync(log, 'utf8').trim().split('\n').pop()).toBe('notarytool log b2 --key /keys/canary.p8 --key-id key-id-canary --issuer issuer-canary');
+    expect(message).not.toMatch(/canary/);
+    message = '';
+    try {
+      notarize(s(xcrun('echo "Error: timed out waiting" >&2; exit 2', 'exit 1')), '/o/Retake.dmg');
+    } catch (e) {
+      message = (e as Error).message;
+    }
+    expect(message).toMatch(/--timeout 75m --output-format json --key <redacted> --key-id <redacted> --issuer <redacted> failed \(2\): Error: timed out waiting/);
   });
 
   it('build({ mode: "release" }) and pnpm desktop:release without the full set refuse before staging, signing or any tool runs (recording stand-ins on PATH)', async () => {

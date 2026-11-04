@@ -1,6 +1,7 @@
 /**
- * Signing of the bundled app (L5.16, DESIGN §4p) — used by `bundle.mjs build` (`pnpm desktop:bundle`). We sign, Tauri
- * only lays the app out (critique M1: `tauri build` runs with no secret in its environment):
+ * Signing of the bundled app (L5.16, DESIGN §4p) — used by `bundle.mjs build` (`pnpm desktop:bundle`) and
+ * `release.mjs sign` (a release: the ad hoc app re-signed with the Developer ID). We sign, Tauri only lays the app out
+ * (critique M1: `tauri build` runs with no secret in its environment):
  *
  * - the payload (the stage, before Tauri copies it into Contents/Resources), inside-out — files before the bundle that
  *   holds them, helpers before the framework, the framework before Chromium.app — after a walk that fails on any Mach-O
@@ -12,16 +13,20 @@
  *   else (`entitlementsFor`).
  *
  * Dry mode (the default of `pnpm desktop:bundle`): ad hoc (`-s -`, `--timestamp=none`). The release path
- * (`pnpm desktop:release`: a Developer ID identity, notarisation, stapling) is `releaseConfig` + `notarizeApp` /
- * `notarizeDmg` + `verifyRelease`: `signer('release', env)` refuses before anything runs unless the whole APPLE_* set is
+ * (`pnpm desktop:release`, the release workflow's `sign` job: release.mjs finishApp re-signs the ad hoc app with a
+ * Developer ID identity, then notarisation, stapling) is `releaseConfig` + `notarizeApp` / `notarizeDmg` +
+ * `verifyRelease`: `signer('release', env)` refuses before anything runs unless the whole APPLE_* set is
  * there — the person's own run (MACOS-CHECKLIST 15b). Tests run it against recording stand-ins of codesign / xcrun /
  * ditto / spctl only. No credential is ever on a command line or in a child's environment: notarytool reads a keychain
  * profile (stored once by the person: `xcrun notarytool store-credentials`) or an App Store Connect API key file; a
- * failure's text redacts every credential flag's value (`redactArgs`). Nothing here touches a keychain itself.
+ * failure's text redacts every credential flag's value (`redactArgs`). Nothing here touches a keychain itself; the
+ * release workflow (L5.16e, .github/workflows/release.yml) imports the Developer ID certificate into a temporary keychain
+ * of its own (apps/desktop/scripts/ci-keychain.sh) and names it in APPLE_KEYCHAIN: codesign then takes the identity from
+ * that keychain only (`--keychain`).
  */
 import { spawnSync } from 'node:child_process';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { machOKind, walk } from './bundle.mjs';
 
@@ -162,7 +167,9 @@ function run(cmd, args, env) {
  * once with `xcrun notarytool store-credentials`), or an App Store Connect API key: APPLE_API_KEY (its id) +
  * APPLE_API_ISSUER + APPLE_API_KEY_PATH (the .p8 file). An Apple ID's app-specific password is not taken: notarytool
  * only reads it from its command line, where any local process sees it (`ps`) — store it in a keychain profile instead.
- * An empty variable counts as absent. Throws, naming what is missing, before anything runs.
+ * APPLE_KEYCHAIN (optional, L5.16e): the absolute path of the keychain file holding the identity (the release
+ * workflow's temporary one) — codesign looks for the identity there only. An empty variable counts as absent. Throws,
+ * naming what is missing, before anything runs.
  */
 export function releaseConfig(env = process.env) {
   const v = (k) => (typeof env[k] === 'string' && env[k].trim() ? env[k].trim() : null);
@@ -177,10 +184,13 @@ export function releaseConfig(env = process.env) {
   const m = /^Developer ID Application: .+ \(([A-Z0-9]{10})\)$/.exec(v('APPLE_SIGNING_IDENTITY'));
   if (!m) throw new SignError('APPLE_SIGNING_IDENTITY must be "Developer ID Application: <name> (<TEAM ID>)" — nothing was signed');
   if (m[1] !== v('APPLE_TEAM_ID')) throw new SignError(`APPLE_SIGNING_IDENTITY's team (${m[1]}) is not APPLE_TEAM_ID — nothing was signed`);
+  const keychain = v('APPLE_KEYCHAIN');
+  if (keychain && (!isAbsolute(keychain) || !/\.keychain(?:-db)?$/.test(keychain))) throw new SignError('APPLE_KEYCHAIN must be the absolute path of a keychain file (….keychain-db) — nothing was signed');
   return {
     identity: v('APPLE_SIGNING_IDENTITY'),
     team: v('APPLE_TEAM_ID'),
     notary: byProfile ? { profile: byProfile } : { key: v('APPLE_API_KEY'), issuer: v('APPLE_API_ISSUER'), keyPath: v('APPLE_API_KEY_PATH') },
+    ...(keychain ? { keychain } : {}),
   };
 }
 
@@ -195,9 +205,14 @@ export function signer(mode, env = process.env, childEnv = env) {
   throw new SignError(`signing mode is dry or release, not ${mode}`);
 }
 
-/** codesign's arguments for one path. */
+/** codesign's arguments for one path (`--keychain`: the identity's keychain when the release names one — APPLE_KEYCHAIN). */
 export function codesignArgs(s, path, entitlementsFile) {
-  return ['--force', '--options', 'runtime', s.timestamp ? '--timestamp' : '--timestamp=none', '-s', s.identity, ...(entitlementsFile ? ['--entitlements', entitlementsFile] : []), path];
+  return ['--force', '--options', 'runtime', s.timestamp ? '--timestamp' : '--timestamp=none', ...keychainArgs(s), '-s', s.identity, ...(entitlementsFile ? ['--entitlements', entitlementsFile] : []), path];
+}
+
+/** `--keychain <file>` for a release signer given APPLE_KEYCHAIN, else nothing (ad hoc signing needs no keychain). */
+function keychainArgs(s) {
+  return s.mode === 'release' && s.keychain ? ['--keychain', s.keychain] : [];
 }
 
 /**
@@ -273,15 +288,53 @@ export function verifyApp(app, mode, { entries = readTable(), env = process.env,
 }
 
 /**
- * xcrun notarytool's arguments for `file` — a .zip or a .dmg (notarytool takes no app folder: `notarizeApp` zips it) —
- * with the credentials of `releaseConfig`: a keychain profile's name, or the API key's file, id and issuer. Never a
- * password.
+ * How long notarytool waits for Apple's answer (review e B-L3): a new team's first submissions can take long — the
+ * release workflow's `sign` job allows two of them within its own timeout.
+ */
+export const NOTARY_TIMEOUT = '75m';
+
+/** notarytool's credentials of `releaseConfig`: a keychain profile's name, or the API key's file, id and issuer. Never a password. */
+function notaryCreds(s) {
+  const n = s.notary;
+  return n.profile ? ['--keychain-profile', n.profile] : ['--key', n.keyPath, '--key-id', n.key, '--issuer', n.issuer];
+}
+
+/**
+ * xcrun notarytool's arguments for `file` — a .zip or a .dmg (notarytool takes no app folder: `notarizeApp` zips it):
+ * waited for at most NOTARY_TIMEOUT, its answer as JSON (`notarize` reads the status), with `notaryCreds`.
  */
 export function notarizeArgs(s, file) {
   if (!/\.(zip|dmg)$/.test(file)) throw new SignError(`notarytool submits a .zip or a .dmg, not ${file}`);
-  const n = s.notary;
-  const creds = n.profile ? ['--keychain-profile', n.profile] : ['--key', n.keyPath, '--key-id', n.key, '--issuer', n.issuer];
-  return ['notarytool', 'submit', file, '--wait', ...creds];
+  return ['notarytool', 'submit', file, '--wait', '--timeout', NOTARY_TIMEOUT, '--output-format', 'json', ...notaryCreds(s)];
+}
+
+/**
+ * Submit `file` and wait (review e B-L3): Accepted, or a SignError that says Apple's status and message and, for a
+ * submission Apple answered, the first issues of its log (`notarytool log <id>`, the same credentials) — never a
+ * credential (redactArgs). Returns the submission id.
+ */
+export function notarize(s, file) {
+  const args = notarizeArgs(s, file);
+  const r = spawnSync('xcrun', args, { encoding: 'utf8', env: s.env, maxBuffer: 16 * 1024 * 1024 });
+  if (r.error) throw new SignError(`xcrun could not start: ${r.error.message}`);
+  let answer = null;
+  try {
+    answer = JSON.parse(String(r.stdout).trim());
+  } catch {
+    // not JSON: a failure before Apple answered (credentials, network, the timeout)
+  }
+  if (r.status === 0 && answer?.status === 'Accepted') return answer.id;
+  const said = `${(r.stderr || '').trim()}`.split('\n').slice(-3).join(' | ');
+  if (!answer?.id) throw new SignError(`xcrun ${redactArgs(args).join(' ')} failed (${r.status}): ${said || String(r.stdout).trim().slice(0, 300)}`);
+  let issues = '';
+  const log = spawnSync('xcrun', ['notarytool', 'log', answer.id, ...notaryCreds(s)], { encoding: 'utf8', env: s.env, maxBuffer: 16 * 1024 * 1024 });
+  try {
+    const l = JSON.parse(log.stdout);
+    issues = (l.issues ?? []).slice(0, 8).map((i) => `${i.path ?? '?'}: ${i.message ?? i.severity ?? '?'}`).join('\n  ');
+  } catch {
+    issues = `(its log could not be read: ${(log.stderr || '').trim().split('\n').slice(-1)[0] ?? ''})`;
+  }
+  throw new SignError(`notarisation of ${file.slice(file.lastIndexOf(sep) + 1)}: ${answer.status ?? 'no status'}${answer.message ? ` — ${answer.message}` : ''} (submission ${answer.id})${issues ? `:\n  ${issues}` : ''}`);
 }
 
 /**
@@ -295,7 +348,7 @@ export function notarizeApp(s, app, work) {
   rmSync(zip, { force: true });
   run('ditto', ['-c', '-k', '--keepParent', app, zip], s.env);
   try {
-    run('xcrun', notarizeArgs(s, zip), s.env);
+    notarize(s, zip);
   } finally {
     rmSync(zip, { force: true });
   }
@@ -305,7 +358,7 @@ export function notarizeApp(s, app, work) {
 /** Notarise then staple the signed DMG (release only). */
 export function notarizeDmg(s, dmg) {
   if (s.mode !== 'release') throw new SignError('notarisation is the release run only');
-  run('xcrun', notarizeArgs(s, dmg), s.env);
+  notarize(s, dmg);
   run('xcrun', ['stapler', 'staple', dmg], s.env);
 }
 
@@ -317,9 +370,21 @@ export function teamOf(path, env = process.env) {
 }
 
 /**
+ * What `spctl -a -vv` says of a notarised file (review e B-L2): accepted, and its source a notarised Developer ID — the
+ * exit status alone passes on a Mac whose assessments are relaxed. Returns the problem, or null.
+ */
+export function gatekeeperProblem(status, text) {
+  if (status !== 0) return (text || `exit ${status}`).trim().split('\n').slice(-2).join(' | ');
+  if (!/: accepted$/m.test(text)) return `not accepted (${text.trim().split('\n')[0] ?? ''})`;
+  if (!/^source=Notarized Developer ID$/m.test(text)) return `accepted, but not as a notarised Developer ID (${/^source=(.*)$/m.exec(text)?.[1] ?? 'no source'})`;
+  return null;
+}
+
+/**
  * The checks of a release (after stapling): every Mach-O of the app and the app itself signed by APPLE_TEAM_ID's team,
- * none ad hoc; Gatekeeper accepts the app (`spctl -a -vv -t exec`) and the DMG (`spctl -a -t open --context
- * context:primary-signature`); both tickets validate (`stapler validate`). Returns the problems (none: []).
+ * none ad hoc; Gatekeeper accepts the app (`spctl -a -vv -t exec`) and the DMG (`spctl -a -vv -t open --context
+ * context:primary-signature`) as a notarised Developer ID (`gatekeeperProblem`); both tickets validate (`stapler
+ * validate`). Returns the problems (none: []).
  */
 export function verifyRelease(app, dmg, s) {
   if (s.mode !== 'release') throw new SignError('the release checks are the release run only');
@@ -340,7 +405,8 @@ export function verifyRelease(app, dmg, s) {
     ['xcrun', ['stapler', 'validate', dmg]],
   ]) {
     const r = spawnSync(cmd, args, { encoding: 'utf8', env: s.env });
-    if (r.status !== 0) problems.push(`${cmd} ${args.slice(0, -1).join(' ')} ${relative(dirname(app), args[args.length - 1])}: ${(r.stderr || r.stdout || `exit ${r.status}`).trim().split('\n').slice(-2).join(' | ')}`);
+    const problem = cmd === 'spctl' ? gatekeeperProblem(r.status, `${r.stderr || ''}${r.stdout || ''}`) : r.status !== 0 ? (r.stderr || r.stdout || `exit ${r.status}`).trim().split('\n').slice(-2).join(' | ') : null;
+    if (problem) problems.push(`${cmd} ${args.slice(0, -1).join(' ')} ${relative(dirname(app), args[args.length - 1])}: ${problem}`);
   }
   return problems;
 }
@@ -348,5 +414,5 @@ export function verifyRelease(app, dmg, s) {
 /** Sign a DMG (release only: an ad hoc DMG carries no signature). */
 export function signDmg(s, dmg) {
   if (s.mode !== 'release') return;
-  run('codesign', ['--force', '--timestamp', '-s', s.identity, dmg], s.env);
+  run('codesign', ['--force', '--timestamp', ...keychainArgs(s), '-s', s.identity, dmg], s.env);
 }

@@ -8,8 +8,10 @@
  * app --no-sign` with a generated config overlay (never committed: tauri.conf.json keeps `bundle.active: false`, so
  * `pnpm desktop:build` / `desktop:dev` / `desktop:test` — the developer app on the repository's CLI, launch.json version
  * 1 — are unchanged) → sign the shell and the app → verify (the signatures, Contents/Resources byte for byte against the
- * signed stage, attributes, Info.plist: `appProblems`) → the DMG (`hdiutil create`, APFS, ULFO, an /Applications link;
- * no Finder scripting) → verify it (`verifyDmg`: imageinfo; attached read-only, -nobrowse, at a mount point in `<out>`).
+ * signed stage, attributes, Info.plist: `appProblems`) → then release.mjs `finishApp` (L5.16e fixes: a release re-signs
+ * the ad hoc app with the Developer ID there, notarises and staples it; `--app-only` stops before): the update archive,
+ * the DMG (`hdiutil create`, APFS, ULFO, an /Applications link; no Finder scripting; tried again on "Resource busy") →
+ * verify it (`verifyDmg`: imageinfo; attached read-only, -nobrowse, at a mount point in `<out>`).
  * Everything lands in `<out>` — a dedicated folder (`checkFolder`: outside the checkout, /Applications, the home folder
  * and its Desktop / Documents / Downloads roots, ~/Library; empty or marked by an earlier build: `.retake-bundle`):
  * stage/, target/ (cargo; CARGO_TARGET_DIR when set outside the checkout), app/Retake.app (+ the Applications link: the
@@ -63,20 +65,29 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MinisignError, decodePublicKey, verifyMinisign } from '../../../scripts/publish-update.mjs';
 import { APP_CATEGORY, LOCAL_NETWORK_USAGE, icns } from './desktop.mjs';
-import { SignError, notarizeApp, notarizeDmg, readTable, signApp, signDmg, signPayload, signer, verifyApp, verifyRelease } from './sign.mjs';
+import { finishApp } from './release.mjs';
+import { SignError, readTable, signApp, signPayload, signer, verifyApp } from './sign.mjs';
 
 const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO = resolve(APP_DIR, '..', '..');
 /** Lowest macOS the bundle runs on: Remotion's own libraries are built for 15.0 (Info.plist's LSMinimumSystemVersion). */
 export const MINIMUM_MACOS = '15.0';
-/** Node.js major the engine needs (package.json engines) and the stage copies. */
-const NODE_MAJOR = 22;
+/**
+ * The Node.js the stage copies (review e A-M3): this exact version and the sha256 of its official darwin-arm64
+ * binary (apps/desktop/bundle/node.json) — a release never ships a Node.js nobody chose.
+ */
+export const NODE_PIN = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'node.json'), 'utf8'));
+/**
+ * The browsers the stage copies (review e A-M3): each Playwright revision folder's tree digest (`browserDigest`),
+ * recorded from a known install (apps/desktop/bundle/browsers.json) — Playwright's installer checks no hash.
+ */
+export const BROWSER_PINS = JSON.parse(readFileSync(join(APP_DIR, 'bundle', 'browsers.json'), 'utf8'));
 /** Marker files playwright-core's registry checks in each browser folder (they must stay empty: the app seals them). */
 export const BROWSER_MARKERS = ['INSTALLATION_COMPLETE', 'DEPENDENCIES_VALIDATED'];
 /** What the stage writes in its folder first, so a later stage may replace it (and nothing else). */
@@ -91,7 +102,7 @@ export const PRUNED = ['engine/node_modules/playwright-core/bin', 'browsers/*/ch
 const TEXT_FILE = /\.(?:js|mjs|cjs|json|md|markdown|txt|ya?ml|html?|css|tsx?|jsx|svg|sh|plist|xml)$/i;
 const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
-class StageError extends Error {}
+export class StageError extends Error {}
 
 const within = (dir, p) => {
   const rel = relative(dir, p);
@@ -193,6 +204,67 @@ export function machOKind(file) {
 
 function sha256(file) {
   return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+/**
+ * The Node.js running the stage is the pinned one (NODE_PIN: its exact version, its binary's sha256) — the stage copies
+ * it into the app. StageError, in one sentence that says what to do, otherwise.
+ */
+export function checkNode({ execPath = process.execPath, version = process.versions.node, platform = `${process.platform}-${process.arch}`, pin = NODE_PIN } = {}) {
+  const want = pin.sha256?.[platform];
+  if (version !== pin.version) throw new StageError(`run the stage with Node.js ${pin.version}, the version apps/desktop/bundle/node.json pins (the stage copies the Node.js running it into the app); this is v${version} (${execPath})`);
+  if (!want) throw new StageError(`apps/desktop/bundle/node.json pins no Node.js binary for ${platform}`);
+  const got = sha256(execPath);
+  if (got !== want) throw new StageError(`${execPath} is not the official Node.js ${pin.version} binary apps/desktop/bundle/node.json pins (sha256 ${got}, pinned ${want}): install Node.js ${pin.version} from the Node.js project's downloads, or record a checked upgrade there`);
+}
+
+/**
+ * A browser revision folder's digest: the sha256 of its treeDigest (every path, link target, file size, executable bit
+ * and file sha256, in path order) less Playwright's marker files (the stage writes them anew).
+ */
+export function browserDigest(dir) {
+  const tree = treeDigest(dir, { skip: BROWSER_MARKERS });
+  const h = createHash('sha256');
+  for (const k of [...tree.keys()].sort()) h.update(`${k.split(sep).join('/')}\t${tree.get(k)}\n`);
+  return h.digest('hex');
+}
+
+/**
+ * The browser folder `from` (Playwright's cache, revision `folder`) is the pinned one (BROWSER_PINS). StageError, in one
+ * sentence, otherwise.
+ */
+export function checkBrowser(from, folder, pins = BROWSER_PINS) {
+  const want = pins.digests?.[folder];
+  if (!want) throw new StageError(`apps/desktop/bundle/browsers.json pins no digest for ${folder}: record it from a checked install (node apps/desktop/scripts/bundle.mjs browser-digest ${from})`);
+  const got = browserDigest(from);
+  if (got !== want) throw new StageError(`${from} is not the ${folder} apps/desktop/bundle/browsers.json pins (digest ${got}, pinned ${want}): reinstall it (rm -rf it, then playwright-core's install), or record a checked one there`);
+}
+
+/** Playwright's browser cache (PLAYWRIGHT_BROWSERS_PATH, else its default on macOS). */
+function playwrightCache() {
+  return process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== '0' ? resolve(process.env.PLAYWRIGHT_BROWSERS_PATH) : join(homedir(), 'Library', 'Caches', 'ms-playwright');
+}
+
+/** Block the thread for `ms` (no event loop to give back to: the build is synchronous). */
+export function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * hdiutil, tried again on "Resource busy" only (review e B-M4: a known intermittent failure of create / attach /
+ * detach on hosted macOS runners) — up to `tries` times, `delayMs` doubling between them; any other failure at once.
+ * Returns stdout.
+ */
+export function hdiutil(args, { env = childEnv, tries = 3, delayMs = 2000, sleep = sleepSync } = {}) {
+  for (let i = 1; ; i++) {
+    const r = spawnSync('hdiutil', args, { encoding: 'utf8', env, maxBuffer: 16 * 1024 * 1024 });
+    if (r.error) throw new StageError(`hdiutil could not start: ${r.error.message}`);
+    if (r.status === 0) return r.stdout;
+    const text = `${r.stderr || ''}${r.stdout || ''}`.trim();
+    if (i >= tries || !/resource busy/i.test(text)) throw new StageError(`hdiutil ${args.slice(0, 2).join(' ')}… failed (${r.status}${i > 1 ? `, try ${i} of ${tries}` : ''}): ${text.split('\n').slice(-3).join(' | ')}`);
+    process.stderr.write(`bundle: hdiutil ${args[0]}: resource busy — trying again in ${(delayMs * 2 ** (i - 1)) / 1000} s (${i + 1} of ${tries})\n`);
+    sleep(delayMs * 2 ** (i - 1));
+  }
 }
 
 function sizeOf(p) {
@@ -523,7 +595,7 @@ export function stage(opts) {
 
 function stageInto({ out, ffmpeg, env = process.env }) {
   if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new StageError('the app bundle is macOS on Apple silicon only for now (BACKLOG BL-139)');
-  if (Number(process.versions.node.split('.')[0]) !== NODE_MAJOR) throw new StageError(`run the stage with Node.js ${NODE_MAJOR} (it copies the Node.js running it); this is ${process.version}`);
+  checkNode();
   if (!existsSync(join(REPO, 'packages', 'cli', 'dist', 'bin.js'))) throw new StageError('run pnpm build first');
   const dir = checkFolder(out, '--out', env);
   if (existsSync(dir) && readdirSync(dir).length) {
@@ -572,12 +644,13 @@ function stageInto({ out, ffmpeg, env = process.env }) {
   const pw = JSON.parse(readFileSync(join(pwDir, 'package.json'), 'utf8'));
   const pins = JSON.parse(readFileSync(join(pwDir, 'browsers.json'), 'utf8')).browsers;
   const rev = (name) => pins.find((b) => b.name === name)?.revision;
-  const cache = process.env.PLAYWRIGHT_BROWSERS_PATH && process.env.PLAYWRIGHT_BROWSERS_PATH !== '0' ? resolve(process.env.PLAYWRIGHT_BROWSERS_PATH) : join(homedir(), 'Library', 'Caches', 'ms-playwright');
+  const cache = playwrightCache();
   const browsers = join(dir, 'browsers');
   mkdirSync(browsers, { recursive: true });
   for (const folder of [`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`]) {
     const from = join(cache, folder);
     if (!existsSync(join(from, 'INSTALLATION_COMPLETE'))) throw new StageError(`${from} is missing: run (with a network) node ${relative(REPO, join(REPO, 'node_modules', 'playwright-core', 'cli.js'))} install chromium chromium-headless-shell — playwright-core ${pw.version} pins ${folder}`);
+    checkBrowser(from, folder);
     run('ditto', [from, join(browsers, folder)]);
     for (const m of BROWSER_MARKERS) {
       writeFileSync(join(browsers, folder, m), '');
@@ -768,7 +841,39 @@ export function tauriCli(dest, store = pnpmStore(), pins = TAURI_CLI_PINS) {
       writeFileSync(join(pkgDir, file), bytes, { mode: info.mode & 0o777 });
     }
   }
-  return join(dest, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
+  return checkTauriCliDir(dest, pins);
+}
+
+/**
+ * A Tauri CLI folder laid out by `tauriCli` (`dir/node_modules/@tauri-apps/{cli,cli-darwin-arm64}`) holds exactly the
+ * files `pins` names, each with exactly its sha512, and nothing else — no link, no other file or package (an extra
+ * module could be loaded instead). The release workflow's `sign` job checks the folder the `build` job hands it so
+ * before it runs anything of it (review e A-H1). Returns the path of its `tauri.js`; StageError otherwise.
+ */
+export function checkTauriCliDir(dir, pins = TAURI_CLI_PINS) {
+  const root = resolve(dir);
+  const want = new Map();
+  for (const [pkg, files] of Object.entries(pins.packages ?? {})) for (const [file, integrity] of Object.entries(files)) want.set(['node_modules', ...pkg.split('/'), ...file.split('/')].join('/'), String(integrity));
+  if (!want.size) throw new StageError('apps/desktop/bundle/tauri-cli.json pins no file');
+  const dirs = new Set();
+  for (const k of want.keys()) for (let i = k.indexOf('/'); i > 0; i = k.indexOf('/', i + 1)) dirs.add(k.slice(0, i));
+  const problems = [];
+  const seen = new Set();
+  for (const abs of existsSync(root) ? walk(root) : []) {
+    const rel = relative(root, abs).split(sep).join('/');
+    const st = lstatSync(abs);
+    if (st.isDirectory() && dirs.has(rel)) continue;
+    if (!st.isFile() || !want.has(rel)) {
+      problems.push(`${rel}: not a file of the pinned CLI`);
+      continue;
+    }
+    const [algo, b64] = want.get(rel).split('-');
+    if (algo !== 'sha512' || createHash('sha512').update(readFileSync(abs)).digest('base64') !== b64) problems.push(`${rel}: not its pinned sha512`);
+    seen.add(rel);
+  }
+  for (const k of want.keys()) if (!seen.has(k)) problems.push(`${k}: missing`);
+  if (problems.length) throw new StageError(`${root} is not the Tauri CLI ${pins.version} apps/desktop/bundle/tauri-cli.json pins: ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? ` (+${problems.length - 5})` : ''}`);
+  return join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
 }
 
 /**
@@ -1021,14 +1126,14 @@ export function appProblems(app, { digest } = {}) {
 /**
  * The DMG's checks: its format, then attached read-only at `mountpoint` — the app verifies, carries no AppleDouble
  * file or foreign attribute, the Applications link is there, and nothing else is at the volume's root (dot files
- * included) — detached.
+ * included) — detached (attach and detach tried again on "Resource busy": `hdiutil`; `retry`: its options, tests').
  */
-export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT } = {}) {
+export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT, retry = {} } = {}) {
   const problems = [];
   const info = run('hdiutil', ['imageinfo', dmg], { env });
   if (!/^Format: ULFO$/m.test(info)) problems.push(`${dmg}: not ULFO (${/^Format: (.*)$/m.exec(info)?.[1] ?? '?'})`);
   mkdirSync(mountpoint, { recursive: true });
-  run('hdiutil', dmgAttachArgs(dmg, mountpoint), { env });
+  hdiutil(dmgAttachArgs(dmg, mountpoint), { env, ...retry });
   try {
     const app = join(mountpoint, `${product}.app`);
     const v = spawnSync('codesign', ['--verify', '--deep', '--strict', '--verbose=2', app], { encoding: 'utf8', env });
@@ -1039,8 +1144,11 @@ export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT }
     const top = readdirSync(mountpoint).sort();
     if (top.join('\n') !== ['Applications', `${product}.app`].sort().join('\n')) problems.push(`the DMG holds ${top.join(', ')}`);
   } finally {
-    const d = spawnSync('hdiutil', ['detach', mountpoint], { encoding: 'utf8', env });
-    if (d.status !== 0) spawnSync('hdiutil', ['detach', '-force', mountpoint], { env });
+    try {
+      hdiutil(['detach', mountpoint], { env, ...retry });
+    } catch {
+      spawnSync('hdiutil', ['detach', '-force', mountpoint], { env });
+    }
   }
   return problems;
 }
@@ -1069,17 +1177,24 @@ function claimOut(dir) {
 }
 
 /**
- * The bundled app and its DMG (see the module comment). `mode`: 'dry' (ad hoc, the default) or 'release' (the
- * person's run, `--release`: `signer` refuses first, before anything is staged or signed, without the whole APPLE_*
- * set; then the app is notarised as a zip and stapled, the DMG signed, notarised and stapled, and `verifyRelease`
- * checks the team, Gatekeeper and both tickets). `stage`: a stage to reuse (signed in place) instead of a new one in
+ * The bundled app and its DMG (see the module comment), in two halves (L5.16e fixes, review e A-H1): the app laid out
+ * and signed ad hoc here — stage, payload, Tauri, the shell and the app, every check — then `finishApp`
+ * (apps/desktop/scripts/release.mjs, the release workflow's `sign` job runs the same on a runner of its own): the
+ * update archive and the DMG, after a Developer ID signature, notarisation and stapling in a release. `mode`: 'dry'
+ * (ad hoc, the default) or 'release' (`--release`: `signer` refuses first, before anything is staged or signed,
+ * without the whole APPLE_* set). `appOnly` (`--app-only`, the workflow's `build` job): the ad hoc app and the pinned
+ * Tauri CLI only, for `release.mjs sign`. `stage`: a stage to reuse (signed in place) instead of a new one in
  * `<out>/stage`; `entries`: the signing table (sign-table.json; another one in tests); `tauriPins`: the pins the Tauri
  * CLI is checked against (tauri-cli.json; a fake store's in tests — the command line never passes it). Returns the
  * report.
  */
-export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true }) {
+export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true, appOnly = false }) {
   const child = buildEnv(env);
-  const s = signer(mode, env, child);
+  // A release is refused here, before anything is staged, without the whole APPLE_* set (finishApp asks again).
+  signer(mode, env, child);
+  if (appOnly && mode !== 'dry') throw new StageError('--app-only lays the ad hoc app out (the release workflow\'s build job); its release signature is the next step: node apps/desktop/scripts/release.mjs sign --release');
+  // The layout is always ad hoc: a release re-signs the finished app (finishApp), as the workflow's sign job does.
+  const s = signer('dry', env, child);
   // L5.16d: the updater from RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY (checked before anything is built); `updater`
   // (the gated test's testUpdaterOverlay) and `dmg: false` are tests' only — the command line passes neither.
   const updates = testUpdater ? { overlay: testUpdater, pubkey: testUpdater.plugins.updater.pubkey } : (() => {
@@ -1119,7 +1234,7 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   const plan = signPayload(stageDir, s, { entries: table, work: join(dir, 'entitlements') });
   refreshManifestHashes(stageDir);
   const sealed = treeDigest(stageDir);
-  say('sign_payload', `payload signed (${mode}: ${plan.items.length} signatures, ${plan.machO.length} Mach-O files)`);
+  say('sign_payload', `payload signed (ad hoc: ${plan.items.length} signatures, ${plan.machO.length} Mach-O files)`);
 
   // 2. The app, laid out by Tauri (unsigned, the build's allow-listed environment); apps/desktop/gen put back after.
   const icon = join(dir, 'icon.icns');
@@ -1143,47 +1258,27 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   renameSync(built, app);
   say('tauri', `app laid out (${app})`);
 
-  // 3. The shell and the app signed, everything verified (release: then notarised as a zip and stapled).
+  // 3. The shell and the app signed ad hoc, everything verified.
   run('xattr', ['-cr', app]);
   signApp(app, s);
-  const problems = [...verifyApp(app, mode, { entries: table, env: child }), ...appProblems(app, { digest: sealed })];
+  const problems = [...verifyApp(app, 'dry', { entries: table, env: child }), ...appProblems(app, { digest: sealed })];
   if (problems.length) throw new StageError(`the app fails its checks:\n  ${problems.join('\n  ')}`);
-  if (mode === 'release') notarizeApp(s, app, join(dir, 'notarize'));
   const links = [...sealed.values()].filter((v) => v.startsWith('link ')).length;
-  say('verify', `app signed and verified (${links} links kept${mode === 'release' ? ', notarised and stapled' : ''})`);
+  say('verify', `app signed ad hoc and verified (${links} links kept)`);
 
-  // 3b. L5.16d: the update archive (an app with the updater only), signed when the private key is given.
-  let update = null;
-  if (updates) {
-    const version = JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents', 'Info.plist')])).CFBundleShortVersionString;
-    const archive = makeUpdateArchive(app, dir, { env: child });
-    const sig = signUpdateArchive({ cliJs, archive, version, pubkey: updates.pubkey, env });
-    update = { version, archive, signature: sig, size: statSync(archive).size, links: linkCount(app) };
-    say('update', sig ? `update archive made and signed (${archive})` : `update archive made, NOT signed: no TAURI_SIGNING_PRIVATE_KEY (${archive})`);
-  }
-
-  // 4. The DMG: the app and an Applications link, then checked (release: signed, notarised, stapled, then the team,
-  //    Gatekeeper and both tickets).
-  const dmg = makeDmg ? join(dir, `${PRODUCT}_${manifest.app}_aarch64.dmg`) : null;
-  if (dmg) {
-    symlinkSync('/Applications', join(appDir, 'Applications'));
-    run('hdiutil', dmgCreateArgs({ src: appDir, dmg }));
-    signDmg(s, dmg);
-    if (mode === 'release') notarizeDmg(s, dmg);
-    const dmgProblems = verifyDmg(dmg, join(dir, 'mnt'), { env: child });
-    if (mode === 'release') dmgProblems.push(...verifyRelease(app, dmg, s));
-    if (dmgProblems.length) throw new StageError(`the DMG fails its checks:\n  ${dmgProblems.join('\n  ')}`);
-    say('dmg', `DMG made and verified (${dmg})`);
-  }
+  // 4. The rest (release.mjs finishApp): a release's Developer ID signature, notarisation and stapling; the update
+  //    archive; the DMG. `--app-only` stops here.
+  const done = appOnly ? { dmg: null, update: null } : finishApp({ app, out: dir, mode, env, cliJs, pubkey: updates?.pubkey, entries: table, dmg: makeDmg, verified: true, say });
 
   if (repoSnapshot(REPO) !== before) throw new StageError(`the build changed the checkout (${REPO}): restore it`);
   const report = {
     mode,
     app,
-    dmg,
+    dmg: done.dmg,
     version: manifest.app,
-    sizes: { app: sizeOf(app), dmg: dmg ? statSync(dmg).size : null, payload: sizeOf(stageDir) },
-    updater: updates ? { feed: updates.overlay.plugins.updater.endpoints[0], archive: update } : null,
+    ...(appOnly ? { app_only: true, tauri_cli: join(dir, 'tauri-cli') } : {}),
+    sizes: { app: sizeOf(app), dmg: done.dmg ? statSync(done.dmg).size : null, payload: sizeOf(stageDir) },
+    updater: updates ? { feed: updates.overlay.plugins.updater.endpoints[0], archive: done.update } : null,
     signatures: plan.items.length,
     mach_o: plan.machO.length,
     links,
@@ -1206,14 +1301,29 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       const { manifest } = stage({ out, ffmpeg: flag('--ffmpeg'), env: process.env });
       process.stdout.write(`${JSON.stringify({ out: resolve(out), sizes: manifest.sizes, ffmpeg: manifest.ffmpeg, app: manifest.app }, null, 1)}\n`);
     } else if (command === 'build') {
-      const report = build({ out: flag('--out') ?? process.env.RETAKE_BUNDLE_OUT, mode: rest.includes('--release') ? 'release' : 'dry', ffmpeg: flag('--ffmpeg'), stage: flag('--stage'), offline: process.env.CARGO_NET_OFFLINE === 'true' || rest.includes('--offline') });
+      const report = build({ out: flag('--out') ?? process.env.RETAKE_BUNDLE_OUT, mode: rest.includes('--release') ? 'release' : 'dry', ffmpeg: flag('--ffmpeg'), stage: flag('--stage'), offline: process.env.CARGO_NET_OFFLINE === 'true' || rest.includes('--offline'), appOnly: rest.includes('--app-only') });
       process.stdout.write(`${JSON.stringify(report, null, 1)}\n`);
+    } else if (command === 'check-node') {
+      checkNode();
+      process.stdout.write(`Node.js ${NODE_PIN.version}, the pinned binary\n`);
+    } else if (command === 'check-pins') {
+      // The release workflow's build job, before its long steps: the Node.js running it and the browsers in Playwright's
+      // cache are the pinned ones (the stage checks both again).
+      checkNode();
+      const pins = JSON.parse(readFileSync(join(REPO, 'packages', 'runner-web', 'node_modules', 'playwright-core', 'browsers.json'), 'utf8')).browsers;
+      const rev = (name) => pins.find((b) => b.name === name)?.revision;
+      for (const folder of [`chromium-${rev('chromium')}`, `chromium_headless_shell-${rev('chromium-headless-shell')}`]) checkBrowser(join(playwrightCache(), folder), folder);
+      process.stdout.write(`Node.js ${NODE_PIN.version} and the browsers are the pinned ones\n`);
+    } else if (command === 'browser-digest') {
+      // What apps/desktop/bundle/browsers.json records for a browser revision folder (read only).
+      if (!rest[0]) throw new StageError('browser-digest <Playwright revision folder, e.g. …/ms-playwright/chromium-1194>');
+      process.stdout.write(`${browserDigest(resolve(rest[0]))}\n`);
     } else if (command === 'check') {
       const { problems, machO } = checkStage(rest[0] ?? '.');
       process.stdout.write(`${JSON.stringify({ problems, machO: machO.length }, null, 1)}\n`);
       process.exit(problems.length ? 1 : 0);
     } else {
-      throw new StageError('usage: bundle.mjs build --out <dir> [--ffmpeg <dir>] [--stage <dir>] [--offline] [--release] | stage --out <dir> [--ffmpeg <dir>] | check <dir>');
+      throw new StageError('usage: bundle.mjs build --out <dir> [--ffmpeg <dir>] [--stage <dir>] [--offline] [--release | --app-only] | stage --out <dir> [--ffmpeg <dir>] | check <dir> | check-node | check-pins | browser-digest <dir>');
     }
   } catch (e) {
     process.stderr.write(`bundle: ${e instanceof StageError || e instanceof SignError ? e.message : e.stack}\n`);

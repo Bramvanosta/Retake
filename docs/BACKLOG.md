@@ -2162,6 +2162,12 @@ and `job_end` lines); what remains:
 ### BL-138 — Remotion's compositor ffmpeg before a sale (GPL source offer, fdk-aac)
 *S · found in L5.16a's review · builds on: L5.16a, BL-41 · before the first sale*
 
+- **Accepted 2026-11-04 for own-use releases; resolve before any sale** (the person's decision with L5.16e: the
+  public GitHub releases ship the compositor as it is; README's licence note says so). A public release is still
+  distribution: anyone can download the DMG, so the GPL source offer for the compositor's FFmpeg applies to those
+  copies as it would to a sold one — the risk accepted is that offer being incomplete and fdk-aac being in the build
+  until this item is done.
+
 - `@remotion/compositor-darwin-arm64` ships its own FFmpeg n7.1 build, GPL v2+ (`--enable-gpl`, libx264, libx265),
   in the app (`apps/desktop/licenses/remotion-compositor/README.md`). A sold app needs a written source offer for it
   as for our own ffmpeg: confirm where Remotion publishes the exact source and build script of each compositor
@@ -2246,6 +2252,29 @@ and `job_end` lines); what remains:
 - **A download streamed to disk**: the plugin gathers the archive in memory until it has verified it (the byte cap
   bounds that: 1.5 GB), then the shell writes it to its cache folder and drops it; streaming it to the file would take
   a download of our own (or a newer plugin).
+
+### BL-144 — A CI workflow for pull requests and main
+*S · noted in L5.16e · builds on: L5.16e*
+
+- The repository has only the release workflow (`.github/workflows/release.yml`, on `v*` tags): nothing runs
+  `pnpm build` and the test suite on a pull request or a push to main, so the release job checks that the tagged
+  commit is on main but not that its tests passed (the person runs `pnpm test` before tagging). A `ci.yml` (macOS
+  runner: the fast suite, `pnpm desktop:test`; the gated Chromium / Docker / Postgres tests opt-in) would let the
+  release job wait for main's green run on the tagged commit, as `gh run list --commit` can tell.
+- Release extras cut from L5.16e: an Intel or universal build (BL-139), the release's DMG styled (BL-140), a
+  Homebrew cask, a cache of cargo's registry and target and of Playwright's browsers between tags (GitHub scopes a
+  tag's caches to that tag: only the pnpm store and ffmpeg caches serve re-runs), `actionlint` in that CI.
+- That CI keeps caches of its own name: the release workflow's are `release-…` with no fallback key (review e A-L3),
+  so a store a pull request's run filled is never restored into a release build — keep it so.
+
+### BL-145 — Build provenance for the release
+*S · noted in L5.16e's review · builds on: L5.16e*
+
+- `SHA256SUMS-macos.txt` is made by the release workflow's `sign` job from what the `build` job handed it: it protects
+  the download, not the build. A provenance attestation of the build job's artifact (GitHub's build-provenance
+  attestation, pinned like the other actions, `id-token: write` + `attestations: write` on that job only) and, on the
+  release page, how to check it (`gh attestation verify`) would let anyone tie a DMG to the tagged commit and the
+  workflow run. Not needed for own-use releases.
 
 ## Guard-rails for planned lots (no new scope)
 

@@ -5133,7 +5133,7 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations; L5.16d: the updater; L5.16e: releases from GitHub Actions)
 
 R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
 resolver, and behaves exactly as before when there is no bundle (a repository checkout).
@@ -5259,7 +5259,9 @@ child processes and native add-ons are not confined by Node's permission model.
 R-APP-07 – R-APP-09. `pnpm desktop:bundle --out <dir> [--ffmpeg <dir>] [--stage <dir>]` (`bundle.mjs build`;
 `RETAKE_BUNDLE_OUT` instead of `--out`): stage → sign the payload → bundle.json's hashes of the signed files → `tauri
 build` → sign the shell and the app → verify → DMG → verify the DMG. `pnpm desktop:release …` is the same run with
-`--release` (the person's own, part e). Every output lands in `<out>`, a dedicated folder (`checkFolder`, by real path —
+`--release` (the person's own run: the app laid out ad hoc, then re-signed with the Developer ID by the same
+`release.mjs finishApp` the release workflow's `sign` job runs — §4p (e)); `--app-only` stops at the ad hoc app (the
+workflow's `build` job). Every output lands in `<out>`, a dedicated folder (`checkFolder`, by real path —
 links followed through the deepest existing ancestor: never inside the checkout, /Applications (nor
 /System/Volumes/Data/Applications), ~/Applications or ~/Library, never the home folder or a folder holding it, never
 the Desktop / Documents / Downloads folder itself; empty, or marked `.retake-bundle` by an earlier build — a folder
@@ -5656,6 +5658,105 @@ else the summary paragraph of the version's CHANGELOG section (plain text), else
 230 s — builds 188 s (0.2.0 116 s, 0.2.1 71 s), archive 344,931,374 bytes, the forged feed refused and nothing kept,
 the real update 13.4 s from launch to the restarted 0.2.1, the verified archive kept in the app's cache folder
 (scratch HOME) until the install and gone after it; the gated desktop-shell black box 18 / 18 (one slow case skipped).
+
+### 4p (e). Releases from GitHub Actions (L5.16e)
+
+R-APP-08 (the release run). The person's decision (2026-11-04): the repository is public on GitHub and releases are made
+there, from a tag, on GitHub-hosted runners — the DMG attached to a public GitHub release, the update published to the
+person's own update host. docs/RELEASING.md is the person's guide; `.github/workflows/release.yml` the workflow.
+
+- **Five jobs; the keys never meet dependency code** (review e A-H1: on a hosted runner every step runs as the same
+  user and a process left by one step outlives it, reading files and other processes' environments — `buildEnv` is no
+  boundary between processes). `release` (ubuntu-24.04, `environment: release`, contents: write): the tag is the
+  version (`set-version.mjs --check`, `release.mjs tag`; a pre-release version makes a pre-release), the tagged commit
+  is an ancestor of `origin/main`, **what is configured** (below), then a **draft** release (CHANGELOG paragraph + how
+  to install), created or edited. `build` (macos-15, contents: read, no environment, no secret, no variable — the feed
+  and public key come as the release job's outputs): Node 22.16.0, corepack's pnpm, `pnpm install --frozen-lockfile`,
+  Rust 1.99.1 through the image's rustup (`rustup toolchain install … --profile minimal --target aarch64-apple-darwin`,
+  `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, Playwright's
+  browsers then `bundle.mjs check-pins`, our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
+  printed), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
+  `/usr/bin/tar` (links kept, no extended attribute) with `tauri-cli/` and the report, its sha256 a job output,
+  uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, setup-node,
+  the signing material, the artifact checked against the build job's sha256 then unpacked, then
+  `node apps/desktop/scripts/release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
+  outputs (DMG, archive, .sig, SHA256SUMS-macos.txt) uploaded as an artifact; the temporary keychain and key files
+  removed in a last `always()` step. `attach` (ubuntu, contents: write): the files checked against the sign job's sum,
+  then **refused unless the release is still a draft** (review e A-M4 / B-M2: a public release's files are never
+  replaced — a re-run after the publish fails there; a fixed build is a new version), the assets this build does not
+  make removed (a re-run with another configuration leaves nothing stale), the files uploaded (`--clobber`), the notes
+  completed. `publish` (ubuntu, `environment: release`): public (latest or pre-release), then — updates on — the archive
+  and .sig fetched from the release (a missing one fails the job; review e B-M3: no `|| true` anywhere) and published
+  with `publish-update.mjs` when the upload pair is set (else a warning: publish by hand).
+- **The sign entry** (`apps/desktop/scripts/release.mjs`: `finishApp` + `sign --app <dir>/Retake.app --out <dir>
+  [--release] [--app-version <v>] [--tauri-cli <dir>]`): its whole import graph is Node.js built-ins and repository
+  files (`release-workflow.test.ts` walks it: bundle.mjs, sign.mjs, desktop.mjs, publish-update.mjs). A release
+  re-signs the ad hoc app inside-out with the Developer ID (the payload in Contents/Resources by the same table, then
+  bundle.json's hashes refreshed, then the shell and the app), checks it (verifyApp release, appProblems), notarises it
+  as a zip and staples it; then the update archive of the stapled app (an app built with the updater: launch.json
+  `updates: on`), signed by the Tauri CLI the build job laid out — **re-checked file by file against tauri-cli.json's
+  sha512 pins before it runs** (`checkTauriCliDir`: exactly the pinned files, no link, no other file or package; chosen
+  over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and verified
+  against RETAKE_UPDATE_PUBKEY; then the DMG (hdiutil create / attach / detach tried again on "Resource busy" only —
+  3 tries, 2 s then 4 s; review e B-M4), signed, notarised, stapled, then the team, Gatekeeper and both tickets checked.
+  Without `--release`: the ad hoc app checked as it is, an ad hoc DMG, said. `--app-version`: Info.plist's
+  CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7).
+  `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
+  the same `finishApp` in the same process.
+- **What is configured: three sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
+  The Apple set (seven secrets: certificate, its password, identity, team, API key id, issuer, .p8), the updater set
+  (the key and its password as secrets, `RETAKE_UPDATE_PUBKEY` and `UPDATES_PUBLIC_URL` as variables), the upload
+  pair (`UPDATES_UPLOAD_TOKEN` secret, `UPDATES_UPLOAD_URL` variable). None of a set: that part is off and said (an ad
+  hoc build "Not notarised … Open Anyway"; "Updates are off in this build"; the update not published). Some: the run
+  fails in the release job, before anything is built, naming each missing name — and "set as a variable: it must be a
+  secret" (or the reverse) when the name sits in the other store: the release job sees each secret only as
+  `secrets.X != ''` (true / false, never its value) and each variable by value, so a name in the wrong store *is*
+  detectable. With the updater on, the feed (`release.mjs feed`) and the public key are checked there too and handed
+  to the build job as outputs (public values). The sign job checks its own set again first (review e B-L4).
+- **The release environment** (review e A-M1): secrets live in the `release` environment, which only `release`
+  (presence only), `sign` and `publish` reference; RELEASING.md has the person give it a deployment rule for `v*`
+  tags only, add a tag ruleset (only they create, update or delete `v*`) and protect main — GitHub settings, made by
+  the person.
+- **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved
+  read-only (`gh api repos/<o>/<r>/git/ref/tags/<tag>`, all lightweight tags) and written beside it: checkout v5.1.0,
+  setup-node v5.0.0, cache v5.0.0, upload-artifact v6.0.0, download-artifact v6.0.0. Node.js is exactly 22.16.0 and the
+  stage refuses any binary but the one `apps/desktop/bundle/node.json` pins (sha256 of the official darwin-arm64 build,
+  `checkNode`, also `bundle.mjs check-node` before the build job's long steps). Playwright's installer checks no hash:
+  each browser revision folder's tree digest (every path, link target, size, executable bit and sha256, markers left
+  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from this Mac's playwright-core
+  1.56.1 install, and the stage refuses another tree (`checkBrowser`; `check-pins` right after the install). **The
+  first tagged run may need these digests (and the Node.js sha256) refreshed** if GitHub's setup-node archive or the
+  CDN's browser archive lays files out differently from the local installs — the build job then fails with the digest
+  it found, and `bundle.mjs browser-digest <folder>` records a checked one. Caches are this workflow's own
+  (`release-pnpm-…`, `release-ffmpeg-…`, no fallback key: never another workflow's store; review e A-L3).
+- **The temporary keychain** (`apps/desktop/scripts/ci-keychain.sh import|delete <dir>`, GitHub Actions only): the user
+  search list saved first, a keychain with a random password locked after 6 h, the identity re-wrapped by LibreSSL's
+  `/usr/bin/openssl` (the certificate's password from the environment) with a random one-time password and imported
+  **non-extractable** (`-x`) for codesign, `set-key-partition-list`, the keychain first on the search list, the identity
+  checked against APPLE_SIGNING_IDENTITY (the message names a missing Developer ID intermediate too). **No password on
+  any command line** (review e A-L1): the four commands that hold one (create, unlock, import, partition list) reach
+  `security` on its standard input (`security -i`, one command per run); an error it says there ("security: …", exit
+  status 0 in that mode) fails the step, its words printed with the passwords taken out. delete puts the list back,
+  deletes the keychain and removes every file of the folder even when `security` fails (then says so; review e A-L2).
+  sign.mjs: `APPLE_KEYCHAIN` → `codesign --keychain <it>` in a release (redacted in a failure's text).
+- **Notarisation and Gatekeeper** (review e B-L2 / B-L3): `notarytool submit --wait --timeout 75m --output-format
+  json` (the sign job allows 180 min for two); anything but `Accepted` fails with Apple's status and message and the
+  first issues of `notarytool log <id>` (same API key; no secret printed). `spctl -a -vv` must say `accepted` and
+  `source=Notarized Developer ID` — its exit status alone passes on a Mac with relaxed assessments.
+- **Secrets and the token** (held by `release-workflow.test.ts`, which also runs the step scripts in bash against
+  stand-ins of `gh` and `security`): top-level `contents: read`, `contents: write` only on release / attach / publish
+  (the jobs that call `gh`, none runs a build tool); the job token only in the four steps that call `gh`; no secret in
+  a workflow / job env, a `with`, an `if` or a script; key material bound in sign › Signing material only (no build
+  tool, no `gh`, `umask 077`); `persist-credentials: false` on every checkout; only `push: tags: v*`.
+- **Not covered**: build provenance (an attestation of what the build job built) — BACKLOG BL-145; the build job is
+  trusted to build what the tag says (the sign job signs what it is handed).
+- **Licence** (BACKLOG BL-138): the app ships Remotion's compositor's FFmpeg build (GPL, fdk-aac compiled in) —
+  accepted on 2026-11-04 for the person's own releases, though a public release is distribution to anyone who
+  downloads it; to resolve before any sale (README's licence note says so).
+- **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
+  `security -i`, the setup-node binary's sha256 and the CDN browsers' digests meet the real runner on the first tagged
+  run; the notarised DMG on a clean account and an update through the feed are the person's (MACOS-CHECKLIST 15b, 15d).
+  Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

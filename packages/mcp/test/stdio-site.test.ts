@@ -37,6 +37,7 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: string
     cwd: REPO,
     env: {
       PATH: process.env.PATH ?? '',
+      CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
       HOME: process.env.HOME ?? '',
       RETAKE_HOME: join(ws, '.home'),
       RETAKE_WORKER_IDLE_MS: '1500',

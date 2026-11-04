@@ -1,0 +1,559 @@
+# Releases from a version tag (L5.16e; docs/RELEASING.md): the macOS app's disk image on a GitHub release, its update
+# on your own update host.
+#  - a pushed tag vX.Y.Z       → a release (its update goes to latest.json and rc.json)
+#  - a pushed tag vX.Y.Z-rc.N  → a pre-release (its update goes to rc.json only)
+#
+# Five jobs; the signing keys never share a runner with dependency code (review e A-H1):
+#  - release (ubuntu): the tag is the repository's version and a commit of main; what is configured (each set of
+#    secrets and variables all or nothing: a partial set fails here, before anything is built); the release created
+#    as a DRAFT — nobody sees it yet — or edited (a re-run).
+#  - build (macOS, contents: read, NO secret): dependencies, the packages, Rust, the pinned Tauri CLI, Chromium, our
+#    ffmpeg, then the app laid out and signed ad hoc exactly as `pnpm desktop:bundle` does (`--app-only`); packed
+#    (a tar that keeps the links) with its sha256 as an artifact.
+#  - sign (a FRESH macOS runner, `environment: release`, contents: read): runs no dependency code — no pnpm install, no
+#    package script, no Homebrew, no cargo: the artifact checked against the build job's sha256, then our own scripts
+#    only (apps/desktop/scripts/release.mjs sign): the Developer ID signature, notarisation and stapling, the update
+#    archive signed by the sha512-pinned Tauri CLI, the DMG; the outputs as an artifact.
+#  - attach (ubuntu, contents: write): refuses unless the release is still a draft (public files are never replaced),
+#    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
+#  - publish (ubuntu, `environment: release`): the release made public, then the update published
+#    (scripts/publish-update.mjs).
+#
+# No CI workflow runs the tests on pull requests or main yet (BACKLOG BL-144): nothing here checks that the tagged
+# commit's tests passed — run `pnpm build` and `pnpm test` before you tag.
+#
+# What is not configured is skipped and said; a partial set fails the run (scripts/release.mjs CONFIG_SETS):
+#  - the Apple set (all secrets): APPLE_CERTIFICATE (the Developer ID Application certificate's .p12, base64),
+#    APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY ("Developer ID Application: <name> (<TEAM ID>)"),
+#    APPLE_TEAM_ID, APPLE_API_KEY (an App Store Connect API key's id), APPLE_API_ISSUER, APPLE_API_KEY_P8 (its .p8)
+#    — none: an ad hoc app, the notes say it is not notarised;
+#  - the updater set: TAURI_SIGNING_PRIVATE_KEY (the updater key file's content) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#    (secrets), RETAKE_UPDATE_PUBKEY (the .pub file's content) and UPDATES_PUBLIC_URL (https) (variables) — none: an
+#    app without the updater ("Updates are off in this build");
+#  - the upload pair: UPDATES_UPLOAD_TOKEN (secret), UPDATES_UPLOAD_URL (variable, https) — none: the update is not
+#    published (publish it by hand).
+# Secrets live in the `release` environment (Settings › Environments › release: deployments from v* tags only);
+# variables there or in the repository. Only the jobs that reference the environment can read its secrets.
+#
+# The job token may write releases: it is handed only to the steps that call `gh`, in jobs that run no build tool.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GH_REPO: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    # The environment's secrets are only seen as set or not (`secrets.X != ''`): the preflight needs no value.
+    environment: release
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+      signed: ${{ steps.config.outputs.signed }}
+      updates: ${{ steps.config.outputs.updates }}
+      upload: ${{ steps.config.outputs.upload }}
+      feed: ${{ steps.config.outputs.feed }}
+      pubkey: ${{ steps.config.outputs.pubkey }}
+      dmg: ${{ steps.config.outputs.dmg }}
+      archive: ${{ steps.config.outputs.archive }}
+      signature: ${{ steps.config.outputs.signature }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+          # Every branch's history: the tagged commit must be on main.
+          fetch-depth: 0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - name: The tag is the version
+        id: version
+        # Every version file agrees, and the tag is v<that version>; a pre-release version makes a pre-release.
+        run: |
+          set -eu
+          node scripts/set-version.mjs --check
+          node scripts/release.mjs tag "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+      - name: The tagged commit is on main
+        run: |
+          set -eu
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME ($GITHUB_SHA) is not a commit of main: tag a commit of main"
+            exit 1
+          fi
+      - name: What is configured
+        id: config
+        # Each set all or nothing (a partial one fails here, naming what is missing — and "a variable, not a secret"
+        # when a name sits in the other store); the feed and the public key checked; the files' names.
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          UPDATES_PUBLIC_URL: ${{ vars.UPDATES_PUBLIC_URL }}
+          RETAKE_UPDATE_PUBKEY: ${{ vars.RETAKE_UPDATE_PUBKEY }}
+          UPDATES_UPLOAD_URL: ${{ vars.UPDATES_UPLOAD_URL }}
+          HAS_SECRET_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE != '' }}
+          HAS_SECRET_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD != '' }}
+          HAS_SECRET_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY != '' }}
+          HAS_SECRET_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+          HAS_SECRET_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY != '' }}
+          HAS_SECRET_APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER != '' }}
+          HAS_SECRET_APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 != '' }}
+          HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          HAS_SECRET_UPDATES_UPLOAD_TOKEN: ${{ secrets.UPDATES_UPLOAD_TOKEN != '' }}
+          HAS_SECRET_RETAKE_UPDATE_PUBKEY: ${{ secrets.RETAKE_UPDATE_PUBKEY != '' }}
+          HAS_SECRET_UPDATES_PUBLIC_URL: ${{ secrets.UPDATES_PUBLIC_URL != '' }}
+          HAS_SECRET_UPDATES_UPLOAD_URL: ${{ secrets.UPDATES_UPLOAD_URL != '' }}
+          HAS_VAR_APPLE_CERTIFICATE: ${{ vars.APPLE_CERTIFICATE != '' }}
+          HAS_VAR_APPLE_CERTIFICATE_PASSWORD: ${{ vars.APPLE_CERTIFICATE_PASSWORD != '' }}
+          HAS_VAR_APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY != '' }}
+          HAS_VAR_APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID != '' }}
+          HAS_VAR_APPLE_API_KEY: ${{ vars.APPLE_API_KEY != '' }}
+          HAS_VAR_APPLE_API_ISSUER: ${{ vars.APPLE_API_ISSUER != '' }}
+          HAS_VAR_APPLE_API_KEY_P8: ${{ vars.APPLE_API_KEY_P8 != '' }}
+          HAS_VAR_TAURI_SIGNING_PRIVATE_KEY: ${{ vars.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ vars.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          HAS_VAR_UPDATES_UPLOAD_TOKEN: ${{ vars.UPDATES_UPLOAD_TOKEN != '' }}
+        run: |
+          set -eu
+          node scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"
+          node scripts/release.mjs files "$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -eu
+          node scripts/release.mjs notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: Create the release (draft)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          set -eu
+          # A re-run edits the release instead of failing on it, and leaves it a draft or public as it is.
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --title "Retake $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" --prerelease="$PRERELEASE"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --draft --title "Retake $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" --prerelease="$PRERELEASE"
+          fi
+
+  build:
+    needs: release
+    # Apple silicon (arm64): the app is aarch64 only for now (BACKLOG BL-139); macOS 15, the app's minimum.
+    runs-on: macos-15
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    outputs:
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          # The stage copies the Node.js running the build into the app: exactly the version and binary
+          # apps/desktop/bundle/node.json pins (the build refuses any other).
+          node-version: 22.16.0
+          # setup-node would cache with pnpm before corepack has installed it.
+          package-manager-cache: false
+      - name: Node.js is the pinned binary
+        run: node apps/desktop/scripts/bundle.mjs check-node
+      - name: pnpm (corepack, at package.json's packageManager)
+        id: pnpm
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          set -eu
+          corepack enable
+          echo "store=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      # This workflow's own caches (release-*), no fallback key: never another workflow's store.
+      - uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        with:
+          path: ${{ steps.pnpm.outputs.store }}
+          key: release-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'apps/desktop/bundle/tauri-cli.json') }}
+      - name: Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Rust 1.99.1
+        # The toolchain every local build of the app was made and tested with (Cargo.toml's rust-version, the MSRV, is
+        # 1.90), through the runner image's rustup; cargo builds exactly Cargo.lock (bundle.mjs: --locked).
+        run: |
+          set -eu
+          rustup toolchain install 1.99.1 --profile minimal --target aarch64-apple-darwin
+          echo "RUSTUP_TOOLCHAIN=1.99.1" >> "$GITHUB_ENV"
+          rustup run 1.99.1 rustc --version
+      - name: Build the packages
+        run: pnpm build
+      - name: The Tauri CLI into the pnpm store
+        # No dependency of the repository: bundle.mjs rebuilds the CLI from the store, every file checked against the
+        # sha512 pinned in apps/desktop/bundle/tauri-cli.json. `store add` only fetches it (nothing of it runs here).
+        run: |
+          set -eu
+          V=$(node -p "require('./apps/desktop/bundle/tauri-cli.json').version")
+          pnpm store add "@tauri-apps/cli@$V" "@tauri-apps/cli-darwin-arm64@$V"
+      - name: Chromium and the headless shell
+        # The revisions the lockfile's playwright-core pins, into Playwright's cache (the stage copies them into the
+        # app), then checked against the tree digests apps/desktop/bundle/browsers.json pins (Playwright checks none).
+        run: |
+          set -eu
+          node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
+          node apps/desktop/scripts/bundle.mjs check-pins
+      - name: The runner image
+        id: image
+        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+      # Our ffmpeg (GPL, libx264; apps/desktop/licenses/ffmpeg), kept between runs of the same tag for the same runner
+      # image and build script.
+      - uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        id: ffmpeg-cache
+        with:
+          path: ${{ runner.temp }}/ffmpeg
+          key: release-ffmpeg-${{ runner.arch }}-${{ steps.image.outputs.id }}-${{ hashFiles('scripts/build-ffmpeg.mjs', 'scripts/ffmpeg-sources.json') }}
+      - name: ffmpeg
+        env:
+          CACHE_HIT: ${{ steps.ffmpeg-cache.outputs.cache-hit }}
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          set -eu
+          if [ "$CACHE_HIT" != true ]; then
+            command -v pkg-config >/dev/null || brew install pkgconf
+            echo "pkg-config $(pkg-config --version) (a build tool only: nothing of it ships)"
+            # Every archive is checked against the sha256 pinned in scripts/ffmpeg-sources.json before it is used.
+            node scripts/build-ffmpeg.mjs --fetch --sources "$RUNNER_TEMP/ffmpeg-sources" --out "$RUNNER_TEMP/ffmpeg"
+          fi
+          node scripts/build-ffmpeg.mjs --check "$RUNNER_TEMP/ffmpeg"
+      - name: Lay out the app (ad hoc)
+        # Exactly what `pnpm desktop:bundle` makes, up to the signed ad hoc app (`--app-only`: the update archive and
+        # the DMG are the sign job's). The updater's feed and public key are public: compiled in when updates are on.
+        env:
+          UPDATES: ${{ needs.release.outputs.updates }}
+          FEED: ${{ needs.release.outputs.feed }}
+          PUBKEY: ${{ needs.release.outputs.pubkey }}
+        run: |
+          set -eu
+          if [ "$UPDATES" = on ]; then
+            export RETAKE_UPDATE_FEED="$FEED" RETAKE_UPDATE_PUBKEY="$PUBKEY"
+          fi
+          export RETAKE_BUNDLE_OUT="$RUNNER_TEMP/bundle"
+          pnpm desktop:bundle --app-only --ffmpeg "$RUNNER_TEMP/ffmpeg"
+      - name: Pack the app
+        id: pack
+        # A tar keeps the app's links (Chromium's framework) and modes; no extended attribute.
+        run: |
+          set -eu
+          A="$RUNNER_TEMP/artifact"
+          rm -rf "$A"
+          mkdir -p "$A"
+          /usr/bin/tar --no-mac-metadata --no-xattrs -czf "$A/retake-app.tar.gz" -C "$RUNNER_TEMP/bundle" app tauri-cli bundle-report.json
+          echo "sha256=$(shasum -a 256 "$A/retake-app.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: retake-app-adhoc
+          path: ${{ runner.temp }}/artifact/retake-app.tar.gz
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+
+  sign:
+    needs: [release, build]
+    # A fresh runner that runs our scripts only: the keys never meet a dependency's code.
+    runs-on: macos-15
+    environment: release
+    # Two notarisations (sign.mjs NOTARY_TIMEOUT each); a new team's first ones can take long.
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    outputs:
+      sums: ${{ steps.collect.outputs.sums }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - name: Signing material
+        id: material
+        # The whole set first (review e B-L4), then the certificate into a temporary keychain, the API key and the
+        # updater key into files only this user reads.
+        env:
+          SIGNED: ${{ needs.release.outputs.signed }}
+          UPDATES: ${{ needs.release.outputs.updates }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          HAS_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' }}
+          HAS_APPLE_API_KEY: ${{ secrets.APPLE_API_KEY != '' }}
+          HAS_APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER != '' }}
+          HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+        run: |
+          set -eu
+          umask 077
+          S="$RUNNER_TEMP/signing"
+          rm -rf "$S"
+          mkdir -p "$S"
+          missing=""
+          if [ "$SIGNED" = true ]; then
+            for v in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_API_KEY_P8; do
+              eval "[ -n \"\${$v:-}\" ]" || missing="$missing $v"
+            done
+            for v in APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER; do
+              eval "[ \"\${HAS_$v:-}\" = true ]" || missing="$missing $v"
+            done
+          fi
+          if [ "$UPDATES" = on ]; then
+            [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || missing="$missing TAURI_SIGNING_PRIVATE_KEY"
+            [ "${HAS_TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" = true ] || missing="$missing TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
+          fi
+          if [ -n "$missing" ]; then
+            echo "::error::The release environment lacks$missing (the release job saw the whole set: was one removed since?)"
+            exit 1
+          fi
+          if [ "$SIGNED" = true ]; then
+            bash apps/desktop/scripts/ci-keychain.sh import "$S" >> "$GITHUB_OUTPUT"
+            printf '%s\n' "$APPLE_API_KEY_P8" > "$S/AuthKey.p8"
+            echo "api_key_path=$S/AuthKey.p8" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "$UPDATES" = on ]; then
+            printf '%s\n' "$TAURI_SIGNING_PRIVATE_KEY" > "$S/updater.key"
+            echo "updater_key=$S/updater.key" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: retake-app-adhoc
+          path: ${{ runner.temp }}/artifact
+      - name: The build job's app
+        # The very file the build job packed (its sha256), unpacked by the system's tar (no path out of the folder).
+        env:
+          SHA256: ${{ needs.build.outputs.sha256 }}
+        run: |
+          set -eu
+          A="$RUNNER_TEMP/artifact/retake-app.tar.gz"
+          if ! printf '%s\n' "$SHA256" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::The build job gave no sha256 of its app"
+            exit 1
+          fi
+          echo "$SHA256  $A" | shasum -a 256 -c
+          D="$RUNNER_TEMP/adhoc"
+          rm -rf "$D"
+          mkdir -p "$D"
+          /usr/bin/tar -xzf "$A" -C "$D"
+      - name: Sign, notarise, the update archive and the DMG
+        # Our scripts only (their imports: Node.js built-ins and files of this repository). The Tauri CLI that signs the
+        # update archive is checked file by file against its pinned sha512 before it runs.
+        env:
+          SIGNED: ${{ needs.release.outputs.signed }}
+          UPDATES: ${{ needs.release.outputs.updates }}
+          VERSION: ${{ needs.release.outputs.version }}
+          RETAKE_UPDATE_PUBKEY: ${{ needs.release.outputs.pubkey }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ steps.material.outputs.api_key_path }}
+          APPLE_KEYCHAIN: ${{ steps.material.outputs.keychain }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.material.outputs.updater_key }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -eu
+          # A secret that is not set arrives as an empty string: unset, not empty, before our scripts read them.
+          for v in APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH APPLE_KEYCHAIN \
+            TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD RETAKE_UPDATE_PUBKEY; do
+            eval "[ -n \"\${$v:-}\" ]" || unset "$v"
+          done
+          if [ "$UPDATES" != on ]; then
+            unset TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD RETAKE_UPDATE_PUBKEY
+          fi
+          rm -rf "$RUNNER_TEMP/out"
+          set -- --app "$RUNNER_TEMP/adhoc/app/Retake.app" --tauri-cli "$RUNNER_TEMP/adhoc/tauri-cli" \
+            --out "$RUNNER_TEMP/out" --app-version "$VERSION"
+          if [ "$SIGNED" = true ]; then
+            node apps/desktop/scripts/release.mjs sign "$@" --release
+          else
+            unset APPLE_SIGNING_IDENTITY APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_PATH APPLE_KEYCHAIN
+            echo "::warning::An ad hoc build: not signed with a Developer ID, not notarised (no Apple set)"
+            node apps/desktop/scripts/release.mjs sign "$@"
+          fi
+      - name: Collect the files
+        id: collect
+        # What this build makes, every file of it (an app with the updater: its signed archive too), nothing else.
+        env:
+          UPDATES: ${{ needs.release.outputs.updates }}
+          DMG: ${{ needs.release.outputs.dmg }}
+          ARCHIVE: ${{ needs.release.outputs.archive }}
+          SIGNATURE: ${{ needs.release.outputs.signature }}
+        run: |
+          set -eu
+          B="$RUNNER_TEMP/out"
+          O="$RUNNER_TEMP/release"
+          rm -rf "$O"
+          mkdir -p "$O"
+          files="$DMG"
+          if [ "$UPDATES" = on ]; then files="$files $ARCHIVE $SIGNATURE"; fi
+          for f in $files; do
+            if [ ! -f "$B/$f" ]; then
+              echo "::error::$f was not made (updates: $UPDATES)"
+              exit 1
+            fi
+            cp "$B/$f" "$O/"
+          done
+          (cd "$O" && shasum -a 256 -- * > SHA256SUMS-macos.txt)
+          cat "$O/SHA256SUMS-macos.txt"
+          echo "sums=$(shasum -a 256 "$O/SHA256SUMS-macos.txt" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: retake-release
+          path: ${{ runner.temp }}/release
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3
+      - name: Remove the signing material
+        if: always()
+        # The files go even when security fails (review e A-L2).
+        run: |
+          status=0
+          bash apps/desktop/scripts/ci-keychain.sh delete "$RUNNER_TEMP/signing" || status=$?
+          rm -rf "$RUNNER_TEMP/signing"
+          exit "$status"
+
+  attach:
+    needs: [release, sign]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: retake-release
+          path: ${{ runner.temp }}/release
+      - name: The sign job's files
+        env:
+          SUMS: ${{ needs.sign.outputs.sums }}
+        run: |
+          set -eu
+          cd "$RUNNER_TEMP/release"
+          echo "$SUMS  SHA256SUMS-macos.txt" | shasum -a 256 -c
+          shasum -a 256 -c SHA256SUMS-macos.txt
+      - name: Attach to the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.release.outputs.version }}
+          SIGNED: ${{ needs.release.outputs.signed }}
+          UPDATES: ${{ needs.release.outputs.updates }}
+        run: |
+          set -eu
+          O="$RUNNER_TEMP/release"
+          # A public release's files are never replaced (people downloaded them; the feed points at them): a re-run
+          # after the publish fails here — a fixed build is a new version.
+          if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]; then
+            echo "::error::$GITHUB_REF_NAME is public already: its files are not replaced — tag a new version"
+            exit 1
+          fi
+          # Files of an earlier run this build does not make (another configuration) are removed, never left behind.
+          assets=$(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+          while IFS= read -r a; do
+            if [ -n "$a" ] && [ ! -f "$O/$a" ]; then gh release delete-asset "$GITHUB_REF_NAME" "$a" --yes </dev/null; fi
+          done <<< "$assets"
+          node scripts/release.mjs notes "$VERSION" --signed "$SIGNED" --updates "$UPDATES" > "$RUNNER_TEMP/notes.md"
+          gh release upload "$GITHUB_REF_NAME" "$O"/* --clobber
+          gh release edit "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
+
+  # The files are attached: the release goes public, then the update points at files that exist.
+  publish:
+    needs: [release, attach]
+    runs-on: ubuntu-24.04
+    environment: release
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22.16.0
+          package-manager-cache: false
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.release.outputs.prerelease }}
+        run: |
+          set -eu
+          if [ "$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft)" != true ]; then
+            echo "already public"
+            exit 0
+          fi
+          if [ "$PRERELEASE" = true ]; then
+            gh release edit "$GITHUB_REF_NAME" --draft=false --prerelease
+          else
+            gh release edit "$GITHUB_REF_NAME" --draft=false --latest
+          fi
+      - name: Fetch the signed update archive
+        if: needs.release.outputs.updates == 'on'
+        # This build has the updater: its archive and .sig must be on the release (a missing one fails the job).
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE: ${{ needs.release.outputs.archive }}
+          SIGNATURE: ${{ needs.release.outputs.signature }}
+        run: |
+          set -eu
+          D="$RUNNER_TEMP/update"
+          rm -rf "$D"
+          mkdir -p "$D"
+          gh release download "$GITHUB_REF_NAME" --dir "$D" --pattern "$ARCHIVE" --pattern "$SIGNATURE"
+          for f in "$ARCHIVE" "$SIGNATURE"; do
+            if [ ! -f "$D/$f" ]; then
+              echo "::error::$f is not on the release, though this build has the updater"
+              exit 1
+            fi
+          done
+      - name: The update is not published
+        if: needs.release.outputs.updates == 'on' && needs.release.outputs.upload != 'on'
+        run: echo "::warning::No UPDATES_UPLOAD_TOKEN secret and UPDATES_UPLOAD_URL variable — the update is not published; publish it by hand (docs/RELEASING.md)"
+      - name: Publish the update
+        if: needs.release.outputs.updates == 'on' && needs.release.outputs.upload == 'on'
+        # The signature is checked against RETAKE_UPDATE_PUBKEY before anything is uploaded; the feeds are rebuilt,
+        # never moved back (docs/RELEASING.md).
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          ARCHIVE: ${{ needs.release.outputs.archive }}
+          SIGNATURE: ${{ needs.release.outputs.signature }}
+          UPDATES_UPLOAD_TOKEN: ${{ secrets.UPDATES_UPLOAD_TOKEN }}
+          UPDATES_UPLOAD_URL: ${{ vars.UPDATES_UPLOAD_URL }}
+          UPDATES_PUBLIC_URL: ${{ vars.UPDATES_PUBLIC_URL }}
+          RETAKE_UPDATE_PUBKEY: ${{ vars.RETAKE_UPDATE_PUBKEY }}
+        run: |
+          set -eu
+          # The feed of this version's channel: publish-update.mjs checks it against the version.
+          RETAKE_UPDATE_FEED=$(node scripts/release.mjs feed "$VERSION")
+          export RETAKE_UPDATE_FEED
+          D="$RUNNER_TEMP/update"
+          node scripts/publish-update.mjs "$VERSION" --artifact "$D/$ARCHIVE" --signature "$D/$SIGNATURE"

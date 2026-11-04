@@ -140,7 +140,7 @@ describe.skipIf(!ENABLED)('recording acceptance through MCP: scenario_record →
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
+      env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

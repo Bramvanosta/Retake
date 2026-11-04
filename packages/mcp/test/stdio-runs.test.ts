@@ -50,7 +50,7 @@ async function connect(): Promise<Client> {
     args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
     cwd: REPO,
     // The worker this server starts inherits its environment: a short idle exit for the test.
-    env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
+    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
     stderr: 'pipe',
   });
   const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: {} });
@@ -170,7 +170,7 @@ describe.skipIf(!AVAILABLE)('retake mcp: dry runs and captures as jobs', () => {
   it('stdout carries JSON-RPC lines only while a job runs (the worker writes to its log, never to the server\'s stdout)', async () => {
     const child = spawn(process.execPath, [...SOURCE_ARGS, '--root', ws, 'mcp'], {
       cwd: REPO,
-      env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
+      env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_HOME: home, RETAKE_WORKER_IDLE_MS: '1500' },
       stdio: ['pipe', 'pipe', 'pipe'],
     });
     let out = '';

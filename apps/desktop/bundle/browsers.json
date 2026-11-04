@@ -1,0 +1,8 @@
+{
+ "v": 1,
+ "about": "The Chromium and headless shell revisions the stage copies into the app (bundle.mjs checkBrowser, review e A-M3): each Playwright revision folder's tree digest — every path, link target, file size, executable bit and file sha256, Playwright's marker files left out — recorded from an install of playwright-core 1.56.1 on Apple silicon. Playwright's installer checks no hash: the build refuses any other tree. Upgrading playwright-core: install its revisions, check them, record each with `node apps/desktop/scripts/bundle.mjs browser-digest <ms-playwright>/<folder>`.",
+ "digests": {
+  "chromium-1194": "39262ccb29e64504a07c2ded0222282024456e2daf5371ab5a1b06b28b9eeb5f",
+  "chromium_headless_shell-1194": "58e1ff906a829d3652f9a7b090786650118f0f28e3e0563f8b200027cb6016e0"
+ }
+}

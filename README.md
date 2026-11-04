@@ -4008,9 +4008,10 @@ themes and Claude plugin (L5.16): no repository, Node.js, Homebrew or Playwright
 macOS 15 or later, Apple silicon.
 
 1. Open `Retake_<version>_aarch64.dmg` and drag **Retake** onto **Applications**.
-2. Open Retake from Applications. **For now the app is signed ad hoc, not by a developer identity** (signing and
-   notarisation are the release run's, still to come): macOS refuses the first open of a downloaded copy (one that
-   carries the quarantine mark) — try to open it once, then System Settings › Privacy & Security › Open Anyway
+2. Open Retake from Applications. A release built with a Developer ID (the release page says "notarised by Apple")
+   opens without a warning. **An ad hoc build** — `pnpm desktop:bundle`, or a release made without the Apple secrets
+   (its release page says "Not notarised") — is refused by macOS at the first open of a downloaded copy (one that
+   carries the quarantine mark): try to open it once, then System Settings › Privacy & Security › Open Anyway
    (macOS 15 no longer offers Control-click › Open for it). A copy built on this Mac and never downloaded opens
    directly.
 3. **Move it first.** Opened straight from the disk image or from Downloads, macOS runs a temporary, read-only copy
@@ -4110,15 +4111,29 @@ and its Set-up operations linking the command there, no module loaded from above
 intact afterwards; `RETAKE_TEST_BUNDLE_APP=<Retake.app>` checks a built one). `pnpm desktop:build` keeps building the
 developer app below, which runs this repository's CLI.
 
-The release run — your Developer ID, notarisation, stapling — is `pnpm desktop:release --out <folder> --ffmpeg
-<folder>` (MACOS-CHECKLIST 15b). It refuses before anything runs unless `APPLE_SIGNING_IDENTITY` ("Developer ID
+**Releases are made by GitHub Actions** from a pushed `vX.Y.Z` tag (`.github/workflows/release.yml`): the DMG on a
+GitHub release, signed and notarised when the Apple secrets are set, the update published to your host —
+[docs/RELEASING.md](docs/RELEASING.md) (the `release` environment, its secrets and variables, each release, re-runs, a
+pre-release). The workflow builds the ad hoc app on one runner (`pnpm desktop:bundle --app-only`) and signs it on
+another that runs only this repository's scripts (`node apps/desktop/scripts/release.mjs sign --app <…/Retake.app>
+--out <folder> [--release] [--app-version <v>] [--tauri-cli <folder>]`): the signing keys never share a runner with a
+dependency's code. The stage refuses a Node.js or a browser build other than the ones `apps/desktop/bundle/node.json`
+and `browsers.json` pin (`node apps/desktop/scripts/bundle.mjs check-pins`). The same release run by hand — your
+Developer ID, notarisation, stapling — is `pnpm desktop:release --out <folder> --ffmpeg <folder>` (the ad hoc build,
+then the same signing step; MACOS-CHECKLIST 15b). It refuses before anything runs unless `APPLE_SIGNING_IDENTITY` ("Developer ID
 Application: <name> (<TEAM>)"), `APPLE_TEAM_ID` and a notarisation credential are set: `APPLE_KEYCHAIN_PROFILE`, a
 profile you store once with `xcrun notarytool store-credentials <profile>`, or an App Store Connect API key
 (`APPLE_API_KEY`, `APPLE_API_ISSUER`, `APPLE_API_KEY_PATH` — the .p8 file). An Apple ID password is not taken:
 notarytool would show it to every process on its command line. The app is notarised as a zip, then stapled; the DMG is
 signed, notarised and stapled; then the team of every signature, Gatekeeper and both tickets are checked.
+`APPLE_KEYCHAIN` (optional: the absolute path of a keychain file) makes codesign take the identity from that keychain
+only — the release workflow names its temporary one.
 
 ### Releasing an update
+
+The release workflow does all of this from a tag ([docs/RELEASING.md](docs/RELEASING.md)); what follows is the same by
+hand, from a checkout on your Mac — the fallback when GitHub Actions is not an option, and the reference for what the
+workflow runs.
 
 The installed apps update themselves from a **static feed on a host of your own** (any web server: public read, an
 authenticated upload) — the repository names no host, no key and no URL; all of it comes from your environment.
@@ -4143,7 +4158,8 @@ upload-only endpoint, or a bucket that answers `403` for a missing key, cannot b
    ```
    The archive is signed for the version the app was built with and published for the one you name: a partial bump
    gives a refused publish ("signed for version X, not Y") or a disk image named after the old version.
-1. **The signing key, once.** `pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w ~/retake-updater.key` (the CLI
+1. **The signing key, once** (docs/RELEASING.md gives the offline command, from the pnpm store):
+   `pnpm dlx @tauri-apps/cli@2.12.4 signer generate -w ~/retake-updater.key` (the CLI
    version the bundle step pins) — keep the private key and its password in your password
    manager: **lose them and the installed apps can never be updated again** (they trust that key only). The `.pub`
    file's content is the public key.
@@ -4320,7 +4336,10 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   it, a `$RETAKE_HOME` there, any command's `--out` there, or a component preview next to a built-in component, is
   refused; from it, `components preview --all` means `--workspace`). Licences: `apps/desktop/licenses/` holds our
   ffmpeg's notices and written source offer, and the notice of Remotion's compositor (its own GPL FFmpeg build; the
-  stage refuses a compositor version the notice does not name). The app and its DMG: [Install the app
+  stage refuses a compositor version the notice does not name). That compositor build also compiles in fdk-aac next to
+  the GPL (BACKLOG BL-138): a licence risk accepted on 2026-11-04 for the releases this repository publishes — public
+  GitHub releases, so a distribution to anyone who downloads them, not only our own use — to be resolved before any
+  sale. The app and its DMG: [Install the app
   (macOS)](#install-the-app-macos).
 
 ## Security

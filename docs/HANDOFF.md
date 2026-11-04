@@ -32,6 +32,40 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L5.16)
+- **L5.16 done (2026-11-04)** — the standalone app, in five parts. **L5.16a**: a relocatable engine — one resolver
+  order for every tool (retake.yaml → RETAKE_FFMPEG / FFPROBE → the app's own → PATH, `bundle.json` beside core), every
+  ffmpeg spawn through it, the H.264 fallback to VideoToolbox, `retake init`, version 0.2.0 everywhere, the staged tree
+  (`apps/desktop/scripts/bundle.mjs stage|check`: hoisted offline pnpm deploy, the app's own Node.js, the browsers,
+  Remotion's compositor relinked, our own GPL ffmpeg from `scripts/build-ffmpeg.mjs` with x264 / libvpx / opus,
+  licences in `apps/desktop/licenses/`). **L5.16b**: `pnpm desktop:bundle` builds Retake.app + an hdiutil DMG offline —
+  launch.json v2, the launcher `Contents/Resources/bin/retake`, the module-lookup guard (`apps/desktop/bundle/guard.cjs`:
+  no package resolved from a node_modules above the app, render bundler included), inside-out signing from one table,
+  an allow-listed build environment, the Tauri CLI pinned file by file, a deep verify; `pnpm desktop:release` signs
+  with a Developer ID, notarises (zip, then the DMG) and staples, credentials never on a command line. **L5.16c**: the
+  first run (Create ~/Retake · Choose a Folder… · Quit), where the app runs from (translocated / read-only refused), the
+  Set-up sheet (`#/setup`: the `retake` command link, Claude Code on a click, Claude Desktop merged after a preview with
+  a backup, notifications), Studio-only setup ops (never MCP tools), two copies of Retake said, the Chromium-major
+  profile guard. **L5.16d**: the updater modelled on a static feed on the person's own host (`<app>/latest.json`,
+  `rc.json`, `<tag>/…`): tauri-plugin-updater behind a cargo `updater` feature, on only in a build given
+  RETAKE_UPDATE_FEED + RETAKE_UPDATE_PUBKEY, a check at most once a day, "Update available · vX" → Install and Restart
+  through the quit guard after the jobs, our own signed tar archive, `scripts/publish-update.mjs`,
+  `scripts/set-version.mjs`, CHANGELOG.md. **L5.16e**: releases by GitHub Actions on `v*` tags (the repository is public
+  since 2026-11-04, the person's decision): `.github/workflows/release.yml` — `release` (checks, draft) → `build`
+  (macos-15, no secret) → `sign` (a fresh runner in the `release` environment that runs only our scripts: Developer ID
+  from a temporary keychain, notarisation by App Store Connect API key, the DMG, the update archive) → `attach` (draft
+  only) → `publish`; action pins, Node.js and browser digests pinned in the repo (`apps/desktop/bundle/node.json`,
+  `browsers.json`); docs/RELEASING.md lists the secrets, variables and GitHub settings. The DMG is distributed publicly
+  with BL-138's licence risk accepted for own use (resolve before a sale). Tests no longer write into ~/Library
+  (CFFIXED_USER_HOME for every child; a teardown warning, `RETAKE_TEST_LIBRARY=strict` fails). Tests on the Mac: the
+  last full run **4422 — 4321 pass, 101 skipped, 0 failures** (the earlier full run's 3 failures: one test outdated by
+  part a, fixed; two load flakes green alone); `pnpm test:slow` 65/65; `pnpm test:pg` 20/20; the gated desktop shell
+  19/19; the gated bundle acceptance 8/8 (`RETAKE_TEST_BUNDLE=1`, app ≈ 990 MB, DMG ≈ 425 MB) and the update end to end
+  3/3 (`RETAKE_TEST_UPDATE=1`); Docker 6/7 (the K6 exec-seed interrupt test, environment as in L5.13). Requirements: 692
+  tracked — 649 done (R-APP-01 – 18), 29 partial, 8 todo, 6 n/a-here. **For the person:** the GitHub settings and
+  secrets (docs/RELEASING.md), then the first tagged run (MACOS-CHECKLIST 15b — its digests may need a refresh), the
+  installed app by hand (15a, 15c), an update against their feed (15d).
+
 ## State (after L5.13)
 - **L5.13 done (2026-11-03)** — the rename to Retake, everything at once with no alias (L5.13a), and the "two takes"
   mark (L5.13b). **L5.13a**: the command `retake`, packages `@retake/*`, variables `RETAKE_*`, the home `~/.retake`, the
@@ -656,8 +690,8 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Next: L5.16 (the standalone app) per the roadmap**, only when the user asks (L5.13 is done: the tool is called
-Retake). **Decided
+**Next: L5.14 (captures first on pg-boss) per the roadmap**, only when the user asks (L5.16 is done: the
+standalone app, its releases from GitHub Actions and the updater). **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first on pg-boss (L5.14, BL-117 / BL-116), renders on the GPU (L5.15, BL-114) — then L5.3 and

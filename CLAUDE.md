@@ -24,6 +24,7 @@ Before L5.13 the tool was called Demo Studio (command `studio`, home `~/.demo-st
 - A lot that adds or changes a component regenerates its committed `preview.png` (`retake components preview`).
 - **The tool stays generic**: no client, brand or person names anywhere (code, docs, fixtures, templates, tests,
   commit messages). The fixture product "Northfield" and the placeholder brands are invented.
+  Exception: the licence texts under `apps/desktop/licenses/` keep the names and URLs their licences require.
 - **MVP scope is locked** to the lots in the ROADMAP. A new idea goes to `docs/BACKLOG.md` (maintained by hand,
   unprioritised), not into a lot.
 - No new dependency without a strong reason; never commit `runs/`, `renders/`, `review/`, `exports/` or videos.
@@ -39,7 +40,7 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~14 min on the Mac; run `pnpm build` first; 81 skip by default: 42 slow (incl. 3 Claude CLI), 8 installed Chrome, 15 desktop app, 7 Postgres, 7 Docker, 1 old Node, 1 headed)
+pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; 101 skip by default: slow, installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed)
                                      # export RETAKE_HOME to a scratch folder for every command (vitest gives a test run a temp one)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway retake-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
 pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances (~13 min)
@@ -63,6 +64,10 @@ node packages/cli/dist/bin.js mcp --print-config               # MCP server regi
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)
 pnpm -F @retake/ui gen:tokens                             # regenerate the Studio's tokens.css from tokens.ts (dark + light); `ratchet` checks the kit-only table (empty since L5.12: no legacy control left)
 pnpm desktop:build                                             # the macOS app (apps/desktop, Rust + Tauri, offline: CARGO_NET_OFFLINE=true); desktop:dev / desktop:test / desktop:clean
+pnpm desktop:bundle --out <folder> --ffmpeg <ffmpeg-out>      # the standalone Retake.app + DMG, ad hoc (L5.16; a dedicated folder outside the checkout); desktop:release = Developer ID + notarisation
+node scripts/build-ffmpeg.mjs [--fetch]                         # our GPL ffmpeg / ffprobe for the app (sources sha256-checked; --fetch downloads them)
+RETAKE_TEST_BUNDLE=1 RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg-out> npx vitest run packages/cli/test/app-bundle-acceptance.test.ts   # builds the app, runs it (~5 min); RETAKE_TEST_UPDATE=1 … app-update-e2e.test.ts: the updater end to end
+node scripts/set-version.mjs <version> | --check                # one version everywhere; releases: tag vX.Y.Z on main → .github/workflows/release.yml (docs/RELEASING.md)
 ```
 
 ## Where things live

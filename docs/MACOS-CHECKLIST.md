@@ -1829,12 +1829,51 @@ the same way with `TAURI_SIGNING_PRIVATE_KEY=<the key file's path>`, and `node s
    variables: "updates are off in this build").
 8. **A feed that does not move**: leave it at N for a while — doctor warns after 30 days.
 
-### 15b. The release run (L5.16, part e — your Developer ID; nothing in the test suite reaches it)
+### 15b. The release run (L5.16e — GitHub Actions and your Developer ID; nothing in the test suite reaches it)
 
-`pnpm desktop:release --out <folder> --ffmpeg <ffmpeg folder>` with `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID` and
+**The first real release, from GitHub** (docs/RELEASING.md: the `release` environment with its secrets, its `v*`
+deployment rule, the tag ruleset and main's protection set once). Bump to the next version (`node scripts/set-version.mjs
+0.2.1`, a CHANGELOG paragraph), commit on main, `git tag v0.2.1 && git push origin v0.2.1`, and follow Actions › Release:
+
+0. **The settings hold**: the run's `release`, `sign` and `publish` jobs show the `release` environment; a `v*` tag
+   pushed by someone else (or by you from a branch that is not main, on a scratch repository) is refused by the
+   ruleset; a push straight to main is refused.
+1. `release` passes (the tag is the version, the commit is on main; "What is configured" says signed=true updates=on
+   upload=on) and a draft release appears with the CHANGELOG paragraph. A tag that is not the version (try `v9.9.9` on
+   a scratch branch: it is refused before anything is built — delete that tag afterwards). Remove one secret of a set
+   (on a scratch fork): the run fails in "What is configured", naming it.
+2. `build`: "Node.js is the pinned binary" and `check-pins` pass — **if either fails with a digest, the runner's
+   download lays files out differently from this Mac's**: check the run's own install, then record the digest it
+   printed (`apps/desktop/bundle/node.json` / `browsers.json`, DESIGN §4p (e)) and tag again. Note the job's time
+   (cold: ffmpeg, cargo).
+3. `sign`: no pnpm, no Homebrew, no cargo in its log; the artifact's sha256 check passes; the keychain import passes
+   (its `security -i` commands meet the real `security` here for the first time); the log says it signed with the
+   Developer ID (not "an ad hoc build"), the notarisation waits and both staples succeed; the last step removed the
+   keychain. Note the notarisation times.
+4. `attach`: the draft gets the DMG, `Retake.app.tar.gz` + `.sig` and `SHA256SUMS-macos.txt`; its notes say "notarised
+   by Apple" and "It updates itself".
+5. `publish`: the release is public (*Latest*); the log shows the archive and platform file uploaded and `latest.json`
+   and `rc.json` written; `curl <UPDATES_PUBLIC_URL>/retake/latest.json` names 0.2.1.
+6. **On another account (or another Mac)**: download the DMG from the release page with a browser (it carries the
+   quarantine mark), compare its SHA-256 with `SHA256SUMS-macos.txt`, open it, drag Retake to Applications, open it —
+   **no Gatekeeper prompt at all**, no Open Anyway. `spctl -a -vv /Applications/Retake.app` says "accepted" and
+   "source=Notarized Developer ID"; `xcrun stapler validate` passes on the app and on the DMG.
+7. **The update through the feed**: a 0.2.0 installed from an earlier build *with the same feed and key* offers 0.2.1
+   in the status bar and Install and Restart lands on 0.2.1 (15d's steps 1–2).
+8. **Re-runs**: before `publish` has run, *Re-run failed jobs* on a failed job replaces the draft's files (`attach`
+   removes what the new build does not make). After the release is public, a re-run of `sign` + `attach` (*Re-run all
+   jobs*) fails in `attach` ("public already: … tag a new version") and the public files stay as downloaded; a re-run
+   of `publish` alone says "already public" and only heals the feed.
+9. A release without the Apple secrets (on a fork or after removing the whole set): the notes say "Not notarised …
+   Open Anyway", and the downloaded DMG needs Open Anyway once.
+
+**The same by hand, on this Mac:**
+`pnpm desktop:release --out <folder> --ffmpeg <ffmpeg folder>` (the ad hoc layout, then the same `release.mjs`
+`finishApp` the workflow's `sign` job runs) with `APPLE_SIGNING_IDENTITY`, `APPLE_TEAM_ID` and
 `APPLE_KEYCHAIN_PROFILE` (once: `xcrun notarytool store-credentials <profile> --apple-id … --team-id …`, which asks for
-the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`. Expected: the payload,
-the shell and the app signed with your identity, the app notarised (as a zip) and stapled, the DMG signed, notarised and
+the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + ``APPLE_KEYCHAIN_PROFILE` (once: `xcrun notarytool store-credentials <profile> --apple-id … --team-id …`, which asks for
+the app-specific password itself) or `APPLE_API_KEY` + `APPLE_API_ISSUER` + `APPLE_API_KEY_PATH`. Expected: the ad hoc
+app re-signed with your identity (payload, shell, app), the app notarised (as a zip) and stapled, the DMG signed, notarised and
 stapled, then the checks — the team of every signature, `spctl -a -vv -t exec` on the app, `spctl -a -vv -t open
 --context context:primary-signature` on the DMG, `xcrun stapler validate` on both. Note the notarisation times and
 anything refused. Then 15a on a second Mac: the downloaded DMG opens with no Open Anyway step.
