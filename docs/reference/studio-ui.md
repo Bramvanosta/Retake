@@ -216,7 +216,7 @@ parser lint holds every JSX child of the kit to that, and an SSR test plants a h
 | Blocker | a state mark, one sentence, one action (a button, or Copy with "Copied", or a link); L5.10a: without a word, no mark (a command to copy nothing waits on); L5.11a: `compact` — the status bar's form: the mark and a few words (never cut), a ghost action — for a command, "Command…", a popover that shows the whole command wrapped beside its Copy (L5.11a fixes: what is copied is what is shown). The command is never cut (it wraps); "Copied" (or "Not copied: select the command instead") is visible | one line; the explanation on demand |
 | Checklist, ChecklistItem | an `<ol>` of checks (L5.11a): a 28 px state column (the shape), a title (h3) with its state word beside it (a visible word: the colour-only rule), its body, its actions; a hairline between items | Prepare's four checks; a short list of facts each with one state |
 | EmptyState | title, text, actions; `level` 1 – 3 (L5.12d: 1 when it is the whole screen — the not-found screen) | |
-| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions; L5.12c: `content` fields, Return in a one-line text field runs the default (when on) | the default holds the focus (off: the first text field, else the first action that is on); a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice) |
+| Sheet | a modal `<dialog>` under the title bar; alertdialog when destructive or `alert` (L5.11a: a warning that loses nothing); test ids on the dialog and its actions; L5.12c: `content` fields, Return in a one-line text field runs the default (when on) | the default holds the focus (off: the first text field, else the first action that is on); a destructive default falls back to Cancel; it follows its `open` even when the platform closes the dialog (Escape refused twice); L5.16c fixes: `focusTitle` starts the focus on the title instead (focusable, not a tab stop: a long sheet opens at its top), `escapeAction` names what Escape answers (default: the cancel action) |
 | Menu | a popover menu button; ↓ ↑ Home End, typeahead, Escape / Tab close | a click on the open trigger closes it |
 | CommandPalette | a modal dialog: combobox + grouped listbox, filter, ↑ ↓, Enter, Escape; L5.12b (R4-Palette): 640 px (`--ui-palette-w`), "Search commands, scenes and themes", an icon per row (`icon`, decorative), Esc's key cap in the field, a footer legend (↑ ↓ Move · Return Run · Esc Close, and a `footnote`); the list is never a tab stop of its own | the active option has a 3 px bar; keys wait while an input method composes; the focus goes back to its opener, or to the centre pane when a command took the opener away |
 | ChoiceChips | L5.12a: a radio group of `<button role="radio">` named by its legend; one tab stop (the checked chip), arrows / Home / End move the focus, Space / Enter picks; checked = select fill + 600 + a ring; a chip that cannot be taken is `aria-disabled`, dashed, focusable, its reason after " — "; a whole group off is dashed | a choice written at once (Edit's switches); a pick never follows the arrows (one write per pick) |
@@ -468,6 +468,33 @@ Studio keeps `APP_NAME` (L5.13 renames).
   one is said in the sheet, which stays answerable); the native alert after 1.5 s without an ack (DESIGN §4j).
 - **The screens outside the shell (L5.12d)** — Connecting (a Progress), the start error (a Callout), the session ended
   (a Callout and each unsaved text in a read-only TextArea to copy), the not-found screen (an EmptyState, level 1).
+
+- **The Set-up sheet (L5.16c)** — in the installed app only (the window page's `__studioShell` flag; a browser tab never
+  shows it), a kit Sheet wider than a confirmation (the palette's width, scrolling inside the window, opened at its
+  top): its title "Set up Retake", one sentence ("Each step is optional…"), then one Checklist ("Set-up steps") of
+  eight items — Workspace, Retake home, Command line, Claude Code, Claude Desktop, Notifications, Screen recording,
+  Local network — each with its state word (a word of the colour-only rule's list: Open, Default, Ready to install,
+  Installed, Conflict: another copy, Blocked: another file is there, Ready, Missing: not found, Ready to add, Added,
+  Conflict: another entry, Invalid settings file, Pending: asked at the first one, Allowed, Not needed, Pending: asked
+  when needed; "Blocked: move the app first" on the three steps that record the app's path while it runs from a
+  translocated copy, its disk image or /Volumes, under an attention Callout saying "Move Retake to Applications, then
+  open it again"), its paths as mono text, its commands as Blockers to copy (the zsh PATH line, the two `claude plugin`
+  lines, the Claude Desktop entry), and its actions: Install retake / Replace · Choose a Folder… · Uninstall… (an inline
+  confirmation, destructive), Run, Add to Claude Desktop… / Replace… (an inline confirmation showing the file and the
+  entry), Allow…. An action's outcome is a Callout under its item (`role="alert"` when it failed); Claude Code's output
+  and the Claude Desktop entry there now are text (`Txt`: markup shown, controls made visible). Done is the default; it
+  alone remembers the sheet (Escape closes it without that: it opens again at the next start). It opens by itself at
+  the first start, on the shell's `studio:setup` event (Help › Set Up Retake…, Install / Uninstall the retake Command…)
+  and at `#/setup` (the projects behind it; Done goes back to `#/`). L5.16c fixes — **focus**: the sheet opens on its
+  title (`focusTitle`); Help › Install… focuses the command's first action, Help › Uninstall… the confirmation's
+  Uninstall (Keep it when nothing is installed); an inline confirmation takes the focus on its first button and gives it
+  back to its opener on Keep it / Cancel; after an action, its button keeps the focus, else the item's first action,
+  else the item's title. The folder panel is said ("Choose the folder in the panel the app opened", attention) only once
+  the shell says it opened, "No folder was chosen…" after a cancel; Claude Desktop running — or not known (`ps`
+  failed) — is an attention Callout and keeps Add off; the process list is read only while that step is in view (or
+  the window comes to front). Its a11y tour: dark at 1280 / 1440 / 900 and light, the Tab walk inside the modal, in the
+  ordinary and the "move the app" states, and the focus steps above checked by `document.activeElement`
+  (`test/studio-e2e-setup.test.ts`).
 
 **The legacy layer is gone (L5.12d).** Every screen is on the kit: `app.css` (the cascade layer `legacy`) is deleted, the
 ratchet table `test/legacy-controls.json` is `{}` (every file holds zero findings), bits.tsx keeps only `Txt`, `shown`

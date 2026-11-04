@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, loadWorkspaceConfig, suggestion } from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, bundleInfoOrNull, errorsOf, insideBundle, loadWorkspaceConfig, suggestion } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
 import { ComponentError, formatComponentIssues } from './errors.js';
 import { MANIFEST_FILE, parseManifest } from './manifest.js';
@@ -86,8 +86,9 @@ export async function createComponent(root: string, opts: CreateComponentOptions
   doc.set('id', id);
   doc.set('name', opts.name ?? componentDisplayName(id));
   doc.set('description', opts.description?.trim() || `TODO: describe what this ${kind} looks like and when to use it.`);
-  const schemaRel = posix(relative(dir, COMPONENT_SCHEMA_FILE));
-  const manifestText = String(doc).replace(/^# yaml-language-server: \$schema=.*$/m, `# yaml-language-server: $schema=${schemaRel}`);
+  // L5.16c: no `$schema` line when the schema lies inside the installed app (a path into the app breaks when it moves).
+  const schemaRel = insideBundle(COMPONENT_SCHEMA_FILE, bundleInfoOrNull()) ? null : posix(relative(dir, COMPONENT_SCHEMA_FILE));
+  const manifestText = String(doc).replace(/^# yaml-language-server: \$schema=.*$\n?/m, schemaRel === null ? '' : `# yaml-language-server: $schema=${schemaRel}\n`);
   const check = parseManifest(manifestText, MANIFEST_FILE, { folderId: id });
   if (errorsOf(check.issues).length > 0) {
     throw new ComponentError(`the ${kind} scaffold is invalid with id ${id}:\n${formatComponentIssues(check.issues)}`, check.issues);

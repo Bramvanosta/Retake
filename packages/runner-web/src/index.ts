@@ -93,3 +93,4 @@ export * from './raw/index.js';
 export { CURSOR_BINDING } from './session.js';
 export { pushCursorEffect } from './timeline.js';
 export { materialize, runFfmpeg } from './encode.js';
+export { PROFILE_BROWSER_FILE, checkProfileBrowser, launchMajor, profileMajor, recordProfileBrowser } from './profile-browser.js';

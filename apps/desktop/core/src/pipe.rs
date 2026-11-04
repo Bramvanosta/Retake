@@ -9,6 +9,8 @@
 //! L5.12d: `answer` {id, answer: proceed | cancel} and `shown` {id, shown: true} — the window page's word on the quit
 //! question (guard_flow), the id checked here (22 base64url characters) and against the question up in the shell.
 //!
+//! L5.16c: `setup` {action: notifications | cli_folder} — the Set-up sheet's request (ui setup-ops.ts), strict fields.
+//!
 //! What is ignored (forward compatible, critique M4): a line that is no JSON object, a `type` this shell does not know,
 //! a `job_end` of an unknown kind or outcome. Only a `pending` that fails its checks is `BadPending` — the shell then
 //! asks with generic words until the next valid one. The server frames each line with a newline before it (review A
@@ -109,6 +111,11 @@ wire_enum!(
     JobKind { Capture = "capture", DryRun = "dry_run", Render = "render", Review = "review", Export = "export", Recording = "recording", StudioRecording = "studio_recording", Hooks = "hooks", EnvReset = "env_reset", SandboxStart = "sandbox_start", SandboxReset = "sandbox_reset" }
 );
 wire_enum!(JobState { Running = "running", Queued = "queued" });
+wire_enum!(
+    /// L5.16c: what the Set-up sheet asks the shell (ui desktop.ts SETUP_ACTIONS): the notification permission, the
+    /// native folder panel for the `retake` command.
+    SetupAction { Notifications = "notifications", CliFolder = "cli_folder" }
+);
 wire_enum!(Outcome { Succeeded = "succeeded", Failed = "failed", Attention = "attention" });
 wire_enum!(
     /// Why a job needs attention or failed (ui supervise.ts PIPE_REASONS).
@@ -189,6 +196,8 @@ pub enum PipeMsg {
     Answer { id: String, proceed: bool },
     /// L5.12d: the window's page shows the quit question `id`.
     Shown { id: String },
+    /// L5.16c: the Set-up sheet asks the shell to act (through the server's setup ops: the person's click).
+    Setup(SetupAction),
     /// Not for this shell (why): no JSON object, an unknown type, a job_end it cannot word.
     Ignored(&'static str),
     /// An empty line (the server's framing newline: review A L3) — nothing to say.
@@ -263,6 +272,17 @@ pub fn parse_pipe_line(line: &str) -> PipeMsg {
                 Some("proceed") => PipeMsg::Answer { id: id.to_string(), proceed: true },
                 Some("cancel") => PipeMsg::Answer { id: id.to_string(), proceed: false },
                 _ => PipeMsg::Ignored("an answer this app does not know"),
+            }
+        }
+        Some("setup") => {
+            // Strict: exactly `type` and `action`, the action one this shell knows.
+            let Json::Obj(fields) = &v else { return PipeMsg::Ignored("not JSON") };
+            if fields.len() != 2 || !fields.iter().all(|(k, _)| k == "type" || k == "action") {
+                return PipeMsg::Ignored("a setup line with other fields");
+            }
+            match v.get("action").and_then(Json::as_str).and_then(SetupAction::parse) {
+                Some(a) => PipeMsg::Setup(a),
+                None => PipeMsg::Ignored("a setup action this app does not know"),
             }
         }
         Some(_) => PipeMsg::Ignored("a line type this app does not know"),
@@ -394,6 +414,21 @@ mod tests {
             format!(r#"{{"type":"shown","id":"{ID}","answer":"proceed"}}"#),
         ] {
             assert!(matches!(parse_pipe_line(&bad), PipeMsg::Ignored(_)), "{bad}");
+        }
+    }
+
+    /// L5.16c: the Set-up sheet's requests — exactly `type` and a known `action`.
+    #[test]
+    fn setup_lines_are_strict() {
+        assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"notifications"}"#), PipeMsg::Setup(SetupAction::Notifications));
+        assert_eq!(parse_pipe_line(r#"{"type":"setup","action":"cli_folder"}"#), PipeMsg::Setup(SetupAction::CliFolder));
+        for bad in [
+            r#"{"type":"setup","action":"install"}"#,
+            r#"{"type":"setup"}"#,
+            r#"{"type":"setup","action":"cli_folder","path":"/tmp"}"#,
+            r#"{"type":"setup","action":1}"#,
+        ] {
+            assert!(matches!(parse_pipe_line(bad), PipeMsg::Ignored(_)), "{bad}");
         }
     }
 

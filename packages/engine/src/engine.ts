@@ -100,7 +100,7 @@ import type { UsageCounts } from './history.js';
 import { agentChannel } from './approvals.js';
 import type { Approver } from './approvals.js';
 import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
-import { ensureWorker } from './jobs/spawn.js';
+import { ensureWorker, otherCopyWarning } from './jobs/spawn.js';
 import { cleanWorkerEnv } from './jobs/worker-env.js';
 import type { WorkerSpawnFn } from './jobs/spawn.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
@@ -291,7 +291,7 @@ export interface Engine {
      * human (trust `mcp`: destructive ones whatever `confirm` says, every shell hook) are asked through `approver`;
      * without one, or when not approved, the submit is refused with the `retake` command a human runs.
      */
-    submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean } }>;
+    submit(req: RunSubmitRequest, o?: { approver?: Approver }): Promise<{ job: JobRecord; run_id: string; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } }>;
     /** Cancel the job of a run (teardown and rollbacks still run). A run started from the CLI is refused. */
     cancel(project: string, runId: string): Promise<JobRecord>;
     /**
@@ -352,7 +352,7 @@ export interface Engine {
      */
     submit(
       req: RenderRequest,
-    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean } } & RenderEditSource>;
+    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } } & RenderEditSource>;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
     /**
@@ -818,7 +818,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       submit: async (req, o = {}) => {
         const r = await submitRunJob(submitCtx, req, o.approver);
         const worker = await startWorker();
-        return { job: r.job, run_id: r.run_id, warnings: r.warnings, ...(worker ? { worker } : {}) };
+        return { job: r.job, run_id: r.run_id, warnings: [...r.warnings, ...(worker?.other ? [otherCopyWarning(worker.other)] : [])], ...(worker ? { worker } : {}) };
       },
       cancel: async (slug, runId) => {
         await project(slug);
@@ -937,7 +937,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       submit: async (req) => {
         const r = await submitRenderJob(submitCtx, req);
         const worker = await startWorker();
-        return { ...r, ...(worker ? { worker } : {}) };
+        return { ...r, ...(worker?.other ? { warnings: [...r.warnings, otherCopyWarning(worker.other)] } : {}), ...(worker ? { worker } : {}) };
       },
       status: (slug, renderId, o = {}) => renderStatus(ws, queue, slug, renderId, o.scenario),
       ofScenario: (slug, scenario) => scenarioRenders(ws, queue, slug, scenario),

@@ -12,8 +12,8 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { bundleNodeArgs } from '@retake/core';
-import { WORKER_CLIENT_RE, liveWorker, workersDir } from './lock.js';
+import { RETAKE_VERSION, bundleNodeArgs, engineLocation } from '@retake/core';
+import { LOCK_VERSION_RE, WORKER_CLIENT_RE, liveWorker, otherCopy, workersDir } from './lock.js';
 
 /** Starts the worker process: node's `spawn` (tests inject one to see the command and the environment). */
 export type WorkerSpawnFn = (command: string, args: readonly string[], options: SpawnOptions) => Pick<ChildProcess, 'pid' | 'on' | 'unref'>;
@@ -76,12 +76,24 @@ export async function spawnWorker(root: string, opts: WorkerSpawnOptions = {}): 
 }
 
 /**
+ * What a submit says when the workspace's worker runs another copy of Retake (`other`: ensureWorker's). Fixed words and
+ * a version's shape only (review c A-L4): the lock is a file, its folder is said under `untrusted` where it is shown
+ * (engine_info, the Studio's notice).
+ */
+export function otherCopyWarning(other: { version: string; engine?: string }): string {
+  const v = LOCK_VERSION_RE.test(other.version) ? other.version : 'another version';
+  return `this workspace's jobs worker runs another copy of Retake (${v}; engine_info names its folder): this job runs there, with that copy's browsers and tools — to run it with this one, stop that worker once it is idle (it exits by itself after a minute without jobs) and submit again`;
+}
+
+/**
  * Make sure a worker serves `root`: the live holder of the worker lock (a worker of an older build hands over to a new
  * one itself once idle), else a new one. Two clients starting one at the same time is harmless: the second worker finds
  * the lock held and exits.
  */
-export async function ensureWorker(root: string, opts: WorkerSpawnOptions = {}): Promise<{ pid?: number; spawned: boolean }> {
+export async function ensureWorker(root: string, opts: WorkerSpawnOptions = {}): Promise<{ pid?: number; spawned: boolean; other?: { version: string; engine?: string } }> {
   const live = await liveWorker(root);
-  if (live) return { pid: live.pid, spawned: false };
+  // L5.16c (critique M6): a live worker of another copy of Retake runs this job with its own tools — said by the submit.
+  const other = otherCopy(live, { engine: engineLocation(), version: RETAKE_VERSION });
+  if (live) return { pid: live.pid, spawned: false, ...(other ? { other } : {}) };
   return { pid: await spawnWorker(root, opts), spawned: true };
 }

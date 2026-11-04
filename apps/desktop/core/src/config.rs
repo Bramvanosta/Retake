@@ -192,6 +192,8 @@ pub enum Source {
     Remembered,
     Cwd,
     Picker,
+    /// L5.16c: made by the first run (`retake init`).
+    Created,
 }
 
 impl Source {
@@ -202,6 +204,7 @@ impl Source {
             Source::Remembered => "the last one opened",
             Source::Cwd => "the current folder",
             Source::Picker => "chosen",
+            Source::Created => "created at the first run",
         }
     }
 }

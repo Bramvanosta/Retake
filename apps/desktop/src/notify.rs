@@ -164,7 +164,7 @@ fn post(title: String, body: String) {
     }
     if !bundled() {
         if !SAID_UNBUNDLED.swap(true, Ordering::SeqCst) {
-            log("notifications need the built app (pnpm desktop:build): not shown");
+            log("notifications need the app bundle (a development build: pnpm desktop:build): not shown");
         }
         return;
     }
@@ -198,6 +198,40 @@ fn post(title: String, body: String) {
             UNUserNotificationCenter::currentNotificationCenter().requestAuthorizationWithOptions_completionHandler(UNAuthorizationOptions::Alert, &answered);
         }
     }
+}
+
+/// L5.16c, the Set-up sheet's Allow…: ask macOS for the permission now (it prompts only when the person never answered;
+/// otherwise it answers what they chose), and tell the server the outcome (desktop_core::setup::notifications_line).
+/// Test mode never calls UN: it logs and answers `unknown`; a bare binary has no bundle id to ask for.
+pub fn request_permission(_app: &AppHandle) {
+    if test_mode() {
+        log("(test mode) notifications: the permission would be asked now (set-up)");
+        crate::send_to_server(&desktop_core::setup::notifications_line(None));
+        return;
+    }
+    if !bundled() {
+        log("notifications need the app bundle: not asked");
+        crate::send_to_server(&desktop_core::setup::notifications_line(None));
+        return;
+    }
+    let answered = RcBlock::new(|granted: Bool, e: *mut NSError| {
+        let answer = if granted.as_bool() {
+            AuthAnswer::Granted
+        } else if e.is_null() {
+            AuthAnswer::Denied
+        } else {
+            // SAFETY: a non-null NSError the completion handler hands over, read for its domain and code only.
+            let e = unsafe { &*e };
+            AuthAnswer::Error(e.domain().to_string(), e.code() as i64)
+        };
+        let errored = matches!(answer, AuthAnswer::Error(..));
+        let (ok, line) = lock(&PERMISSION).get_or_insert_with(Permission::default).on_answer(answer, crate::app_name());
+        if let Some(l) = line {
+            log(&l);
+        }
+        crate::send_to_server(&desktop_core::setup::notifications_line(if errored { None } else { Some(ok) }));
+    });
+    UNUserNotificationCenter::currentNotificationCenter().requestAuthorizationWithOptions_completionHandler(UNAuthorizationOptions::Alert, &answered);
 }
 
 /// Post one notification (permission granted). Grouped under one thread, no sound.

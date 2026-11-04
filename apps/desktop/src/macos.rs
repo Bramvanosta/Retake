@@ -151,6 +151,11 @@ fn test_abort_after(n: u64, ms: u64) {
 
 /// Ask for a workspace folder; None when cancelled (or not on the main thread, or the app is quitting).
 pub fn pick_folder(message: &str) -> Option<PathBuf> {
+    pick_folder_with(&format!("Open a {} workspace", crate::app_name()), message, "Open")
+}
+
+/// Ask for a folder with this panel title and button (L5.16c: the `retake` command's folder); as `pick_folder`.
+pub fn pick_folder_with(title: &str, message: &str, prompt: &str) -> Option<PathBuf> {
     if quitting() {
         return None;
     }
@@ -170,9 +175,9 @@ pub fn pick_folder(message: &str) -> Option<PathBuf> {
     panel.setCanChooseFiles(false);
     panel.setAllowsMultipleSelection(false);
     panel.setCanCreateDirectories(true);
-    panel.setTitle(Some(&NSString::from_str(&format!("Open a {} workspace", crate::app_name()))));
+    panel.setTitle(Some(&NSString::from_str(title)));
     panel.setMessage(Some(&NSString::from_str(message)));
-    panel.setPrompt(Some(&NSString::from_str("Open")));
+    panel.setPrompt(Some(&NSString::from_str(prompt)));
     let modal = Modal::enter();
     if quitting() {
         return None;

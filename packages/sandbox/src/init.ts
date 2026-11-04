@@ -9,8 +9,8 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { SANDBOX_SCHEMA_FILE, addSandboxEntry, bundleInfoOrNull, insideBundle, sandboxNames } from '@retake/core';
+import type { BundleInfo, LoadedProject } from '@retake/core';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
 
@@ -53,9 +53,12 @@ function posixPath(p: string): string {
 
 /**
  * How sandbox.yaml names its JSON Schema: a path relative to its folder when both are under one top-level folder,
- * else a file:// URL (a workspace on another volume, or under /tmp).
+ * else a file:// URL (a workspace on another volume, or under /tmp). L5.16c: null when the schema lies inside the
+ * installed app (critique H1) — a path into the app written into the person's files breaks when the app moves or
+ * updates, so the scaffold then has no `$schema` line at all.
  */
-export function schemaRef(dir: string, schema: string = SANDBOX_SCHEMA_FILE): string {
+export function schemaRef(dir: string, schema: string = SANDBOX_SCHEMA_FILE, bundle: BundleInfo | null = bundleInfoOrNull()): string | null {
+  if (insideBundle(schema, bundle)) return null;
   const top = (p: string) => p.split(sep).filter(Boolean)[0];
   return top(dir) === top(schema) ? posixPath(relative(dir, schema)) : pathToFileURL(schema).href;
 }
@@ -135,8 +138,9 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
   const isFree = opts.isFree ?? (async (port: number) => !(await probePort(port)));
   const [app, db, mailpit] = await pickPorts(3, opts.basePort ?? INIT_BASE_PORT, used, isFree);
   const firstSandbox = sandboxNames(project).length === 0 || sandboxNames(project)[0] === env;
+  const schema = schemaRef(dir);
   const values: Record<string, string> = {
-    __SCHEMA__: schemaRef(dir),
+    ...(schema !== null ? { __SCHEMA__: schema } : {}),
     __ENV__: env,
     __PROJECT__: project.slug,
     __ENV_FLAG__: firstSandbox ? '' : ` --env ${env}`,
@@ -145,7 +149,7 @@ export async function initSandbox(project: LoadedProject, opts: InitSandboxOptio
     __MAIL_PORT__: String(mailpit),
     __DB_PASSWORD__: `pg-sandbox-${db}`,
   };
-  const render = (text: string) => text.replace(/__[A-Z_]+?__/g, (k) => values[k] ?? k);
+  const render = (text: string) => (schema === null ? text.replace(/^# yaml-language-server: \$schema=__SCHEMA__\n/m, '') : text).replace(/__[A-Z_]+?__/g, (k) => values[k] ?? k);
 
   const files: string[] = [];
   for (const rel of scaffold) {

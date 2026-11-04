@@ -27,6 +27,7 @@ import { scenarioEventAction, useEvents } from './events.js';
 import type { StudioEvent } from './events.js';
 import { SessionEnded } from './session.js';
 import { modeWord } from './shoot-words.js';
+import { otherCopyOf, submitNotice } from './other-copy.js';
 
 /** Job-driven re-reads: at most one per this (a job of the project the entry never saw). */
 export const JOBS_THROTTLE_MS = 2000;
@@ -402,6 +403,8 @@ interface RunAnswer {
   run_id: string;
   job: string;
   mode: Mode;
+  /** L5.16c fixes (review c B-M2): the other copy of Retake whose worker takes the job (`other_copy`: the lock's text). */
+  untrusted?: Record<string, unknown>;
 }
 
 /**
@@ -423,7 +426,7 @@ export function startRun(o: { slug: string; name: string; mode: Mode; hash?: str
         const next = new Map(pending.get());
         next.set(k, { id: d.run_id, mode: o.mode, at: Date.now() });
         pending.set(next);
-        o.say(`${modeWord(o.mode)} of ${o.name}${where} queued`);
+        o.say(`${modeWord(o.mode)} of ${o.name}${where} queued${submitNotice(otherCopyOf(d, 'other_copy'))}`);
         o.onStarted?.(d.run_id);
       },
       (e: unknown) => {
@@ -450,9 +453,9 @@ export function startRender(o: { slug: string; name: string; run: string; hash: 
   const k = key2(o.slug, o.name);
   if (sending.has(k)) return false;
   setSending(o.slug, o.name, 'render');
-  call<{ render_id: string }>('scenario_render', { project: o.slug, name: o.name, run: o.run, expect_edit_sha256: o.hash })
+  call<{ render_id: string; untrusted?: Record<string, unknown> }>('scenario_render', { project: o.slug, name: o.name, run: o.run, expect_edit_sha256: o.hash })
     .then(
-      (d) => o.say(`Render ${d.render_id} of ${o.name} queued`),
+      (d) => o.say(`Render ${d.render_id} of ${o.name} queued${submitNotice(otherCopyOf(d, 'other_copy'))}`),
       (e: unknown) => {
         if (!(e instanceof SessionEnded)) o.say(`The render of ${o.name} was not started: ${errorText(e).split('\n')[0].slice(0, 200)}`);
       },

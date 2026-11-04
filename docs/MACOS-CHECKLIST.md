@@ -1733,21 +1733,69 @@ Quit any Retake developer app first (`pnpm desktop:build`'s has the same bundle 
 2. **Drag.** Drag Retake onto Applications; it copies (≈ 1 GB). Eject the DMG.
 3. **First launch from Finder.** Double-click Retake in Applications. A copy built on this Mac opens directly; a copy
    that was downloaded (AirDrop, a browser, a shared drive: it carries the quarantine mark) is refused once — System
-   Settings › Privacy & Security › Open Anyway, then it opens. Note every prompt macOS shows (expected: the folder
-   picker of the app; later, local network access for a LAN capture, notifications at the first job end) and anything
-   unexpected (a "damaged" message, a prompt per helper, a keychain prompt).
-4. **The app runs on its own.** Choose (or create) a workspace in the picker; the Studio opens. Shoot a short capture
+   Settings › Privacy & Security › Open Anyway, then it opens. Note every prompt macOS shows (expected, L5.16c: the
+   first-run alert "Welcome to Retake" — Create ~/Retake · Choose a Folder… · Quit; later, local network access for a
+   LAN capture, notifications at the first job end or on the Set-up sheet's Allow…) and anything unexpected (a
+   "damaged" message, a prompt per helper, a keychain prompt).
+4. **The app runs on its own.** Create ~/Retake (or choose a folder); the Studio opens with the Set-up sheet over it. Shoot a short capture
    of the fixture (or your own product) and render it: it works with no Homebrew / Node.js on PATH (a second account
    shows it best). In Terminal: `/Applications/Retake.app/Contents/Resources/bin/retake doctor` — every tool line says
    `bundled`; `codesign --verify --deep --strict /Applications/Retake.app` still says nothing (valid) afterwards.
-5. **Open from the DMG itself** (without dragging) once, and once from `~/Downloads`: the app may run from a read-only
-   or translocated place — note what works and what it says (the first-run sheet that warns about it comes with part c).
-6. **Remove it.** Drag Retake to the Bin; nothing of it is left in /Applications; `~/.retake` (your profiles, the
+5. **Open from the DMG itself** (without dragging) once, and once from `~/Downloads` (a downloaded copy, quarantined):
+   the app runs from the read-only volume or a translocated copy. Expected (L5.16c): the Set-up sheet's attention
+   line "Move Retake to Applications, then open it again", Install retake / Choose a Folder… / Run / Add to Claude
+   Desktop… off, their state "Blocked: move the app first"; Help › Install the retake Command… answers the same in a
+   native alert; `…/Contents/Resources/bin/retake doctor` from that copy shows an "App location" WARN. Then move it to
+   Applications and open it again: the warning is gone.
+6. **Remove it.** Help › Uninstall the retake Command… first (the link goes; a file of your own at its place stays), or
+   note that the link is left dangling (`retake doctor` from a checkout says so). Drag Retake to the Bin; nothing of it is left in /Applications; `~/.retake` (your profiles, the
    approval key) stays.
 7. **Attributes.** A DMG built from a session started inside an app (Terminal, an editor, Claude) carries that app's
    `com.apple.provenance` record on every file — an opaque id macOS keeps, never part of a signature (the build's
    checks ignore that one attribute only). `xattr -r /Applications/Retake.app | grep -v com.apple.provenance` after
    the drag: note anything else (expected: nothing, or `com.apple.quarantine` on a downloaded copy until it is opened).
+
+### 15c. The first run and the Set-up sheet (L5.16c)
+
+On the copy in /Applications, ideally a fresh account (no `~/Retake`, no `~/.retake/desktop.json`, no
+`~/.local/bin/retake`).
+
+1. **First run.** The alert offers Create ~/Retake (default) · Choose a Folder… · Quit. Create: `~/Retake` holds
+   `retake.yaml`, `projects/` and a `.gitignore`; the Studio opens on it; quit and reopen — no question, the same
+   workspace. On another account, try Choose a Folder… with a non-empty folder that is no workspace (the alert says why
+   and asks again), then with an empty one (made a workspace).
+2. **The Set-up sheet** opens at that first start with its title focused (VoiceOver reads "Set up Retake"; Return does
+   nothing); Escape closes it and it comes back at the next start; Done closes it for good (not at the next start);
+   Help › Set Up Retake… brings it back. Every step does nothing until clicked. VoiceOver: the steps read as a list
+   with their state words; Tab stays inside. Help › Uninstall the retake Command…: the focus is on the confirmation's
+   Uninstall; Keep it returns it to Uninstall…; Add to Claude Desktop… puts it on Add, Cancel back on the button.
+3. **The command in a new Terminal window.** Install retake (or Choose a Folder… — the app's own panel; the sheet says
+   "Choose the folder in the panel the app opened" only once it is up, "No folder was chosen" if you cancel — then
+   Install; with the command already in ~/.local/bin, Install there is refused until you Uninstall it). Quit and reopen
+   the app: the sheet still shows the command installed in the folder you chose.
+   Then open a NEW Terminal window: `retake doctor` — its `retake command` line says `→ this app`, every tool
+   `bundled`. If `retake` is not found, the folder is not on your PATH: add the sheet's line to `~/.zprofile`, open a
+   new window again. With a `retake` script of your own already in `~/.local/bin`: Install refuses and leaves it.
+   Offline (Wi-Fi off), before the app was ever opened on that account: `/Applications/Retake.app/Contents/Resources/
+   bin/retake doctor` works (critique L8).
+4. **Claude Code.** With Claude Code installed: Run — the output shows; `claude plugin list` in Terminal names
+   retake@retake; a new Claude Code session in the workspace folder sees the Retake tools. Without it: Run is off, Copy
+   lines then pasting them in Terminal does the same. If Run takes 60 s (Claude Code asking a question): the sheet says
+   to run them in Terminal.
+5. **Claude Desktop.** With Claude Desktop running: Add to Claude Desktop… then Add is refused ("quit it first"). Quit it,
+   Add: the file gains `mcpServers.retake`, a `claude_desktop_config.json.retake-backup-…` sits in
+   `~/.retake/backups/claude-desktop/` (nothing new beside the config), your other servers and settings are untouched;
+   reopen Claude Desktop — the Retake tools are listed and `engine_info` answers. A different `retake` entry: Replace…
+   shows both first.
+6. **Notifications.** Allow… — macOS asks once (System Settings › Notifications › Retake lists it); the sheet's state
+   follows the answer.
+7. **TCC and the local network (critique L8).** A workspace under `~/Documents` or `~/Desktop`: the folder prompt names
+   Retake when the app touches it, Terminal when the command does, Claude when Claude Desktop's MCP server does —
+   note each. A capture of a LAN host through Claude Desktop's MCP server: note whether macOS asks for local network
+   access, and for which app.
+8. **Two copies.** With a repository checkout's worker running for the same workspace (`pnpm retake worker` there),
+   a Capture from the app says the job runs in the other copy (its "queued" line in the status bar names its version
+   and folder), the Welcome inspector's Worker row names it, and `retake doctor` (either copy) warns in its MCP line.
 
 ### 15b. The release run (L5.16, part e — your Developer ID; nothing in the test suite reaches it)
 

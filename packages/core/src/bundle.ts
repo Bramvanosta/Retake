@@ -170,6 +170,21 @@ export function bundleInfoOrNull(): BundleInfo | null {
 }
 
 /**
+ * Which copy of Retake this engine is (L5.16c, critique M6): the `.app` it runs from (the sealed folder of its bundle),
+ * else the repository checkout holding it (the first folder up with `pnpm-workspace.yaml`), else core's package folder.
+ * The worker lock records it: a workspace's worker started by another copy (the app and a checkout, two apps) is said.
+ */
+export function engineLocation(bundle: BundleInfo | null = bundleInfoOrNull(), self: string = fileURLToPath(import.meta.url), exists: (p: string) => boolean = existsSync): string {
+  if (bundle) return bundle.sealed;
+  const start = dirname(real(self));
+  for (let dir = start, i = 0; i < 6; i++, dir = dirname(dir)) {
+    if (exists(join(dir, 'pnpm-workspace.yaml'))) return dir;
+    if (dirname(dir) === dir) break;
+  }
+  return dirname(start);
+}
+
+/**
  * What is wrong with this engine's bundle, as far as this process has seen: a damaged manifest, a playwright-core that
  * would not load with the bundle's browsers. Empty in a sound bundle and in a checkout. Doctor shows them.
  */

@@ -7,8 +7,10 @@
  * origin (absent when an older running server does not say it).
  * `--supervised` (L5.2, the desktop shell): `--json --no-open`, and the server also stops when its stdin closes — the
  * parent that holds the pipe died or quit, so no orphan server keeps `ui.json`. The stdin watcher is installed before
- * the server starts (an EOF during the start closes it right after). Bytes read on stdin are discarded (L5.12d: the
- * window page's answer to the quit question comes through the op `desktop_answer` and goes out on stdout). Its line says `"v":2` (L5.2b): after it, a server this process serves
+ * the server starts (an EOF during the start closes it right after). L5.16c: stdin carries the shell's lines for the
+ * Set-up sheet (ui desktop.ts parseShellLine: the folder picked in its native panel for the command, the notification
+ * state), at most SHELL_LINE_MAX bytes each; anything else read there is dropped (L5.12d: the window page's answer to the
+ * quit question comes through the op `desktop_answer` and goes out on stdout). Its line says `"v":2` (L5.2b): after it, a server this process serves
  * writes the `pending` and `job_end` lines of the shell's quit question and notifications (ui supervise.ts: enums and
  * checked slugs only, ≤ 8 KB a line, coalesced) and, L5.12d, the window page's `shown` / `answer` lines (desktop.ts),
  * and nothing else — console.log / info / debug go to stderr, the lines
@@ -42,11 +44,37 @@ export const UI_LINE_VERSION = 1;
  */
 export const SUPERVISED_LINE_VERSION = 2;
 
-/** Resolves when stdin reaches its end (or fails): the supervising parent closed the pipe or died. Reads and discards. */
-function stdinClosed(): Promise<string> {
+/**
+ * The reader of the shell's stdin lines: bytes in, each whole line (UTF-8) out to `onLine`; a line longer than `max`
+ * BYTES is dropped whole (review c B-L8: the cap counts bytes, as the shell writes them — a multi-byte character split
+ * between two chunks is joined first).
+ */
+export function shellLineReader(onLine: (line: string) => void, max: number): (chunk: Buffer) => void {
+  let buf = Buffer.alloc(0);
+  let over = false;
+  return (chunk) => {
+    buf = Buffer.concat([buf, chunk]);
+    for (let i = buf.indexOf(10); i >= 0; i = buf.indexOf(10)) {
+      const line = buf.subarray(0, i);
+      buf = buf.subarray(i + 1);
+      if (over) over = false;
+      else if (line.length <= max) onLine(line.toString('utf8'));
+    }
+    if (buf.length > max) {
+      buf = Buffer.alloc(0);
+      over = true;
+    }
+  };
+}
+
+/**
+ * Resolves when stdin reaches its end (or fails): the supervising parent closed the pipe or died. Each whole line read
+ * meanwhile goes to `onLine` (L5.16c: the shell's set-up answers); a line longer than `max` bytes is dropped whole.
+ */
+function stdinClosed(onLine: (line: string) => void, max: number): Promise<string> {
   return new Promise((resolve) => {
     const done = () => resolve('stdin closed');
-    process.stdin.on('data', () => undefined);
+    process.stdin.on('data', shellLineReader(onLine, max));
     process.stdin.once('end', done);
     process.stdin.once('close', done);
     process.stdin.once('error', done);
@@ -89,7 +117,10 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   const supervised = opts.supervised === true;
   const json = opts.json === true || supervised;
   // Installed first (critique M3): a parent that dies during the start still stops this server once it listens.
-  const ended = supervised ? [stdinClosed()] : [];
+  // L5.16c: the shell's set-up lines go to the server once it serves (dropped before).
+  let shellLine: (line: string) => void = () => undefined;
+  // 8192: ui SHELL_LINE_MAX (@retake/ui loads only once the workspace is known; a test compares the two).
+  const ended = supervised ? [stdinClosed((l) => shellLine(l), 8192)] : [];
   if (supervised) for (const s of [process.stdout, process.stderr]) s.on('error', () => undefined);
   const root = workspaceRoot(global);
   if (!root) {
@@ -103,7 +134,7 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   const { clientPath } = await import('@retake/mcp');
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   // Loaded only now: a broken app source breaks `retake ui`, never the other commands.
-  const { launchStudio, startSupervisor } = await import('@retake/ui');
+  const { applyShellLine, launchStudio, startSupervisor } = await import('@retake/ui');
   let launched;
   try {
     await refuseBesideOldHolder(root, 'this Studio');
@@ -139,6 +170,8 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
     const write = process.stdout.write.bind(process.stdout) as (text: string) => boolean;
     for (const k of ['log', 'info', 'debug'] as const) console[k] = (...a: unknown[]) => console.error(...a);
     startSupervisor({ server: launched.server, out: { write: (t) => write(t), once: (e, f) => process.stdout.once(e, f) }, log: (m) => ui.line(m) });
+    const server = launched.server;
+    shellLine = (l) => void applyShellLine(server.setup, root, l);
   }
   const reason = await Promise.race([stopping, ...ended]);
   await launched.server.close();

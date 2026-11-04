@@ -5133,7 +5133,7 @@ both appearances; `fill` / `stroke` tokens classified), the favicon is the tiny 
 of its own, the title bar and Welcome draw it. Cut: the macOS 26 appearance variants (Icon Composer) and a favicon that
 follows the appearance in Safari (BL-136).
 
-## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG)
+## 4p. The standalone app (L5.16; L5.16a: the bundle layout and the resolver; L5.16b: the app, signing, the DMG; L5.16c: the first run and the integrations)
 
 R-APP-01 – R-APP-05. The app carries everything a capture, a render and a review need; the engine finds it through one
 resolver, and behaves exactly as before when there is no bundle (a repository checkout).
@@ -5424,6 +5424,138 @@ render bundle); the shell binary started directly (cwd outside the repository) s
 <Resources>/node/guard.cjs <Resources>/engine/dist/bin.js` in 0.8 s; a clone with canaries above Resources ran doctor;
 afterwards no canary had run, bundle.json's hashes matched the files, the app still verified, nothing inside it was
 newer than the runs and ~/Library's entries for the bundle id were unchanged (names, sizes, mtimes). Whole run 268 s.
+
+### 4p (c). The first run and the integrations (L5.16c)
+
+R-APP-10 – R-APP-15. What the installed app does the first time it runs and what it may set up for the person — each
+step on its click, none from an agent.
+
+**Where the app runs from** (critique H1). A quarantined app opened from Downloads or the disk image runs from
+`…/AppTranslocation/<uuid>/d/Retake.app` (random, read-only, gone after a restart) or from `/Volumes/…`: any path recorded
+then breaks. One rule on both sides — `desktop_core::setup::install_location(app, read_only)` (statfs `MNT_RDONLY`) and
+core `installLocation(app, {readOnly})` (EROFS on `access(W_OK)`): the `/AppTranslocation/` marker → `translocated`, a
+read-only volume → `read_only`, anything under `/Volumes` → `volumes`, else `ok` (core's test compares the words of
+the two and replays every `install_location` assert of the Rust tests, `/VolumesOld/…` look-alikes included).
+Not `ok`: the shell logs it and Help › Install the retake Command… answers a native alert; the Set-up sheet says "Move
+Retake to Applications, then open it again" with the command and both Claude steps off; the setup ops refuse them
+server-side (409 `location`); doctor's **App location** line warns. Scaffolds never write a path into the app into the
+person's files: from a bundle, `retake sandbox init`'s sandbox.yaml and `retake components create`'s component.yaml have
+**no** `# yaml-language-server: $schema=` line (a checkout keeps its relative path).
+
+**The first run** (plan §5.1). A bundled app (launch.json v2) with no workspace (`choose_workspace` → None) asks, words
+in `setup.rs`: *Welcome to Retake* — **Create ~/Retake** (default) · **Choose a Folder…** · **Quit**. Create runs the
+app's own `node --require guard.cjs engine/dist/bin.js init ~/Retake` (child.rs `init_workspace`: argv, the server's
+environment rules, 30 s); Choose opens a workspace as it is or makes an empty folder one (`retake init` refuses a
+non-empty one: its words come back in the alert, and the folder is left as it was). The workspace is remembered in
+`desktop.json` as before (source `created at the first run`). Test mode answers from `RETAKE_DESKTOP_TEST_ANSWERS` (the
+gated acceptance: `0` — Create; and `1,1` with two picks — a non-empty folder refused, asked again, an empty one made the
+workspace).
+
+**The Set-up sheet** (plan §5.2; `shell/SetupSheet.tsx`, `shell/setup.ts`; docs/reference/studio-ui.md). A kit Sheet in
+the app's window only (the page's `__studioShell` flag): it opens by itself when `setup_status.seen` is false (`<Retake
+home>/app.json` without `setup_seen` of this major), on Help › Set Up Retake…, Install / Uninstall the retake Command…
+(the shell dispatches `studio:setup` with `{}` or `{section: "cli" | "cli-remove"}` — `setup_page_js`, a constant shape;
+anything else is ignored) and at `#/setup`. One checklist: workspace, Retake home, command line, Claude Code, Claude
+Desktop, notifications, screen recording ("not needed: captures are headless"), local network ("asked when needed").
+Only **Done** writes `setup_seen`; Escape (the kit Sheet's `escapeAction`) closes it without that — no visible choice was
+made, so it opens again at the next start (review c A-L6). **Focus** (review c A-M2 / A-L6): the sheet opens on its
+title (the kit Sheet's `focusTitle`: focusable, not a tab stop — the top in view, a first Return chooses nothing); Help ›
+Install the retake Command… on the command's first action, Help › Uninstall… on the confirmation's Uninstall (Keep it
+when nothing is installed); an inline confirmation (Uninstall…, Add to Claude Desktop… / Replace…) takes the focus on
+its first button and gives it back to its opener on Keep it / Cancel; once an action answered, the focus stays on its
+button, else the item's first action, else the item's title. The process list (is Claude Desktop running?) is read
+only while that step is in view (an IntersectionObserver; `setup_status {processes: true}`) or when the window comes to
+front, and the server reads `ps` at most every 5 s (`PS_EVERY_MS`; review c A-L8).
+
+**The setup ops** (`ui/src/server/setup-ops.ts`): `setup_status`, `setup_cli_install {folder: default|chosen,
+replace}`, `setup_cli_choose`, `setup_cli_remove`, `setup_claude_code_run`, `setup_claude_desktop_add {replace}`,
+`setup_notifications`, `setup_done`. Studio-only own ops in the `ui` client's allow-list, never MCP tools (a static
+test reads the MCP list): **no MCP tool can install the command or register Retake with Claude** (an agent with a
+shell of its own still can). The installed app's own server only: supervised (the shell's pipe attached) AND running
+from a `.app` bundle — anything else answers `available: false` / 409 `not_supervised` / `not_bundled`. Twelve writes a
+minute (423 `rate`). The page sends choices, never a path; what other programs wrote (Claude Code's output, Claude
+Desktop's current entry, its parse error) is under `untrusted` and shown as text. The machine is one injectable
+context (`SetupContext`: the bundle, the home, the environment, uid, the read-only probe, the process list, Claude
+Desktop's config path) — tests run on scratch folders only.
+
+**The pipe, both ways.** Server → shell (stdout, framed like the others): `{"type":"setup","action":"notifications" |
+"cli_folder"}` (strict: exactly those two fields). Shell → server (the supervised server's stdin, at most 8 KB a line,
+`parseShellLine`, strict; the cap counts bytes, on both sides — the CLI's `shellLineReader` too): `{"type":
+"cli_folder_open"}` (sent just before the panel shows: the sheet says "choose the folder in the panel" only then —
+review c A-L7), `{"type":"cli_folder","path":<absolute>}` (the folder picked in the shell's native NSOpenPanel),
+`{"type":"cli_folder_cancelled"}` (none: cancelled, or another question was up — the sheet says "No folder was
+chosen"), `{"type":"notifications","state":"on"|"off"|"unknown"}` (the answer of
+`requestAuthorization`; test mode never calls UN and says `unknown`). The chosen folder is checked when it arrives
+(`checkCliFolder`: absolute, a folder once links are followed, the person's (uid), writable, outside the workspace and
+the app) and kept for `setup_cli_install {folder: "chosen"}`.
+
+**The command** (plan §4, critique L1 / L4). A symbolic link `~/.local/bin/retake` (created 0755 when missing) or
+`<chosen>/retake` → `Contents/Resources/bin/retake`; recorded in `app.json` (`cli: {path, at}`). `cliLinkState`: absent,
+ours, another copy of Retake (review c B-M3: the exact layout `<X>.app/Contents/Resources/bin/retake` AND `<X>.app`'s
+Info.plist naming `APP_BUNDLE_ID` — tauri.conf.json's `identifier`, or a test build's `<id>.<suffix>`; dangling when that
+app is gone), foreign (a file, a folder, a link elsewhere — a formula's `…/bin/retake`, another app's launcher). A
+foreign file is never replaced nor removed; another copy's link only with Replace (an atomic rename of a new link).
+**One command per app** (review c B-M1): the status, Install and Uninstall read the link recorded in `app.json` beside
+the default folder — after a restart the sheet shows the chosen folder's link as installed; Install into another folder
+while this app's link exists is refused (409 `installed_elsewhere`: Uninstall first); Uninstall removes this app's link
+(the recorded one first), nothing else — and works from a misplaced app too (it only takes a link away). The PATH said
+is the server's (the app's launchd PATH: it cannot see the shell's, and never runs the login shell): whether the folder
+is on it, which `retake` comes first, and the zsh line to copy into `~/.zprofile` (`export PATH="$HOME/.local/bin:$PATH"`;
+a name with anything zsh expands or ends on is single-quoted — `zshQuote`, review c A-L1); "check it: open a new
+Terminal window and run retake doctor". Doctor's **retake command** line (bundled; from a checkout only a dangling
+link): the link, a link to a removed app (its `rm` hint quoted to paste), another copy's, a foreign file, another
+`retake` first on the PATH.
+
+**Claude Code** (Q5). `pluginInstallSteps` (mcp: the argv form of `pluginInstallCommands`, same values: the bundle's
+Node.js, `engine/dist/bin.js`, the workspace, `home` when RETAKE_HOME is set; marketplace = `Resources/plugin`). Run
+finds `claude` in a fixed list (`~/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.claude/local`), runs the two
+lines as argv (`shell: false`, the install line's `cd` as its working folder, stdin closed, its own process group),
+with a small environment (PATH: claude's folder, the system's, Homebrew's, the app's Node.js last; HOME, USER, LOGNAME,
+LANG, LC_ALL, TMPDIR, CLAUDE_CONFIG_DIR — nothing else), stops at the first failure, 60 s for the run (then SIGTERM to
+the group, SIGKILL 2 s later: "run the lines in Terminal"), output without escape sequences or control characters,
+16 KB at most. A step ends when its process **exits** (its exit code decides) plus 200 ms for the last output, then its
+pipes are destroyed (review c A-M1: a helper `claude` leaves in a session of its own never holds the answer; at the
+limit the answer comes after SIGKILL whatever the pipes do). One run at a time (409 `busy`, review c A-L5).
+
+**Claude Desktop** (Q5, critique M7). `planDesktopEntry` (pure): create / add / same / replace; refused: unparsable
+JSON, a top level or an `mcpServers` that is no object. `writeDesktopEntry`: the folder must exist (Claude Desktop made
+it: nothing is created in ~/Library); a symlinked config is written at its real path; a backup
+`<Retake home>/backups/claude-desktop/<name>.retake-backup-<ISO time>[-n]` first (review c A-L2: Retake's own folder,
+0700, each copy 0600, a unique name, 5 kept — never beside the file nor beside a symlink's target, where a dotfiles
+repository would get every server's `env`); the new text through a temporary file beside the real target with the old
+mode (0600 for a new file), fsync, rename; read back — the entry must be there (else `not_kept`, naming the backup). The
+op refuses while Claude Desktop runs (`ps -axo comm=`: `…/Claude.app/Contents/MacOS/Claude`), when `ps` cannot tell
+(409 `claude_unknown`, review c A-L3) and a different entry without `replace`; the sheet shows both entries before
+Replace.
+
+**Two copies of Retake** (critique M6). The worker lock records `engine` (core `engineLocation`: the `.app`, or the
+checkout holding `pnpm-workspace.yaml`; read back only as an absolute one-line path). `otherCopy` (another engine, or
+another version): engine_info (`worker.other_copy: true`, the copy under `untrusted.worker_other_copy`), the Welcome
+inspector's Worker row, doctor's MCP line, the warnings of a run or render submit ("this job runs there, with that
+copy's browsers and tools": fixed words and the version only) and the Studio's own submits (scenario_run /
+scenario_render `untrusted.other_copy` → the "queued" line, review c B-M2). Every shown field of a lock has its shape
+when it is read (review c A-L4): a version's (`LOCK_VERSION_RE`, ≤ 40 characters; else dropped, said as `?`), a build
+stamp's, an ISO time, a host and an engine path without control or invisible characters; doctor prints them through
+the same filter. Signed-in profiles:
+every launch on a persona's profile (`BrowserSession.open` with its user data folder, `retake login`'s window, a
+recording's copy) compares the Chromium major it would run (`launchMajor`: playwright-core's pinned versions, or a
+macOS app's Info.plist; unknown → not checked) with the newest the profile records (our `retake-browser.json` and
+Chromium's own `Last Version`) and refuses an older one before Chromium starts; a launch records its major.
+
+**Measured** (the gated acceptance, 2026-11-03, after the L5.16c fixes): build 102 s (stage 13.4 s, payload signing
+4.3 s, `tauri build` 43.8 s, verification 15.9 s, DMG 24.5 s); 35 / 35 signatures; app 989 MB, DMG 422 MB; doctor 2.3 s;
+capture 51 s (25 steps); `render --review` 77 s (1,808 frames, clean); the Studio 1.0 s; the first run (no workspace,
+test mode's Create) served `~/Retake` of a scratch HOME 1.2 s after start, then the setup ops on that server linked the
+command (run through the link), took the panel's folder from stdin (installing there refused until the first link was
+uninstalled), said a second, empty panel as `cancelled`, reached the shell for the notification request and refused
+Claude Desktop (no folder); the first run's Choose a Folder… (a non-empty folder refused by `retake init`, asked again,
+an empty folder made the workspace) 1.6 s. Every child ran with CFFIXED_USER_HOME at its scratch home: Chromium's
+`~/Library/…/Crashpad/settings.dat` untouched. Whole run 261 s, 8 / 8.
+
+**Words.** Every shell sentence naming `pnpm` / `desktop:build` has its bundled variant ("install it again from its disk
+image": config.rs, rules.rs, child.rs's usage exit; notify.rs's one line is reached only outside an app bundle). The
+Help menu: Set Up Retake…, Install the retake Command…, Uninstall the retake Command… (no keys; `{app}` in a label is
+the app's name — no product name in the shell's sources).
 
 ## 5. Fixture product (`fixtures/wholesale`)
 

@@ -75,4 +75,7 @@ export {
 } from './server/supervise.js';
 export type { JobEnd, PendingSnapshot, PipeJob, PipeKind, PipeOut, PipeOutcome, PipeReason, SupervisorOptions } from './server/supervise.js';
 export type { Launched } from './server/launch.js';
-export { DESKTOP_OPS, DesktopAnswerInput, DesktopPipe, QUIT_ID_RE, SHOWN_PER_MIN, desktopOps } from './server/desktop.js';
+export { DESKTOP_OPS, DesktopAnswerInput, DesktopPipe, QUIT_ID_RE, SETUP_ACTIONS, SHELL_LINE_MAX, SHOWN_PER_MIN, desktopOps, parseShellLine } from './server/desktop.js';
+export type { SetupAction, ShellLine } from './server/desktop.js';
+export { PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SetupState, applyShellLine, setupOps, systemSetupContext } from './server/setup-ops.js';
+export type { SetupContext } from './server/setup-ops.js';

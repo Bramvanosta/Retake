@@ -44,7 +44,7 @@ import { INSPECT_TOOLS } from './tools/inspect.js';
 import { AUTHORING_TOOLS } from './tools/authoring.js';
 import { COMMENT_TOOLS } from './tools/comments.js';
 
-export { MCP_HTTP_TOKEN_ENV, PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, clientPath, mcpConfigJson, mcpHttpConfigJson, mcpHttpEntry, mcpHttpTokenExport, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot, stableNodePath } from './config-snippet.js';
+export { MCP_HTTP_TOKEN_ENV, PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, clientPath, mcpConfigJson, mcpHttpConfigJson, mcpHttpEntry, mcpHttpTokenExport, mcpServerEntry, pluginInstallCommands, pluginInstallSteps, pluginMarketplaceRoot, stableNodePath } from './config-snippet.js';
 export type { McpConfigInput, McpHttpEntry, McpServerEntry } from './config-snippet.js';
 export { DEFAULT_MCP_HTTP_PORT, MCP_HTTP_BODY_MAX, MCP_HTTP_PATH, startMcpHttpServer } from './http.js';
 export type { McpHttpOptions, McpHttpServer } from './http.js';

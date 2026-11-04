@@ -1,8 +1,8 @@
 import { realpathSync } from 'node:fs';
 import { relative, isAbsolute } from 'node:path';
 import { z } from 'zod';
-import { newVarName, sandboxAdvice, sandboxAdviceText } from '@retake/core';
-import { README_MAX_CHARS, formatBytes } from '@retake/engine';
+import { engineLocation, newVarName, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { README_MAX_CHARS, formatBytes, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
 import { READ, WRITE_FILES, defineTool } from './define.js';
@@ -32,13 +32,16 @@ export const engineInfo = defineTool({
     const info = engine.info();
     const projects = await engine.projects.list();
     const w = await engine.jobs.worker();
-    const worker = w ? { pid: w.pid, since: w.since, build: w.build, ...(w.started_by ? { started_by: w.started_by } : {}) } : null;
+    // L5.16c (critique M6): a worker of another copy of Retake (the app and a checkout, two apps) runs this client's jobs.
+    const other = otherCopy(w, { engine: engineLocation(), version: info.version });
+    // Its folder is the lock's text (review c A-L4): under `untrusted`; the summary says the version's shape only.
+    const worker = w ? { pid: w.pid, since: w.since, build: w.build, ...(w.started_by ? { started_by: w.started_by } : {}), ...(other ? { other_copy: true } : {}) } : null;
     const usage = await engine.usage();
     const startedIn = process.cwd();
     const elsewhere = !isInside(startedIn, info.root);
     return {
-      summary: `Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''}${info.legacy?.old_home ? ` The signed-in sessions from before the rename (${info.legacy.old_home}${info.legacy.old_home_var ? `, the folder ${info.legacy.old_home_var} names` : ''}) are not read: personas show as never signed in until the user ${info.legacy.old_home_var ? 'sets RETAKE_HOME to that folder or moves it' : 'moves them'} (retake doctor, in their terminal, says how).` : ''}${info.legacy?.old_vars ? ` This server's environment sets ${info.legacy.old_vars.join(', ')} (names from before the rename), no longer read: ask the user to rename ${info.legacy.old_vars.length === 1 ? 'it' : 'them'} ${info.legacy.old_vars.map(newVarName).join(', ')} where set (their shell profile, this MCP registration's env).` : ''} Next: project_list, then project_get.`,
-      data: { ...info, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage },
+      summary: `Retake ${info.version} (engine API ${info.api}) · workspace ${info.root} · ${plural(projects.length, 'project')} · jobs worker ${w ? `running (pid ${w.pid}${other ? `, another copy of Retake: ${other.version} (its folder in untrusted.worker_other_copy) — jobs run with its tools` : ''})` : 'idle (started when a job is submitted)'} · history: ${plural(usage.captures, 'capture')}, ${plural(usage.dry_runs, 'dry run')}, ${plural(usage.renders, 'render')}.${elsewhere ? ` Started in ${startedIn}, outside the workspace: if that is this session's folder, the registration (or the plugin's values, shared by every folder it is installed in) names another workspace — ask the user before going on.` : ''}${info.legacy?.old_home ? ` The signed-in sessions from before the rename (${info.legacy.old_home}${info.legacy.old_home_var ? `, the folder ${info.legacy.old_home_var} names` : ''}) are not read: personas show as never signed in until the user ${info.legacy.old_home_var ? 'sets RETAKE_HOME to that folder or moves it' : 'moves them'} (retake doctor, in their terminal, says how).` : ''}${info.legacy?.old_vars ? ` This server's environment sets ${info.legacy.old_vars.join(', ')} (names from before the rename), no longer read: ask the user to rename ${info.legacy.old_vars.length === 1 ? 'it' : 'them'} ${info.legacy.old_vars.map(newVarName).join(', ')} where set (their shell profile, this MCP registration's env).` : ''} Next: project_list, then project_get.`,
+      data: { ...info, started_in: startedIn, started_outside_workspace: elsewhere, projects: projects.length, worker, usage, ...(other ? { untrusted: { worker_other_copy: other } } : {}) },
     };
   },
 });

@@ -24,6 +24,7 @@ import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { selfIdentity } from '@retake/engine';
+import { shellLineReader } from '../src/commands/ui.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 
@@ -178,6 +179,20 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect(existsSync(marker), 'the workspace’s ffmpeg ran').toBe(false);
     first.child.kill('SIGTERM');
     expect((await first.exit).code).toBe(0);
+  });
+
+  it('L5.16c fixes (review c B-L8): the shell\'s stdin lines — whole lines out, the cap counted in bytes, a long line dropped whole', () => {
+    const got: string[] = [];
+    const read = shellLineReader((l) => got.push(l), 16);
+    // A three-byte character split between two chunks; a line of 6 such characters is 18 bytes (6 UTF-16 units): dropped.
+    const euro = Buffer.from('\u20ac');
+    read(Buffer.concat([Buffer.from('ab'), euro.subarray(0, 1)]));
+    read(Buffer.concat([euro.subarray(1), Buffer.from('c\n')]));
+    read(Buffer.from(`${'\u20ac'.repeat(6)}\nok\n`));
+    // Past the cap without its newline yet: dropped with the rest of that line.
+    read(Buffer.from('x'.repeat(20)));
+    read(Buffer.from('tail\nnext\n'));
+    expect(got).toEqual(['ab\u20acc', 'ok', 'next']);
   });
 
   describe('--supervised (L5.2)', () => {

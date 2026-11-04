@@ -16,6 +16,7 @@ import type { Loaded } from './api.js';
 import { Lately, SearchBox } from './Activity.js';
 import { Txt, When, plural, shown } from './bits.js';
 import { APP_NAME } from './brand.js';
+import { otherCopyOf, otherCopyWords } from './other-copy.js';
 import { onlyRunProgress, useEvents } from './events.js';
 import { envFlagWords } from './board-words.js';
 import { hrefTo } from './route.js';
@@ -34,7 +35,9 @@ interface EngineInfo {
   version: string;
   root: string;
   projects_dir?: string;
-  worker: { pid: number; started_by?: string } | null;
+  worker: { pid: number; started_by?: string; other_copy?: boolean } | null;
+  /** L5.16c fixes (review c A-L4): the other copy of Retake its worker runs (the lock's text). */
+  untrusted?: { worker_other_copy?: unknown };
 }
 
 const RUN_STATE: Record<string, [MarkState, string]> = {
@@ -183,7 +186,7 @@ export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
               { key: 'folder', label: 'Folder', value: <Txt className="k-mono" text={info.state === 'ready' ? info.data.root : list.state === 'ready' ? list.data.root : ''} /> },
               { key: 'projects', label: 'Projects', value: list.state === 'ready' ? plural(list.data.projects.length, 'project') : '…' },
               { key: 'version', label: 'Version', value: info.state === 'ready' ? info.data.version : '…' },
-              { key: 'worker', label: 'Worker', value: info.state === 'ready' ? (info.data.worker ? `running (pid ${info.data.worker.pid})` : 'idle: it starts with the next job') : '…' },
+              { key: 'worker', label: 'Worker', value: info.state === 'ready' ? (info.data.worker ? <Txt text={`running (pid ${info.data.worker.pid})${otherCopyWords(otherCopyOf(info.data, 'worker_other_copy'))}`} /> : 'idle: it starts with the next job') : '…' },
             ]}
           />
         </InspectorSection>

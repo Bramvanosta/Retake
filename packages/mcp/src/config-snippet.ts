@@ -164,6 +164,15 @@ export function pluginMarketplaceRoot(bin: string, exists: (p: string) => boolea
  * again updates the values.
  */
 export function pluginInstallCommands(o: McpConfigInput & { repo: string }): string[] {
+  const [add, install] = pluginInstallSteps(o);
+  return [`claude ${add!.argv.map(shellQuote).join(' ')}`, `cd ${shellQuote(install!.cwd!)} && claude ${install!.argv.map(shellQuote).join(' ')}`];
+}
+
+/**
+ * The same two lines as argv for `claude` (L5.16c: the installed app's Set-up sheet runs them on the person's click — no
+ * shell; the install line's `cd` becomes its working folder).
+ */
+export function pluginInstallSteps(o: McpConfigInput & { repo: string }): Array<{ argv: string[]; cwd?: string }> {
   const e = mcpServerEntry(o);
   const env = o.env ?? process.env;
   // The entry point is the argument before --root (an app bundle's guard comes first; the plugin's own .mcp.json starts
@@ -171,7 +180,7 @@ export function pluginInstallCommands(o: McpConfigInput & { repo: string }): str
   const config: Array<[string, string]> = [['node', e.command], ['cli', e.args[e.args.indexOf('--root') - 1]!], ['workspace', o.root]];
   if (env.RETAKE_HOME?.trim()) config.push(['home', retakeHome(env)]);
   return [
-    `claude plugin marketplace add ${shellQuote(o.repo)}`,
-    `cd ${shellQuote(o.root)} && claude plugin install ${PLUGIN_ID} --scope local ${config.map(([k, v]) => `--config ${shellQuote(`${k}=${v}`)}`).join(' ')}`,
+    { argv: ['plugin', 'marketplace', 'add', o.repo] },
+    { argv: ['plugin', 'install', PLUGIN_ID, '--scope', 'local', ...config.flatMap(([k, v]) => ['--config', `${k}=${v}`])], cwd: o.root },
   ];
 }

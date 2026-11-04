@@ -359,3 +359,37 @@
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
+
+/* L5.16c: the installed app's Set-up sheet (SetupSheet.tsx): wider than a confirmation, scrolling inside the window. */
+dialog.k-sheet[data-testid='setup-sheet'] {
+  width: min(var(--ui-palette-w), calc(100% - 32px));
+  /* A modal dialog is fixed: its percentages are the window's (no vh in a height: the lint). */
+  max-height: calc(100% - var(--ui-titlebar-h) - var(--ui-space-8));
+  overflow-y: auto;
+}
+.sh-setup-path,
+.sh-setup-pre {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.sh-setup-pre {
+  white-space: pre-wrap;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-hairline);
+  border-radius: var(--ui-radius-well);
+  color: var(--ui-text-2);
+}
+.sh-setup-output {
+  display: grid;
+  gap: var(--ui-space-3);
+}
+.sh-setup-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-4);
+}
+.sh-setup-confirm > p {
+  flex-basis: 100%;
+  margin: 0;
+}

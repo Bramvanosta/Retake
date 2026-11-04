@@ -4013,10 +4013,57 @@ macOS 15 or later, Apple silicon.
    carries the quarantine mark) — try to open it once, then System Settings › Privacy & Security › Open Anyway
    (macOS 15 no longer offers Control-click › Open for it). A copy built on this Mac and never downloaded opens
    directly.
-3. The command line is inside the app: `/Applications/Retake.app/Contents/Resources/bin/retake doctor` (every tool
-   says `bundled`). Link to it rather than copying it (a copy outside the app refuses to run). The app's code only
-   loads its own modules: a `node_modules` folder above the app (in /Applications, your home…) is never read. A link on your PATH, the first-run sheet and the Claude registrations come with the next part of
-   the lot.
+3. **Move it first.** Opened straight from the disk image or from Downloads, macOS runs a temporary, read-only copy
+   of the app (App Translocation) or the image under /Volumes: the app works, but its Set-up sheet keeps the command
+   and the Claude registrations off and says "Move Retake to Applications, then open it again" (a path recorded then
+   would point into a folder that goes away). `retake doctor`'s App location line says the same.
+4. **The first run.** With no workspace yet the app asks: **Create ~/Retake** (the default: the app's own
+   `retake init` makes a `retake.yaml` and a `projects/` folder), **Choose a Folder…** (a workspace you have, or an
+   empty folder made one) or **Quit**. The choice is remembered; File › Open Workspace… changes it. A folder `retake
+   init` refuses (one that is not empty and not a workspace) is left as it is, and the question comes back with the
+   reason.
+5. **The Set-up sheet** opens at the first start, its title focused (Return there chooses nothing), until you close
+   it with **Done** — Escape closes it without that, so it opens again next time (Help › Set Up Retake… brings it back
+   any time). Every step is optional and happens only when you click it:
+   - **Command line** — Install links `~/.local/bin/retake` (or a folder you choose in the app's own panel) to the
+     `retake` inside the app, so it always runs the version of the app you have. It never replaces a file that is not
+     such a link (your own `retake` script stays), a link to another copy of the app only with Replace, and it never
+     edits your shell profile: when the folder is not on the PATH the app was given, the sheet shows the line to add to
+     `~/.zprofile` (`export PATH="$HOME/.local/bin:$PATH"`; a folder whose name holds a space, a quote or a `$` is
+     single-quoted, so pasting the line never runs anything). "Another copy of the app" means a link to
+     `<Some>.app/Contents/Resources/bin/retake` in an app whose identifier is Retake's — any other `…/bin/retake` is
+     your file. The app keeps one command: the folder it linked is remembered (`app.json` in the Retake home), and
+     installing in another folder waits until you Uninstall that one. The app cannot see your shell's PATH — check in
+     a new Terminal window: `retake doctor` (its `retake command` line names the link, a link left dangling after the
+     app moved, a file in its place that is not Retake's, another `retake` first on your PATH). **Uninstall:** Help ›
+     Uninstall the retake Command… removes this app's link (nothing else), or `rm ~/.local/bin/retake`. Deleting the
+     app leaves a dangling link behind (doctor says so, with the `rm` line to paste).
+   - **Claude Code** — the Retake plugin with the app's Node.js, engine and this workspace: the sheet shows the two
+     `claude plugin …` lines (Copy) and Run runs them for you with the `claude` it finds in `~/.local/bin`,
+     `/opt/homebrew/bin`, `/usr/local/bin` or `~/.claude/local` (no shell; your `CLAUDE_CONFIG_DIR` when the app has it;
+     60 s, then "run them in Terminal" — Claude Code may be asking a question; the answer comes when `claude` itself
+     exits, even if something it started keeps running; one run at a time). Its output is shown as text.
+   - **Claude Desktop** — Add to Claude Desktop… shows the exact `mcpServers.retake` entry and the file
+     (`~/Library/Application Support/Claude/claude_desktop_config.json`), and writes it only when you confirm: a
+     backup first in the Retake home's `backups/claude-desktop/` (private to you; the last 5 kept — never next to the
+     file, nor in a dotfiles repository a symlinked config points into), every other setting kept, a symlinked config
+     written where it really lives, its permissions kept, read back after. It refuses a file that is not valid JSON,
+     asks you to quit Claude Desktop first (it may write its settings over the change) — and waits too when it cannot
+     tell whether Claude Desktop runs — and replaces a different `retake` entry only with Replace. Copy entry is always
+     there to do it by hand.
+   - **Notifications** (Allow… asks macOS now), **screen recording** (not needed: captures are headless), the **local
+     network** (macOS asks the first time a capture opens a site on your network).
+   No MCP tool can install the command or register Retake with Claude: these are the Studio's own operations, on the
+   app's own server only.
+6. The command line is inside the app either way: `/Applications/Retake.app/Contents/Resources/bin/retake doctor`
+   (every tool says `bundled`). Link to it rather than copying it (a copy outside the app refuses to run). The app's
+   code only loads its own modules: a `node_modules` folder above the app (in /Applications, your home…) is never read.
+   Hooks and sandbox commands run with the app's Node.js first on their PATH (BL-141).
+7. **Two copies of Retake** (the app and a repository checkout, or two apps) share your workspaces and the Retake home:
+   a workspace's jobs run in the worker of whichever copy started it — doctor, the Studio's Welcome inspector, the
+   Studio's own Capture / Rehearse / Render ("queued" line) and an MCP submit say when it is another copy (version,
+   path; to an agent, the path only under `untrusted` in engine_info). A signed-in profile is never opened by an older Chromium than
+   the one that opened it last (that would downgrade it and may lose its sessions): the run says which copy to use.
 
 **Building the app and the DMG** (from a checkout, offline once the caches are filled):
 
@@ -4040,7 +4087,8 @@ without it the app uses the system's ffmpeg. `--stage <dir>` reuses a stage (`bu
 `--locked` (`--offline` when `CARGO_NET_OFFLINE=true`). The end-to-end check of a built app is opt-in:
 `RETAKE_TEST_BUNDLE=1 RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg folder> npx vitest run
 packages/cli/test/app-bundle-acceptance.test.ts` (≈ 7 min: builds, then doctor, a capture and a render of the fixture
-through the app's own command, the app's window serving the Studio, no module loaded from above the app, the signature
+through the app's own command, the app's window serving the Studio, its first run creating ~/Retake in a scratch home
+and its Set-up operations linking the command there, no module loaded from above the app, the signature
 intact afterwards; `RETAKE_TEST_BUNDLE_APP=<Retake.app>` checks a built one). `pnpm desktop:build` keeps building the
 developer app below, which runs this repository's CLI.
 

@@ -14,6 +14,13 @@
  *   app's headless shell (the render record says `bundled`), the review passes;
  * - the shell binary started directly (Contents/MacOS, test mode — never `open` / Launch Services) serves the Studio
  *   from the app's own Node.js and engine (the server's command line), the page redeems its code, SIGTERM stops it;
+ * - L5.16c: the first run — no workspace, test mode answers Create ~/Retake: the app's own `retake init` makes it in the
+ *   scratch HOME and the Studio serves it; then the Set-up sheet's ops on that server: the command linked into the scratch
+ *   HOME's ~/.local/bin and run through the link, the folder panel (test mode's pick) answering on the server's stdin,
+ *   the notification request reaching the shell, Claude Desktop refused (no folder: nothing created), Done remembered;
+ *   L5.16c fixes: one command per app (installing elsewhere waits for Uninstall), a panel that gives nothing is said
+ *   (`cancelled`); the first run's Choose a Folder… — a folder that is not empty refused by `retake init`, the question
+ *   asked again with the reason, then an empty folder made the workspace (review c B-L5);
  * - module lookups never leave the app (review A H1): canary packages — every bare specifier the engine's JavaScript
  *   names that the engine does not hold, bufferutil and utf-8-validate among them — planted in the node_modules folders
  *   above the app (this test's folders only) and in the scratch home's ~/node_modules and ~/.node_modules never run
@@ -22,7 +29,8 @@
  * - bundle.json's sha256 values are the app's files' (review B M3);
  * - afterwards the app still verifies (`codesign --verify --deep --strict`), nothing inside it is newer than the start
  *   of the runs, and ~/Library's entries named after the bundle id are unchanged — names, sizes and mtimes (Launch
- *   Services' record of the scratch app is removed with `lsregister -u`). The numbers (sizes, timings) are printed and
+ *   Services' record of the scratch app is removed with `lsregister -u`) — and Chromium's crash reporter settings there
+ *   too (every child runs with CFFIXED_USER_HOME at the scratch home: L5.16c fixes). The numbers (sizes, timings) are printed and
  *   written to RETAKE_TEST_BUNDLE_REPORT when set.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -30,7 +38,7 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -75,6 +83,8 @@ const du = (p: string) => Number(spawnSync('du', ['-sk', p], { encoding: 'utf8' 
  * only: never deleted — a developer app may share the id, so a write into its existing folders must show too).
  */
 function libraryEntries(): string[] {
+  // The account's home (not $HOME: a scratch HOME must not hide a write into the real ~/Library).
+  const homedir = () => userInfo().homedir;
   const found: string[] = [];
   const visit = (abs: string, rel: string) => {
     const st = lstatSync(abs, { throwIfNoEntry: false });
@@ -91,6 +101,8 @@ function libraryEntries(): string[] {
     }
     for (const n of names) if (n.startsWith(BUNDLE_ID) || n === BIN_NAME || n.startsWith(`${BIN_NAME}.`)) visit(join(homedir(), 'Library', d, n), join(d, n));
   }
+  // Chromium's crash reporter settings (its browsers find ~/Library through NSHomeDirectory, not $HOME).
+  visit(join(homedir(), 'Library', 'Application Support', 'Chromium', 'Crashpad', 'settings.dat'), 'Application Support/Chromium/Crashpad/settings.dat');
   return found.sort();
 }
 
@@ -179,7 +191,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     report.build_ms = Date.now() - t0;
     const home = join(base, 'home');
     for (const d of ['home', 'retake-home', 'tmp', 'bin']) mkdirSync(join(base, d), { recursive: true });
-    env = { HOME: home, RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off' };
+    env = { HOME: home, CFFIXED_USER_HOME: home, RETAKE_HOME: join(base, 'retake-home'), TMPDIR: `${join(base, 'tmp')}/`, PATH: '/usr/bin:/bin:/usr/sbin:/sbin', LANG: 'en_US.UTF-8', RETAKE_DISK_WARN: 'off' };
     launcher = join(app, 'Contents', 'Resources', 'bin', 'retake');
     symlinkSync(launcher, join(base, 'bin', 'retake'));
     libraryBefore = libraryEntries();
@@ -302,6 +314,106 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     shell = undefined;
     expect(existsSync(uiJson)).toBe(false);
     expect(out).toMatch(/quit: SIGTERM/);
+  }, 3 * 60_000);
+
+  it('L5.16c: the first run (no workspace: test mode answers Create ~/Retake), then the Set-up sheet\'s ops on the app\'s own server: the command linked into the scratch HOME and run through the link, the folder panel and the notification request through the pipe', async () => {
+    const t0 = Date.now();
+    let out = '';
+    const home2 = join(base, 'home-first-run');
+    const pick = join(home2, 'tools');
+    mkdirSync(pick, { recursive: true });
+    shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
+      cwd: base,
+      env: { ...env, HOME: home2, CFFIXED_USER_HOME: home2, RETAKE_HOME: join(base, 'retake-home-first-run'), RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_ANSWERS: '0', RETAKE_DESKTOP_TEST_PICK: pick },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+    shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+    const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
+    const made = join(home2, 'Retake');
+    const uiJson = join(made, '.retake', 'ui.json');
+    const rec = await until(() => {
+      try {
+        return JSON.parse(readFileSync(uiJson, 'utf8')) as { pid: number; port: number; token: string };
+      } catch {
+        return undefined;
+      }
+    }, 60_000, `the first run's Studio server (${out.slice(-800)})`);
+    report.first_run_ms = Date.now() - t0;
+    expect(out).toContain('(test mode) alert: Welcome to Retake');
+    expect(out).toContain(`first run: retake init ${made}`);
+    expect(existsSync(join(made, 'retake.yaml'))).toBe(true);
+    expect(existsSync(join(made, 'projects'))).toBe(true);
+    const call = async (op: string, args: object = {}) => {
+      const r = await fetch(`http://127.0.0.1:${rec.port}/v1/call/${op}`, { method: 'POST', headers: { authorization: `Bearer ${rec.token}`, 'content-type': 'application/json' }, body: JSON.stringify(args) });
+      return { status: r.status, body: (await r.json()) as { data: Record<string, any>; error?: { details?: { reason?: string } } } };
+    };
+    const st = (await call('setup_status')).body.data;
+    expect(st).toMatchObject({ available: true, location: 'ok', seen: false, app, workspace: made });
+    expect(st.cli).toMatchObject({ dir: join(home2, '.local', 'bin'), state: 'absent' });
+    const inst = await call('setup_cli_install', { folder: 'default' });
+    expect(inst.body.data, JSON.stringify(inst.body)).toMatchObject({ result: 'created' });
+    const link = join(home2, '.local', 'bin', 'retake');
+    const v = retake(['--version'], { via: link });
+    expect(v.stdout.trim()).toContain(`(app bundle: ${app})`);
+    // The folder panel (test mode: RETAKE_DESKTOP_TEST_PICK) answers on the server's stdin; then the command goes there
+    // — once the one in ~/.local/bin is uninstalled (one command per app: review c B-M1).
+    expect((await call('setup_cli_choose')).status).toBe(200);
+    await until(async () => (await call('setup_status')).body.data.cli.chosen === true, 15_000, `the panel's answer (${out.slice(-500)})`);
+    expect((await call('setup_cli_install', { folder: 'chosen' })).body.error?.details?.reason).toBe('installed_elsewhere');
+    expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: link });
+    expect((await call('setup_cli_install', { folder: 'chosen' })).body.data).toMatchObject({ result: 'created', path: join(pick, 'retake') });
+    // A second panel gives nothing (test mode's picks are used up): said as cancelled, the chosen link kept.
+    expect((await call('setup_cli_choose')).status).toBe(200);
+    await until(async () => (await call('setup_status')).body.data.cli.panel === 'cancelled', 15_000, `the cancelled panel (${out.slice(-500)})`);
+    expect((await call('setup_status')).body.data.cli).toMatchObject({ installed: join(pick, 'retake'), state: 'ours' });
+    // The notification request reaches the shell (test mode: logged, never UN) and its answer comes back.
+    expect((await call('setup_notifications')).status).toBe(200);
+    await until(() => out.includes('(test mode) notifications: the permission would be asked now'), 15_000, 'the notification request');
+    // Claude Desktop has no folder in the scratch HOME: refused, nothing created under its Library.
+    expect((await call('setup_claude_desktop_add')).body.error?.details?.reason).toMatch(/no_claude|claude_running/);
+    expect(existsSync(join(home2, 'Library', 'Application Support', 'Claude'))).toBe(false);
+    expect((await call('setup_cli_remove')).body.data).toMatchObject({ result: 'removed', path: join(pick, 'retake') });
+    expect(existsSync(join(pick, 'retake'))).toBe(false);
+    expect((await call('setup_done')).status).toBe(200);
+    shell.kill('SIGTERM');
+    expect(await exited).toBe(0);
+    shell = undefined;
+    // Remembered: the next start opens it with no question.
+    expect(readFileSync(join(base, 'retake-home-first-run', 'desktop.json'), 'utf8')).toContain(made);
+  }, 3 * 60_000);
+
+  it('L5.16c fixes (review c B-L5): the first run\'s Choose a Folder… — a folder that is not empty is refused by retake init and the question comes back with the reason; then an empty folder becomes the workspace', async () => {
+    const t0 = Date.now();
+    let out = '';
+    const home3 = join(base, 'home-first-run-choose');
+    const full = join(home3, 'Documents');
+    const empty = join(home3, 'Videos');
+    mkdirSync(full, { recursive: true });
+    mkdirSync(empty, { recursive: true });
+    writeFileSync(join(full, 'notes.txt'), 'the person\'s file\n');
+    shell = spawn(join(app, 'Contents', 'MacOS', BIN_NAME), [], {
+      cwd: base,
+      env: { ...env, HOME: home3, CFFIXED_USER_HOME: home3, RETAKE_HOME: join(base, 'retake-home-choose'), RETAKE_ROOT: '', RETAKE_DESKTOP_TEST: '1', RETAKE_DESKTOP_TEST_ANSWERS: '1,1', RETAKE_DESKTOP_TEST_PICK: `${full}:${empty}` },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    shell.stdout!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+    shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
+    const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
+    const uiJson = join(empty, '.retake', 'ui.json');
+    await until(() => existsSync(uiJson), 60_000, `the chosen folder's Studio server (${out.slice(-800)})`);
+    report.first_run_choose_ms = Date.now() - t0;
+    expect(out).toContain(`first run: retake init ${full}`);
+    expect(out).toContain('first run: retake init failed');
+    expect(out).toContain(`first run: retake init ${empty}`);
+    // Asked twice (the second time with the reason), the person's folder left as it was.
+    expect(out.split('(test mode) alert: Welcome to Retake').length - 1).toBe(2);
+    expect(readdirSync(full)).toEqual(['notes.txt']);
+    expect(existsSync(join(empty, 'retake.yaml'))).toBe(true);
+    shell.kill('SIGTERM');
+    expect(await exited).toBe(0);
+    shell = undefined;
+    expect(readFileSync(join(base, 'retake-home-choose', 'desktop.json'), 'utf8')).toContain(empty);
   }, 3 * 60_000);
 
   it('above Resources: a clone of the app with canaries in Contents/node_modules and Retake.app/node_modules runs doctor without loading them', () => {

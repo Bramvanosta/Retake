@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import { mkdtempSync, realpathSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { homedir, tmpdir, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -21,6 +21,13 @@ const real = (p: string) => {
 };
 const REAL_HOMES = [join(homedir(), '.retake'), join(homedir(), '.demo-studio')]; // old-name: the home before L5.13 is refused too
 if (REAL_HOMES.some((h) => testHome === h || real(testHome) === real(h))) throw new Error(`RETAKE_HOME is ${testHome}, a real Retake home: tests use a scratch one (unset it, or name a temp folder)`);
+// L5.16c fixes: Chromium on macOS finds ~/Library through NSHomeDirectory (the account's home, whatever HOME says) and
+// its crash reporter writes ~/Library/Application Support/Chromium/Crashpad there; CFFIXED_USER_HOME moves that home
+// for every process a test starts (the browsers of the e2e tests, captures, renders) to a scratch folder — made here
+// unless the shell names one, removed at the end of the run (vitest.teardown.mjs).
+if (!process.env.CFFIXED_USER_HOME?.trim()) process.env.CFFIXED_USER_HOME = process.env.RETAKE_TEST_CFHOME_MADE = mkdtempSync(join(tmpdir(), 'retake-test-cfhome-'));
+const cfHome = process.env.CFFIXED_USER_HOME.trim();
+if (real(cfHome) === real(userInfo().homedir)) throw new Error(`CFFIXED_USER_HOME is ${cfHome}, the account's home: tests use a scratch one (unset it)`);
 
 const pkg = (name: string) => fileURLToPath(new URL(`./packages/${name}/src/index.ts`, import.meta.url));
 const kit = fileURLToPath(new URL('./packages/components/src/kit/index.ts', import.meta.url));
@@ -49,7 +56,7 @@ export default defineConfig({
     testTimeout: 120_000,
     hookTimeout: 120_000,
     // A nearly full disk is the machine's state, not a regression: captures keep measuring it but do not warn.
-    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome },
+    env: { RETAKE_DISK_WARN: 'off', RETAKE_HOME: testHome, CFFIXED_USER_HOME: cfHome },
     // Removes the temp home this config made (review A L5 / B L4: one per run, in a tight TMPDIR).
     globalSetup: ['./vitest.teardown.mjs'],
     pool: 'forks',

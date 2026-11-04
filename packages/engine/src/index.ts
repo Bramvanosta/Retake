@@ -64,7 +64,7 @@ export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './exe
 export { newJobId } from './jobs/ids.js';
 export { FileJobQueue, jobProject, jobsDir, stateDir } from './jobs/queue.js';
 export type { ClaimRecord, JobFilter } from './jobs/queue.js';
-export { WORKER_CLIENT_RE, WorkerLock, liveWorker, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
+export { WORKER_CLIENT_RE, WorkerLock, liveWorker, otherCopy, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';
 export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
@@ -88,7 +88,7 @@ export type { HookContextOptions, HookSelection } from './hooks.js';
 export { approvalChecker, preflightHooks, refusedError, takeApprovals, takeSiteApproval } from './approvals.js';
 export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker, RunBlockerKind, RunSubmitRequest } from './jobs/run-job.js';
-export { ensureWorker, spawnWorker, workerCommand } from './jobs/spawn.js';
+export { ensureWorker, otherCopyWarning, spawnWorker, workerCommand } from './jobs/spawn.js';
 export type { WorkerSpawnFn, WorkerSpawnOptions } from './jobs/spawn.js';
 export { WORKER_ENV_DROPPED, cleanWorkerEnv } from './jobs/worker-env.js';
 export type { WorkerEnvOptions } from './jobs/worker-env.js';

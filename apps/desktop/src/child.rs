@@ -157,6 +157,11 @@ fn read_pipe(mut reader: LineReader<std::process::ChildStdout>, pending: Arc<Mut
                     crate::guard::from_page(msg);
                     continue;
                 }
+                // L5.16c: the Set-up sheet's request (the person's click in the page, through the server's setup ops).
+                PipeMsg::Setup(a) => {
+                    crate::setup_request(a);
+                    continue;
+                }
                 // The server's framing newline (review A L3): nothing to say, nothing changed.
                 PipeMsg::Blank => continue,
                 PipeMsg::Ignored(why) => {
@@ -286,6 +291,45 @@ pub fn start(cfg: &LaunchConfig, workspace: &Path) -> Result<Server, StartError>
     Ok(Server { line, proc: Some(proc), pending, ends })
 }
 
+/// L5.16c, the first run: `retake init <dir>` with the app's own Node.js and CLI (its guard first, the same
+/// environment as the server's), at most 30 s. Err: its last words.
+pub fn init_workspace(cfg: &LaunchConfig, dir: &Path) -> Result<(), String> {
+    let mut cmd = Command::new(&cfg.node);
+    if let Some(preload) = &cfg.preload {
+        cmd.arg("--require").arg(preload);
+    }
+    cmd.arg(&cfg.cli).arg("init").arg(dir).stdin(Stdio::null()).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if !cfg!(debug_assertions) {
+        for (k, _) in std::env::vars_os() {
+            if k.to_str().is_some_and(child_env_dropped) {
+                cmd.env_remove(&k);
+            }
+        }
+    }
+    let mut child = cmd.spawn().map_err(|e| format!("Node.js could not be started: {e}"))?;
+    let (mut out, mut err) = (child.stdout.take().expect("piped stdout"), child.stderr.take().expect("piped stderr"));
+    let reader = thread::spawn(move || {
+        use std::io::Read;
+        let mut text = String::new();
+        let mut buf = Vec::new();
+        let _ = err.read_to_end(&mut buf);
+        let _ = out.read_to_string(&mut text);
+        format!("{}{}", String::from_utf8_lossy(&buf), text)
+    });
+    let status = wait_for(&mut child, Duration::from_secs(30));
+    if status.is_none() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    let words = reader.join().unwrap_or_default();
+    let words = sanitize(words.trim());
+    match status {
+        Some(s) if s.success() => Ok(()),
+        Some(_) => Err(if words.is_empty() { "retake init failed".into() } else { words }),
+        None => Err("retake init did not finish within 30 s".into()),
+    }
+}
+
 fn wait_for(child: &mut Child, max: Duration) -> Option<ExitStatus> {
     let t0 = Instant::now();
     loop {
@@ -305,6 +349,18 @@ impl Server {
     /// The server's last `pending` snapshot; None for an attached server (no pipe reaches it).
     pub fn pending(&self) -> Option<Pending> {
         self.proc.as_ref().map(|_| lock(&self.pending).clone())
+    }
+
+    /// L5.16c: write one line on the owned server's stdin (the Set-up sheet's answers: desktop_core::setup's lines);
+    /// false for an attached server or a closed pipe.
+    pub fn send_line(&self, line: &str) -> bool {
+        use std::io::Write;
+        let Some(p) = &self.proc else { return false };
+        let mut stdin = p.stdin.lock().unwrap_or_else(|e| e.into_inner());
+        match stdin.as_mut() {
+            Some(w) => w.write_all(format!("{line}\n").as_bytes()).and_then(|_| w.flush()).is_ok(),
+            None => false,
+        }
     }
 
     /// Send each job end of an owned server to `f` (from the reader thread), the ones held so far first.

@@ -36,7 +36,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
 import { QUIT_CLOSE_EVENT, QUIT_DETAIL_KEYS, QUIT_EVENT, QUIT_ID_RE as PAGE_QUIT_ID_RE, QUIT_LABEL_MAX, QUIT_TEXT_MAX } from '../../ui/src/app/shell/quit.js';
-import { QUIT_ID_RE as SERVER_QUIT_ID_RE } from '../../ui/src/server/desktop.js';
+import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS } from '../../ui/src/server/desktop.js';
+import { SETUP_EVENT, SETUP_SECTIONS } from '../../ui/src/app/shell/setup.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');
@@ -113,10 +114,13 @@ describe('desktop shell configuration (L5.2, static)', () => {
     // L5.12d: the second eval is eval_in_window's — called with a menu table's page command or the quit flow's scripts only.
     expect(src).toMatch(/pub\(crate\) fn eval_in_window\(app: &AppHandle, js: String\) \{\n\s*if let Some\(w\) = app\.get_webview_window\(WINDOW\) \{\n\s*let _ = w\.eval\(js\);/);
     expect(src).toContain('if let Some(js) = menu::page_command_js(id) {\n                    eval_in_window(app, js);');
-    expect(src.match(/eval_in_window\(/g)).toHaveLength(4);
+    // L5.16c: and the Help menu's Set-up sheet (desktop_core setup_page_js: a constant shape).
+    expect(src.match(/eval_in_window\(/g)).toHaveLength(5);
+    expect(src).toContain('if let Some(js) = dc::setup::setup_page_js(section) {\n        eval_in_window(app, js);');
     expect(read('src/guard.rs').match(/crate::eval_in_window\(app, js\)/g)).toHaveLength(2);
-    expect(src.match(/Command::new\(/g)).toHaveLength(1);
-    expect(src).toContain('Command::new(&cfg.node)');
+    // L5.16c: and the first run's `retake init` — the same Node.js, both argv only.
+    expect(src.match(/Command::new\(/g)).toHaveLength(2);
+    expect(src.match(/Command::new\(&cfg\.node\)/g)).toHaveLength(2);
     expect(src).not.toMatch(/"sh"|"\/bin\/sh"|"bash"|"-c"|osascript/);
     // Review A L4: a release build removes the code loaders from the child's environment.
     expect(read('src/child.rs')).toMatch(/if !cfg!\(debug_assertions\) \{\n\s*for \(k, _\) in std::env::vars_os\(\) \{\n\s*if k\.to_str\(\)\.is_some_and\(child_env_dropped\) \{\n\s*cmd\.env_remove\(&k\);/);
@@ -183,7 +187,12 @@ describe('desktop shell configuration (L5.2, static)', () => {
     const install = /pub fn install\(app: &AppHandle\) \{[\s\S]*?\n\}\n/.exec(notify)?.[0] ?? '';
     expect(install.indexOf('if !test_mode() && bundled() {')).toBeGreaterThan(0);
     expect(install.indexOf('if !test_mode() && bundled() {')).toBeLessThan(install.indexOf('currentNotificationCenter'));
-    expect(notify.match(/currentNotificationCenter\(\)/g)).toHaveLength(3);
+    // L5.16c: the Set-up sheet's Allow… asks through UN too — never in test mode, only in a bundle.
+    expect(notify.match(/currentNotificationCenter\(\)/g)).toHaveLength(4);
+    const request = /pub fn request_permission\(_app: &AppHandle\) \{[\s\S]*?\n\}\n/.exec(notify)?.[0] ?? '';
+    expect(request.indexOf('if test_mode() {')).toBeGreaterThan(0);
+    expect(request.indexOf('if test_mode() {')).toBeLessThan(request.indexOf('if !bundled() {'));
+    expect(request.indexOf('if !bundled() {')).toBeLessThan(request.indexOf('currentNotificationCenter'));
     // add() posts: called only from post (its granted branch and the permission answer).
     expect(notify.match(/\badd\(&/g)).toHaveLength(2);
     for (const call of notify.match(/\badd\(&[^\n]*/g) ?? []) expect(post).toContain(call);
@@ -417,3 +426,42 @@ describe('desktop shell configuration (L5.2, static)', () => {
     expect([...page, 'reload'].sort()).not.toEqual([...MENU_COMMANDS].sort());
   });
 });
+
+describe('L5.16c: the installed app\'s first run and Set-up sheet, shell side (static)', () => {
+  it('the Help menu: Set Up …, Install / Uninstall the retake Command…, no keys, through the page\'s Set-up sheet', () => {
+    const menu = read('src/menu.rs');
+    const help = /\(\s*"Help",\s*&\[([\s\S]*?)\],\s*\),/.exec(menu)?.[1] ?? '';
+    expect([...help.matchAll(/Item::Cmd \{ id: ([A-Z_]+), label: "([^"]+)", accelerator: None, enabled: true \}/g)].map((m) => [m[1], m[2]])).toEqual([
+      ['SET_UP', 'Set Up {app}…'],
+      ['CLI_INSTALL', 'Install the retake Command…'],
+      ['CLI_REMOVE', 'Uninstall the retake Command…'],
+    ]);
+    expect(menu.indexOf('("Window"')).toBeLessThan(menu.indexOf('"Help",'));
+    expect(menu).toContain('label.replace("{app}", name)');
+    const main = read('src/main.rs');
+    expect(main).toContain('id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),');
+    // Install from a misplaced app: the "move" alert first, never the sheet.
+    expect(main).toMatch(/if id == menu::CLI_INSTALL && loc != dc::InstallLocation::Ok \{[\s\S]*?macos::alert\(dc::setup::MOVE_TO_APPLICATIONS/);
+  });
+
+  it('one list each side: the setup event, its sections and the setup actions of the pipe', () => {
+    const rs = read('core/src/setup.rs');
+    expect(rs).toContain(`pub const SETUP_SECTIONS: [&str; ${SETUP_SECTIONS.length}] = [${SETUP_SECTIONS.map((x) => `"${x}"`).join(', ')}];`);
+    expect(rs).toContain(`CustomEvent('${SETUP_EVENT}'`);
+    const pipe = read('core/src/pipe.rs');
+    const actions = [...(/SetupAction \{ ([^}]+) \}/.exec(pipe)?.[1] ?? '').matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(actions).toEqual([...SETUP_ACTIONS]);
+  });
+
+  it('the first run: a bundled app without a workspace asks (Create ~/Retake · Choose a Folder… · Quit), Create runs the app\'s own retake init', () => {
+    const main = read('src/main.rs');
+    expect(main).toMatch(/None if bundled => match first_run\(&shell\)/);
+    expect(main).toContain('macos::ask(dc::setup::FIRST_RUN_TITLE, &text, &dc::setup::FIRST_RUN_BUTTONS, 2, &[])');
+    const child = read('src/child.rs');
+    expect(child).toContain('cmd.arg(&cfg.cli).arg("init").arg(dir)');
+    expect(child).toMatch(/pub fn init_workspace[\s\S]*?cmd\.arg\("--require"\)\.arg\(preload\)[\s\S]*?child_env_dropped/);
+    // The folder panel's answer goes on the server's stdin as the core's line, never a path from the page.
+    expect(main).toContain('picked.as_deref().and_then(dc::setup::cli_folder_line)');
+  });
+});
+

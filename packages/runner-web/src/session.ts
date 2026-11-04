@@ -5,6 +5,7 @@ import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import type { BrowserConfig, ResolvedClock } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
+import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
 import { trackRequests } from './network.js';
@@ -884,6 +885,16 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   const userDataDir = spec.userDataDir ?? temp!;
   const { executablePath, channel } = launchTarget(b);
   if (opts.writes) enableServiceWorkerRequests();
+  // L5.16c (critique M6): a persona's profile is never opened by an older Chromium than the one that opened it last.
+  const major = spec.userDataDir ? launchMajor({ executablePath, channel }) : null;
+  if (spec.userDataDir) {
+    try {
+      checkProfileBrowser(spec.userDataDir, major, spec.name || undefined);
+    } catch (e) {
+      if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+      throw e;
+    }
+  }
   let context: BrowserContext;
   try {
     context = await chromium.launchPersistentContext(userDataDir, {
@@ -910,6 +921,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
   }
+  if (spec.userDataDir) recordProfileBrowser(spec.userDataDir, major);
   const realm: Realm = { name: spec.name, context, spare: [...context.pages()], temp, cleanup: spec.cleanup ?? [] };
   try {
     // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.

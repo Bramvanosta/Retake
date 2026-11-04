@@ -6,7 +6,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
@@ -110,6 +110,8 @@ interface StageModule {
   breakHardLinks(dir: string): number;
   repoSnapshot(repo: string): string;
   trackedFiles(repo: string, rel: string, o?: { untracked?: boolean }): string[];
+  buildEnv(env?: NodeJS.ProcessEnv, extra?: Record<string, string>): Record<string, string>;
+  useBuildEnv(env: Record<string, string>): void;
 }
 const stageModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as StageModule;
 
@@ -190,7 +192,19 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
   });
 });
 
-const hasPnpm = spawnSync('pnpm', ['--version'], { stdio: 'ignore' }).status === 0;
+/**
+ * pnpm through corepack, the same under any HOME (L5.16c fixes, review c — B's note: under a scratch HOME corepack found
+ * no cache and fetched a pnpm): never a download (COREPACK_ENABLE_NETWORK=0), corepack's cache found from the account's
+ * home rather than $HOME (unless COREPACK_HOME / XDG_CACHE_HOME name it), nothing pinned into a package.json; the mini
+ * workspace pins the repository's pnpm (packageManager). No pnpm in that cache: the test is skipped.
+ */
+const PNPM_ENV = {
+  COREPACK_ENABLE_NETWORK: '0',
+  COREPACK_ENABLE_AUTO_PIN: '0',
+  COREPACK_HOME: process.env.COREPACK_HOME?.trim() || join(process.env.XDG_CACHE_HOME?.trim() || join(userInfo().homedir, '.cache'), 'node', 'corepack'),
+};
+const PACKAGE_MANAGER = (JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { packageManager: string }).packageManager;
+const hasPnpm = spawnSync('pnpm', ['--version'], { cwd: REPO, env: { ...process.env, ...PNPM_ENV }, stdio: 'ignore' }).status === 0;
 
 describe('the stage never writes the checkout (H1: pnpm deploy hard-links injected workspace packages)', () => {
   /** A two-package workspace in git (a depends on b, workspace:*), offline: no external dependency. */
@@ -200,7 +214,7 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
       mkdirSync(dirname(join(repo, rel)), { recursive: true });
       writeFileSync(join(repo, rel), text);
     };
-    file('package.json', '{ "name": "mini", "private": true }\n');
+    file('package.json', `{ "name": "mini", "private": true, "packageManager": "${PACKAGE_MANAGER}" }\n`);
     file('pnpm-workspace.yaml', 'packages:\n  - packages/*\n');
     file('packages/a/package.json', '{ "name": "@m/a", "version": "1.0.0", "dependencies": { "@m/b": "workspace:*" } }\n');
     file('packages/a/dist/index.js', 'export const a = 1;\n');
@@ -216,12 +230,18 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
   }
 
   it.runIf(hasPnpm)('deployEngine: the injected packages get their own inodes before their specs are rewritten; the repository is byte-identical', async () => {
-    const { deployEngine, checkStage, repoSnapshot } = await stageModule();
+    const { deployEngine, checkStage, repoSnapshot, buildEnv, useBuildEnv } = await stageModule();
     const repo = miniRepo();
     const before = repoSnapshot(repo);
     const bPkg = readFileSync(join(repo, 'packages', 'b', 'package.json'));
     const engine = join(tmp, `deploy-${Date.now()}`);
-    const { unlinked } = deployEngine(repo, engine, '@m/a');
+    useBuildEnv(buildEnv({ ...process.env, ...PNPM_ENV }));
+    let unlinked: number;
+    try {
+      ({ unlinked } = deployEngine(repo, engine, '@m/a'));
+    } finally {
+      useBuildEnv(buildEnv(process.env));
+    }
     expect(unlinked).toBeGreaterThan(0);
     const deployed = join(engine, 'node_modules', '@m', 'b');
     expect(JSON.parse(readFileSync(join(deployed, 'package.json'), 'utf8')).dependencies).toEqual({ '@m/c': '1.0.0' });

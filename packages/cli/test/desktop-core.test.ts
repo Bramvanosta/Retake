@@ -11,7 +11,9 @@
  * the restart alert's default (B M4), Studio recordings and the other editors' words (B L5 / L7 / L14), the
  * notification permission asked again after a no (B L9), test mode never for a launchd launch (A L2). L5.12d: the quit
  * question's flow (guard_flow: page first, the native alert after 1.5 s without an ack, ids taken once, APPROVED
- * expiring and cleared by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines. Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
+ * expiring and cleared by any Cancel, every exit closing the page's sheet) and the page's `answer` / `shown` lines. L5.16c:
+ * the installed app's location (translocated, read-only, /Volumes), the first-run answers, the `studio:setup` event and
+ * the Set-up sheet's pipe and stdin lines. Rust is never required by `pnpm test` (review B M4): skipped, the reason in the
  * title, on Windows, on macOS without the Xcode command line tools (checked with `xcode-select -p` BEFORE cargo runs:
  * the `cc` shim would open their install dialog), without rustc / cargo, or with a Rust older than 1.70 (the crate
  * declares no `rust-version`).
@@ -47,7 +49,7 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
     const out = `${r.stdout}\n${r.stderr}`;
     expect(r.status, out).toBe(0);
     const m = /test result: ok\. (\d+) passed; 0 failed/.exec(out);
-    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(55);
+    expect(Number(m?.[1]), out).toBeGreaterThanOrEqual(61);
     for (const name of [
       'a_line_with_any_other_host_scheme_port_or_shape_is_refused',
       'navigation_exact_origins_only',
@@ -98,6 +100,13 @@ describe.skipIf(blocked !== undefined)(`desktop shell rules (apps/desktop/core, 
       // L5.12d fixes: one bound for the page's words (review A-L1 / B-L1), strict page lines (A-L6: in the test above).
       'a_question_past_the_page_bounds_is_asked_natively_at_once',
       'the_longest_question_fits_the_page_bound',
+      // L5.16c: where the app runs from (critique H1), the first run, the Set-up sheet's event and lines.
+      'install_location_on_fake_paths',
+      'the_app_of_a_binary',
+      'first_run_answers_and_words',
+      'the_setup_event_has_a_constant_shape',
+      'the_lines_for_the_server',
+      'setup_lines_are_strict',
     ]) {
       expect(out, name).toMatch(new RegExp(`${name} \\.\\.\\. ok`));
     }

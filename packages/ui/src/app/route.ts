@@ -11,6 +11,7 @@
  * library in the project's theme or another, and one component's detail (L4.7 part D1), `#/p/<slug>/themes[/<theme>]` the
  * theme list and one theme's editor (L4.7 part D2), `#/p/<slug>/record[/<rec_id>]` the Record screen: its start form and
  * recent recordings, or one recording, live then reviewed (L4.8). `#/ui` the design system's gallery (L5.9).
+ * L5.16c: `#/setup` the projects with the installed app's Set-up sheet open over them (shell/SetupSheet.tsx).
  * L5.10a: `#/p/<slug>/g/<ready|shoot|failed>` a smart group of the Project screen, `#/p/<slug>/loc/<env>` the Project
  * screen with a location in its inspector, `#/p/<slug>/cast` the Cast (the personas' sessions).
  * L5.12a: `#/p/<slug>/s/<name>/review[/<render id>]` the Review report of a scenario's newest render or of one — the
@@ -42,6 +43,7 @@ export type Route =
   | { name: 'themes'; slug: string; theme?: string }
   | { name: 'record'; slug: string; rec?: string }
   | { name: 'ui' }
+  | { name: 'setup' }
   | { name: 'not-found'; path: string };
 
 const SLUG_MAX = 200;
@@ -63,6 +65,7 @@ export function parseRoute(hash: string): Route {
   const path = hash.replace(/^#/, '');
   if (path === '' || path === '/') return { name: 'projects' };
   if (path === '/ui' || path === '/ui/') return { name: 'ui' };
+  if (path === '/setup' || path === '/setup/') return { name: 'setup' };
   const m = /^\/p\/([^/]+)(\/readme)?\/?$/.exec(path);
   const slug = m ? decode(m[1]) : null;
   if (m && slug !== null) return m[2] ? { name: 'readme', slug } : { name: 'project', slug };
@@ -146,6 +149,8 @@ export function hrefTo(r: Route): string {
       return '#/';
     case 'ui':
       return '#/ui';
+    case 'setup':
+      return '#/setup';
     case 'project':
       return `#/p/${encodeURIComponent(r.slug)}`;
     case 'readme':

@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools } from '@retake/core';
+import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, zshQuote } from '@retake/core';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -49,8 +49,15 @@ export interface DoctorProbes {
   sandbox?(project: LoadedProject, env: string): Promise<SandboxProbe>;
   /** The Node.js running this command (default process.execPath): what `retake mcp --print-config` registers. */
   execPath?: string;
-  /** The jobs worker serving a workspace (L3.1), or null. */
-  worker?(root: string): Promise<{ pid: number; since: string; started_by?: string } | null>;
+  /**
+   * The jobs worker serving a workspace (L3.1), or null. L5.16c: its version and the copy of Retake it runs (`engine`:
+   * the worker lock's), to say when it is another copy than this one.
+   */
+  worker?(root: string): Promise<{ pid: number; since: string; started_by?: string; version?: string; engine?: string } | null>;
+  /** L5.16c: this copy of Retake (core engineLocation; default: computed). */
+  engine?: string;
+  /** L5.16c: is this folder on a read-only volume (the app's location; default core onReadOnlyVolume)? */
+  readOnly?(p: string): boolean;
   /** The names in a real folder (not a link), or null: what "Before Retake" counts (pending journals). */
   list?(dir: string): string[] | null;
   /** The text of a small regular file (not a link; ≤ 64 KB), or null: the `.gitignore` files "Before Retake" reads. */
@@ -164,7 +171,7 @@ export function systemProbes(): DoctorProbes {
     renderBrowser: systemRenderBrowser,
     worker: async (root) => {
       const w = await (await import('@retake/engine')).liveWorker(root);
-      return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}) } : null;
+      return w ? { pid: w.pid, since: w.since, ...(w.started_by ? { started_by: w.started_by } : {}), version: w.version, ...(w.engine ? { engine: w.engine } : {}) } : null;
     },
     head: async (url, timeoutMs) => {
       const t0 = performance.now();
@@ -631,6 +638,67 @@ async function personaCheck(p: DoctorProbes, s: PersonaState, home: string, rech
  * exists, so a patch upgrade does not break it), the PATH a GUI client gets from it finds ffmpeg, the jobs worker, and
  * the workspace's `.retake/` (its job queue and history) git-ignored when the workspace is a git work tree.
  */
+/**
+ * L5.16c — the installed app (DESIGN §4p (c)): where it runs from (critique H1: a translocated copy, its disk image or
+ * /Volumes — every path recorded then breaks) and the `retake` command's link (`<home>/app.json`'s, else
+ * ~/.local/bin/retake): a link to an app that is gone, a file in its place that is not Retake's, another `retake` first
+ * on this shell's PATH. From a repository checkout: only a dangling link is said.
+ */
+/** A path for a command line to paste (review c A-L7): `~/` kept outside, the rest single-quoted unless plain. */
+export function pastePath(p: string): string {
+  const t = tildePath(p);
+  const plain = (s: string) => /^[A-Za-z0-9._/@%+,=-]+$/.test(s);
+  if (t.startsWith('~/')) return `~/${plain(t.slice(2)) ? t.slice(2) : zshQuote(t.slice(2))}`;
+  return plain(t) ? t : zshQuote(t);
+}
+
+/** A worker lock's text shown in this terminal (review c A-L4): controls and invisible characters out, capped. */
+function lockText(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g, '?').slice(0, 300);
+}
+
+export function appChecks(p: DoctorProbes): DoctorCheck[] {
+  const out: DoctorCheck[] = [];
+  const b = p.bundle ?? null;
+  const app = b && b.sealed.endsWith('.app') ? b : null;
+  if (app) {
+    const loc = installLocation(app.sealed, { readOnly: (p.readOnly ?? onReadOnlyVolume)(app.sealed) });
+    out.push(loc === 'ok' ? { status: 'ok', name: 'App location', detail: tildePath(app.sealed) } : { status: 'warn', name: 'App location', detail: `${installLocationWords(loc)} (${app.sealed}): the command and the Claude registrations would point into a folder that goes away`, hint: MOVE_TO_APPLICATIONS });
+  }
+  // The command's place is under the HOME of the probes' environment (a shell always has one).
+  const home = p.env.HOME?.trim();
+  if (!home) return out;
+  let link = join(defaultCliDir(home), CLI_NAME);
+  // The app's own record of where it put the link (a checkout reads nothing of the Retake home here).
+  if (app) {
+    try {
+      link = readAppSettings(p.env.RETAKE_HOME?.trim() ? retakeHome(p.env as NodeJS.ProcessEnv) : join(home, '.retake')).cli?.path ?? link;
+    } catch {
+      /* a RETAKE_HOME refused elsewhere: the default place */
+    }
+  }
+  const launcher = app ? join(app.root, LAUNCHER_REL) : '';
+  const st = cliLinkState(link, launcher);
+  const name = 'retake command';
+  const first = cliOnPath(dirname(link), p.env.PATH ?? '').first;
+  const firstNote = first && first !== link ? ` · ${tildePath(first)} comes first on this PATH` : '';
+  if (st.state === 'other_app' && st.dangling) {
+    out.push({ status: 'warn', name, detail: `${tildePath(link)} points to a Retake app that is gone (${st.target}): the command fails`, hint: `install it again from the app (Help › Install the retake Command…), or remove it: rm ${pastePath(link)}` });
+  } else if (!app) {
+    return out;
+  } else if (st.state === 'ours') {
+    out.push(firstNote ? { status: 'warn', name, detail: `${tildePath(link)} → this app${firstNote}`, hint: `that one runs when you type retake: remove it, or put ${tildePath(dirname(link))} before it on your PATH` } : { status: 'ok', name, detail: `${tildePath(link)} → this app` });
+  } else if (st.state === 'other_app') {
+    out.push({ status: 'warn', name, detail: `${tildePath(link)} runs another copy of Retake (${st.target})`, hint: 'point it at this one: Help › Install the retake Command… (Replace)' });
+  } else if (st.state === 'foreign') {
+    out.push({ status: 'warn', name, detail: `${tildePath(link)} is not Retake's command (${st.what}${st.target ? ` → ${st.target}` : ''}): the app leaves it as it is`, hint: 'remove or rename it yourself to install the command from the app, or choose another folder there' });
+  } else {
+    out.push({ status: 'ok', name, detail: `not installed${first ? ` (${tildePath(first)} is on this PATH)` : ''} · the app's Help › Install the retake Command… links it` });
+  }
+  return out;
+}
+
 async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck> {
   const name = 'MCP';
   const { stableNodePath, clientPath } = await import('@retake/mcp');
@@ -655,7 +723,15 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
     }
   }
   const worker = p.worker ? await p.worker(ws.root).catch(() => null) : null;
-  parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${worker.started_by}` : ''})` : 'worker idle (a client starts it with its first job)');
+  parts.push(worker ? `worker running (pid ${worker.pid}${worker.started_by ? `, started by ${lockText(worker.started_by)}` : ''})` : 'worker idle (a client starts it with its first job)');
+  // L5.16c (critique M6): the workspace's worker runs another copy of Retake — jobs submitted here run with its tools.
+  const self = p.engine ?? engineLocation(p.bundle ?? null);
+  if (worker && ((worker.engine !== undefined && worker.engine !== self) || (worker.version !== undefined && worker.version !== RETAKE_VERSION))) {
+    warns.push({
+      detail: `this workspace's worker runs another copy of Retake (${lockText(worker.version ?? '?')}${worker.engine ? `, ${lockText(tildePath(worker.engine))}` : ''}) than this one (${RETAKE_VERSION}, ${tildePath(self)})`,
+      hint: 'jobs submitted now run with that copy\'s browsers and tools: let it finish, it exits a minute after its last job — the next submit starts this copy\'s',
+    });
+  }
   const tree = gitWorkTree(p, ws.root);
   if (tree) {
     const rel = relative(tree, join(ws.root, '.retake'));
@@ -754,6 +830,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   const out: DoctorCheck[] = [nodeCheck(probes)];
   const damaged = probes.bundleProblems?.() ?? [];
   if (damaged.length) out.push({ status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' });
+  out.push(...appChecks(probes));
   const chromium = await probes.chromium(ws.browser);
   out.push(chromiumCheck(chromium, ws.browser, probes.bundle));
   if (probes.renderBrowser === systemRenderBrowser) renderBrowserFn = (await import('@retake/editor')).renderBrowser;

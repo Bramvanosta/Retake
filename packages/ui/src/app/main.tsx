@@ -52,7 +52,7 @@ function useRoute(): Route {
   return route;
 }
 
-const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', review: 'Review report', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', 'not-found': 'Not found' };
+const TITLES: Record<Route['name'], string> = { projects: 'Welcome', project: 'Productions', group: 'Productions', location: 'Location', cast: 'Cast', readme: 'README', scenario: 'Scenario', run: 'Shoot', timeline: 'Timeline', comments: 'Comments', proposal: 'Proposal preview', review: 'Review report', library: 'Components', themes: 'Themes', record: 'Record', ui: 'UI gallery', setup: 'Set up', 'not-found': 'Not found' };
 
 function Studio() {
   const route = useRoute();
@@ -76,7 +76,7 @@ function Studio() {
   if (connection === 'ended') return <Ended />;
   return (
     <AppShell route={route} list={list}>
-      {route.name === 'projects' && <WelcomeScreen list={list} />}
+      {(route.name === 'projects' || route.name === 'setup') && <WelcomeScreen list={list} />}
       {(route.name === 'project' || route.name === 'group' || route.name === 'location') && (
         // One element for the three (keyed by the project): a smart group or a location keeps the search and the selection.
         <ProductionsScreen key={route.slug} slug={route.slug} {...(route.name === 'group' ? { group: route.group } : {})} {...(route.name === 'location' ? { env: route.env } : {})} />

@@ -2197,6 +2197,36 @@ and `job_end` lines); what remains:
   the bundle fail to resolve it rather than bundling a second React; a message naming the stray folder would help.
 
 
+### BL-141 — Hooks and sandbox commands run on the app's Node.js first
+*M · noted in L5.16 (critique M5) · builds on: L5.16c*
+
+- From the installed app, the PATH a client starts its processes with (`clientPath`) puts the app's own Node.js first:
+  a person's `npm` / `npx` / `#!/usr/bin/env node` scripts in hooks and sandbox commands then run on the bundled Node.js
+  22 — the wrong ABI for their native modules. README says it (doctor's MCP line names the app's Node.js, which is the
+  one hooks get first, without saying so); the fix is a PATH
+  for hooks and sandbox services without the app's Node.js folder (the engine still runs its own children by absolute
+  path), with the person's own Node.js found the way their shell would (never by running their login shell).
+
+### BL-142 — Set-up extras cut from L5.16c (the installed app's integrations)
+*S–M · cut in L5.16c · builds on: L5.16c*
+
+- **Claude Code's settings folder**: a Finder-launched app does not have the `CLAUDE_CONFIG_DIR` of the person's shell
+  profile; the Set-up sheet shows the folder Run uses (critique M5 suggested a field to change it — the page would then
+  send a path, which the setup ops never take today).
+- **A Claude Desktop extension file** the person opens (Claude's own consent screen installs it) instead of editing its
+  config: not verified offline (critique M7).
+- **Doctor checks the Claude Desktop entry is still there** (Claude Desktop may write its settings over it while it
+  runs): the sheet refuses while it runs and reads the file back, doctor does not read Claude Desktop's config yet.
+- **`/usr/local/bin` without ownership**: no admin escalation — the sheet offers folders the person owns; a privileged
+  helper (or the `sudo ln -s …` line to copy) for a root-owned folder.
+- **The Help menu's state**: Install / Uninstall the retake Command… are always enabled (the page's sheet says what
+  applies); a menu that reflects the link's state needs the server to tell the shell.
+- **Uninstall another copy's link from the sheet**: the op removes a link to another copy of Retake (a dangling one
+  too), but the sheet offers Uninstall only for this app's link (review c B-L4); doctor gives the `rm` line meanwhile.
+- **A remembered workspace on a disk that is not mounted**: the first-run alert greets it as a new start ("Welcome to
+  Retake") — it could name the missing folder and wait for its disk (review c B-L5).
+
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

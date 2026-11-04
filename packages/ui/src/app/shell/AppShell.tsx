@@ -43,6 +43,7 @@ import type { SlotHost, SlotName } from './slots.js';
 import { setSay } from './say.js';
 import { useStatusActions } from './StatusActions.js';
 import { QuitSheet } from './QuitSheet.js';
+import { SetupSheet } from './SetupSheet.js';
 
 export interface ProjectList {
   root: string;
@@ -141,7 +142,7 @@ function workspaceTree(route: Route, projects: ProjectSummary[]): SourceGroup[] 
           to: { name: 'projects' },
           label: 'Projects',
           icon: 'folder',
-          current: route.name === 'projects',
+          current: route.name === 'projects' || route.name === 'setup',
           childrenLabel: 'Projects of the workspace',
           children: projects.map((p) => ({ key: p.slug, to: { name: 'project', slug: p.slug }, label: <Txt text={p.name} />, current: false, ...(p.error ? { flag: 'does not load' } : {}) })),
         },
@@ -563,6 +564,7 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
         {shoot.overlay}
         <CommandPalette open={palette} onClose={() => setPalette(false)} commands={commands} {...(inApp ? { footnote: 'Commands with a key are also in the menu bar' } : {})} />
         {inApp && <QuitSheet />}
+        {inApp && <SetupSheet route={route} />}
       </div>
     </SlotContext.Provider>
   );

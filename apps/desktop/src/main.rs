@@ -540,6 +540,112 @@ fn install_signals(app: AppHandle) {
     });
 }
 
+static APP: OnceLock<AppHandle> = OnceLock::new();
+
+/// Where this app runs from (critique H1): its `.app` folder and statfs's MNT_RDONLY; Ok for a bare binary.
+fn app_location() -> dc::InstallLocation {
+    let exe = std::env::current_exe().ok().and_then(|e| std::fs::canonicalize(e).ok());
+    let Some(app) = exe.as_deref().and_then(dc::app_of_exe) else { return dc::InstallLocation::Ok };
+    dc::install_location(&app, read_only_volume(&app))
+}
+
+fn read_only_volume(p: &Path) -> bool {
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(c) = std::ffi::CString::new(p.as_os_str().as_bytes()) else { return false };
+    let mut st: libc::statfs = unsafe { std::mem::zeroed() };
+    unsafe { libc::statfs(c.as_ptr(), &mut st) == 0 && (st.f_flags & libc::MNT_RDONLY as u32) != 0 }
+}
+
+/// L5.16c: one line for the owned server's stdin (the Set-up sheet's answers); false without an owned server.
+pub(crate) fn send_to_server(line: &str) -> bool {
+    let Some(app) = APP.get() else { return false };
+    let Some(shell) = app.try_state::<Arc<Shell>>().map(|s| s.inner().clone()) else { return false };
+    let s = lock(&shell.session);
+    s.as_ref().is_some_and(|x| x.server.send_line(line))
+}
+
+/// L5.16c: the Set-up sheet asks (a pipe line of the owned server, from the person's click in the page): the
+/// notification permission, or the native folder panel for the `retake` command — its answer goes back on the
+/// server's stdin (desktop_core::setup's lines: the page never sends a path).
+pub(crate) fn setup_request(a: dc::SetupAction) {
+    let Some(app) = APP.get() else { return };
+    let h = app.clone();
+    let _ = app.run_on_main_thread(move || match a {
+        dc::SetupAction::Notifications => notify::request_permission(&h),
+        dc::SetupAction::CliFolder => {
+            if guard::GUARD_OPEN.load(Ordering::SeqCst) || macos::modal_up() {
+                log("set-up: another question is open — the folder panel waits for the next click");
+                send_to_server(dc::setup::CLI_FOLDER_CANCELLED_LINE);
+                return;
+            }
+            // The sheet says "choose in the panel" only once the panel is really up (review c A-L7).
+            send_to_server(dc::setup::CLI_FOLDER_OPEN_LINE);
+            let picked = macos::pick_folder_with("The folder of the retake command", &format!("{} links its retake command in the folder you choose (one of yours, on your PATH).", app_name()), "Choose");
+            let line = picked.as_deref().and_then(dc::setup::cli_folder_line).unwrap_or_else(|| dc::setup::CLI_FOLDER_CANCELLED_LINE.to_string());
+            if !send_to_server(&line) {
+                log("set-up: the Studio server is gone — the folder was not sent");
+            }
+        }
+    });
+}
+
+/// L5.16c: Help › Set Up …, Install / Uninstall the retake Command…: the page's Set-up sheet (the command's section for
+/// the two last) — after a "move the app" alert when it runs from a translocated copy, its disk image or /Volumes.
+fn setup_menu(app: &AppHandle, id: &str) {
+    let section = match id {
+        menu::CLI_INSTALL => Some("cli"),
+        menu::CLI_REMOVE => Some("cli-remove"),
+        _ => None,
+    };
+    let loc = app_location();
+    if id == menu::CLI_INSTALL && loc != dc::InstallLocation::Ok {
+        if macos::modal_up() || guard::GUARD_OPEN.load(Ordering::SeqCst) {
+            return;
+        }
+        macos::alert(dc::setup::MOVE_TO_APPLICATIONS, &format!("{}: the command would point into a folder that goes away.", dc::setup::location_words(loc)), &["OK"]);
+        return;
+    }
+    if !window_on_studio(app) {
+        log("set-up: no Studio page in the window");
+        return;
+    }
+    show_window(app);
+    if let Some(js) = dc::setup::setup_page_js(section) {
+        eval_in_window(app, js);
+    }
+}
+
+/// L5.16c, the first run (a bundled app, no workspace yet): Create ~/Retake (`retake init`), Choose a Folder… (a
+/// workspace, or an empty folder made one), Quit. None: quit.
+fn first_run(shell: &Shell) -> Option<(PathBuf, dc::Source)> {
+    let home = std::env::var_os("HOME").map(PathBuf::from).filter(|h| h.is_absolute())?;
+    let default = dc::setup::default_workspace(&home);
+    let mut text = dc::setup::first_run_text(&default);
+    loop {
+        if guard::QUIT_NOW.load(Ordering::SeqCst) {
+            return None;
+        }
+        let answer = macos::ask(dc::setup::FIRST_RUN_TITLE, &text, &dc::setup::FIRST_RUN_BUTTONS, 2, &[]);
+        let dir = match dc::setup::first_run_choice(answer) {
+            dc::FirstRun::Quit => return None,
+            dc::FirstRun::Create => default.clone(),
+            dc::FirstRun::Choose => match macos::pick_folder(&pick_message()) {
+                Some(d) if dc::is_workspace(&d) => return Some((d, dc::Source::Picker)),
+                Some(d) => d,
+                None => continue,
+            },
+        };
+        log(&format!("first run: retake init {}", dir.display()));
+        match child::init_workspace(&shell.cfg, &dir) {
+            Ok(()) => return Some((dir, dc::Source::Created)),
+            Err(e) => {
+                log("first run: retake init failed");
+                text = format!("{}\n\n{}", e, dc::setup::first_run_text(&default));
+            }
+        }
+    }
+}
+
 fn launch_json() -> PathBuf {
     // <App>.app/Contents/MacOS/retake-desktop → <App>.app/Contents/Resources/launch.json, from the binary's real path.
     dc::launch_json_path(&std::env::current_exe().unwrap_or_default())
@@ -571,6 +677,7 @@ fn main() {
         .on_menu_event(|app, event| match event.id().as_ref() {
             menu::OPEN_WORKSPACE => open_other(app),
             menu::SHOW_WINDOW => show_window(app),
+            id @ (menu::SET_UP | menu::CLI_INSTALL | menu::CLI_REMOVE) => setup_menu(app, id),
             // L5.9: a page command (View: ⌘K, ⌘1 – ⌘4, ⌥⌘I) → a `studio:command` event in the page; ids of MENUS only.
             id => {
                 if let Some(js) = menu::page_command_js(id) {
@@ -594,8 +701,27 @@ fn main() {
             install_signals(h.clone());
             guard::install(&h);
             notify::install(&h);
+            let _ = APP.set(h.clone());
+            let bundled = cfg.bundled;
             let shell = Arc::new(Shell { cfg, home, session: Mutex::new(None), allowed: Arc::new(Mutex::new(dc::Allowed::NONE)), route: Mutex::new(route) });
             app.manage(shell.clone());
+            // L5.16c: where the installed app runs from (the Set-up sheet and the command say it too).
+            let loc = app_location();
+            if bundled && loc != dc::InstallLocation::Ok {
+                log(&format!("{}: {}", dc::setup::location_words(loc), dc::setup::MOVE_TO_APPLICATIONS));
+            }
+            // L5.16c: the installed app's first run — no workspace yet: create ~/Retake, choose a folder, or quit.
+            let first = match first {
+                None if bundled => match first_run(&shell) {
+                    Some(c) => Some(c),
+                    None => {
+                        log("first run: no workspace: quit");
+                        h.exit(0);
+                        return Ok(());
+                    }
+                },
+                other => other,
+            };
             match open(&shell, first, None, true) {
                 Some(s) => show(&h, &shell, s),
                 None => {

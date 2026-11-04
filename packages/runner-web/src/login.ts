@@ -28,6 +28,7 @@ import {
 import type { PersonaCheckResult, SessionSnapshot, SnapshotMeta } from './auth.js';
 import { projectBrowser } from './config.js';
 import { RunnerError, errorMessage, isCancelled } from './errors.js';
+import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { kitConfigFor } from './kit/source.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
@@ -323,6 +324,9 @@ async function autoSession(
 async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
   const b = projectBrowser(o.project, o.browser);
   const { executablePath, channel } = launchTarget(b);
+  // L5.16c: never an older Chromium than the one that opened this profile last (profile-browser.ts).
+  const major = launchMajor({ executablePath, channel });
+  checkProfileBrowser(userDataDir, major);
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: o.headless === true,
     channel,
@@ -335,6 +339,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     handleSIGINT: false,
     handleSIGTERM: false,
   });
+  recordProfileBrowser(userDataDir, major);
   const pid = (await profileLock(userDataDir)).pid;
   try {
     if (applied) await applyStorageState(context, applied);

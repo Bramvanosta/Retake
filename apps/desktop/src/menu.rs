@@ -21,6 +21,12 @@ use tauri::{AppHandle, LogicalPosition, TitleBarStyle, WebviewWindowBuilder, Wry
 /// The shell's own commands.
 pub const OPEN_WORKSPACE: &str = "open-workspace";
 pub const SHOW_WINDOW: &str = "show-window";
+/// L5.16c, the Help menu: the Set-up sheet (a `studio:setup` page event, desktop_core::setup::setup_page_js), on the
+/// command's section for Install / Uninstall the retake Command… (those two say "move the app" first when it runs from a
+/// translocated copy, its disk image or /Volumes).
+pub const SET_UP: &str = "set-up";
+pub const CLI_INSTALL: &str = "cli-install";
+pub const CLI_REMOVE: &str = "cli-remove";
 
 /// A macOS standard item.
 #[derive(Clone, Copy)]
@@ -43,7 +49,7 @@ pub enum Std {
 }
 
 pub enum Item {
-    /// id, label, accelerator, enabled.
+    /// id, label (`{app}`: the app's name), accelerator, enabled.
     Cmd { id: &'static str, label: &'static str, accelerator: Option<&'static str>, enabled: bool },
     /// A page command: id (one of the page's MENU_COMMANDS), label, accelerator.
     Page { id: &'static str, label: &'static str, accelerator: Option<&'static str> },
@@ -86,6 +92,16 @@ pub const MENUS: &[(&str, &[Item])] = &[
     ),
     // ⌘0 brings back a window closed with ⌘W (review B M3: the Dock icon is the only other way; ⌘Tab shows no window).
     ("Window", &[Item::Std(Std::Minimize), Item::Std(Std::Zoom), Item::Separator, Item::Cmd { id: SHOW_WINDOW, label: "Show Studio Window", accelerator: Some("CmdOrCtrl+0"), enabled: true }]),
+    // L5.16c: the installed app's set-up (the page says so in a development build: its server is no app's).
+    (
+        "Help",
+        &[
+            Item::Cmd { id: SET_UP, label: "Set Up {app}…", accelerator: None, enabled: true },
+            Item::Separator,
+            Item::Cmd { id: CLI_INSTALL, label: "Install the retake Command…", accelerator: None, enabled: true },
+            Item::Cmd { id: CLI_REMOVE, label: "Uninstall the retake Command…", accelerator: None, enabled: true },
+        ],
+    ),
 ];
 
 pub fn build(app: &AppHandle, name: &str) -> tauri::Result<Menu<Wry>> {
@@ -95,7 +111,7 @@ pub fn build(app: &AppHandle, name: &str) -> tauri::Result<Menu<Wry>> {
             .iter()
             .map(|i| -> tauri::Result<Box<dyn IsMenuItem<Wry>>> {
                 Ok(match i {
-                    Item::Cmd { id, label, accelerator, enabled } => Box::new(MenuItem::with_id(app, *id, *label, *enabled, *accelerator)?),
+                    Item::Cmd { id, label, accelerator, enabled } => Box::new(MenuItem::with_id(app, *id, label.replace("{app}", name), *enabled, *accelerator)?),
                     Item::Page { id, label, accelerator } => Box::new(MenuItem::with_id(app, *id, *label, true, *accelerator)?),
                     Item::Separator => Box::new(PredefinedMenuItem::separator(app)?),
                     Item::Std(s) => Box::new(match s {

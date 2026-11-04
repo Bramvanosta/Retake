@@ -71,6 +71,7 @@ import { THEME_OPS } from './theme-ops.js';
 import { RECORD_OPS } from './record-ops.js';
 import { UNSAVED_OPS } from './unsaved.js';
 import { DESKTOP_OPS } from './desktop.js';
+import { SETUP_OPS } from './setup-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 import type { PlayerServer } from './player.js';
@@ -394,6 +395,8 @@ export interface ScenarioRunAnswer {
   warnings: string[];
   /** The worker serving the queue: started now, or already running (absent: not started — tests). */
   worker?: { pid?: number; spawned: boolean };
+  /** L5.16c fixes (review c B-M2): that worker runs another copy of Retake (its version and folder: the lock's text). */
+  untrusted?: { other_copy: { version: string; engine?: string } };
 }
 
 /** scenario_run: the scenario screen's Dry run / Capture, arguments pinned (B11). */
@@ -428,7 +431,8 @@ export function runOps(): ToolDef[] {
         }
         return engine.runs.submit({ project: a.project, scenario: a.name, mode: a.mode, ...(a.env ? { env: a.env } : {}), ...(a.hash ? { expect_sha256: a.hash } : {}) });
       });
-      const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker: sub.worker } : {}) };
+      const { other, ...worker } = sub.worker ?? { spawned: false };
+      const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker } : {}), ...(other ? { untrusted: { other_copy: other } } : {}) };
       return { summary: `${a.mode === 'dry' ? 'rehearsal' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
     },
   };
@@ -887,8 +891,8 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
         ...(sub.scenario_changed !== undefined ? { scenario_changed: sub.scenario_changed } : {}),
         ...(sub.filmed_changes ? { filmed_changes: sub.filmed_changes } : {}),
         ...(sub.edit_changes ? { edit_changes: sub.edit_changes } : {}),
-        ...(sub.worker ? { worker: sub.worker } : {}),
-        untrusted: { warnings: sub.warnings },
+        ...(sub.worker ? { worker: { ...(sub.worker.pid !== undefined ? { pid: sub.worker.pid } : {}), spawned: sub.worker.spawned } } : {}),
+        untrusted: { warnings: sub.warnings, ...(sub.worker?.other ? { other_copy: sub.worker.other } : {}) },
       };
       return { summary: `render ${sub.render_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
     },
@@ -981,4 +985,4 @@ export const SCENARIO_OPS = ['scenario_blocks', 'scenario_actions', 'run_thumbs'
 export const RUN_OPS = ['scenario_run'] as const;
 export const EDIT_OPS = ['scenario_edit'] as const;
 export const LIVE_OPS = ['run_pause', 'scenario_sessions', 'sign_in_cancel'] as const;
-export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS, ...DESKTOP_OPS] as const;
+export const OWN_OPS = [...INDEX_OPS, 'projects_overview', 'project_board', ...SCENARIO_OPS, ...RUN_OPS, ...EDIT_OPS, ...LIVE_OPS, ...TIMELINE_OPS, ...RENDER_OPS, ...COMMENT_OPS, ...LIBRARY_OPS, ...THEME_OPS, ...RECORD_OPS, ...UNSAVED_OPS, ...DESKTOP_OPS, ...SETUP_OPS] as const;

@@ -16,6 +16,9 @@
  * L5.12d fixes (review A-L2): Return never activates a destructive action — on a focused destructive button it chooses
  * the default instead, as the native alert's Return does wherever the focus ring is (Space and a click still press it);
  * an action can be `busy` (its answer in flight: the kit Button's moving mark, disabled).
+ * L5.16c fixes (review c A-L6): a long sheet whose default action sits below the fold may start the focus on its title
+ * instead (`focusTitle`: the title is focusable, never a tab stop) — a first Return then chooses nothing; and Escape may
+ * answer an action id of its own (`escapeAction`: closing without the choice its visible button records).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -62,6 +65,8 @@ export function Sheet({
   alert,
   testId,
   content,
+  focusTitle,
+  escapeAction,
 }: {
   open: boolean;
   title: ReactNode;
@@ -74,6 +79,10 @@ export function Sheet({
   testId?: string;
   /** L5.12c: fields under the text (not part of the sheet's description). */
   content?: ReactNode;
+  /** L5.16c fixes: the focus starts on the title (a long sheet: its top in view, Return chooses nothing). */
+  focusTitle?: boolean;
+  /** L5.16c fixes: what Escape (or the platform closing the dialog) answers — default: the cancel action's id. */
+  escapeAction?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
@@ -81,6 +90,8 @@ export function Sheet({
   const textId = useId();
   const def = defaultAction(actions);
   const cancel = actions.find((a) => a.isCancel);
+  const escapeId = escapeAction ?? cancel?.id;
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const openNow = useRef(open);
   openNow.current = open;
   // Bumped when the platform closes the dialog while its owner still holds it open (below).
@@ -98,7 +109,7 @@ export function Sheet({
     if (open && !d.open) {
       if (!opener.current) opener.current = document.activeElement as HTMLElement | null;
       d.showModal();
-      firstFocus(d)?.focus();
+      (focusTitle ? titleRef.current : firstFocus(d))?.focus();
     } else if (!open && d.open) {
       ownCloses.current += 1;
       d.close();
@@ -117,7 +128,7 @@ export function Sheet({
     // once per user activation) while the owner still holds it open — that is the cancel action, and if the owner keeps
     // the sheet open (a busy one, or no cancel at all) it shows again rather than leaving the two out of step.
     if (openNow.current) {
-      if (cancel) onAction(cancel.id);
+      if (escapeId) onAction(escapeId);
       setResync((n) => n + 1);
       return;
     }
@@ -151,11 +162,11 @@ export function Sheet({
       onCancel={(e) => {
         e.preventDefault();
         // A cancel the page may not refuse closes the dialog next: onClose answers it, once.
-        if (e.cancelable && cancel) onAction(cancel.id);
+        if (e.cancelable && escapeId) onAction(escapeId);
       }}
       onClose={onClose}
     >
-      <h2 id={titleId} className="k-sheet-title">
+      <h2 id={titleId} ref={titleRef} className="k-sheet-title" tabIndex={focusTitle ? -1 : undefined}>
         {shown(title)}
       </h2>
       {children && (

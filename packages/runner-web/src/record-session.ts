@@ -48,6 +48,7 @@ import type { BrowserConfig, LoadedProject, LoginMatcher, RecordedEvent, Resolve
 import { ensurePrivateDir, prepareSessions, registerSessionCopy, signInMatchers } from './auth.js';
 import { projectBrowser } from './config.js';
 import { CancelledError, RunnerError } from './errors.js';
+import { checkProfileBrowser, launchMajor } from './profile-browser.js';
 import { kitConfigFor, kitSource } from './kit/source.js';
 import { SECRET_MASK, SECRET_MIN, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 import type { SecretHash } from './kit/record-script.js';
@@ -325,6 +326,8 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     if (policy.readOnly) enableServiceWorkerRequests();
     const b = projectBrowser(o.project, o.browser);
     const { executablePath, channel } = launchTarget(b);
+    // L5.16c: a persona's profile copy is never opened by an older Chromium than the one that opened it last.
+    if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);
     const size = o.windowSize;
     context = await chromium.launchPersistentContext(userDataDir, {
       headless: o.headless === true,
