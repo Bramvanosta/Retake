@@ -87,6 +87,8 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–f: engine, app + DMG, first run, updater, releases from GitHub Actions, the feed on a GitHub release (2026-11-04) |
 | L5.14 | Captures first: a take before renders, reviews and exports, on the file queue | L | **done** — L5.14a (the worker's two slots, the markers, background QoS, the CLI wait), L5.14b (surfaces, signed journals, approvals bound to their job, the measured acceptance) (2026-11-04) |
 | L5.15 | Renders on the GPU with a lighter load | S | **done** — ANGLE + VideoToolbox at concurrency 3 on a Mac with a GPU, today's software path otherwise (2026-11-05; the captures-first acceptance on the GPU path not passed: R-CAP-03) |
+| L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done**, pending the person's review of the pull request (2026-11-05; the first of two lots, L5.18 next) |
+| L5.18 | Hardening before the first release, the rest (before the v0.2.0 tag) | — | todo (next) |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -996,6 +998,31 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   independent reviews fixed with mutation-checked tests. Cuts: BL-152 – BL-159. The captures-first acceptance on the GPU
   path did not pass its bars (one take 55.1 against 56.7; R-CAP-03): to re-run on an idle Mac. Next: the audit, then
   the first release.
+
+### L5.17 – L5.18 — Hardening before the first release (decided 2026-11-05)
+The app updates itself, so whatever a release ships reaches every installed Mac: the person decided to harden the tool
+before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with the defaults proposed for each choice.
+
+### L5.17 — Hardening before the first release (L)
+- **Goal:** what an agent asks for is shown in full and held to plain rules, a scenario opens only the sites it should,
+  every browser keeps Chromium's sandbox and site isolation, and a release is built and signed from checked inputs only.
+- **Done (2026-11-05, in a worktree; pending the person's review of the pull request):** approvals and hooks — a job
+  runs the scenario bytes it was submitted with; the approval form shows every hook in full, within 4,000 characters
+  per hook and 16,000 per form; a hook an agent wrote sets no loader variable, and its shell commands are plain words
+  joined by ` && ` with rules per word (no secret, rollbacks checked again on replay); an agent's prune asks the person
+  first. URLs and browsers — one rule for the URLs a scenario opens (http:, https: or about:blank; under agent trust
+  the environment's origins), checked at validation, submit, by the worker and by the runner, and a browser-level guard
+  against file:; every capture browser in Chromium's OS sandbox with site isolation, checked on the running browser;
+  `browser.args` refusing the switches that undo them; the notification and cursor bindings answering the main frame
+  only, within limits; sign-in details in an environment page URL given as HTTP credentials for that origin. Renders —
+  a patch of Remotion's renderer: the render browser sandboxed with site isolation on macOS, the bundle server on
+  loopback only; the app's stage refuses an unpatched renderer. The release workflow — no cache, Node.js from its
+  checked tarball, pnpm by its hash, a sign job that unpacks and runs only what it checked, the app's version checked
+  before anything is signed. Requirements R-SEC-11 – R-SEC-28. Cuts: BL-160, BL-161. Next: L5.18, then the first
+  release v0.2.0 (the person tags).
+
+### L5.18 — Hardening before the first release, the rest
+- **Goal:** the rest of the hardening decided on 2026-11-05, before the v0.2.0 tag. Scoped and sized when it starts.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

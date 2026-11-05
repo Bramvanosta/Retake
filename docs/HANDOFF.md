@@ -2,10 +2,11 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by `scripts/rename-l513.mjs`, so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-03, end of lot **L5.13 (rename to Retake; L5.13a – L5.13b)** — phases
-1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j), phase 5 is under way (L5.1,
-L5.2, L5.2b, L5.5 – L5.13 done; the « Épure » redesign is complete and the tool is called Retake). **Next: L5.16 (the
-standalone app), only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-11-05, end of lot **L5.17 (hardening before the first release; pending the person's review of the
+pull request)** — phases 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j),
+phase 5 is under way (L5.1, L5.2, L5.2b, L5.5 – L5.17 done: the « Épure » Studio, the name Retake, the standalone app
+and its releases, captures first, renders on the GPU, the first hardening lot). **Next: L5.18 (the rest of the
+hardening), then the first release v0.2.0 — only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -32,6 +33,77 @@ automatically with themeable components, and let Claude operate everything throu
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
+
+## State (after L5.17)
+- **L5.17 done (2026-11-05; pending the person's review of the pull request)** — hardening before the first release,
+  the first of two lots (branch `claude/t-sec`, 17 commits on `632f2d8`; requirements R-SEC-11 – R-SEC-28). One home
+  for the rules of agent work: core `agent-policy.ts` (loader variables, the shell grammar and its rules per word, the
+  URL rule, the Chromium switches; the worker's environment cleaning reuses it).
+  - **Approvals and hooks.** A job runs the scenario bytes it was submitted with (core `readScenarioSource` /
+    `loadScenario` with `expectSha256`, `ScenarioChangedError`; a scenario hooks job carries `scenario_sha256`, signed
+    with its approvals; the worker refuses a missing or different hash as a conflict). The approval form shows every
+    hook in full — each kind's fields and its rollback, templated, secrets as ***, hidden characters written out, names
+    and keys escaped (hooks `describe.ts`, `shown.ts`; built once in engine `approvals.ts` for MCP and the Studio); a
+    hook over 4,000 characters or a form over 16,000 is refused before anyone is asked (run it in a terminal). Under
+    trust mcp a hook the agent wrote (a scenario's own, or a project.yaml hook rendered with the scenario's vars) sets
+    no loader variable, and its shell run and rollback are **plain words** (letters, digits and `. / : = @ % + , _ -`)
+    separated by single spaces and joined by ` && ` only — a length check, then one linear pass — then rules per word
+    (cd and its kin, eval / exec, inline interpreter code, package runners, git -c, paths through a folder an agent can
+    write, files an agent writes), no secret and no saved response value; its cwd is one plain word, its env names
+    identifiers. Checked at submit and again by the worker; a rollback recorded from such a hook carries the mark under
+    the entry's signature and is checked again when replayed. The refusal says: put the hook in `hooks/<name>.yaml` or
+    run it in a terminal; a person's hooks and the CLI are unchanged. An agent's `project_prune {dry_run: false}` asks
+    the person in the approval form (count, size, kinds, at most 20 items) and deletes only what they saw that can
+    still go; no form, a decline or no answer deletes nothing.
+  - **URLs and browsers.** A scenario opens http:, https: or exactly about:blank, without sign-in details (core
+    `navigationProblem`; a validation error at the field otherwise, for every client); under agent trust, once the
+    environment is known (validate, submit, the worker), an absolute URL needs the exact origin of an environment page
+    (`canonicalOrigin`; "add the origin as a page in project.yaml"; the Studio's blocker "opens another site"). The
+    runner checks every URL it opens once templated and resolved (runner-web `opens.ts`; prewarm leaves a refused one
+    out), and every capture, rehearsal and inspection realm arms a CDP Fetch guard that fails file: (the HTTP cache
+    kept). Every capture browser runs in Chromium's OS sandbox with site isolation asked for (runner-web `launch.ts`
+    `launchOptions` at every launch site, kept by a source scan; each launch reads the running browser's command line
+    and refuses one without its sandbox; doctor says whether it is sandboxed and tells a root user to run as a regular
+    user); `browser.args` refuses the switches that turn the sandbox or site isolation off or open the browser to other
+    code. The notification and cursor bindings answer the main frame only, within limits (50 notifications and 20
+    icons per run; an icon a data: URL or an allowed origin's, ≤ 1 MiB, no redirect followed; 60 cursor effects a
+    second). Sign-in details in an environment page URL are taken out of it and given to the capture, sign-in and
+    recording browsers as HTTP credentials for that origin only (core `environmentHttpCredentials`; one origin, one
+    set), never in what a run writes.
+  - **Renders.** A pnpm patch of `@remotion/renderer` 4.0.534 (`patches/`, its CommonJS and ESM builds): on macOS the
+    render browser runs in Chromium's OS sandbox with `--site-per-process`, checked on its command line at every launch
+    (editor `render/policy.ts`); the bundle server listens on 127.0.0.1 and ::1 only, fails closed when ::1 is taken,
+    answers 421 to another Host and 403 to a cross-origin request. `apps/desktop/scripts/bundle.mjs` refuses a stage
+    whose renderer lacks the patch and scrubs the deployed engine's pnpm settings (its manifest names no file of the
+    build machine). docs/RELEASING.md "A Remotion upgrade" says how to port the patch; BACKLOG notes its licence terms
+    before a sale. Linux renders run as Remotion starts them (BL-161).
+  - **Release workflow.** No cache anywhere; Node.js in every job from its official tarball, checked against
+    `apps/desktop/bundle/node.json` before anything of it runs (`apps/desktop/scripts/ci-node.sh`, darwin-arm64 and
+    linux-x64; no setup-node); `packageManager` with pnpm's sha512 (corepack checks it); the sign job reads the build
+    archive's tar members itself and unpacks only `app/Retake.app` and `tauri-cli` (release.mjs `unpack`), signs the
+    update archive with a fresh temporary copy of the pinned Tauri CLI, and checks bundle.json's version against
+    Info.plist and `--app-version` before anything is signed; a reused stage of another version is refused.
+  - **The person's decisions (2026-11-05):** two lots before the release (L5.17, then L5.18 for the rest); the defaults
+    proposed accepted; the plain-word grammar for agent-written shell hooks (anything richer lives in
+    `hooks/<name>.yaml`, a person's file, shown and asked about); the Remotion patch (ported at each Remotion upgrade);
+    sign-in details in a page URL kept working, as HTTP credentials.
+  - **After the upgrade:** a scenario hooks job queued before it carries no `scenario_sha256`: the worker refuses it once
+    ("submit it again").
+  - **Tests on the Mac:** `tsc -b` green; the full suite **4851 — 4735 pass, 104 skipped, 12 failures, each re-run
+    alone**: stdio-site, stdio-inspect and stdio-runs green with the real HOME (with HOME at a scratch folder the worker
+    found no browser), run-live 9/9 with the default TMPDIR (a long scratch TMPDIR pushed a hook name past its
+    200-character limit), app-bundle-build a real regression fixed (its stand-in stage lacked the patched renderer;
+    33/33), app-bundle's renderBundleRestriction failing the same on main at `632f2d8` (webpack not resolvable from
+    packages/editor: not this lot); `pnpm test:slow` 82/83 (now with `launch-options.test.ts`; the catalogue acceptance
+    froze under a load of ~30, 8/8 alone); `pnpm test:pg` 20/20; the gated bundle acceptance 8/8 (352 s; its first run
+    found the deployed manifest naming build-machine paths, fixed). Not run: `desktop:test`, the Docker sandboxes and the
+    update end to end (nothing of theirs changed). Requirements: 724 tracked — 680 done, 30 partial, 8 todo, 6 n/a-here.
+  - **For the person, by hand:** a headed `retake login` and `retake record` with the sandbox (the tests run those
+    windows headless); a staging site behind basic auth, its details in the environment page URL; the first tagged run
+    of the release workflow (or a run on a fork) — Node.js downloaded and checked on GitHub's runners; the GitHub
+    settings checklist in their private notes. Cuts: BL-160 (the bundled Chromium bumped in one command), BL-161
+    (sandboxed browsers on Linux, as root and in containers). Next: L5.18, then the first release v0.2.0 (the person
+    tags).
 
 ## State (after L5.15)
 - **L5.15 done (2026-11-05)** — renders on the GPU (BL-114). One policy for every Remotion browser (editor
@@ -767,15 +839,17 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**After L5.14 and L5.15, before tagging v0.2.0: come back to the audit of 2026-11-04** (`docs/audit/`). Its
-[action plan](audit/action-plan.md) lists the tasks; T-SEC (the security fixes of the person's private report, kept out
-of this public repository until fixed) should land before the tag. Then propose the lots and backlog items of the
-action plan to the person (the MVP scope stays locked until they decide), and rerun `scripts/audit/snapshot.mjs`
-against `docs/audit/2026-11-04/summary.json`.
+**Before tagging v0.2.0: L5.18, the rest of the hardening** (decided 2026-11-05; L5.17 did the first part — ROADMAP
+"L5.17 – L5.18"; what remains of the [action plan](audit/action-plan.md)'s security task is in the person's private
+report, kept out of this public repository until fixed). Then come back to the audit of 2026-11-04 (`docs/audit/`):
+propose the action plan's architecture tasks and backlog items to the person (the MVP scope stays locked until they
+decide), and rerun `scripts/audit/snapshot.mjs` against `docs/audit/2026-11-04/summary.json`.
 
-**Next: the audit, then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16, L5.14 and L5.15 are
-done: the standalone app and its releases, captures first on the file queue, renders on the GPU). L5.14 signed rollback
-journals and bound approvals to their job (DESIGN §4q); check the audit's action plan for what T-SEC still lists. **Decided
+**Next: L5.18, then the first release v0.2.0** (asked by the person on 2026-11-04, the two hardening lots decided on
+2026-11-05; L5.16, L5.14, L5.15 and L5.17 are done: the standalone app and its releases, captures first on the file
+queue, renders on the GPU, the first hardening lot). L5.14 signed rollback journals and bound approvals to their job
+(DESIGN §4q); L5.17 pinned a job's scenario bytes, showed every hook in full, held agent-written shell hooks to plain
+words, put every capture and render browser in Chromium's sandbox and checked the release workflow's inputs. **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first (L5.14, BL-116; on the file queue since 2026-11-04, BL-117 parked), renders on the GPU (L5.15, BL-114) — then L5.3 and
