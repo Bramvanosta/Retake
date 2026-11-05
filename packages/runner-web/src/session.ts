@@ -95,6 +95,8 @@ interface Realm {
   /** Temporary profile created for the realm (removed on close). */
   temp: string | null;
   cleanup: string[];
+  /** The browser-level session that fails file: requests (armFileGuard), alive as long as the realm. */
+  fileGuard?: CDPSession;
 }
 
 /** Chromium flags for clean, uninterrupted captures (background tabs keep rendering). */
@@ -894,6 +896,8 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
   if (spec.userDataDir) recordProfileBrowser(spec.userDataDir, major);
   const realm: Realm = { name: spec.name, context, spare: [...context.pages()], temp, cleanup: spec.cleanup ?? [] };
   try {
+    // Before anything loads: the browser itself refuses file: pages (no run continues without it).
+    realm.fileGuard = await armFileGuard(context, spec.name);
     // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
     await context.grantPermissions(['notifications']).catch(() => undefined);
     await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
@@ -919,6 +923,44 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     throw e;
   }
   return realm;
+}
+
+/**
+ * The browser's own last resort against local files, in every realm of a run (capture, dry run, inspection): a
+ * browser-level CDP session pauses every `file:` request of every page, popup and frame — those that exist and those to
+ * come — and fails it (`net::ERR_BLOCKED_BY_CLIENT`), whatever started it. Other requests are never paused, so the HTTP
+ * cache and the write guard's route are untouched. Throws when the browser cannot be guarded (no browser-level session,
+ * Fetch refused): the realm is not used.
+ */
+export async function armFileGuard(context: BrowserContext, persona = ''): Promise<CDPSession> {
+  const fail = (why: string, cause?: unknown) =>
+    new RunnerError(`could not set the browser${persona ? ` of persona ${persona}` : ''} to refuse file: pages: ${why}`, cause === undefined ? undefined : { cause });
+  const browser = context.browser();
+  if (!browser) throw fail('no browser-level session');
+  let cdp: CDPSession;
+  try {
+    cdp = await browser.newBrowserCDPSession();
+  } catch (e) {
+    throw fail(errorText(e), e);
+  }
+  cdp.on('Fetch.requestPaused', (e: { requestId: string; request: { url: string } }) => {
+    // Only file: requests are paused (the pattern); anything else goes on untouched.
+    const call = /^file:/i.test(e.request.url)
+      ? cdp.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
+      : cdp.send('Fetch.continueRequest', { requestId: e.requestId });
+    call.catch(() => undefined);
+  });
+  try {
+    await cdp.send('Fetch.enable', { patterns: [{ urlPattern: 'file:*' }] });
+  } catch (e) {
+    await cdp.detach().catch(() => undefined);
+    throw fail(errorText(e), e);
+  }
+  return cdp;
+}
+
+function errorText(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).split('\n')[0];
 }
 
 async function closeRealm(r: Realm): Promise<void> {

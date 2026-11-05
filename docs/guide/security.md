@@ -151,7 +151,12 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   opens a full URL only on the exact origin of one of the pages of the environment it runs on (scheme, host and port;
   `//host/…` refused); a path of an environment page is always fine. Checked at submit and again by the worker before
   anything opens; a refusal names the field, the origins allowed and the fix (a person adds the origin as a page of the
-  environment in project.yaml). A templated URL is checked when it is rendered.
+  environment in project.yaml). A templated URL is checked once rendered and resolved, when its step runs, and fails
+  the step before its page loads; prewarm skips it. A link the page itself provides (a `new_tab` click that opened no
+  tab, followed by the runner) is held to the scheme rule only, plus `blob:` documents of the page's own origin.
+- **The capture browser reads no local file.** Every browser a capture, a rehearsal or an inspection opens fails any
+  `file:` request itself — of any page, tab, popup or frame, whatever started it —, set before anything loads; a run
+  whose browser cannot be set this way does not start. An http redirect to a `file:` URL fails too.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

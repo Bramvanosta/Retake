@@ -16,6 +16,7 @@ import {
   loginMatchers,
   mailboxFor,
   networkHost,
+  pageOrigins,
   scenePageEntries,
   planPersonas,
   reserveRunId,
@@ -87,6 +88,7 @@ import type { FrameIndexEntry } from './recorder.js';
 import { probePages, preflightRefusal } from './page-preflight.js';
 import { PerfSampler, UNFILMED_WARN_CORES, listeningPids, localPorts } from './perf.js';
 import { prewarmPages, prewarmTargets } from './prewarm.js';
+import { openProblem } from './opens.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { HookStepOutcome } from './runtime.js';
@@ -676,6 +678,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       recorder: null,
       cursorHidden: opts.hideCursor === true,
       ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
+      // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
+      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? 'mcp' } : {},
       ...(opts.inspect ? { inspecting: true } : {}),
       // Step defaults (L5.6): the scenario's win over the project's.
       ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
@@ -750,6 +754,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           }
         },
         ...(until ? { lastScene: until.sceneIndex } : {}),
+        // A page the take may not open is not visited either (its step fails when it runs).
+        mayOpen: (url) => openProblem(url, r.navigation) === null,
       });
       const done = await prewarmPages(r, targets);
       log('info', `prewarm: ${done.visited} of ${targets.length} page${targets.length === 1 ? '' : 's'} visited off camera in ${(done.ms / 1000).toFixed(1)} s`);

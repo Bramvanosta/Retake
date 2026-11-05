@@ -424,7 +424,9 @@ hooks: submit it again —, a sandbox that would not start…).
   or a page's `open`, an `open` step, a `new_tab` `href`) must also have the exact origin of one of the pages of the
   environment the job runs on — scheme, host and port: another port of localhost is another app — and `//host/…` is
   refused. A path of an environment page is always fine. Refused at submit (`run_dry`, `run_capture`, `page_inspect
-  {scenario}`, a scenario's hooks) and again by the worker, the refusal naming the field and the origins allowed; to
+  {scenario}`, a scenario's hooks), again by the worker and — for a templated URL (`{{vars.…}}`) — once rendered, when
+  its step runs (the step fails before the page loads; prewarm skips it); the refusal names the field and the origins
+  allowed. A link the page provides, followed by a `new_tab` whose click opened no tab, may go to any http(s) site. To
   film another site, a person adds its origin as a page of the environment in project.yaml. Every job the worker runs
   comes under this rule, the Studio's included (its status bar shows the same reason); a run typed in a terminal does
   not.

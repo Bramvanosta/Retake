@@ -34,6 +34,7 @@ import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
 import type { PendingPopup } from './actions/click.js';
 import type { Acted } from './park.js';
+import type { NavigationRule } from './opens.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -64,6 +65,11 @@ export interface RuntimeInit {
    * the project folder, an eval file is not one an agent can write and names no secret (core agent-trust).
    */
   agentTrust?: boolean;
+  /**
+   * What the run's navigations may open (opens.ts): the scheme rule always; for work submitted through MCP or the Studio,
+   * the environment's origins too. Absent: the scheme rule only.
+   */
+  navigation?: NavigationRule;
   /**
    * The run replays a scenario for an inspection (L3.3, RunOptions.inspect): no per-step dry-run screenshots, and the
    * pauses (`hold`, `wait`, a step's `hold:`, a scene's still) last at most INSPECT_PAUSE_CAP_S.
@@ -145,6 +151,8 @@ export class Runtime {
   readonly cursorHidden: boolean;
   /** Work submitted through MCP: see RuntimeInit.agentTrust. */
   readonly agentTrust: boolean;
+  /** See RuntimeInit.navigation. */
+  readonly navigation: NavigationRule;
   /** An inspection's replay: see RuntimeInit.inspecting. */
   readonly inspecting: boolean;
   /** See RuntimeInit.defaultTimeoutS. */
@@ -204,6 +212,7 @@ export class Runtime {
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
     this.agentTrust = init.agentTrust === true;
+    this.navigation = init.navigation ?? {};
     this.inspecting = init.inspecting === true;
     this.defaultTimeoutS = init.defaultTimeoutS;
     this.encoderFor = init.encoderFor;

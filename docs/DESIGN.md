@@ -354,6 +354,16 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   Without personas (§3.6): one context on a fresh temp profile. With personas: one context per persona the run films
   ("realms", each its own Chromium process and cookie jar) on a per-run copy of its session, plus the default context
   when some page has no persona. Executable: config → `$RETAKE_CHROMIUM` → Playwright default.
+- Every realm refuses local files itself before anything loads (`armFileGuard`, session.ts): a browser-level CDP
+  session enables `Fetch` for `file:*` only and fails each paused request (`BlockedByClient`), in every page, popup and
+  frame; no Playwright route (the HTTP cache stays on). A realm that cannot be armed is closed and the run fails.
+- What the runner opens (`opens.ts`, core `navigationProblem`): a scene's `open`, `pages[].open`, an `open` step, a
+  `new_tab` href and the prewarm visits are checked on their final URL — templated, then resolved against the
+  environment page — before a page is created or loaded for them: http(s) or exactly about:blank, no sign-in details;
+  under trust `mcp` (`RuntimeInit.navigation`: core `pageOrigins` of the environment) an absolute URL the scenario wrote
+  is on one of the environment's origins. A clicked link's href (the `new_tab` fallback) gets the scheme rule only,
+  plus `blob:` of the opener's origin. A refusal is a step error; prewarm leaves the URL out. Redirects stay Chromium's
+  (an http redirect to `file:` fails).
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
@@ -542,7 +552,8 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   `settle()` and `open` keep the load state, bounded by
   `settle_ms`), `assert` (fails with screenshot), `screenshot` (runs/<id>/screenshots/<name>.png).
 - `new_tab`: real click on target (if given) and wait ≤ 1.5 s for `context.on('page')`; if no page
-  appeared, open `href` (target's `href`, or the arg) in a new page; set it active and keep recording.
+  appeared, open `href` (the arg, else the target's `href`: §3.1 what the runner opens) in a new page; set it active
+  and keep recording.
 - `switch_page`, `open` (navigate; `wait_until` default `load` + settle network idle ≤ settle_ms),
   `eval` (function body with `arg`), `notify` (macOS `osascript`, Linux `notify-send` if present, else log),
   `emit` (timeline event with data), `cursor` (show/hide/move/set).
