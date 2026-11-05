@@ -1123,7 +1123,8 @@ Residues documented in L4.1 (accepted for a local tool used by one person per Ma
 - MCP over HTTP listens on a fixed port (47820) so a registration survives restarts: on a Mac shared with other
   accounts, another user's program could take the port while `retake mcp --http` is not running and receive the token
   Claude Code sends. A check that the listener is ours (a challenge signed with the token) or a per-user socket would
-  close it.
+  close it. *Hardening (SEC-18):* the server refuses to start beside a listener that is not its own and advises
+  `--rotate-token`; the rest is BL-162.
 - `.retake/index.sqlite` (and its -wal / -shm) take the umask's mode (0644 by default): other local accounts can
   read the project names and README text in it, as they can read the READMEs themselves.
 - ~~`LocalStorage.readText` (README, scenarios) follows links inside the project and refuses those leading out, but it
@@ -2434,6 +2435,22 @@ is not root: as root (the default user of many containers) Chromium does not sta
 as a regular user. Renders on Linux still run as Remotion starts them (without the sandbox). What remains: a documented
 container recipe (a non-root user, the namespaces it needs), a check of the setuid sandbox helper where user namespaces
 are off, and the render browser sandboxed on Linux like on macOS.
+
+### BL-162 — MCP over HTTP: a peer check per connection, and clients that verify the server
+*S–M · cut from the hardening of MCP over HTTP (SEC-18) · builds on: L4.1, BL-79*
+
+`retake mcp --http` listens on a fixed port (47820) so a registration survives restarts. At start it refuses a port
+held by a listener that is not this account's Retake MCP server (and advises `--rotate-token`), but two gaps remain on
+a Mac shared with other accounts:
+- **Who connects.** Any local process that holds the token is served. A check per new TCP connection (cached per
+  socket) could find the client end with `lsof -nP -a -iTCP@127.0.0.1:<client port> -sTCP:ESTABLISHED` (a non-root
+  `lsof` lists this account's processes only, about 40 ms) and refuse, before the token is compared, a connection
+  this account cannot see. It does not stop squatting (the client sends the token before anything is checked), so it
+  was cut.
+- **Who answers.** While the server is down, another account's program can take the port and receive the token the
+  client sends. Closing it needs the client to check the server: a challenge answered with the token (an HMAC of a
+  client nonce) before the bearer header is sent, or a Unix socket in a folder only this account can read — neither
+  is something an MCP client does today.
 
 ## Guard-rails for planned lots (no new scope)
 

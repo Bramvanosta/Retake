@@ -4,7 +4,8 @@
  * registration instead. `--http` (L4.1) serves the same tools over Streamable HTTP on 127.0.0.1 (default port 47820)
  * behind the engine's gate, with the stable token of the Retake home (`--rotate-token` renews it); `--print-config
  * --http` prints that registration for Claude Code — the URL, and the token only by reference (its file, an
- * environment variable): never the token itself.
+ * environment variable): never the token itself — and says that stdio is the safe default. A fixed port held by a
+ * listener that is not this account's Retake MCP server is refused, with the advice to rotate the token (SEC-18).
  */
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
@@ -68,6 +69,9 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     ui.line(`  ${mcp.mcpHttpTokenExport(file)}`);
     ui.line(`Then keep the server running: retake --root ${root} mcp --http${opts.port !== undefined ? ` --port ${port}` : ''}`);
     ui.line(`The token (${file}, 0600) is a secret: whoever holds it drives this workspace's tools and answers their approval forms. Never paste it into a file you commit. retake mcp --http --rotate-token replaces it.`);
+    ui.line(
+      `stdio (retake mcp --print-config, without --http) is the safe default: the client starts the server itself and nothing listens. Over HTTP, on a Mac shared with other accounts: while retake mcp --http is not running, another account's program can listen on port ${port} and receive the token your client sends — retake mcp --http refuses to start beside a listener that is not its own (stop it, then --rotate-token), but the client does not check the server it reaches.`,
+    );
     if (token.rotated || token.created) ui.line(token.rotated ? 'A new token was written: register the server again.' : 'A token was created.');
     return EXIT.ok;
   }

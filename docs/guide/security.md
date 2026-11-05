@@ -44,9 +44,15 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   and `Sec-Fetch-*` from secure contexts; MCP clients send neither — Node's fetch sends `Sec-Fetch-Mode: cors` alone,
   which is served). Then the route (`/mcp`), the bearer token (the stable one in the Retake home, mode 600),
   `application/json` and a 4 MiB body cap. It is a separate process from the Studio: a page of the Studio never holds
-  this token. Known limit: its port is fixed (47820) so the registration survives restarts — on a Mac shared with
-  other accounts, another local user's program could listen there first while `retake mcp --http` is not running and
-  receive the token a client sends (BACKLOG BL-79).
+  this token. Its port is fixed (47820) so the registration survives restarts; when it cannot take that port, the
+  server looks up the listener (`lsof`, `ps`) and starts only beside its own kind: this account's own
+  `retake mcp --http` gets the usual "port busy" answer, and any other listener — another account's (invisible to
+  this account), one of this account that is not a Retake MCP server, or one the lookup cannot identify — is refused
+  with the advice to stop it and run `retake mcp --http --rotate-token`, since a client may already have sent the
+  token there. Known limit: on a Mac shared with other accounts, another account's program can still take the port
+  while `retake mcp --http` is not running and receive the token a client sends — the check runs at start only, and
+  the client does not check the server it reaches (BACKLOG BL-162). The stdio registration listens on nothing: it is
+  the safe default on a shared Mac.
 - **Reads stay in the project.** README.md, scenario files and `project.yaml` read through the engine (MCP tools, the
   Studio), and the files a tool names (a hook's SQL or JS file, a dropped file), never follow a symbolic link out of
   the project folder: they are refused, and the refusal does not name where the link leads. A write through a link to

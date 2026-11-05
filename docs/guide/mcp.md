@@ -91,6 +91,15 @@ goodbye). The token is a secret: whoever holds it drives this workspace's tools 
 the client that spawns `retake mcp` over stdio does; never paste it into a file you commit. See [Security](security.md#security)
 for what the server refuses.
 
+**stdio is the safe default.** Over stdio the client starts the server itself and nothing listens. Over HTTP the port
+is fixed, so on a Mac shared with other accounts another account's program can listen on it while `retake mcp --http`
+is not running, and receive the token your client sends. When `retake mcp --http` cannot take its port, it looks up
+who holds it (`lsof` and `ps`, 2 s at most each): your own `retake mcp --http` already running there gets the usual
+"cannot listen … EADDRINUSE" answer; any other listener — another account's (your account cannot see it), one of
+your programs that is not a Retake MCP server, or one the lookup cannot identify — is refused, exit 1, with the advice
+to stop it and then run `retake mcp --http --rotate-token` and register again: a client may already have sent the
+token there. This is checked at start only, and the client does not check the server it reaches (BACKLOG BL-162).
+
 **Tools.**
 
 | Tool | Does | Writes |

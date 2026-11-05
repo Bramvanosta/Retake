@@ -48,6 +48,8 @@ export { MCP_HTTP_TOKEN_ENV, PLUGIN_ID, PLUGIN_NAME, SERVER_NAME, claudeCodeComm
 export type { McpConfigInput, McpHttpEntry, McpServerEntry } from './config-snippet.js';
 export { DEFAULT_MCP_HTTP_PORT, MCP_HTTP_BODY_MAX, MCP_HTTP_PATH, startMcpHttpServer } from './http.js';
 export type { McpHttpOptions, McpHttpServer } from './http.js';
+export { PORT_LOOKUP_TIMEOUT_MS, listenersAreOurs, lsofPortListeners, portHolder } from './port-holder.js';
+export type { PortHolderVerdict, PortListener, PortListenerLookup } from './port-holder.js';
 export { MCP_HTTP_IDLE_MS, MCP_HTTP_SESSIONS_MAX } from './server.js';
 export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okResult } from './result.js';
 export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalForm, siteApprovalMessage } from './approval.js';
