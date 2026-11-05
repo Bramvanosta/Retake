@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, setProtectedHostResolver, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -195,6 +195,84 @@ describe("production across projects: another project's production / read-only h
     await expect(stat(join(ws, 'projects', 'clone'))).rejects.toThrow();
     const ok = await mcp.projects.create({ name: 'Fine', slug: 'fine', environments: { staging: { console: 'http://127.0.0.1:4996' } } });
     expect(ok.slug).toBe('fine');
+  });
+
+  /** Resolve names with `table` only (no real DNS); the names asked for are recorded in `asked`. */
+  function resolveWith(table: Record<string, readonly string[] | 'never'>, timeoutMs = 2000): { asked: string[]; restore: () => void } {
+    const asked: string[] = [];
+    const before = setProtectedHostResolver({
+      lookup: (name) => {
+        asked.push(name);
+        const r = table[name];
+        if (r === 'never') return new Promise<never>(() => undefined);
+        return r ? Promise.resolve(r) : Promise.reject(Object.assign(new Error(`getaddrinfo ENOTFOUND ${name}`), { code: 'ENOTFOUND' }));
+      },
+      timeoutMs,
+    });
+    return { asked, restore: () => void setProtectedHostResolver(before) };
+  }
+
+  it('addresses compare canonically: an IPv4-mapped IPv6 address is its IPv4 form, the unspecified address is loopback', async () => {
+    const dns = resolveWith({});
+    try {
+      for (const url of ['http://[::ffff:127.0.0.1]:4999/app', 'http://[::ffff:7f00:1]:4999', 'http://[0:0:0:0:0:ffff:7f00:1]:4999', 'http://[::]:4999', 'http://[::ffff:0.0.0.0]:4999', 'http://0x7f.1:4999']) {
+        const e = await refusal(mcp.projects.create({ name: 'Mapped', slug: 'mapped', environments: { staging: { console: url } } }));
+        expect(e.code, url).toBe('refused');
+        expect(e.message, url).toContain('points at a host of production environment production of project');
+      }
+      // A human's project with such a page: its runs through MCP are refused too.
+      await mkdir(join(ws, 'projects', 'mapped'), { recursive: true });
+      await writeFile(join(ws, 'projects', 'mapped', 'project.yaml'), project('Mapped', ['  staging:', '    console: http://[::ffff:7f00:1]:4999']));
+      await mkdir(join(ws, 'projects', 'mapped', 'scenarios'), { recursive: true });
+      await writeFile(join(ws, 'projects', 'mapped', 'scenarios', 'short.yaml'), SHORT.replace('video: short', 'video: short\nenv: staging'));
+      const run = await refusal(mcp.runs.submit({ project: 'mapped', scenario: 'short', mode: 'dry' }));
+      expect(run.message).toContain('its page console (http://[::ffff:7f00:1]:4999) points at a host of production environment production of project');
+      // Both sides IP literals: compared without resolving anything; another port is still another server.
+      const ok = await mcp.projects.create({ name: 'Six', slug: 'six', environments: { staging: { console: 'http://[::ffff:7f00:1]:4995' } } });
+      expect(ok.slug).toBe('six');
+      expect(dns.asked).toEqual([]);
+    } finally {
+      dns.restore();
+      await rm(join(ws, 'projects', 'mapped'), { recursive: true, force: true });
+    }
+  });
+
+  it('an IP literal is compared with the addresses a protected name resolves to (and a page name with a protected address)', async () => {
+    const dns = resolveWith({ 'frozen.example.com': ['2001:db8::7', '::ffff:203.0.113.7'], 'alias.example.com': ['127.0.0.2'], 'elsewhere.example.com': ['192.0.2.1'] });
+    try {
+      for (const url of ['https://203.0.113.7/x', 'https://[::ffff:cb00:7107]/', 'https://[2001:db8:0::7]/']) {
+        const e = await refusal(mcp.projects.create({ name: 'Lit', slug: 'lit', environments: { staging: { console: url } } }));
+        expect(e.code, url).toBe('refused');
+        expect(e.message, url).toMatch(/points at a host of read-only environment frozen of project prod \(frozen\.example\.com resolves to (203\.0\.113\.7|2001:db8::7)\)/);
+      }
+      const alias = await refusal(mcp.projects.create({ name: 'Alias', slug: 'alias', environments: { staging: { console: 'http://alias.example.com:4999' } } }));
+      expect(alias.message).toContain('(alias.example.com resolves to a loopback address)');
+      expect(dns.asked).toContain('frozen.example.com');
+      // Another address, another port: fine.
+      expect((await mcp.projects.create({ name: 'Lit', slug: 'lit', environments: { staging: { console: 'https://203.0.113.8/' } } })).slug).toBe('lit');
+      expect((await mcp.projects.create({ name: 'Else', slug: 'else', environments: { staging: { console: 'http://elsewhere.example.com:4999' } } })).slug).toBe('else');
+      dns.asked.length = 0;
+      expect((await mcp.projects.create({ name: 'Port', slug: 'port', environments: { staging: { console: 'https://203.0.113.7:8443/' } } })).slug).toBe('port');
+      expect(dns.asked).toEqual([]);
+    } finally {
+      dns.restore();
+    }
+  });
+
+  it('a name that does not resolve in time next to an IP literal counts as a match (failing closed)', async () => {
+    const dns = resolveWith({ 'frozen.example.com': 'never' }, 50);
+    try {
+      const started = Date.now();
+      const e = await refusal(mcp.projects.create({ name: 'Slow', slug: 'slow', environments: { staging: { console: 'https://198.51.100.4/' } } }));
+      expect(e.message).toContain('read-only environment frozen of project prod (frozen.example.com did not resolve within 0.05 s, so it may be 198.51.100.4)');
+      expect(Date.now() - started).toBeLessThan(1500);
+      // Not found at all: the same.
+      const gone = await refusal(mcp.projects.create({ name: 'Gone', slug: 'gone', environments: { staging: { console: 'http://unknown.example.com:4999' } } }));
+      expect(gone.message).toContain('(unknown.example.com did not resolve within 0.05 s, so it may be a loopback address)');
+      await expect(stat(join(ws, 'projects', 'slow'))).rejects.toThrow();
+    } finally {
+      dns.restore();
+    }
   });
 
   it('runs, hooks and resets on a read-write environment pointing at them are refused; a protected environment, another port, are not', async () => {

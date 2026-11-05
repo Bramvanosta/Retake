@@ -5,8 +5,14 @@
  * the protected hosts are those of the production and read-only environments of EVERY project of the workspace: a new
  * project may not point at them, and a run, hooks or an environment reset on a read-write environment that does is
  * refused (a human runs it from a terminal, where project.yaml is theirs).
+ *
+ * Hosts are compared as addresses (core canonicalAddress): an IPv4-mapped IPv6 address is its IPv4 form, the
+ * unspecified addresses count as loopback, and when one side is an IP literal and the other a name, the name's resolved
+ * addresses are compared with it — a name that does not resolve in time counts as a match (failing closed). Residue:
+ * two different names that resolve to one address, and an IP literal behind a `*.domain` pattern, are not compared.
  */
-import { channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, normalizeHost, resolveEnvironment } from '@retake/core';
+import { lookup } from 'node:dns/promises';
+import { canonicalAddress, canonicalIp, channelWords, environmentAccess, hostMatches, listProjects, normalizeAllowEntry, resolveEnvironment } from '@retake/core';
 import type { AgentChannel, LoadedProject, WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { openProject } from './workspace.js';
@@ -15,26 +21,71 @@ import { openProject } from './workspace.js';
 export interface WorkspaceProtectedHost {
   project: string;
   env: string;
-  /** Normalised host (loopback names as `loopback`), or a `read_only.hosts` pattern (`*.example.com`). */
+  /**
+   * Host in canonical form (core canonicalAddress: an IPv4-mapped IPv6 address as its IPv4 form; loopback names and
+   * addresses, the unspecified ones included, as `loopback`), or a `read_only.hosts` pattern (`*.example.com`).
+   */
   host: string;
   /** A page's port (default ports included); absent for a pattern: any port. */
   port?: string;
+  /** Whether `host` is an IP literal (`loopback` when it came from one). */
+  ip?: boolean;
   production: boolean;
 }
 
-const LOOPBACK = /^(?:localhost|.+\.localhost|127(?:\.\d{1,3}){3}|::1|0\.0\.0\.0)$/;
+/** A protected host a URL points at; `reason` says how when only a name's addresses tell (its resolution). */
+export type ProtectedHostHit = WorkspaceProtectedHost & { reason?: string };
 
-/** Host and port of a page URL, loopback names folded into one; null when it is not an http(s) URL. */
-function origin(url: string): { host: string; port: string } | null {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return null;
+/** Loopback hosts, folded into one: names, 127.0.0.0/8, ::1 and the unspecified addresses (which reach this machine). */
+const LOOPBACK = /^(?:localhost|.+\.localhost|127(?:\.\d{1,3}){3}|::1|::|0\.0\.0\.0)$/;
+
+const fold = (host: string): string => (LOOPBACK.test(host) ? 'loopback' : host);
+
+/** Host and port of a page URL in canonical form, loopback folded into one; null when it is not an http(s) URL. */
+function origin(url: string): { host: string; port: string; ip: boolean } | null {
+  const a = canonicalAddress(url);
+  return a && { host: fold(a.host), port: a.port, ip: a.ip };
+}
+
+/** Resolves a name to its addresses (the system resolver, /etc/hosts included). */
+export type HostLookup = (name: string) => Promise<readonly string[]>;
+
+const systemLookup: HostLookup = async (name) => (await lookup(name, { all: true, verbatim: true })).map((a) => a.address);
+
+/** How names are resolved next to an IP literal: the system resolver, at most 2 s a name. */
+let resolver: { lookup: HostLookup; timeoutMs: number } = { lookup: systemLookup, timeoutMs: 2000 };
+
+/** Replace the resolver (tests: no real DNS); returns the one it replaced. No argument: the system resolver again. */
+export function setProtectedHostResolver(r?: { lookup?: HostLookup; timeoutMs?: number }): { lookup: HostLookup; timeoutMs: number } {
+  const before = resolver;
+  resolver = { lookup: r?.lookup ?? systemLookup, timeoutMs: r?.timeoutMs ?? 2000 };
+  return before;
+}
+
+/** A name's addresses (canonical, loopback folded), or null when it does not resolve in time; once per name and check. */
+type Lookups = Map<string, Promise<string[] | null>>;
+
+function addressesOf(name: string, lookups: Lookups): Promise<string[] | null> {
+  let p = lookups.get(name);
+  if (!p) {
+    const { lookup: look, timeoutMs } = resolver;
+    p = new Promise<string[] | null>((done) => {
+      const timer = setTimeout(() => done(null), timeoutMs);
+      timer.unref?.();
+      look(name).then(
+        (list) => {
+          clearTimeout(timer);
+          done(list.length ? list.map((a) => fold(canonicalIp(a) ?? a)) : null);
+        },
+        () => {
+          clearTimeout(timer);
+          done(null);
+        },
+      );
+    });
+    lookups.set(name, p);
   }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
-  const h = normalizeHost(u.hostname);
-  return { host: LOOPBACK.test(h) ? 'loopback' : h, port: u.port || (u.protocol === 'https:' ? '443' : '80') };
+  return p;
 }
 
 /** Whether an environment is protected: production (MCP never passes --allow-writes) or read-only in project.yaml. */
@@ -59,34 +110,55 @@ export async function workspaceProtectedHosts(ws: WorkspaceConfig, except?: stri
       const production = env.production === true;
       for (const url of Object.values(env.pages)) {
         const o = origin(url);
-        if (o) out.push({ project: p.slug, env: name, host: o.host, port: o.port, production });
+        if (o) out.push({ project: p.slug, env: name, host: o.host, port: o.port, ip: o.ip, production });
       }
       for (const entry of env.read_only?.hosts ?? []) {
-        if (entry.trim() !== '*') out.push({ project: p.slug, env: name, host: normalizeAllowEntry(entry), production });
+        if (entry.trim() === '*') continue;
+        const pattern = normalizeAllowEntry(entry);
+        const ip = pattern.startsWith('*.') ? null : canonicalIp(pattern);
+        out.push({ project: p.slug, env: name, host: ip ?? pattern, ip: ip !== null, production });
       }
     }
   }
   return out;
 }
 
-/** The protected host a page URL points at, or null. */
-export function protectedHostOf(url: string, hosts: readonly WorkspaceProtectedHost[]): WorkspaceProtectedHost | null {
+/**
+ * The protected host a page URL points at, or null: the same canonical host (and port, for a page's), else — when one
+ * side is an IP literal and the other a name — the name's resolved addresses (core canonicalIp), a name that does not
+ * resolve in time counting as a match. `lookups` shares the resolutions of one check.
+ */
+export async function protectedHostOf(url: string, hosts: readonly WorkspaceProtectedHost[], lookups: Lookups = new Map()): Promise<ProtectedHostHit | null> {
   const o = origin(url);
   if (!o) return null;
-  return hosts.find((h) => (h.port !== undefined ? h.host === o.host && h.port === o.port : o.host !== 'loopback' && hostMatches(o.host, h.host))) ?? null;
+  const portOk = (h: WorkspaceProtectedHost): boolean => h.port === undefined || h.port === o.port;
+  const same = hosts.find((h) => portOk(h) && (h.port !== undefined ? h.host === o.host : o.host !== 'loopback' && hostMatches(o.host, h.host)));
+  if (same) return same;
+  for (const h of hosts) {
+    if (!portOk(h) || (h.port === undefined && (o.host === 'loopback' || h.host.startsWith('*.')))) continue;
+    if ((h.ip === true) === o.ip) continue;
+    const [name, address] = o.ip ? [h.host, o.host] : [o.host, h.host];
+    if (name === 'loopback') continue;
+    const addresses = await addressesOf(name, lookups);
+    const shown = address === 'loopback' ? 'a loopback address' : address;
+    if (addresses === null) return { ...h, reason: `${name} did not resolve within ${resolver.timeoutMs / 1000} s, so it may be ${shown}` };
+    if (addresses.includes(address)) return { ...h, reason: `${name} resolves to ${shown}` };
+  }
+  return null;
 }
 
-function describe(h: WorkspaceProtectedHost): string {
-  return `${h.production ? 'production' : 'read-only'} environment ${h.env} of project ${h.project}`;
+function describe(h: ProtectedHostHit): string {
+  return `${h.production ? 'production' : 'read-only'} environment ${h.env} of project ${h.project}${h.reason ? ` (${h.reason})` : ''}`;
 }
 
 /** project_create: refuse pages that point at the hosts of another project's production or read-only environment. */
 export async function checkNewProjectHosts(ws: WorkspaceConfig, environments: Record<string, Record<string, string>> | undefined): Promise<void> {
   if (!environments || !Object.keys(environments).length) return;
   const hosts = await workspaceProtectedHosts(ws);
+  const lookups: Lookups = new Map();
   for (const [env, pages] of Object.entries(environments)) {
     for (const [page, url] of Object.entries(pages ?? {})) {
-      const hit = protectedHostOf(url, hosts);
+      const hit = await protectedHostOf(url, hosts, lookups);
       if (hit) {
         throw new EngineError(
           'refused',
@@ -107,8 +179,9 @@ export async function checkWorkspaceProtection(ws: WorkspaceConfig, project: Loa
   if (isProtected(env) || env.sandbox !== undefined) return;
   const hosts = await workspaceProtectedHosts(ws, project.slug);
   if (!hosts.length) return;
+  const lookups: Lookups = new Map();
   for (const [page, url] of Object.entries(env.pages)) {
-    const hit = protectedHostOf(url, hosts);
+    const hit = await protectedHostOf(url, hosts, lookups);
     if (hit) {
       throw new EngineError(
         'refused',

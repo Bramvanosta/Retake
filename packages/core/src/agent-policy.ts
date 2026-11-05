@@ -16,8 +16,8 @@
  * Agent-written shell commands: a strict grammar — plain words joined by single spaces and ` && ` — read in one pass,
  * then a few rules per word (agentShellProblems, agentShellCwdProblems, agentShellEnvProblems).
  *
- * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems) and the one origin comparison
- * (canonicalOrigin).
+ * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems), the one origin comparison
+ * (canonicalOrigin) and, built on it, the server a URL reaches (canonicalAddress, canonicalIp).
  *
  * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
  * SITE_ISOLATION_OFF_FEATURES) or open the browser to other code (BROWSER_OPEN_SWITCHES), refused in `browser.args`
@@ -26,7 +26,8 @@
  *
  * Agent policy: whether this process serves trust `mcp` (useAgentPolicy: the jobs worker, the MCP server, the Studio
  * server — never a command a person types), and under it the programs a job may run (programProblem: none from inside
- * the workspace, none by a relative path) and the browser switches it may pass (policyArgsProblems).
+ * the workspace, none by a relative path) and the browser switches it may pass (policyArgsProblems). Also under it, the
+ * environment of the programs a job starts: an allow-list of the worker's (childEnv, project.yaml `pass_env:`).
  */
 import { accessSync, constants as fsConstants, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -782,6 +783,82 @@ export function policyArgsProblems(args: readonly string[]): Array<{ index: numb
   return agentFolders ? agentArgsProblems(args) : [];
 }
 
+// ── Agent policy: the environment of the programs a job starts ──────────────────────────────────────────────────────
+
+/**
+ * What every program a job starts under the agent policy gets of the worker's environment (shell hooks and their
+ * rollbacks, `docker` / `docker compose`, a process sandbox's services): the shell's own variables, the locale, the
+ * time zone, the proxy and certificate settings — never the rest (a token or a password the person exported in the
+ * terminal that started the Studio or the worker). PATH is cleaned (childEnv). HOME is the one loader variable here.
+ */
+export const CHILD_ENV_BASE: readonly RegExp[] = [
+  /^(?:PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TERM|LANG|TZ)$/,
+  /^LC_[A-Z]+$/,
+  /^(?:http|https|ftp|all|no)_proxy$/i,
+  /^(?:SSL_CERT_FILE|SSL_CERT_DIR|NODE_EXTRA_CA_CERTS|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/,
+];
+
+/** What `docker` also gets on top of CHILD_ENV_BASE: which daemon and context it talks to, its config, BuildKit's settings. */
+export const DOCKER_CHILD_ENV: readonly RegExp[] = [/^DOCKER_[A-Z0-9_]+$/, /^BUILDKIT_[A-Z0-9_]+$/];
+
+/** How to give a job's programs another variable: the fix line of every refusal and hint about it. */
+export const PASS_ENV_FIX = 'a person lists its name in project.yaml `pass_env:` (e.g. `pass_env: [NAME]`), or sets it in the hook\'s own `env` (`{{env:NAME}}` reads it from the worker\'s environment)';
+
+/**
+ * Why `name` may not be listed in project.yaml `pass_env:` (null when it may): not a plain identifier, or a loader
+ * variable (see the module comment) — a job's programs never get one from the worker's environment.
+ */
+export function passEnvProblem(name: string): string | null {
+  if (!ENV_NAME_PLAIN.test(name)) return `"${showHiddenChars(name)}" is not a variable name (letters, digits and _, not starting with a digit)`;
+  if (isLoaderEnvName(name)) {
+    return `${name} is a loader variable (it makes a program load code or read its settings from elsewhere): a job's programs never get it from the worker's environment — a person-written hook sets it in its own \`env\``;
+  }
+  return null;
+}
+
+export interface ChildEnvOptions {
+  /** project.yaml `pass_env:`: more names passed on as they are (a loader variable never: passEnvProblem). */
+  pass?: readonly string[];
+  /** The programs are `docker` / `docker compose`: DOCKER_CHILD_ENV too. */
+  docker?: boolean;
+  /** The workspace folders no PATH entry may be inside (default: the agent policy's, else none). */
+  folders?: readonly string[];
+}
+
+/**
+ * The environment a program a job starts gets of `source` under the agent policy: CHILD_ENV_BASE (DOCKER_CHILD_ENV
+ * too for docker) and the names of `o.pass`, nothing else. PATH keeps its absolute entries outside the workspace
+ * folders only (a relative one resolves in the child's folder, and an agent writes files in the workspace). What the
+ * caller adds on top — Retake's own RETAKE_* variables, a hook's declared `env`, a sandbox service's `env` — is its own.
+ */
+export function childEnv(source: NodeJS.ProcessEnv, o: ChildEnvOptions = {}): Record<string, string> {
+  const folders = o.folders ?? agentFolders ?? [];
+  const pass = new Set((o.pass ?? []).filter((n) => passEnvProblem(n) === null));
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) {
+    if (v === undefined) continue;
+    if (CHILD_ENV_BASE.some((re) => re.test(k)) || (o.docker && DOCKER_CHILD_ENV.some((re) => re.test(k))) || pass.has(k)) out[k] = v;
+  }
+  if (out.PATH !== undefined) {
+    out.PATH = [...new Set(out.PATH.split(delimiter).filter((p) => p && isAbsolute(p) && !folders.some((f) => isUnder(p, f))))].join(delimiter);
+  }
+  return out;
+}
+
+/** childEnv under this process's agent policy, or null when the policy is off (the child inherits, as a command a person types). */
+export function policyChildEnv(source: NodeJS.ProcessEnv, o: Omit<ChildEnvOptions, 'folders'> = {}): Record<string, string> | null {
+  return agentFolders ? childEnv(source, { ...o, folders: agentFolders }) : null;
+}
+
+/**
+ * The hint added to a hook that failed under the agent policy: the variables it could see (names only) and how to pass
+ * another one.
+ */
+export function childEnvHint(names: readonly string[]): string {
+  const shown = [...new Set(names)].sort();
+  return `a job the Studio, the desktop app or an MCP client starts gives its programs only some variables of the worker's environment — this one saw ${shown.join(', ') || 'none'}; if it needs another, ${PASS_ENV_FIX}`;
+}
+
 // ── Navigation ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -798,6 +875,50 @@ export function canonicalOrigin(url: string): string | null {
     return null;
   }
   return u.protocol === 'http:' || u.protocol === 'https:' ? u.origin : null;
+}
+
+/** An IPv4-mapped IPv6 address as WHATWG URL writes it (`::ffff:7f00:1`): its two last groups are the IPv4 address. */
+const MAPPED_IPV6 = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+/**
+ * An IP literal in the one form addresses are compared in, or null when the host is a name: an IPv4 address dotted
+ * (`127.1`, `0x7f000001` read as WHATWG URL reads them), an IPv6 one compressed in lower case without brackets, and an
+ * IPv4-mapped IPv6 address (`[::ffff:127.0.0.1]`, `[::ffff:7f00:1]`) as its IPv4 form — the same server, which a
+ * browser still counts as another origin. For guards that ask whether two URLs reach one server (another project's
+ * production hosts); origins stay canonicalOrigin's, allow-lists and IP classes their own normalisation.
+ */
+export function canonicalIp(host: string): string | null {
+  let h = host.trim();
+  if (h.startsWith('[') && h.endsWith(']')) h = h.slice(1, -1);
+  if (!h || /[\s/?#@[\]\\]/.test(h)) return null;
+  let parsed: string;
+  try {
+    parsed = new URL(`http://${h.includes(':') ? `[${h}]` : h}/`).hostname;
+  } catch {
+    return null;
+  }
+  if (parsed.startsWith('[')) {
+    const v6 = parsed.slice(1, -1);
+    const m = MAPPED_IPV6.exec(v6);
+    if (!m) return v6;
+    const [hi, lo] = [parseInt(m[1], 16), parseInt(m[2], 16)];
+    return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
+  }
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(parsed) ? parsed : null;
+}
+
+/**
+ * The server an http(s) URL reaches, from its canonicalOrigin: the host lower case without a trailing dot, an IP
+ * literal in canonicalIp form (`ip`), and the port (the scheme's default when the URL leaves it out); null for any other
+ * scheme and for text that is not a URL.
+ */
+export function canonicalAddress(url: string): { host: string; port: string; ip: boolean } | null {
+  const origin = canonicalOrigin(url);
+  if (origin === null) return null;
+  const u = new URL(origin);
+  const ip = canonicalIp(u.hostname);
+  const host = ip ?? (u.hostname.endsWith('.') ? u.hostname.slice(0, -1) : u.hostname);
+  return { host, port: u.port || (u.protocol === 'https:' ? '443' : '80'), ip: ip !== null };
 }
 
 /** A host no URL names: the base a reference without a scheme is resolved against, to tell a path from `//host/…`. */

@@ -8,6 +8,8 @@ import { describe, expect, it } from 'vitest';
 import {
   agentTrustProblems,
   agentTrustProblemsAt,
+  canonicalAddress,
+  canonicalIp,
   canonicalOrigin,
   isPageOrigin,
   loadProject,
@@ -137,6 +139,20 @@ describe('navigationProblem: the environment origins (agent work)', () => {
     expect(pageOrigins({ a: 'http://localhost:4401/app', b: 'HTTP://localhost:4401', c: 'file:///x' })).toEqual(['http://localhost:4401']);
     expect(isPageOrigin(' http://LOCALHOST:4401/x', { a: 'http://localhost:4401' })).toBe(true);
     expect(isPageOrigin('http://localhost:4402/x', { a: 'http://localhost:4401' })).toBe(false);
+  });
+
+  it('canonicalIp / canonicalAddress: the server a URL reaches — an IPv4-mapped IPv6 address is its IPv4 form; origins unchanged', () => {
+    for (const h of ['[::ffff:127.0.0.1]', '::ffff:7f00:1', '[0:0:0:0:0:ffff:7f00:1]', '127.1', '0x7f000001', '127.0.0.1']) expect(canonicalIp(h), h).toBe('127.0.0.1');
+    expect(canonicalIp('[::ffff:203.0.113.7]')).toBe('203.0.113.7');
+    expect(canonicalIp('[0:0:0:0:0:0:0:0]')).toBe('::');
+    expect(canonicalIp('2001:DB8:0::7')).toBe('2001:db8::7');
+    for (const h of ['shop.example.test', 'localhost', '1.2.3.4.example', '', 'a b', 'x/y']) expect(canonicalIp(h), h).toBeNull();
+    expect(canonicalAddress('http://[::ffff:7f00:1]:4999/app')).toEqual({ host: '127.0.0.1', port: '4999', ip: true });
+    expect(canonicalAddress('HTTPS://Shop.Example.Test./x')).toEqual({ host: 'shop.example.test', port: '443', ip: false });
+    expect(canonicalAddress('http://[::]/')).toEqual({ host: '::', port: '80', ip: true });
+    expect(canonicalAddress('file:///etc/hosts')).toBeNull();
+    // A browser still counts the mapped form as another origin.
+    expect(canonicalOrigin('http://[::ffff:127.0.0.1]:4999')).toBe('http://[::ffff:7f00:1]:4999');
   });
 });
 

@@ -436,7 +436,7 @@ hooks: submit it again —, a sandbox that would not start…).
   `env`, or the scenario's own `env:`) reports it too, at the line; a run typed in a terminal does not.
 - **Production of every project.** The hosts of the production and read-only environments of *every* project of the
   workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
-  ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
+  ports compared, addresses canonical, a name next to an IP literal resolved — see [Security](security.md)), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
   marks that environment production / read-only in project.yaml, or runs it in a terminal).
 - Text the filmed site or a service controls (a step's error message, warnings, a session check's detail and URL,
   health responses) comes back under an `untrusted` key, truncated, never in the summary; the server's instructions
