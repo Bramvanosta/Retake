@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, channelWords, listTemplateTokens, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -32,12 +32,12 @@ interface ShellCommand {
   env?: Record<string, string>;
   /** A sandbox environment's variables (sandboxEnv), under `env`. */
   base?: Record<string, string>;
-  /** L5.14: a rollback Retake did not sign — the terminal's environment is not passed on, only BARE_ENV of it. */
+  /**
+   * L5.14: a rollback Retake did not sign — the terminal's environment is not passed on, only core childEnv's base of
+   * it (the shell's own variables; no `pass_env:`).
+   */
   bare?: boolean;
 }
-
-/** What a shell rollback Retake did not sign gets of the environment it is replayed in (RollbackEnv.unsigned). */
-const BARE_ENV = ['PATH', 'HOME', 'USER', 'LOGNAME', 'SHELL', 'TMPDIR', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TERM'];
 
 interface ShellOutcome {
   code: number | null;
@@ -152,10 +152,19 @@ async function resolveCwd(ctx: HookContext, cwd: string | undefined): Promise<st
   return dir;
 }
 
+/**
+ * What sh gets of this process's environment: everything (a command a person types), core childEnv's allow-list under
+ * the agent policy (a job of the Studio, the desktop app or an MCP client: the shell's own variables and project.yaml
+ * `pass_env:`), its base only for a rollback Retake did not sign.
+ */
+function inheritedEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
+  if (cmd.bare) return childEnv(process.env);
+  return policyChildEnv(process.env, { pass: ctx.project.config.pass_env }) ?? process.env;
+}
+
 function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
-  const inherited = cmd.bare ? Object.fromEntries(BARE_ENV.flatMap((k) => (process.env[k] !== undefined ? [[k, process.env[k]]] : []))) : process.env;
   return {
-    ...inherited,
+    ...inheritedEnv(ctx, cmd),
     // Also under the names from before L5.13, for a script that still reads them (legacy.ts; never read back).
     ...withOldOutgoingEnv({
       RETAKE_PROJECT_DIR: ctx.project.dir,
@@ -215,7 +224,8 @@ async function execute(
   timeoutS: number,
 ): Promise<string> {
   const cwd = await resolveCwd(ctx, cmd.cwd);
-  const r = await runShell(cmd.run, cwd, hookEnv(ctx, cmd), timeoutS * 1000, ctx);
+  const env = hookEnv(ctx, cmd);
+  const r = await runShell(cmd.run, cwd, env, timeoutS * 1000, ctx);
   const label = describeShell(cmd.run);
   if (r.stdout.trim()) log('info', `${label} stdout:\n${tail(r.stdout.trimEnd(), LOG_OUTPUT_CHARS)}`);
   if (r.stderr.trim()) log('info', `${label} stderr:\n${tail(r.stderr.trimEnd(), LOG_OUTPUT_CHARS)}`);
@@ -224,7 +234,10 @@ async function execute(
   if (r.code !== 0) {
     const output = (r.stderr.trim() || r.stdout.trim()).trimEnd();
     const how = r.code === null ? `was killed by ${r.signal}` : `exited with code ${r.code}`;
-    throw new HookError(`${label} ${how}${output ? `: ${tail(output, 1_000)}` : ''}`);
+    // Under the agent policy the command got only some variables of the worker's environment: say which (names only),
+    // and how to pass another.
+    const hint = agentPolicyFolders() ? ` (${childEnvHint(Object.keys(inheritedEnv(ctx, cmd)))})` : '';
+    throw new HookError(`${label} ${how}${output ? `: ${tail(output, 1_000)}` : ''}${hint}`);
   }
   return 'exit 0';
 }

@@ -533,7 +533,11 @@ running: the MCP server keeps working without it.
   Claude's: no program from inside the workspace (`browser.executable`, `ffmpeg:`, `$RETAKE_CHROMIUM`… there, or a
   relative path) and only switches in `browser.args`, none that loads code or files — the job fails before it starts
   the program and says what to change; the same run typed in a terminal is not affected (see
-  [Workspace](workspace.md)). A tool variable pointing inside the workspace does not reach the worker.
+  [Workspace](workspace.md)). A tool variable pointing inside the workspace does not reach the worker. The programs
+  a Studio job starts — shell hooks, `docker`, a sandbox's services — get only the shell's own variables of the
+  worker's environment (`PATH`, `HOME`, `USER`, the locale, `TZ`, proxy and certificate settings; `DOCKER_*` for
+  docker) and the names project.yaml lists in `pass_env:`; a hook that needs a token the terminal exported reads it in
+  its own `env:` (`{{env:NAME}}`) or through `pass_env:`. A hook that fails says which variables it got.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
   right-to-left override characters are shown as visible marks (`[U+202E]`).
 

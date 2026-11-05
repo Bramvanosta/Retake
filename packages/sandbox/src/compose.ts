@@ -75,6 +75,8 @@ export interface ComposeProjectRef {
   envFile?: string;
   /** The names it sets: left out of the environment docker runs with (a shell's value would win over the file's). */
   envKeys?: string[];
+  /** project.yaml `pass_env:`: passed on to docker under the agent policy besides core childEnv's base. */
+  pass?: string[];
 }
 
 function realDir(dir: string): string {
@@ -123,7 +125,7 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 }
 
 /** The compose project a sandbox runs as. */
-export function composeProject(project: Pick<LoadedProject, 'slug'>, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
+export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> }, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
   const dir = realDir(sandbox.dir);
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(dir, f));
   const envFile = composeEnvFile({ dir, manifest: sandbox.manifest });
@@ -135,7 +137,14 @@ export function composeProject(project: Pick<LoadedProject, 'slug'>, sandbox: Pi
       /* a missing file: docker compose says so */
     }
   }
-  return { name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir), dir, files, ...(envFile ? { envFile, envKeys } : {}) };
+  const pass = project.config?.pass_env;
+  return {
+    name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir),
+    dir,
+    files,
+    ...(envFile ? { envFile, envKeys } : {}),
+    ...(pass?.length ? { pass: [...pass] } : {}),
+  };
 }
 
 /** `compose --ansi never -p <name> --project-directory <dir> -f <file>… [--env-file <file>]`: the start of every compose call. */
@@ -409,6 +418,7 @@ export class ComposeProvider implements Provider {
     return this.run([...composeArgs(ref), ...args], {
       ...opts,
       ...(ref.envKeys?.length ? { unset: ref.envKeys } : {}),
+      ...(ref.pass?.length ? { pass: ref.pass } : {}),
       onSpawn: (c) => {
         this.child = c;
         opts.onSpawn?.(c);
@@ -928,13 +938,13 @@ export class ComposeProvider implements Provider {
     const exec = this.running;
     this.running = null;
     if (exec && this.bin) {
-      spawnSync(this.bin, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(this.bin, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
     }
     const names = this.started;
     this.started = [];
     if (!names.length || !this.bin) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(this.bin, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(this.bin, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */

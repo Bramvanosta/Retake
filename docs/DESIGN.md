@@ -260,7 +260,16 @@ HookContext = {
   File or inline; a whole file runs as one multi-statement query inside `BEGIN … COMMIT`.
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
-  `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged.
+  `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged. What it inherits (`inheritedEnv`):
+  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes) core
+  `policyChildEnv` — `CHILD_ENV_BASE` (PATH without relative entries or entries inside the workspace folders, HOME,
+  USER, LOGNAME, SHELL, TMPDIR, TERM, LANG, LC_*, TZ, the proxy and certificate variables) plus project.yaml
+  `pass_env:` (core `passEnvProblem` refuses a loader variable at validation, `childEnv` drops one again); an unsigned
+  rollback gets `childEnv`'s base only. Its own `env` (rendered: `{{env:NAME}}` from the worker's environment) and the
+  sandbox `base` go on top, as before; the host check reads the same environment. A failure under the policy ends
+  with `childEnvHint`: the names it inherited (never values) and `PASS_ENV_FIX`. The sandbox applies the same list to
+  process services (`serviceEnv`) and to `docker` (`dockerEnv(base, unset, pass)`, `DOCKER_CHILD_ENV` added:
+  `DOCKER_*`, `BUILDKIT_*`; `ComposeProjectRef.pass` carries `pass_env` to every compose command).
 - **js**: requires `ctx.evalInPage` (else a clear error: "js hooks need a browser: run them through the runner").
   The runner and `retake hooks run` evaluate it with runner-web `evalHookInPage`: a tab of the run's browser context
   per environment page key (shares cookies / localStorage / IndexedDB with the capture tabs; not in `session.pages`,

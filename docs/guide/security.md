@@ -98,6 +98,17 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   hooks that write are refused there, before anything runs, and the run's browsers stop their writes to the
   environment's hosts (or answer them with a mock); a production environment is written to only where project.yaml
   sets `access: read-write` **and** the command line says `--allow-writes`.
+- **Another project's production hosts.** Work submitted through MCP, the Studio or the desktop app may not point a
+  read-write environment at a host of another project's production or read-only environment: `project_create` refuses
+  such a page, and a run, hooks or a reset on such an environment are refused. Hosts are compared as the server they
+  reach: loopback names and addresses are one host (`localhost`, `127.0.0.0/8`, `::1`, and the unspecified `0.0.0.0` /
+  `[::]`), an IPv4-mapped IPv6 address is its IPv4 form (`[::ffff:127.0.0.1]` is `127.0.0.1`), numeric forms are read
+  as a browser reads them (`127.1`), and ports are compared. When one side is an IP literal and the other a name, the
+  name is resolved (the system resolver, `/etc/hosts` included, at most 2 s) and its addresses are compared: a name
+  that does not resolve in time next to an IP literal counts as the same server, so the work is refused (write the
+  host the way the protected environment does, or a person adds the environment to project.yaml marked production).
+  Not compared: two different names that resolve to the same address, and an IP literal behind a `*.domain` pattern
+  of `read_only.hosts`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
   validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
@@ -199,6 +210,16 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   files or opens a debugging channel (`--user-data-dir`, `--load-extension`, `--js-flags`, `--log-file`, any
   `--*-cmd-prefix`, `--*-launcher` or `--remote-debugging-*`…; the full list in [Workspace](workspace.md)). A command
   typed in a terminal runs as you wrote it; `retake doctor` warns about each setting such a job would refuse.
+- **Jobs an agent can shape pass on an allow-list of the environment.** The worker keeps the environment it was
+  started with (an automated sign-in's `{{env:…}}` reads it), but the programs its jobs start — shell hooks and their
+  rollbacks, `docker` / `docker compose`, a process sandbox's services — get only the shell's own variables of it:
+  `PATH` (no relative entry, no folder inside the workspace), `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, `TERM`,
+  `LANG`, `LC_*`, `TZ`, the proxy and certificate variables, and for `docker` `DOCKER_*` and `BUILDKIT_*`. A token
+  or a password exported in the terminal that started the Studio, the app's worker or `retake worker` never reaches a
+  program an agent can make run. Anything else is passed on purpose: by name in project.yaml `pass_env:` (a person's
+  file; never a loader variable such as `NODE_OPTIONS` or `LD_PRELOAD`: a validation error), or as a hook's or a
+  service's own `env:` (`{{env:NAME}}`, masked in every log). A hook that fails there names the variables it got
+  (names, never values) and how to pass another. A command typed in a terminal passes its whole environment on.
 - **Renders never download a browser.** Every render uses Playwright's Chromium headless shell (the app's own in the
   app) or `$RETAKE_CHROMIUM_HEADLESS_SHELL`; without one no render starts and the message says how to install it.
 - **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens

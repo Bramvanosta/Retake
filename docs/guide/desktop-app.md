@@ -331,7 +331,9 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   lives (it exits after 60 s without a job), so a job Claude submits through MCP meanwhile runs with it too — let it
   idle out before relying on `{{env:…}}` set in a terminal (BACKLOG BL-125). Your jobs from the app follow the rules
   of every job the worker runs, Claude's included: no program from inside the workspace and only switches in
-  `browser.args`, none that loads code or files (see [Workspace](workspace.md)); a run typed in a terminal keeps them.
+  `browser.args`, none that loads code or files, and their shell hooks, `docker` and sandbox services get only the
+  shell's own variables of the worker's environment plus the names of project.yaml `pass_env:` (see
+  [Workspace](workspace.md)); a run typed in a terminal keeps them.
   macOS may ask
   whether the app may reach devices on your local network (a capture of a product on another machine), access your
   Desktop, Documents or Downloads folder (a workspace there: the server is the app's child), or show notifications (the

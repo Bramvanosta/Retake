@@ -37,7 +37,7 @@ spelled (`-name`, any case, a value after `=`). So is a switch that opens the br
 `--browser-subprocess-path`, `--remote-debugging-port` and `--remote-debugging-address`.
 
 **Jobs an agent can shape** — every job of the jobs worker, so every run, render, review and export the Studio, the
-desktop app or an MCP client starts (your own Studio runs included) — follow two more rules; a command you type in a
+desktop app or an MCP client starts (your own Studio runs included) — follow three more rules; a command you type in a
 terminal (`retake run`, `retake render`…) does not:
 
 - **Programs from outside the workspace only.** `browser.executable`, `ffmpeg:` and the tool variables
@@ -53,6 +53,17 @@ terminal (`retake run`, `retake render`…) does not:
   `--register-pepper-plugins`, `--js-flags`, `--remote-allow-origins`, `--allow-file-access-from-files`,
   `--allow-file-access`, `--enable-logging`, `--log-file`, any `--*-cmd-prefix` or `--*-launcher` and any
   `--remote-debugging-*`. Proxy and resolver switches (`--proxy-server`, `--host-resolver-rules`…) stay.
+- **An allow-list of the environment.** The programs such a job starts — shell hooks and their rollbacks, `docker`
+  and `docker compose`, a process sandbox's services — get only the shell's own variables of the worker's
+  environment: `PATH` (without relative entries or folders inside the workspace), `HOME`, `USER`, `LOGNAME`, `SHELL`,
+  `TMPDIR`, `TERM`, `LANG`, `LC_*`, `TZ`, the proxy variables (`HTTP_PROXY`, `https_proxy`, `NO_PROXY`…) and the
+  certificate ones (`SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`);
+  `docker` also `DOCKER_*` and `BUILDKIT_*`. A token or a password exported in the terminal that started the Studio
+  or the worker never reaches them. A program that needs another variable gets it by name from project.yaml
+  `pass_env:` (below; never a loader variable such as `NODE_OPTIONS`, `LD_PRELOAD`, `GIT_*` or `PYTHONPATH`: a
+  validation error), or through its own `env:` (`DATABASE_URL: "{{env:DATABASE_URL}}"`, read from the worker's
+  environment and masked in logs); what a hook or a service sets in `env:` reaches it as before. A shell hook that
+  fails in such a job says which variables it got and how to pass another.
 
 `retake doctor` warns (**Studio and MCP jobs**) about each setting these jobs would refuse.
 
@@ -133,6 +144,7 @@ frame: card                    # raw | card | browser | laptop | phone | tablet 
 template: default              # a workspace template, a starter (default, editorial, motion), or a path like ./theme
 locale: en-GB                  # browser locale (navigator.language, Accept-Language) unless browser.locale is set
 allow_hosts: [api.staging.example.com]                    # extra hosts hooks (every kind) may reach
+pass_env: [STAGING_DB_URL]     # variables a Studio or MCP job's hooks, docker and services also get (see above)
 databases:
   main: {url: "postgres://demo@db.staging.example.com/app?password={{keychain:acme/db}}"}
 vars: {customer: Northfield Roasters}

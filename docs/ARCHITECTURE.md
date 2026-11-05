@@ -68,7 +68,11 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      refs a human wrote: project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's
      `hooks/` files. A scenario written or run through MCP names no secret, nor does a code file it runs (refused at
      save, at submit and by the worker): the agent could otherwise read any variable of that environment back through
-     an error message (masking catches a value as is, not base64 of it).
+     an error message (masking catches a value as is, not base64 of it). The worker keeps its environment for itself;
+     the programs its jobs start (shell hooks and rollbacks, docker / compose, process-sandbox services) get only core
+     `childEnv`'s allow-list of it — the shell's own variables, the proxy and certificate ones, `DOCKER_*` /
+     `BUILDKIT_*` for docker — plus the names of project.yaml `pass_env:` (a person's file, never a loader variable)
+     and their own declared `env` (`{{env:NAME}}`, a human's refs only). The CLI's children inherit everything.
    - *Local files*: a file a scenario or hook references through MCP (drop_file, eval.file, sql / js files, the
      scripts a shell hook names) is inside the project folder, symbolic links followed; code is never run from a file
      the agent can write (README.md, `scenarios/`, `runs/`…). A process that serves trust mcp (the jobs worker and its

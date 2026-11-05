@@ -14,7 +14,7 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { interpolateDeep, prefetchSecrets, resolveEnvironment, withOldOutgoingEnv } from '@retake/core';
+import { interpolateDeep, policyChildEnv, prefetchSecrets, resolveEnvironment, withOldOutgoingEnv } from '@retake/core';
 import type { SandboxService } from '@retake/core';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { healthNow, serviceHealth, waitHealthy } from './health.js';
@@ -52,10 +52,15 @@ export function serviceHash(svc: SandboxService): string {
     .slice(0, 16);
 }
 
-/** The environment of a service: the CLI's (filtered), sandbox.yaml's `env` (templated) and RETAKE_SANDBOX. */
+/**
+ * The environment of a service: the CLI's (filtered) — under the agent policy (a job of the Studio, the desktop app or
+ * an MCP client) only core childEnv's allow-list of it (the shell's own variables and project.yaml `pass_env:`) —,
+ * sandbox.yaml's `env` (templated) and RETAKE_SANDBOX.
+ */
 export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox'>, svc: SandboxService, base: NodeJS.ProcessEnv = process.env): Promise<NodeJS.ProcessEnv> {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(base)) if (v !== undefined && !DROPPED_ENV.test(k) && !DROPPED_EXACT.has(k)) out[k] = v;
+  const inherited = policyChildEnv(base, { pass: ctx.project.config.pass_env }) ?? base;
+  for (const [k, v] of Object.entries(inherited)) if (v !== undefined && !DROPPED_ENV.test(k) && !DROPPED_EXACT.has(k)) out[k] = v;
   if (svc.env) {
     const { resolver } = await prefetchSecrets(svc.env);
     const pages = resolveEnvironment(ctx.project, ctx.sandbox.env).pages;

@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ConfigError, composeEnvFile, envFileKeys, loadProject } from '@retake/core';
+import { ConfigError, composeEnvFile, envFileKeys, loadProject, useAgentPolicy } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { ComposeProvider, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
 import type { DockerExec, DockerRunOptions, ProviderContext } from '@retake/sandbox';
@@ -27,10 +27,10 @@ afterAll(async () => {
 const COMPOSE = ['services:', '  app:', '    image: "busybox:${APP_TAG:-unset}"', '    environment: {GREETING: "${GREETING:-none}"}', ''].join('\n');
 
 /** A project whose docker-compose sandbox reads `compose` (sandbox.yaml lines `manifest`, files under sandbox/). */
-async function project(name: string, manifest: string[], files: Record<string, string>): Promise<LoadedProject> {
+async function project(name: string, manifest: string[], files: Record<string, string>, extra: string[] = []): Promise<LoadedProject> {
   const dir = join(tmp, name);
   await mkdir(join(dir, 'sandbox'), { recursive: true });
-  await writeFile(join(dir, 'project.yaml'), ['name: Env file test', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  stage: sandbox/sandbox.yaml', ''].join('\n'));
+  await writeFile(join(dir, 'project.yaml'), ['name: Env file test', 'environments:', '  local: {app: "http://localhost:9"}', 'sandboxes:', '  stage: sandbox/sandbox.yaml', ...extra, ''].join('\n'));
   await writeFile(join(dir, 'sandbox', 'sandbox.yaml'), ['version: 1', 'provider: docker-compose', ...manifest, 'services:', '  app: {url: "http://localhost:4790", health: false, pages: {app: "http://localhost:4790"}}', ''].join('\n'));
   for (const [rel, text] of Object.entries(files)) {
     await mkdir(join(dir, 'sandbox', rel, '..'), { recursive: true });
@@ -94,6 +94,57 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const err = await project('profiles', [], { 'compose.yaml': COMPOSE, '.env': 'APP_TAG=1\nCOMPOSE_PROFILES=debug\n' }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
     expect(String((err as Error).message) + JSON.stringify((err as ConfigError).issues ?? [])).toMatch(/sets COMPOSE_PROFILES/);
+  });
+
+  it('under the agent policy docker gets core childEnv\'s allow-list: DOCKER_* and BUILDKIT_* kept, pass_env passed, a secret never', async () => {
+    const p = await project('policy', [], { 'compose.yaml': COMPOSE, '.env': 'APP_TAG=1.38.0\n' }, ['pass_env: [GREETING]']);
+    const ref = composeProject(p, p.sandboxes!.stage);
+    expect(ref.pass).toEqual(['GREETING']);
+    const shell = { PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', APP_TAG: 'from-the-shell', COMPOSE_PROFILES: 'debug', AWS_SECRET_ACCESS_KEY: 'exported' };
+    // A command a person types: everything but COMPOSE_* and the env file's names.
+    expect(dockerEnv(shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', AWS_SECRET_ACCESS_KEY: 'exported' });
+    useAgentPolicy([p.dir]);
+    try {
+      expect(dockerEnv(shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell' });
+      expect(dockerEnv(shell, ref.envKeys)).not.toHaveProperty('GREETING');
+    } finally {
+      useAgentPolicy(null);
+    }
+    // Every compose command of the provider carries project.yaml's pass_env.
+    const calls: Array<DockerRunOptions | undefined> = [];
+    const exec: DockerExec = async (_a, o) => {
+      calls.push(o);
+      return { code: 0, stdout: JSON.stringify({ services: { app: { image: 'busybox:1.38.0' } } }), stderr: '', ms: 1 };
+    };
+    await new ComposeProvider({ exec }).config(ctxOf(p));
+    expect(calls[0]?.pass).toEqual(['GREETING']);
+  });
+
+  it.skipIf(!ENABLED)('the real docker compose under the agent policy: a shell variable reaches the compose file only through pass_env', async () => {
+    const files = { 'compose.yaml': COMPOSE, '.env': 'APP_TAG=1.38.0\n' };
+    const listed = await project('real-pass', [], files, ['pass_env: [GREETING]']);
+    const unlisted = await project('real-nopass', [], files);
+    const before = process.env.GREETING;
+    process.env.GREETING = 'from-the-shell';
+    const greeting = (cfg: unknown) => JSON.stringify(cfg).match(/"GREETING":"([^"]*)"/)?.[1];
+    useAgentPolicy([tmp]);
+    try {
+      const calls: string[] = [];
+      const real: DockerExec = async (a, o) => {
+        const { runDocker, findDocker } = await import('@retake/sandbox');
+        const r = await runDocker(findDocker()!, a, o);
+        if (a.includes('config')) calls.push(r.stdout);
+        return r;
+      };
+      await new ComposeProvider({ exec: real }).config(ctxOf(listed));
+      await new ComposeProvider({ exec: real }).config(ctxOf(unlisted));
+      expect(greeting(JSON.parse(calls[0]))).toBe('from-the-shell');
+      expect(greeting(JSON.parse(calls[1]))).toBe('none');
+    } finally {
+      useAgentPolicy(null);
+      if (before === undefined) delete process.env.GREETING;
+      else process.env.GREETING = before;
+    }
   });
 
   it.skipIf(!ENABLED)('the real docker compose reads the file: its tag wins over the shell, the subfolder file is the one read', async () => {
