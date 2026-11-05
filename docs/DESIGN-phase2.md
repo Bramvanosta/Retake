@@ -801,7 +801,21 @@ a GENERATED registry module (the plan's component entries, built-in or workspace
 are bundled too; the bundle is cached under `<root>/.retake/cache/remotion-<hash>/` keyed by a hash of the
 composition sources, the kit, the bundled component folders and the Remotion version. Assets (capture, fonts, logo,
 music) are served by a local static HTTP server (127.0.0.1, Range, CORS) during the render. Browser:
-`$RETAKE_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell. Output: H.264 (L5.15, DESIGN §4r: on a Mac
+`$RETAKE_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell, opened by Remotion's `openBrowser`.
+**Remotion patched (`patches/@remotion__renderer@4.0.534.patch`, root package.json `pnpm.patchedDependencies`; both
+builds of the package, CommonJS `dist/*.js` and ESM `dist/esm/index.mjs`):** on macOS `openBrowser` passes no
+`--no-sandbox` / `--disable-setuid-sandbox`, leaves `IsolateOrigins,site-per-process` out of `--disable-features` and
+passes `--site-per-process` instead of `--disable-site-isolation-trials` (the headless shell isolates sites only when
+asked): the render browser's renderers run under the seatbelt and a cross-site frame is a process of its own. Remotion's
+bundle server (`serveStatic`, also its `/proxy`) binds `127.0.0.1` and `::1` at one port — two listeners, one handler;
+`getHostsToTry` checks the loopback addresses only — and a `::1` listen that fails for any reason but "no such address"
+(EADDRNOTAVAIL / EAFNOSUPPORT: a machine without IPv6 loopback) closes the other one and fails the listen: on
+EADDRINUSE Remotion picks another port, or fails when given one (`port`: every guarded render). Before any route it answers 421 to a
+`Host` other than `localhost` / `127.0.0.1` / `[::1]` with its port and 403 to a present `Origin` other than
+`http://<that Host>` or a `Sec-Fetch-Site` other than `same-origin` / `none`. Every changed file carries
+`retake-patch: render-sandbox` / `retake-patch: loopback-server` comments; the app stage counts them
+(`bundle.mjs` RENDERER_PATCH_MARKS, `rendererPatchProblems`) and refuses an engine `pnpm deploy` made without the
+patch. Porting it to another Remotion version: docs/RELEASING.md. Output: H.264 (L5.15, DESIGN §4r: on a Mac
 with a GPU drawn with ANGLE and encoded with VideoToolbox, 8 Mb/s at 1080p30, a key frame every 2 s; elsewhere and as the
 fallback, software raster and libx264 CRF 16), yuv420p BT.709, faststart, always an audio track (silent AAC without music); the video is encoded under a temporary name and renamed,
 so a failed or cancelled render leaves nothing under the final name.

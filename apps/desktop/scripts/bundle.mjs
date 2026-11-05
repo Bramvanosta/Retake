@@ -99,6 +99,19 @@ export const BUILD_MARK = '.retake-bundle';
 export const GUARD = 'node/guard.cjs';
 /** What the stage removes from the payload: installer scripts nothing of Retake runs (one can run as root). */
 export const PRUNED = ['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh'];
+/**
+ * What patches/@remotion__renderer@<version>.patch (root package.json `pnpm.patchedDependencies`) leaves in each file
+ * of @remotion/renderer it changes, and how many times: on macOS the render browser keeps Chromium's OS sandbox and
+ * isolates sites (`render-sandbox`); the bundle server listens on loopback only and refuses a foreign Host or a
+ * cross-origin request (`loopback-server`). The stage refuses an engine whose renderer lacks one (`rendererPatchProblems`):
+ * the deploy must carry the patch. docs/RELEASING.md says how to port it to another Remotion version.
+ */
+export const RENDERER_PATCH_MARKS = {
+  'dist/open-browser.js': { 'retake-patch: render-sandbox': 1 },
+  'dist/port-config.js': { 'retake-patch: loopback-server': 1 },
+  'dist/serve-static.js': { 'retake-patch: loopback-server': 1 },
+  'dist/esm/index.mjs': { 'retake-patch: render-sandbox': 1, 'retake-patch: loopback-server': 2 },
+};
 /** Text files the machine-path check reads (bounded: a bigger file is skipped — none of ours is). */
 const TEXT_FILE = /\.(?:js|mjs|cjs|json|md|markdown|txt|ya?ml|html?|css|tsx?|jsx|svg|sh|plist|xml)$/i;
 const TEXT_MAX_BYTES = 8 * 1024 * 1024;
@@ -277,8 +290,8 @@ function sizeOf(p) {
  * The layout check (also the tests'): bundle.json's paths inside the stage and present; every symbolic link relative
  * and resolving inside the stage; no regular file with more than one hard link (a link shared with the checkout or a
  * store: a write to either changes the other); no `machinePaths` (the build machine's home and checkout) in any text
- * file of the stage (TEXT_FILE, up to TEXT_MAX_BYTES each); the browser markers empty; one playwright-core; every
- * Mach-O listed. Returns `{ problems, machO }`.
+ * file of the stage (TEXT_FILE, up to TEXT_MAX_BYTES each); the browser markers empty; one playwright-core; the
+ * engine's @remotion/renderer patched (RENDERER_PATCH_MARKS); every Mach-O listed. Returns `{ problems, machO }`.
  */
 export function checkStage(dir, opts = {}) {
   const root = realpathSync(resolve(dir));
@@ -304,6 +317,7 @@ export function checkStage(dir, opts = {}) {
       else if (!existsSync(abs)) problems.push(`bundle.json: paths.${key} (${rel}) is missing`);
     }
     if (manifest.paths?.engine && !existsSync(join(root, manifest.paths.engine, 'dist', 'bin.js'))) problems.push('engine/dist/bin.js is missing');
+    if (typeof manifest.paths?.engine === 'string' && existsSync(join(root, manifest.paths.engine))) problems.push(...rendererPatchProblems(join(root, manifest.paths.engine, 'node_modules', '@remotion', 'renderer')));
     for (const rev of [manifest.playwright?.chromium && `chromium-${manifest.playwright.chromium}`, manifest.playwright?.headless_shell && `chromium_headless_shell-${manifest.playwright.headless_shell}`].filter(Boolean)) {
       for (const m of BROWSER_MARKERS) {
         const f = join(root, manifest.paths?.browsers ?? 'browsers', rev, m);
@@ -341,6 +355,24 @@ export function checkStage(dir, opts = {}) {
   if (manifest && playwrights !== 1) problems.push(`the engine holds ${playwrights} copies of playwright-core (one is pinned to the bundled browsers)`);
   for (const p of prunedIn(root)) problems.push(`${relative(root, p)}: an installer script the payload must not carry (PRUNED)`);
   return { problems, machO };
+}
+
+/** The problems of a @remotion/renderer folder (`dir`) against RENDERER_PATCH_MARKS: a file missing, a mark missing or repeated. */
+export function rendererPatchProblems(dir, marks = RENDERER_PATCH_MARKS) {
+  const problems = [];
+  for (const [rel, want] of Object.entries(marks)) {
+    const file = join(dir, rel);
+    if (!existsSync(file)) {
+      problems.push(`@remotion/renderer/${rel} is missing`);
+      continue;
+    }
+    const text = readFileSync(file, 'utf8');
+    for (const [mark, n] of Object.entries(want)) {
+      const found = text.split(mark).length - 1;
+      if (found !== n) problems.push(`@remotion/renderer/${rel} carries "${mark}" ${found} times, not ${n}: the engine lacks patches/@remotion__renderer@*.patch (pnpm deploy must apply it)`);
+    }
+  }
+  return problems;
 }
 
 /** The PRUNED paths present under `root` (their `*` stand for one path segment). */

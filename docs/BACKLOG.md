@@ -2200,6 +2200,11 @@ and `job_end` lines); what remains:
     and companies of up to 3 people, a Company licence from 4) binds everyone who renders with Retake, from the app or
     from source; a permissive licence on Retake does not relicense it. The README says so, and a sold or hosted Retake
     needs the parked Remotion decision (Open decisions) first.
+  - **Retake patches Remotion's renderer** (`patches/@remotion__renderer@<version>.patch`: the render browser's
+    sandbox and site isolation on macOS, its bundle server on loopback only). The free licence allows modifying
+    Remotion for one's own use case, not copying or modifying it to sell or license a derivative. Before a sale: check
+    the patched copy the app ships against the Company licence's terms with Remotion, or offer the changes upstream
+    (as options of `openBrowser` and of the bundle server) so the app ships Remotion unmodified.
   - **The DMG carries GPL programs**: our ffmpeg / ffprobe (GPL v2+ with x264, `scripts/build-ffmpeg.mjs`) and
     Remotion's compositor with its own GPL FFmpeg. They ship as separate programs beside Retake's code (an aggregate),
     which a permissive or a copyleft licence for Retake both allow, as long as each keeps its notice and written

@@ -1,0 +1,331 @@
+diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
+index 6566e2b90b01860b08ed686f2ac4a405eb5395d2..a5e78f2413f164b62f340e2e041bb1a7bf92678d 100644
+--- a/dist/esm/index.mjs
++++ b/dist/esm/index.mjs
+@@ -7355,17 +7355,18 @@ var internalOpenBrowser = async ({
+       "--export-tagged-pdf",
+       "--intensive-wake-up-throttling-policy=0",
+       chromiumOptions.headless ?? true ? chromeMode === "chrome-for-testing" ? "--headless=new" : "--headless=old" : null,
+-      "--no-sandbox",
+-      "--disable-setuid-sandbox",
++      // retake-patch: render-sandbox. On macOS the render browser keeps Chromium's OS sandbox, and every site gets a
++      // renderer process of its own (site isolation): none of the switches that turn them off is passed there.
++      ...process.platform === "darwin" ? [] : ["--no-sandbox", "--disable-setuid-sandbox"],
+       ...customGlRenderer,
+       "--disable-background-media-suspend",
+       process.platform === "linux" && chromiumOptions.gl !== "vulkan" && !enableMultiProcessOnLinux ? "--single-process" : null,
+       "--allow-running-insecure-content",
+       "--disable-component-update",
+       "--disable-domain-reliability",
+-      "--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,Translate,BackForwardCache,AvoidUnnecessaryBeforeUnloadCheckSync,IntensiveWakeUpThrottling,LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults",
++      `--disable-features=AudioServiceOutOfProcess,${process.platform === "darwin" ? "" : "IsolateOrigins,site-per-process,"}Translate,BackForwardCache,AvoidUnnecessaryBeforeUnloadCheckSync,IntensiveWakeUpThrottling,LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults`,
+       "--disable-print-preview",
+-      "--disable-site-isolation-trials",
++      process.platform === "darwin" ? "--site-per-process" : "--disable-site-isolation-trials",
+       "--disk-cache-size=268435456",
+       "--hide-scrollbars",
+       "--no-default-browser-check",
+@@ -17670,17 +17671,13 @@ var getPortConfig = (preferIpv4) => {
+   return response;
+ };
+ var getHostToBind = (flattened, preferIpv4) => {
+-  if (preferIpv4 || !isIpV6Supported(flattened)) {
+-    return "0.0.0.0";
+-  }
+-  return "::";
++  // retake-patch: loopback-server. The bundle server binds loopback addresses only.
++  return "127.0.0.1";
+ };
+ var getHostsToTry = (flattened) => {
+   return [
+     hasIPv6LoopbackAddress(flattened) ? "::1" : null,
+-    hasIpv4LoopbackAddress(flattened) ? "127.0.0.1" : null,
+-    isIpV6Supported(flattened) ? "::" : null,
+-    "0.0.0.0"
++    hasIpv4LoopbackAddress(flattened) ? "127.0.0.1" : null
+   ].filter(truthy);
+ };
+ var flattenNetworkInterfaces = (networkInterfaces) => {
+@@ -17971,7 +17968,33 @@ var serveStatic = async (path20, options2) => {
+     binariesDirectory: options2.binariesDirectory
+   });
+   const connections = {};
+-  const server = http2.createServer((request, response) => {
++  // retake-patch: loopback-server. The server listens on 127.0.0.1 and ::1 only (the render page loads
++  // http://localhost:<port>, which resolves to either; a port whose ::1 is taken is not used). It answers 421 to a
++  // Host other than localhost, 127.0.0.1 or [::1] with its port, and 403 to a cross-origin request (an Origin other
++  // than its own, a Sec-Fetch-Site other than same-origin or none).
++  let listenPort = null;
++  const requestVerdict = (request) => {
++    const host = String(request.headers.host || "").toLowerCase();
++    if (listenPort === null || !["localhost", "127.0.0.1", "[::1]"].some((h) => host === `${h}:${listenPort}`)) {
++      return 421;
++    }
++    const site = request.headers["sec-fetch-site"];
++    if (site !== undefined && site !== "same-origin" && site !== "none") {
++      return 403;
++    }
++    const origin = request.headers.origin;
++    if (origin !== undefined && origin !== `http://${host}`) {
++      return 403;
++    }
++    return 0;
++  };
++  const handler = (request, response) => {
++    const verdict = requestVerdict(request);
++    if (verdict !== 0) {
++      response.writeHead(verdict, { "content-type": "text/plain" });
++      response.end(verdict === 421 ? "Misdirected request" : "Forbidden");
++      return;
++    }
+     if (request.url?.startsWith("/proxy")) {
+       return offthreadRequest(request, response);
+     }
+@@ -17988,8 +18011,9 @@ var serveStatic = async (path20, options2) => {
+       }
+       response.end("Error serving file");
+     });
+-  });
+-  server.on("connection", (conn) => {
++  };
++  const servers = [http2.createServer(handler), http2.createServer(handler)];
++  const onConnection = (conn) => {
+     let key;
+     try {
+       key = conn.remoteAddress + ":" + conn.remotePort;
+@@ -18000,7 +18024,40 @@ var serveStatic = async (path20, options2) => {
+     conn.on("close", () => {
+       delete connections[key];
+     });
++  };
++  for (const s of servers) {
++    s.on("connection", onConnection);
++  }
++  const listenOne = (s, port, host) => new Promise((resolve2, reject) => {
++    const onError = (err) => {
++      s.off("listening", onListening);
++      reject(err);
++    };
++    const onListening = () => {
++      s.off("error", onError);
++      resolve2();
++    };
++    s.once("error", onError);
++    s.once("listening", onListening);
++    s.listen({ port, host });
+   });
++  const listenLoopback = async (port) => {
++    listenPort = port;
++    await listenOne(servers[0], port, "127.0.0.1");
++    try {
++      await listenOne(servers[1], port, "::1");
++    } catch (err) {
++      // A machine without an IPv6 loopback: nothing can listen on ::1 there.
++      if (err && (err.code === "EADDRNOTAVAIL" || err.code === "EAFNOSUPPORT")) {
++        return;
++      }
++      await new Promise((resolve2) => servers[0].close(() => resolve2()));
++      throw err;
++    }
++  };
++  const closeServers = (callback) => {
++    Promise.all(servers.map((s) => new Promise((resolve2) => s.close((e) => resolve2(e))))).then((errors) => callback(errors.find((e) => e && e.code !== "ERR_SERVER_NOT_RUNNING")));
++  };
+   let selectedPort = null;
+   const maxTries = 10;
+   const portConfig = getPortConfig(options2.forceIPv4);
+@@ -18015,12 +18072,10 @@ var serveStatic = async (path20, options2) => {
+           hostsToTry: portConfig.hostsToTry
+         }).then(({ port, unlockPort }) => {
+           unlock = unlockPort;
+-          server.listen({ port, host: portConfig.host });
+-          server.on("listening", () => {
++          listenLoopback(port).then(() => {
+             resolve2(port);
+             return unlock();
+-          });
+-          server.on("error", (err) => {
++          }, (err) => {
+             unlock();
+             reject(err);
+           });
+@@ -18048,7 +18103,7 @@ var serveStatic = async (path20, options2) => {
+           }),
+           new Promise((resolve2, reject) => {
+             destroyConnections();
+-            server.close((err) => {
++            closeServers((err) => {
+               if (err) {
+                 if (err.code === "ERR_SERVER_NOT_RUNNING") {
+                   return resolve2();
+diff --git a/dist/open-browser.js b/dist/open-browser.js
+index a279c06ffb9093da1f47e7e6ee0d9ff0d8d17e8a..3e7946d5beafb07a01b0674a116d740fe99765d6 100644
+--- a/dist/open-browser.js
++++ b/dist/open-browser.js
+@@ -146,8 +146,9 @@ const internalOpenBrowser = async ({ browser, browserExecutable, chromiumOptions
+                     ? '--headless=new'
+                     : '--headless=old'
+                 : null,
+-            '--no-sandbox',
+-            '--disable-setuid-sandbox',
++            // retake-patch: render-sandbox. On macOS the render browser keeps Chromium's OS sandbox, and every site gets a
++            // renderer process of its own (site isolation): none of the switches that turn them off is passed there.
++            ...(process.platform === 'darwin' ? [] : ['--no-sandbox', '--disable-setuid-sandbox']),
+             ...customGlRenderer,
+             '--disable-background-media-suspend',
+             process.platform === 'linux' &&
+@@ -158,9 +159,9 @@ const internalOpenBrowser = async ({ browser, browserExecutable, chromiumOptions
+             '--allow-running-insecure-content', // https://source.chromium.org/search?q=lang:cpp+symbol:kAllowRunningInsecureContent&ss=chromium
+             '--disable-component-update', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableComponentUpdate&ss=chromium
+             '--disable-domain-reliability', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableDomainReliability&ss=chromium
+-            '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process,Translate,BackForwardCache,AvoidUnnecessaryBeforeUnloadCheckSync,IntensiveWakeUpThrottling,LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults', // https://source.chromium.org/search?q=file:content_features.cc&ss=chromium
++            `--disable-features=AudioServiceOutOfProcess,${process.platform === 'darwin' ? '' : 'IsolateOrigins,site-per-process,'}Translate,BackForwardCache,AvoidUnnecessaryBeforeUnloadCheckSync,IntensiveWakeUpThrottling,LocalNetworkAccessChecks,BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults`, // https://source.chromium.org/search?q=file:content_features.cc&ss=chromium
+             '--disable-print-preview', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisablePrintPreview&ss=chromium
+-            '--disable-site-isolation-trials', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableSiteIsolation&ss=chromium
++            process.platform === 'darwin' ? '--site-per-process' : '--disable-site-isolation-trials', // https://source.chromium.org/search?q=lang:cpp+symbol:kDisableSiteIsolation&ss=chromium
+             '--disk-cache-size=268435456', // https://source.chromium.org/search?q=lang:cpp+symbol:kDiskCacheSize&ss=chromium
+             '--hide-scrollbars', // https://source.chromium.org/search?q=lang:cpp+symbol:kHideScrollbars&ss=chromium
+             '--no-default-browser-check', // https://source.chromium.org/search?q=lang:cpp+symbol:kNoDefaultBrowserCheck&ss=chromium
+diff --git a/dist/port-config.js b/dist/port-config.js
+index f362c89e724ea7d29f7976698726bea303338fe2..63dcbb3bbe3926086b035d90f1575425aacb5a23 100644
+--- a/dist/port-config.js
++++ b/dist/port-config.js
+@@ -21,18 +21,14 @@ const getPortConfig = (preferIpv4) => {
+ };
+ exports.getPortConfig = getPortConfig;
+ const getHostToBind = (flattened, preferIpv4) => {
+-    if (preferIpv4 || !(0, exports.isIpV6Supported)(flattened)) {
+-        return '0.0.0.0';
+-    }
+-    return '::';
++    // retake-patch: loopback-server. The bundle server binds loopback addresses only.
++    return '127.0.0.1';
+ };
+ exports.getHostToBind = getHostToBind;
+ const getHostsToTry = (flattened) => {
+     return [
+         (0, exports.hasIPv6LoopbackAddress)(flattened) ? '::1' : null,
+         (0, exports.hasIpv4LoopbackAddress)(flattened) ? '127.0.0.1' : null,
+-        (0, exports.isIpV6Supported)(flattened) ? '::' : null,
+-        '0.0.0.0',
+     ].filter(truthy_1.truthy);
+ };
+ exports.getHostsToTry = getHostsToTry;
+diff --git a/dist/serve-static.js b/dist/serve-static.js
+index dee411f4a5e494b953692247a2c79e0bd5cd760b..31f30b2707cf6640d9ce5a43b03b4f7147181826 100644
+--- a/dist/serve-static.js
++++ b/dist/serve-static.js
+@@ -19,8 +19,34 @@ const serveStatic = async (path, options) => {
+         binariesDirectory: options.binariesDirectory,
+     });
+     const connections = {};
+-    const server = node_http_1.default.createServer((request, response) => {
++    // retake-patch: loopback-server. The server listens on 127.0.0.1 and ::1 only (the render page loads
++    // http://localhost:<port>, which resolves to either; a port whose ::1 is taken is not used). It answers 421 to a
++    // Host other than localhost, 127.0.0.1 or [::1] with its port, and 403 to a cross-origin request (an Origin other
++    // than its own, a Sec-Fetch-Site other than same-origin or none).
++    let listenPort = null;
++    const requestVerdict = (request) => {
++        const host = String(request.headers.host || '').toLowerCase();
++        if (listenPort === null || !['localhost', '127.0.0.1', '[::1]'].some((h) => host === `${h}:${listenPort}`)) {
++            return 421;
++        }
++        const site = request.headers['sec-fetch-site'];
++        if (site !== undefined && site !== 'same-origin' && site !== 'none') {
++            return 403;
++        }
++        const origin = request.headers.origin;
++        if (origin !== undefined && origin !== `http://${host}`) {
++            return 403;
++        }
++        return 0;
++    };
++    const handler = (request, response) => {
+         var _a;
++        const verdict = requestVerdict(request);
++        if (verdict !== 0) {
++            response.writeHead(verdict, { 'content-type': 'text/plain' });
++            response.end(verdict === 421 ? 'Misdirected request' : 'Forbidden');
++            return;
++        }
+         if ((_a = request.url) === null || _a === void 0 ? void 0 : _a.startsWith('/proxy')) {
+             return offthreadRequest(request, response);
+         }
+@@ -37,8 +63,9 @@ const serveStatic = async (path, options) => {
+             }
+             response.end('Error serving file');
+         });
+-    });
+-    server.on('connection', (conn) => {
++    };
++    const servers = [node_http_1.default.createServer(handler), node_http_1.default.createServer(handler)];
++    const onConnection = (conn) => {
+         let key;
+         // Bun 1.0.43 fails on this
+         try {
+@@ -51,7 +78,41 @@ const serveStatic = async (path, options) => {
+         conn.on('close', () => {
+             delete connections[key];
+         });
++    };
++    for (const s of servers) {
++        s.on('connection', onConnection);
++    }
++    const listenOne = (s, port, host) => new Promise((resolve, reject) => {
++        const onError = (err) => {
++            s.off('listening', onListening);
++            reject(err);
++        };
++        const onListening = () => {
++            s.off('error', onError);
++            resolve();
++        };
++        s.once('error', onError);
++        s.once('listening', onListening);
++        s.listen({ port, host });
+     });
++    const listenLoopback = async (port) => {
++        listenPort = port;
++        await listenOne(servers[0], port, '127.0.0.1');
++        try {
++            await listenOne(servers[1], port, '::1');
++        }
++        catch (err) {
++            // A machine without an IPv6 loopback: nothing can listen on ::1 there.
++            if (err && (err.code === 'EADDRNOTAVAIL' || err.code === 'EAFNOSUPPORT')) {
++                return;
++            }
++            await new Promise((resolve) => servers[0].close(() => resolve()));
++            throw err;
++        }
++    };
++    const closeServers = (callback) => {
++        Promise.all(servers.map((s) => new Promise((resolve) => s.close((e) => resolve(e))))).then((errors) => callback(errors.find((e) => e && e.code !== 'ERR_SERVER_NOT_RUNNING')));
++    };
+     let selectedPort = null;
+     const maxTries = 10;
+     const portConfig = (0, port_config_1.getPortConfig)(options.forceIPv4);
+@@ -68,12 +129,10 @@ const serveStatic = async (path, options) => {
+                 })
+                     .then(({ port, unlockPort }) => {
+                     unlock = unlockPort;
+-                    server.listen({ port, host: portConfig.host });
+-                    server.on('listening', () => {
++                    listenLoopback(port).then(() => {
+                         resolve(port);
+                         return unlock();
+-                    });
+-                    server.on('error', (err) => {
++                    }, (err) => {
+                         unlock();
+                         reject(err);
+                     });
+@@ -106,7 +165,7 @@ const serveStatic = async (path, options) => {
+                     }),
+                     new Promise((resolve, reject) => {
+                         destroyConnections();
+-                        server.close((err) => {
++                        closeServers((err) => {
+                             if (err) {
+                                 if (err.code ===
+                                     'ERR_SERVER_NOT_RUNNING') {

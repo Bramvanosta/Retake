@@ -163,6 +163,16 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   `browser.args` cannot turn either off: the switches that would are validation errors in retake.yaml and project.yaml
   (see [Workspace](workspace.md)) and refused again at launch. `retake doctor` reads the launched browser's own command
   line and fails when it holds one anyway (an executable that adds switches itself).
+- **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
+  (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
+  renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves
+  out the switches Remotion would add to turn them off. The server that hands the render page its bundle listens on
+  `127.0.0.1` and `::1` only, at the same port (the page loads `http://localhost:<port>`, which reaches either) — never
+  on another address of the machine — and serves the render page's own origin only: a `Host` other than `localhost`,
+  `127.0.0.1` or `[::1]` with its port gets 421, a request from another origin (an `Origin` other than its own, a
+  `Sec-Fetch-Site` other than `same-origin` or `none`) 403. A port another program already holds on `::1` is never
+  used: a render that picks its port takes another one, a render given its port (every render the worker runs) fails.
+  Like every loopback server, it can be reached by another account of the same Mac while the render runs.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

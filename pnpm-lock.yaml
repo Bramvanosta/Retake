@@ -7,6 +7,11 @@ settings:
 overrides:
   '@napi-rs/canvas': '-'
 
+patchedDependencies:
+  '@remotion/renderer@4.0.534':
+    hash: c9f24cdc706be70739d05181d76f0fc6f3dd1f0fa88fc42c6a9143b178017a22
+    path: patches/@remotion__renderer@4.0.534.patch
+
 importers:
 
   .:
@@ -155,7 +160,7 @@ importers:
         version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@remotion/renderer':
         specifier: 4.0.534
-        version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+        version: 4.0.534(patch_hash=c9f24cdc706be70739d05181d76f0fc6f3dd1f0fa88fc42c6a9143b178017a22)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@retake/components':
         specifier: workspace:*
         version: link:../components
@@ -4125,7 +4130,7 @@ snapshots:
       react-dom: 19.1.1(react@19.1.1)
       remotion: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
 
-  '@remotion/renderer@4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
+  '@remotion/renderer@4.0.534(patch_hash=c9f24cdc706be70739d05181d76f0fc6f3dd1f0fa88fc42c6a9143b178017a22)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)':
     dependencies:
       '@remotion/licensing': 4.0.534
       '@remotion/streaming': 4.0.534
@@ -4179,7 +4184,7 @@ snapshots:
       '@remotion/openai-whisper': 4.0.534
       '@remotion/paths': 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@remotion/player': 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      '@remotion/renderer': 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
+      '@remotion/renderer': 4.0.534(patch_hash=c9f24cdc706be70739d05181d76f0fc6f3dd1f0fa88fc42c6a9143b178017a22)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@remotion/sdk': 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@remotion/studio-protocol': 4.0.534
       '@remotion/studio-shared': 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)

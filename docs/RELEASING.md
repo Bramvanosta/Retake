@@ -224,6 +224,38 @@ A version with a pre-release part — `node scripts/set-version.mjs 0.3.0-rc.1`,
 `rc.json` only, and a stable app (reading `latest.json`) is never offered it. The final `v0.3.0` then goes to both. The
 sign job refuses an app whose version (Info.plist, bundle.json) is not the tag's.
 
+## A Remotion upgrade
+
+Retake ships `@remotion/renderer` with a patch of its own, `patches/@remotion__renderer@<version>.patch` (root
+`package.json` › `pnpm.patchedDependencies`; the lockfile records its sha256, so `pnpm install --frozen-lockfile` —
+the release workflow's — applies exactly that file or fails). It keeps the render browser in Chromium's OS sandbox with
+site isolation on macOS and Remotion's bundle server on loopback (DESIGN-phase2 §2.2). The patch names one version: an
+upgrade of Remotion (every `@remotion/*` package and `remotion`, the same exact version) ports it by hand:
+
+1. `pnpm patch @remotion/renderer@<new version>` (it prints the folder to edit). Make each change in **both builds** —
+   the CommonJS files and the one ESM file, `dist/esm/index.mjs` — and keep each `retake-patch:` comment, once per
+   change:
+   - `dist/open-browser.js` and `internalOpenBrowser` (ESM) — `retake-patch: render-sandbox`: on macOS
+     (`process.platform === 'darwin'`) no `--no-sandbox`, no `--disable-setuid-sandbox`, `IsolateOrigins` and
+     `site-per-process` out of `--disable-features`, and `--site-per-process` in place of
+     `--disable-site-isolation-trials`; other platforms as Remotion has them.
+   - `dist/port-config.js` and `getHostToBind` / `getHostsToTry` (ESM) — `retake-patch: loopback-server`: bind
+     `127.0.0.1`; try `::1` and `127.0.0.1` only (each when the machine has it).
+   - `dist/serve-static.js` and `serveStatic` (ESM) — `retake-patch: loopback-server`: two HTTP servers with one
+     handler, listening on `127.0.0.1` then `::1` at the same port (a `::1` failure other than EADDRNOTAVAIL /
+     EAFNOSUPPORT closes the first and fails the listen); before any route, 421 for a `Host` other than `localhost`,
+     `127.0.0.1` or `[::1]` with the port, 403 for an `Origin` other than its own (plain HTTP on that `Host`) or a
+     `Sec-Fetch-Site` other than `same-origin` / `none`; `close` closes both.
+2. `pnpm patch-commit <that folder>`: it writes `patches/@remotion__renderer@<new version>.patch`, points
+   `patchedDependencies` at it and updates the lockfile. Delete the old patch file. If a mark's count changed (Remotion
+   merged two files, say), update `RENDERER_PATCH_MARKS` in `apps/desktop/scripts/bundle.mjs`.
+3. Run `packages/editor/test/render-isolation.test.ts` (the switches, the sandbox, the listeners, the answers — each
+   build), `network-guard.test.ts`, `render-gpu.test.ts` and `packages/cli/test/app-bundle.test.ts` (the deploy
+   carries the patch), then the full suite and one `RETAKE_TEST_BUNDLE=1` run: the stage refuses an engine whose
+   renderer lacks a mark.
+
+If Remotion ever offers these as options (a sandboxed `openBrowser`, a loopback-only server), drop the patch for them.
+
 ## What the workflow trusts
 
 - It runs on pushed `v*` tags only — never on a pull request — with read-only permissions by default; `contents: write`

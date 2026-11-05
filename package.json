@@ -39,6 +39,9 @@
     ],
     "overrides": {
       "@napi-rs/canvas": "-"
+    },
+    "patchedDependencies": {
+      "@remotion/renderer@4.0.534": "patches/@remotion__renderer@4.0.534.patch"
     }
   }
 }
