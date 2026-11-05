@@ -5,7 +5,7 @@
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import { approvalItemTitle, formatBytes, pruneKindsText } from '@retake/engine';
+import { approvalFormText, pruneApprovalFormText } from '@retake/engine';
 import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
@@ -18,21 +18,8 @@ export function approvalTimeoutMs(env: NodeJS.ProcessEnv = process.env): number 
   return Number.isFinite(v) && v > 0 ? v : APPROVAL_TIMEOUT_MS;
 }
 
-/**
- * The question the user reads: what runs, where, and each hook in full — its heading (where it stands, its name, its
- * kind, why it needs them), then every field on a line of its own as it will run (the engine's ApprovalItem.lines:
- * templated, secrets as `***`, hidden characters written out), its rollback's too — and the terminal path.
- */
-export function approvalMessage(req: ApprovalRequest): string {
-  const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
-  return [
-    `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
-    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count). Each is shown in full, as it will run:`,
-    ...req.items.flatMap((i, n) => [`${n + 1}. ${approvalItemTitle(i)} — ${i.reason}`, ...i.lines.map((l) => `   ${l}`)]),
-    'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
-    `Instead, you can run it yourself in a terminal: ${req.fix}`,
-  ].join('\n');
-}
+/** The question the user reads (engine approvalFormText: the text whose length the engine limits). */
+export const approvalMessage = approvalFormText;
 
 export function approvalForm(req: ApprovalRequest): ElicitForm {
   return {
@@ -80,22 +67,8 @@ export function siteApprovalForm(req: SiteApprovalRequest): ElicitForm {
   };
 }
 
-/**
- * The question of an agent's prune: how many items of which project, how much they free, by kind, the first items
- * (PRUNE_FORM_MAX_LINES, every character visible) and how many more, and the terminal command.
- */
-export function pruneApprovalMessage(req: PruneApprovalRequest): string {
-  const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
-  return [
-    `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
-    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
-    req.more ? `The first ${req.lines.length}:` : `${req.count === 1 ? 'It' : 'They'}:`,
-    ...req.lines.map((l) => `- ${l}`),
-    ...(req.more ? [`… and ${req.more} more (in the totals above).`] : []),
-    `Approve to delete ${req.count === 1 ? 'it' : 'them'} now: only ${req.count === 1 ? 'this item' : `these ${items}`}, and only if nothing uses ${req.count === 1 ? 'it' : 'them'} by then. Decline to refuse: nothing is deleted.`,
-    `Instead, you can run it yourself in a terminal: ${req.fix}`,
-  ].join('\n');
-}
+/** The question of an agent's prune (engine pruneApprovalFormText: the text whose length the engine limits). */
+export const pruneApprovalMessage = pruneApprovalFormText;
 
 export function pruneApprovalForm(req: PruneApprovalRequest): ElicitForm {
   return {

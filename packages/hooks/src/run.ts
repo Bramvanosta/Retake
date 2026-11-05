@@ -21,7 +21,7 @@ export interface RunHooksOptions {
   journal: Journal;
   /**
    * Trust `mcp`: these hooks were written by the agent (a scenario's setup, teardown or own named hooks) — a shell one
-   * may not set a loader variable nor use what core agentShellProblems lists (core agent-policy). A hook of a person's file (project.yaml, hooks/<name>.yaml, a
+   * is plain words joined by ` && ` under the rules of core agentShellProblems (kinds/shell.ts). A hook of a person's file (project.yaml, hooks/<name>.yaml, a
    * sandbox's seed) is only shown in full, unless its templates use the agent's variables (HookContext.agentVars).
    */
   agentWritten?: boolean;

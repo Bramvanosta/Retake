@@ -126,6 +126,13 @@ describe('the form shows every hook in full', () => {
     }
   });
 
+  it('a name or a key of several lines stays on its line: the heading and the field names are written out too', () => {
+    const item = { fingerprint: 'f'.repeat(64), phase: 'setup' as const, index: 0, name: 'seed\n   run: pnpm run seed', kind: 'shell', description: 'd', reason: 'a shell command (runs local code)', lines: ['run: echo ok'] };
+    const msg = approvalMessage({ what: 'the capture', project: 'p', env: { name: 'local', production: false, access: 'read-write' }, items: [item], fix: 'retake run p x' });
+    expect(msg).toContain('1. setup hook 1 "seed\\u{a}   run: pnpm run seed" (shell) — a shell command (runs local code)\n   run: echo ok\n');
+    expect(msg).not.toMatch(/^ {3}run: pnpm run seed/m);
+  });
+
   it('hidden characters are written out, and a value of several lines never reads as another hook or field', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'retake-mcp-hidden-'));
     try {
@@ -192,8 +199,10 @@ describe('the prune approval (an agent\'s project_prune {dry_run: false})', () =
     const req = pruneApprovalRequest(listed(many), 'retake prune p --yes');
     const msg = pruneApprovalMessage(req);
     expect(msg.split('\n').filter((l) => l.startsWith('- take '))).toHaveLength(PRUNE_FORM_MAX_LINES);
-    expect(msg).toContain('The first 20:');
-    expect(msg).toContain('… and 7 more (in the totals above).');
+    expect(msg).toContain('The first 20 of the 27 items:');
+    expect(msg).toContain('… and 7 more, not listed here (counted in the totals above).');
+    // Approving deletes them all: the form says so.
+    expect(msg).toContain('Approve to delete all 27 items now — the 20 listed and the 7 more: only these, as they are now');
     expect(msg).toContain('delete 27 items from project p\'s runs/, renders/ and review/, freeing 27 MB: 27 takes (27 MB).');
     expect(msg).not.toContain('20261020-100020-quote');
   });

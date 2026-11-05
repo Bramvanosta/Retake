@@ -24,6 +24,7 @@ import {
   openProjectBySlug,
   openWorkspace,
   prepareInspect,
+  prepareRun,
   readWorkerLock,
   runCommandLine,
   sha256Hex,
@@ -381,6 +382,30 @@ describe('a job runs the scenario bytes it was submitted with', () => {
       await writeFile(file(), text);
       await engine.runs.cancel('northfield-fixture', sub.run_id).catch(() => undefined);
     }
+  });
+
+  it('prepareRun reads the file once: the sandbox it picks, the scenario it parses and their hash come from that one read', async () => {
+    const w = await openWorkspace({ root: ws });
+    const project = await openProjectBySlug(w, 'northfield-fixture');
+    const disk = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'sandbox-quote.yaml');
+    const onDisk = await readFile(disk, 'utf8');
+    // The bytes the one read returns name the other sandbox and hold longer: the file on disk is never read again.
+    const first = onDisk.replace('env: sandbox\n', 'env: sandbox-docker\n').replace('      - hold: 0.8\n', '      - hold: 2.5\n');
+    expect(first).not.toBe(onDisk);
+    const reads: string[] = [];
+    const prepared = await prepareRun(w, project, 'sandbox-quote', {
+      dry: true,
+      sandbox: true,
+      readFile: async (file) => {
+        reads.push(file);
+        return Buffer.from(first, 'utf8');
+      },
+    });
+    expect(reads).toEqual([disk]);
+    expect(prepared.sandboxEnv).toBe('sandbox-docker');
+    expect(prepared.scenario.text).toBe(first);
+    expect(prepared.scenario.sha256).toBe(sha256Hex(first));
+    expect(prepared.scenario.scenario.scenes[0].steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
   });
 
   it('an inspection of a scenario: the hash of the bytes it parsed, a pinned one checked on those bytes', async () => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse as parseYamlText, parseDocument } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
@@ -32,14 +32,18 @@ export class ScenarioError extends Error {
   }
 }
 
-/** Thrown when a scenario file's bytes are not the ones expected (`expectSha256`): nothing of them was parsed. */
+/**
+ * Thrown when a scenario file's bytes are not the ones expected (`expectSha256`): nothing of them was parsed. Its message
+ * names the file as `shown` (project-relative: `scenarios/quote.yaml`); `file` keeps the absolute path.
+ */
 export class ScenarioChangedError extends ScenarioError {
   constructor(
     file: string,
     public readonly expected: string,
     public readonly actual: string,
+    shown: string = file,
   ) {
-    super(`${file} changed: its bytes have sha256 ${actual}, expected ${expected}`, [], file);
+    super(`${shown} changed: its bytes have sha256 ${actual}, expected ${expected}`, [], file);
     this.name = 'ScenarioChangedError';
   }
 }
@@ -153,7 +157,11 @@ export async function readScenarioSource(project: LoadedProject, nameOrPath: str
   const file = await resolveScenarioFile(project, nameOrPath);
   const bytes = await (o.readFile ?? readFile)(file);
   const sha256 = sha256Of(bytes);
-  if (o.expectSha256 !== undefined && o.expectSha256 !== sha256) throw new ScenarioChangedError(file, o.expectSha256, sha256);
+  if (o.expectSha256 !== undefined && o.expectSha256 !== sha256) {
+    const rel = relative(project.dir, file);
+    const shown = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : basename(file);
+    throw new ScenarioChangedError(file, o.expectSha256, sha256, shown);
+  }
   const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8');
   return { name: basename(file).replace(/\.ya?ml$/i, ''), file, text, sha256 };
 }

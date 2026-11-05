@@ -1759,18 +1759,37 @@ workers/worker.log      what workers print (stderr), appended
   its rollback's prefixed `rollback ` (hooks `shown.ts`: `actionLines` of `PreparedHook.shown` /
   `PreparedHook.rollback.shown`, carried as `HookResult.shown` under trust `mcp`, redacted; `declaredHookLines` of the
   raw hook when the dry run could not template it, and for a sandbox's seed steps) — every character visible (core
-  `showHiddenChars`), a further line of a value after `  | `; the form (mcp `approvalMessage`) prints a heading per
-  hook (`approvalItemTitle`: phase, position, name once, kind) and these lines. `takeApprovals` refuses (`refused`, the
-  fix) before asking anyone, approver or not, a hook whose heading and lines exceed `APPROVAL_HOOK_MAX_CHARS` (4,000)
-  or a request over `APPROVAL_FORM_MAX_CHARS` (16,000). *Agent-written hooks*: `RunHooksOptions.agentWritten` marks the
+  `showHiddenChars`: controls, bidirectional, invisible and look-alike characters — spaces other than U+0020, joiners,
+  fillers, variation selectors), a further line of a value after `  | `, a field name (an `env` or header key) on its
+  line (`showHiddenCharsLine`: a line break as `\u{a}`); the form's text is engine `approvalFormText` (mcp
+  `approvalMessage` is it): a numbered heading per hook (`approvalItemTitle`: phase, position, name once — on its line —,
+  kind) with its reason, then these lines indented. `takeApprovals` refuses (`refused`, `details.too_long`, the fix)
+  before asking anyone, approver or not, a hook whose text in the form exceeds `APPROVAL_HOOK_MAX_CHARS` (4,000) or a
+  form (`approvalFormText`, whole) over `APPROVAL_FORM_MAX_CHARS` (16,000); the Studio's run blockers name it
+  `too_long` ("hooks too long to approve here", the terminal command). Core validation refuses a control character in a
+  hook's `name` and in a shell hook's `env` names. *Agent-written hooks*: `RunHooksOptions.agentWritten` marks the
   hooks the agent wrote — a scenario's setup, teardown and own named hooks (runner `run.ts`, engine `preflightHooks`
   lists, `executeHooksJob` for `<scenario>:setup|teardown`); `HookContext.agentVars` (the scenario's own `vars`, set
   by engine `createHookContext` and the runner with trust `mcp`) makes a hook whose templates use one of them count as
-  agent-written wherever it is declared. Under trust `mcp` an agent-written shell hook is refused (`HookSecurityError`
-  `mcp`, in the preflight and in the worker) when its `env` names a loader variable or its rendered command or
-  rollback sets one (core agent-policy `agentShellLoaderVariables`: `loaderAssignments` over `simpleCommands`, the
-  splitter on `;` `&` `&&` `|` `||` `(` `)` newlines and command substitutions); a person's hook is only shown in
-  full. No approver → `needs_approval`; declined / cancelled /
+  agent-written wherever it is declared. Under trust `mcp` an agent-written shell hook goes through hooks
+  `kinds/shell.ts` `checkAgentShell` before anything of it is rendered (in the preflight and in the worker; a refusal is
+  `HookSecurityError` `mcp`, ending with the grammar and "have a person put it in hooks/<name>.yaml … or run it in a
+  terminal"): its `env` names (core `agentShellEnvProblems`: `ENV_NAME_PLAIN`, no loader variable); no
+  `{{hooks.…}}` / `{{response.…}}` token in `run` / `rollback` / `cwd` (root as core's lookup reads it); outside a dry
+  run each secret token's value is a `PLAIN_WORD` (never shown); then `agentShellView` — the text rendered with vars,
+  pages and `run` (`{{run.dir}}` defaulting to `runs/<id>` in a preflight), a secret as the word `RETAKE_VALUE` — is
+  read by core agent-policy `agentShellCwdProblems` (one plain word, not agent-writable) and `agentShellProblems`:
+  length first (`AGENT_SHELL_MAX_CHARS`, 4,000), then one pass over the characters (`plainCommands`: plain words of
+  `[A-Za-z0-9./:=@%+,_-]`, single spaces, `&&` as a word between two commands — `AGENT_SHELL_GRAMMAR`), then per
+  command: `REFUSED_BUILTINS` by the last path part, as the program or after a `WRAPPERS` program; loader variables set
+  (leading assignments, `env` arguments, `VARIABLE_SETTERS` names, `printf -v`); `INTERPRETERS` code options, `awk`
+  without `-f`, `xargs` / `parallel` / `find -exec` / `env -S`; `PACKAGE_RUNNERS` (a runner, or its subcommand anywhere
+  after it), `deno npm:` / `jsr:`; `git -c`; paths (`pathCandidates`: the word, after `=`, `-X`, `@`, each `,` and
+  `:` part) — through an agent-writable folder (`agentWritablePath`, for a word with a `/`, any word of an interpreter's
+  command, the value of a `PATH_OPTIONS` option), to project.yaml (any word), into `hooks/` unless it is the script the
+  command runs (`runsFileAt`: the program, an interpreter's first non-option word, a `-f` / `--file` / `-m` value).
+  `hookFiles({agentWritten})` still binds the existing files such a hook names but leaves judging them to these rules.
+  A person's hook keeps the shell's full syntax and is only shown in full. No approver → `needs_approval`; declined / cancelled /
   timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once
   with the job. `fingerprint` = hooks `hookFingerprint(hook, {phase, index, env})`: sha256 of canonical JSON (sorted
   keys) of the **raw** hook as its file declares it, its phase, position and environment — templates unresolved, so
@@ -1973,11 +1992,13 @@ workers/worker.log      what workers print (stderr), appended
   running then), builds `PruneApprovalRequest {what: 'prune', project, keep_renders, count, bytes, by_kind [{kind,
   count, bytes}], lines (the first PRUNE_FORM_MAX_LINES = 20 items: kind word, id with every hidden character written
   out, reason, size), more, fix: 'retake -C <ws> prune <p> [--keep-renders N] --yes'}` and calls
-  `takePruneApproval`: a form whose lines and fix exceed APPROVAL_FORM_MAX_CHARS → `refused` before anyone is asked; no
+  `takePruneApproval`: a form (engine `pruneApprovalFormText`, whole; mcp `pruneApprovalMessage` is it) over
+  APPROVAL_FORM_MAX_CHARS → `refused` before anyone is asked; no
   `Approver.approvePrune` → `needs_approval`; declined / cancelled / timeout / error → `refused`; nothing is deleted
-  before an accept. Accepted: a second `pruneProject` pass (the jobs read again) with `only` = the listed items'
-  `pruneKey` (`<kind>:<id>`) deletes those still prunable then; `skipped` names the approved ones that are not
-  (something uses them now, or they are gone), `not_asked` counts the prunable ones the person did not see — both
+  before an accept. The form says approving deletes every item, the listed and the counted ones. Accepted: a second
+  `pruneProject` pass (the jobs read again) with `only` = the listed items' `pruneKey` (`<kind>:<id>`) → the paths each
+  had then deletes those still prunable then, each with only those paths (a file added since stays); `skipped` names the approved ones that are not
+  (something uses them now, or they are gone), `not_asked` counts the prunable ones not in the approval — both
   kept. mcp `pruneApprovalMessage` / `pruneApprovalForm` (schema `{approve: boolean}`, default false) put it to the
   person; `project_prune` passes the call's approver. The CLI's `retake prune --yes` deletes in one pass, unasked.
 

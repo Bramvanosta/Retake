@@ -239,7 +239,8 @@ export interface Engine {
      * (default true) only reports what would go and how much it frees. Whatever a queued or running job names is kept.
      * Under agent trust (every client but the CLI and tests), `dry_run: false` first lists what would go and asks the
      * person through `approver` (approvals.ts `takePruneApproval`: no approver → `needs_approval`, declined →
-     * `refused`, nothing deleted), then deletes only the items they saw that can still go at that moment.
+     * `refused`, nothing deleted), then deletes the items in the approval (all of them, the first ones listed) that can
+     * still go at that moment, each with the paths it had when listed.
      */
     prune(project: string, req?: Pick<PruneRequest, 'keep_renders' | 'dry_run'>, o?: { approver?: Approver }): Promise<PruneResult>;
     /**
@@ -791,12 +792,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         };
         const base = { ...(req.keep_renders !== undefined ? { keep_renders: req.keep_renders } : {}) };
         if (req.dry_run !== false || !agentTrust(opts.client)) return pruneProject(p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
-        // An agent's deletion: the person sees what would go, and only what they saw (still prunable then) goes.
+        // An agent's deletion: the person is asked about what would go; the items in the approval that can still go then
+        // go, each with the files it had when listed.
         const listed = await pruneProject(p, { ...base, dry_run: true, busy: await busy() });
         if (!listed.items.length) return { ...listed, dry_run: false, skipped: [], not_asked: 0 };
         const keep = listed.keep_renders !== DEFAULT_KEEP_RENDERS ? ` --keep-renders ${listed.keep_renders}` : '';
         await takePruneApproval(pruneApprovalRequest(listed, `${studio} prune ${p.slug}${keep} --yes`), o.approver, opts.client);
-        return pruneProject(p, { ...base, dry_run: false, busy: await busy(), only: new Set(listed.items.map(pruneKey)) });
+        return pruneProject(p, { ...base, dry_run: false, busy: await busy(), only: new Map(listed.items.map((i) => [pruneKey(i), i.paths])) });
       },
       board: (slug) => boards.board(slug),
     },

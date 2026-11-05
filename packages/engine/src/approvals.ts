@@ -8,7 +8,7 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, showHiddenChars } from '@retake/core';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, showHiddenCharsLine } from '@retake/core';
 import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
@@ -57,25 +57,42 @@ export const APPROVAL_FORM_MAX_CHARS = 16_000;
 
 /** The heading of a hook in an approval: where it stands, its name, its kind. */
 export function approvalItemTitle(i: Pick<ApprovalItem, 'phase' | 'index' | 'name' | 'kind'>): string {
-  return `${i.phase} hook ${i.index + 1}${i.name ? ` "${showHiddenChars(i.name)}"` : ''}${i.kind ? ` (${i.kind})` : ''}`;
+  return `${i.phase} hook ${i.index + 1}${i.name ? ` "${showHiddenCharsLine(i.name)}"` : ''}${i.kind ? ` (${i.kind})` : ''}`;
 }
 
-/** A hook's text in a form: its heading, then its lines. */
-function itemText(i: ApprovalItem): string {
-  return [approvalItemTitle(i), ...i.lines].join('\n');
+/** A hook's text in a form (approvalFormText): its numbered heading with why it needs a human, then its lines. */
+function itemText(i: ApprovalItem, n: number): string {
+  return [`${n + 1}. ${approvalItemTitle(i)} — ${i.reason}`, ...i.lines.map((l) => `   ${l}`)].join('\n');
 }
 
 /**
- * Why `req` cannot be put to a person in a form, or null: a hook over APPROVAL_HOOK_MAX_CHARS or a form over
- * APPROVAL_FORM_MAX_CHARS — nobody reads that much before saying yes.
+ * The question a person reads before hooks run (the MCP form's message): what runs, where, and each hook in full — its
+ * heading (where it stands, its name, its kind, why it needs them), then every field on a line of its own as it will run
+ * (ApprovalItem.lines: templated, secrets as `***`, hidden characters written out), its rollback's too — and the
+ * terminal path. Its length is what APPROVAL_FORM_MAX_CHARS limits.
+ */
+export function approvalFormText(req: ApprovalRequest): string {
+  const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
+  return [
+    `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
+    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count). Each is shown in full, as it will run:`,
+    ...req.items.map((i, n) => itemText(i, n)),
+    'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+/**
+ * Why `req` cannot be put to a person in a form, or null: a hook's text over APPROVAL_HOOK_MAX_CHARS, or the whole form
+ * (approvalFormText) over APPROVAL_FORM_MAX_CHARS — nobody reads that much before saying yes.
  */
 function tooLongForAForm(req: ApprovalRequest): string | null {
   const n = (x: number) => x.toLocaleString('en-US');
-  const long = req.items.filter((i) => itemText(i).length > APPROVAL_HOOK_MAX_CHARS);
+  const long = req.items.flatMap((i, k) => (itemText(i, k).length > APPROVAL_HOOK_MAX_CHARS ? [{ i, length: itemText(i, k).length }] : []));
   if (long.length) {
-    return long.map((i) => `${approvalItemTitle(i)} is ${n(itemText(i).length)} characters long (a form shows at most ${n(APPROVAL_HOOK_MAX_CHARS)} per hook)`).join('; ');
+    return long.map(({ i, length }) => `${approvalItemTitle(i)} is ${n(length)} characters long (a form shows at most ${n(APPROVAL_HOOK_MAX_CHARS)} per hook)`).join('; ');
   }
-  const total = req.what.length + req.fix.length + req.items.reduce((sum, i) => sum + itemText(i).length + 1, 0);
+  const total = approvalFormText(req).length;
   return total > APPROVAL_FORM_MAX_CHARS ? `its ${req.items.length} hooks make a form of ${n(total)} characters (at most ${n(APPROVAL_FORM_MAX_CHARS)})` : null;
 }
 
@@ -366,9 +383,7 @@ export function approvalChecker(approvals: readonly JobApproval[] | undefined): 
 const PRUNE_KIND_WORDS: Record<PruneItem['kind'], [string, string]> = { run: ['take', 'takes'], render: ['render', 'renders'], review: ['review', 'reviews'] };
 
 /** A name as a person reads it in a form: every hidden character written out, a line break too. */
-function visibleName(s: string): string {
-  return showHiddenChars(s).replace(/\n/g, '\\n');
-}
+const visibleName = showHiddenCharsLine;
 
 /** The question of an agent's prune, from the dry run it would delete (`listed`) and the command a human runs. */
 export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApprovalRequest {
@@ -380,6 +395,24 @@ export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApp
     .filter((k) => k.count > 0);
   const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
   return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix };
+}
+
+/**
+ * The question a person reads before an agent's prune (the MCP form's message): how many items of which project, how
+ * much they free, by kind, the first items (PRUNE_FORM_MAX_LINES, every character visible) and how many more — all of
+ * them go when approved — and the terminal command. Its length is what APPROVAL_FORM_MAX_CHARS limits.
+ */
+export function pruneApprovalFormText(req: PruneApprovalRequest): string {
+  const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
+  return [
+    `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
+    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
+    req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
+    ...req.lines.map((l) => `- ${l}`),
+    ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),
+    `Approve to delete ${req.count === 1 ? 'it' : `all ${items}`} now${req.more ? ` — the ${req.lines.length} listed and the ${req.more} more` : ''}: only ${req.count === 1 ? 'this item' : 'these'}, as they are now, and only if nothing uses ${req.count === 1 ? 'it' : 'them'} by then. Decline to refuse: nothing is deleted.`,
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
 }
 
 /** "3 takes (40 MB), 2 renders (12 MB)". */
@@ -396,7 +429,7 @@ export function pruneKindsText(req: Pick<PruneApprovalRequest, 'by_kind'>): stri
 export async function takePruneApproval(req: PruneApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<void> {
   const what = `deleting ${req.count} item${req.count === 1 ? '' : 's'} of ${req.project} (${formatBytes(req.bytes)}: ${pruneKindsText(req)})`;
   const details = { count: req.count, bytes: req.bytes, by_kind: req.by_kind };
-  const size = req.lines.reduce((n, l) => n + l.length + 1, req.fix.length);
+  const size = pruneApprovalFormText(req).length;
   if (size > APPROVAL_FORM_MAX_CHARS) {
     throw new EngineError('refused', `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
   }

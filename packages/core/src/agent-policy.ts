@@ -5,15 +5,21 @@
  * Loader variables: environment variables that make a program load code, change the shell it starts or the folders it
  * reads its configuration from, before the command itself runs — node (NODE_OPTIONS, NODE_PATH), the shell (PATH, HOME,
  * ZDOTDIR, XDG_CONFIG_HOME, BASH_ENV, ENV, SHELLOPTS, BASHOPTS, PS4, PROMPT_COMMAND, IFS, CDPATH), the dynamic linker
- * (DYLD_*, LD_*), git (GIT_*), the interpreters (PYTHON*, PERL5LIB, PERL5OPT, RUBYOPT, RUBYLIB, *JAVA*_OPTIONS) and the
- * package managers (npm_config_*, PNPM_*, YARN_*, COREPACK_*).
+ * (DYLD_*, LD_*), bash's exported functions (BASH_FUNC_*), git (GIT_*), the interpreters (PYTHON*, PERL5LIB, PERLLIB,
+ * PERL5OPT, PERL5DB, RUBYOPT, RUBYLIB, GEM_HOME, GEM_PATH, BUNDLE_GEMFILE, LUA_INIT*, LUA_PATH, LUA_CPATH, PHPRC,
+ * PHP_INI_SCAN_DIR, CLASSPATH, *JAVA*_OPTIONS, R_PROFILE*, R_ENVIRON*, R_LIBS*, TCLLIBPATH, GOFLAGS), the start files
+ * of psql, curl and wget (PSQLRC, CURL_HOME, WGETRC), the programs other tools start (EDITOR, VISUAL, PAGER, BROWSER)
+ * and the package managers (npm_config_*, PNPM_*, YARN_*, COREPACK_*).
+ *
+ * Agent-written shell commands: a strict grammar — plain words joined by single spaces and ` && ` — read in one pass,
+ * then a few rules per word (agentShellProblems, agentShellCwdProblems, agentShellEnvProblems).
  *
  * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems) and the one origin comparison
  * (canonicalOrigin).
  */
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { agentWritable, channelWords, realPathOf } from './agent-trust.js';
+import { AGENT_WRITABLE_PATHS, agentWritable, channelWords, realPathOf } from './agent-trust.js';
 import type { AgentChannel } from './agent-trust.js';
 import { showHiddenChars } from './brand.js';
 import type { IssuePath } from './issues.js';
@@ -43,6 +49,22 @@ export const LOADER_ENV_NAMES: readonly RegExp[] = [
   /^PYTHON/,
   /^PERL5LIB$/,
   /^PERL5OPT$/,
+  /^PERLLIB$/,
+  /^PERL5DB$/,
+  /^BASH_FUNC_/,
+  /^GEM_(?:HOME|PATH)$/,
+  /^BUNDLE_GEMFILE$/,
+  /^LUA_(?:INIT|PATH|CPATH)/,
+  /^PHPRC$/,
+  /^PHP_INI_SCAN_DIR$/,
+  /^CLASSPATH$/,
+  /^R_(?:PROFILE|ENVIRON|LIBS)/,
+  /^TCLLIBPATH$/,
+  /^GOFLAGS$/,
+  /^PSQLRC$/,
+  /^CURL_HOME$/,
+  /^WGETRC$/,
+  /^(?:EDITOR|VISUAL|PAGER|BROWSER)$/,
   /^RUBYOPT$/,
   /^RUBYLIB$/,
   /JAVA\w*_OPTIONS$/,
@@ -70,195 +92,25 @@ export function loadPathSeparator(name: string, delimiter: string): RegExp {
   return name === 'LD_PRELOAD' ? /[\s:]+/ : new RegExp(`[${delimiter.replace(/[\\\]^-]/g, '\\$&')}]`);
 }
 
-/**
- * The simple commands of a shell text, each as its words (quotes and backslashes resolved, `$'…'` decoded): split on
- * `;`, `&`, `&&`, `|`, `||`, `(`, `)` and newlines, and at every command substitution — `$(…)` and backticks, inside
- * double quotes too. Redirection operators (`<`, `<<`, `>`, `>&`…) are words of their own; a `#` comment is skipped to the
- * end of its line, as the shell does. Conservative, not a parser: a heredoc body or a `case` pattern is read as
- * commands too, so a rule applied to every simple command sees at least what the shell runs.
- */
-export function simpleCommands(text: string): string[][] {
-  return shellCommandList(text).map((c) => c.words);
-}
+// ── Agent-written shell commands ────────────────────────────────────────────────────────────────────────────────────
 
-/** A simple command of a shell text (shellCommandList): its words, and the operator before it. */
-export interface SimpleCommand {
-  words: string[];
-  /**
-   * What precedes it: `|` (the right side of a pipe, `|&` included, also across a newline or a `(`), `||`, `&&`, `;`,
-   * `&`, a newline, `(`, `)`, `$(` or a backtick; undefined for the first one.
-   */
-  after?: string;
-}
+/** The longest agent-written shell command (`run`, `rollback` or `cwd`, rendered), read before anything else. */
+export const AGENT_SHELL_MAX_CHARS = 4_000;
 
-/** simpleCommands, with the operator before each command (SimpleCommand.after). */
-export function shellCommandList(text: string): SimpleCommand[] {
-  const out: SimpleCommand[] = [];
-  let words: string[] = [];
-  let cur = '';
-  let inWord = false;
-  let pending: string | undefined;
-  const endWord = () => {
-    if (inWord) words.push(cur);
-    cur = '';
-    inWord = false;
-  };
-  // `op`: the operator that ends it. An empty command keeps a pending pipe: `a |\n b`, `a | (b)` read from the pipe.
-  const endCommand = (op?: string) => {
-    endWord();
-    if (words.length) {
-      out.push(pending === undefined ? { words } : { words, after: pending });
-      pending = op;
-    } else if (pending !== '|') pending = op ?? pending;
-    words = [];
-  };
-  // `dq`: inside double quotes; `sub`: a `$(…)` opened inside double quotes (depth: its own parentheses); `tick`: a
-  // backtick substitution.
-  const stack: Array<{ mode: 'top' | 'dq' | 'sub' | 'tick'; depth: number }> = [{ mode: 'top', depth: 0 }];
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const top = stack[stack.length - 1];
-    if (top.mode === 'dq') {
-      if (c === '"') stack.pop();
-      else if (c === '\\' && i + 1 < text.length && '"\\$`\n'.includes(text[i + 1])) {
-        if (text[i + 1] !== '\n') cur += text[i + 1];
-        i++;
-      } else if (c === '`' || (c === '$' && text[i + 1] === '(')) {
-        endCommand(c === '`' ? '`' : '$(');
-        stack.push({ mode: c === '`' ? 'tick' : 'sub', depth: 0 });
-        if (c === '$') i++;
-        continue;
-      } else cur += c;
-      inWord = true;
-      continue;
-    }
-    if (c === '#' && !inWord) {
-      // A comment, to the end of its line (the shell skips it: a quote in it opens nothing).
-      const end = text.indexOf('\n', i);
-      i = (end < 0 ? text.length : end) - 1;
-    } else if (c === "'") {
-      const end = text.indexOf("'", i + 1);
-      const stop = end < 0 ? text.length : end;
-      cur += text.slice(i + 1, stop);
-      inWord = true;
-      i = stop;
-    } else if (c === '$' && text[i + 1] === "'") {
-      const { value, end } = ansiCQuoted(text, i + 2);
-      cur += value;
-      inWord = true;
-      i = end;
-    } else if (c === '$' && text[i + 1] === '"') {
-      stack.push({ mode: 'dq', depth: 0 });
-      inWord = true;
-      i++;
-    } else if (c === '"') {
-      stack.push({ mode: 'dq', depth: 0 });
-      inWord = true;
-    } else if (c === '\\') {
-      if (i + 1 < text.length && text[i + 1] !== '\n') {
-        cur += text[i + 1];
-        inWord = true;
-      }
-      i++;
-    } else if (c === '`') {
-      endCommand('`');
-      if (top.mode === 'tick') stack.pop();
-      else stack.push({ mode: 'tick', depth: 0 });
-    } else if (c === '(') {
-      endCommand(text[i - 1] === '$' ? '$(' : '(');
-      if (top.mode === 'sub') top.depth++;
-    } else if (c === ')') {
-      endCommand(')');
-      if (top.mode === 'sub') {
-        if (top.depth > 0) top.depth--;
-        else stack.pop();
-      }
-    } else if (c === ' ' || c === '\t' || c === '\r') {
-      endWord();
-    } else if (c === '\n' || c === ';' || c === '&' || c === '|') {
-      const two = text.slice(i, i + 2);
-      if (two === '||' || two === '&&' || two === '|&') i++;
-      endCommand(two === '||' || two === '&&' ? two : c);
-    } else if (c === '<' || c === '>') {
-      endWord();
-      let op = c;
-      while (i + 1 < text.length && '<>&'.includes(text[i + 1])) op += text[++i];
-      words.push(op);
-    } else {
-      cur += c;
-      inWord = true;
-    }
-  }
-  endCommand();
-  return out;
-}
+/** The characters of a plain word: letters, digits and `. / : = @ % + , - _`. */
+const PLAIN_CHAR = /[A-Za-z0-9./:=@%+,_-]/;
+/** A plain word, whole. */
+export const PLAIN_WORD = /^[A-Za-z0-9./:=@%+,_-]+$/;
 
-/** A `$'…'` string from `start` (after the quote): its decoded value and the index of its closing quote. */
-function ansiCQuoted(text: string, start: number): { value: string; end: number } {
-  const simple: Record<string, string> = { n: '\n', t: '\t', r: '\r', a: '\u0007', b: '\b', e: '\u001b', E: '\u001b', f: '\f', v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?' };
-  let value = '';
-  let i = start;
-  for (; i < text.length && text[i] !== "'"; i++) {
-    if (text[i] !== '\\' || i + 1 >= text.length) {
-      value += text[i];
-      continue;
-    }
-    const n = text[++i];
-    const hex = (max: number) => {
-      const m = new RegExp(`^[0-9a-fA-F]{1,${max}}`).exec(text.slice(i + 1));
-      if (!m) return n;
-      i += m[0].length;
-      return String.fromCodePoint(parseInt(m[0], 16));
-    };
-    if (Object.hasOwn(simple, n)) value += simple[n];
-    else if (n === 'x') value += hex(2);
-    else if (n === 'u') value += hex(4);
-    else if (n === 'U') value += hex(8);
-    else if (/[0-7]/.test(n)) {
-      const m = /^[0-7]{0,2}/.exec(text.slice(i + 1))![0];
-      value += String.fromCharCode(parseInt(n + m, 8));
-      i += m.length;
-    } else if (n === 'c' && i + 1 < text.length) value += String.fromCharCode(text[++i].charCodeAt(0) & 31);
-    else value += `\\${n}`;
-  }
-  return { value, end: i };
-}
+/** What an agent-written shell command is (the refusals end with it). */
+export const AGENT_SHELL_GRAMMAR = 'plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `';
 
-/** Builtins and keywords that set the variables they name: `for NAME in`, `read NAME`, `printf -v NAME`, `export NAME`… */
-const VARIABLE_SETTERS = new Set(['for', 'select', 'read', 'getopts', 'mapfile', 'readarray', 'printf', 'declare', 'typeset', 'local', 'export', 'readonly', 'let']);
+/** Whether an environment variable name is a plain identifier (`NAME`: letters, digits, `_`, not starting with a digit). */
+export const ENV_NAME_PLAIN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-/** `NAME=`, `NAME+=`, `NAME[i]=`: an assignment word (or an `env` / `export` argument) and the variable it sets. */
-const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\]]*\])?\+?=/;
-const VARIABLE_WORD = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[[^\]]*\])?$/;
-
-/**
- * The loader variables a shell text sets, in order, once each: every `NAME=` / `NAME+=` / `NAME[i]=` word of any simple
- * command (an assignment before the command, an `env` or `export` argument), and the names a simple command that holds
- * a variable setter (`for`, `select`, `read`, `getopts`, `mapfile`, `readarray`, `printf -v`, `declare`, `typeset`,
- * `local`, `export`, `readonly`, `let`) lists.
- */
-export function loaderAssignments(text: string): string[] {
-  const found = new Set<string>();
-  for (const words of simpleCommands(text)) {
-    const setter = words.some((w) => VARIABLE_SETTERS.has(w));
-    for (const w of words) {
-      const name = ASSIGNMENT.exec(w)?.[1] ?? (setter ? VARIABLE_WORD.exec(w)?.[1] : undefined);
-      if (name !== undefined && isLoaderEnvName(name)) found.add(name);
-    }
-  }
-  return [...found];
-}
-
-/**
- * The loader variables an agent-written shell command would set (trust `mcp`): the names of its `env` that are loader
- * variables, then the ones its text assigns (loaderAssignments) — each once, in that order. Empty: none.
- */
-export function agentShellLoaderVariables(run: string, env?: Readonly<Record<string, string>>): string[] {
-  const found = new Set<string>();
-  for (const name of Object.keys(env ?? {})) if (isLoaderEnvName(name)) found.add(name);
-  for (const name of loaderAssignments(run)) found.add(name);
-  return [...found];
-}
+/** `NAME=` (an assignment word, or an `env` / `export` argument) and the variable it sets. */
+const ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)\+?=/;
+const VARIABLE_WORD = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** Where agentShellProblems judges the paths of a command. */
 export interface AgentShellOptions {
@@ -266,8 +118,30 @@ export interface AgentShellOptions {
   projectDir: string;
   /** The folder the command runs in, which relative words resolve from (default projectDir). */
   cwd?: string;
-  /** What `~` stands for (default the home folder). */
+  /** What `~` stands for (default the home folder; agentWritablePath only — a command has no `~`). */
   home?: string;
+}
+
+/**
+ * Where `path` leads relative to the project (`own`) or to a project beside it (`beside`, `<project>/<rest>`), once
+ * symbolic links of its existing part are followed (it need not exist); null outside both. `~` and `~/…` stand for
+ * `o.home` unless `tilde: false`; a `file://` URL for its path.
+ */
+function projectPlace(path: string, o: AgentShellOptions & { tilde?: boolean }): { own: string } | { beside: string; rest: string } | null {
+  let p = path.replace(/^file:\/\//i, '');
+  if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) p = join(o.home ?? homedir(), p.slice(1));
+  const real = realPathOf(resolve(o.cwd ?? o.projectDir, p));
+  const below = (base: string): string | undefined => {
+    const rel = relative(base, real);
+    return rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) ? undefined : rel;
+  };
+  const root = realPathOf(resolve(o.projectDir));
+  const own = below(root);
+  if (own !== undefined) return { own };
+  const beside = below(realPathOf(dirname(root)));
+  if (beside === undefined) return null;
+  const [, ...rest] = beside.split(sep);
+  return rest.length ? { beside, rest: rest.join(sep) } : null;
 }
 
 /**
@@ -278,33 +152,33 @@ export interface AgentShellOptions {
  * `file://` URL for its path; `tilde: false` takes `~` literally (a hook's cwd).
  */
 export function agentWritablePath(path: string, o: AgentShellOptions & { tilde?: boolean }): string | null {
-  let p = path.replace(/^file:\/\//i, '');
-  if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) p = join(o.home ?? homedir(), p.slice(1));
-  const real = realPathOf(resolve(o.cwd ?? o.projectDir, p));
-  const below = (base: string): string | undefined => {
-    const rel = relative(base, real);
-    return rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) ? undefined : rel;
-  };
-  const root = realPathOf(resolve(o.projectDir));
-  const own = below(root);
-  if (own !== undefined) return agentWritable(own) ? own.split(sep).join('/') : null;
-  const beside = below(realPathOf(dirname(root)));
-  if (beside === undefined) return null;
-  const [, ...rest] = beside.split(sep);
-  return rest.length && agentWritable(rest.join(sep)) ? `../${beside.split(sep).join('/')}` : null;
+  const at = projectPlace(path, o);
+  if (!at) return null;
+  if ('own' in at) return agentWritable(at.own) ? at.own.split(sep).join('/') : null;
+  return agentWritable(at.rest) ? `../${at.beside.split(sep).join('/')}` : null;
+}
+
+/** A person's own file of a project (or of one beside it): `hooks/…` or `project.yaml`, project-relative; else null. */
+function personFilePath(path: string, o: AgentShellOptions): { rel: string; file: 'hooks/' | 'project.yaml' } | null {
+  const at = projectPlace(path, { ...o, tilde: false });
+  if (!at) return null;
+  const rel = ('own' in at ? at.own : at.rest).split(sep).join('/').replace(/^(?:\.\/)+/, '');
+  const shown = 'own' in at ? rel : `../${at.beside.split(sep).join('/')}`;
+  const lower = rel.toLowerCase();
+  if (lower === 'project.yaml' || lower === 'project.yml') return { rel: shown, file: 'project.yaml' };
+  if (lower === 'hooks' || lower.startsWith('hooks/')) return { rel: shown, file: 'hooks/' };
+  return null;
 }
 
 /** The folder of agentWritablePath's answer, for a message: "runs/", "README.md", "runs/ of another project". */
 function writableFolder(rel: string): string {
   const parts = rel.split('/');
-  if (parts[0] === '..') return `${parts[3] === undefined ? parts[2] : `${parts[2]}/`} of another project`;
-  return parts.length > 1 ? `${parts[0]}/` : parts[0];
+  const folder = (name: string, deeper: boolean) => (deeper || AGENT_WRITABLE_PATHS.includes(`${name.toLowerCase()}/`) ? `${name}/` : name);
+  if (parts[0] === '..') return `${folder(parts[2], parts[3] !== undefined)} of another project`;
+  return folder(parts[0], parts.length > 1);
 }
 
-/** Shell keywords that may come before a command word (`if cd x; then`, `! eval …`, `time exec …`). */
-const SHELL_KEYWORDS = new Set(['if', 'then', 'elif', 'else', 'fi', 'do', 'done', 'while', 'until', 'case', 'esac', '!', '{', '}', '[[', ']]', 'time', 'select', 'function', 'coproc']);
-
-/** Builtins refused as a command word: they change the folder paths resolve from, or run text as a command. */
+/** Builtins refused wherever a command runs them: they change the folder paths resolve from, or run text or a file. */
 const REFUSED_BUILTINS: Record<string, string> = {
   cd: "changes the folder its paths resolve from: set the hook's `cwd` instead",
   pushd: "changes the folder its paths resolve from: set the hook's `cwd` instead",
@@ -313,7 +187,21 @@ const REFUSED_BUILTINS: Record<string, string> = {
   exec: 'replaces the shell with another command',
   command: 'runs a command it is given by name',
   builtin: 'runs a shell builtin it is given by name',
+  trap: 'runs text as a command later',
+  alias: 'renames a command',
+  unalias: 'renames a command',
+  hash: 'changes which program a name runs',
+  enable: 'changes which program a name runs',
+  fc: 'runs earlier commands again',
+  source: "runs a file in the hook's own shell: run it with `sh <file>`",
+  '.': "runs a file in the hook's own shell: run it with `sh <file>`",
 };
+
+/** Programs that run the command that follows their options (`nice cd`, `env eval`, `/usr/bin/command eval`…). */
+const WRAPPERS = new Set(['env', 'nice', 'nohup', 'timeout', 'gtimeout', 'time', 'sudo', 'doas', 'stdbuf', 'caffeinate', 'ionice', 'chrt', 'taskset', 'setsid', 'unbuffer', 'flock', 'command', 'builtin']);
+
+/** Builtins that set the variables they name (`export NAME`, `read NAME`, `printf -v NAME`…). */
+const VARIABLE_SETTERS = new Set(['export', 'declare', 'typeset', 'local', 'readonly', 'read', 'getopts', 'mapfile', 'readarray', 'let', 'printf', 'unset']);
 
 const word0 = (w: string) => w.slice(w.lastIndexOf('/') + 1);
 
@@ -344,136 +232,159 @@ const interpreterOf = (w: string): Interpreter | undefined => {
   return INTERPRETERS.find((i) => i.name.test(base));
 };
 
-/** A script file an interpreter reads its program from (its input, from a pipe, is then data). */
-const SCRIPT_FILE = /\.(?:[cm]?[jt]sx?|py|sh|bash|zsh|rb|pl|php|lua|r|awk|applescript|scpt|ps1)$/i;
-
-/** Package runners that run a package, downloading it when it is not installed: `npx`, `pnpm dlx`, `npm exec`… */
+/**
+ * Package runners that run a package, downloading it when it is not installed: the program itself (`true`), or the
+ * subcommands that do it — refused wherever they appear after the program (`pnpm --filter app dlx x`, `npm -C .. exec`).
+ */
 const PACKAGE_RUNNERS: Record<string, readonly string[] | true> = {
   npx: true,
   pnpx: true,
   bunx: true,
-  npm: ['exec', 'x', 'create'],
+  uvx: true,
+  npm: ['exec', 'x', 'create', 'init'],
   pnpm: ['dlx', 'create'],
   yarn: ['dlx', 'create'],
   bun: ['x', 'create'],
+  pipx: ['run'],
+  uv: ['tool'],
 };
 
 /** git's global options that take a value as the next word. */
 const GIT_VALUE_OPTIONS = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env', '--super-prefix']);
 
-/** The words of a command word that may name a path: the word, the value after `=`, after `-X`, after `@`, each `:` part. */
+/** Options whose value is a folder a program works in, or a file it reads: their bare value is judged as a path. */
+const PATH_OPTIONS = /^(?:-C|-f|--file|--dir|--prefix|--cwd|--chdir|--directory|--git-dir|--work-tree|--config|--rcfile|--init-file)$/;
+const PATH_OPTION_EQ = /^(--file|--dir|--prefix|--cwd|--chdir|--directory|--git-dir|--work-tree|--config|--rcfile|--init-file)=(.*)$/;
+
+/** The parts of a word that may name a path: the word, the value after `=`, after `-X`, after `@`, each `:` or `,` part. */
 function pathCandidates(w: string): string[] {
   const out = new Set<string>([w]);
   const eq = w.indexOf('=');
   if (eq >= 0) out.add(w.slice(eq + 1));
   if (/^-[^-]./.test(w)) out.add(w.slice(2));
   if (w.startsWith('@')) out.add(w.slice(1));
+  for (const c of [...out]) {
+    if (c.includes(',')) for (const part of c.split(',')) out.add(part);
+  }
+  for (const c of [...out]) {
+    const e = c.indexOf('=');
+    if (e >= 0) out.add(c.slice(e + 1));
+  }
   for (const c of [...out]) if (c.includes(':') && !/^[a-z][a-z0-9+.-]*:\/\//i.test(c)) for (const part of c.split(':')) out.add(part);
-  return [...out].filter((c) => c !== '' && !/^[<>&|]+$/.test(c));
+  return [...out].filter((c) => c !== '');
 }
 
-/** How a word is shown in a problem: hidden characters written out, a long one cut (the hook itself is shown in full). */
+/** How a character is named in a refusal: `x`, a space, or `\u{…}` for a control, invisible or non-ASCII one. */
+function shownChar(c: string): string {
+  if (c === ' ') return 'a space';
+  const code = c.codePointAt(0)!;
+  return code < 0x21 || code > 0x7e ? `\`\\u{${code.toString(16)}}\`` : `\`${c}\``;
+}
+
+/** How a word is shown in a refusal (a plain word: shown as is, a long one cut — the hook itself is shown in full). */
 function shownWord(w: string): string {
-  const v = showHiddenChars(w).replace(/\n/g, '\\u{a}');
-  return v.length > 80 ? `${v.slice(0, 77)}…` : v;
+  return w.length > 80 ? `${w.slice(0, 77)}…` : w;
 }
 
 /**
- * The constructs of a shell text the quoting decides (raw text): `$` and backticks outside single quotes (any
- * expansion: `$NAME`, `${…}`, `$(…)`, `$((…))`, `$'…'`), unquoted globs (`*`, `?`, `[…]`) and brace expansion
- * (`{a,b}`), `~name`, and input redirection (`<`, `<<`, `<<<`, `<(…)`). `nested`: a quoted string of another command,
- * which may run as a script later — only its `$` and backticks.
+ * The grammar of an agent-written command, in one pass over its characters: its words, by command; or the problems.
+ * Every character is a plain word's, a single space between two words, or the `&&` of ` && ` between two commands.
  */
-function quotingProblems(text: string, nested: boolean): string[] {
-  const out: string[] = [];
-  const add = (p: string) => {
-    if (!out.includes(p)) out.push(p);
-  };
-  const BREAK = /[\s;&|()<>]/;
-  let dq = false;
-  let wordStart = true;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    const startsWord = wordStart;
-    wordStart = false;
-    if (c === '\\') {
-      i++;
-      continue;
-    }
-    if (c === '$') {
-      add('`$` outside single quotes (an expansion: `$NAME`, `${…}`, `$(…)`, `$((…))`) — write the value itself, in single quotes');
-      continue;
-    }
-    if (c === '`') {
-      add('a backtick (a command substitution)');
-      continue;
-    }
-    if (dq) {
-      if (c === '"') dq = false;
-      continue;
-    }
-    if (c === '"') {
-      dq = true;
-      continue;
-    }
-    if (c === '#' && startsWord) {
-      const end = text.indexOf('\n', i);
-      i = (end < 0 ? text.length : end) - 1;
-      continue;
-    }
-    if (c === "'") {
-      const end = text.indexOf("'", i + 1);
-      i = end < 0 ? text.length : end;
-      continue;
-    }
-    if (BREAK.test(c)) {
-      wordStart = true;
-      if (c === '<' && !nested) add('input redirection (`<`, `<<`, `<<<`, `<(…)`) — pass the file as an argument');
-      continue;
-    }
-    if (nested) continue;
-    if (c === '*' || c === '?') add('an unquoted glob (`*`, `?`, `[…]`) — quote it');
-    else if (c === '[' || c === '{') {
-      const close = c === '[' ? ']' : '}';
-      let j = i + 1;
-      while (j < text.length && !BREAK.test(text[j]) && text[j] !== close) j++;
-      if (text[j] === close && (c === '[' || /,|\.\./.test(text.slice(i + 1, j)))) {
-        add(c === '[' ? 'an unquoted glob (`*`, `?`, `[…]`) — quote it' : 'unquoted braces (a brace expansion: `{a,b}`, `{1..3}`) — quote them');
-      }
-    } else if (c === '~' && startsWords(startsWord, text, i)) {
-      const next = text[i + 1];
-      if (next !== undefined && next !== '/' && !BREAK.test(next)) add('`~name` (a folder the shell looks up) — write the path');
-    }
+function plainCommands(text: string): { commands: string[][] } | { problems: string[] } {
+  const bad: string[] = [];
+  const problems: string[] = [];
+  for (const ch of text) {
+    if (PLAIN_CHAR.test(ch) || ch === ' ' || ch === '&') continue;
+    const shown = shownChar(ch);
+    if (!bad.includes(shown)) bad.push(shown);
   }
-  return out;
+  if (bad.length) {
+    const list = bad.length > 8 ? `${bad.slice(0, 8).join(', ')}…` : bad.join(', ');
+    problems.push(`${bad.length === 1 ? 'the character' : 'the characters'} ${list} (only plain words: letters, digits and . / : = @ % + , - _)`);
+  }
+  const words = text.split(' ');
+  if (text === '') problems.push('no command');
+  else if (words.some((w) => w === '')) problems.push('two spaces in a row, or a space at its start or end (one space between two words)');
+  if (words.some((w) => w.includes('&') && w !== '&&')) problems.push('`&` other than ` && ` between two commands (`&`, `&>`, `a&&b`)');
+  const commands: string[][] = [[]];
+  for (const w of words) {
+    if (w === '&&') commands.push([]);
+    else if (w !== '') commands[commands.length - 1].push(w);
+  }
+  if (text !== '' && commands.some((c) => c.length === 0) && !problems.length) problems.push('` && ` without a command on each side');
+  return problems.length ? { problems } : { commands };
 }
 
-/** Whether a `~` at `i` starts a word (or an assignment's value: `X=~x`, or a `:` list entry). */
-function startsWords(startsWord: boolean, text: string, i: number): boolean {
-  return startsWord || text[i - 1] === '=' || text[i - 1] === ':';
+/** Whether word `i` of a command is where a program reads the script it runs (`sh x.sh`, `awk -f x.awk`, `psql -f x.sql`). */
+function runsFileAt(words: readonly string[], i: number, program: number): boolean {
+  if (i === program) return true;
+  const prev = words[i - 1];
+  if (prev === '-f' || prev === '--file' || prev === '-m') return true;
+  if (/^(?:--file=|-f.)/.test(words[i])) return true;
+  // An interpreter's first word that is not an option: its script.
+  for (let k = 0; k < i; k++) {
+    if (!interpreterOf(words[k])) continue;
+    const first = words.slice(k + 1).findIndex((w) => !w.startsWith('-'));
+    return first >= 0 && k + 1 + first === i;
+  }
+  return false;
 }
 
-/** The problems of one simple command (agentShellProblems). */
-function commandProblems(cmd: SimpleCommand, o: AgentShellOptions, nested: boolean, add: (p: string) => void): void {
-  const { words } = cmd;
-  let at = 0;
-  while (at < words.length && (ASSIGNMENT.test(words[at]) || SHELL_KEYWORDS.has(words[at]))) at++;
-  const name = words[at];
-  if (name !== undefined && Object.hasOwn(REFUSED_BUILTINS, name)) add(`\`${name}\` (it ${REFUSED_BUILTINS[name]})`);
+/** The problems of one command's words (agentShellProblems). */
+function commandProblems(words: readonly string[], o: AgentShellOptions, add: (p: string) => void): void {
+  let program = 0;
+  while (program < words.length && ASSIGNMENT.test(words[program])) program++;
 
-  let interpreter: { at: number; spec: Interpreter } | undefined;
+  // Builtins that run text or a file, or rebind names: the program, and any word after a wrapper (`nice -n 1 cd`).
+  const wrapped = program < words.length && WRAPPERS.has(word0(words[program]));
+  for (let i = program; i < words.length; i++) {
+    const base = word0(words[i]);
+    if ((i === program || wrapped) && Object.hasOwn(REFUSED_BUILTINS, base)) add(`\`${base}\` (it ${REFUSED_BUILTINS[base]})`);
+  }
+
+  // Loader variables it sets: an assignment before the program, an `env` argument, a setter's names.
+  const loader = (name: string, assigned = true) => {
+    if (isLoaderEnvName(name)) add(`\`${name}${assigned ? '=' : ''}\` (it sets ${name}, a loader variable)`);
+  };
+  for (let i = 0; i < program; i++) loader(ASSIGNMENT.exec(words[i])![1]);
+  words.forEach((w, i) => {
+    const base = word0(w);
+    if (base === 'env') {
+      for (const a of words.slice(i + 1)) {
+        const m = ASSIGNMENT.exec(a);
+        if (m) loader(m[1]);
+        else if (!a.startsWith('-')) break;
+      }
+    }
+    if (VARIABLE_SETTERS.has(base)) {
+      const rest = words.slice(i + 1);
+      for (const [k, a] of rest.entries()) {
+        // printf sets only the name after its `-v`; the others every name and NAME= they list.
+        if (base === 'printf') {
+          if (rest[k - 1] === '-v' && VARIABLE_WORD.test(a)) loader(a, false);
+          continue;
+        }
+        const m = ASSIGNMENT.exec(a);
+        if (m) loader(m[1]);
+        else if (VARIABLE_WORD.test(a)) loader(a, false);
+      }
+    }
+  });
+
+  const interpreter = words.some((w) => interpreterOf(w));
   words.forEach((w, i) => {
     const base = word0(w);
     const rest = words.slice(i + 1);
     const spec = interpreterOf(w);
     if (spec) {
-      interpreter ??= { at: i, spec };
       const flag = spec.code ? rest.find((r) => spec.code!.test(r)) : undefined;
       if (flag !== undefined) add(`\`${base} ${flag.replace(/=.*$/, '')}\` (it runs code written in the command) — put the code in a script under hooks/`);
       if (!spec.code && !rest.some((r) => /^(?:-f|--file)/.test(r))) add(`\`${base}\` with a program text (it can run commands) — put the program in a file under hooks/ and pass it with \`-f\``);
-      if (spec.code && /^(?:python|pypy)/.test(base)) {
-        const m = rest.indexOf('-m');
-        if (m >= 0 && rest[m + 1] !== undefined) pathProblem(rest[m + 1].split('.').join('/'), o, add, rest[m + 1]);
+      if (/^(?:python|pypy)/.test(base)) {
+        rest.forEach((r, k) => {
+          const mod = r === '-m' ? rest[k + 1] : /^-m./.test(r) ? r.slice(2) : undefined;
+          if (mod !== undefined) pathProblem(mod.split('.').join('/'), o, add, mod, true);
+        });
       }
     }
     if (base === 'xargs' || base === 'parallel') add(`\`${base}\` (it runs commands built from its input)`);
@@ -488,8 +399,12 @@ function commandProblems(cmd: SimpleCommand, o: AgentShellOptions, nested: boole
     const runner = PACKAGE_RUNNERS[base];
     if (runner === true) add(`\`${base}\` (it runs a package, downloading it when it is not installed)`);
     else if (runner) {
-      const sub = rest.find((r) => !r.startsWith('-'));
-      if (sub !== undefined && runner.includes(sub)) add(`\`${base} ${sub}\` (it runs a package, downloading it when it is not installed)`);
+      const sub = rest.find((r) => runner.includes(r));
+      if (sub !== undefined) add(`\`${base} ${sub}\` (it runs a package, downloading it when it is not installed)`);
+    }
+    if (base === 'deno') {
+      const spec2 = rest.find((r) => /^(?:npm|jsr):/.test(r));
+      if (spec2) add(`\`deno ${shownWord(spec2)}\` (it runs a package, downloading it when it is not installed)`);
     }
     if (base === 'git') {
       for (let k = 0; k < rest.length && rest[k].startsWith('-'); k++) {
@@ -502,61 +417,81 @@ function commandProblems(cmd: SimpleCommand, o: AgentShellOptions, nested: boole
     }
   });
 
-  // An interpreter on the right side of a pipe reads its program from it, unless it is given a script file.
-  if (cmd.after === '|' && interpreter) {
-    const rest = words.slice(interpreter.at + 1);
-    const fromStdin = rest.some((r) => r === '-' || r === '/dev/stdin' || (/^-[A-Za-z]*s[A-Za-z]*$/.test(r) && interpreter!.spec === INTERPRETERS[0]));
-    if (fromStdin || !rest.some((r) => !r.startsWith('-') && SCRIPT_FILE.test(r))) {
-      add(`\`| ${word0(words[interpreter.at])}\` (an interpreter reading its program from a pipe) — give it a script file`);
-    }
-  }
-
+  // Paths. A person's file (hooks/, project.yaml): any word. A folder an agent can write: a word holding a `/`, a bare
+  // word an interpreter may run, the value of a folder or file option (a bare `review` of `pnpm run review` is a name).
   words.forEach((w, i) => {
-    if (i === at && !w.includes('/')) return; // a command looked up on PATH
+    if (i === program && !w.includes('/')) return; // a program looked up on PATH
     if (/^\/dev\/(?:stdin|fd\/)|^\/proc\/[^/]+\/fd\//.test(w)) add(`\`${shownWord(w)}\` (a stream read as a file)`);
-    if (nested && !w.includes('/')) return;
-    for (const c of pathCandidates(w)) pathProblem(c, o, add, w);
+    const judged = w.includes('/') || interpreter || (i > 0 && PATH_OPTIONS.test(words[i - 1])) || PATH_OPTION_EQ.test(w);
+    const runs = runsFileAt(words, i, program);
+    for (const c of pathCandidates(w)) pathProblem(c, o, add, w, runs, judged);
   });
 }
 
-function pathProblem(candidate: string, o: AgentShellOptions, add: (p: string) => void, word: string): void {
-  const rel = agentWritablePath(candidate, o);
-  if (rel !== null) add(`\`${shownWord(word)}\` (a path through ${writableFolder(rel)}, which an agent can write)`);
+function pathProblem(candidate: string, o: AgentShellOptions, add: (p: string) => void, word: string, runs: boolean, judged = true): void {
+  const rel = judged ? agentWritablePath(candidate, { ...o, tilde: false }) : null;
+  if (rel !== null) {
+    add(`\`${shownWord(word)}\` (a path through ${writableFolder(rel)}, which an agent can write)`);
+    return;
+  }
+  const person = personFilePath(candidate, o);
+  if (!person) return;
+  if (person.file === 'project.yaml') add(`\`${shownWord(word)}\` (project.yaml, a person's file)`);
+  else if (!runs) add(`\`${shownWord(word)}\` (a path into hooks/, a person's folder, other than the script a command runs)`);
 }
 
 /**
- * What an agent-written shell command may not use (trust `mcp`, a hook the agent wrote): each problem once, in the
- * order found; empty when none. Read per simple command (shellCommandList), on the rendered text:
- * - `$` and backticks outside single quotes, unquoted globs and brace expansions, `~name`, input redirection
- *   (`<`, `<<`, `<<<`, `<(…)`);
- * - `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin` as the command; `xargs`, `parallel`, `find -exec`,
- *   `env -S`; a shell's `-c`, inline code (`node -e` / `-p` / `--eval` / `-r` / `--require` / `--import`, `deno eval`,
- *   `python -c`, `perl -e`, `ruby -e`, `php -r`, `osascript -e`…), `awk` with a program text; an interpreter on the
- *   right side of a pipe without a script file (`| sh`, `| node`, `| python -`); `npx`, `pnpm dlx`, `npm exec`,
- *   `yarn dlx`, `bunx`…; `git -c`;
- * - a loader variable it sets (loaderAssignments);
- * - any word, or the value of `--opt=…`, `-Xvalue`, `@file` or a `:` list, that leads through a folder an agent can
- *   write (agentWritablePath; relative words from `o.cwd`), whether the file exists or not — `python -m`'s module too;
- *   and `/dev/stdin`, `/dev/fd/…`.
- * A word with spaces (a quoted string given to another command: `trap '…'`, `su -c '…'`, `ssh h '…'`) is read as a
- * script too: its `$` and backticks, its commands, and its words holding a `/`.
- * A deny-list, conservative where it reads: it refuses some harmless commands rather than miss one.
+ * What an agent-written shell command may not use (trust `mcp`, a hook the agent wrote: its rendered `run` or
+ * `rollback`): each problem once, in the order found; empty when none. Length first (AGENT_SHELL_MAX_CHARS), then the
+ * grammar in one pass — plain words of letters, digits and `. / : = @ % + , - _`, single spaces, commands joined by
+ * ` && ` — so the shell expands, redirects, substitutes and quotes nothing. Then, per command:
+ * - `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin`, `trap`, `alias`, `unalias`, `hash`, `enable`, `fc`,
+ *   `source`, `.` as the program (by its last path part: `/usr/bin/command`) or after a wrapper (`nice`, `env`…);
+ * - a loader variable it sets: an assignment before the program, an `env` argument, the names a setter (`export`,
+ *   `declare`, `read`, `printf -v`…) lists;
+ * - inline interpreter code (a shell's `-c`, `node -e` / `-p` / `--eval` / `-r` / `--import`, `deno eval`,
+ *   `python -c`, `perl -e`, `ruby -e`, `php -r`, `osascript -e`…), `awk` without `-f`; `xargs`, `parallel`,
+ *   `find -exec`, `env -S`; a package runner (`npx`, `uvx`, `bunx`, `pnpx`) or its subcommand wherever it stands
+ *   (`npm exec` / `x` / `create` / `init`, `pnpm dlx` / `create` / `exec`, `yarn dlx`, `bun x`, `pipx run`, `uv tool`,
+ *   `deno npm:…`); `git -c`;
+ * - a path (a word holding a `/`; a bare word an interpreter may run, or the value of `-C`, `-f`, `--file`, `--prefix`,
+ *   `--cwd`…; the value of `--opt=…`, `-Xvalue`, `@file`, a `:` or `,` list; `python -m`'s module) through a folder an
+ *   agent can write (agentWritablePath), whether it exists or not; project.yaml; hooks/ other than the script a command
+ *   runs (its program, an interpreter's script, a `-f` file); `/dev/stdin`, `/dev/fd/…`.
  */
 export function agentShellProblems(text: string, o: AgentShellOptions): string[] {
+  if (text.length > AGENT_SHELL_MAX_CHARS) return [`${text.length.toLocaleString('en-US')} characters (at most ${AGENT_SHELL_MAX_CHARS.toLocaleString('en-US')})`];
+  const parsed = plainCommands(text);
+  if ('problems' in parsed) return parsed.problems;
   const out: string[] = [];
   const add = (p: string) => {
     if (!out.includes(p)) out.push(p);
   };
-  const visit = (t: string, depth: number) => {
-    const nested = depth > 0;
-    for (const p of quotingProblems(t, nested)) add(p);
-    for (const name of loaderAssignments(t)) add(`\`${name}=\` (it sets ${name}, a loader variable)`);
-    for (const cmd of shellCommandList(t)) {
-      commandProblems(cmd, o, nested, add);
-      if (depth < 3) for (const w of cmd.words) if (/\s/.test(w)) visit(w, depth + 1);
-    }
-  };
-  visit(text, 0);
+  for (const words of parsed.commands) commandProblems(words, o, add);
+  return out;
+}
+
+/**
+ * What an agent-written hook's working folder (`cwd`, rendered) may not be: over AGENT_SHELL_MAX_CHARS, other than one
+ * plain word, or through a folder an agent can write. Empty when none.
+ */
+export function agentShellCwdProblems(cwd: string, o: AgentShellOptions): string[] {
+  if (cwd.length > AGENT_SHELL_MAX_CHARS) return [`its working folder: ${cwd.length.toLocaleString('en-US')} characters (at most ${AGENT_SHELL_MAX_CHARS.toLocaleString('en-US')})`];
+  if (!PLAIN_WORD.test(cwd)) return [`its working folder \`${shownWord(showHiddenChars(cwd).replace(/\n/g, '\\u{a}'))}\` (one plain word: letters, digits and . / : = @ % + , - _)`];
+  const rel = agentWritablePath(cwd, { ...o, tilde: false });
+  return rel !== null ? [`its working folder \`${shownWord(cwd)}\` (a path through ${writableFolder(rel)}, which an agent can write)`] : [];
+}
+
+/**
+ * The environment variable names an agent-written shell hook may not give its `env` (trust `mcp`): a name that is not a
+ * plain identifier (ENV_NAME_PLAIN), or a loader variable. Each once, in order; empty: none.
+ */
+export function agentShellEnvProblems(env: Readonly<Record<string, string>> | undefined): string[] {
+  const out: string[] = [];
+  for (const name of Object.keys(env ?? {})) {
+    if (!ENV_NAME_PLAIN.test(name)) out.push(`its env name \`${shownWord(showHiddenChars(name).replace(/\n/g, '\\u{a}'))}\` (letters, digits and _, not starting with a digit)`);
+    else if (isLoaderEnvName(name)) out.push(`its env \`${name}\` (a loader variable)`);
+  }
   return out;
 }
 

@@ -25,10 +25,11 @@ export interface PruneRequest {
   /** Ids a queued or running job names (never deleted). */
   busy?: (id: string) => boolean;
   /**
-   * Delete only these (`pruneKey`: `<kind>:<id>`), among what can go now: what a person approved. One of them that
-   * something uses by now stays (`skipped`), and so does whatever became prunable since (`not_asked`).
+   * Delete only these (`pruneKey`: `<kind>:<id>` → the paths it had then), among what can go now: what a person
+   * approved. One of them that something uses by now stays (`skipped`), and so does whatever became prunable since
+   * (`not_asked`); of an approved item, only the paths it had then go (a file added since stays).
    */
-  only?: ReadonlySet<string>;
+  only?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** An item's key in `PruneRequest.only`. */
@@ -179,7 +180,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   if (req.only) {
     const only = req.only;
     const now = new Set(items.map(pruneKey));
-    skipped = [...only].filter((k) => !now.has(k)).sort().map((k) => {
+    skipped = [...only.keys()].filter((k) => !now.has(k)).sort().map((k) => {
       const at = k.indexOf(':');
       return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
     });
@@ -190,7 +191,16 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
       else if (i.kind === 'render') keptRenders.add(i.id);
       else reviewsKept++;
     }
-    items.splice(0, items.length, ...items.filter((i) => only.has(pruneKey(i))));
+    const approved: PruneItem[] = [];
+    for (const i of items) {
+      const then = only.get(pruneKey(i));
+      if (!then) continue;
+      const paths = i.paths.filter((p) => then.includes(p));
+      let bytes = 0;
+      for (const p of paths) bytes += await sizeOf(p);
+      approved.push({ ...i, paths, bytes });
+    }
+    items.splice(0, items.length, ...approved);
   }
 
   const problems: string[] = [];

@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
@@ -673,6 +674,18 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
   });
 });
 
+describe('hook names and env names a person reads', () => {
+  it('a control character in a hook name or a shell hook\'s env name is an error; other characters are kept', () => {
+    const bad = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: "seed\\n   run: pnpm run seed"\n    shell: {run: echo ok, env: {"A\\tB": x}}\n'), { project: fakeProject() });
+    expect(errors(bad.issues).map((i) => i.message)).toEqual([
+      expect.stringContaining('a hook name: no control character (a line break, a tab, an escape)'),
+      expect.stringContaining('an env name: no control character (a line break, a tab, an escape)'),
+    ]);
+    const ok = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: Seed – café\n    shell: {run: echo ok, env: {SKU: x}}\n'), { project: fakeProject() });
+    expect(errors(ok.issues)).toEqual([]);
+  });
+});
+
 describe('loadScenario reads the file once and pins its bytes', () => {
   const sha = (t: string) => createHash('sha256').update(Buffer.from(t, 'utf8')).digest('hex');
 
@@ -712,7 +725,9 @@ describe('loadScenario reads the file once and pins its bytes', () => {
       const e = await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) }).catch((x: unknown) => x);
       expect(e).toBeInstanceOf(ScenarioChangedError);
       expect(e).toMatchObject({ name: 'ScenarioChangedError', expected: sha(shown), actual: sha('video: [\n'), issues: [] });
-      expect((e as Error).message).toContain('changed');
+      // Named as the project knows it, never by its absolute path (the file keeps that).
+      expect((e as Error).message).toBe(`scenarios/quote.yaml changed: its bytes have sha256 ${sha('video: [\n')}, expected ${sha(shown)}`);
+      expect((e as ScenarioChangedError).file).toBe(join(dir, 'scenarios', 'quote.yaml'));
       // The same bytes as expected load.
       await writeFiles(dir, { 'scenarios/quote.yaml': shown });
       expect((await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) })).sha256).toBe(sha(shown));

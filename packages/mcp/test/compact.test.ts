@@ -151,6 +151,9 @@ describe('the tools', () => {
     expect(INSTRUCTIONS).toContain('`offscreen: true`');
     expect(INSTRUCTIONS).toContain('detail: "full"');
     expect(INSTRUCTIONS).toContain('job_status {wait_s: up to 600}');
+    // The rule for the shell hooks the agent writes, before it writes one.
+    expect(INSTRUCTIONS).toContain('is plain words — letters, digits and . / : = @ % + , - _ — separated by single spaces, commands joined by ` && `');
+    expect(INSTRUCTIONS).toContain('ask the user to put it in hooks/<name>.yaml');
   });
 });
 

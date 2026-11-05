@@ -5,8 +5,13 @@ import { keyString, nonEmpty, positiveSeconds, slugString } from './primitives.j
 
 export const HOOK_KINDS: readonly HookKind[] = ['http', 'sql', 'shell', 'js'];
 
+// eslint-disable-next-line no-control-regex
+const NO_CONTROL = /^[^\u0000-\u001f\u007f-\u009f]*$/;
+/** A name a person reads in a form or a log: no control character (a line break, an escape sequence). */
+const noControl = (what: string) => z.string().regex(NO_CONTROL, `${what}: no control character (a line break, a tab, an escape)`);
+
 export const hookCommonShape = {
-  name: nonEmpty().describe('Name shown in logs and journals.').optional(),
+  name: nonEmpty().regex(NO_CONTROL, 'a hook name: no control character (a line break, a tab, an escape)').describe('Name shown in logs and journals.').optional(),
   confirm: z.boolean().describe('Required (true) for destructive hooks.').optional(),
   destructive: z.boolean().describe('Declare the hook destructive explicitly (also auto-detected).').optional(),
   optional: z.boolean().describe('Continue even if this hook fails.').optional(),
@@ -61,7 +66,7 @@ export const ShellHookSchema = z.union([
   z.strictObject({
     run: nonEmpty(),
     cwd: nonEmpty().optional(),
-    env: z.record(z.string(), z.string()).optional(),
+    env: z.record(noControl('an env name'), z.string()).optional(),
     rollback: nonEmpty().describe('Command that undoes this one.').optional(),
     timeout: positiveSeconds().optional(),
   }),

@@ -111,24 +111,28 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
 - **What you approve is shown in full.** The approval form of work submitted through MCP or the Studio shows each
   hook as it will run, every field on its own line (a shell hook's command, working folder and each environment
   variable; a sql hook's statement or file and database; a js hook's code or file and page; an http hook's method, URL,
-  headers and body; its rollback the same way), templated, secrets as `***`, hidden characters written out, never cut.
-  A hook over 4,000 characters or a form over 16,000 is refused before anyone is asked (run it in a terminal).
-- **Hooks the agent wrote set no loader variable.** Through MCP or the Studio, a shell hook written in the scenario
-  (or a project.yaml hook rendered with the scenario's `vars`) is refused when its `env` or its command sets a variable
-  that changes what programs load or the shell they start — `PATH`, `HOME`, `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`,
-  `ENV`, `IFS`, `LD_*`, `DYLD_*`, `GIT_*`, `PYTHON*`, `npm_config_*`, `PNPM_*`, `COREPACK_*` and the like — in any
-  command of it. Hooks of your own files (project.yaml with its own vars, `hooks/<name>.yaml`, a sandbox's seed) are
-  shown in full and asked about instead.
-- **Hooks the agent wrote run only what the form shows.** The same shell hooks are read command by command, templated,
-  and refused before anyone is asked (and again by the worker) when their command, rollback or working folder use what
-  could run code the form does not show or reach a file an agent can write: `$` or backticks outside single quotes,
-  unquoted globs and brace expansions, input redirection, `cd` / `eval` / `exec` / `command`, `xargs`, `find -exec`,
-  `env -S`, a shell's `-c` and inline interpreter code (`node -e`, `python -c`, `perl -e`, `awk '…'`…), an interpreter
-  reading a pipe, `npx` / `pnpm dlx` / `npm exec`, `git -c`, and any path through README.md, `scenarios/`, `comments/`,
-  `runs/`, `renders/`, `review/`, `exports/` or `.retake/` of a project of the workspace, existing or not (the full
-  list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*, *Shell constructs*). The rule refuses
-  some harmless commands rather than miss one: put such a hook in `hooks/<name>.yaml` (or project.yaml's `hooks:`), or
-  run it in a terminal.
+  headers and body; its rollback the same way), templated, secrets as `***`, hidden characters and unusual spaces
+  written out, names and keys kept on their line, never cut. A hook over 4,000 characters or a form over 16,000
+  (counted as the whole form reads) is refused before anyone is asked (run it in a terminal). A hook's name and its
+  `env` names hold no control character (validation).
+- **Shell hooks the agent wrote are plain commands.** Through MCP or the Studio, a shell hook written in the scenario
+  (or a project.yaml hook rendered with the scenario's `vars`) is read, templated, before anyone is asked and again by
+  the worker. Its command, rollback and working folder are plain words — letters, digits and `. / : = @ % + , - _` —
+  separated by single spaces, commands joined by ` && `: no quotes, `$`, backticks, pipes, redirections, `;`, globs,
+  `#`, `\`, control or non-ASCII characters, so the shell expands, substitutes and hides nothing — and at most 4,000
+  characters, checked first. On those words it is refused for `cd` / `eval` / `exec` / `command` / `trap` / `alias` /
+  `source` (as the program or after a wrapper), a loader variable it sets (`PATH`, `HOME`, `NODE_OPTIONS`, `BASH_ENV`,
+  `IFS`, `LD_*`, `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`, `PSQLRC`, `npm_config_*`, `PNPM_*`, `COREPACK_*` and the
+  like — before the program, as an `env` argument, or by `export` / `read`…), inline interpreter code (`node -e`,
+  `python -c`, `awk` without `-f`…), `xargs`, `find -exec`, `env -S`, a package runner or its subcommand (`npx`,
+  `pnpm dlx`, `npm exec`…), `git -c`, any path through README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
+  `review/`, `exports/` or `.retake/` of a project of the workspace (existing or not), a path to project.yaml or into
+  `hooks/` other than the script a command runs, and a saved response (`{{hooks.…}}`), whose value is not known when
+  it is asked about. Its `env` names are letters, digits and `_`, and no loader variable. A secret it names must be a
+  plain word when the job runs. The full list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*.
+  These rules decide how a command is written, not what a program does with its arguments: the form still shows the
+  command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
+  (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.

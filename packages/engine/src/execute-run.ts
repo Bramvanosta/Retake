@@ -47,6 +47,8 @@ export interface RunRequest {
   sandbox?: boolean;
   /** sha256 the scenario file's bytes must have (a job's): core ScenarioChangedError otherwise, before they are parsed. */
   expectSha256?: string;
+  /** Reads the scenario file's bytes (default node:fs; a test seam): called once per prepareRun. */
+  readFile?: (file: string) => Promise<Uint8Array>;
 }
 
 export interface PreparedRun {
@@ -97,7 +99,7 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  */
 export async function prepareRun(ws: WorkspaceConfig, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
-  const src = await readScenarioSource(project, scenarioRef, req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {});
+  const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
   const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
   const scenario = parseScenarioSource(project, src, { env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;

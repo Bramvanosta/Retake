@@ -3,6 +3,7 @@
  * refused before anything runs, and a step reading a file whose path only templating reveals (drop_file.path, eval.file)
  * checks it when it runs — inside the project folder, an eval file not agent-writable and naming no secret.
  */
+import { existsSync } from 'node:fs';
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -81,7 +82,7 @@ describe('runner, trust mcp', () => {
     expect(await stepError(evalStep(ctx(false), { file: 'scenarios/x.js' }))).not.toContain('agent can write');
   });
 
-  it("the scenario's own hooks are the agent's — a shell one setting a loader variable is refused — and so is a project.yaml hook rendered with the scenario's vars", async () => {
+  it("the scenario's own hooks are the agent's — a shell one setting a loader variable is refused, in its setup, named hooks and teardown — and so is a project.yaml hook rendered with the scenario's vars", async () => {
     const server = await startServer({ '/': '<html><body><h1>Home</h1></body></html>' });
     try {
       const steps = [{ hook: 'warm' }, { hold: 0.1 }];
@@ -95,13 +96,18 @@ describe('runner, trust mcp', () => {
       };
       const setup = await run('own-setup', { setup: [{ name: 'tooling', shell: { run: 'PATH=/usr/bin:/bin true' } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
       expect(setup.status).toBe('failed');
-      expect(setup.error?.message).toContain('setup hooks failed (tooling: refusing shell hook: it sets PATH');
+      expect(setup.error?.message).toContain('setup hooks failed (tooling: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
       const own = await run('own-named', { hooks: { warm: { shell: { run: 'true', env: { NODE_OPTIONS: '-r ./x.cjs' } } } }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'LANG=C' }));
       expect(own.status).toBe('failed');
-      expect(own.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it sets NODE_OPTIONS');
+      expect(own.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable)');
       const agentVars = await run('agent-vars', { vars: { prefix: 'PATH=/usr/bin:/bin' }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared());
       expect(agentVars.status).toBe('failed');
-      expect(agentVars.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it sets PATH');
+      expect(agentVars.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
+      // Its teardown is the agent's too: refused, nothing runs (a person's hook there would run, approved).
+      const marker = join(dir, 'teardown-ran');
+      const teardown = await run('own-teardown', { teardown: [{ name: 'tidy', shell: { run: `PATH=/usr/bin:/bin touch ${marker}` } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
+      expect(teardown.hooks?.teardown).toBe('failed');
+      expect(existsSync(marker)).toBe(false);
       // project.yaml's hook with project.yaml's own vars: a person's — it runs.
       const person = await run('person-vars', { scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'PATH=/usr/bin:/bin' }));
       expect(person.error?.message).toBeUndefined();

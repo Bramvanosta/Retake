@@ -100,7 +100,7 @@ for what the server refuses.
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes only what they approved (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -290,42 +290,50 @@ hooks: submit it again —, a sandbox that would not start…).
   - **In full.** Each hook is shown as it will run, its name once in its heading, then every field on a line of its
     own, templated and never cut: a shell hook's `run`, `cwd` and each `env` entry; a sql hook's statement (or its
     file) and database; a js hook's code (or its file) and page; an http hook's method, URL, headers and body. Secrets
-    are `***`; control, bidirectional and invisible characters are written out (`\u{202e}`), and a value of several
-    lines continues on lines starting with `|`, so it never reads as another field or hook. A hook longer than 4,000
-    characters, or a form longer than 16,000, is refused before anyone is asked: run it in a terminal (the fix).
-  - **Loader variables.** A shell hook the agent wrote — the scenario's `setup`, `teardown` and own `hooks:`, and a
-    project.yaml hook whose templates use the scenario's `vars` — may not set a loader variable (`PATH`, `HOME`,
-    `NODE_OPTIONS`, `LD_*` / `DYLD_*`, `GIT_*`, `PYTHON*`, `npm_config_*` and the like: they change what a program loads
-    or the shell it starts), neither in its `env` nor in the command (`NAME=…` before any command of it, `env` /
-    `export NAME=…`, `for NAME in`, `read NAME`…, after `;`, `&&`, `||`, `|`, inside `( )`, `$( )` or backticks).
-    Such a hook is refused before anyone is asked, and again when the job runs. A hook of your own files —
-    project.yaml with its own `vars`, `hooks/<name>.yaml`, a sandbox's seed — is shown in full and asked about, not
-    refused: move such a hook there, or run it in a terminal.
-  - **Shell constructs.** The same hooks the agent wrote are read command by command (split at `;`, `&&`, `||`, `|`,
-    `( )`, newlines, `$( )` and backticks), as templated with the scenario's values, and refused before anyone is
-    asked — and again when the job runs — when their `run`, `rollback` or `cwd` use:
-    - `$` or a backtick outside single quotes (`$NAME`, `${…}`, `$(…)`, `$((…))`): write the value itself, in single
-      quotes; an unquoted glob (`*`, `?`, `[…]`: quote it — a URL with a query too), a brace expansion (`{a,b}`) or
-      `~name`; input redirection (`<`, `<<`, `<<<`, `<(…)`);
-    - `cd`, `pushd`, `popd`, `eval`, `exec`, `command` or `builtin` as the command (set the hook's `cwd` instead);
-      `xargs`, `parallel`, `find -exec` / `-execdir` / `-ok`, `env -S`;
-    - code written in the command: a shell's `-c` (`sh`, `bash`, `zsh`, `dash`…), `node` / `bun` / `tsx` `-e`, `-p`,
-      `--eval`, `-r`, `--require`, `--import`, `deno eval`, `python -c`, `perl -e`, `ruby -e`, `php -r`,
-      `osascript -e`, `awk` with a program text (`awk -f hooks/x.awk` is fine); an interpreter on the right of a pipe
-      without a script file (`| sh`, `| node`, `| python -`); a package runner (`npx`, `pnpx`, `bunx`, `pnpm dlx`,
-      `npm exec`, `yarn dlx`, `… create`); `git -c` / `--config-env`;
-    - a path through a folder an agent can write — README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
+    are `***`; control, bidirectional and invisible characters, and spaces other than a plain space, are written out
+    (`\u{202e}`, `\u{a0}`); a value of several lines continues on lines starting with `|`, and a name or an `env` /
+    header key stays on its line (a line break as `\u{a}`), so nothing reads as another field or hook. A hook longer
+    than 4,000 characters, or a form longer than 16,000 (counted as the whole form reads), is refused before anyone is
+    asked: run it in a terminal (the fix).
+  - **Shell hooks the agent writes are plain commands.** A shell hook the agent wrote — the scenario's `setup`,
+    `teardown` and own `hooks:`, and a project.yaml hook whose templates use the scenario's `vars` — is read, as
+    templated with the scenario's values, before anyone is asked and again when the job runs. Its `run` and `rollback`
+    are plain words — letters, digits and `. / : = @ % + , - _` — separated by single spaces, commands joined by
+    ` && `; its `cwd` is one plain word. The length is checked first (at most 4,000 characters), then every character
+    once: no quotes, `$`, backticks, `;`, `|`, `&` alone, `<` / `>`, `( )`, `{ }`, globs, `~`, `#`, `\`, tabs,
+    newlines, other control characters, non-ASCII characters or unusual spaces — so the shell expands, redirects,
+    substitutes and hides nothing. On those words:
+    - no `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin`, `trap`, `alias`, `unalias`, `hash`, `enable`,
+      `fc`, `source` or `.` — as the program (`/usr/bin/command` too) or after a wrapper (`nice`, `env`, `timeout`,
+      `time`, `nohup`…); set the hook's `cwd` instead of `cd`;
+    - no loader variable (`PATH`, `HOME`, `NODE_OPTIONS`, `LD_*` / `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`,
+      `PERL*`, `PSQLRC`, `npm_config_*` and the like: they change what a program loads or the shell it starts) set
+      before the program, as an `env` argument, or by `export` / `declare` / `read` / `printf -v`…; the hook's `env`
+      names are letters, digits and `_` and no loader variable either;
+    - no code written in the command: a shell's `-c` (`sh`, `bash`, `zsh`, `dash`…), `node` / `bun` / `tsx` `-e`,
+      `-p`, `--eval`, `-r`, `--require`, `--import`, `deno eval`, `python -c`, `perl -e`, `ruby -e`, `php -r`,
+      `osascript -e`, `awk` without `-f`; no `xargs`, `parallel`, `find -exec` / `-execdir` / `-ok`, `env -S`; no
+      package runner (`npx`, `pnpx`, `bunx`, `uvx`) nor its subcommand wherever it stands (`npm exec` / `x` /
+      `create` / `init`, `pnpm dlx` / `create`, `yarn dlx`, `bun x`, `pipx run`, `uv tool`, `deno npm:…`); no `git -c`
+      / `--config-env`;
+    - no path through a folder an agent can write — README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
       `review/`, `exports/`, `.retake/`, of the project or of another project of the workspace — whether the file
       exists or not, however it is written (relative to `cwd`, absolute, `RUNS/…`, through a symbolic link,
-      `--file=…`, `-f…`, `@…`, `python -m runs.x`, `{{run.dir}}/…`), and `/dev/stdin`, `/dev/fd/…`.
+      `--file=…`, `-f…`, `@…`, a `:` or `,` list, `python -m runs.x`, `{{run.dir}}/…`); a bare word counts as a path
+      for an interpreter (`node README.md`) or after `-C`, `-f`, `--file`, `--prefix`, `--cwd`…, not as a script or
+      target name (`npm run review`, `make renders`); no path to project.yaml, nor into `hooks/` other than the script
+      a command runs (`sh hooks/seed.sh`, `node hooks/seed.mjs`, `psql -f hooks/reset.sql`); no `/dev/stdin`,
+      `/dev/fd/…`;
+    - no saved response (`{{hooks.<name>…}}`, a rollback's `{{response.…}}`): its value is not known when the hook is
+      asked about. A secret (`{{env:…}}`, `{{keychain:…}}`) is read as one plain word in the form, and when the job
+      runs its value must be one too (refused otherwise, never shown).
 
-    A quoted string with spaces given to another command (`trap '…' EXIT`, `su -c '…'`, `ssh host '…'`) is read as a
-    script too: its `$` and backticks, its commands and its words holding a `/`. A `#` comment is skipped like the shell
-    does. A saved response (`{{hooks.<name>…}}`) and a secret count as one plain word. The refusal names what to change;
-    a hook that needs these belongs in your own files — `hooks/<name>.yaml` (`retake hooks run <project>
-    hooks/<name>.yaml`, or `hooks_run`) or project.yaml's `hooks:` without the scenario's vars — where it is shown in
-    full and asked about, or in a terminal. Plain commands pass: `pnpm run seed --small`, `sleep 1.5`,
-    `sh hooks/seed.sh`, `psql -c 'select * from t'`, `curl -s -X POST http://localhost:4401/api/reset`.
+    Each refusal names what to change. A hook that needs more belongs in your own files — `hooks/<name>.yaml`
+    (`retake hooks run <project> hooks/<name>.yaml`, or `hooks_run`) or project.yaml's `hooks:` without the scenario's
+    vars — where it is shown in full and asked about, or in a terminal. Plain commands pass: `pnpm run seed --small`,
+    `sleep 1.5`, `sh hooks/seed.sh`, `npm run db:reset && npm run db:seed`,
+    `curl -s -X POST http://localhost:4401/api/reset`. A hook of your own files (project.yaml with its own `vars`,
+    `hooks/<name>.yaml`, a sandbox's seed) keeps the shell's full syntax: it is shown in full and asked about.
   - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
     JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
     cancel, `env_reset`) without asking again. The form shows each rollback in full the same way, after its hook
@@ -356,12 +364,13 @@ hooks: submit it again —, a sandbox that would not start…).
 - **Deleting takes and renders needs a human.** `project_prune {dry_run: false}` first lists what would go, then asks
   the user through the same approval form: how many items of which project, how much they free, the count and size of
   each kind (takes, renders, reviews), the first 20 items (kind, name, why it goes, its size — every hidden character
-  written out) and how many more, and the terminal command `retake prune <project> --yes` instead. When the user
-  approves, it deletes only the items of that list that can still go at that moment: one a job, a comment thread or a
-  kept render has started to use while the question was open stays (the result lists it under `skipped`), and so does
-  one that became prunable meanwhile (`not_asked`). Declined, dismissed, not answered in time or a failed question:
+  written out) and how many more — approving deletes them all, listed or counted — and the terminal command
+  `retake prune <project> --yes` instead. When the user approves, it deletes the items of that approval that can still
+  go at that moment, each with the files it had when listed (a file added to it since stays): one a job, a comment
+  thread or a kept render has started to use while the question was open stays (the result lists it under
+  `skipped`), and so does one that became prunable meanwhile (`not_asked`). Declined, dismissed, not answered in time or a failed question:
   `refused`; a client that cannot show the form: `needs_approval` with the command — nothing is deleted either way, and
-  a list too long to read in a form (over 16,000 characters) is refused before anyone is asked. A dry run (the default)
+  a form too long to read (over 16,000 characters, counted as the whole form reads) is refused before anyone is asked. A dry run (the default)
   asks nobody. From a terminal, `retake prune <project> --yes` deletes without a form, as before.
 - **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any
   file is read: every file the capture's timeline names — card and overlay images, `data:` CSV / TSV slots, your own

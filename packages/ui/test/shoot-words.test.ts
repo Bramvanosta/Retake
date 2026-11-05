@@ -16,6 +16,7 @@ describe('blocker words by kind (critique H3)', () => {
     expect(blockerShort({ kind: 'needs_approval', count: 1, fix })).toEqual({ words: '1 hook to approve', action: 'copy' });
     expect(blockerShort({ kind: 'needs_approval', count: 3, fix })).toEqual({ words: '3 hooks to approve', action: 'copy' });
     expect(blockerShort({ kind: 'needs_approval', fix })).toEqual({ words: 'hooks to approve', action: 'copy' });
+    expect(blockerShort({ kind: 'too_long', count: 2, fix })).toEqual({ words: '2 hooks too long to approve here', action: 'copy' });
     expect(blockerShort({ kind: 'protected_host', fix })).toEqual({ words: 'protected location', action: 'copy' });
     expect(blockerShort({ kind: 'agent_trust', fix })).toEqual({ words: 'uses a secret or an outside file', action: 'copy' });
     expect(blockerShort({ kind: 'hook_refused', count: 2, fix })).toEqual({ words: '2 hooks refused', action: 'copy' });

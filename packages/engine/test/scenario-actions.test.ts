@@ -71,6 +71,9 @@ describe('blocker kinds (critique H3)', () => {
     expect(blockerKind(e('refused', { refused: [{}, {}], env: { access: 'read-write' } }), 2)).toEqual({ kind: 'hook_refused', count: 2 });
     expect(blockerKind(e('refused', { refused: [{}], env: { access: 'read-only' } }), 2)).toEqual({ kind: 'read_only', count: 1 });
     expect(blockerKind(e('needs_approval', { hooks: [{}, {}, {}] }), 3)).toEqual({ kind: 'needs_approval', count: 3 });
+    // A form too long to read: its own words (a terminal runs it), not a refused hook.
+    expect(blockerKind(e('refused', { hooks: [{}, {}], too_long: true }), 3)).toEqual({ kind: 'too_long', count: 2 });
+    expect(blockerKind(e('refused', { hooks: [{}] }), 3)).toEqual({ kind: 'prepare' });
     // A hooks preflight that failed fails gates 2 and 3 with its own error: not a refusal, not an approval.
     expect(blockerKind(e('not_found'), 2)).toEqual({ kind: 'prepare' });
     expect(blockerKind(e('invalid'), 3)).toEqual({ kind: 'invalid' });

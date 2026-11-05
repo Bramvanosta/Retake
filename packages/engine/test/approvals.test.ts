@@ -15,7 +15,7 @@ import { loadScenario } from '@retake/core';
 import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
 import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { APPROVAL_HOOK_MAX_CHARS, EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
+import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
@@ -309,7 +309,7 @@ describe('what a person is asked shows every hook in full', () => {
       const b = accept();
       const e = await refusal(engine.hooks.submit({ project: 'northfield-fixture', source: 'loader-hook:setup', dry: false }, { approver: b }));
       expect(e.code).toBe('refused');
-      expect(e.message).toContain('setup hook 1 "tooling": refusing shell hook: it sets PATH — a loader variable');
+      expect(e.message).toContain('setup hook 1 "tooling": refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
       expect(e.fix).toBe(`retake -C ${ws} hooks run northfield-fixture loader-hook:setup`);
       expect(b.asked).toEqual([]);
       expect((await engine.jobs.list()).length).toBe(before);
@@ -373,7 +373,7 @@ describe('what a person is asked shows every hook in full', () => {
       const b = accept();
       const e = await refusal(engine.runs.submit({ project: 'northfield-fixture', scenario: 'warm-agent', mode: 'capture' }, { approver: b }));
       expect(e.code).toBe('refused');
-      expect(e.message).toContain('step hook 1 "warm": refusing shell hook: it sets PATH');
+      expect(e.message).toContain('step hook 1 "warm": refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
       expect(b.asked).toEqual([]);
     } finally {
       await writeFile(yamlFile, original);
@@ -385,7 +385,8 @@ describe('what a person is asked shows every hook in full', () => {
   it('a hook over 4,000 characters, or a form over 16,000, is refused before anyone is asked: run it in a terminal', async () => {
     const item = (index: number, chars: number) => ({ fingerprint: String(index).repeat(64).slice(0, 64), phase: 'setup' as const, index, name: `h${index}`, kind: 'shell', description: 'd', reason: 'a shell command (runs local code)', lines: [`run: ${'x'.repeat(chars)}`] });
     const req = (items: ApprovalRequest['items']): ApprovalRequest => ({ what: 'hooks x:setup', project: 'p', env: { name: 'local', production: false, access: 'read-write' }, items, fix: 'retake hooks run p x:setup' });
-    const head = 'setup hook 1 "h0" (shell)\n'.length + 'run: '.length;
+    // A hook's text in the form: its numbered heading and why, then its lines indented (engine approvalFormText).
+    const head = '1. setup hook 1 "h0" (shell) — a shell command (runs local code)\n'.length + '   run: '.length;
     // Exactly at the limit: asked.
     const ok = accept();
     expect(await takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head)]), ok)).toHaveLength(1);
@@ -401,10 +402,16 @@ describe('what a person is asked shows every hook in full', () => {
     // Five hooks of 3,500 characters each: every one under its limit, the form over 16,000.
     const many = accept();
     const form = await refusal(takeApprovals(req([0, 1, 2, 3, 4].map((i) => item(i, 3_500))), many));
-    expect(form.message).toMatch(/^hooks x:setup was not started: its 5 hooks make a form of 17,\d{3} characters \(at most 16,000\) — too long to approve in a form: run it in a terminal$/);
+    expect(form.message).toMatch(/^hooks x:setup was not started: its 5 hooks make a form of 18,\d{3} characters \(at most 16,000\) — too long to approve in a form: run it in a terminal$/);
     expect(many.asked).toEqual([]);
     const four = accept();
     expect(await takeApprovals(req([0, 1, 2, 3].map((i) => item(i, 3_500))), four)).toHaveLength(4);
+    // The whole form counts — its opening and closing lines too: four hooks at their limit make a form over 16,000.
+    const full = req([0, 1, 2, 3].map((i) => item(i, APPROVAL_HOOK_MAX_CHARS - head)));
+    expect(approvalFormText(full).length).toBeGreaterThan(APPROVAL_FORM_MAX_CHARS);
+    const atLimit = accept();
+    expect((await refusal(takeApprovals(full, atLimit))).message).toContain(`its 4 hooks make a form of ${approvalFormText(full).length.toLocaleString('en-US')} characters (at most 16,000)`);
+    expect(atLimit.asked).toEqual([]);
   });
 });
 

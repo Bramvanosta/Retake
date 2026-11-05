@@ -1,14 +1,14 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { agentShellLoaderVariables, agentShellProblems, agentWritablePath, allowedHosts, channelWords, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import { AGENT_SHELL_GRAMMAR, PLAIN_WORD, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, channelWords, listTemplateTokens, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
 import { shellDestructiveReason } from '../destructive.js';
 import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';
-import { hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { hookTemplateContext, render, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
 import { journalsRollback } from '../types.js';
 import type { HookContext, HookLogLevel, RollbackAction } from '../types.js';
 import { tail } from '../util.js';
@@ -229,56 +229,68 @@ async function execute(
   return 'exit 0';
 }
 
-/**
- * Trust `mcp`, a hook the agent wrote (KindEnv.agentWritten): its command may not set a loader variable — in its `env`
- * or as a `NAME=` word of any simple command (core agentShellLoaderVariables) — since that changes what the programs it
- * starts load before they run. `what`: "it" or "its rollback".
- */
-function checkAgentLoaderVariables(ctx: HookContext, run: string, env: Record<string, string> | undefined, what: string): void {
-  const names = agentShellLoaderVariables(run, env);
-  if (!names.length) return;
-  throw new HookSecurityError(
-    `refusing shell hook: ${what} sets ${names.join(', ')} — ${names.length === 1 ? 'a loader variable' : 'loader variables'} (${names.length === 1 ? 'it changes' : 'they change'} what a program loads or the shell it starts), which a hook written ${channelWords(ctx.via)} may not set: remove ${names.length === 1 ? 'it' : 'them'} from the hook, or have a person declare the hook in project.yaml (\`hooks:\`, without the scenario's vars) or run it in a terminal`,
-    'mcp',
-  );
-}
-
-/** A value the agent's checks read in place of a `{{hooks.…}}`, `{{response.…}}` or secret token (agentShellView). */
+/** A value the agent's checks read in place of a secret token (agentShellView): a plain word. */
 const INERT_VALUE = 'RETAKE_VALUE';
 const TOKEN = /\{\{\s*([^{}]+?)\s*\}\}/g;
+const SECRET_EXPR = /^(?:env|keychain|secret):/;
+
+/** The root of a template expression as core's lookup reads it (`hooks .x` is `hooks`). */
+const rootOf = (expr: string) => expr.split('.')[0].trim();
 
 /**
- * What the agent's checks read of a templated command (agentShellProblems): the command rendered with the agent's own
- * values — vars, pages, `{{run.id}}` / `{{run.dir}}` (the run's folder, or where it would be: a dry preflight has none)
- * — and an inert word for what comes from elsewhere: a hook's saved response, a rollback's `{{response.…}}`, a secret.
- * The submit's preflight and the worker read the same text.
+ * What the agent's checks read of a templated command: the command rendered with the agent's own values — vars, pages,
+ * `{{run.id}}` / `{{run.dir}}` (the run's folder, or where it would be: a dry preflight has none) — and a plain word
+ * for a secret. The submit's preflight and the worker read the same text.
  */
 async function agentShellView(ctx: HookContext, cmd: Pick<ShellCommand, 'run' | 'cwd'>): Promise<{ run: string; cwd?: string }> {
-  const inert = (text: string) => text.replace(TOKEN, (m, expr: string) => (/^(?:hooks|response)(?:\.|$)|^(?:env|keychain|secret):/.test(expr.trim()) ? INERT_VALUE : m));
+  const inert = (text: string) => text.replace(TOKEN, (m, expr: string) => (SECRET_EXPR.test(expr.trim()) ? INERT_VALUE : m));
   const view = { run: inert(cmd.run), ...(cmd.cwd !== undefined ? { cwd: inert(cmd.cwd) } : {}) };
   const tpl = await hookTemplateContext(ctx, view);
   const id = ctx.runId ?? 'run';
   return renderDeep(view, { ...tpl, run: { id, dir: ctx.runDir ?? join(ctx.project.dir, 'runs', id) } });
 }
 
+/** The end of every refusal of an agent-written shell hook: what it may be, and what a person does instead. */
+function agentShellFix(ctx: HookContext): string {
+  return `a shell hook written ${channelWords(ctx.via)} is ${AGENT_SHELL_GRAMMAR}, with no saved response in it: have a person put it in hooks/<name>.yaml (\`retake hooks run <project> hooks/<name>.yaml\`), or run it in a terminal`;
+}
+
 /**
- * Trust `mcp`, a hook the agent wrote (KindEnv.agentWritten): its command, rollback and working folder may not use what
- * core agentShellProblems lists — expansions, globs, input redirection, `cd`, `eval`, inline interpreter code, package
- * runners, a path through a folder an agent can write… — read on agentShellView's text. `what`: "it" or "its rollback".
+ * Trust `mcp`, a hook the agent wrote (KindEnv.agentWritten): its command (or rollback) and working folder follow the
+ * plain-word grammar and rules of core agentShellProblems / agentShellCwdProblems, read on agentShellView's text; no
+ * `{{hooks.…}}` or `{{response.…}}` value (it is not known when the hook is asked about); outside a dry run, every
+ * secret it names is itself a plain word (its value is never shown). `env`: its names (agentShellEnvProblems), checked
+ * with the command. `what`: "it" or "its rollback".
  */
-async function checkAgentShell(ctx: HookContext, cmd: Pick<ShellCommand, 'run' | 'cwd'>, what: string): Promise<void> {
-  const view = await agentShellView(ctx, cmd);
-  const base = baseDirOf(ctx);
-  const cwdRel = view.cwd !== undefined ? agentWritablePath(view.cwd, { projectDir: ctx.project.dir, cwd: base, tilde: false }) : null;
-  const problems = [
-    ...(cwdRel !== null ? [`its working folder \`${view.cwd}\` (a path through a folder an agent can write)`] : []),
-    ...agentShellProblems(view.run, { projectDir: ctx.project.dir, cwd: resolve(base, view.cwd ?? '.') }),
-  ];
+async function checkAgentShell(ctx: HookContext, cmd: Pick<ShellCommand, 'run' | 'cwd' | 'env'>, what: string): Promise<void> {
+  const problems: string[] = [...agentShellEnvProblems(cmd.env)];
+  const tokens = [...listTemplateTokens(cmd.run), ...(cmd.cwd !== undefined ? listTemplateTokens(cmd.cwd) : [])];
+  for (const expr of tokens) {
+    const root = rootOf(expr);
+    if (root === 'hooks' || root === 'response') {
+      const p = `\`{{${expr}}}\` (a saved response: its value is not known when the hook is asked about)`;
+      if (!problems.includes(p)) problems.push(p);
+    }
+  }
+  if (!ctx.dryRun) {
+    const secrets = tokens.filter((e) => SECRET_EXPR.test(e));
+    if (secrets.length) {
+      const tpl = await hookTemplateContext(ctx, { run: secrets.map((e) => `{{${e}}}`).join(' ') });
+      for (const expr of secrets) {
+        const value = render(`{{${expr}}}`, tpl);
+        const p = `the value of \`{{${expr}}}\` (not a plain word)`;
+        if (!PLAIN_WORD.test(value) && !problems.includes(p)) problems.push(p);
+      }
+    }
+  }
+  if (!problems.some((p) => p.includes('a saved response'))) {
+    const view = await agentShellView(ctx, cmd);
+    const base = baseDirOf(ctx);
+    if (view.cwd !== undefined) problems.push(...agentShellCwdProblems(view.cwd, { projectDir: ctx.project.dir, cwd: base }));
+    problems.push(...agentShellProblems(view.run, { projectDir: ctx.project.dir, cwd: resolve(base, view.cwd ?? '.') }));
+  }
   if (!problems.length) return;
-  throw new HookSecurityError(
-    `refusing shell hook: ${what} uses ${problems.join('; ')} — a hook written ${channelWords(ctx.via)} may not: have a person put it in hooks/<name>.yaml (\`retake hooks run <project> hooks/<name>.yaml\`) or project.yaml's \`hooks:\` (without the scenario's vars), or run it in a terminal`,
-    'mcp',
-  );
+  throw new HookSecurityError(`refusing shell hook: ${what} uses ${problems.join('; ')} — ${agentShellFix(ctx)}`, 'mcp');
 }
 
 /**
@@ -289,13 +301,11 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   const { ctx, log } = k;
   const s: ShellHookSpec = typeof spec === 'string' ? { run: spec } : spec;
   const forward: ShellCommand = { run: s.run, cwd: s.cwd, env: s.env };
+  // An agent's hook: refused before anything of it is rendered (a saved response it names has no value yet).
+  if (k.agentWritten) await checkAgentShell(ctx, forward, 'it');
   const rendered = renderDeep(forward, await hookTemplateContext(ctx, forward));
   const base = await sandboxEnv(ctx, ctx.env.name, rendered.env);
   const cmd: ShellCommand = { ...rendered, ...(base ? { base } : {}) };
-  if (k.agentWritten) {
-    checkAgentLoaderVariables(ctx, rendered.run, rendered.env, 'it');
-    await checkAgentShell(ctx, forward, 'it');
-  }
   await resolveCwd(ctx, cmd.cwd);
   checkHosts(ctx, cmd);
   const timeout = s.timeout ?? DEFAULT_SHELL_TIMEOUT_S;
@@ -306,12 +316,10 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   let rollbackShown: ShownAction | undefined;
   if (s.rollback !== undefined && journalsRollback(k.phase)) {
     const template: ShellCommand = { run: s.rollback, cwd: s.cwd, env: s.env };
+    // Its env names were checked with the command.
+    if (k.agentWritten) await checkAgentShell(ctx, { run: s.rollback, ...(s.cwd !== undefined ? { cwd: s.cwd } : {}) }, 'its rollback');
     const tpl = await hookTemplateContext(ctx, template);
     const rb = renderDeep(template, tpl);
-    if (k.agentWritten) {
-      checkAgentLoaderVariables(ctx, rb.run, undefined, 'its rollback');
-      await checkAgentShell(ctx, template, 'its rollback');
-    }
     const rbBase = await sandboxEnv(ctx, ctx.env.name, rb.env);
     if (rbBase) rb.base = rbBase;
     checkHosts(ctx, rb);

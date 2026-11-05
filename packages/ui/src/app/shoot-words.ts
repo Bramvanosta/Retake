@@ -41,6 +41,8 @@ export function blockerShort(b: Pick<RunBlocker, 'kind' | 'count' | 'fix' | 'fix
   switch (b.kind) {
     case 'needs_approval':
       return { words: hooks(b.count, 'to approve'), action: copy };
+    case 'too_long':
+      return { words: hooks(b.count, 'too long to approve here'), action: copy };
     case 'protected_host':
       return { words: 'protected location', action: copy };
     case 'agent_trust':

@@ -3,8 +3,8 @@
  * nothing uses, renders beyond the last N of a scenario and variant, failed renders, reviews of renders that go) and
  * what stays (the last good take of each scenario, takes kept renders and comment threads use, renders a thread names,
  * whatever a job names) — a dry run by default, the bytes it frees. An agent's deletion (every client but the CLI and
- * tests) asks the person first and deletes only what they saw that can still go then; no form or a decline deletes
- * nothing.
+ * tests) asks the person first and deletes the items in the approval that can still go then, each with the files it had
+ * when listed; no form or a decline deletes nothing.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LoadedProject } from '@retake/core';
 import { ulid } from '@retake/core';
-import { EngineError, JOB_RECORD_VERSION, PRUNE_FORM_MAX_LINES, createEngine, formatBytes, pruneProject } from '../src/index.js';
+import { APPROVAL_FORM_MAX_CHARS, EngineError, JOB_RECORD_VERSION, PRUNE_FORM_MAX_LINES, createEngine, formatBytes, pruneApprovalFormText, pruneApprovalRequest, pruneProject } from '../src/index.js';
 import type { ApprovalOutcome, Approver, EngineClient, PruneApprovalRequest } from '../src/index.js';
 
 let dir: string;
@@ -248,7 +248,7 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
     }
   });
 
-  it('accepted: deletes only what the person saw that can still go — a take used since, or prunable since, stays', async () => {
+  it('accepted: deletes only the items in the approval that can still go — a take used since, or prunable since, stays', async () => {
     const w = await workspace();
     try {
       const mcp = await engineOf(w.root, 'mcp');
@@ -295,6 +295,47 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
       expect(a.asked[0]!.lines).toHaveLength(PRUNE_FORM_MAX_LINES);
       expect(a.asked[0]!.more).toBe(10);
       expect(a.asked[0]!.by_kind.find((k) => k.kind === 'run')!.count).toBe(29);
+    } finally {
+      await rm(w.root, { recursive: true, force: true });
+    }
+  });
+
+  it('accepted: an approved item goes with the files it had when listed — a file added to it since stays', async () => {
+    const w = await workspace();
+    try {
+      await mkdir(join(w.proj, 'renders'), { recursive: true });
+      await writeFile(join(w.proj, 'renders', 'quote-v9.json'), JSON.stringify({ version: 1, id: 'quote-v9', scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+      const a = asking(async (req) => {
+        expect(req.lines).toContainEqual(expect.stringMatching(/^render quote-v9 — failed render, /));
+        await writeFile(join(w.proj, 'renders', 'quote-v9.log'), 'written while the person reads');
+        return { approved: true };
+      });
+      const r = await (await engineOf(w.root, 'mcp')).projects.prune('p', { dry_run: false }, { approver: a });
+      expect(r.items.find((i) => i.id === 'quote-v9')?.paths).toEqual([join(w.proj, 'renders', 'quote-v9.json')]);
+      expect(await readdir(join(w.proj, 'renders'))).toEqual(['quote-v9.log']);
+    } finally {
+      await rm(w.root, { recursive: true, force: true });
+    }
+  });
+
+  it('the whole form counts: lines that fit with the command but not with the rest of the form are refused, nothing asked', async () => {
+    const w = await workspace();
+    try {
+      await mkdir(join(w.proj, 'renders'), { recursive: true });
+      for (let i = 0; i < 20; i++) {
+        const id = `r${String(i).padStart(2, '0')}-${'x'.repeat(931)}`;
+        await writeFile(join(w.proj, 'renders', `r${i}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: '20261020-140000-quote', status: 'failed', created_at: '2026-10-20T15:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+      }
+      // Its lines and command alone fit in 16,000 characters; with the form's other lines they do not.
+      const mcp = await engineOf(w.root, 'mcp');
+      const req = pruneApprovalRequest(await mcp.projects.prune('p', {}), 'retake prune p --yes');
+      expect(req.lines.reduce((n, l) => n + l.length + 1, req.fix.length)).toBeLessThan(APPROVAL_FORM_MAX_CHARS);
+      expect(pruneApprovalFormText(req).length).toBeGreaterThan(APPROVAL_FORM_MAX_CHARS);
+      const a = asking({ approved: true });
+      const e = await refusal(mcp.projects.prune('p', { dry_run: false }, { approver: a }));
+      expect(e.message).toContain('too long to approve in a form: run it in a terminal');
+      expect(a.asked).toEqual([]);
+      expect(await w.left()).toEqual(ALL);
     } finally {
       await rm(w.root, { recursive: true, force: true });
     }

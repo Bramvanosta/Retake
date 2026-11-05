@@ -50,15 +50,23 @@ const UNPRINTABLE_G = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f${BIDI_CONTROL_
 export function printableText(s: string): string {
   return s.replace(INVISIBLE_G, '').replace(UNPRINTABLE_G, ' ').replace(/\s+/g, ' ').trim();
 }
+/** Spaces other than U+0020, joiners, fillers and variation selectors: they read as a space or as nothing. */
+const LOOKALIKE_CHARS = '\\u00a0\\u034f\\u115f\\u1160\\u1680\\u180e\\u2000-\\u200a\\u200c\\u200d\\u202f\\u205f\\u3000\\u3164\\ufe00-\\ufe0f\\uffa0\\u{e0100}-\\u{e01ef}';
 // eslint-disable-next-line no-control-regex
-const HIDDEN_G = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u2028\\u2029${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'gu');
+const HIDDEN_G = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u2028\\u2029${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}${LOOKALIKE_CHARS}]`, 'gu');
 
 /**
  * Text a person reads before saying yes to it, every character there: each control (newlines kept), soft hyphen, line or
- * paragraph separator, bidirectional or invisible character written out as `\u{1b}`.
+ * paragraph separator, bidirectional or invisible character, space other than U+0020, joiner, filler or variation
+ * selector written out as `\u{1b}`.
  */
 export function showHiddenChars(s: string): string {
   return s.replace(HIDDEN_G, (ch) => `\\u{${ch.codePointAt(0)!.toString(16)}}`);
+}
+
+/** showHiddenChars on one line: a newline written out too (`\u{a}`) — a name, a key, a heading. */
+export function showHiddenCharsLine(s: string): string {
+  return showHiddenChars(s).replace(/\n/g, '\\u{a}');
 }
 
 /** Body font files of a brand input, at most. */

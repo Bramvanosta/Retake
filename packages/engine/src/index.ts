@@ -85,7 +85,7 @@ export {
 export type { EnvResetSubmitRequest, HooksSubmitRequest } from './jobs/hooks-job.js';
 export { HooksSourceError, createHookContext, hooksAccess, selectHooks } from './hooks.js';
 export type { HookContextOptions, HookSelection } from './hooks.js';
-export { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, PRUNE_FORM_MAX_LINES, approvalChecker, approvalItemTitle, preflightHooks, pruneApprovalRequest, pruneKindsText, refusedError, takeApprovals, takePruneApproval, takeSiteApproval } from './approvals.js';
+export { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, PRUNE_FORM_MAX_LINES, approvalChecker, approvalFormText, approvalItemTitle, preflightHooks, pruneApprovalFormText, pruneApprovalRequest, pruneKindsText, refusedError, takeApprovals, takePruneApproval, takeSiteApproval } from './approvals.js';
 export type { ApprovalItem, ApprovalOutcome, ApprovalRequest, Approver, Preflight, PruneApprovalRequest, SiteApprovalRequest } from './approvals.js';
 export type { RunBlocker, RunBlockerKind, RunSubmitRequest } from './jobs/run-job.js';
 export { ensureWorker, otherCopyWarning, spawnWorker, workerCommand } from './jobs/spawn.js';

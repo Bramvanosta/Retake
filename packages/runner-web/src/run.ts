@@ -1684,7 +1684,7 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
   h.ctx.signal = d.signal;
   let res: Awaited<ReturnType<HooksModule['runHooks']>>;
   try {
-    // The scenario's own hooks: the agent's with trust `mcp` (a shell one may not set a loader variable).
+    // The scenario's own hooks: the agent's with trust `mcp` (a shell one is plain words, core agentShellProblems).
     res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
   } finally {
     delete h.ctx.signal;

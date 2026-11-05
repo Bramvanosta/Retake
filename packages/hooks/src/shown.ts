@@ -2,7 +2,7 @@
  * A hook as a person reads it before saying yes to it — an approval through MCP or the Studio, a replay of a journal
  * entry Retake did not sign: every field in full on a line of its own, every hidden character written out.
  */
-import { showHiddenChars } from '@retake/core';
+import { showHiddenChars, showHiddenCharsLine } from '@retake/core';
 import type { RollbackAction } from './types.js';
 
 /** Text shown to a person: every control, bidirectional or invisible character written out (`\u{1b}`), newlines kept (core). */
@@ -22,7 +22,8 @@ export type ShownAction =
 export function fieldLines(name: string, value: unknown): string[] {
   if (value === undefined) return [];
   const [first, ...rest] = visible(typeof value === 'string' ? value : (JSON.stringify(value) ?? String(value))).split('\n');
-  return [`${name}: ${first}`, ...rest.map((l) => `  | ${l}`)];
+  // The name too (an env or header key is the hook author's text): on its own line, every character visible.
+  return [`${showHiddenCharsLine(name)}: ${first}`, ...rest.map((l) => `  | ${l}`)];
 }
 
 /** Every field of an action, one per line (fieldLines), each name after `prefix` (`rollback `). */

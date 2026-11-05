@@ -184,10 +184,11 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
  * hook (all `refused`), so the Studio's short words key on this. `agent_trust` — the scenario names a secret or a file
  * outside the project; `protected_host` — the location reaches another project's production / read-only host;
  * `hook_refused` — a hook a safety rule refuses; `read_only` — the same on a read-only location (its writing hooks);
- * `needs_approval` — hooks a person approves first (`count`); `invalid` — the file or the request does not check;
+ * `needs_approval` — hooks a person approves first (`count`); `too_long` — hooks too long to approve in a form (`count`):
+ * a terminal runs them; `invalid` — the file or the request does not check;
  * `prepare` — anything else that stops the run being prepared.
  */
-export type RunBlockerKind = 'agent_trust' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'invalid' | 'prepare';
+export type RunBlockerKind = 'agent_trust' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'too_long' | 'invalid' | 'prepare';
 
 /** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
 export interface RunBlocker {
@@ -262,6 +263,11 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
   if (gate === 3 && err.code === 'needs_approval') {
     const count = list('hooks');
     return { kind: 'needs_approval', ...(count !== undefined ? { count } : {}) };
+  }
+  // takeApprovals refused before asking: the form would be too long to read (a terminal runs it).
+  if (gate === 3 && err.code === 'refused' && err.details?.too_long === true) {
+    const count = list('hooks');
+    return { kind: 'too_long', ...(count !== undefined ? { count } : {}) };
   }
   return { kind: err.code === 'invalid' ? 'invalid' : 'prepare' };
 }
