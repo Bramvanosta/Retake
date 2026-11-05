@@ -880,23 +880,29 @@ export function checkTauriCliDir(dir, pins = TAURI_CLI_PINS) {
 /**
  * The Tauri CLI the release's sign step runs: a fresh copy of the checked bytes of `dir` (a folder `tauriCli` laid out
  * — a real folder, no link), in a new temporary folder of its own under `base`. `dir` is checked first
- * (`checkTauriCliDir`); then each pinned file is read once (its last component never followed as a link), those very
- * bytes checked against their sha512 and written to the copy, and the copy checked again. Nothing beside or above `dir`
- * (another `node_modules` next to it) is on the copy's module lookup path. Returns `{ root, cliJs }`: the caller runs
- * `cliJs` and removes `root`. StageError otherwise (the copy removed).
+ * (`checkTauriCliDir`); then each pinned file is read once (its last component never followed as a link: a link put
+ * there after the check is refused), those very bytes checked against their sha512 and written to the copy, and the
+ * copy checked again. Nothing beside or above `dir` (another `node_modules` next to it) is on the copy's module lookup
+ * path. Returns `{ root, cliJs }`: the caller runs `cliJs` and removes `root`. StageError otherwise (the copy removed).
+ * `check`: the folder check (`checkTauriCliDir`; tests' stand-ins only).
  */
-export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir()) {
+export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir(), { check = checkTauriCliDir } = {}) {
   const src = resolve(dir);
   const st = lstatSync(src, { throwIfNoEntry: false });
   if (!st?.isDirectory()) throw new StageError(`${src}: not the Tauri CLI's folder (${st?.isSymbolicLink() ? 'a link' : st ? 'not a folder' : 'missing'})`);
-  checkTauriCliDir(src, pins);
+  check(src, pins);
   const root = mkdtempSync(join(base, 'retake-tauri-cli-'));
   try {
     for (const [pkg, files] of Object.entries(pins.packages ?? {})) {
       for (const [file, integrity] of Object.entries(files)) {
         const rel = ['node_modules', ...pkg.split('/'), ...file.split('/')];
         if (rel.some((p) => !p || p === '.' || p === '..')) throw new StageError(`apps/desktop/bundle/tauri-cli.json: a file outside its package (${pkg}/${file})`);
-        const fd = openSync(join(src, ...rel), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        let fd;
+        try {
+          fd = openSync(join(src, ...rel), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        } catch (e) {
+          throw new StageError(`${src}: ${rel.join('/')} ${e.code === 'ELOOP' ? 'is a link, not a file' : `cannot be read (${e.code ?? e.message})`}`);
+        }
         let bytes;
         let mode;
         try {
@@ -913,7 +919,7 @@ export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir()) {
         writeFileSync(join(root, ...rel), bytes, { mode, flag: 'wx' });
       }
     }
-    return { root, cliJs: checkTauriCliDir(root, pins) };
+    return { root, cliJs: check(root, pins) };
   } catch (e) {
     rmSync(root, { recursive: true, force: true });
     throw e;
@@ -1059,16 +1065,36 @@ export function makeUpdateArchive(app, dir, { env = childEnv } = {}) {
 }
 
 /**
+ * Every folder Node.js looks in for a package `cliJs` requires by name, when run by `node` with HOME at `home`: a
+ * `node_modules` in the folder of `cliJs`'s real path and in each folder above it (none inside another
+ * `node_modules`), then the global folders — `home`/.node_modules, `home`/.node_libraries and the Node.js prefix's
+ * lib/node (NODE_PATH: buildEnv passes none).
+ */
+export function cliLookupPaths(cliJs, home, node = process.execPath) {
+  const paths = [];
+  for (let d = dirname(realpathSync(cliJs)); ; d = dirname(d)) {
+    if (basename(d) !== 'node_modules') paths.push(join(d, 'node_modules'));
+    if (dirname(d) === d) break;
+  }
+  return [...paths, join(home, '.node_modules'), join(home, '.node_libraries'), resolve(node, '..', '..', 'lib', 'node')];
+}
+
+/**
  * Sign the archive (`<archive>.sig`) with the Tauri CLI, bound to `version` (`--app-version`: the apps require it),
  * the private key from TAURI_SIGNING_PRIVATE_KEY (its text, or the path of its file) and _PASSWORD — passed to this
- * one command only (every other child gets buildEnv) — then check the signature with `pubkey`. Returns the .sig path;
- * null without a private key (the archive stays unsigned).
+ * one command only (every other child gets buildEnv) — then check the signature with `pubkey`. `cliRoot`: the CLI's
+ * own folder (a fresh copy: `freshTauriCli`) — the CLI runs with HOME there, and is refused before it starts when any
+ * folder of its module lookup path outside `cliRoot` exists (`cliLookupPaths`). Returns the .sig path; null without a
+ * private key (the archive stays unsigned).
  */
-export function signUpdateArchive({ cliJs, archive, version, pubkey, env = process.env, node = process.execPath }) {
+export function signUpdateArchive({ cliJs, cliRoot = dirname(cliJs), archive, version, pubkey, env = process.env, node = process.execPath }) {
   let key = env.TAURI_SIGNING_PRIVATE_KEY?.trim();
   if (!key) return null;
   if (!key.includes('\n') && existsSync(key) && statSync(key).isFile()) key = readFileSync(key, 'utf8').trim();
-  const signEnv = buildEnv(env, { TAURI_SIGNING_PRIVATE_KEY: key, ...(env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD !== undefined ? { TAURI_SIGNING_PRIVATE_KEY_PASSWORD: env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD } : {}) });
+  const home = realpathSync(cliRoot);
+  const outside = cliLookupPaths(cliJs, home, node).filter((p) => !within(home, p) && lstatSync(p, { throwIfNoEntry: false }));
+  if (outside.length) throw new StageError(`the Tauri CLI would look for packages in ${outside.join(', ')} (outside its own folder ${home}): remove ${outside.length > 1 ? 'them' : 'it'} — nothing was signed`);
+  const signEnv = buildEnv(env, { HOME: home, TAURI_SIGNING_PRIVATE_KEY: key, ...(env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD !== undefined ? { TAURI_SIGNING_PRIVATE_KEY_PASSWORD: env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD } : {}) });
   const r = spawnSync(node, [cliJs, 'signer', 'sign', '--app-version', version, archive], { encoding: 'utf8', env: signEnv, cwd: dirname(archive) });
   if (r.error) throw new StageError(`tauri signer could not start: ${r.error.message}`);
   // The CLI's output names neither the key nor the password; only its exit status and last line are reported.
@@ -1198,6 +1224,26 @@ export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT, 
 }
 
 /**
+ * bundle.json's `paths[key]` (`m`: the manifest) as a path of `dir`: a relative path with no empty, `.` or `..` part
+ * whose real path stays inside `dir` (no link out). StageError otherwise.
+ */
+export function manifestPath(dir, m, key) {
+  const rel = m?.paths?.[key];
+  const parts = typeof rel === 'string' ? rel.split('/') : [];
+  if (!parts.length || isAbsolute(rel) || parts.some((p) => !p || p === '.' || p === '..')) throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} is not a relative path inside the folder (${JSON.stringify(rel)?.slice(0, 80)})`);
+  const abs = join(dir, ...parts);
+  let real;
+  try {
+    // The system's realpath (realpathSync.native): Node.js's own resolves a link's `..` against the link's name.
+    real = realpathSync.native(abs);
+  } catch {
+    throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} (${rel}) is missing`);
+  }
+  if (!within(realpathSync.native(dir), real)) throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} (${rel}) leads out of the folder`);
+  return abs;
+}
+
+/**
  * bundle.json's sha256 values (Node.js, ffmpeg and ffprobe) recomputed from the files of `dir` — after the payload is
  * signed, which rewrites them (review B M3); bundle.json itself is no Mach-O: the outer signature seals it as written
  * here. Returns the manifest.
@@ -1205,8 +1251,8 @@ export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT, 
 export function refreshManifestHashes(dir) {
   const file = join(dir, 'bundle.json');
   const m = JSON.parse(readFileSync(file, 'utf8'));
-  m.sha256 = { ...(m.sha256 ?? {}), node: sha256(join(dir, m.paths.node)) };
-  if (m.ffmpeg && m.paths.ffmpeg) m.ffmpeg.sha256 = Object.fromEntries(['ffmpeg', 'ffprobe'].map((t) => [t, sha256(join(dir, m.paths.ffmpeg, t))]));
+  m.sha256 = { ...(m.sha256 ?? {}), node: sha256(manifestPath(dir, m, 'node')) };
+  if (m.ffmpeg && m.paths.ffmpeg) m.ffmpeg.sha256 = Object.fromEntries(['ffmpeg', 'ffprobe'].map((t) => [t, sha256(join(manifestPath(dir, m, 'ffmpeg'), t))]));
   writeFileSync(file, `${JSON.stringify(m, null, 1)}\n`);
   return m;
 }
@@ -1228,11 +1274,12 @@ function claimOut(dir) {
  * (ad hoc, the default) or 'release' (`--release`: `signer` refuses first, before anything is staged or signed,
  * without the whole APPLE_* set). `appOnly` (`--app-only`, the workflow's `build` job): the ad hoc app and the pinned
  * Tauri CLI only, for `release.mjs sign`. `stage`: a stage to reuse (signed in place) instead of a new one in
- * `<out>/stage`; `entries`: the signing table (sign-table.json; another one in tests); `tauriPins`: the pins the Tauri
+ * `<out>/stage` — of the app's version (`appVersion`, tauri.conf.json's; another one in tests) when an app or a DMG
+ * is made; `entries`: the signing table (sign-table.json; another one in tests); `tauriPins`: the pins the Tauri
  * CLI is checked against (tauri-cli.json; a fake store's in tests — the command line never passes it). Returns the
  * report.
  */
-export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true, appOnly = false }) {
+export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true, appOnly = false, appVersion = CONF.version }) {
   const child = buildEnv(env);
   // A release is refused here, before anything is staged, without the whole APPLE_* set (finishApp asks again).
   signer(mode, env, child);
@@ -1268,6 +1315,9 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   if (!reuse) stage({ out: stageDir, ffmpeg, env });
   const manifest = JSON.parse(readFileSync(join(stageDir, 'bundle.json'), 'utf8'));
   if (!existsSync(join(stageDir, GUARD))) throw new StageError(`${join(stageDir, GUARD)} is missing: a stage from before the module lookup guard — stage again`);
+  // A reused stage of another version would make an app whose bundle.json and Info.plist disagree: the DMG and the
+  // sign job refuse that only after Tauri's build — refused here, before it (`appVersion`: tests' only).
+  if (reuse && (makeDmg || appOnly) && manifest.app !== appVersion) throw new StageError(`--stage ${stageDir} was made for version ${manifest.app}, the app is ${appVersion} (tauri.conf.json): stage again (bundle.mjs stage)`);
   writeFileSync(join(stageDir, 'launch.json'), `${JSON.stringify(launchJson(manifest, { updates: !!updates }), null, 1)}\n`);
   mkdirSync(join(stageDir, dirname(LAUNCHER)), { recursive: true });
   copyFileSync(join(APP_DIR, 'bundle', 'retake.sh'), join(stageDir, LAUNCHER));
@@ -1312,7 +1362,7 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
 
   // 4. The rest (release.mjs finishApp): a release's Developer ID signature, notarisation and stapling; the update
   //    archive; the DMG. `--app-only` stops here.
-  const done = appOnly ? { dmg: null, update: null } : finishApp({ app, out: dir, mode, env, cliJs, pubkey: updates?.pubkey, entries: table, dmg: makeDmg, verified: true, say });
+  const done = appOnly ? { dmg: null, update: null } : finishApp({ app, out: dir, mode, env, tauriCli: join(dir, 'tauri-cli'), tauriPins, pubkey: updates?.pubkey, entries: table, dmg: makeDmg, verified: true, say });
 
   if (repoSnapshot(REPO) !== before) throw new StageError(`the build changed the checkout (${REPO}): restore it`);
   const report = {

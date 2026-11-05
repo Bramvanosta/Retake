@@ -67,7 +67,6 @@ const CALLS_GH = /(?:^|[\s;|&(])gh\s/m;
 /** Every action, pinned to the commit of an exact upstream tag (resolved read-only: gh api repos/<o>/<r>/git/ref/tags/<tag>). */
 const PINS: Record<string, [string, string]> = {
   'actions/checkout': ['fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09', 'v5.1.0'],
-  'actions/setup-node': ['a0853c24544627f65ddf259abe73b1d18a591444', 'v5.0.0'],
   'actions/upload-artifact': ['b7c566a772e6b6bfb58ed0dc250532a479d7789f', 'v6.0.0'],
   'actions/download-artifact': ['018cc2cf5baa6db3ef3c5f8a56943fffe632ef53', 'v6.0.0'],
 };
@@ -167,7 +166,7 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
 
   it('every action is GitHub\'s own, pinned to the commit of an exact upstream tag, the tag written beside it (# vX.Y.Z)', () => {
     const lines = raw.split('\n').filter((l) => /^\s*-?\s*uses:/.test(l));
-    expect(lines.length).toBeGreaterThanOrEqual(14);
+    expect(lines.length).toBeGreaterThanOrEqual(9);
     const used = new Set<string>();
     for (const line of lines) {
       const m = /uses:\s*([\w.-]+\/[\w.-]+)@([0-9a-f]{40})\s+#\s+(v\d+\.\d+\.\d+)\s*$/.exec(line);
@@ -186,93 +185,148 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
     expect(raw).not.toMatch(/\|\|\s*true\b|continue-on-error/);
   });
 
-  it('macOS 15 on Apple silicon for both macOS jobs; Node.js exactly the pinned one everywhere (apps/desktop/bundle/node.json)', async () => {
-    const { NODE_PIN } = await bundleModule();
+  it('macOS 15 on Apple silicon for both macOS jobs; Node.js only through apps/desktop/scripts/ci-node.sh (its version in apps/desktop/bundle/node.json, nowhere in the workflow)', () => {
     expect(Object.fromEntries(Object.entries(jobs).map(([k, j]) => [k, j['runs-on']]))).toEqual({ release: 'ubuntu-24.04', build: 'macos-15', sign: 'macos-15', attach: 'ubuntu-24.04', publish: 'ubuntu-24.04' });
     expect(raw).not.toMatch(/macos-1[34]\b|macos-latest/);
-    const nodes = allSteps.filter((s) => s.uses?.startsWith('actions/setup-node@'));
-    expect(nodes.length).toBe(5);
-    for (const s of nodes) expect(String((s.with as any)['node-version']), label(s)).toBe(NODE_PIN.version);
+    expect(allSteps.filter((s) => s.run === 'bash apps/desktop/scripts/ci-node.sh').map((s) => s.job)).toEqual(Object.keys(jobs));
+    expect(raw).not.toMatch(/setup-node|node-version|\b22\.16\b/);
   });
 
-  it('no cache anywhere: no actions/cache step, and every setup-node has package-manager-cache: false and no cache key', () => {
+  it('no cache anywhere: no actions/cache step, no setup action and no cache setting in any step', () => {
     expect(allSteps.filter((s) => s.uses?.startsWith('actions/cache')).map(label)).toEqual([]);
-    expect(raw).not.toMatch(/actions\/cache\b|restore-keys|cache-hit|CACHE_HIT/);
-    const nodes = allSteps.filter((s) => s.uses?.startsWith('actions/setup-node@'));
-    expect(nodes.length).toBe(5);
-    for (const s of nodes) {
-      expect(s.with, label(s)).toEqual({ 'node-version': expect.anything(), 'package-manager-cache': false });
-      expect(Object.keys(s.with ?? {}).some((k) => /cache/.test(k) && k !== 'package-manager-cache'), label(s)).toBe(false);
-    }
+    expect(raw).not.toMatch(/actions\/cache\b|restore-keys|cache-hit|CACHE_HIT|actions\/setup-/);
+    for (const s of allSteps) expect(Object.keys(s.with ?? {}).filter((k) => /cache/i.test(k)), label(s)).toEqual([]);
   });
 });
 
-describe('release.yml: every job checks its Node.js in the shell before its first node call', () => {
-  const CHECK = 'Node.js is the pinned binary';
-  /** A scratch checkout holding only apps/desktop/bundle/node.json (these pins), and a stand-in `node` (these bytes) first on PATH. */
-  const scene = (pins: Record<string, string>, bytes = 'a node binary') => {
-    const cwd = dir('node-check');
-    mkdirSync(join(cwd, 'apps', 'desktop', 'bundle'), { recursive: true });
-    writeFileSync(join(cwd, 'apps', 'desktop', 'bundle', 'node.json'), `${JSON.stringify({ v: 1, version: '22.16.0', sha256: pins }, null, 1)}\n`);
-    const bin = dir('fake-node');
-    writeFileSync(join(bin, 'node'), bytes);
-    chmodSync(join(bin, 'node'), 0o755);
-    return { cwd, bin, sha: createHash('sha256').update(bytes).digest('hex') };
+describe('release.yml: every job installs the pinned Node.js tarball, checked in the shell before anything of it runs', () => {
+  const NODE_STEP = 'Node.js, the pinned build';
+  const NODE_SCRIPT = join(REPO, 'apps', 'desktop', 'scripts', 'ci-node.sh');
+  const sha = (t: string | Buffer) => createHash('sha256').update(t).digest('hex');
+  /** A Node.js tarball as the project lays it out (node-v<version>-<platform>/bin/node, npm under lib), gzipped. */
+  const tarball = (platform: string, bytes = 'a node binary', version = '22.16.0') => {
+    const src = dir('node-src');
+    const top = `node-v${version}-${platform}`;
+    mkdirSync(join(src, top, 'bin'), { recursive: true });
+    mkdirSync(join(src, top, 'lib', 'node_modules', 'npm'), { recursive: true });
+    writeFileSync(join(src, top, 'bin', 'node'), bytes);
+    chmodSync(join(src, top, 'bin', 'node'), 0o755);
+    writeFileSync(join(src, top, 'lib', 'node_modules', 'npm', 'index.js'), 'npm');
+    const f = join(dir('node-tarball'), `${top}.tar.gz`);
+    expect(spawnSync('tar', ['-czf', f, '-C', src, top]).status).toBe(0);
+    return { file: f, sha: sha(readFileSync(f)), binary: sha(bytes) };
   };
-  const sha = (t: string) => createHash('sha256').update(t).digest('hex');
+  /**
+   * A scratch checkout holding the script and a node.json of these pins; a recording `curl` that serves `serve` (or
+   * fails), and a `node` that leaves a mark if anything runs it — both first on PATH.
+   */
+  const scene = (pins: { version?: string; sha256?: Record<string, string>; tarballs?: Record<string, string> }, serve?: string, { curlFails = false } = {}) => {
+    const cwd = dir('node-checkout');
+    mkdirSync(join(cwd, 'apps', 'desktop', 'scripts'), { recursive: true });
+    mkdirSync(join(cwd, 'apps', 'desktop', 'bundle'), { recursive: true });
+    writeFileSync(join(cwd, 'apps', 'desktop', 'scripts', 'ci-node.sh'), readFileSync(NODE_SCRIPT));
+    writeFileSync(join(cwd, 'apps', 'desktop', 'bundle', 'node.json'), `${JSON.stringify({ v: 1, about: 'x', version: '22.16.0', ...pins }, null, 1)}\n`);
+    const bin = dir('fake-curl');
+    const log = join(bin, 'curl.log');
+    const ran = join(bin, 'node-ran');
+    writeFileSync(join(bin, 'curl'), `#!/bin/sh\nfor a; do printf '%s\\n' "$a"; done >> ${JSON.stringify(log)}\necho >> ${JSON.stringify(log)}\n${curlFails ? 'exit 22' : ''}\nout=; prev=\nfor a; do [ "$prev" = --output ] && out=$a; prev=$a; done\ncp ${JSON.stringify(serve ?? '/dev/null')} "$out"\n`);
+    writeFileSync(join(bin, 'node'), `#!/bin/sh\ntouch ${JSON.stringify(ran)}\n`);
+    chmodSync(join(bin, 'curl'), 0o755);
+    chmodSync(join(bin, 'node'), 0o755);
+    const temp = dir('node-temp');
+    const ghPath = join(temp, 'github-path');
+    writeFileSync(ghPath, '');
+    const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').split('\n\n').filter((c) => c.trim()).map((c) => c.trim().split('\n')) : []);
+    const go = (env: Record<string, string>) => {
+      const r = runStep(step('publish', NODE_STEP), { RUNNER_TEMP: temp, GITHUB_PATH: ghPath, ...env }, bin, cwd);
+      return { ...r, path: readFileSync(ghPath, 'utf8'), nodeRan: existsSync(ran), unpacked: existsSync(join(temp, 'node')), download: existsSync(join(temp, 'node-download')) };
+    };
+    return { cwd, temp, calls, go };
+  };
+  const linux = { RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64' };
+  const mac = { RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64' };
 
-  it('in each job: checkout, setup-node, then the check (the same script everywhere) — no step before it runs anything, and it runs no node itself', () => {
-    const scripts = new Set<string>();
+  it('in each job: checkout, then the Node.js step (the same script everywhere: bash apps/desktop/scripts/ci-node.sh) — no step before it runs anything, no setup-node, every node call after it', () => {
+    expect(allSteps.filter((s) => s.uses?.startsWith('actions/setup-node')).map(label)).toEqual([]);
+    expect(raw).not.toMatch(/setup-node|node-version/);
     for (const [name, j] of Object.entries(jobs)) {
-      const at = j.steps.findIndex((s) => s.name === CHECK);
-      expect(at, name).toBe(2);
-      expect(j.steps.slice(0, 2).map((s) => s.uses?.split('@')[0]), name).toEqual(['actions/checkout', 'actions/setup-node']);
-      for (const s of j.steps.slice(0, at)) expect(s.run, label({ job: name, ...s })).toBeUndefined();
-      // Every later node call comes after it.
-      expect(j.steps.findIndex((s) => /(?:^|[\s;|&(`$])node\s/m.test(s.run ?? '') || BUILD_TOOL.test(s.run ?? '')), name).toBeGreaterThan(at);
-      scripts.add(j.steps[at]!.run!);
+      expect(j.steps[0]!.uses?.split('@')[0], name).toBe('actions/checkout');
+      expect(j.steps[1]!.name, name).toBe(NODE_STEP);
+      expect(j.steps[1]!.run, name).toBe('bash apps/desktop/scripts/ci-node.sh');
+      expect(j.steps[1]!.env, name).toBeUndefined();
+      expect(j.steps[0]!.run, name).toBeUndefined();
+      expect(j.steps.findIndex((s) => /(?:^|[\s;|&(`$])(?:node|corepack|pnpm)\s/m.test(s.run ?? '') || BUILD_TOOL.test(s.run ?? '')), name).toBeGreaterThan(1);
     }
-    expect(scripts.size).toBe(1);
-    const run = [...scripts][0]!;
-    expect(run).not.toMatch(/(?:^|[\s;|&(`$])node\s/m);
-    expect(run).toMatch(/shasum -a 256 "\$bin"/);
-    expect(run).toMatch(/bin=\$\(command -v node\)/);
   });
 
-  it('run: the pinned binary of the runner\'s platform passes; another binary, another platform\'s pin, a platform with no pin or no node at all fails, naming both sums', () => {
-    const s = step('publish', CHECK);
-    const linux = { RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64' };
-    const mac = { RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64' };
-    const ok = scene({ 'darwin-arm64': sha('other'), 'linux-x64': sha('a node binary') });
-    const pass = runStep(s, linux, ok.bin, ok.cwd);
-    expect(pass.status, pass.stderr + pass.stdout).toBe(0);
-    expect(pass.stdout).toMatch(/: the pinned binary for linux-x64\n$/);
-    const asMac = runStep(s, mac, ok.bin, ok.cwd);
-    expect(asMac.status).not.toBe(0);
-    expect(asMac.stdout).toContain(`::error::${join(ok.bin, 'node')} is not the Node.js binary apps/desktop/bundle/node.json pins for darwin-arm64 (sha256 ${ok.sha}, pinned ${sha('other')})`);
-    const tampered = scene({ 'linux-x64': sha('a node binary') }, 'a node binary, changed');
-    expect(runStep(s, linux, tampered.bin, tampered.cwd).status).not.toBe(0);
-    const unpinned = runStep(s, mac, ok.bin, scene({ 'linux-x64': ok.sha }).cwd);
-    expect(unpinned.status).not.toBe(0);
-    expect(unpinned.stdout).toMatch(/::error::apps\/desktop\/bundle\/node\.json pins no Node\.js binary for darwin-arm64\n/);
-    const other = runStep(s, { RUNNER_OS: 'Windows', RUNNER_ARCH: 'X64' }, ok.bin, ok.cwd);
-    expect(other.status).not.toBe(0);
-    expect(other.stdout).toMatch(/pins no Node\.js binary for Windows-X64/);
-    const none = runStep(s, { ...linux, PATH: '/usr/bin:/bin' }, undefined, ok.cwd);
-    expect(none.status).not.toBe(0);
-    expect(none.stdout).toMatch(/::error::no Node\.js on PATH/);
+  it('run: the pinned tarball of the runner\'s platform is fetched over https from the Node.js project, checked, unpacked into RUNNER_TEMP/node and first on PATH — the script itself runs no node', () => {
+    for (const [env, platform] of [[linux, 'linux-x64'], [mac, 'darwin-arm64']] as const) {
+      const t = tarball(platform);
+      const sc = scene({ sha256: { [platform]: t.binary }, tarballs: { [`node-v22.16.0-${platform}.tar.gz`]: t.sha } }, t.file);
+      const r = sc.go(env);
+      expect(r.status, r.stdout + r.stderr).toBe(0);
+      const home = join(sc.temp, 'node', `node-v22.16.0-${platform}`);
+      expect(r.path).toBe(`${join(home, 'bin')}\n`);
+      expect(readFileSync(join(home, 'bin', 'node'), 'utf8')).toBe('a node binary');
+      expect(readFileSync(join(home, 'lib', 'node_modules', 'npm', 'index.js'), 'utf8')).toBe('npm');
+      expect(r.download).toBe(false);
+      expect(r.nodeRan).toBe(false);
+      expect(r.stdout).toMatch(new RegExp(`Node\\.js 22\\.16\\.0 \\(${platform}\\): node-v22\\.16\\.0-${platform}\\.tar\\.gz checked \\(sha256 ${t.sha}\\), its bin/node the pinned binary; \\S+ first on PATH\\n$`));
+      const calls = sc.calls();
+      expect(calls.length).toBe(1);
+      expect(calls[0]!.at(-1)).toBe(`https://nodejs.org/dist/v22.16.0/node-v22.16.0-${platform}.tar.gz`);
+      expect(calls[0]!.join(' ')).toMatch(/--fail .*--proto =https --proto-redir =https --tlsv1\.2 /);
+    }
   });
 
-  it('run against the committed node.json: it reads the pin of each platform the jobs run on (darwin-arm64, linux-x64)', async () => {
+  it('run: a tarball of other bytes fails, naming both sums, before anything of it is unpacked or put on PATH; so do a binary that is not the pinned one, a platform with no pin and a failed download', () => {
+    const t = tarball('linux-x64');
+    const ok = { sha256: { 'linux-x64': t.binary }, tarballs: { 'node-v22.16.0-linux-x64.tar.gz': t.sha } };
+    const other = scene({ ...ok, tarballs: { 'node-v22.16.0-linux-x64.tar.gz': sha('other') } }, t.file);
+    const r = other.go(linux);
+    expect(r.status).not.toBe(0);
+    expect(r.stdout).toContain(`::error::node-v22.16.0-linux-x64.tar.gz is not the tarball apps/desktop/bundle/node.json pins (sha256 ${t.sha}, pinned ${sha('other')}): nothing of it was unpacked`);
+    expect([r.unpacked, r.download, r.path, r.nodeRan]).toEqual([false, false, '', false]);
+    const binary = scene({ ...ok, sha256: { 'linux-x64': sha('another binary') } }, t.file).go(linux);
+    expect(binary.status).not.toBe(0);
+    expect(binary.stdout).toMatch(new RegExp(`::error::\\S+/bin/node is not the Node\\.js binary apps/desktop/bundle/node\\.json pins for linux-x64 \\(sha256 ${t.binary}, pinned ${sha('another binary')}\\): its tarball and binary pins disagree`));
+    expect(binary.path).toBe('');
+    for (const [pins, env, msg] of [
+      [ok, mac, /::error::apps\/desktop\/bundle\/node\.json pins no sha256 for node-v22\.16\.0-darwin-arm64\.tar\.gz \(tarballs\)/],
+      [{ tarballs: ok.tarballs }, linux, /pins no Node\.js binary for linux-x64 \(sha256\)/],
+      [ok, { RUNNER_OS: 'Windows', RUNNER_ARCH: 'X64' }, /pins no Node\.js for Windows-X64/],
+      [{ ...ok, version: 'latest' }, linux, /pins no Node\.js version/],
+    ] as const) {
+      const sc = scene(pins, t.file);
+      const x = sc.go(env);
+      expect(x.status, String(msg)).not.toBe(0);
+      expect(x.stdout, String(msg)).toMatch(msg);
+      expect(sc.calls(), String(msg)).toEqual([]);
+      expect(x.path, String(msg)).toBe('');
+    }
+    const down = scene(ok, t.file, { curlFails: true }).go(linux);
+    expect(down.status).not.toBe(0);
+    expect(down.stdout).toMatch(/::error::https:\/\/nodejs\.org\/dist\/v22\.16\.0\/node-v22\.16\.0-linux-x64\.tar\.gz could not be downloaded/);
+    expect([down.unpacked, down.path]).toEqual([false, '']);
+  });
+
+  it('run against the committed node.json: the version, and for each platform the jobs run on (darwin-arm64, linux-x64) its tarball\'s and its binary\'s pins', async () => {
     const { NODE_PIN } = await bundleModule();
     expect(Object.keys(NODE_PIN.sha256).sort()).toEqual(['darwin-arm64', 'linux-x64']);
-    const fake = scene({});
-    for (const [env, platform] of [[{ RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64' }, 'darwin-arm64'], [{ RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64' }, 'linux-x64']] as const) {
-      const r = runStep(step('release', CHECK), env, fake.bin);
+    expect(Object.keys(NODE_PIN.tarballs).sort()).toEqual(['darwin-arm64', 'linux-x64'].map((p) => `node-v${NODE_PIN.version}-${p}.tar.gz`));
+    for (const v of [...Object.values(NODE_PIN.sha256), ...Object.values(NODE_PIN.tarballs)]) expect(v).toMatch(/^[0-9a-f]{64}$/);
+    for (const [env, platform] of [[mac, 'darwin-arm64'], [linux, 'linux-x64']] as const) {
+      const t = tarball(platform, 'a node binary', NODE_PIN.version);
+      const bin = dir('fake-curl');
+      writeFileSync(join(bin, 'curl'), `#!/bin/sh\nout=; prev=\nfor a; do [ "$prev" = --output ] && out=$a; prev=$a; done\ncp ${JSON.stringify(t.file)} "$out"\n`);
+      chmodSync(join(bin, 'curl'), 0o755);
+      const temp = dir('node-temp');
+      writeFileSync(join(temp, 'github-path'), '');
+      const r = runStep(step('release', NODE_STEP), { ...env, RUNNER_TEMP: temp, GITHUB_PATH: join(temp, 'github-path') }, bin);
       expect(r.status).not.toBe(0);
-      expect(r.stdout).toContain(`pins for ${platform} (sha256 ${fake.sha}, pinned ${NODE_PIN.sha256[platform]})`);
+      expect(r.stdout).toContain(`node-v${NODE_PIN.version}-${platform}.tar.gz is not the tarball apps/desktop/bundle/node.json pins (sha256 ${t.sha}, pinned ${NODE_PIN.tarballs[`node-v${NODE_PIN.version}-${platform}.tar.gz`]})`);
     }
-    // The runners: the macOS jobs on Apple silicon, the others on x64 ubuntu — each with its pin.
+    // The runners: the macOS jobs on Apple silicon, the others on x64 ubuntu — each with its pins.
     for (const j of Object.values(jobs)) expect(['macos-15', 'ubuntu-24.04']).toContain(j['runs-on']);
   });
 });
@@ -286,12 +340,12 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     expect(b.permissions).toEqual({ contents: 'read' });
   });
 
-  it('no other job runs a build tool; the sign job uses checkout, setup-node and the artifact actions only, runs bash on the keychain script and node on repository files only', () => {
+  it('no other job runs a build tool; the sign job uses checkout and the artifact actions only, runs bash on the Node.js and keychain scripts and node on repository files only', () => {
     for (const s of allSteps.filter((x) => x.job !== 'build')) expect(BUILD_TOOL.test(s.run ?? ''), label(s)).toBe(false);
     const sign = jobs.sign!;
-    expect(sign.steps.filter((s) => s.uses).map((s) => s.uses!.split('@')[0]).sort()).toEqual(['actions/checkout', 'actions/download-artifact', 'actions/setup-node', 'actions/upload-artifact']);
+    expect(sign.steps.filter((s) => s.uses).map((s) => s.uses!.split('@')[0]).sort()).toEqual(['actions/checkout', 'actions/download-artifact', 'actions/upload-artifact']);
     const script = sign.steps.map((s) => s.run ?? '').join('\n');
-    expect([...script.matchAll(/\bbash (\S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-keychain.sh']);
+    expect([...script.matchAll(/\bbash (\S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/ci-node.sh', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-keychain.sh']);
     expect([...script.matchAll(/\bnode (\S+ \S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/release.mjs unpack', 'apps/desktop/scripts/release.mjs sign', 'apps/desktop/scripts/release.mjs sign']);
     // Nothing of the app it was handed runs there: the unpacked folder is only named to release.mjs.
     expect(script).not.toMatch(/adhoc\/[^"\s]*\/(?:MacOS|bin)\//);
@@ -324,7 +378,7 @@ describe('release.yml: the keys never share a runner with dependency code (revie
   it('the build job hands its app over packed with its sha256; the sign job checks that sha256 before it unpacks anything', () => {
     expect(jobs.build!.outputs).toEqual({ sha256: '${{ steps.pack.outputs.sha256 }}' });
     const pack = step('build', 'Pack the app').run!;
-    expect(pack).toMatch(/\/usr\/bin\/tar --no-mac-metadata --no-xattrs -czf "\$A\/retake-app\.tar\.gz" -C "\$RUNNER_TEMP\/bundle" app tauri-cli bundle-report\.json/);
+    expect(pack).toMatch(/\/usr\/bin\/tar --no-mac-metadata --no-xattrs -czf "\$A\/retake-app\.tar\.gz" -C "\$RUNNER_TEMP\/bundle" app tauri-cli\n/);
     expect(pack).toMatch(/echo "sha256=\$\(shasum -a 256 "\$A\/retake-app\.tar\.gz" \| cut -d' ' -f1\)" >> "\$GITHUB_OUTPUT"/);
     const up = allSteps.filter((s) => s.uses?.startsWith('actions/upload-artifact@'));
     const down = allSteps.filter((s) => s.uses?.startsWith('actions/download-artifact@'));
@@ -333,26 +387,29 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     expect(step('sign', 'The build job\'s app').env).toEqual({ SHA256: '${{ needs.build.outputs.sha256 }}' });
   });
 
-  it('the sign job\'s check, run: the packed app with its sha256 is unpacked — its three parts only (release.mjs unpack); another sha256 or none fails before anything is unpacked, an archive with anything else fails and leaves nothing', () => {
+  it('the sign job\'s check, run: the packed app with its sha256 is unpacked — its two parts only (release.mjs unpack), before any key is written; another sha256 or none fails before anything is unpacked, an archive with anything else fails and leaves nothing', () => {
     const s = step('sign', 'The build job\'s app');
     expect(s.run).toMatch(/echo "\$SHA256 {2}\$A" \| shasum -a 256 -c\n[^]*node apps\/desktop\/scripts\/release\.mjs unpack "\$A" --into "\$D"\n?$/);
     expect(s.run).not.toMatch(/(?:^|[\s;|&(])(?:\/usr\/bin\/)?tar\s/m);
-    /** The build job's pack (the same tar line) of a folder holding the parts, and `extra` beside them. */
-    const pack = (temp: string, extra: string[] = []) => {
+    // Unpacked before the signing material is written: nothing of the archive is ever read on a runner holding a key.
+    const names = jobs.sign!.steps.map((x) => x.name ?? x.uses!.split('@')[0]);
+    expect(names.slice(0, 5)).toEqual(['actions/checkout', 'Node.js, the pinned build', 'actions/download-artifact', 'The build job\'s app', 'Signing material']);
+    /** The build job's pack (the same tar line, or `flags`) of a folder holding the parts, and `extra` beside them. */
+    const pack = (temp: string, extra: string[] = [], flags = ['--no-mac-metadata', '--no-xattrs'], change: (src: string) => void = () => {}) => {
       const src = dir('packed');
       mkdirSync(join(src, 'app', 'Retake.app', 'Contents'), { recursive: true });
       writeFileSync(join(src, 'app', 'Retake.app', 'Contents', 'Info.plist'), '<plist/>');
       mkdirSync(join(src, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli'), { recursive: true });
       writeFileSync(join(src, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js'), '');
-      writeFileSync(join(src, 'bundle-report.json'), '{}');
       for (const e of extra) {
         mkdirSync(dirname(join(src, e)), { recursive: true });
         writeFileSync(join(src, e), 'planted');
       }
+      change(src);
       mkdirSync(join(temp, 'artifact'), { recursive: true });
       const tar = join(temp, 'artifact', 'retake-app.tar.gz');
-      const tops = [...new Set(['app', 'tauri-cli', 'bundle-report.json', ...extra.map((e) => e.split('/')[0]!)])];
-      expect(spawnSync('/usr/bin/tar', ['--no-mac-metadata', '--no-xattrs', '-czf', tar, '-C', src, ...tops]).status).toBe(0);
+      const tops = [...new Set(['app', 'tauri-cli', ...extra.map((e) => e.split('/')[0]!)])];
+      expect(spawnSync('/usr/bin/tar', [...flags, '-czf', tar, '-C', src, ...tops]).status).toBe(0);
       return createHash('sha256').update(readFileSync(tar)).digest('hex');
     };
     const temp = dir('sign-temp');
@@ -364,16 +421,25 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     }
     const ok = runStep(s, { RUNNER_TEMP: temp, SHA256: sha });
     expect(ok.status, ok.stderr).toBe(0);
-    expect(readdirSync(join(temp, 'adhoc')).sort()).toEqual(['app', 'bundle-report.json', 'tauri-cli']);
+    expect(readdirSync(join(temp, 'adhoc')).sort()).toEqual(['app', 'tauri-cli']);
     expect(readFileSync(join(temp, 'adhoc', 'app', 'Retake.app', 'Contents', 'Info.plist'), 'utf8')).toBe('<plist/>');
     // A node_modules beside the parts (where a module lookup from tauri-cli/ would find it), or anything else: refused.
-    for (const extra of [['node_modules/@tauri-apps/cli-darwin-universal/index.js'], ['app/Other.app/x'], ['notes.txt']]) {
+    for (const extra of [['node_modules/@tauri-apps/cli-darwin-universal/index.js'], ['app/Other.app/x'], ['notes.txt'], ['bundle-report.json']]) {
       const t = dir('sign-temp');
       const r = runStep(s, { RUNNER_TEMP: t, SHA256: pack(t, extra) });
       expect(r.status, extra.join()).not.toBe(0);
       expect(r.stderr, extra.join()).toMatch(/release: \S+ is not the build job's archive: .*not a part of the build/);
       expect(existsSync(join(t, 'adhoc')), extra.join()).toBe(false);
     }
+    // Packed with the Mac's metadata (an extended attribute becomes a hidden ._ member tar would apply): refused too.
+    const t = dir('sign-temp');
+    const meta = pack(t, [], ['--no-xattrs'], (src) => {
+      expect(spawnSync('xattr', ['-w', 'com.example.planted', 'x', join(src, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js')]).status).toBe(0);
+    });
+    const r = runStep(s, { RUNNER_TEMP: t, SHA256: meta });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/release: \S+ is not the build job's archive: "(?:app\/)?\._[^"]+" \(an AppleDouble name\)/);
+    expect(existsSync(join(t, 'adhoc'))).toBe(false);
   });
 });
 
@@ -395,8 +461,9 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(BUILD_TOOL.test(m.run!) || CALLS_GH.test(m.run!) || usesToken(m)).toBe(false);
     expect(m.run).toMatch(/umask 077/);
     expect(m.run!.indexOf('missing="$missing')).toBeLessThan(m.run!.indexOf('ci-keychain.sh import'));
-    // The sign job's first steps: checkout, setup-node, the Node.js check, then the set (review e B-L4).
-    expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(3);
+    // The sign job's first steps: checkout, Node.js, the build job's app downloaded and unpacked, then the set
+    // (review e B-L4): no key is on the runner while the archive is read.
+    expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(4);
   });
 
   it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
@@ -468,7 +535,8 @@ describe('release.yml: what it runs', () => {
 
   it('the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config\'s version said', () => {
     const names = jobs.build!.steps.map((s) => s.name ?? s.uses);
-    expect(names.indexOf('Node.js is the pinned binary')).toBeLessThan(names.indexOf('pnpm (corepack, at package.json\'s packageManager)'));
+    expect(names.indexOf('Node.js, the pinned build')).toBe(1);
+    expect(names.indexOf('Node.js, the pinned build')).toBeLessThan(names.indexOf('pnpm (corepack, at package.json\'s packageManager)'));
     expect(names.indexOf('pnpm (corepack, at package.json\'s packageManager)')).toBeLessThan(names.indexOf('Dependencies'));
     expect(step('build', 'Chromium and the headless shell').run).toMatch(/cli\.js install chromium chromium-headless-shell\nnode apps\/desktop\/scripts\/bundle\.mjs check-pins\n/);
     const lay = step('build', 'Lay out the app (ad hoc)');
@@ -688,15 +756,17 @@ describe('release.yml: the files — made, attached to a draft only, fetched for
 
 /** sha256 of words that must never appear in the release files (a reference app, an account): only their hashes here. */
 const DENIED = new Set(['a1d648cffa6e2ba0f94c51f51e0cb8f2be4fa6c3d227176016291f9ce64e90e7', '73562ffe71a5ff592fad20a1ffbd06c0bee1cb5106de93e23643188f2fda0690']);
-const RELEASE_FILES = ['.github/workflows/release.yml', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'docs/RELEASING.md', 'apps/desktop/bundle/node.json', 'apps/desktop/bundle/browsers.json'];
+const RELEASE_FILES = ['.github/workflows/release.yml', 'apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-node.sh', 'apps/desktop/scripts/release.mjs', 'scripts/release.mjs', 'docs/RELEASING.md', 'apps/desktop/bundle/node.json', 'apps/desktop/bundle/browsers.json'];
+/** The one host a release file may name besides example.*: the Node.js project's downloads, which ci-node.sh fetches. */
+const NODE_DOWNLOADS = { file: 'apps/desktop/scripts/ci-node.sh', host: 'nodejs.org', url: 'https://nodejs.org/dist/v$version/$file' };
 
 describe('the release files stay generic', () => {
   it('no host, domain, account or repository of anyone in the workflow, the keychain script, the helper or RELEASING.md', () => {
     for (const f of RELEASE_FILES) {
       const text = readFileSync(join(REPO, f), 'utf8');
       for (const word of text.toLowerCase().split(/[^a-z0-9]+/)) expect(DENIED.has(createHash('sha256').update(word).digest('hex')), `${f}: a denied word`).toBe(false);
-      for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
-      for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
+      for (const m of text.matchAll(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:com|net|org|io|dev|co|me|cloud)\b/gi)) if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.host)) expect(m[0], f).toMatch(/(?:^|\.)example\.(?:com|net|org)$/i);
+      for (const m of text.matchAll(/https?:\/\/[^\s)`'"]+/g)) if (!(f === NODE_DOWNLOADS.file && m[0] === NODE_DOWNLOADS.url)) expect(m[0], f).toMatch(/^https:\/\/(?:[a-z0-9-]+\.)*example\.(?:com|net|org)(?:\/|$)/);
     }
     // The workflow names its repository only through github.repository; its actions' owners are GitHub's and the toolchain's.
     expect(raw).not.toMatch(/github\.com|ghcr\.io|@users\.noreply/);

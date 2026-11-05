@@ -256,7 +256,7 @@ describe('one allow-listed environment for every child of the build (critique M1
     expect(js).toMatch(/const saved = saveGenerated\(REPO, dir\);\s*let built;\s*try \{\s*built = tauriBuild\([^)]*\);\s*\} finally \{\s*restoreGenerated\(REPO, saved\);\s*\}/);
     // L5.16e fixes: the DMG is release.mjs finishApp's (made after the app's checks; hdiutil tried again on "Resource busy").
     const rel = readFileSync(join(APP, 'scripts', 'release.mjs'), 'utf8');
-    expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, cliJs,/);
+    expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, tauriCli: join\(dir, 'tauri-cli'\), tauriPins,/);
     expect(rel).toMatch(/hdiutil\(dmgCreateArgs\(\{ src: appDir, dmg \}\), \{ env: child, \.\.\.retry \}\);[^]*const problems = verifyDmg\(dmg, join\(out, 'mnt'\), \{ env: child, retry \}\);/);
   });
 
@@ -621,6 +621,33 @@ describe('the folders a build writes (review A M3, review B L5)', () => {
     expect(existsSync(inRepo)).toBe(false);
     expect(() => build({ out: '/Applications/Retake' })).toThrow(/never into \/Applications/);
     expect(() => build({ out: undefined })).toThrow(/--out <dir> or RETAKE_BUNDLE_OUT/);
+  });
+});
+
+describe('a reused stage (--stage)', () => {
+  it.runIf(process.platform === 'darwin' && process.arch === 'arm64')('of another version than the app\'s is refused before Tauri builds anything when an app or a DMG is made: stage again', async () => {
+    const { build, GUARD } = await bundleModule();
+    const conf = JSON.parse(readFileSync(join(APP, 'tauri.conf.json'), 'utf8'));
+    const staged = (version: string) => {
+      const st = dir('old-stage');
+      put(st, '.retake-stage');
+      put(st, GUARD, '');
+      put(st, 'bundle.json', JSON.stringify({ v: 1, app: version, paths: { node: 'node/bin/node' } }));
+      return st;
+    };
+    const env = { PATH: '/usr/bin:/bin', HOME: tmp };
+    expect(() => build({ out: dir('reuse-out'), stage: staged('0.0.1'), env })).toThrow(new RegExp(`--stage \\S+ was made for version 0\\.0\\.1, the app is ${conf.version.replace(/\./g, '\\.')} \\(tauri\\.conf\\.json\\): stage again \\(bundle\\.mjs stage\\)`));
+    expect(() => build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, appVersion: '0.2.0', appOnly: true })).toThrow(/was made for version 0\.1\.0, the app is 0\.2\.0/);
+    // The same version passes this check (and stops further on, at the stage's own check); no app, no DMG: not asked.
+    for (const opts of [{ appVersion: '0.1.0' }, { appVersion: '0.2.0', dmg: false }]) {
+      let message = '';
+      try {
+        build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, ...opts });
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, JSON.stringify(opts)).toMatch(/the stage fails its check/);
+    }
   });
 });
 

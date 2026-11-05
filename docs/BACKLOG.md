@@ -2412,6 +2412,15 @@ encoding session that stops taking frames mid-render (libx264 cannot) has no tim
 until it is cancelled. Watch the encoded-frame count on the VideoToolbox path: no progress for N seconds → cancel the
 attempt and count it as a GPU-path failure (one software retry, as for the other encoder failures).
 
+### BL-160 — The bundled Chromium, bumped in one command
+*S · noted in a review of the release workflow · builds on: L5.16e*
+
+The app ships Playwright's Chromium, so each release starts by bumping Playwright (`playwright-core` and every
+package that names it, one exact version), installing its browsers and re-recording `apps/desktop/bundle/browsers.json`
+(docs/RELEASING.md, step 1) — by hand today. A script doing the three (the digests printed for review, nothing
+recorded unchecked) would make it one step; the release job could then warn when the tagged commit's Chromium is older
+than the newest Playwright release.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

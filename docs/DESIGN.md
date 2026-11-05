@@ -5336,7 +5336,8 @@ workflow's `build` job). Every output lands in `<out>`, a dedicated folder (`che
 links followed through the deepest existing ancestor: never inside the checkout, /Applications (nor
 /System/Volumes/Data/Applications), ~/Applications or ~/Library, never the home folder or a folder holding it, never
 the Desktop / Documents / Downloads folder itself; empty, or marked `.retake-bundle` by an earlier build — a folder
-with anything else in it is refused untouched; `--stage` gets the same rule): `stage/`, `target/` (cargo;
+with anything else in it is refused untouched; `--stage` gets the same rule, and a reused stage of another version
+than tauri.conf.json's is refused before Tauri builds anything when an app or a DMG is made — stage again): `stage/`, `target/` (cargo;
 `CARGO_TARGET_DIR` when it is outside the checkout), `app/Retake.app` + an `Applications` link (the DMG's folder),
 `Retake_<version>_aarch64.dmg`, `tauri.bundle.json`, `Info.plist`, `icon.icns`, `entitlements/`, `tauri-cli/`,
 `bundle-report.json` (sizes, timings). About 4 GB at the peak (stage 0.93 + app 0.94 + DMG 0.40 + cargo target 1.6). The
@@ -5791,19 +5792,26 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   version (`set-version.mjs --check`, `release.mjs tag`; a pre-release version makes a pre-release), the tagged commit
   is an ancestor of `origin/main`, **what is configured** (below), then a **draft** release (CHANGELOG paragraph + how
   to install), created or edited. `build` (macos-15, contents: read, no environment, no secret, no variable — the feed
-  and public key come as the release job's outputs): Node 22.16.0, corepack's pnpm (package.json's `packageManager`
+  and public key come as the release job's outputs): Node.js (below), corepack's pnpm (package.json's `packageManager`
   carries its sha512, checked on download), `pnpm install --frozen-lockfile`,
   Rust 1.99.1 through the image's rustup (`rustup toolchain install … --profile minimal --target aarch64-apple-darwin`,
   `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, Playwright's
   browsers then `bundle.mjs check-pins`, our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
   printed; built at every run), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
-  `/usr/bin/tar` (links kept, no extended attribute) with `tauri-cli/` and the report, its sha256 a job output,
-  uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, setup-node,
-  the Node.js check, the signing material, the artifact checked against the build job's sha256, then
-  `node apps/desktop/scripts/release.mjs unpack` (`unpackBuild`: the archive's members listed first — only `app`,
-  `app/Retake.app/…`, `tauri-cli/…` and `bundle-report.json`; any other name, `..`, an absolute name or a missing
-  part refuses it before anything is written —, those three extracted, then checked: exactly them in the folder, real
-  folders and a file, no link; a refusal leaves nothing behind) and `release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
+  `/usr/bin/tar` (links kept, no extended attribute, no Mac metadata) with `tauri-cli/`, its sha256 a job output,
+  uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, Node.js,
+  the artifact checked against the build job's sha256 and unpacked **before the signing material is written** —
+  `node apps/desktop/scripts/release.mjs unpack` (`unpackBuild`: the archive decompressed in Node.js and its members
+  read by our own reader, `tarMembers` — ustar and pax headers, every checksum and the ustar magic, octal fields, no
+  data for anything but a file, zeros only after the end marker; GNU long names, global or sparse pax headers and
+  another character set refused, so tar walks the bytes as it does —; only `app`, `app/Retake.app/…` and
+  `tauri-cli/…`, those three themselves folders, files and folders under `tauri-cli`, files, folders and links whose
+  relative target stays inside the app under the app; a hard link, a device, a fifo, an AppleDouble `._` name, a name
+  given twice, `..`, an absolute name or a missing part refuses it before anything is written —, then tar extracts
+  the two parts from those very bytes (its standard input; `--no-mac-metadata --no-xattrs --no-acls --no-fflags`),
+  then checked: exactly them in the folder, real folders, every link of the app resolving inside it by the system's
+  realpath — Node.js's own resolves a link's `..` lexically; a refusal leaves nothing behind) —, then the signing
+  material and `release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
   outputs (DMG, archive, .sig, SHA256SUMS-macos.txt) uploaded as an artifact; the temporary keychain and key files
   removed in a last `always()` step. `attach` (ubuntu, contents: write): the files checked against the sign job's sum,
   then **refused unless the release is still a draft** (review e A-M4 / B-M2: a public release's files are never
@@ -5823,14 +5831,21 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   sha512 pins before it runs** (`checkTauriCliDir`: exactly the pinned files, no link, no other file or package; chosen
   over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and **run from a
   fresh copy** (bundle.mjs `freshTauriCli`: the handed folder no link, each pinned file read once without following a
-  link, those bytes checked and written into a new temporary folder, removed after: nothing beside the handed folder
-  is on the CLI's module lookup path) — the signature then verified
+  link — one swapped in after the folder's check is refused —, those bytes checked and written into a new temporary
+  folder, the copy checked again: nothing beside the handed folder is on the CLI's module lookup path), made by
+  finishApp right before the update archive is signed and removed right after, whatever happens (the `--tauri-cli`
+  folder itself is checked before `--out` is claimed and again before anything is signed); the CLI runs with HOME in
+  the copy and is refused before it starts when a folder of its module lookup path outside the copy exists
+  (`cliLookupPaths`: a `node_modules` in each folder above it, HOME's `.node_modules` / `.node_libraries`, the Node.js
+  prefix's `lib/node` — the list a test compares with what Node.js itself reports) — the signature then verified
   against RETAKE_UPDATE_PUBKEY; then the DMG (hdiutil create / attach / detach tried again on "Resource busy" only —
   3 tries, 2 s then 4 s; review e B-M4), signed, notarised, stapled, then the team, Gatekeeper and both tickets checked.
   Without `--release`: the ad hoc app checked as it is, an ad hoc DMG, said. `--app-version`: Info.plist's
   CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7);
-  bundle.json's `app`, which names the DMG, must be a version and, with `--app-version` or a DMG to make, Info.plist's —
-  all before anything is signed.
+  bundle.json's `app`, which names the DMG, must be a version and, with `--app-version` or a DMG to make, Info.plist's;
+  bundle.json's `paths.node` / `paths.ffmpeg` (its hashes are refreshed from them) relative, with no `.` or `..` part,
+  inside Resources by the system's realpath; bundle.json and launch.json not JSON: refused without their words — all
+  before anything is signed.
   `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
   the same `finishApp` in the same process.
 - **What is configured: two sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
@@ -5851,20 +5866,26 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   the person.
 - **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved
   read-only (`gh api repos/<o>/<r>/git/ref/tags/<tag>`, all lightweight tags) and written beside it: checkout v5.1.0,
-  setup-node v5.0.0, upload-artifact v6.0.0, download-artifact v6.0.0. Node.js is exactly 22.16.0:
-  `apps/desktop/bundle/node.json` pins the sha256 of the official build's bin/node for darwin-arm64 (the macOS jobs)
-  and linux-x64 (the ubuntu ones); every job hashes the `node` on PATH in the shell (`shasum -a 256`) against its
-  platform's pin right after setup-node, before any node call, and the stage refuses any other binary again
-  (`checkNode`) before it copies it. Playwright's installer checks no hash:
+  upload-artifact v6.0.0, download-artifact v6.0.0 — no setup action. **Node.js** is the version
+  `apps/desktop/bundle/node.json` pins (22.16.0), installed by every job's first step after its checkout,
+  `bash apps/desktop/scripts/ci-node.sh` (it runs no node): the official `node-v<version>-<platform>.tar.gz` fetched
+  over https from the Node.js project, its sha256 checked in the shell against node.json's `tarballs` (the lines of
+  the project's SHASUMS256.txt, its signature checked against a listed releaser's key) before anything of it is
+  unpacked or run — npm, corepack and the rest of the install with it —, unpacked into `$RUNNER_TEMP/node`, its
+  bin/node checked against node.json's `sha256` for darwin-arm64 (the macOS jobs) or linux-x64 (the ubuntu ones),
+  its bin first on PATH (`$GITHUB_PATH`); the stage refuses any other binary again (`checkNode`) before it copies it.
+  Playwright's installer checks no hash:
   each browser revision folder's tree digest (every path, link target, size, executable bit and sha256, markers left
-  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from this Mac's playwright-core
-  1.56.1 install, and the stage refuses another tree (`checkBrowser`; `check-pins` right after the install). **The
-  first tagged run may need these digests (and the Node.js sha256) refreshed** if GitHub's setup-node archive or the
-  CDN's browser archive lays files out differently from the local installs — the build job then fails with the digest
-  it found, and `bundle.mjs browser-digest <folder>` records a checked one. **No cache**: no `actions/cache` step and
-  setup-node's package-manager cache off — nothing is restored from an earlier run or another workflow; the pnpm
-  store, ffmpeg and cargo are filled at every run from the lockfile and the pinned sources. RELEASING.md has
-  Playwright (the app's Chromium) bumped and browsers.json re-recorded at every release.
+  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from a checked local install of the
+  lockfile's playwright-core (re-recorded at each bump), and the stage refuses another tree (`checkBrowser`;
+  `check-pins` right after the install). **The first tagged run may need these digests refreshed** if the CDN's
+  browser archive lays files out differently from the local install — the build job then fails with the digest it
+  found, and `bundle.mjs browser-digest <folder>` records a checked one (the darwin-arm64 binary pin was recorded from
+  a local install of that tarball: the first run confirms it too). **No cache**: no `actions/cache` step and no setup
+  action — nothing is restored from an earlier run or another workflow; the pnpm store, ffmpeg and cargo are filled
+  at every run from the lockfile and the pinned sources (a re-run downloads ffmpeg's sources again: two are archives a
+  forge generates, re-pinned after a re-verification if their bytes change). RELEASING.md has Playwright (the app's
+  Chromium) bumped and browsers.json re-recorded at every release (automating it: BACKLOG BL-160).
 - **The temporary keychain** (`apps/desktop/scripts/ci-keychain.sh import|delete <dir>`, GitHub Actions only): the user
   search list saved first, a keychain with a random password locked after 6 h, the identity re-wrapped by LibreSSL's
   `/usr/bin/openssl` (the certificate's password from the environment) with a random one-time password and imported
@@ -5891,11 +5912,13 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   accepted on 2026-11-04 for the person's own releases, though a public release is distribution to anyone who
   downloads it; to resolve before any sale (the licence note of docs/guide/desktop-app.md and the README's Licence section say so).
 - **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
-  `security -i`, the setup-node binary's sha256 and the CDN browsers' digests meet the real runner on the first tagged
+  `security -i`, the Node.js download (ci-node.sh against the project's host) and the CDN browsers' digests meet the real runner on the first tagged
   run, and the GitHub REST calls of publish-update.mjs (tested against a local stand-in of the API only) meet GitHub on
   the first publication; the notarised DMG on a clean account and an update through the feed are the person's
   (MACOS-CHECKLIST 15b, 15d).
-  Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
+  Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, the gated bundle acceptance, and the
+  pinned Tauri CLI laid out from the pnpm store, copied fresh, its `signer generate` and `signUpdateArchive` run from
+  the copy (a throwaway key, HOME in the copy) with the signature verified.
 
 ## 4q. Captures first (L5.14)
 

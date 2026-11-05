@@ -13,9 +13,9 @@
 #    `pnpm desktop:bundle` does (`--app-only`); packed (a tar that keeps the links) with its sha256 as an artifact.
 #  - sign (a FRESH macOS runner, `environment: release`, contents: read): runs no dependency code — no pnpm install, no
 #    package script, no Homebrew, no cargo: the artifact checked against the build job's sha256, then our own scripts
-#    only (apps/desktop/scripts/release.mjs unpack, then sign): the app, the Tauri CLI and the report unpacked (nothing
-#    else), the Developer ID signature, notarisation and stapling, the update archive signed by the sha512-pinned Tauri
-#    CLI (run from a fresh copy), the DMG; the outputs as an artifact.
+#    only (apps/desktop/scripts/release.mjs unpack, then sign): the app and the Tauri CLI unpacked (nothing else)
+#    before any key is written, the Developer ID signature, notarisation and stapling, the update archive signed by the
+#    sha512-pinned Tauri CLI (run from a fresh copy), the DMG; the outputs as an artifact.
 #  - attach (ubuntu, contents: write): refuses unless the release is still a draft (public files are never replaced),
 #    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
 #  - publish (ubuntu, `environment: release`, contents: write, one at a time across tags): the release made public, then
@@ -41,9 +41,10 @@
 # that run no build tool.
 #
 # No cache: every run starts from the checkout, the pinned downloads and the lockfile (nothing restored from an earlier
-# run). Every job checks its Node.js in the shell before its first node call: the binary on PATH against the sha256
-# apps/desktop/bundle/node.json pins for the runner's platform. pnpm is corepack's, at package.json's packageManager
-# (its sha512 checked on download).
+# run). Every job's first step after its checkout installs Node.js from the official tarball, checked in the shell
+# against the sha256 apps/desktop/bundle/node.json pins for the runner's platform before anything of it is unpacked or
+# run (apps/desktop/scripts/ci-node.sh). pnpm is corepack's, at package.json's packageManager (its sha512 checked on
+# download).
 name: Release
 
 on:
@@ -84,35 +85,11 @@ jobs:
           persist-credentials: false
           # Every branch's history: the tagged commit must be on main.
           fetch-depth: 0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 22.16.0
-          package-manager-cache: false
-      - name: Node.js is the pinned binary
-        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
-        # apps/desktop/bundle/node.json pins for this runner's platform.
-        run: |
-          set -eu
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            macOS-ARM64) platform=darwin-arm64 ;;
-            Linux-X64) platform=linux-x64 ;;
-            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
-          esac
-          if ! bin=$(command -v node); then
-            echo "::error::no Node.js on PATH"
-            exit 1
-          fi
-          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
-          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
-            exit 1
-          fi
-          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
-          if [ "$got" != "$want" ]; then
-            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
-            exit 1
-          fi
-          echo "Node.js at $bin: the pinned binary for $platform"
+      - name: Node.js, the pinned build
+        # First, before anything else runs: the official tarball of the version apps/desktop/bundle/node.json pins for
+        # this runner's platform, checked against its pinned sha256 before anything of it is unpacked or run, its
+        # bin/node against the binary's pin, then first on PATH (apps/desktop/scripts/ci-node.sh runs no node).
+        run: bash apps/desktop/scripts/ci-node.sh
       - name: The tag is the version
         id: version
         # Every version file agrees, and the tag is v<that version>; a pre-release version makes a pre-release.
@@ -205,38 +182,12 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          # The stage copies the Node.js running the build into the app: exactly the version and binary
-          # apps/desktop/bundle/node.json pins (the build refuses any other).
-          node-version: 22.16.0
-          # No cache of any kind (setup-node's would also run pnpm before corepack has installed it).
-          package-manager-cache: false
-      - name: Node.js is the pinned binary
-        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
-        # apps/desktop/bundle/node.json pins for this runner's platform.
-        run: |
-          set -eu
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            macOS-ARM64) platform=darwin-arm64 ;;
-            Linux-X64) platform=linux-x64 ;;
-            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
-          esac
-          if ! bin=$(command -v node); then
-            echo "::error::no Node.js on PATH"
-            exit 1
-          fi
-          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
-          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
-            exit 1
-          fi
-          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
-          if [ "$got" != "$want" ]; then
-            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
-            exit 1
-          fi
-          echo "Node.js at $bin: the pinned binary for $platform"
+      - name: Node.js, the pinned build
+        # First, before anything else runs: the official tarball of the version apps/desktop/bundle/node.json pins for
+        # this runner's platform, checked against its pinned sha256 before anything of it is unpacked or run, its
+        # bin/node against the binary's pin, then first on PATH (apps/desktop/scripts/ci-node.sh runs no node). The
+        # stage copies this Node.js into the app (and refuses any other binary).
+        run: bash apps/desktop/scripts/ci-node.sh
       - name: pnpm (corepack, at package.json's packageManager)
         # Corepack downloads the pinned pnpm and checks it against the sha512 packageManager carries.
         env:
@@ -304,7 +255,7 @@ jobs:
           A="$RUNNER_TEMP/artifact"
           rm -rf "$A"
           mkdir -p "$A"
-          /usr/bin/tar --no-mac-metadata --no-xattrs -czf "$A/retake-app.tar.gz" -C "$RUNNER_TEMP/bundle" app tauri-cli bundle-report.json
+          /usr/bin/tar --no-mac-metadata --no-xattrs -czf "$A/retake-app.tar.gz" -C "$RUNNER_TEMP/bundle" app tauri-cli
           echo "sha256=$(shasum -a 256 "$A/retake-app.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
@@ -329,35 +280,33 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - name: Node.js, the pinned build
+        # First, before anything else runs: the official tarball of the version apps/desktop/bundle/node.json pins for
+        # this runner's platform, checked against its pinned sha256 before anything of it is unpacked or run, its
+        # bin/node against the binary's pin, then first on PATH (apps/desktop/scripts/ci-node.sh runs no node).
+        run: bash apps/desktop/scripts/ci-node.sh
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
-          node-version: 22.16.0
-          package-manager-cache: false
-      - name: Node.js is the pinned binary
-        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
-        # apps/desktop/bundle/node.json pins for this runner's platform.
+          name: retake-app-adhoc
+          path: ${{ runner.temp }}/artifact
+      - name: The build job's app
+        # Before any key is on this runner: the very file the build job packed (its sha256), then only its two parts
+        # unpacked — app/Retake.app and tauri-cli/, real folders — by our script (release.mjs unpack: its members read
+        # first; an archive with any other member, a hard link, a device, a link out of the app or an AppleDouble
+        # name is refused before anything is written).
+        env:
+          SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
           set -eu
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            macOS-ARM64) platform=darwin-arm64 ;;
-            Linux-X64) platform=linux-x64 ;;
-            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
-          esac
-          if ! bin=$(command -v node); then
-            echo "::error::no Node.js on PATH"
+          A="$RUNNER_TEMP/artifact/retake-app.tar.gz"
+          if ! printf '%s\n' "$SHA256" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::The build job gave no sha256 of its app"
             exit 1
           fi
-          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
-          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
-            exit 1
-          fi
-          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
-          if [ "$got" != "$want" ]; then
-            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
-            exit 1
-          fi
-          echo "Node.js at $bin: the pinned binary for $platform"
+          echo "$SHA256  $A" | shasum -a 256 -c
+          D="$RUNNER_TEMP/adhoc"
+          rm -rf "$D"
+          node apps/desktop/scripts/release.mjs unpack "$A" --into "$D"
       - name: Signing material
         id: material
         # The whole set first (review e B-L4), then the certificate into a temporary keychain, the API key and the
@@ -406,31 +355,11 @@ jobs:
             printf '%s\n' "$TAURI_SIGNING_PRIVATE_KEY" > "$S/updater.key"
             echo "updater_key=$S/updater.key" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
-        with:
-          name: retake-app-adhoc
-          path: ${{ runner.temp }}/artifact
-      - name: The build job's app
-        # The very file the build job packed (its sha256), then only its three parts unpacked — app/Retake.app,
-        # tauri-cli/, bundle-report.json, real folders and a file — by our script (release.mjs unpack: an archive with
-        # any other member is refused before anything is written).
-        env:
-          SHA256: ${{ needs.build.outputs.sha256 }}
-        run: |
-          set -eu
-          A="$RUNNER_TEMP/artifact/retake-app.tar.gz"
-          if ! printf '%s\n' "$SHA256" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::The build job gave no sha256 of its app"
-            exit 1
-          fi
-          echo "$SHA256  $A" | shasum -a 256 -c
-          D="$RUNNER_TEMP/adhoc"
-          rm -rf "$D"
-          node apps/desktop/scripts/release.mjs unpack "$A" --into "$D"
       - name: Sign, notarise, the update archive and the DMG
         # Our scripts only (their imports: Node.js built-ins and files of this repository). The Tauri CLI that signs the
-        # update archive runs from a fresh temporary copy of its bytes, each file checked against its pinned sha512; the
-        # app's version (Info.plist, bundle.json) must be the tag's before anything is signed.
+        # update archive runs from a fresh temporary copy of its bytes, each file checked against its pinned sha512, made
+        # right before it signs and removed right after; the app's version (Info.plist, bundle.json) must be the tag's
+        # before anything is signed.
         env:
           SIGNED: ${{ needs.release.outputs.signed }}
           UPDATES: ${{ needs.release.outputs.updates }}
@@ -516,35 +445,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 22.16.0
-          package-manager-cache: false
-      - name: Node.js is the pinned binary
-        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
-        # apps/desktop/bundle/node.json pins for this runner's platform.
-        run: |
-          set -eu
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            macOS-ARM64) platform=darwin-arm64 ;;
-            Linux-X64) platform=linux-x64 ;;
-            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
-          esac
-          if ! bin=$(command -v node); then
-            echo "::error::no Node.js on PATH"
-            exit 1
-          fi
-          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
-          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
-            exit 1
-          fi
-          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
-          if [ "$got" != "$want" ]; then
-            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
-            exit 1
-          fi
-          echo "Node.js at $bin: the pinned binary for $platform"
+      - name: Node.js, the pinned build
+        # First, before anything else runs: the official tarball of the version apps/desktop/bundle/node.json pins for
+        # this runner's platform, checked against its pinned sha256 before anything of it is unpacked or run, its
+        # bin/node against the binary's pin, then first on PATH (apps/desktop/scripts/ci-node.sh runs no node).
+        run: bash apps/desktop/scripts/ci-node.sh
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: retake-release
@@ -598,35 +503,11 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: 22.16.0
-          package-manager-cache: false
-      - name: Node.js is the pinned binary
-        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
-        # apps/desktop/bundle/node.json pins for this runner's platform.
-        run: |
-          set -eu
-          case "$RUNNER_OS-$RUNNER_ARCH" in
-            macOS-ARM64) platform=darwin-arm64 ;;
-            Linux-X64) platform=linux-x64 ;;
-            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
-          esac
-          if ! bin=$(command -v node); then
-            echo "::error::no Node.js on PATH"
-            exit 1
-          fi
-          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
-          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
-            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
-            exit 1
-          fi
-          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
-          if [ "$got" != "$want" ]; then
-            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
-            exit 1
-          fi
-          echo "Node.js at $bin: the pinned binary for $platform"
+      - name: Node.js, the pinned build
+        # First, before anything else runs: the official tarball of the version apps/desktop/bundle/node.json pins for
+        # this runner's platform, checked against its pinned sha256 before anything of it is unpacked or run, its
+        # bin/node against the binary's pin, then first on PATH (apps/desktop/scripts/ci-node.sh runs no node).
+        run: bash apps/desktop/scripts/ci-node.sh
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}

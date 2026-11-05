@@ -160,9 +160,11 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    ```
 6. **The workflow** (Actions › Release; `build` takes most of the time: ffmpeg and cargo, both built at every run —
    the workflow keeps no cache; `sign` waits for Apple's notarisation, which can take long for a new team's first
-   submissions). Every job first checks, in the shell and before any `node` call, that the Node.js on its runner is
-   the binary `apps/desktop/bundle/node.json` pins for that platform (darwin-arm64 on the macOS jobs, linux-x64 on the
-   ubuntu ones):
+   submissions). Every job first installs Node.js itself (`apps/desktop/scripts/ci-node.sh`, right after its
+   checkout, before anything else runs): the official tarball of the version `apps/desktop/bundle/node.json` pins,
+   downloaded from the Node.js project and checked in the shell against the sha256 recorded there for that platform
+   (darwin-arm64 on the macOS jobs, linux-x64 on the ubuntu ones) before anything of it is unpacked or run, then its
+   `bin/node` against the binary's pin:
    - `release` refuses a tag that is not the repository's version (`node scripts/set-version.mjs --check`, then
      `node scripts/release.mjs tag`) or not a commit of main, checks **what is configured** (each part all or nothing;
      the updater only on a public repository; `node scripts/release.mjs preflight`), then creates the release as a **draft** with the CHANGELOG paragraph and
@@ -173,13 +175,15 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
      and our ffmpeg from its sha256-checked sources, then lays the app out and signs it ad hoc
      (`pnpm desktop:bundle --app-only`) and hands it over packed, with its sha256.
    - `sign`, on a fresh runner that runs only this repository's scripts (no `pnpm install`, no package script, no
-     Homebrew, no cargo), imports the certificate into a temporary keychain (`apps/desktop/scripts/ci-keychain.sh`),
-     checks the artifact's sha256 and unpacks only its three parts — `app/Retake.app`, `tauri-cli/` and
-     `bundle-report.json`, real folders and a file (`node apps/desktop/scripts/release.mjs unpack`: an archive with any
-     other member is refused before anything is written) —, then `node apps/desktop/scripts/release.mjs sign`: the
+     Homebrew, no cargo), checks the artifact's sha256 and unpacks only its two parts — `app/Retake.app` and
+     `tauri-cli/`, real folders (`node apps/desktop/scripts/release.mjs unpack`: its members are read first, and an
+     archive with any other member, a hard link, a device, a link out of the app or an AppleDouble name is refused
+     before anything is written) — before any key is on the runner, then imports the certificate into a temporary
+     keychain (`apps/desktop/scripts/ci-keychain.sh`) and runs `node apps/desktop/scripts/release.mjs sign`: the
      app's version (Info.plist and bundle.json) checked against the tag's, the app re-signed with your Developer ID,
      notarised and stapled, the update archive `Retake.app.tar.gz` and its `.sig` (signed by the pinned Tauri CLI, run
-     from a fresh temporary copy of its bytes, each file checked against its sha512), the DMG signed, notarised and
+     from a fresh temporary copy of its bytes, each file checked against its sha512 — made right before it signs and
+     removed right after), the DMG signed, notarised and
      stapled, then the team, Gatekeeper and both tickets checked. Without the Apple part: an ad hoc DMG, and the log says so. The keychain and
      the key files are removed at the end, whatever happened.
    - `attach` refuses unless the release is still a draft, removes any file of an earlier run this build does not
@@ -207,8 +211,11 @@ v0.2.1`) and tag the fixed commit.
 
 Two failures are the runner's, not yours: `hdiutil: … Resource busy` (the DMG step tries three times before it gives
 up) — *Re-run failed jobs*; and a notarisation that times out (75 minutes per submission) — re-run `sign`. A first run
-may also stop on a digest: GitHub's Node.js (any job) or the browsers' download (`build`) differs from what the pins
-were recorded from — DESIGN §4p (e) and `apps/desktop/bundle/node.json`'s `about` say how to record a checked one.
+may also stop on a digest: the browsers' download (`build`) differs from what their pins were recorded from — DESIGN
+§4p (e) says how to record a checked one; `apps/desktop/bundle/node.json`'s `about` says how to record a Node.js
+upgrade. The workflow keeps no cache, so every run — a re-run too — downloads ffmpeg's sources again: two of them
+(x264's and libvpx's) are archives their forge generates on request and may come back with other bytes; a run that
+stops on their sha256 means re-verify and re-pin them (`scripts/ffmpeg-sources.json`), never skip the check.
 
 ## A pre-release
 
@@ -232,18 +239,21 @@ sign job refuses an app whose version (Info.plist, bundle.json) is not the tag's
   Homebrew, ffmpeg's build, Playwright's installer), holds no secret, no variable and no environment; the `sign` job,
   which holds the keys, runs on a fresh runner and runs only this repository's scripts (their imports: Node.js and
   files of this repository — `packages/cli/test/release-workflow.test.ts` walks them) and the Tauri CLI, from a fresh
-  temporary copy of bytes that matched its pinned sha512 (nothing beside the folder it was handed is on its module
-  lookup path). Of the build job's archive it unpacks the app, the Tauri CLI and the report only. The certificate, the `.p8` and the updater key are written by one step into a
+  temporary copy of bytes that matched its pinned sha512, made only to sign the update archive (its HOME in that copy;
+  no folder of its module lookup path outside the copy may exist). Of the build job's archive it unpacks the app and
+  the Tauri CLI only, read member by member first, before any key is written. The certificate, the `.p8` and the
+  updater key are written by one step into a
   temporary keychain (the key non-extractable) and files only the runner's user reads; no password is ever on a command
   line; all of it is removed in a final step that always runs.
 - What the build job builds is what gets signed: the sign job checks the artifact is the one the build job packed, but
   trusts the build itself (build provenance: BACKLOG BL-145). Node.js and the browsers are checked against pins; pnpm,
   the Tauri CLI, our ffmpeg's sources and the lockfile's packages against hashes.
 - **No cache.** Nothing is restored from an earlier run or another workflow: every job starts from the checkout, the
-  pinned downloads and the lockfile (ffmpeg and cargo are built at every run; setup-node's package-manager cache is
-  off). **Node.js is checked by the shell** in every job, before its first `node` call: `shasum -a 256` of the
-  `node` on PATH against `apps/desktop/bundle/node.json`'s pin for the runner's platform — the binary is never asked
-  to vouch for itself.
+  pinned downloads and the lockfile (ffmpeg and cargo are built at every run; no setup action, no cache action).
+  **Node.js is checked by the shell** in every job, before anything of it runs: `apps/desktop/scripts/ci-node.sh`
+  checks the official tarball's `shasum -a 256` against `apps/desktop/bundle/node.json`'s pin for the runner's
+  platform before it unpacks it — npm, corepack and every other file of the install with it — then the unpacked
+  `bin/node` against the binary's pin; the binary is never asked to vouch for itself.
 - `packages/cli/test/release-workflow.test.ts` reads the workflow as data, runs its step scripts against stand-ins and
   holds it to these rules.
 - The app carries Remotion's compositor and the compositor's own FFmpeg build (GPL, with fdk-aac compiled in — not our
