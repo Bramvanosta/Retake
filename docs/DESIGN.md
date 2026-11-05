@@ -373,6 +373,17 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   (an http redirect to `file:` fails).
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
+- The kit's two bindings (session.ts: `__retakeNotification`, `__retakeCursor`) answer a page's main frame only
+  (`src.frame === src.page.mainFrame()`); the kit itself reports notifications from the top window only and sends each
+  text at most one character past the limit. `readNotificationPayload` checks the payload's types (else ignored), cuts
+  title, body and tag at `NOTIFICATION_TEXT_MAX` (2,048), drops an icon URL beyond `NOTIFICATION_ICON_URL_MAX` (data:
+  1.5 M characters, other 2,048), and takes `url` / `origin` from the main frame. notifications.ts: per run at most
+  `NOTIFICATION_RUN_MAX` (50) notifications and `NOTIFICATION_ICON_RUN_MAX` (20) icons read, one warning each beyond;
+  `iconRefusal` allows a `data:` URL or an http(s) URL whose `canonicalOrigin` is the notifying frame's origin or one
+  of `pageOrigins(env.pages)`; `fetchIcon` decodes a data: URL (≤ 1 MiB, `NOTIFICATION_ICON_MAX_BYTES`) or fetches with
+  Node's fetch, the context's cookies for the URL, `redirect: 'manual'` (a 3xx fails), a 10 s timeout, a declared
+  `content-length` over the cap refused and the body stream cancelled past it. A refused or failed icon is a warning;
+  the artefact keeps `icon_url`.
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
   The ACTIVE page is the one being recorded and acted on.
 

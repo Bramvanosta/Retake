@@ -63,12 +63,23 @@ export function demoKit(config: KitConfig): void {
     };
   })();
   // ── Web notifications (R-NTF-03): report every `new Notification(…)` and ServiceWorkerRegistration#showNotification
-  // to the runner (binding `__retakeNotification`, else queued in `__retakeNotifications`), then let the page's
-  // call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch).
+  // to the runner (binding `__retakeNotification`, else queued in `__retakeNotifications`, at most 50), then let the
+  // page's call proceed unchanged. Patched once per window (a re-installed kit keeps the first patch). Only a page's own
+  // document reports (the runner ignores a frame inside it); each text is sent one character past the runner's limit
+  // (session.ts NOTIFICATION_TEXT_MAX, NOTIFICATION_ICON_URL_MAX), which cuts or drops what is longer.
   (() => {
+    const TEXT_SENT = 2049;
+    const ICON_SENT = 1_500_001;
     type Reported = { via: string; title: string; body: string; tag?: string; icon?: string; time: number; url: string; origin: string };
     const g = window as unknown as Record<string, unknown> & { __retakeNotifications?: Reported[] };
     if (config.passive || g.__retakeNotifyPatched) return;
+    let top = true;
+    try {
+      top = window.top === window;
+    } catch {
+      top = false;
+    }
+    if (!top) return;
     g.__retakeNotifyPatched = true;
     const report = (via: string, title: unknown, options: unknown) => {
       try {
@@ -83,17 +94,17 @@ export function demoKit(config: KitConfig): void {
         }
         const payload: Reported = {
           via,
-          title: String(title ?? ''),
-          body: o.body === undefined || o.body === null ? '' : String(o.body),
+          title: String(title ?? '').slice(0, TEXT_SENT),
+          body: o.body === undefined || o.body === null ? '' : String(o.body).slice(0, TEXT_SENT),
           time: Date.now(),
-          url: location.href,
+          url: location.href.slice(0, TEXT_SENT),
           origin: location.origin,
         };
-        if (o.tag !== undefined && o.tag !== null && String(o.tag) !== '') payload.tag = String(o.tag);
-        if (icon) payload.icon = icon;
+        if (o.tag !== undefined && o.tag !== null && String(o.tag) !== '') payload.tag = String(o.tag).slice(0, TEXT_SENT);
+        if (icon) payload.icon = icon.slice(0, ICON_SENT);
         const binding = g.__retakeNotification;
         if (typeof binding === 'function') (binding as (p: Reported) => unknown)(payload);
-        else (g.__retakeNotifications ??= []).push(payload);
+        else if ((g.__retakeNotifications ??= []).length < 50) g.__retakeNotifications.push(payload);
       } catch {
         /* never break the page */
       }

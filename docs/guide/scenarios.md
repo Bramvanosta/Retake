@@ -555,7 +555,11 @@ rasterised after the capture with **pdf.js inside Chromium** (no system tool), p
 unchanged): title, body, tag, icon (fetched with the session and rendered to a 192 px PNG) and time become
 `artefacts/notifications/<name>.json` — `<name>` is the notification's `tag` (else `notification-<n>`) — and a timeline
 event `{action: notification, step: -1, data: {name, index, title, body, …}}` in the scene running at that moment.
-Notifications a service worker shows on its own (push events) are not seen.
+Notifications a service worker shows on its own (push events) are not seen, nor those of a frame inside the page.
+Limits: title, body and tag are cut at 2,048 characters; a run records the first 50 notifications and reads the first
+20 icons (a warning says when more came). An icon is a `data:` URL of at most 1 MiB, or an http(s) URL on the notifying
+page's origin or one of the environment's, fetched without following a redirect, at most 1 MiB; another icon (another
+host or port, a redirect, too large) is not read — a warning, and the artefact keeps its `icon_url`, without `icon`.
 
 **Artefacts in the timeline.** `timeline.json` lists them under `artefacts` (`kind`, `name`, capture time `t`, scene,
 step, file, and per kind: email `from`, `to`, `subject`, `date`, `preview`, `image`; document `mime`, `file_name`, `via`

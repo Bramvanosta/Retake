@@ -157,6 +157,14 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
 - **The capture browser reads no local file.** Every browser a capture, a rehearsal or an inspection opens fails any
   `file:` request itself — of any page, tab, popup or frame, whatever started it —, set before anything loads; a run
   whose browser cannot be set this way does not start. An http redirect to a `file:` URL fails too.
+- **What a page reports to the runner is bounded.** The calls the in-page kit makes to the runner (a web notification,
+  what its cursor shows) are taken from a page's own document only: a frame inside it — an embed, an ad — is ignored.
+  A notification's fields must have the expected types (else it is ignored); its title, body and tag are cut at 2,048
+  characters. A run records at most 50 notifications and reads at most 20 icons, then says so once. An icon is read
+  only from a `data:` URL of at most 1 MiB decoded, or from an http(s) URL on the notifying page's own origin or one of
+  the environment's origins (another port of localhost is another origin), fetched with that page's cookies, without
+  following a redirect and stopped beyond 1 MiB; any other icon is not requested — a warning, and the artefact keeps
+  its URL.
 - **Every browser runs sandboxed.** Each Chromium the runner launches — captures, rehearsals and inspections, the
   sign-in and recording windows, a site extraction, the artefact renderer, the cursor layer, `retake doctor`'s probe —
   runs with its OS sandbox on (renderers, GPU and utility processes confined by the system) and site isolation on.
