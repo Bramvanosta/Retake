@@ -166,8 +166,10 @@ function fakeTauriStore(version: string, script: string): { store: string; pins:
 }
 
 /** A stage `build({ stage })` accepts (its layout check passes), its one Mach-O named by `entries`. */
-function fakeStage(): string {
+/** A stage that passes the layout check: its engine's @remotion/renderer carries each patch mark once (bundle.mjs RENDERER_PATCH_MARKS). */
+function fakeStage(marks: Record<string, Record<string, number>>): string {
   const stage = dir('stage');
+  for (const [rel, want] of Object.entries(marks)) put(stage, `engine/node_modules/@remotion/renderer/${rel}`, Object.entries(want).map(([m, k]) => `// ${m}\n`.repeat(k)).join(''));
   put(stage, '.retake-stage');
   put(stage, 'node/bin/node', THIN, 0o755);
   put(stage, 'node/guard.cjs', readFileSync(join(APP, 'bundle', 'guard.cjs')));
@@ -233,7 +235,7 @@ describe('one allow-listed environment for every child of the build (critique M1
     const { RETAKE_UPDATE_FEED: _feed, RETAKE_UPDATE_PUBKEY: _key, ...secrets } = SECRETS;
     const env = { ...secrets, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: join(tmp, 'home'), KEEP_ME: '1' };
     // The stand-ins sign nothing: the build stops at the app's checks — after every child kind before it has run.
-    const stage = fakeStage();
+    const stage = fakeStage((await bundleModule()).RENDERER_PATCH_MARKS);
     try {
       // The app's checks run in full: the signatures (verifyApp) and the rest (appProblems: Resources vs the signed payload, Info.plist).
       expect(() => build({ out: dir('env-out'), stage, env, entries: NODE_ENTRY, tauriPins: pins })).toThrow(/the app fails its checks:[^]*sign-table entry node[^]*Contents\/Resources: missing from the app[^]*Info\.plist: no local network words/);
@@ -564,7 +566,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     }
     // A reusable stage that passes the layout check, and a table naming its one Mach-O: a release run that went past
     // the check would reach codesign next.
-    const stage = fakeStage();
+    const stage = fakeStage((await bundleModule()).RENDERER_PATCH_MARKS);
     const env = { PATH: `${shims}:/usr/bin:/bin`, HOME: tmp, APPLE_SIGNING_IDENTITY: ID, APPLE_ID: 'maker@example.com', APPLE_PASSWORD: 'apple-pw-canary' };
     expect(() => build({ out: dir('release-out'), mode: 'release', stage, env, entries: NODE_ENTRY })).toThrow(/set APPLE_TEAM_ID, APPLE_KEYCHAIN_PROFILE .* nothing was signed/);
     expect(existsSync(log)).toBe(false);
