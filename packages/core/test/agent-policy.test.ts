@@ -1,9 +1,22 @@
 /**
  * The shared rules for work an agent can shape (core agent-policy.ts): the loader variables, the NODE_OPTIONS flags
- * that load a file and the path lists node or the dynamic linker loads code from.
+ * that load a file and the path lists node or the dynamic linker loads code from; the Chromium switches no browser.args
+ * may hold.
  */
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isLoaderEnvName, loadPathSeparator } from '@retake/core';
+import {
+  LOAD_PATH_ENV,
+  NODE_OPTIONS_LOADS,
+  SANDBOX_OFF_SWITCHES,
+  isLoaderEnvName,
+  loadPathSeparator,
+  loadWorkspaceConfig,
+  parseProjectYaml,
+  sandboxOffArgProblem,
+} from '@retake/core';
 
 describe('loader variables', () => {
   it('names every variable that makes a program load code or change its shell or configuration folders', () => {
@@ -82,5 +95,41 @@ describe('loader variables', () => {
     expect('/a/x.so /b/y.so:/c/z.so'.split(loadPathSeparator('LD_PRELOAD', ':'))).toEqual(['/a/x.so', '/b/y.so', '/c/z.so']);
     expect('/a b:/c'.split(loadPathSeparator('NODE_PATH', ':'))).toEqual(['/a b', '/c']);
     expect('C:\\a;D:\\b'.split(loadPathSeparator('NODE_PATH', ';'))).toEqual(['C:\\a', 'D:\\b']);
+  });
+});
+
+describe('Chromium switches that turn the sandbox or site isolation off', () => {
+  it('refuses each one, however it is spelled, and only those', () => {
+    for (const name of SANDBOX_OFF_SWITCHES) {
+      for (const arg of [`--${name}`, `-${name}`, `--${name}=1`, `--${name.toUpperCase()}`, ` --${name}`]) {
+        expect(sandboxOffArgProblem(arg), arg).toMatch(new RegExp(`^--${name} turns Chromium's (?:sandbox|site isolation) off — .*remove it from browser\\.args`));
+      }
+    }
+    expect(SANDBOX_OFF_SWITCHES).toEqual(expect.arrayContaining(['no-sandbox', 'disable-setuid-sandbox', 'disable-gpu-sandbox', 'no-zygote', 'single-process', 'disable-site-isolation-trials']));
+    for (const arg of ['--disable-features=IsolateOrigins', '--disable-features=Translate,site-per-process', '--disable-features=SitePerProcess<Study', '--disable-features=MediaRouter, isolate_origins:x/1']) {
+      expect(sandboxOffArgProblem(arg), arg).toMatch(/^--disable-features=\S+ turns Chromium's site isolation off/);
+    }
+    for (const arg of ['--hide-scrollbars', '--disable-features=Translate,MediaRouter', '--enable-features=SitePerProcess', '--sandbox', '--no-sandbox-x', 'no-sandbox', '--lang=fr', '--window-size=1280,800']) {
+      expect(sandboxOffArgProblem(arg), arg).toBeNull();
+    }
+  });
+
+  it('project.yaml and retake.yaml refuse them in browser.args, at their line', async () => {
+    const { config, issues } = parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser:', '  args: [--lang=fr, --no-sandbox, "--disable-features=IsolateOrigins"]', ''].join('\n'));
+    expect(config).toBeUndefined();
+    expect(issues.filter((i) => i.severity === 'error').map((i) => `${i.path.join('.')}@${i.line}: ${i.message}`)).toEqual([
+      expect.stringMatching(/^browser\.args\.1@4: --no-sandbox turns Chromium's sandbox off/),
+      expect.stringMatching(/^browser\.args\.2@4: --disable-features=IsolateOrigins turns Chromium's site isolation off/),
+    ]);
+    expect(parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser: {args: [--lang=fr]}', ''].join('\n')).config?.browser?.args).toEqual(['--lang=fr']);
+    const dir = await mkdtemp(join(tmpdir(), 'retake-core-args-'));
+    try {
+      await writeFile(join(dir, 'retake.yaml'), 'browser:\n  args:\n    - --disable-gpu-sandbox\n');
+      await expect(loadWorkspaceConfig(dir)).rejects.toThrow(/retake\.yaml:3:7 error browser\.args\[0\]: --disable-gpu-sandbox turns Chromium's sandbox off/);
+      await writeFile(join(dir, 'retake.yaml'), 'browser:\n  args: [--hide-scrollbars]\n');
+      expect((await loadWorkspaceConfig(dir)).browser).toEqual({ args: ['--hide-scrollbars'] });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });

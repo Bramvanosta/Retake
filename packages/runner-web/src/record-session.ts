@@ -52,6 +52,7 @@ import { checkProfileBrowser, launchMajor } from './profile-browser.js';
 import { kitConfigFor, kitSource } from './kit/source.js';
 import { SECRET_MASK, SECRET_MIN, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 import type { SecretHash } from './kit/record-script.js';
+import { launchOptions } from './launch.js';
 import { DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { armWriteGuard, enableServiceWorkerRequests } from './write-guard.js';
@@ -337,13 +338,15 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
       viewport: null,
       locale: b.locale,
       timezoneId: b.timezone,
-      args: [
-        ...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'),
-        ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized']),
-        ...(b.args ?? []),
-      ],
       handleSIGINT: false,
       handleSIGTERM: false,
+      ...launchOptions({
+        args: [
+          ...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'),
+          ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized']),
+          ...(b.args ?? []),
+        ],
+      }),
     });
   } catch (e) {
     await removeCopies();

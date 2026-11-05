@@ -157,6 +157,12 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
 - **The capture browser reads no local file.** Every browser a capture, a rehearsal or an inspection opens fails any
   `file:` request itself — of any page, tab, popup or frame, whatever started it —, set before anything loads; a run
   whose browser cannot be set this way does not start. An http redirect to a `file:` URL fails too.
+- **Every browser runs sandboxed.** Each Chromium the runner launches — captures, rehearsals and inspections, the
+  sign-in and recording windows, a site extraction, the artefact renderer, the cursor layer, `retake doctor`'s probe —
+  runs with its OS sandbox on (renderers, GPU and utility processes confined by the system) and site isolation on.
+  `browser.args` cannot turn either off: the switches that would are validation errors in retake.yaml and project.yaml
+  (see [Workspace](workspace.md)) and refused again at launch. `retake doctor` reads the launched browser's own command
+  line and fails when it holds one anyway (an executable that adds switches itself).
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

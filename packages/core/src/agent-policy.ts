@@ -18,6 +18,10 @@
  *
  * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems) and the one origin comparison
  * (canonicalOrigin).
+ *
+ * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
+ * SITE_ISOLATION_OFF_FEATURES), refused in `browser.args` whoever writes them (sandboxOffArgProblem): every browser
+ * Retake launches runs sandboxed.
  */
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -520,6 +524,66 @@ export function agentShellEnvProblems(env: Readonly<Record<string, string>> | un
     if (!ENV_NAME_PLAIN.test(name)) out.push(`its env name \`${shownWord(showHiddenChars(name).replace(/\n/g, '\\u{a}'))}\` (letters, digits and _, not starting with a digit)`);
     else if (isLoaderEnvName(name)) out.push(`its env \`${name}\` (a loader variable)`);
   }
+  return out;
+}
+
+// ── Chromium switches ───────────────────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Chromium switches (without their leading dashes) that turn the OS sandbox off for some or all of its child processes
+ * (renderers, GPU, utilities), run them inside the unsandboxed browser process, or turn site isolation off. Always
+ * refused in `browser.args`.
+ */
+export const SANDBOX_OFF_SWITCHES: readonly string[] = [
+  'no-sandbox',
+  'disable-setuid-sandbox',
+  'disable-gpu-sandbox',
+  'disable-namespace-sandbox',
+  'disable-seccomp-filter-sandbox',
+  'no-zygote',
+  'no-zygote-sandbox',
+  'single-process',
+  'in-process-gpu',
+  'disable-site-isolation-trials',
+];
+
+/** Chromium features whose `--disable-features=` entry turns site isolation off (compared without case, `-` or `_`). */
+export const SITE_ISOLATION_OFF_FEATURES: readonly string[] = ['IsolateOrigins', 'SitePerProcess'];
+
+const featureKey = (name: string) => name.toLowerCase().replace(/[-_\s]/g, '');
+
+/**
+ * Why `arg` may not be passed to Chromium (null when it may): a switch of SANDBOX_OFF_SWITCHES, or a
+ * `--disable-features=` list naming a feature of SITE_ISOLATION_OFF_FEATURES. Read as Chromium reads its command line on
+ * macOS and Linux — `--name` or `-name`, a value after `=` — and more broadly (any case, spaces around it), so a
+ * spelling Chromium would ignore is refused too.
+ */
+export function sandboxOffArgProblem(arg: string): string | null {
+  const m = /^\s*--?([^=\s]+)(?:=(.*))?$/s.exec(arg);
+  if (!m) return null;
+  const name = m[1].toLowerCase();
+  const fix = 'every browser Retake launches runs sandboxed: remove it from browser.args';
+  if (SANDBOX_OFF_SWITCHES.includes(name)) {
+    const what = name === 'disable-site-isolation-trials' ? "Chromium's site isolation" : "Chromium's sandbox";
+    return `--${name} turns ${what} off — ${fix}`;
+  }
+  if (name === 'disable-features' && m[2] !== undefined) {
+    const off = SITE_ISOLATION_OFF_FEATURES.map(featureKey);
+    for (const entry of m[2].split(',')) {
+      const feature = entry.replace(/[<:].*$/s, '').replace(/^\s*\*?/, '').trim();
+      if (feature && off.includes(featureKey(feature))) return `--disable-features=${showHiddenChars(feature)} turns Chromium's site isolation off — ${fix}`;
+    }
+  }
+  return null;
+}
+
+/** sandboxOffArgProblem for each argument of a list, with its index. */
+export function sandboxOffArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
+  const out: Array<{ index: number; message: string }> = [];
+  args.forEach((a, index) => {
+    const message = typeof a === 'string' ? sandboxOffArgProblem(a) : null;
+    if (message) out.push({ index, message });
+  });
   return out;
 }
 

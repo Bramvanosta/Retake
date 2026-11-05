@@ -354,6 +354,13 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   Without personas (§3.6): one context on a fresh temp profile. With personas: one context per persona the run films
   ("realms", each its own Chromium process and cookie jar) on a per-run copy of its session, plus the default context
   when some page has no persona. Executable: config → `$RETAKE_CHROMIUM` → Playwright default.
+- Every runner launch (capture realms, sign-in and recording windows, site extraction, artefact renderer, cursor
+  atlas, doctor probe) ends its options with `...launchOptions({ args })` (launch.ts): `chromiumSandbox: true` (the OS
+  sandbox; Playwright's default is off) and the switches, refused when one turns the sandbox or site isolation off
+  (core `sandboxOffArgProblem`, lists `SANDBOX_OFF_SWITCHES` / `SITE_ISOLATION_OFF_FEATURES` in agent-policy.ts; also
+  a validation error of `browser.args` in retake.yaml and project.yaml). A source scan
+  (test/launch-options.test.ts) keeps every `launch` / `launchPersistentContext` on it. `retake doctor` reads
+  `Browser.getBrowserCommandLine` of its probe (`browserSandbox`).
 - Every realm refuses local files itself before anything loads (`armFileGuard`, session.ts): a browser-level CDP
   session enables `Fetch` for `file:*` only and fails each paused request (`BlockedByClient`), in every page, popup and
   frame; no Playwright route (the HTTP cache stays on). A realm that cannot be armed is closed and the run fails.

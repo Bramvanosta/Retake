@@ -81,6 +81,7 @@ function macProbes(over: Partial<DoctorProbes> = {}): DoctorProbes {
       version: '141.0.7390.37',
       ms: 640,
       gpu: { accelerated: true, renderer: 'ANGLE (Apple, ANGLE Metal Renderer: Apple M4)' },
+      sandbox: { on: true, off: [] },
     }),
     head: async () => ({ status: 200, ms: 42 }),
     execPath: '/opt/homebrew/bin/node',
@@ -109,7 +110,7 @@ describe('retake doctor (mocked environment)', () => {
     const r = await doctor(macProbes(), { project: 'acme' });
     await rm(prodProfile, { recursive: true });
     expect(r.code, r.err).toBe(EXIT.ok);
-    for (const name of ['Node.js', 'Chromium', 'GPU', 'ffmpeg', 'ffprobe', 'Capture encoder', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
+    for (const name of ['Node.js', 'Chromium', 'Chromium sandbox', 'GPU', 'ffmpeg', 'ffprobe', 'Capture encoder', 'Display', 'Secrets', 'Notifications', 'Docker', 'Workspace', 'Template default', 'Project acme']) {
       expect(r.err).toMatch(new RegExp(`OK +${name.replace('.', '\\.')} `));
     }
     expect(r.err).toContain('141.0.7390.37');
@@ -146,6 +147,25 @@ describe('retake doctor (mocked environment)', () => {
     expect(down.checks.some((c) => c.name === 'GPU')).toBe(false);
     const linux = await checks(macProbes({ platform: 'linux', which: () => null }));
     expect(byName(linux.checks, 'Capture encoder')).toMatchObject({ status: 'ok', detail: 'libx264 (preset veryfast) during the take' });
+  });
+
+  it("the capture browser's sandbox, read from its own command line: on, off through a wrapper executable, not reported", async () => {
+    const at = (over: Partial<ChromiumProbe>) => async (): Promise<ChromiumProbe> => ({ path: '/c/Chromium', source: 'playwright', exists: true, launched: true, version: '141', ms: 500, gpu: { accelerated: true }, ...over });
+    const on = await checks(macProbes({ chromium: at({ sandbox: { on: true, off: [] } }) }));
+    expect(byName(on.checks, 'Chromium sandbox')).toMatchObject({ status: 'ok', detail: "on · read from the capture browser's command line" });
+    const wrapped = await checks(macProbes({ chromium: at({ source: 'RETAKE_CHROMIUM', sandbox: { on: false, off: ['--no-sandbox'] } }) }));
+    expect(wrapped.code).toBe(EXIT.failure);
+    expect(byName(wrapped.checks, 'Chromium sandbox')).toMatchObject({
+      status: 'fail',
+      detail: 'off: the capture browser runs with --no-sandbox',
+      hint: expect.stringContaining('the executable of $RETAKE_CHROMIUM adds them itself'),
+    });
+    const silent = await checks(macProbes({ chromium: at({}) }));
+    expect(byName(silent.checks, 'Chromium sandbox')).toMatchObject({ status: 'warn', detail: 'the capture browser did not report its command line' });
+    // No line for a browser that did not launch; a sandbox that cannot start on Linux says what it needs.
+    const linux = await checks(macProbes({ chromium: at({ launched: false, error: 'Chromium sandboxing failed! No usable sandbox!' }) }));
+    expect(linux.checks.some((c) => c.name === 'Chromium sandbox')).toBe(false);
+    expect(byName(linux.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('unprivileged user namespaces') });
   });
 
   it('Linux without display, secret-tool or notify-send: warnings with hints, still exit 0', async () => {
@@ -280,7 +300,7 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
     manifest: {} as BundleInfo['manifest'],
     paths: { node: '/R/node/bin/node', engine: '/R/engine', browsers: '/R/browsers', ffmpeg: '/R/ffmpeg/bin', templates: '/R/engine/templates', plugin: '/R/plugin' },
   };
-  const appChromium = async (): Promise<ChromiumProbe> => ({ path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium', source: 'bundled', exists: true, launched: true, version: '141.0.7390.37', ms: 500, gpu: { accelerated: true } });
+  const appChromium = async (): Promise<ChromiumProbe> => ({ path: '/R/browsers/chromium-1194/chrome-mac/Chromium.app/Contents/MacOS/Chromium', source: 'bundled', exists: true, launched: true, version: '141.0.7390.37', ms: 500, gpu: { accelerated: true }, sandbox: { on: true, off: [] } });
   const answers = (bins: Record<string, string>) => async (cmd: string, args: string[]): Promise<ExecResult | null> => {
     const tool = Object.entries(bins).find(([, path]) => path === cmd)?.[0];
     if (!tool) return dockerAnswers(cmd, args);

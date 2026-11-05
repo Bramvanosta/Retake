@@ -9,6 +9,7 @@ import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
+import { launchOptions } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
@@ -879,11 +880,11 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       locale: b.locale,
       timezoneId: b.timezone,
       colorScheme: b.color_scheme,
-      args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
       acceptDownloads: true,
       handleSIGINT: false,
       handleSIGTERM: false,
       handleSIGHUP: false,
+      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])] }),
     });
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);

@@ -31,6 +31,10 @@ decoder.
 
 `retake doctor` checks all of this in one go (see [Command line](cli.md#command-line)).
 
+Every browser Retake launches runs with Chromium's OS sandbox on (`retake doctor`: **Chromium sandbox**). On Linux
+that sandbox needs unprivileged user namespaces (on by default on most distributions; Ubuntu 23.10+ restricts them
+through AppArmor): where they are off, Chromium does not start and `retake doctor` says so.
+
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide (an Apple M4 captures ≈ 60
 frames/s while the cursor moves, blurred dialogs included); `retake doctor` checks it (Chromium's own GPU report: the
 capture browser's new headless mode uses the GPU, `browser.channel: headless-shell` does not). Without a GPU the

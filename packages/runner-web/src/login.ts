@@ -30,6 +30,7 @@ import { projectBrowser } from './config.js';
 import { RunnerError, errorMessage, isCancelled } from './errors.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { kitConfigFor } from './kit/source.js';
+import { launchOptions } from './launch.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
@@ -334,10 +335,10 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     viewport: null,
     locale: b.locale,
     timezoneId: b.timezone,
-    args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(b.args ?? [])],
     // Ctrl-C is the caller's (the CLI aborts `signal`, which closes the window): Playwright would quit the process.
     handleSIGINT: false,
     handleSIGTERM: false,
+    ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(b.args ?? [])] }),
   });
   recordProfileBrowser(userDataDir, major);
   const pid = (await profileLock(userDataDir)).pid;

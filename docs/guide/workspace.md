@@ -27,6 +27,13 @@ browser: {locale: en-GB, timezone: Europe/Stockholm}   # defaults for every proj
 render: {gl: auto, encoder: auto}                     # how this machine renders (below); every key optional
 ```
 
+`browser.args` (here or in project.yaml) adds Chromium switches to every browser a run launches. Chromium always
+runs with its OS sandbox and site isolation on: a switch that turns either off — `--no-sandbox`,
+`--disable-setuid-sandbox`, `--disable-gpu-sandbox`, `--disable-namespace-sandbox`, `--disable-seccomp-filter-sandbox`,
+`--no-zygote`, `--no-zygote-sandbox`, `--single-process`, `--in-process-gpu`, `--disable-site-isolation-trials`, or
+`--disable-features=` naming `IsolateOrigins` or `SitePerProcess` — is a validation error at its line, however it is
+spelled (`-name`, any case, a value after `=`).
+
 ### Render settings
 
 `render:` says how this machine renders (a GPU is a property of the machine, not of the product: it is not in

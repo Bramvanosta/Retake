@@ -99,7 +99,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
   or checked now with `--check`) — see [Signing in](environments.md#signing-in-personas-and-sessions).
 - **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
-  version and a real new-headless launch), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
+  version and a real new-headless launch), its sandbox (**Chromium sandbox**: read from the launched browser's own
+  command line — a failure when it holds a switch that turns the sandbox or site isolation off, which only an
+  executable that adds switches itself can do), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
   browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
   with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
@@ -159,6 +161,7 @@ $ retake doctor --project northfield-fixture        # Linux container without a 
 retake doctor
   OK    Node.js                     22.22.0
   OK    Chromium                    141.0.7390.37 · /opt/pw-browsers/chromium-1194/chrome-linux/chrome · new headless launch 293 ms
+  OK    Chromium sandbox            on · read from the capture browser's command line
   WARN  GPU                         the capture browser renders in software · ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device …)) · in software: gpu_compositing, rasterization, …
                                     → captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)
   OK    ffmpeg                      6.1.1-3ubuntu5 · /usr/bin/ffmpeg
