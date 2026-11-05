@@ -4,7 +4,7 @@
  * fake stage), `retake init`, the plugin marketplace and the preview writes of an app bundle.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
@@ -282,6 +282,7 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     expect(Object.keys(pkg.pnpm.patchedDependencies)).toEqual([`@remotion/renderer@${editor.dependencies['@remotion/renderer']}`]);
     expect(rendererPatchProblems(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer'))).toEqual([]);
     const engine = join(tmp, `engine-${Date.now()}`);
+    const workspaceManifests = readdirSync(join(REPO, 'packages')).map((p) => join(REPO, 'packages', p, 'package.json')).filter((f) => existsSync(f)).map((f) => [f, readFileSync(f, 'utf8')] as const);
     const r = spawnSync('pnpm', ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', `--config.store-dir=${storeDir}`, '--filter', '@retake/cli', '--prod', '--offline', 'deploy', engine], { cwd: REPO, encoding: 'utf8', env: buildEnv({ ...process.env, ...PNPM_ENV }) });
     try {
       expect(r.status, r.stderr || r.stdout).toBe(0);
@@ -291,6 +292,8 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
       const manifest = readFileSync(join(engine, 'package.json'), 'utf8');
       expect(JSON.parse(manifest).pnpm).toBeUndefined();
       expect(manifest).not.toContain(REPO);
+      // The deploy's injected workspace packages are hard links to the checkout's files: the scrub never writes through them.
+      for (const [file, text] of workspaceManifests) expect(readFileSync(file, 'utf8'), file).toBe(text);
     } finally {
       rmSync(engine, { recursive: true, force: true });
     }

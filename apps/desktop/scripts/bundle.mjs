@@ -530,7 +530,10 @@ export function scrubDeployedEngine(engine) {
         }
       }
     }
-    if (changed) writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
+    if (!changed) continue;
+    // A new file renamed over the old one: never written through a hard link to the workspace or the store.
+    writeFileSync(`${pkgFile}.retake-new`, `${JSON.stringify(pkg, null, 2)}\n`);
+    renameSync(`${pkgFile}.retake-new`, pkgFile);
   }
 }
 
