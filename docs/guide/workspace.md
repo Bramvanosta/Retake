@@ -184,7 +184,9 @@ failed, cancelled and interrupted takes, dry runs, older captures nothing uses, 
 scenario and variant (`--keep-renders N`), failed renders, the reviews of renders that go — with how much deleting it
 frees; `--yes` deletes it. Always kept: the last good take of each scenario, every take a kept render or a comment
 thread uses, every render a thread was made or resolved on, whatever a queued or running job names; `exports/` is
-never touched. Claude has the same as the MCP tool `project_prune` (a dry run unless `dry_run: false`).
+never touched. Claude has the same as the MCP tool `project_prune`: a dry run unless `dry_run: false`, and then it
+asks you first in an approval form (how many items, how much, the first 20) and deletes only what you approved that can
+still go at that moment — nothing when you decline or the client cannot ask ([MCP: Safety](mcp.md)).
 
 Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click in `data.clicks`:
 `{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,

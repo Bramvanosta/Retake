@@ -100,7 +100,7 @@ for what the server refuses.
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists, `dry_run: false` deletes (annotated destructive) — only when the user asked to free space | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes only what they approved (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -353,6 +353,16 @@ hooks: submit it again —, a sandbox that would not start…).
     code, whatever the sandbox is). Its http and
     sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
     a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
+- **Deleting takes and renders needs a human.** `project_prune {dry_run: false}` first lists what would go, then asks
+  the user through the same approval form: how many items of which project, how much they free, the count and size of
+  each kind (takes, renders, reviews), the first 20 items (kind, name, why it goes, its size — every hidden character
+  written out) and how many more, and the terminal command `retake prune <project> --yes` instead. When the user
+  approves, it deletes only the items of that list that can still go at that moment: one a job, a comment thread or a
+  kept render has started to use while the question was open stays (the result lists it under `skipped`), and so does
+  one that became prunable meanwhile (`not_asked`). Declined, dismissed, not answered in time or a failed question:
+  `refused`; a client that cannot show the form: `needs_approval` with the command — nothing is deleted either way, and
+  a list too long to read in a form (over 16,000 characters) is refused before anyone is asked. A dry run (the default)
+  asks nobody. From a terminal, `retake prune <project> --yes` deletes without a form, as before.
 - **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any
   file is read: every file the capture's timeline names — card and overlay images, `data:` CSV / TSV slots, your own
   video / image / Lottie files, the music bed (the scenario's or `overrides.music`) — is a file of the project folder

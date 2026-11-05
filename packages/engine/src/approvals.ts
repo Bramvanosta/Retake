@@ -13,6 +13,8 @@ import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Sce
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
+import { formatBytes } from './prune.js';
+import type { PruneItem, PruneResult } from './prune.js';
 
 /**
  * The wording channel of a client's refusals (L4.2, critique B2): the Studio (`ui`) is told "from the Studio" and to
@@ -107,11 +109,36 @@ export interface SiteApprovalRequest {
   fix: string;
 }
 
+/** The lines of a prune form: the first items, one line each; the rest are counted in the totals. */
+export const PRUNE_FORM_MAX_LINES = 20;
+
+/**
+ * What a human is asked before an agent's prune deletes anything: how many items, how much they weigh, by kind, the
+ * first PRUNE_FORM_MAX_LINES items (`lines`) and how many more there are, and the `retake prune` command a human runs
+ * instead.
+ */
+export interface PruneApprovalRequest {
+  what: 'prune';
+  project: string;
+  keep_renders: number;
+  count: number;
+  bytes: number;
+  by_kind: Array<{ kind: PruneItem['kind']; count: number; bytes: number }>;
+  /** "take 20261020-110000-quote — failed take, 12 MB": every character visible. */
+  lines: string[];
+  /** Items the lines leave out (in the totals). */
+  more: number;
+  /** The `retake prune … --yes` command a human runs for the same deletion. */
+  fix: string;
+}
+
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
 export interface Approver {
   approve(req: ApprovalRequest): Promise<ApprovalOutcome>;
   /** A site extraction's URL (absent: this client cannot ask about one — refused like no approver). */
   approveSite?(req: SiteApprovalRequest): Promise<ApprovalOutcome>;
+  /** An agent's prune (absent: this client cannot ask about one — refused like no approver). */
+  approvePrune?(req: PruneApprovalRequest): Promise<ApprovalOutcome>;
 }
 
 export interface Preflight {
@@ -331,4 +358,62 @@ export async function takeSiteApproval(req: SiteApprovalRequest, approver: Appro
 export function approvalChecker(approvals: readonly JobApproval[] | undefined): (description: string, reason: string, request: { fingerprint: string }) => boolean {
   const approved = new Set((approvals ?? []).map((a) => a.fingerprint));
   return (_description, _reason, request) => approved.has(request.fingerprint);
+}
+
+const PRUNE_KIND_WORDS: Record<PruneItem['kind'], [string, string]> = { run: ['take', 'takes'], render: ['render', 'renders'], review: ['review', 'reviews'] };
+
+/** A name as a person reads it in a form: every hidden character written out, a line break too. */
+function visibleName(s: string): string {
+  return showHiddenChars(s).replace(/\n/g, '\\n');
+}
+
+/** The question of an agent's prune, from the dry run it would delete (`listed`) and the command a human runs. */
+export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApprovalRequest {
+  const by_kind = (['run', 'render', 'review'] as const)
+    .map((kind) => {
+      const of = listed.items.filter((i) => i.kind === kind);
+      return { kind, count: of.length, bytes: of.reduce((n, i) => n + i.bytes, 0) };
+    })
+    .filter((k) => k.count > 0);
+  const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
+  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix };
+}
+
+/** "3 takes (40 MB), 2 renders (12 MB)". */
+export function pruneKindsText(req: Pick<PruneApprovalRequest, 'by_kind'>): string {
+  return req.by_kind.map((k) => `${k.count} ${PRUNE_KIND_WORDS[k.kind][k.count === 1 ? 0 : 1]} (${formatBytes(k.bytes)})`).join(', ');
+}
+
+/**
+ * Ask the client's human to approve an agent's prune. Returns when they approved; throws `needs_approval` when the
+ * client cannot ask anyone, `refused` when the human declined, did not answer in time or the question failed (or the
+ * form would be too long to read) — each with the `retake prune … --yes` command a human runs in a terminal instead.
+ * Nothing is deleted before it returns.
+ */
+export async function takePruneApproval(req: PruneApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<void> {
+  const what = `deleting ${req.count} item${req.count === 1 ? '' : 's'} of ${req.project} (${formatBytes(req.bytes)}: ${pruneKindsText(req)})`;
+  const details = { count: req.count, bytes: req.bytes, by_kind: req.by_kind };
+  const size = req.lines.reduce((n, l) => n + l.length + 1, req.fix.length);
+  if (size > APPROVAL_FORM_MAX_CHARS) {
+    throw new EngineError('refused', `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+  }
+  if (!approver?.approvePrune) {
+    throw new EngineError(
+      'needs_approval',
+      `${what} needs the user's approval, and ${agentChannel(client) === 'studio' ? 'the Studio cannot approve it yet: run it in a terminal' : 'this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal'}. Nothing was deleted`,
+      { fix: req.fix, details },
+    );
+  }
+  let outcome: ApprovalOutcome;
+  try {
+    outcome = await approver.approvePrune(req);
+  } catch (e) {
+    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+  }
+  if (!outcome.approved) {
+    throw new EngineError('refused', `nothing was deleted: ${outcomeText(outcome)} — ${what}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
+      fix: req.fix,
+      details: { ...details, outcome: outcome.reason },
+    });
+  }
 }

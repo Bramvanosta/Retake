@@ -1,12 +1,12 @@
 /**
  * Human approval of hooks through MCP elicitation (L3.1, R-MCP-35). The engine's preflight lists the hooks of the work
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
- * user once, in form mode, with an explicit timeout. Only `accept` with `approve: true` approves. A decline, a dismissed
+ * user once, in form mode, with an explicit timeout — and so are a site extraction's URL and an agent's prune. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import { approvalItemTitle } from '@retake/engine';
-import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@retake/engine';
+import { approvalItemTitle, formatBytes, pruneKindsText } from '@retake/engine';
+import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 
@@ -80,6 +80,36 @@ export function siteApprovalForm(req: SiteApprovalRequest): ElicitForm {
   };
 }
 
+/**
+ * The question of an agent's prune: how many items of which project, how much they free, by kind, the first items
+ * (PRUNE_FORM_MAX_LINES, every character visible) and how many more, and the terminal command.
+ */
+export function pruneApprovalMessage(req: PruneApprovalRequest): string {
+  const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
+  return [
+    `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
+    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
+    req.more ? `The first ${req.lines.length}:` : `${req.count === 1 ? 'It' : 'They'}:`,
+    ...req.lines.map((l) => `- ${l}`),
+    ...(req.more ? [`… and ${req.more} more (in the totals above).`] : []),
+    `Approve to delete ${req.count === 1 ? 'it' : 'them'} now: only ${req.count === 1 ? 'this item' : `these ${items}`}, and only if nothing uses ${req.count === 1 ? 'it' : 'them'} by then. Decline to refuse: nothing is deleted.`,
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+export function pruneApprovalForm(req: PruneApprovalRequest): ElicitForm {
+  return {
+    message: pruneApprovalMessage(req),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: { type: 'boolean', title: `Delete ${req.count === 1 ? 'this item' : `these ${req.count} items`}`, description: 'Check to delete what is listed above, once.', default: false },
+      },
+      required: ['approve'],
+    },
+  };
+}
+
 async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm, timeoutMs: number): Promise<ApprovalOutcome> {
   try {
     const answer = await elicit(form, { timeoutMs });
@@ -97,5 +127,6 @@ export function elicitationApprover(elicit: CallContext['elicit'], timeoutMs = a
   return {
     approve: (req: ApprovalRequest) => ask(elicit, approvalForm(req), timeoutMs),
     approveSite: (req: SiteApprovalRequest) => ask(elicit, siteApprovalForm(req), timeoutMs),
+    approvePrune: (req: PruneApprovalRequest) => ask(elicit, pruneApprovalForm(req), timeoutMs),
   };
 }

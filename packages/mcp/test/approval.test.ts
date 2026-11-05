@@ -5,10 +5,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadProject, parseSiteUrl, siteApprovalFingerprint } from '@retake/core';
 import type { HookStep } from '@retake/core';
-import { preflightHooks } from '@retake/engine';
+import { PRUNE_FORM_MAX_LINES, preflightHooks, pruneApprovalRequest } from '@retake/engine';
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js';
-import type { ApprovalRequest, SiteApprovalRequest } from '@retake/engine';
-import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, siteApprovalMessage } from '../src/index.js';
+import type { ApprovalRequest, PruneItem, PruneResult, SiteApprovalRequest } from '@retake/engine';
+import { APPROVAL_TIMEOUT_MS, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalMessage } from '../src/index.js';
 import type { ElicitAnswer } from '../src/server.js';
 
 const REQ: ApprovalRequest = {
@@ -165,5 +165,51 @@ describe('the site approval (L3.5)', () => {
     expect(await outcome({ action: 'decline' })).toEqual({ approved: false, reason: 'declined' });
     expect(await outcome({ action: 'cancel' })).toEqual({ approved: false, reason: 'cancelled' });
     expect((await outcome(new Error('boom'))).approved).toBe(false);
+  });
+});
+
+describe('the prune approval (an agent\'s project_prune {dry_run: false})', () => {
+  const item = (kind: PruneItem['kind'], id: string, bytes: number, reason = 'failed take'): PruneItem => ({ kind, id, reason, bytes, paths: [] });
+  const listed = (items: PruneItem[]): PruneResult => ({ project: 'p', dry_run: true, keep_renders: 3, items, bytes: items.reduce((n, i) => n + i.bytes, 0), kept: { runs: 1, renders: 0, reviews: 0 }, problems: [] });
+
+  it('shows the count, the size, the size of each kind, each item and the terminal command', () => {
+    const req = pruneApprovalRequest(
+      listed([item('run', '20261020-100000-quote', 40_000_000), item('run', '20261020-110000-quote', 2_000_000, 'dry run'), item('render', 'quote-v1', 12_000_000, 'older render'), item('review', 'orphan\u202e1', 3000, 'review of a deleted render')]),
+      'retake -C /ws prune p --yes',
+    );
+    const msg = pruneApprovalMessage(req);
+    expect(msg).toContain('the agent asks to delete 4 items from project p\'s runs/, renders/ and review/, freeing 54 MB: 2 takes (42 MB), 1 render (12 MB), 1 review (3 kB).');
+    expect(msg).toContain('\n- take 20261020-100000-quote — failed take, 40 MB\n- take 20261020-110000-quote — dry run, 2 MB\n- render quote-v1 — older render, 12 MB\n- review orphan\\u{202e}1 — review of a deleted render, 3 kB\n');
+    expect(msg).not.toContain('\u202e');
+    expect(msg).toContain('the last 3 renders of each scenario and variant');
+    expect(msg).toContain('Decline to refuse: nothing is deleted.');
+    expect(msg).toMatch(/Instead, you can run it yourself in a terminal: retake -C \/ws prune p --yes$/);
+    expect(pruneApprovalForm(req).requestedSchema).toEqual({ type: 'object', properties: { approve: { type: 'boolean', title: 'Delete these 4 items', description: expect.any(String), default: false } }, required: ['approve'] });
+  });
+
+  it('a long list: the first 20 lines, then how many more, the totals covering all', () => {
+    const many = Array.from({ length: 27 }, (_, i) => item('run', `20261020-1${String(i).padStart(5, '0')}-quote`, 1_000_000));
+    const req = pruneApprovalRequest(listed(many), 'retake prune p --yes');
+    const msg = pruneApprovalMessage(req);
+    expect(msg.split('\n').filter((l) => l.startsWith('- take '))).toHaveLength(PRUNE_FORM_MAX_LINES);
+    expect(msg).toContain('The first 20:');
+    expect(msg).toContain('… and 7 more (in the totals above).');
+    expect(msg).toContain('delete 27 items from project p\'s runs/, renders/ and review/, freeing 27 MB: 27 takes (27 MB).');
+    expect(msg).not.toContain('20261020-100020-quote');
+  });
+
+  it('only accept with approve: true approves a prune; a client without elicitation cannot be asked', async () => {
+    const req = pruneApprovalRequest(listed([item('run', '20261020-100000-quote', 1000)]), 'retake prune p --yes');
+    expect(elicitationApprover(undefined)).toBeUndefined();
+    let seen: { message: string; timeoutMs: number } | undefined;
+    await elicitationApprover(async (form, o) => ((seen = { message: form.message, timeoutMs: o.timeoutMs }), { action: 'decline' }))!.approvePrune!(req);
+    expect(seen?.message).toBe(pruneApprovalMessage(req));
+    expect(seen?.timeoutMs).toBe(APPROVAL_TIMEOUT_MS);
+    const outcome = (a: ElicitAnswer | Error) => elicitationApprover(answering(a), 1000)!.approvePrune!(req);
+    expect(await outcome({ action: 'accept', content: { approve: true } })).toEqual({ approved: true });
+    expect(await outcome({ action: 'accept', content: { approve: false } })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'decline' })).toEqual({ approved: false, reason: 'declined' });
+    expect(await outcome({ action: 'cancel' })).toEqual({ approved: false, reason: 'cancelled' });
+    expect(await outcome(new McpError(ErrorCode.RequestTimeout, 'Request timed out'))).toEqual({ approved: false, reason: 'timeout' });
   });
 });

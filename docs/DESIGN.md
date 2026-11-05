@@ -1667,6 +1667,7 @@ selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(projec
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
 preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
 takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
+pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
 ```
 
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
@@ -1967,6 +1968,18 @@ workers/worker.log      what workers print (stderr), appended
   (required, default false). Only `accept` with `approve: true` approves. The timeout is explicit — 10 min
   (`RETAKE_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
   (`isTimeoutError`) or any failure refuses. A client without form elicitation gets no approver: `needs_approval`.
+- **Prune approval** (`approvals.ts`, `engine.projects.prune(slug, req, {approver})`). Under agent trust (every client
+  but the CLI and tests) a prune with `dry_run: false` lists first (`pruneProject`, dry, with the jobs queued or
+  running then), builds `PruneApprovalRequest {what: 'prune', project, keep_renders, count, bytes, by_kind [{kind,
+  count, bytes}], lines (the first PRUNE_FORM_MAX_LINES = 20 items: kind word, id with every hidden character written
+  out, reason, size), more, fix: 'retake -C <ws> prune <p> [--keep-renders N] --yes'}` and calls
+  `takePruneApproval`: a form whose lines and fix exceed APPROVAL_FORM_MAX_CHARS → `refused` before anyone is asked; no
+  `Approver.approvePrune` → `needs_approval`; declined / cancelled / timeout / error → `refused`; nothing is deleted
+  before an accept. Accepted: a second `pruneProject` pass (the jobs read again) with `only` = the listed items'
+  `pruneKey` (`<kind>:<id>`) deletes those still prunable then; `skipped` names the approved ones that are not
+  (something uses them now, or they are gone), `not_asked` counts the prunable ones the person did not see — both
+  kept. mcp `pruneApprovalMessage` / `pruneApprovalForm` (schema `{approve: boolean}`, default false) put it to the
+  person; `project_prune` passes the call's approver. The CLI's `retake prune --yes` deletes in one pass, unasked.
 
 ## 4c. Engine HTTP server and Studio app (L4.1)
 

@@ -97,14 +97,14 @@ import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
 import type { UsageCounts } from './history.js';
-import { agentChannel } from './approvals.js';
+import { agentChannel, pruneApprovalRequest, takePruneApproval } from './approvals.js';
 import type { Approver } from './approvals.js';
 import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker, otherCopyWarning } from './jobs/spawn.js';
 import { cleanWorkerEnv } from './jobs/worker-env.js';
 import type { WorkerSpawnFn } from './jobs/spawn.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
-import { pruneProject } from './prune.js';
+import { DEFAULT_KEEP_RENDERS, pruneKey, pruneProject } from './prune.js';
 import type { PruneRequest, PruneResult } from './prune.js';
 import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 
@@ -237,8 +237,11 @@ export interface Engine {
     /**
      * Delete failed takes, dry runs, older captures and renders nothing uses (L5.7, R-FLD-28; prune.ts): `dry_run`
      * (default true) only reports what would go and how much it frees. Whatever a queued or running job names is kept.
+     * Under agent trust (every client but the CLI and tests), `dry_run: false` first lists what would go and asks the
+     * person through `approver` (approvals.ts `takePruneApproval`: no approver → `needs_approval`, declined →
+     * `refused`, nothing deleted), then deletes only the items they saw that can still go at that moment.
      */
-    prune(project: string, req?: Omit<PruneRequest, 'busy'>): Promise<PruneResult>;
+    prune(project: string, req?: Pick<PruneRequest, 'keep_renders' | 'dry_run'>, o?: { approver?: Approver }): Promise<PruneResult>;
     /**
      * The Studio's Project screen in one read (L5.10a, project-board.ts): every scenario's file facts, running / last
      * take, capture (current or not), dry run, newest render and its review, render job, length and poster — one pass
@@ -778,12 +781,22 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       get: async (slug) => projectView(await project(slug)),
       create: async (input) => projectView(await createProjectFromRequest(ws, input)),
       updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch),
-      prune: async (slug, req = {}) => {
+      prune: async (slug, req = {}, o = {}) => {
         const p = await project(slug);
-        // What a queued or running job names (its run, its render) stays.
-        const active = await queue.list({ states: ['queued', 'running'] });
-        const named = active.map((j) => JSON.stringify(j.input)).join('\n');
-        return pruneProject(p, { ...req, busy: (id) => named.includes(`"${id}"`) });
+        // What a queued or running job names (its run, its render) stays: read again right before each pass.
+        const busy = async (): Promise<(id: string) => boolean> => {
+          const active = await queue.list({ states: ['queued', 'running'] });
+          const named = active.map((j) => JSON.stringify(j.input)).join('\n');
+          return (id) => named.includes(`"${id}"`);
+        };
+        const base = { ...(req.keep_renders !== undefined ? { keep_renders: req.keep_renders } : {}) };
+        if (req.dry_run !== false || !agentTrust(opts.client)) return pruneProject(p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
+        // An agent's deletion: the person sees what would go, and only what they saw (still prunable then) goes.
+        const listed = await pruneProject(p, { ...base, dry_run: true, busy: await busy() });
+        if (!listed.items.length) return { ...listed, dry_run: false, skipped: [], not_asked: 0 };
+        const keep = listed.keep_renders !== DEFAULT_KEEP_RENDERS ? ` --keep-renders ${listed.keep_renders}` : '';
+        await takePruneApproval(pruneApprovalRequest(listed, `${studio} prune ${p.slug}${keep} --yes`), o.approver, opts.client);
+        return pruneProject(p, { ...base, dry_run: false, busy: await busy(), only: new Set(listed.items.map(pruneKey)) });
       },
       board: (slug) => boards.board(slug),
     },
