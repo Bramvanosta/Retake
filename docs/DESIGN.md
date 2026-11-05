@@ -5784,8 +5784,11 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   printed; built at every run), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
   `/usr/bin/tar` (links kept, no extended attribute) with `tauri-cli/` and the report, its sha256 a job output,
   uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, setup-node,
-  the Node.js check, the signing material, the artifact checked against the build job's sha256 then unpacked, then
-  `node apps/desktop/scripts/release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
+  the Node.js check, the signing material, the artifact checked against the build job's sha256, then
+  `node apps/desktop/scripts/release.mjs unpack` (`unpackBuild`: the archive's members listed first — only `app`,
+  `app/Retake.app/…`, `tauri-cli/…` and `bundle-report.json`; any other name, `..`, an absolute name or a missing
+  part refuses it before anything is written —, those three extracted, then checked: exactly them in the folder, real
+  folders and a file, no link; a refusal leaves nothing behind) and `release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
   outputs (DMG, archive, .sig, SHA256SUMS-macos.txt) uploaded as an artifact; the temporary keychain and key files
   removed in a last `always()` step. `attach` (ubuntu, contents: write): the files checked against the sign job's sum,
   then **refused unless the release is still a draft** (review e A-M4 / B-M2: a public release's files are never
@@ -5803,11 +5806,16 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   as a zip and staples it; then the update archive of the stapled app (an app built with the updater: launch.json
   `updates: on`), signed by the Tauri CLI the build job laid out — **re-checked file by file against tauri-cli.json's
   sha512 pins before it runs** (`checkTauriCliDir`: exactly the pinned files, no link, no other file or package; chosen
-  over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and verified
+  over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and **run from a
+  fresh copy** (bundle.mjs `freshTauriCli`: the handed folder no link, each pinned file read once without following a
+  link, those bytes checked and written into a new temporary folder, removed after: nothing beside the handed folder
+  is on the CLI's module lookup path) — the signature then verified
   against RETAKE_UPDATE_PUBKEY; then the DMG (hdiutil create / attach / detach tried again on "Resource busy" only —
   3 tries, 2 s then 4 s; review e B-M4), signed, notarised, stapled, then the team, Gatekeeper and both tickets checked.
   Without `--release`: the ad hoc app checked as it is, an ad hoc DMG, said. `--app-version`: Info.plist's
-  CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7).
+  CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7);
+  bundle.json's `app`, which names the DMG, must be a version and, with `--app-version` or a DMG to make, Info.plist's —
+  all before anything is signed.
   `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
   the same `finishApp` in the same process.
 - **What is configured: two sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).

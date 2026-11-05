@@ -13,8 +13,9 @@
 #    `pnpm desktop:bundle` does (`--app-only`); packed (a tar that keeps the links) with its sha256 as an artifact.
 #  - sign (a FRESH macOS runner, `environment: release`, contents: read): runs no dependency code — no pnpm install, no
 #    package script, no Homebrew, no cargo: the artifact checked against the build job's sha256, then our own scripts
-#    only (apps/desktop/scripts/release.mjs sign): the Developer ID signature, notarisation and stapling, the update
-#    archive signed by the sha512-pinned Tauri CLI, the DMG; the outputs as an artifact.
+#    only (apps/desktop/scripts/release.mjs unpack, then sign): the app, the Tauri CLI and the report unpacked (nothing
+#    else), the Developer ID signature, notarisation and stapling, the update archive signed by the sha512-pinned Tauri
+#    CLI (run from a fresh copy), the DMG; the outputs as an artifact.
 #  - attach (ubuntu, contents: write): refuses unless the release is still a draft (public files are never replaced),
 #    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
 #  - publish (ubuntu, `environment: release`, contents: write, one at a time across tags): the release made public, then
@@ -410,7 +411,9 @@ jobs:
           name: retake-app-adhoc
           path: ${{ runner.temp }}/artifact
       - name: The build job's app
-        # The very file the build job packed (its sha256), unpacked by the system's tar (no path out of the folder).
+        # The very file the build job packed (its sha256), then only its three parts unpacked — app/Retake.app,
+        # tauri-cli/, bundle-report.json, real folders and a file — by our script (release.mjs unpack: an archive with
+        # any other member is refused before anything is written).
         env:
           SHA256: ${{ needs.build.outputs.sha256 }}
         run: |
@@ -423,11 +426,11 @@ jobs:
           echo "$SHA256  $A" | shasum -a 256 -c
           D="$RUNNER_TEMP/adhoc"
           rm -rf "$D"
-          mkdir -p "$D"
-          /usr/bin/tar -xzf "$A" -C "$D"
+          node apps/desktop/scripts/release.mjs unpack "$A" --into "$D"
       - name: Sign, notarise, the update archive and the DMG
         # Our scripts only (their imports: Node.js built-ins and files of this repository). The Tauri CLI that signs the
-        # update archive is checked file by file against its pinned sha512 before it runs.
+        # update archive runs from a fresh temporary copy of its bytes, each file checked against its pinned sha512; the
+        # app's version (Info.plist, bundle.json) must be the tag's before anything is signed.
         env:
           SIGNED: ${{ needs.release.outputs.signed }}
           UPDATES: ${{ needs.release.outputs.updates }}

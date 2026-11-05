@@ -292,7 +292,7 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     expect(sign.steps.filter((s) => s.uses).map((s) => s.uses!.split('@')[0]).sort()).toEqual(['actions/checkout', 'actions/download-artifact', 'actions/setup-node', 'actions/upload-artifact']);
     const script = sign.steps.map((s) => s.run ?? '').join('\n');
     expect([...script.matchAll(/\bbash (\S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/ci-keychain.sh', 'apps/desktop/scripts/ci-keychain.sh']);
-    expect([...script.matchAll(/\bnode (\S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/release.mjs', 'apps/desktop/scripts/release.mjs']);
+    expect([...script.matchAll(/\bnode (\S+ \S+)/g)].map((m) => m[1])).toEqual(['apps/desktop/scripts/release.mjs unpack', 'apps/desktop/scripts/release.mjs sign', 'apps/desktop/scripts/release.mjs sign']);
     // Nothing of the app it was handed runs there: the unpacked folder is only named to release.mjs.
     expect(script).not.toMatch(/adhoc\/[^"\s]*\/(?:MacOS|bin)\//);
   });
@@ -333,24 +333,47 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     expect(step('sign', 'The build job\'s app').env).toEqual({ SHA256: '${{ needs.build.outputs.sha256 }}' });
   });
 
-  it('the sign job\'s check, run: the packed app with its sha256 is unpacked; another sha256 or none fails before anything is unpacked', () => {
+  it('the sign job\'s check, run: the packed app with its sha256 is unpacked — its three parts only (release.mjs unpack); another sha256 or none fails before anything is unpacked, an archive with anything else fails and leaves nothing', () => {
     const s = step('sign', 'The build job\'s app');
+    expect(s.run).toMatch(/echo "\$SHA256 {2}\$A" \| shasum -a 256 -c\n[^]*node apps\/desktop\/scripts\/release\.mjs unpack "\$A" --into "\$D"\n?$/);
+    expect(s.run).not.toMatch(/(?:^|[\s;|&(])(?:\/usr\/bin\/)?tar\s/m);
+    /** The build job's pack (the same tar line) of a folder holding the parts, and `extra` beside them. */
+    const pack = (temp: string, extra: string[] = []) => {
+      const src = dir('packed');
+      mkdirSync(join(src, 'app', 'Retake.app', 'Contents'), { recursive: true });
+      writeFileSync(join(src, 'app', 'Retake.app', 'Contents', 'Info.plist'), '<plist/>');
+      mkdirSync(join(src, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli'), { recursive: true });
+      writeFileSync(join(src, 'tauri-cli', 'node_modules', '@tauri-apps', 'cli', 'tauri.js'), '');
+      writeFileSync(join(src, 'bundle-report.json'), '{}');
+      for (const e of extra) {
+        mkdirSync(dirname(join(src, e)), { recursive: true });
+        writeFileSync(join(src, e), 'planted');
+      }
+      mkdirSync(join(temp, 'artifact'), { recursive: true });
+      const tar = join(temp, 'artifact', 'retake-app.tar.gz');
+      const tops = [...new Set(['app', 'tauri-cli', 'bundle-report.json', ...extra.map((e) => e.split('/')[0]!)])];
+      expect(spawnSync('/usr/bin/tar', ['--no-mac-metadata', '--no-xattrs', '-czf', tar, '-C', src, ...tops]).status).toBe(0);
+      return createHash('sha256').update(readFileSync(tar)).digest('hex');
+    };
     const temp = dir('sign-temp');
-    const src = dir('packed');
-    mkdirSync(join(src, 'app', 'Retake.app', 'Contents'), { recursive: true });
-    writeFileSync(join(src, 'app', 'Retake.app', 'Contents', 'Info.plist'), '<plist/>');
-    mkdirSync(join(temp, 'artifact'));
-    const tar = join(temp, 'artifact', 'retake-app.tar.gz');
-    expect(spawnSync('/usr/bin/tar', ['-czf', tar, '-C', src, 'app']).status).toBe(0);
-    const sha = createHash('sha256').update(readFileSync(tar)).digest('hex');
+    const sha = pack(temp);
     for (const bad of ['0'.repeat(64), '', 'not-a-sum']) {
       const r = runStep(s, { RUNNER_TEMP: temp, SHA256: bad });
       expect(r.status, bad).not.toBe(0);
-      expect(existsSync(join(temp, 'adhoc', 'app')), bad).toBe(false);
+      expect(existsSync(join(temp, 'adhoc')), bad).toBe(false);
     }
     const ok = runStep(s, { RUNNER_TEMP: temp, SHA256: sha });
     expect(ok.status, ok.stderr).toBe(0);
+    expect(readdirSync(join(temp, 'adhoc')).sort()).toEqual(['app', 'bundle-report.json', 'tauri-cli']);
     expect(readFileSync(join(temp, 'adhoc', 'app', 'Retake.app', 'Contents', 'Info.plist'), 'utf8')).toBe('<plist/>');
+    // A node_modules beside the parts (where a module lookup from tauri-cli/ would find it), or anything else: refused.
+    for (const extra of [['node_modules/@tauri-apps/cli-darwin-universal/index.js'], ['app/Other.app/x'], ['notes.txt']]) {
+      const t = dir('sign-temp');
+      const r = runStep(s, { RUNNER_TEMP: t, SHA256: pack(t, extra) });
+      expect(r.status, extra.join()).not.toBe(0);
+      expect(r.stderr, extra.join()).toMatch(/release: \S+ is not the build job's archive: .*not a part of the build/);
+      expect(existsSync(join(t, 'adhoc')), extra.join()).toBe(false);
+    }
   });
 });
 

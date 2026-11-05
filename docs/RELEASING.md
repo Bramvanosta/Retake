@@ -173,11 +173,14 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
      and our ffmpeg from its sha256-checked sources, then lays the app out and signs it ad hoc
      (`pnpm desktop:bundle --app-only`) and hands it over packed, with its sha256.
    - `sign`, on a fresh runner that runs only this repository's scripts (no `pnpm install`, no package script, no
-     Homebrew, no cargo), checks that sha256, imports the certificate into a temporary keychain
-     (`apps/desktop/scripts/ci-keychain.sh`), then `node apps/desktop/scripts/release.mjs sign`: the app re-signed with
-     your Developer ID, notarised and stapled, the update archive `Retake.app.tar.gz` and its `.sig` (signed by the
-     pinned Tauri CLI, checked file by file before it runs), the DMG signed, notarised and stapled, then the team,
-     Gatekeeper and both tickets checked. Without the Apple part: an ad hoc DMG, and the log says so. The keychain and
+     Homebrew, no cargo), imports the certificate into a temporary keychain (`apps/desktop/scripts/ci-keychain.sh`),
+     checks the artifact's sha256 and unpacks only its three parts — `app/Retake.app`, `tauri-cli/` and
+     `bundle-report.json`, real folders and a file (`node apps/desktop/scripts/release.mjs unpack`: an archive with any
+     other member is refused before anything is written) —, then `node apps/desktop/scripts/release.mjs sign`: the
+     app's version (Info.plist and bundle.json) checked against the tag's, the app re-signed with your Developer ID,
+     notarised and stapled, the update archive `Retake.app.tar.gz` and its `.sig` (signed by the pinned Tauri CLI, run
+     from a fresh temporary copy of its bytes, each file checked against its sha512), the DMG signed, notarised and
+     stapled, then the team, Gatekeeper and both tickets checked. Without the Apple part: an ad hoc DMG, and the log says so. The keychain and
      the key files are removed at the end, whatever happened.
    - `attach` refuses unless the release is still a draft, removes any file of an earlier run this build does not
      make, attaches the DMG, the archive and its `.sig`, and `SHA256SUMS-macos.txt`, and completes the notes (notarised
@@ -212,7 +215,7 @@ were recorded from — DESIGN §4p (e) and `apps/desktop/bundle/node.json`'s `ab
 A version with a pre-release part — `node scripts/set-version.mjs 0.3.0-rc.1`, tag `v0.3.0-rc.1` — makes a GitHub
 *pre-release*. Its app reads `rc.json` (offered the next pre-release and the final version), its update goes to
 `rc.json` only, and a stable app (reading `latest.json`) is never offered it. The final `v0.3.0` then goes to both. The
-sign job refuses an app whose version (Info.plist) is not the tag's.
+sign job refuses an app whose version (Info.plist, bundle.json) is not the tag's.
 
 ## What the workflow trusts
 
@@ -228,8 +231,9 @@ sign job refuses an app whose version (Info.plist) is not the tag's.
   the `build` job, which runs the dependencies' code (pnpm's packages and their scripts, cargo's build scripts,
   Homebrew, ffmpeg's build, Playwright's installer), holds no secret, no variable and no environment; the `sign` job,
   which holds the keys, runs on a fresh runner and runs only this repository's scripts (their imports: Node.js and
-  files of this repository — `packages/cli/test/release-workflow.test.ts` walks them) and the Tauri CLI after each of
-  its files matched its pinned sha512. The certificate, the `.p8` and the updater key are written by one step into a
+  files of this repository — `packages/cli/test/release-workflow.test.ts` walks them) and the Tauri CLI, from a fresh
+  temporary copy of bytes that matched its pinned sha512 (nothing beside the folder it was handed is on its module
+  lookup path). Of the build job's archive it unpacks the app, the Tauri CLI and the report only. The certificate, the `.p8` and the updater key are written by one step into a
   temporary keychain (the key non-extractable) and files only the runner's user reads; no password is ever on a command
   line; all of it is removed in a final step that always runs.
 - What the build job builds is what gets signed: the sign job checks the artifact is the one the build job packed, but

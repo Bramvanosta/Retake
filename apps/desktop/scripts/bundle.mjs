@@ -66,8 +66,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MinisignError, decodePublicKey, verifyMinisign } from '../../../scripts/publish-update.mjs';
@@ -875,6 +875,49 @@ export function checkTauriCliDir(dir, pins = TAURI_CLI_PINS) {
   for (const k of want.keys()) if (!seen.has(k)) problems.push(`${k}: missing`);
   if (problems.length) throw new StageError(`${root} is not the Tauri CLI ${pins.version} apps/desktop/bundle/tauri-cli.json pins: ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? ` (+${problems.length - 5})` : ''}`);
   return join(root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
+}
+
+/**
+ * The Tauri CLI the release's sign step runs: a fresh copy of the checked bytes of `dir` (a folder `tauriCli` laid out
+ * — a real folder, no link), in a new temporary folder of its own under `base`. `dir` is checked first
+ * (`checkTauriCliDir`); then each pinned file is read once (its last component never followed as a link), those very
+ * bytes checked against their sha512 and written to the copy, and the copy checked again. Nothing beside or above `dir`
+ * (another `node_modules` next to it) is on the copy's module lookup path. Returns `{ root, cliJs }`: the caller runs
+ * `cliJs` and removes `root`. StageError otherwise (the copy removed).
+ */
+export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir()) {
+  const src = resolve(dir);
+  const st = lstatSync(src, { throwIfNoEntry: false });
+  if (!st?.isDirectory()) throw new StageError(`${src}: not the Tauri CLI's folder (${st?.isSymbolicLink() ? 'a link' : st ? 'not a folder' : 'missing'})`);
+  checkTauriCliDir(src, pins);
+  const root = mkdtempSync(join(base, 'retake-tauri-cli-'));
+  try {
+    for (const [pkg, files] of Object.entries(pins.packages ?? {})) {
+      for (const [file, integrity] of Object.entries(files)) {
+        const rel = ['node_modules', ...pkg.split('/'), ...file.split('/')];
+        if (rel.some((p) => !p || p === '.' || p === '..')) throw new StageError(`apps/desktop/bundle/tauri-cli.json: a file outside its package (${pkg}/${file})`);
+        const fd = openSync(join(src, ...rel), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        let bytes;
+        let mode;
+        try {
+          const f = fstatSync(fd);
+          if (!f.isFile()) throw new StageError(`${src}: ${rel.join('/')} is not a file`);
+          mode = f.mode & 0o755;
+          bytes = readFileSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+        const [algo, b64] = String(integrity).split('-');
+        if (algo !== 'sha512' || createHash('sha512').update(bytes).digest('base64') !== b64) throw new StageError(`${src}: ${rel.join('/')} is not its pinned sha512`);
+        mkdirSync(join(root, ...rel.slice(0, -1)), { recursive: true });
+        writeFileSync(join(root, ...rel), bytes, { mode, flag: 'wx' });
+      }
+    }
+    return { root, cliJs: checkTauriCliDir(root, pins) };
+  } catch (e) {
+    rmSync(root, { recursive: true, force: true });
+    throw e;
+  }
 }
 
 /**

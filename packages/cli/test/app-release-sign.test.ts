@@ -3,15 +3,17 @@
  * or notarisation): apps/desktop/scripts/release.mjs (`finishApp` from an ad hoc app: refusals first, the version the
  * app must carry, the update archive with no stale file, the DMG's folder, the Developer ID re-signature inside-out
  * through recording stand-ins; the `--out` folder; the command line), bundle.mjs's pins (the Node.js binary, the
- * browsers' tree digests), the Tauri CLI folder checked file by file before the sign job runs it, hdiutil tried again
- * on "Resource busy" only, and `build --app-only`.
+ * browsers' tree digests), the Tauri CLI folder checked file by file and run from a fresh copy of its checked bytes,
+ * the build job's archive unpacked to its three parts only (crafted archives: other members, `..`, absolute names,
+ * links), hdiutil tried again on "Resource busy" only, and `build --app-only`.
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -51,6 +53,50 @@ function fakeTools(tools: Record<string, string>) {
   }
   return { bin, calls: () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').filter(Boolean) : []) };
 }
+
+/**
+ * A gzipped ustar archive of exactly these members, written byte by byte (so a test can hold names and types no tar
+ * would write from a folder: `..`, absolute names, links where folders belong).
+ */
+type Member = { name: string; type?: 'file' | 'dir' | 'link'; data?: string; link?: string; mode?: number };
+function tarOf(members: Member[]): Buffer {
+  const blocks: Buffer[] = [];
+  for (const m of members) {
+    const type = m.type ?? (m.name.endsWith('/') ? 'dir' : 'file');
+    const data = Buffer.from(type === 'file' ? (m.data ?? '') : '');
+    const h = Buffer.alloc(512);
+    const field = (at: number, len: number, value: string) => h.write(value, at, len, 'utf8');
+    const octal = (at: number, len: number, v: number) => field(at, len, `${v.toString(8).padStart(len - 1, '0')}\0`);
+    field(0, 100, m.name);
+    octal(100, 8, m.mode ?? (type === 'file' ? 0o644 : 0o755));
+    octal(108, 8, 501);
+    octal(116, 8, 20);
+    octal(124, 12, data.length);
+    octal(136, 12, 1_700_000_000);
+    field(148, 8, '        ');
+    field(156, 1, { file: '0', dir: '5', link: '2' }[type]);
+    if (m.link) field(157, 100, m.link);
+    field(257, 6, 'ustar\0');
+    field(263, 2, '00');
+    let sum = 0;
+    for (const b of h) sum += b;
+    field(148, 8, `${sum.toString(8).padStart(6, '0')}\0 `);
+    blocks.push(h, data, Buffer.alloc((512 - (data.length % 512)) % 512));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return gzipSync(Buffer.concat(blocks));
+}
+/** The build job's archive as it packs it: the app's folder, the app, the Tauri CLI's folder, the report. */
+const BUILD: Member[] = [
+  { name: 'app/' },
+  { name: 'app/Retake.app/' },
+  { name: 'app/Retake.app/Contents/' },
+  { name: 'app/Retake.app/Contents/Info.plist', data: '<plist/>' },
+  { name: 'app/Retake.app/Contents/Frameworks/Current', type: 'link', link: 'A' },
+  { name: 'tauri-cli/' },
+  { name: 'tauri-cli/node_modules/@tauri-apps/cli/tauri.js', data: 'console.log(1)' },
+  { name: 'bundle-report.json', data: '{}' },
+];
 
 /** An ad hoc app as bundle.mjs lays it out (small): its folder holds the app only. */
 function miniApp({ version = '0.2.0', updates = 'off' } = {}) {
@@ -174,6 +220,144 @@ describe('the Tauri CLI folder the sign job runs: every file its pinned sha512, 
     }
     expect(() => checkTauriCliDir(join(tmp, 'absent'), pins)).toThrow(/missing/);
   });
+
+  it('freshTauriCli: the CLI runs from a fresh copy of its checked bytes in a temporary folder of its own — a package planted beside the handed folder is never found; a link, a changed byte or an extra file is refused', async () => {
+    const { freshTauriCli } = await bundleModule();
+    // tauri.js loads its platform package as the real one does (darwin-universal first): what it found, and where it runs.
+    const probe = "let which = 'none'; try { which = require('@tauri-apps/cli-darwin-universal').who; } catch {}\nrequire('node:fs').writeFileSync(process.argv[2], JSON.stringify({ which, self: __filename }));\n";
+    const files = { '@tauri-apps/cli': { 'tauri.js': probe, 'package.json': '{"name":"@tauri-apps/cli"}' }, '@tauri-apps/cli-darwin-arm64': { 'cli.darwin-arm64.node': 'native' } };
+    const pins = pinsFor(files);
+    const handed = dir('handed');
+    const cli = join(handed, 'tauri-cli');
+    for (const [pkg, fs] of Object.entries(files)) for (const [f, data] of Object.entries(fs)) put(cli, `node_modules/${pkg}/${f}`, data);
+    // Beside the handed folder (where the archive could have put it): a package the CLI would load first.
+    put(handed, 'node_modules/@tauri-apps/cli-darwin-universal/index.js', "exports.who = 'planted';\n");
+    put(handed, 'node_modules/@tauri-apps/cli-darwin-universal/package.json', '{"name":"@tauri-apps/cli-darwin-universal","main":"index.js"}');
+    const ran = (cliJs: string) => {
+      const report = join(dir('ran'), 'r.json');
+      const r = spawnSync(process.execPath, [cliJs, report], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: tmp } });
+      expect(r.status, r.stderr).toBe(0);
+      return JSON.parse(readFileSync(report, 'utf8')) as { which: string; self: string };
+    };
+    // The canary: run in place, the CLI finds the planted package.
+    expect(ran(join(cli, 'node_modules', '@tauri-apps', 'cli', 'tauri.js')).which).toBe('planted');
+    const base = dir('fresh-base');
+    const fresh = freshTauriCli(cli, pins, base);
+    expect(dirname(fresh.root)).toBe(base);
+    expect(fresh.root).toMatch(/\/retake-tauri-cli-[^/]+$/);
+    expect(fresh.cliJs).toBe(join(fresh.root, 'node_modules', '@tauri-apps', 'cli', 'tauri.js'));
+    const got = ran(fresh.cliJs);
+    expect(got).toEqual({ which: 'none', self: realpathSync(fresh.cliJs) });
+    expect(relative(handed, got.self).startsWith('..')).toBe(true);
+    // The copy holds the pinned files, those bytes, nothing else.
+    for (const [pkg, fs] of Object.entries(files)) for (const [f, data] of Object.entries(fs)) expect(readFileSync(join(fresh.root, 'node_modules', pkg, f), 'utf8')).toBe(data);
+    rmSync(fresh.root, { recursive: true, force: true });
+    // Refused, and no copy left behind: a link for the folder, a changed byte, an extra file.
+    const link = join(dir('link'), 'tauri-cli');
+    symlinkSync(cli, link);
+    expect(() => freshTauriCli(link, pins, base)).toThrow(/tauri-cli: not the Tauri CLI's folder \(a link\)/);
+    writeFileSync(join(cli, 'node_modules/@tauri-apps/cli/tauri.js'), `${probe}stealKeys();\n`);
+    expect(() => freshTauriCli(cli, pins, base)).toThrow(/tauri\.js: not its pinned sha512/);
+    writeFileSync(join(cli, 'node_modules/@tauri-apps/cli/tauri.js'), probe);
+    put(cli, 'node_modules/@tauri-apps/cli-darwin-universal/index.js', '');
+    expect(() => freshTauriCli(cli, pins, base)).toThrow(/cli-darwin-universal: not a file of the pinned CLI/);
+    expect(readdirSync(base)).toEqual([]);
+    // The sign command runs it from such a copy, and removes the copy whatever happens.
+    const src = readFileSync(RELEASE, 'utf8');
+    expect(src).toContain('fresh = args.tauriCli ? freshTauriCli(args.tauriCli) : null;');
+    expect(src).toMatch(/\} finally \{\n\s+if \(fresh\) rmSync\(fresh\.root, \{ recursive: true, force: true \}\);/);
+    expect(src).not.toMatch(/checkTauriCliDir\(args/);
+  });
+});
+
+describe.runIf(MAC)('unpackBuild: the build job\'s archive, only its three parts (release.mjs unpack)', () => {
+  const archive = (members: Member[]) => {
+    const f = join(dir('archive'), 'retake-app.tar.gz');
+    writeFileSync(f, tarOf(members));
+    return f;
+  };
+  it('the build\'s archive: app/Retake.app (its links kept), tauri-cli and bundle-report.json — nothing else in the folder', async () => {
+    const { unpackBuild } = await releaseModule();
+    const into = join(dir('unpack'), 'adhoc');
+    const parts = unpackBuild(archive(BUILD), into);
+    expect(parts).toEqual({ app: join(into, 'app', 'Retake.app'), tauriCli: join(into, 'tauri-cli'), report: join(into, 'bundle-report.json') });
+    expect(readdirSync(into).sort()).toEqual(['app', 'bundle-report.json', 'tauri-cli']);
+    expect(readdirSync(join(into, 'app'))).toEqual(['Retake.app']);
+    expect(readFileSync(join(into, 'app/Retake.app/Contents/Info.plist'), 'utf8')).toBe('<plist/>');
+    expect(lstatSync(join(into, 'app/Retake.app/Contents/Frameworks/Current')).isSymbolicLink()).toBe(true);
+    // The folder the workflow made by hand before is fine empty; one holding anything is refused, left as it is.
+    const empty = dir('empty');
+    expect(unpackBuild(archive(BUILD), empty).app).toBe(join(empty, 'app', 'Retake.app'));
+    const busy = dir('busy');
+    writeFileSync(join(busy, 'mine.txt'), 'mine');
+    expect(() => unpackBuild(archive(BUILD), busy)).toThrow(/an empty folder of its own/);
+    expect(readdirSync(busy)).toEqual(['mine.txt']);
+  });
+
+  it('any other member refuses the whole archive before anything is written: node_modules beside the parts, another file, a second app, .., absolute names; a missing part too', async () => {
+    const { unpackBuild } = await releaseModule();
+    const cases: Array<[Member[], RegExp]> = [
+      [[...BUILD, { name: 'node_modules/' }, { name: 'node_modules/@tauri-apps/cli-darwin-universal/index.js', data: 'stealKeys()' }], /"node_modules\/" \(not a part of the build/],
+      [[...BUILD, { name: 'run.sh', data: 'x' }], /"run\.sh" \(not a part of the build/],
+      [[...BUILD, { name: 'app/Other.app/' }], /"app\/Other\.app\/" \(not a part of the build/],
+      [[...BUILD, { name: 'tauri-cli/../node_modules/x.js', data: 'x' }], /\(an empty, \. or \.\. part\)/],
+      [[...BUILD, { name: '../outside.txt', data: 'x' }], /"\.\.\/outside\.txt" \(an empty, \. or \.\. part\)/],
+      [[...BUILD, { name: '/tmp/outside.txt', data: 'x' }], /\(an empty or absolute name\)/],
+      [[...BUILD, { name: './app/Retake.app/x', data: 'x' }], /\(an empty, \. or \.\. part\)/],
+      [BUILD.filter((m) => m.name !== 'bundle-report.json'), /holds no bundle-report\.json — nothing was unpacked/],
+      [BUILD.filter((m) => !m.name.startsWith('tauri-cli')), /holds no tauri-cli — nothing was unpacked/],
+    ];
+    for (const [members, msg] of cases) {
+      const into = join(dir('refused'), 'adhoc');
+      expect(() => unpackBuild(archive(members), into), String(msg)).toThrow(msg);
+      expect(existsSync(into), String(msg)).toBe(false);
+    }
+  });
+
+  it('a part that is a link, not a real folder or file, is refused once unpacked and nothing of the archive is left: tauri-cli into the app, the report a link; an app link is not even unpacked', async () => {
+    const { unpackBuild } = await releaseModule();
+    const base = BUILD.filter((m) => !m.name.startsWith('tauri-cli'));
+    const cases: Array<[Member[], RegExp]> = [
+      [[...base, { name: 'tauri-cli', type: 'link', link: 'app/Retake.app/Contents' }], /tauri-cli is a link, not a real folder/],
+      [[...BUILD.filter((m) => m.name !== 'bundle-report.json'), { name: 'bundle-report.json', type: 'link', link: '/etc/hosts' }], /bundle-report\.json is a link, not a real file/],
+    ];
+    for (const [members, msg] of cases) {
+      const into = join(dir('linked'), 'adhoc');
+      expect(() => unpackBuild(archive(members), into), String(msg)).toThrow(msg);
+      expect(existsSync(into), String(msg)).toBe(false);
+    }
+    // Whatever tar writes, the folder must then hold the three parts and nothing else (a tar that leaves a node_modules).
+    const tools = fakeTools({ tar: '/usr/bin/tar "$@" || exit $?\nfor a; do [ "${prev:-}" = -C ] && d=$a; prev=$a; done\n[ -n "${d:-}" ] && mkdir -p "$d/node_modules"\nexit 0' });
+    const extra = join(dir('linked'), 'adhoc');
+    expect(() => unpackBuild(archive(BUILD), extra, { tar: join(tools.bin, 'tar') })).toThrow(/holds app, bundle-report\.json, node_modules, tauri-cli once unpacked, not app, bundle-report\.json, tauri-cli/);
+    expect(existsSync(extra)).toBe(false);
+    // `app` itself is never extracted (only app/Retake.app is): an `app` link in the archive leaves a real folder, and
+    // nothing lands where it pointed.
+    const into = join(dir('linked'), 'adhoc');
+    unpackBuild(archive([{ name: 'app', type: 'link', link: '../elsewhere' }, ...BUILD.filter((m) => m.name !== 'app/')]), into);
+    expect(lstatSync(join(into, 'app')).isDirectory()).toBe(true);
+    expect(readdirSync(join(into, 'app'))).toEqual(['Retake.app']);
+    expect(existsSync(join(dirname(into), 'elsewhere'))).toBe(false);
+  });
+
+  it('buildMemberProblem: the names of the parts only; the command line: unpack <archive> --into <dir>', async () => {
+    const { buildMemberProblem } = await releaseModule();
+    for (const ok of ['app', 'app/', 'app/Retake.app', 'app/Retake.app/', 'app/Retake.app/Contents/MacOS/retake-desktop', 'tauri-cli/', 'tauri-cli/node_modules/@tauri-apps/cli/tauri.js', 'bundle-report.json']) expect(buildMemberProblem(ok), ok).toBeNull();
+    for (const bad of ['', '/', '/app', 'node_modules', 'node_modules/x', 'app/Retake.app2', 'app/x', 'app//Retake.app', 'app/./Retake.app', 'tauri-cli/../x', '..', './tauri-cli', 'bundle-report.json/x', 'Retake.app']) expect(buildMemberProblem(bad), bad).not.toBeNull();
+    const run = (...args: string[]) => spawnSync(process.execPath, [RELEASE, ...args], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', HOME: tmp } });
+    const into = join(dir('cli-unpack'), 'adhoc');
+    const ok = run('unpack', archive(BUILD), '--into', into);
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(JSON.parse(ok.stdout).app).toBe(join(into, 'app', 'Retake.app'));
+    const bad = run('unpack', archive([...BUILD, { name: 'node_modules/' }]), '--into', join(dir('cli-unpack'), 'adhoc'));
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/^release: \S+ is not the build job's archive: "node_modules\/" \(not a part of the build .* — nothing was unpacked\n$/);
+    for (const args of [['unpack'], ['unpack', 'a.tar.gz'], ['unpack', 'a.tar.gz', '--to', 'x'], ['unpack', '--into', 'x', 'a']]) {
+      const r = run(...args);
+      expect(r.status, args.join(' ')).toBe(1);
+      expect(r.stderr, args.join(' ')).toMatch(/^release: usage: release\.mjs unpack <archive> --into <dir>\n$/);
+    }
+  });
 });
 
 describe('hdiutil, tried again on "Resource busy" only (review e B-M4)', () => {
@@ -218,6 +402,29 @@ describe.runIf(MAC)('finishApp: from the ad hoc app to what a release ships (app
     const ok = finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0-rc.1' });
     expect(ok).toMatchObject({ mode: 'dry', version: '0.3.0-rc.1', dmg: null, update: null });
     expect(() => finishApp({ app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.3.0' })).toThrow(/Retake\.app is version 0\.3\.0-rc\.1 \(Info\.plist\), not 0\.3\.0: build the tagged commit — nothing was signed/);
+  });
+
+  it('bundle.json\'s version (it names the DMG) must be a version and the app\'s own — Info.plist\'s, so --app-version\'s — or nothing is signed', async () => {
+    const { finishApp } = await releaseModule();
+    const withManifestApp = (v: unknown, plist = '0.2.0') => {
+      const m = miniApp({ version: plist });
+      const f = join(m.app, 'Contents', 'Resources', 'bundle.json');
+      writeFileSync(f, JSON.stringify({ ...JSON.parse(readFileSync(f, 'utf8')), app: v }));
+      return m;
+    };
+    const tools = fakeTools({ codesign: 'exit 0', xcrun: 'exit 1', hdiutil: 'exit 1' });
+    const recorded = { ...env, PATH: `${tools.bin}:/usr/bin:/bin` };
+    // Another version than Info.plist's, with --app-version (the sign job) or with a DMG to name: refused first.
+    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, dmg: false, verified: true, appVersion: '0.2.0' })).toThrow(/bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0: not one build — nothing was signed/);
+    expect(() => finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true })).toThrow(/bundle\.json says version 0\.1\.9, Info\.plist 0\.2\.0/);
+    for (const bad of ['../x', '0.2.0/../../x', '', null, 2]) {
+      const m = withManifestApp(bad, typeof bad === 'string' && bad ? bad : '0.2.0');
+      expect(() => finishApp({ app: m.app, out: dir('out'), mode: 'dry', env: recorded, entries: NODE_ENTRY, verified: true }), String(bad)).toThrow(/bundle\.json's app is not a version .* — nothing was signed/);
+    }
+    // Nothing ran: no signature, no DMG.
+    expect(tools.calls()).toEqual([]);
+    // Without either (a build with no DMG, no --app-version): a version is enough.
+    expect(finishApp({ app: withManifestApp('0.1.9').app, out: dir('out'), mode: 'dry', env, entries: NODE_ENTRY, dmg: false, verified: true }).version).toBe('0.2.0');
   });
 
   it('the update archive: none from an app without the updater, unsigned (and said) without a key — never a stale file of an earlier run (review e B-L6); a key needs the public key and the pinned CLI', async () => {
