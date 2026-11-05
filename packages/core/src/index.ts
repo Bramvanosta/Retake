@@ -22,6 +22,8 @@ export * from './media.js';
 export * from './bundle.js';
 export * from './app-setup.js';
 export * from './h264.js';
+export * from './gpu.js';
+export * from './render-settings.js';
 export * from './destructive.js';
 export * from './access.js';
 export * from './display.js';

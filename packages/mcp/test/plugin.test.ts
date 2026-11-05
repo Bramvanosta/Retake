@@ -18,6 +18,7 @@ import { RETAKE_VERSION } from '@retake/core';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { PLUGIN_ID, claudeCodeCommand, clientPath, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '../src/index.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const REPO = resolve(REPO_URL);
 const PLUGIN = join(REPO, 'skills');
@@ -148,7 +149,7 @@ describe('retake mcp: the plugin registration and the serving PATH', () => {
     const given = ['bin', '.', join(ws, 'bin'), '/usr/bin', '/bin'].join(delimiter);
     const child = spawn(process.execPath, ['--import', probe, ...SOURCE_ARGS, '--root', ws, 'mcp'], {
       cwd: REPO, // where `--import tsx` resolves
-      env: { HOME: process.env.HOME ?? '', PATH: given, RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(ws, '.home') },
+      env: testChildEnv({ PATH: given, RETAKE_HOME: join(ws, '.home') }),
       stdio: ['pipe', 'ignore', 'pipe'],
     });
     let stderr = '';

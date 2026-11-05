@@ -64,6 +64,18 @@ to structural checks; after an intended change of the look (or a Chromium update
 `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/runner-web/test/look.test.ts` and look at the PNGs before
 committing them.
 
+Renders in tests run on the software path (L5.15): `vitest.setup.ts` sets `RETAKE_RENDER_GL=software` and
+`RETAKE_RENDER_ENCODER=libx264` for every test file, so a render is frame-identical run to run (as on Linux) and the
+suite keeps its times. A test of the GPU path opts in — it passes `settings: {gl: 'auto', encoder: 'auto'}` to the render
+or sets the variables back itself — and compares SSIM (≥ 0.995 on every frame) or structure, **never bytes**: ANGLE and
+VideoToolbox are not frame-identical run to run (`packages/editor/test/render-gpu.test.ts`, darwin only).
+`RETAKE_TEST_RENDER_POLICY=keep` leaves the shell's values (a whole run on the default policy, by hand). Exactly these
+two variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
+(an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/core/test/child-env.ts`, with the scratch
+`CFFIXED_USER_HOME` and the file's `RETAKE_CAPTURES_DIR`), so the worker and job processes behind it render on the
+software path too; `packages/core/test/retake-home.test.ts` fails on such an environment that lacks them. The app's own
+acceptances (`app-bundle-acceptance`, `app-update-e2e`) run the shipped default on purpose.
+
 ## Phase status
 
 | Phase | Scope | Status |

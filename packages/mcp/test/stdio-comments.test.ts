@@ -26,6 +26,7 @@ import type { CommentListView, CommentProposalView, CommentView, Engine } from '
 import { REPO } from '../../engine/test/helpers.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Workspace } from '../../review/test/helpers.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
@@ -63,7 +64,7 @@ const list = (r: Result) => r.structuredContent as unknown as CommentListView;
 function retake(...args: string[]): string {
   return execFileSync(process.execPath, [...SOURCE_ARGS, '--root', ws.root, '--no-color', 'comment', ...args], {
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: AUTHOR },
+    env: testChildEnv({ RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: AUTHOR }),
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -82,7 +83,7 @@ beforeAll(async () => {
     command: process.execPath,
     args: [...SOURCE_ARGS, '--root', ws.root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: 'Not The Agent', RETAKE_MCP_MAX_IMAGES: '1' },
+    env: testChildEnv({ RETAKE_HOME: join(ws.root, '.home'), RETAKE_AUTHOR: 'Not The Agent', RETAKE_MCP_MAX_IMAGES: '1' }),
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

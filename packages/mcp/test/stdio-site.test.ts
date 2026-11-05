@@ -18,6 +18,7 @@ import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasOpenssl();
@@ -35,14 +36,11 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: string
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', ws, 'mcp'],
     cwd: REPO,
-    env: {
-      PATH: process.env.PATH ?? '',
-      CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
-      HOME: process.env.HOME ?? '',
-      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(ws, '.home'),
+    env: testChildEnv({
+      RETAKE_HOME: join(ws, '.home'),
       RETAKE_WORKER_IDLE_MS: '1500',
       RETAKE_UNSAFE_TEST_RESOLVE: site.resolveEnv,
-    },
+    }),
     stderr: 'pipe',
   });
   const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });

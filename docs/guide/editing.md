@@ -191,25 +191,29 @@ the plan with [Remotion](https://www.remotion.dev):
 ```
 $ retake render northfield-fixture catalogue
 ✓ rendered catalogue-v1 → projects/northfield-fixture/renders/catalogue-v1.mp4
-  59.00 s · 1770 frames @ 30 fps · 1920×1080 · 8.5 MB · h264 crf 16, silent audio · checked: 59.01 s, 1920×1080, 1 audio track
-  theme editorial · run 20261011-182524-catalogue · bundle built in 9.9 s · render 3 m 27 s (concurrency 3) · total 3 m 38 s
+  59.00 s · 1770 frames @ 30 fps · 1920×1080 · 23.6 MB · h264 VideoToolbox 8M, silent audio · checked: 59.01 s, 1920×1080, 1 audio track
+  theme editorial · run 20261011-182524-catalogue · bundle built in 9.9 s · render 57.4 s (concurrency 3) on the GPU · total 1 m 8 s
   record projects/northfield-fixture/renders/catalogue-v1.json
 ```
 
 - **Outputs**: `renders/<scenario>-v<N>.mp4` (`-v<N>-vertical.mp4` / `-v<N>-square.mp4` for `--vertical` /
   `--square`) and its **RenderRecord**
   `renders/<scenario>-v<N>.json`: id, project, scenario, run id and directory, theme, overrides, variant, status,
-  duration, frames, fps, size, file size, encoding, what ffprobe saw in the file, bundle hash, browser, timings,
-  warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
+  duration, frames, fps, size, file size, encoding, the render policy (`policy`: below), what ffprobe saw in the file,
+  bundle hash, browser, timings, warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
   writes elsewhere. The video is encoded under a temporary name and renamed when complete: a failed or cancelled
   render (Ctrl-C, or an `AbortSignal` through the API) leaves nothing under the final names.
-- **Encoding**: H.264 CRF 16, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio
-  track: AAC silence when there is no music (checked with ffprobe after the render, added with ffmpeg if ever missing).
+- **Encoding**: H.264, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio track:
+  AAC silence when there is no music (checked with ffprobe after the render, added with ffmpeg if ever missing). On a
+  Mac with a GPU the video is encoded by the Mac's hardware encoder (VideoToolbox, 0.13 bit per pixel per frame: 8 Mb/s
+  at 1080p30, a key frame every 2 s); elsewhere, and as the fallback, libx264 CRF 16 — see
+  [Renders on the GPU](#renders-on-the-gpu).
 - **Options**: `--theme` (another template, the scenario untouched), `--frame` (frame style or layout component id for
   every scene), `--vertical` (1080×1920) or `--square` (1080×1080), `--scale` (output size × the variant's size),
   `--music <file>` / `--no-music` (replace or drop the scenario's music bed), `--tutorial` / `--no-tutorial` (every
   tutorial overlay on over the scenario's switches, or none), `--no-intro`, `--no-outro`,
-  `--concurrency` (frames rendered in parallel; default ¾ of the CPUs, 1–8), `--json` (the record without the plan).
+  `--concurrency` (frames rendered in parallel, 1–16; default 3 on the GPU path, ¾ of the CPUs (1–8) in software, or
+  `render.concurrency`), `--json` (the record without the plan).
 - **Stills**: `retake still <project> <scenario> --frame <n>` renders output frame n of the planned video as a PNG
   (default `renders/stills/<scenario>-f<n>.png`) — the quick way to look at one moment of an edit.
 - **Review**: `--review` reviews the render right after it (see [Reviewing a render](review.md#reviewing-a-render)); with
@@ -269,14 +273,54 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   playwright-core's browser registry: `playwright-core install chromium-headless-shell`; the app bundle's own when
   Retake runs from it), else Remotion's own (never from the app bundle: one without its headless shell refuses to
   render — reinstall it).
-- **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?})`
-  → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `encoding`, `done`); `renderStill({plan,
+- **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?,
+  settings?})` → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `retrying` — the GPU path failed
+  and the video renders again in software, progress does not go back —, `encoding`, `done`; `settings`: the
+  `render:` keys below, over the workspace's); `renderStill({plan,
   frame, out})` → the PNG path; `renderStills({plan, frames: [{frame, out}…]})` renders several frames in one
   browser session (≈ 0.3–0.6 s per extra frame); `listRenders(project)` → the records of `renders/`;
   `renderPlan({plan, out})` renders any plan.
 
 Render times on the 4-CPU Linux container (no GPU, concurrency 3): ≈ 3–3.5 minutes for a 1-minute 1080p video
-(≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached.
+(≈ 8–9 output frames per second); a still takes 1–2 s once the bundle is cached. On an M4 Mac (10 cores) a 1-minute
+1080p video renders in about a minute either way — on the GPU path with about 40 % of the CPU time of the software
+path and a peak of about 4 cores instead of 9 (DESIGN §4r has the measurements).
+
+### Renders on the GPU
+
+Since L5.15 a render on a Mac with a GPU draws its frames with the GPU (Chromium's ANGLE on Metal) and encodes them
+with the Mac's hardware encoder (VideoToolbox), 3 frames at a time: as fast as before, with much less CPU — what a
+take filming beside it needs. Elsewhere (Linux, a container, a Mac without a GPU) renders run as they always did:
+Chromium's software raster, libx264 CRF 16, ¾ of the CPUs.
+
+- **When the GPU is used**: the render browser opens with ANGLE and says what it draws with (Chrome's own GPU report).
+  No GPU there (a virtual machine, a remote session) → it is opened again in software, said once ("no GPU for this
+  render: rendered in software"), at the software path's frames at a time (¾ of the CPUs, unless `concurrency` is set)
+  — what `retake doctor` says. VideoToolbox is chosen before the render: only up to 4096 pixels a side (a `--scale 3`
+  render, 5760×3240, is encoded with libx264, said in the warnings), and only when a 3-frame test encode with the
+  ffmpeg that will encode passes.
+- **One fallback**: when the GPU path itself fails mid-render (the GPU process, the GL context, the hardware encoder),
+  the video is rendered once more from the start in software with libx264 — nothing half-written is kept, the progress
+  says `retrying` and never goes back, Ctrl-C still cancels. Anything else (a timeout, memory, a full disk, an error of
+  the plan) fails as before; a render that fails in software too says both ("render failed in software, after the GPU
+  path failed (…)") and its record keeps the GPU path's story. Stills and component previews use the same GPU check
+  but no fallback: a failure is said.
+- **A render of the Studio, a job or MCP** (guarded: it loads only the files of its plan) runs in the one browser it
+  opened, reported and guarded: when a page of it fails, the render fails ("a page of the render failed") — on the GPU
+  path after the one software retry above — and never continues in a browser opened behind the guard's back.
+- **The record says what happened** (`policy`): the GL asked and where it was set, what it resolved to here, what
+  actually drew the video (read again at the end: Chrome can leave the GPU by itself) with the GPU's name, the encoder
+  asked and used, and `fallback: {reason}` when the software path rendered it (the reason quotes the error seen — words
+  a component can write —, so `render_status` gives it under `untrusted.fallback_reason` only); `encoding` names the
+  encoder, its CRF or bitrate and key-frame interval. `retake render` says it on its summary ("h264 VideoToolbox 8M",
+  "on the GPU", "in software after a GPU failure") and `retake doctor`'s **Renders** line says what a 1080p render would
+  get here.
+- **The settings** (`render:` in `retake.yaml`, or the variables; see [Workspace](workspace.md#render-settings)):
+  `gl: auto | gpu | software`, `encoder: auto | videotoolbox | libx264`, `concurrency: 1–16`. `render: {gl: software,
+  encoder: libx264}` gives back the renders of before L5.15 exactly.
+- **What changes in the files**: GPU renders are not byte-identical run to run (the GPU's antialiasing and the hardware
+  encoder vary slightly: SSIM ≥ 0.995 on every frame between two renders) and are about twice as large (≈ 24 MB per
+  minute of 1080p instead of ≈ 10 MB). Software renders stay reproducible frame for frame.
 
 ### Captures first: a take never waits for a render
 
@@ -354,7 +398,9 @@ audio file in the repository).
 
 `retake export <project> <render|latest> --formats …` (API `exportRender({project, render, formats})`) writes delivery
 files to `exports/<render-id>/` with a `manifest.json` (per file: format, method, size, duration, fps, codecs, audio
-streams, time taken, the GIF window, warnings; earlier exports of other formats into the folder are kept):
+streams, time taken, the GIF window, warnings — for a re-rendered format, the render's warnings about files
+upscaled, missing or blocked and about how it was drawn and encoded (no GPU, VideoToolbox's size limit, the GPU path
+failing); earlier exports of other formats into the folder are kept):
 
 | Format | File | How |
 |---|---|---|

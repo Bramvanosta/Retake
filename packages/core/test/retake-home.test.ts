@@ -6,6 +6,7 @@
  * L5.16 Library hygiene: an MCP server a test starts gets CFFIXED_USER_HOME too — the SDK's stdio transport passes only
  * the variables it is given, and a server without it starts workers whose Chromium writes its crash reporter's
  * settings.dat into the account's ~/Library (the leak of the lot-end run).
+ * L5.15 fixes (review B M3): those processes get the render pin of vitest.setup.ts too (child-env.ts testChildEnv).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
@@ -13,6 +14,7 @@ import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { OLD_DIR, OLD_ENV_PREFIX, oldEnvNames, retakeHome } from '../src/index.js';
+import { testChildEnv } from './child-env.js';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
 
@@ -106,7 +108,7 @@ describe('the test environment (vitest.config.ts)', () => {
       });
     });
     expect(starts.length).toBeGreaterThan(15);
-    expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
+    expect(starts.filter((s) => !/CFFIXED_USER_HOME: process\.env\.CFFIXED_USER_HOME|\.\.\.process\.env\b|^testChildEnv$/.test(s.env)).map((s) => `${s.at}: ${s.env}`)).toEqual([]);
   });
 
   it('L5.14a fixes (review B M2): every process environment a test builds by hand carries RETAKE_CAPTURES_DIR (a take there never writes the person\'s markers folder)', () => {
@@ -126,13 +128,48 @@ describe('the test environment (vitest.config.ts)', () => {
       for (const m of text.matchAll(/(?:new StdioClientTransport|\bspawn|\bspawnSync|\bexecFile|\bexecFileSync)\(/g)) {
         const window = text.slice(m.index, m.index + 1500);
         const env = /\benv:\s*(\{[^}]*\}|[\w.]+)/.exec(window)?.[1];
-        if (!env || env.startsWith('process.env')) continue;
+        if (!env || env.startsWith('process.env') || env === 'testChildEnv') continue;
         const lit = env.startsWith('{') ? env : defs.get(env);
         if (!lit || !/RETAKE_HOME/.test(lit)) continue;
         if (!ok(lit)) missing.push(`${f.slice(REPO.length + 1)}:${text.slice(0, m.index).split('\n').length}: ${lit.replace(/\s+/g, ' ').slice(0, 120)}`);
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it('L5.15 fixes (review B M3): the render pin reaches every process a test starts with its own environment (MCP servers, CLI commands): testChildEnv carries it', () => {
+    // The helper carries the pin of vitest.setup.ts (and the rules above) — whatever this run pinned.
+    const env = testChildEnv({ RETAKE_HOME: '/scratch/h' });
+    expect(process.env.RETAKE_RENDER_GL?.trim()).toBeTruthy();
+    expect(env).toMatchObject({
+      RETAKE_RENDER_GL: process.env.RETAKE_RENDER_GL,
+      RETAKE_RENDER_ENCODER: process.env.RETAKE_RENDER_ENCODER,
+      CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME,
+      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '',
+      RETAKE_HOME: '/scratch/h',
+    });
+    if (process.env.RETAKE_TEST_RENDER_POLICY !== 'keep') expect(env).toMatchObject({ RETAKE_RENDER_GL: 'software', RETAKE_RENDER_ENCODER: 'libx264' });
+    // Every environment built by hand that names RETAKE_HOME (a Retake process: an MCP server, a CLI command) goes
+    // through it, spreads process.env, or names the pin itself. Not needed: `--version`, a vitest of its own (its setup
+    // pins), and the app's own acceptances, which run the shipped default on purpose.
+    const exempt = /app-bundle-acceptance\.test\.ts$|app-update-e2e\.test\.ts$/;
+    const unpinned: string[] = [];
+    for (const f of testFiles()) {
+      if (exempt.test(f)) continue;
+      const text = readFileSync(f, 'utf8');
+      const defs = new Map<string, string>();
+      for (const m of text.matchAll(/\b(env|runEnv)\s*=\s*(\{[^}]*\})/g)) defs.set(m[1]!, m[2]!);
+      for (const m of text.matchAll(/(?:new StdioClientTransport|\bspawn|\bspawnSync|\bexecFile|\bexecFileSync)\(/g)) {
+        const window = text.slice(m.index, m.index + 1500);
+        const env = /\benv:\s*(\{[^}]*\}|[\w.]+)/.exec(window)?.[1];
+        if (!env || env.startsWith('process.env') || env === 'testChildEnv') continue;
+        if (/'--version'|vitest\.mjs/.test(window.slice(0, window.indexOf('env:')))) continue;
+        const lit = env.startsWith('{') ? env : defs.get(env);
+        if (!lit || !/RETAKE_HOME/.test(lit) || /\.\.\.process\.env\b|RETAKE_RENDER_GL/.test(lit)) continue;
+        unpinned.push(`${f.slice(REPO.length + 1)}:${text.slice(0, m.index).split('\n').length}: ${lit.replace(/\s+/g, ' ').slice(0, 120)}`);
+      }
+    }
+    expect(unpinned).toEqual([]);
   });
 
   it("the run's Library guard (vitest.teardown.mjs): the account's two Chromium files, a change reported, none when untouched", async () => {

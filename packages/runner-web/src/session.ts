@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
-import type { BrowserConfig, ResolvedClock } from '@retake/core';
+import { gpuInfoOf } from '@retake/core';
+import type { BrowserConfig, GpuInfo, ResolvedClock, SystemInfoReply } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
@@ -842,40 +843,9 @@ export class BrowserSession {
   }
 }
 
-/** What `gpuInfo` reads of SystemInfo.getInfo. */
-export interface SystemInfoReply {
-  gpu?: {
-    featureStatus?: Record<string, string>;
-    devices?: Array<{ deviceString?: string }>;
-    auxAttributes?: Record<string, unknown>;
-  };
-}
-
-/** The capture browser's GPU status (run.json `perf.gpu`, `retake doctor`). */
-export interface GpuInfo {
-  accelerated: boolean;
-  renderer?: string;
-  /** Features that run in software (e.g. "gpu_compositing", "rasterization"). */
-  software?: string[];
-}
-
-/**
- * Hardware accelerated when compositing and rasterization are ("enabled…"); a SwiftShader renderer is software whatever
- * the statuses say. Pure.
- */
-export function gpuInfoOf(info: SystemInfoReply): GpuInfo | undefined {
-  const status = info.gpu?.featureStatus;
-  if (!status) return undefined;
-  const gl = info.gpu?.auxAttributes?.glRenderer;
-  const renderer = typeof gl === 'string' && gl ? gl : info.gpu?.devices?.[0]?.deviceString || undefined;
-  const on = (k: string) => typeof status[k] === 'string' && status[k].startsWith('enabled');
-  const software = Object.entries(status)
-    .filter(([, v]) => /software/.test(v))
-    .map(([k]) => k)
-    .sort();
-  const accelerated = on('gpu_compositing') && on('rasterization') && !/swiftshader|llvmpipe|software/i.test(renderer ?? '');
-  return { accelerated, ...(renderer ? { renderer } : {}), ...(software.length ? { software } : {}) };
-}
+// The GPU status reading moved to core (L5.15: the render browser reads it too); re-exported for this package's users.
+export { gpuInfoOf } from '@retake/core';
+export type { GpuInfo, SystemInfoReply } from '@retake/core';
 
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {

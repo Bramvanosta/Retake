@@ -21,6 +21,7 @@ const PHASES: Record<string, string> = {
   planning: 'planning',
   bundling: 'preparing the components',
   rendering: 'rendering',
+  retrying: 'rendering again in software (the GPU path failed)',
   encoding: 'encoding',
   done: 'writing the record',
   'review:loading': 'reading the render',

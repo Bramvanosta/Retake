@@ -19,6 +19,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -103,7 +104,7 @@ beforeAll(async () => {
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
     cwd: REPO,
     // The supplier's automated sign-in has its password; the buyer's does not (its page needs a human sign-in).
-    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000', NORTHFIELD_SUPPLIER_PASSWORD: 'roast-lot-2026' },
+    env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000', NORTHFIELD_SUPPLIER_PASSWORD: 'roast-lot-2026' }),
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

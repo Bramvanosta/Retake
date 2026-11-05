@@ -86,7 +86,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.13 | Rename to Retake (CLI, packages, MCP server, skills, docs, desktop app) | M | **done** — L5.13a the rename, L5.13b the mark (2026-11-03) |
 | L5.16 | The standalone app: everything inside (Node, engine, CLI, MCP, Chromium, ffmpeg), signed, notarised, a DMG and an updater | L | **done** — L5.16a–f: engine, app + DMG, first run, updater, releases from GitHub Actions, the feed on a GitHub release (2026-11-04) |
 | L5.14 | Captures first: a take before renders, reviews and exports, on the file queue | L | **done** — L5.14a (the worker's two slots, the markers, background QoS, the CLI wait), L5.14b (surfaces, signed journals, approvals bound to their job, the measured acceptance) (2026-11-04) |
-| L5.15 | Renders on the GPU with a lighter load | S | todo |
+| L5.15 | Renders on the GPU with a lighter load | S | **done** — ANGLE + VideoToolbox at concurrency 3 on a Mac with a GPU, today's software path otherwise (2026-11-05; the captures-first acceptance on the GPU path not passed: R-CAP-03) |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -983,6 +983,19 @@ following the system, the Geist pair and the blue accent kept, a red reserved fo
   replayed once, approvals bound to their job and workspace and used once, the job process given a digest of its claimed
   record, the measured acceptance from the Studio's own submits. Two independent reviews per part fixed with
   mutation-checked tests. Cuts: BL-146 – BL-151. Next: L5.15.
+
+### L5.15 — Renders on the GPU, with a lighter load (S)
+- **Goal:** renders cost less of the machine a take needs, measured against today.
+- **Done (2026-11-05, in a worktree):** one render policy (editor `render/policy.ts`, core `render-settings.ts`):
+  ANGLE (Metal) + VideoToolbox at concurrency 3 on a Mac with a GPU, checked when the browser opens; today's software
+  path (no swangle) on a machine without one; VideoToolbox chosen before the render (a probe through the compositor's
+  ffmpeg, each side ≤ 4096; 0.13 bit per pixel per frame, a key frame every 2 s); one guarded software re-render when
+  the GPU path fails; a guarded render never lets Remotion open a browser of its own; the `render:` block in
+  retake.yaml and `RETAKE_RENDER_*`; the record says what was asked, resolved and used; doctor's Renders line; tests
+  pinned to the software path. Measured: 1080p 454 → 186 cpu-s, 77 → 64 s; 4K 1 380 → 438 cpu-s, 210 → 103 s. Two
+  independent reviews fixed with mutation-checked tests. Cuts: BL-152 – BL-159. The captures-first acceptance on the GPU
+  path did not pass its bars (one take 55.1 against 56.7; R-CAP-03): to re-run on an idle Mac. Next: the audit, then
+  the first release.
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

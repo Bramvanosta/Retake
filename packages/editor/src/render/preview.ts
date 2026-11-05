@@ -24,7 +24,7 @@ import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate } from '@retake/core';
-import type { LoadedTemplate } from '@retake/core';
+import type { GpuInfo, LoadedTemplate, RenderSettings } from '@retake/core';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -45,9 +45,11 @@ import { startAssetServer } from './asset-server.js';
 import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
 import type { BundleComponent } from './bundle.js';
-import { armNetworkGuard, browserProcessInfo, pickFreePort } from './network-guard.js';
+import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, pickFreePort } from './network-guard.js';
 import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
+import { guardEncoderPipe } from './render.js';
 import type { RenderNetwork } from './render.js';
+import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
@@ -99,8 +101,20 @@ export type PreviewBundleMode =
 export interface PreviewBackend {
   /** The bundle of these components (default: ensureBundle in the workspace cache). */
   bundle(o: { root: string; components: BundleComponent[]; cacheDir?: string; signal?: AbortSignal }): Promise<{ serveUrl: string; hash: string; cached: boolean }>;
-  /** Start the renderer on that bundle (default: the render browser, guarded when asked). */
-  open(o: { serveUrl: string; assetPrefix: string; network?: RenderNetwork; signal?: AbortSignal; onBrowser?: (b: BrowserProcessInfo) => void }): Promise<PreviewRenderer>;
+  /**
+   * Start the renderer on that bundle (default: the render browser as the render policy draws — the GPU checked before it
+   * is reported or guarded; no fallback mid-way: a failure is said as it is —, guarded when asked).
+   */
+  open(o: {
+    serveUrl: string;
+    assetPrefix: string;
+    network?: RenderNetwork;
+    signal?: AbortSignal;
+    onBrowser?: (b: BrowserProcessInfo) => void;
+    settings?: RenderSettings;
+    /** Tests: the browser's GPU status. */
+    gpuInfo?: (browser: { connection: unknown }) => Promise<GpuInfo | undefined>;
+  }): Promise<PreviewRenderer>;
 }
 
 export interface PreviewRenderer {
@@ -135,6 +149,8 @@ interface PreviewSessionOptions {
   bundle?: PreviewBundleMode;
   /** Tests: render with this instead of Remotion. */
   backend?: PreviewBackend;
+  /** Render settings over the process's (./policy.ts). */
+  settings?: RenderSettings;
 }
 
 export interface RenderPreviewsOptions extends PreviewSessionOptions {
@@ -292,12 +308,19 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     const browser = renderBrowser();
     assertRenderBrowser(browser);
     const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
-    let puppeteer: Awaited<ReturnType<typeof openBrowser>>;
+    const policy = renderPolicy(o.settings);
+    guardEncoderPipe();
+    let opened: Awaited<ReturnType<typeof openRenderBrowser<Awaited<ReturnType<typeof openBrowser>>>>>;
     try {
-      puppeteer = await openBrowser('chrome', { browserExecutable: browser.path, chromeMode: 'headless-shell', logLevel: 'error' });
+      opened = await openRenderBrowser({
+        policy,
+        launch: (chromium) => openBrowser('chrome', { browserExecutable: browser.path, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
+        ...(o.gpuInfo ? { gpuInfo: o.gpuInfo } : {}),
+      });
     } catch (e) {
       throw new RenderError(`the render browser did not start (${browser.path ?? 'Remotion headless shell'}): ${(e as Error).message.split('\n')[0]}`);
     }
+    const puppeteer = opened.puppeteer;
     let guard: NetworkGuard | undefined;
     let remotion: { port?: number; onDownload?: (src: string) => undefined } = {};
     try {
@@ -319,6 +342,17 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
       throw e;
     }
     const common = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 60_000 } as const;
+    // Guarded: a browser that is no program for every Remotion call — a page that fails ends that preview, never a
+    // browser Remotion opens itself (network-guard.ts).
+    const executable = guard ? GUARDED_NO_OTHER_BROWSER : browser.path;
+    const plainly = async (run: () => Promise<unknown>): Promise<void> => {
+      try {
+        await run();
+      } catch (e) {
+        if (guard && !(e instanceof RenderError) && guardedPageFailure(e)) throw new RenderError(guardedPageFailed('preview'));
+        throw e;
+      }
+    };
     const select = (spec: ComponentPreviewSpec) =>
       selectComposition({
         ...common,
@@ -326,13 +360,13 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         id: PREVIEW_COMPOSITION,
         inputProps: { preview: spec },
         puppeteerInstance: puppeteer,
-        browserExecutable: browser.path,
+        browserExecutable: executable,
         ...(remotion.port !== undefined ? { port: remotion.port } : {}),
       });
     return {
       async still(spec, out, scale) {
         const composition = await select(spec);
-        await renderStill({
+        await plainly(() => renderStill({
           ...common,
           composition,
           serveUrl: o.serveUrl,
@@ -343,9 +377,9 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
           overwrite: true,
           inputProps: { preview: spec },
           puppeteerInstance: puppeteer,
-          browserExecutable: browser.path,
+          browserExecutable: executable,
           ...remotion,
-        });
+        }));
       },
       async gif(spec, out, g) {
         const composition = await select(spec);
@@ -353,7 +387,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         const onAbort = () => cancel();
         o.signal?.addEventListener('abort', onAbort);
         try {
-          await renderMedia({
+          await plainly(() => renderMedia({
             ...common,
             composition,
             serveUrl: o.serveUrl,
@@ -367,14 +401,15 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
             inputProps: { preview: spec },
             cancelSignal,
             puppeteerInstance: puppeteer,
-            browserExecutable: browser.path,
+            browserExecutable: executable,
+            ...(opened.chromium.gl ? { chromiumOptions: opened.chromium } : {}),
             ...remotion,
-          });
+          }));
         } finally {
           o.signal?.removeEventListener('abort', onAbort);
         }
       },
-      warnings: () => guard?.warnings() ?? [],
+      warnings: () => [...opened.warnings, ...(guard?.warnings() ?? [])],
       close: () => puppeteer.close({ silent: true }).catch(() => undefined),
     };
   },
@@ -492,6 +527,7 @@ async function previewSession<J extends SessionJob, R>(
         ...(opts.network ? { network: opts.network } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
         ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+        ...(opts.settings ? { settings: opts.settings } : {}),
       });
     renderer = await open();
     await mkdir(scratch, { recursive: true });

@@ -3,6 +3,7 @@ import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
 import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
+import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
@@ -218,6 +219,27 @@ export const ProjectConfigSchema = z.strictObject({
   template: nonEmpty(),
 });
 
+/** retake.yaml `render:` (L5.15): how this machine renders; each key wins over its `RETAKE_RENDER_*` variable. */
+export const RenderSettingsSchema = z
+  .strictObject({
+    gl: z
+      .enum(RENDER_GL_SETTINGS)
+      .describe('How the render browser draws: auto (the GPU on macOS, software elsewhere; software when no GPU is found), gpu (always the GPU: ANGLE), software (Chromium\'s software raster, the renders of before L5.15). Default: $RETAKE_RENDER_GL, else auto.')
+      .optional(),
+    encoder: z
+      .enum(RENDER_ENCODER_SETTINGS)
+      .describe('Which H.264 encoder writes the video: auto (the Mac\'s VideoToolbox with the GPU path when it works at the render\'s size, else libx264), videotoolbox (macOS only), libx264 (CRF 16). Default: $RETAKE_RENDER_ENCODER, else auto.')
+      .optional(),
+    concurrency: z
+      .number()
+      .int()
+      .min(1)
+      .max(RENDER_CONCURRENCY_MAX)
+      .describe('Frames rendered at a time, 1-16 (retake render --concurrency wins for its command). Default: $RETAKE_RENDER_CONCURRENCY, else 3 on the GPU path and three quarters of the CPUs (at most 8) in software.')
+      .optional(),
+  })
+  .meta({ id: 'RenderSettings', title: 'Render settings' });
+
 /** retake.yaml at the workspace root. */
 export const WorkspaceFileSchema = z
   .strictObject({
@@ -229,5 +251,6 @@ export const WorkspaceFileSchema = z
       .optional(),
     browser: BrowserConfigSchema.optional(),
     ffmpeg: nonEmpty().describe('ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app\'s own, else "ffmpeg" on PATH.').optional(),
+    render: RenderSettingsSchema.optional(),
   })
   .meta({ id: 'Workspace', title: 'Retake workspace', description: 'retake.yaml' });

@@ -10,6 +10,8 @@
  * (multiply by `capture.scale` to get video pixels).
  */
 
+import type { RenderSettings } from './render-settings.js';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Targets
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2500,6 +2502,8 @@ export interface WorkspaceConfig {
   browser?: BrowserConfig;
   /** ffmpeg binary (ffprobe is looked for beside it); default: $RETAKE_FFMPEG, the app's own, else "ffmpeg" on PATH. */
   ffmpeg?: string;
+  /** retake.yaml `render:` (L5.15): this machine's render settings (each key wins over its RETAKE_RENDER_* variable). */
+  render?: RenderSettings;
 }
 
 export interface LoadedProject {

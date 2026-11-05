@@ -70,6 +70,26 @@ export interface DoctorProbes {
   renderBrowser?(): { path: string | null; source: string; note?: string };
   /** L5.14, the "Captures first" line: this user's filming markers on this Mac (nothing made, nothing named); absent, no line. */
   captures?(root: string): Promise<CapturesProbe>;
+  /** L5.15, the "Renders" line: the render path a 1080p render takes here (editor probeRenderPath); absent, no line. */
+  renders?(): Promise<RendersProbe>;
+}
+
+/** What the "Renders" line reads (editor RenderPathProbe, structurally). */
+export interface RendersProbe {
+  policy?: {
+    gl: { asked: string; resolved: 'angle' | 'software'; source: string };
+    encoder: { asked: string; source: string };
+    concurrency: number;
+    concurrencySource: string;
+    platform: string;
+  };
+  error?: string;
+  gpu?: { accelerated: boolean; renderer?: string };
+  browserError?: string;
+  gl?: 'angle' | 'software';
+  videotoolbox?: { ok: boolean; error?: string };
+  encoder?: 'h264_videotoolbox' | 'libx264';
+  concurrency?: number;
 }
 
 /** What doctor shows of captures first (L5.14). */
@@ -187,6 +207,7 @@ export function systemProbes(): DoctorProbes {
     bundle: bundleInfoOrNull(),
     bundleProblems,
     renderBrowser: systemRenderBrowser,
+    renders: async () => (await import('@retake/editor')).probeRenderPath(),
     captures: async (root) => {
       const e = await import('@retake/engine');
       const loc = e.capturesLocation(process.env);
@@ -356,6 +377,53 @@ export function gpuCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): 
         ? 'browser.channel: headless-shell has no GPU — remove it (new headless uses the GPU)'
         : 'captures will look choppy and cost more CPU: check the machine has a GPU Chromium can use (a VM or a remote session often has none)',
   };
+}
+
+const RENDER_VARS: Record<string, string> = { gl: 'RETAKE_RENDER_GL', encoder: 'RETAKE_RENDER_ENCODER', concurrency: 'RETAKE_RENDER_CONCURRENCY' };
+function settingWhere(source: string, key: string): string {
+  return source === 'retake.yaml' ? `retake.yaml render.${key}` : source === 'env' ? `$${RENDER_VARS[key]}` : source;
+}
+
+/**
+ * How renders run here (L5.15, R-RND-13): the GPU path (ANGLE, the render browser's GPU, VideoToolbox) or the software
+ * one, the encoder and the frames at a time a 1080p render gets — from the checks a render makes. WARN when `auto`
+ * found no GPU or VideoToolbox does not work (renders in software cost ≈ 2.5× the CPU); FAIL when every render would
+ * fail (a setting that cannot work here).
+ */
+export function rendersCheck(r: RendersProbe): DoctorCheck {
+  const name = 'Renders';
+  const p = r.policy;
+  if (!p) return { status: 'fail', name, detail: r.error ?? 'the render settings cannot be read', hint: 'fix retake.yaml render: or the RETAKE_RENDER_* variables' };
+  const set = (['gl', 'encoder', 'concurrency'] as const)
+    .map((k) => {
+      const source = k === 'concurrency' ? p.concurrencySource : p[k].source;
+      if (source === 'default' || source === 'option') return null;
+      const value = k === 'concurrency' ? p.concurrency : p[k].asked;
+      return `${k} ${value} (${settingWhere(source, k)})`;
+    })
+    .filter((x): x is string => !!x);
+  const frames = `${r.concurrency ?? p.concurrency} frames at a time`;
+  const encoder = r.encoder === 'h264_videotoolbox' ? 'VideoToolbox H.264' : 'libx264 CRF 16';
+  const tail = set.length ? ` · set: ${set.join(', ')}` : '';
+  if (r.error) return { status: 'fail', name, detail: `${r.error}${tail}`, hint: 'every render would fail: change retake.yaml render: or the RETAKE_RENDER_* variables' };
+  if (r.gl === 'angle') {
+    const gpu = r.gpu?.accelerated ? `GPU (${r.gpu.renderer ?? 'ANGLE'})` : `ANGLE without a GPU (${r.gpu?.renderer ?? r.browserError ?? 'no GPU status'})`;
+    if (!r.gpu?.accelerated) return { status: 'warn', name, detail: `${gpu} · ${encoder} · ${frames}${tail}`, hint: 'render gl: gpu is set, but the render browser found no GPU: renders may fail or crawl (set it to auto)' };
+    if (r.videotoolbox && !r.videotoolbox.ok && p.encoder.asked === 'auto') {
+      return { status: 'warn', name, detail: `${gpu} · VideoToolbox does not work here (${r.videotoolbox.error ?? 'its probe failed'}): ${encoder} · ${frames}${tail}`, hint: 'renders encode with libx264 (more CPU): a Mac VM often has no media engine' };
+    }
+    return { status: 'ok', name, detail: `${gpu} · ${encoder} · ${frames}${tail}` };
+  }
+  if (p.gl.resolved === 'angle') {
+    return {
+      status: 'warn',
+      name,
+      detail: `no GPU found for renders (${r.gpu?.renderer ?? r.browserError ?? 'the render browser reported none'}): software · ${encoder} · ${frames}${tail}`,
+      hint: 'renders in software cost ≈ 2.5× the CPU: a VM or a remote session often has no GPU Chromium can use',
+    };
+  }
+  const why = p.gl.asked === 'software' ? '' : ` (no GPU path on ${p.platform})`;
+  return { status: 'ok', name, detail: `software${why} · ${encoder} · ${frames}${tail}` };
 }
 
 /** The encoder captures feed during the take (L5.7): the Mac's hardware H.264 encoder through ffmpeg, else libx264. */
@@ -951,6 +1019,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   if (render) out.push(render);
   const gpu = gpuCheck(chromium, ws.browser);
   if (gpu) out.push(gpu);
+  if (probes.renders) out.push(rendersCheck(await probes.renders()));
   const ffmpeg = await mediaTool(probes, 'ffmpeg', ws.ffmpeg);
   out.push(ffmpeg);
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));

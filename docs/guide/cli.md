@@ -32,7 +32,7 @@ retake theme from-site <url> [--json]              # colours, font names, logo P
 retake plan <project> <run-id|latest> [--scenario S] [--theme T] [--frame F] [--vertical|--square] [--json] [--out FILE]
 retake render <project> <scenario> [--run ID|latest] [--theme T] [--frame F] [--vertical|--square] [--scale N]
               [--music FILE|--no-music] [--tutorial|--no-tutorial] [--no-intro] [--no-outro] [--out FILE] [--concurrency N]
-              [--review] [--json] [--no-wait]
+              [--review] [--json] [--no-wait]   # GPU / encoder / concurrency defaults: retake.yaml render: (Workspace)
 retake still <project> <scenario> --frame N [--run ID|latest] [--layout F] [--theme T] [--vertical|--square] [--out FILE] [--json] [--no-wait]
 retake export <project> <render-id|file|latest> [--formats LIST|all] [--scenario S] [--out DIR] [--gif-start S]
               [--concurrency N] [--json] [--no-wait]   # mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview
@@ -99,7 +99,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   `--auto`, the persona's `login:` steps, headless; **auth status** lists every persona's session (from the last check,
   or checked now with `--check`) — see [Signing in](environments.md#signing-in-personas-and-sessions).
 - **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
-  version and a real new-headless launch), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
+  version and a real new-headless launch), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
+  browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
+  with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
   (`osascript`, `notify-send`), Docker (its version, Compose v2.17 or later, a running daemon, the context — found on
   PATH, else where Docker Desktop, OrbStack or Homebrew put it, as the sandboxes look for it: a warning when missing,

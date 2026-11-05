@@ -12,7 +12,8 @@
  *   `App updates` line says "updates are off in this build" (no feed given to this build: launch.json `updates`);
  * - `retake init` makes a workspace, the fixture project is copied in (its hosts on ports 4970–4973, where this test
  *   serves the fixture product), `run northfield-fixture quote` captures it and `render … --review` renders it with the
- *   app's headless shell (the render record says `bundled`), the review passes;
+ *   app's headless shell (the render record says `bundled`; L5.15: ANGLE + VideoToolbox, and doctor's Renders line says
+ *   so), the review passes;
  * - the shell binary started directly (Contents/MacOS, test mode — never `open` / Launch Services) serves the Studio
  *   from the app's own Node.js and engine (the server's command line), the page redeems its code, SIGTERM stops it;
  * - L5.16c: the first run — no workspace, test mode answers Create ~/Retake: the app's own `retake init` makes it in the
@@ -241,6 +242,8 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
       expect(check(name).detail, name).toMatch(/bundled/);
     }
     expect(check('MCP').detail).toContain(join(app, 'Contents', 'Resources', 'node', 'bin', 'node'));
+    // L5.15: the app's renders run on the GPU — its relinked compositor's ffmpeg passes the VideoToolbox probe.
+    expect(check('Renders'), JSON.stringify(check('Renders'))).toMatchObject({ status: 'ok', detail: expect.stringMatching(/^GPU \(.*\) · VideoToolbox H\.264 · 3 frames at a time$/) });
     // L5.16d (review d A-L9): a bundle built without an update feed says so (its launch.json `updates: "off"`).
     expect(JSON.parse(readFileSync(join(app, 'Contents', 'Resources', 'launch.json'), 'utf8')).updates).toBe('off');
     expect(check('App updates').detail).toMatch(/^updates are off in this build/);
@@ -278,13 +281,18 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     const render = retake(['--root', ws, 'render', 'northfield-fixture', 'quote', '--review', '--json'], { timeout: 15 * 60_000 });
     report.render_ms = render.ms;
     expect(render.status, render.out.slice(-3000)).toBe(0);
-    const r = JSON.parse(render.stdout) as { status: string; file: string; frames: number; duration_s: number; size_bytes: number; timings: unknown; browser: { path: string; source: string }; review: { clean: boolean; counts: Record<string, number> } };
+    const r = JSON.parse(render.stdout) as { status: string; file: string; frames: number; duration_s: number; size_bytes: number; timings: unknown; browser: { path: string; source: string }; review: { clean: boolean; counts: Record<string, number> }; policy?: { gl: { used: string; renderer?: string }; encoder: { used: string }; fallback?: unknown }; encoding: { encoder?: string } };
     expect(r.status).toBe('succeeded');
+    // L5.15: the signed app's path (its relinked compositor, hardened runtime) draws with ANGLE and encodes with
+    // VideoToolbox — the only check of that path (render-gpu.test.ts checks the repository's and a relinked copy's probe).
+    expect(r.policy, JSON.stringify(r.policy)).toMatchObject({ gl: { used: 'angle', renderer: expect.stringMatching(/Metal/) }, encoder: { used: 'h264_videotoolbox' } });
+    expect(r.policy?.fallback).toBeUndefined();
+    expect(r.encoding.encoder).toBe('h264_videotoolbox');
     expect(r.browser.source).toBe('bundled');
     expect(r.browser.path).toContain(join(app, 'Contents', 'Resources', 'browsers'));
     expect(statSync(r.file).size).toBe(r.size_bytes);
     expect(r.review.counts.error ?? 0, JSON.stringify(r.review.counts)).toBe(0);
-    report.render = { frames: r.frames, duration_s: r.duration_s, size_bytes: r.size_bytes, timings: r.timings, review: r.review.counts, clean: r.review.clean };
+    report.render = { frames: r.frames, duration_s: r.duration_s, size_bytes: r.size_bytes, timings: r.timings, review: r.review.counts, clean: r.review.clean, policy: r.policy };
     // The render bundle took no canary either (renderBundleRestriction: the app, the workspace, the cache).
     expect(canaryMarked(join(ws, '.retake'))).toEqual([]);
   }, 30 * 60_000);

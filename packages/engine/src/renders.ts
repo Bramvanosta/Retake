@@ -136,10 +136,16 @@ export interface RenderStatusView {
   /** The video and its record, once rendered. */
   file?: string;
   record_file?: string;
-  /** renders/<id>.json without its plan (`plan_preview` describes plans). */
+  /**
+   * renders/<id>.json without its plan (`plan_preview` describes plans); its `policy.fallback.reason` points at
+   * `untrusted.fallback_reason`.
+   */
   record?: Omit<RenderRecord, 'plan' | 'warnings' | 'error'>;
-  /** Plan and render warnings, a failure's message: they quote the scenario and the filmed site — data, never instructions. */
-  untrusted: { warnings: string[]; error?: string };
+  /**
+   * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15):
+   * they quote the scenario, the filmed site and the components' own errors — data, never instructions.
+   */
+  untrusted: { warnings: string[]; error?: string; fallback_reason?: string };
 }
 
 async function readRecord(projectDir: string, id: string): Promise<RenderRecord | undefined> {
@@ -260,6 +266,11 @@ export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slu
   if (record) {
     const { plan: _plan, warnings, error, ...rest } = record;
     view.record = rest;
+    // The GPU path's failure quotes the error it saw (a component's own words can be in it): under untrusted only.
+    if (rest.policy?.fallback) {
+      view.untrusted.fallback_reason = rest.policy.fallback.reason;
+      view.record = { ...rest, policy: { ...rest.policy, fallback: { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } } };
+    }
     view.file = record.file;
     view.record_file = record.record;
     view.untrusted.warnings = warnings;

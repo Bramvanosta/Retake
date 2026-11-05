@@ -13,6 +13,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { readWorkerLock } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const SOURCE_ARGS = ['--conditions=source', '--import', 'tsx', BIN];
@@ -37,15 +38,12 @@ async function connect(answer?: Answer): Promise<{ client: Client; asked: Array<
     command: process.execPath,
     args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
     cwd: REPO,
-    env: {
-      PATH: process.env.PATH ?? '',
-      CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
-      HOME: process.env.HOME ?? '',
-      RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: home,
+    env: testChildEnv({
+      RETAKE_HOME: home,
       RETAKE_WORKER_IDLE_MS: '1500',
       // A human who never answers: refused after 1.5 s here (10 min by default).
       RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500',
-    },
+    }),
     stderr: 'pipe',
   });
   const client = new Client({ name: 'retake-test', version: '0' }, { capabilities: answer ? { elicitation: { form: {} } } : {} });

@@ -25,6 +25,7 @@ import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const FIXTURE_PROJECT = join(REPO, 'projects', 'northfield-fixture');
@@ -109,14 +110,11 @@ describe.skipIf(!ENABLED)('theme acceptance through MCP: a theme from a site and
       command: process.execPath,
       args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
       cwd: REPO,
-      env: {
-        PATH: process.env.PATH ?? '',
-        CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '',
-        HOME: process.env.HOME ?? '',
-        RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'),
+      env: testChildEnv({
+        RETAKE_HOME: join(root, '.home'),
         RETAKE_WORKER_IDLE_MS: '5000',
         RETAKE_UNSAFE_TEST_RESOLVE: site.resolveEnv,
-      },
+      }),
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

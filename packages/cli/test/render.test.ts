@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { encodingWords, glWords } from '../src/commands/render.js';
 import { hasTool, renderWorkspace } from '../../editor/test/render-helpers.js';
 import type { RenderWorkspace } from '../../editor/test/render-helpers.js';
 
@@ -28,13 +29,34 @@ afterAll(async () => {
   await ws?.cleanup();
 });
 
+describe("the summary's words for the render path (L5.15, review B L6)", () => {
+  const encoding = { codec: 'h264', pixel_format: 'yuv420p', faststart: true, audio: 'silent' } as const;
+  const policy = (used: 'angle' | 'software', fallback?: string) => ({
+    gl: { asked: 'auto', source: 'default', resolved: 'angle', used },
+    encoder: { asked: 'auto', source: 'default', used: used === 'angle' ? 'h264_videotoolbox' : 'libx264' },
+    concurrency_source: 'default',
+    ...(fallback ? { fallback: { reason: fallback } } : {}),
+  }) as const;
+  it('on the GPU, in software, in software after a GPU failure (never its reason); an old record: libx264 CRF 16, in software', () => {
+    expect(glWords({ policy: policy('angle') })).toBe('on the GPU');
+    expect(glWords({ policy: policy('software') })).toBe('in software');
+    expect(glWords({ policy: policy('software', 'WebGL context lost — said by a component') })).toBe('in software after a GPU failure');
+    expect(glWords({})).toBe('in software');
+    expect(encodingWords({ encoding: { ...encoding, encoder: 'h264_videotoolbox', bitrate: '8M', gop: 60 } })).toBe('h264 VideoToolbox 8M');
+    expect(encodingWords({ encoding: { ...encoding, encoder: 'libx264', crf: 16 } })).toBe('h264 crf 16');
+    // A record of before L5.15: no encoder, its crf.
+    expect(encodingWords({ encoding: { ...encoding, crf: 16 } })).toBe('h264 crf 16');
+    expect(encodingWords({ encoding: { ...encoding } })).toBe('h264 crf 16');
+  });
+});
+
 describe.skipIf(!canRender)('retake render / still', () => {
   it('renders the latest capture of a scenario into renders/<scenario>-v1.mp4 with a summary', async () => {
     const r = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--concurrency', '2');
     expect(r.code, r.err).toBe(EXIT.ok);
     expect(r.err).toMatch(/✓ rendered synthetic-v1 → .*renders\/synthetic-v1\.mp4/);
     expect(r.err).toMatch(/1\.90 s · 57 frames @ 30 fps · 480×270 · [\d.]+ KB · h264 crf 16, silent audio · checked: 1\.9\d s, 480×270, 1 audio track/);
-    expect(r.err).toMatch(/theme editorial · run 20260101-120000-synthetic · bundle (cached|built in .*) · render .* \(concurrency 2\)/);
+    expect(r.err).toMatch(/theme editorial · run 20260101-120000-synthetic · bundle (cached|built in .*) · render .* \(concurrency 2\) in software/);
     expect(r.err).not.toContain('changed since'); // no scenario file: nothing to compare
     const renders = join(ws.project.dir, 'renders');
     expect((await readdir(renders)).sort()).toEqual(['synthetic-v1.json', 'synthetic-v1.mp4']);
@@ -56,6 +78,21 @@ describe.skipIf(!canRender)('retake render / still', () => {
     expect(rec.plan).toBeUndefined();
     expect(existsSync(rec.file as string)).toBe(true);
     await rm(join(ws.project.dir, 'scenarios'), { recursive: true, force: true });
+  }, LONG);
+
+  it.skipIf(process.platform !== 'darwin')('L5.15: on the GPU path (this Mac, opted in), the summary says VideoToolbox and the GPU', async () => {
+    const saved = { gl: process.env.RETAKE_RENDER_GL, enc: process.env.RETAKE_RENDER_ENCODER };
+    try {
+      process.env.RETAKE_RENDER_GL = 'auto';
+      process.env.RETAKE_RENDER_ENCODER = 'auto';
+      const r = await retake('render', 'demo', 'synthetic', '--scale', '0.25', '--out', join(ws.root, 'gpu.mp4'));
+      expect(r.code, r.err).toBe(EXIT.ok);
+      expect(r.err).toMatch(/480×270 · [\d.]+ KB · h264 VideoToolbox 1M, silent audio/);
+      expect(r.err).toMatch(/render .* \(concurrency 3\) on the GPU · total/);
+    } finally {
+      process.env.RETAKE_RENDER_GL = saved.gl;
+      process.env.RETAKE_RENDER_ENCODER = saved.enc;
+    }
   }, LONG);
 
   it('still: one frame as a PNG (renders/stills/ by default)', async () => {

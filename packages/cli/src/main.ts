@@ -236,7 +236,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--no-intro', 'leave the intro out')
     .option('--no-outro', 'leave the outro out')
     .option('--out <file>', 'write the video (and its .json record) here instead of renders/')
-    .option('--concurrency <n>', 'frames rendered in parallel (default: 3/4 of the CPUs, at most 8)')
+    .option('--concurrency <n>', 'frames rendered in parallel, 1-16 (default: retake.yaml render.concurrency, $RETAKE_RENDER_CONCURRENCY, else 3 on the GPU path, 3/4 of the CPUs in software)')
     .option('--json', 'print the render record (without the plan) as JSON')
     .option('--review', 'review the render right after it (retake review: sheets, key frames, report)')
     .option('--no-wait', NO_WAIT)

@@ -33,6 +33,33 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L5.15)
+- **L5.15 done (2026-11-05)** — renders on the GPU (BL-114). One policy for every Remotion browser (editor
+  `render/policy.ts`, `openRenderBrowser`; core `render-settings.ts`, `gpu.ts`): `render: {gl: auto|gpu|software,
+  encoder: auto|videotoolbox|libx264, concurrency}` in retake.yaml, then `RETAKE_RENDER_GL / _ENCODER / _CONCURRENCY`,
+  then auto (the CLI's `--concurrency` wins for its command). On a Mac with a GPU (CDP SystemInfo when the browser
+  opens): ANGLE + VideoToolbox at concurrency 3; without one: today's software path at today's concurrency (never
+  swangle: 10× slower). VideoToolbox only after a probe through the compositor's own ffmpeg (`callFf`, nullsrc, at the
+  render's size, cached per process) and each side ≤ 4096 (above: libx264, said); `hardwareAcceleration: 'required'`,
+  0.13 bit per pixel per frame (8 Mb/s at 1080p30, 32.5 at 4K), `gopSize` 2 × fps. A GPU-path failure classified
+  narrowly re-renders once in software + libx264, guarded and reported again, progress never going back. A guarded
+  render never lets Remotion open a browser of its own (`browserExecutable: '/dev/null'`, network-guard.ts): a frame
+  whose page fails ends the render plainly (after the one guarded software retry on the GPU path). `guardEncoderPipe`:
+  no process crashes on a broken encoder pipe. The record's `policy` (asked / resolved / used, GPU name, fallback) and
+  `encoding`; doctor's "Renders" line; the Library key carries the resolved GL. **Tests pin the software path**
+  (vitest.setup.ts and `packages/core/test/child-env.ts` for children with an explicit env;
+  `RETAKE_TEST_RENDER_POLICY=keep` lifts it); GPU tests opt in and compare SSIM. Measured (DESIGN §4r): 1080p 454 →
+  186 cpu-s, 77 → 64 s, p95 7.3 → 3.8 cores, 10.5 → 24.4 MB; 4K 1 380 → 438 cpu-s, 210 → 103 s; SSIM vs today ≥ 0.9936.
+  **The captures-first acceptance on the GPU path did not pass** (beside takes 57.6 / 57.7 / 55.1 against 56.7, dropped
+  median 5 against 4; the render still slowed 30 → 6.5 frames/s during takes); the person chose to commit and re-run it
+  on an idle Mac (R-CAP-03). Tests on the Mac: the last full run 4585 — 4480 pass, 102 skipped, 3 failures (one real,
+  fixed: the ffmpeg needs scan now knows the probe runs the compositor's ffmpeg; two load flakes green alone);
+  `pnpm test:slow` 65/65; `pnpm test:pg` 20/20; the gated bundle acceptance 8/8 (the signed app renders with ANGLE +
+  VideoToolbox); Docker 6/7 (K6, as before); **the gated desktop shell 9/19 — the same 10 tests fail on main 4d87a93
+  too** (they wait for the page's pending snapshot; environment of that night, the display possibly asleep — re-run
+  with the display awake). Requirements: 706 tracked — 662 done, 30 partial, 8 todo, 6 n/a-here. Cuts: BL-152 – BL-159.
+  Next: the audit (docs/audit/), then the first release v0.2.0 (the person tags).
+
 ## State (after L5.14)
 - **L5.14 done (2026-11-04)** — captures first, on the file queue (the person's decision: no new dependency; BL-117 is
   parked). **L5.14a**: core `JOB_CLASS` / `jobClass` / `isFilming` (the class from the worker's view, never a job field);
@@ -746,8 +773,8 @@ of this public repository until fixed) should land before the tag. Then propose 
 action plan to the person (the MVP scope stays locked until they decide), and rerun `scripts/audit/snapshot.mjs`
 against `docs/audit/2026-11-04/summary.json`.
 
-**Next: L5.15 (renders on the GPU), then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16 and
-L5.14 are done: the standalone app and its releases, then captures first on the file queue). L5.14 signed rollback
+**Next: the audit, then the first release v0.2.0** (asked by the person on 2026-11-04; L5.16, L5.14 and L5.15 are
+done: the standalone app and its releases, captures first on the file queue, renders on the GPU). L5.14 signed rollback
 journals and bound approvals to their job (DESIGN §4q); check the audit's action plan for what T-SEC still lists. **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided

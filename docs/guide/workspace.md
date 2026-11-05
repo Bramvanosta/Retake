@@ -24,7 +24,30 @@ templates_dir: templates   # default "templates"
 components_dir: components # default "components": your own components (see Components)
 ffmpeg: /opt/homebrew/bin/ffmpeg
 browser: {locale: en-GB, timezone: Europe/Stockholm}   # defaults for every project (project.yaml wins)
+render: {gl: auto, encoder: auto}                     # how this machine renders (below); every key optional
 ```
+
+### Render settings
+
+`render:` says how this machine renders (a GPU is a property of the machine, not of the product: it is not in
+`project.yaml`). Each key is optional; see [Renders on the GPU](editing.md#renders-on-the-gpu).
+
+| Key | Values | Default |
+|---|---|---|
+| `gl` | `auto` (the GPU on macOS — ANGLE on Metal —, software elsewhere; software when the render browser finds no GPU), `gpu` (ANGLE always, even without a GPU: a warning), `software` (Chromium's software raster: the renders of before L5.15) | `$RETAKE_RENDER_GL`, else `auto` |
+| `encoder` | `auto` (VideoToolbox with the GPU path when it works at the render's size, else libx264), `videotoolbox` (macOS only: an error elsewhere, and when it cannot encode the render), `libx264` (CRF 16) | `$RETAKE_RENDER_ENCODER`, else `auto` |
+| `concurrency` | frames rendered at a time, 1–16 | `$RETAKE_RENDER_CONCURRENCY`, else 3 on the GPU path and ¾ of the CPUs (1–8) in software |
+
+The order is the one of `ffmpeg:`: `retake render --concurrency` for its command, then `retake.yaml`, then the
+variable, then the default. So **a key set in `retake.yaml` wins over its variable**: to try another value for one
+command with `RETAKE_RENDER_GL=software retake render …`, leave that key out of `retake.yaml`. A variable with a value
+that does not exist (`RETAKE_RENDER_GL=swangle`) makes renders fail with a message naming it; `retake doctor` shows the
+settings in use and where each one comes from on its **Renders** line. The Studio, its jobs and MCP renders read the
+same settings (the workspace's `retake.yaml`, and the variables of the process that started them: the jobs worker gets
+the variables of the Studio, MCP server or command that started it). To pin a setting for everything that renders in a
+workspace — the Studio, its worker, MCP — put it in `retake.yaml`: a variable set in one terminal only reaches what
+that terminal starts (a worker already running from another client keeps its own, and the Library then renders its
+previews again for it).
 
 The CLI finds the workspace in this order: `--root <dir>` (`-C`), then `$RETAKE_ROOT`, then the nearest folder
 above the current directory that contains `retake.yaml`, then the nearest one containing `projects/` or

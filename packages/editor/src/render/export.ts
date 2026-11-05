@@ -195,6 +195,15 @@ export function exportMethod(record: Pick<RenderRecord, 'variant' | 'width' | 'h
 }
 
 /**
+ * The warnings of a re-render (a square or vertical export) an export passes on: files upscaled, missing or blocked,
+ * and how it was drawn and encoded (L5.15: no GPU found, VideoToolbox's size limit or probe, the GPU path failing and
+ * the video rendered again in software). Pure.
+ */
+export function exportRenderWarnings(warnings: readonly string[]): string[] {
+  return warnings.filter((w) => /upscaled|missing|not found|blocked|\bGPU\b|VideoToolbox|in software/i.test(w));
+}
+
+/**
  * Why a render may not be exported (or reviewed) by work submitted through MCP, or null: its video and its run folder
  * must lie in the project folder, symbolic links resolved (a record's paths are absolute: one edited by hand, or of a
  * moved workspace, could name any file).
@@ -312,7 +321,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
       onProgress: (p) => emit({ format, stage: 'progress', progress: p.overall, message: p.stage }),
     });
-    return finish(format, file, 'render', t0, { record: r.record, warnings: r.warnings.filter((w) => /upscaled|missing|not found|blocked/i.test(w)) });
+    return finish(format, file, 'render', t0, { record: r.record, warnings: exportRenderWarnings(r.warnings) });
   };
 
   for (const format of formats) {

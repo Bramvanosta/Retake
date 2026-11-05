@@ -18,6 +18,7 @@ import { LIBRARY_DIR } from '@retake/components';
 import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, hasTool, linkSharedCache } from '../../editor/test/render-helpers.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
@@ -69,7 +70,7 @@ beforeAll(async () => {
     command: process.execPath,
     args: ['--conditions=source', '--import', 'tsx', BIN, '--root', root, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '1500' },
+    env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '1500' }),
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

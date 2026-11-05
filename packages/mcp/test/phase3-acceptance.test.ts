@@ -39,6 +39,7 @@ import { flowYaml, parseYaml, scenarioChangedMessage } from '@retake/core';
 import { readWorkerLock } from '@retake/engine';
 import { REPO } from '../../engine/test/helpers.js';
 import { TEMPLATES, linkSharedCache } from '../../editor/test/render-helpers.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 const TSX = pathToFileURL(join(REPO, 'node_modules', 'tsx', 'dist', 'loader.mjs')).href;
@@ -407,7 +408,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
       command: process.execPath,
       args: ['--conditions=source', '--import', TSX, BIN, '--root', root, 'mcp'],
       cwd: root,
-      env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' },
+      env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_WORKER_IDLE_MS: '5000' }),
       stderr: 'pipe',
     });
     transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));
@@ -699,7 +700,7 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
     const out = execFileSync(
       process.execPath,
       ['--conditions=source', '--import', TSX, BIN, '--root', root, 'comment', 'add', PROJECT, ids.render1!, '--marker', 'sent', '--region', '0.72,0.73,0.18,0.11', '--json', 'Keep the confirmation on screen longer'],
-      { cwd: root, env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      { cwd: root, env: testChildEnv({ RETAKE_HOME: join(root, '.home'), RETAKE_AUTHOR: 'Reviewer' }), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
     );
     const added = JSON.parse(out) as { thread: { id: string }; warnings: string[] };
     expect(added.warnings).toEqual([]);

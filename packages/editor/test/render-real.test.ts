@@ -99,7 +99,13 @@ describe.skipIf(!canRender)('renderVideo on a synthetic run', () => {
     expect(record.file).toBe(join(renders, 'synthetic-v1.mp4'));
     expect(record.record).toBe(join(renders, 'synthetic-v1.json'));
     expect(record).toMatchObject({ status: 'succeeded', scenario: 'synthetic', project: 'demo', template: 'editorial', variant: 'landscape', fps: 30, width: 960, height: 540, overrides: { scale: 0.5 } });
-    expect(record.encoding).toEqual({ codec: 'h264', crf: 16, pixel_format: 'yuv420p', faststart: true, audio: 'silent' });
+    expect(record.encoding).toEqual({ codec: 'h264', encoder: 'libx264', crf: 16, pixel_format: 'yuv420p', faststart: true, audio: 'silent' });
+    // The suite's software path (vitest.setup.ts, L5.15): today's renderer and encoder, said in the record.
+    expect(record.policy).toEqual({
+      gl: { asked: 'software', source: 'env', resolved: 'software', used: 'software' },
+      encoder: { asked: 'libx264', source: 'env', used: 'libx264' },
+      concurrency_source: 'option',
+    });
     expect(record.frames).toBe(record.plan.durationInFrames);
     expect(record.frames).toBe(57);
     expect([...stages]).toEqual(expect.arrayContaining(['planning', 'bundling', 'rendering', 'encoding', 'done']));

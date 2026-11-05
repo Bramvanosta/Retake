@@ -77,7 +77,10 @@ export interface LibraryKeyContext {
   themeHash: string;
   composition: string;
   samples: PreviewSamples;
-  /** The render browser's identity (editor renderBrowserIdentity: its executable by path, size and date — review A L3). */
+  /**
+   * The render browser's identity (editor renderBrowserIdentity: its executable by path, size and date — review A L3)
+   * and the GL the render policy resolves (editor previewGlKey, L5.15).
+   */
   browser: string;
   /** Component id → componentFolderHash (memo). */
   folders: Map<string, string>;
@@ -100,7 +103,9 @@ export async function libraryKeyContext(template: LoadedTemplate, registry: Comp
     themeHash: ed.themeContentHash(template.dir),
     composition: await ed.compositionHash(),
     samples: ed.loadPreviewSamples(),
-    browser: o.browser ?? ed.renderBrowserIdentity(),
+    // The GL the previews are drawn with is part of the picture (L5.15, critique M1): the resolved policy, which the
+    // Studio server and the job process compute alike (same retake.yaml, same environment), never the GL a job found.
+    browser: o.browser ?? `${ed.renderBrowserIdentity()} gl=${ed.previewGlKey()}`,
     folders: new Map(),
     files: new Map(),
     registryHash: () => (registryHash ??= libraryRegistryHash(registry)),

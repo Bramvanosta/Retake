@@ -5,9 +5,12 @@
  * fetch, a localhost alias, an image, Remotion's /proxy with a source on B, a WebSocket, and an `<Audio>` source on B
  * (downloaded by Remotion in Node, never through Chromium). Guarded: B gets no request, the render warns with B's
  * origin (or fails, for the audio download). Open (the CLI's renders): B gets them — the positive control.
+ * L5.15 fixes: a guarded render or preview never lets Remotion open a browser of its own — a component whose page fails
+ * ends the render or that preview with a plain error; B gets nothing, and no browser outlives the run.
  * Needs ffmpeg/ffprobe and a Chromium headless shell.
  */
 import { execFileSync, spawn } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -15,9 +18,10 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scaffoldDir } from '@retake/components';
-import { BUNDLE_CSP, allowedDownload, allowedRequest, originOf, planRun, renderPlan, withCspMeta } from '@retake/editor';
-import type { EditPlan, RenderNetwork } from '@retake/editor';
+import { loadTemplate } from '@retake/core';
+import { loadComponentRegistry, scaffoldDir } from '@retake/components';
+import { BUNDLE_CSP, allowedDownload, allowedRequest, guardedPageFailure, originOf, planRun, renderComponentLoops, renderPlan, withCspMeta } from '@retake/editor';
+import type { BrowserProcessInfo, EditPlan, RenderNetwork } from '@retake/editor';
 import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
 
@@ -125,6 +129,34 @@ export default function Reaching() {
 `;
 }
 
+/** A workspace intro whose page fails once its request to B is refused. */
+function closingIntro(port: number): string {
+  return `import { useEffect } from 'react';
+import { AbsoluteFill, continueRender, delayRender } from 'remotion';
+
+export default function Closing() {
+  useEffect(() => {
+    const get = (globalThis as unknown as Record<string, (u: string) => Promise<unknown>>)['fe' + 'tch'];
+    const handle = delayRender('closing');
+    get('http://127.0.0.1:${port}/closing')
+      .then(() => continueRender(handle))
+      .catch(() => delayRender('Target closed', { timeoutInMilliseconds: 1500 }));
+  }, []);
+  return <AbsoluteFill style={{ background: '#206040' }} />;
+}
+`;
+}
+
+/** The render browsers (headless shells with a profile under this run's temp folder) alive now, by pid. */
+function renderBrowsers(): number[] {
+  const out = execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' });
+  const tmp = tmpdir().replace(/\/$/, '');
+  return out
+    .split('\n')
+    .filter((l) => l.includes('puppeteer_dev_chrome_profile') && l.includes(tmp) && !l.includes('--type='))
+    .map((l) => Number(l.trim().split(/\s+/)[0]));
+}
+
 /** A workspace intro component playing an audio file of B: Remotion downloads it in Node. */
 function audioIntro(port: number): string {
   return `import { AbsoluteFill, Audio } from 'remotion';
@@ -180,6 +212,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
     bOrigin = `http://127.0.0.1:${port}`;
     await addIntro('reaching', reachingIntro(port));
     await addIntro('sounding', audioIntro(port));
+    await addIntro('closing', closingIntro(port));
   }, LONG);
   afterAll(async () => {
     await new Promise<void>((r) => (b ? b.close(() => r()) : r()));
@@ -205,6 +238,49 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
     // The CSP of the bundle holds for every render: no WebSocket leaves the page.
     expect(hits).not.toContain('/ws');
     expect(res.warnings.filter((w) => w.startsWith('the render blocked'))).toEqual([]);
+  }, LONG);
+
+  it('L5.15 fixes: a page of a guarded render fails — the render fails plainly; Remotion opens no browser of its own (B gets nothing, none outlives it)', async () => {
+    const plan = await introPlan('acme/closing');
+    const before = renderBrowsers();
+    const browsers: BrowserProcessInfo[] = [];
+    hits = [];
+    const err = await renderPlan({ plan, out: join(ws.root, 'closing.mp4'), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 5], concurrency: 2, onBrowser: (b) => browsers.push(b) }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    expect(err?.message).toBe('render failed: a page of the render failed (its browser closed); a guarded render never continues in another browser');
+    expect(hits).toEqual([]);
+    expect(browsers).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
+    expect(guardedPageFailure(new Error('Protocol error (Runtime.callFunctionOn): Target closed'))).toBe(true);
+    expect(guardedPageFailure(new Error('Timeout (90000ms) exceeded'))).toBe(false);
+  }, LONG);
+
+  it('L5.15 fixes: the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it', async () => {
+    const registry = await loadComponentRegistry({ root: ws.root });
+    const template = await loadTemplate('editorial', ws.root);
+    const info = registry.get('acme/closing');
+    const before = renderBrowsers();
+    const browsers: BrowserProcessInfo[] = [];
+    hits = [];
+    const r = await renderComponentLoops({
+      root: ws.root,
+      registry,
+      template,
+      cacheDir: SHARED_CACHE,
+      network: 'guard',
+      onBrowser: (b) => browsers.push(b),
+      items: [{ target: { id: info.manifest.id, dir: info.dir, entry: info.entry, manifest: info.manifest }, loop: join(ws.root, 'closing.gif') }],
+    });
+    expect(r.rendered).toEqual([]);
+    expect(r.failed.map((f) => f.id)).toEqual(['acme/closing']);
+    expect(r.failed[0]!.reason).toContain('a page of the preview failed (its browser closed); a guarded preview never continues in another browser');
+    expect(hits).toEqual([]);
+    expect(browsers).toHaveLength(1);
+    await new Promise((res) => setTimeout(res, 1000));
+    expect(renderBrowsers().filter((p) => !before.includes(p))).toEqual([]);
   }, LONG);
 
   it("guarded: an <Audio> source on B is refused before Remotion's Node side downloads it (the render fails)", async () => {

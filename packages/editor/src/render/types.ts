@@ -11,6 +11,10 @@ export class RenderError extends Error {
     super(message);
     this.name = 'RenderError';
   }
+  /** A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`). */
+  path?: RenderRecord['policy'];
+  /** A failed render (renderPlan): its warnings so far (a fallback's, a guard's blocked origins). */
+  renderWarnings?: string[];
 }
 
 /** The render was cancelled through its AbortSignal: nothing was written under the final name. */
@@ -41,7 +45,8 @@ export function isDiskFullError(e: unknown): boolean {
   return typeof message === 'string' && /\bENOSPC\b|no space left on device/i.test(message);
 }
 
-export type RenderStage = 'planning' | 'bundling' | 'rendering' | 'encoding' | 'done';
+/** `retrying`: the GPU path failed and the video renders again in software (L5.15; progress does not go back). */
+export type RenderStage = 'planning' | 'bundling' | 'rendering' | 'retrying' | 'encoding' | 'done';
 
 export interface RenderProgress {
   stage: RenderStage;
@@ -109,12 +114,38 @@ export interface RenderRecord {
    * `audio`: what the audio track carries — `silent` (a silent AAC track), `music` (the bed), `files` (the own sound of
    * your files: a video intro, outro, card, interstitial or overlay, L2.12) or `music+files`.
    */
-  encoding: { codec: 'h264'; crf: number; pixel_format: 'yuv420p'; faststart: true; audio: 'silent' | 'music' | 'files' | 'music+files' };
+  encoding: {
+    codec: 'h264';
+    /** The encoder used (L5.15; absent before it: libx264). */
+    encoder?: 'libx264' | 'h264_videotoolbox';
+    /** libx264's CRF (16). */
+    crf?: number;
+    /** VideoToolbox's bitrate ("8M": 0.13 bit per pixel per frame) and key-frame interval (2 s). */
+    bitrate?: string;
+    gop?: number;
+    pixel_format: 'yuv420p';
+    faststart: true;
+    audio: 'silent' | 'music' | 'files' | 'music+files';
+  };
+  /**
+   * The render policy (L5.15, editor policy.ts): the GL asked (and where from), the one this machine resolves it to and
+   * the one that drew the video (re-read at the end), with the GPU's name; the encoder asked and used; whether the GPU
+   * path failed and the video was rendered again in software (`fallback`; its `reason` quotes the failure: untrusted
+   * text, shown only as text and kept under `untrusted` by the engine's views). A failed render's record says what
+   * its last attempt tried. Absent before L5.15 (software, libx264).
+   */
+  policy?: {
+    gl: { asked: 'auto' | 'gpu' | 'software'; source: 'option' | 'retake.yaml' | 'env' | 'default'; resolved: 'angle' | 'software'; used: 'angle' | 'software'; renderer?: string };
+    encoder: { asked: 'auto' | 'videotoolbox' | 'libx264'; source: 'option' | 'retake.yaml' | 'env' | 'default'; used: 'libx264' | 'h264_videotoolbox' };
+    concurrency_source: 'option' | 'retake.yaml' | 'env' | 'default';
+    fallback?: { reason: string };
+  };
   /** What ffprobe saw in the file (when available). */
   probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };
   concurrency: number;
   bundle: { hash: string; cached: boolean; ms: number };
   browser: { path: string | null; source: 'env' | 'bundled' | 'playwright' | 'remotion' };
+  /** `render_ms`: the last attempt's (after a fallback, the software render's; the GPU attempt's time is in `total_ms`). */
   timings: { plan_ms: number; bundle_ms: number; render_ms: number; total_ms: number };
   /** Plan warnings and render warnings. */
   warnings: string[];

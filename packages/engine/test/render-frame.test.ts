@@ -89,6 +89,25 @@ afterAll(async () => {
 });
 
 describe.skipIf(!can)('render frames for the comment viewer (T6)', () => {
+  it.skipIf(process.platform !== 'darwin')('L5.15: a VideoToolbox render (no B-frames, a key frame every 2 s) — the frame shown is the frame asked, both sides of keyframes', async () => {
+    const file = v1.record.file;
+    const saved = await readFile(file);
+    const vt = `${file}.vt.mp4`;
+    try {
+      // As the GPU path encodes a render: h264_videotoolbox at its bitrate, gopSize = 2 × fps (editor policy.ts).
+      execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', file, '-map', '0:v:0', '-map', '0:a:0', '-c:v', 'h264_videotoolbox', '-b:v', '8M', '-g', String(2 * v1.record.fps), '-pix_fmt', 'yuv420p', '-c:a', 'copy', '-movflags', '+faststart', vt]);
+      const probe = JSON.parse(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,has_b_frames,nb_frames', '-of', 'json', vt]).toString()) as { streams: Array<{ codec_type: string; has_b_frames?: number; nb_frames?: string }> };
+      expect(probe.streams.find((x) => x.codec_type === 'video')).toMatchObject({ has_b_frames: 0, nb_frames: String(v1.record.frames) });
+      await copyFile(vt, file);
+      const rf = frames();
+      const last = v1.record.frames - 1;
+      for (const f of [0, 1, GOP - 1, GOP, GOP + 1, 2 * GOP - 1, 2 * GOP, last - 1, last]) expect(frameIndex((await ask(rf, f)).base64), `frame ${f}`).toBe(f);
+    } finally {
+      await writeFile(file, saved);
+      await rm(vt, { force: true });
+    }
+  }, LONG);
+
   it('the frame shown is the frame asked — both sides of keyframes, the last — and a thread still on it shows the same (T7)', async () => {
     const rf = frames();
     const last = v1.record.frames - 1;

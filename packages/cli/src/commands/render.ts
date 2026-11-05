@@ -104,7 +104,7 @@ class RenderProgressPrinter {
     if (p.stage === 'bundling' && p.cached && p.progress >= 1) return;
     const pct = `${Math.round(p.overall * 100)}%`.padStart(4);
     let detail = '';
-    if (p.stage === 'rendering' && p.totalFrames) detail = `frame ${p.renderedFrames ?? 0}/${p.totalFrames}${p.eta_s !== undefined ? ` · ${p.eta_s} s left` : ''}`;
+    if ((p.stage === 'rendering' || p.stage === 'retrying') && p.totalFrames) detail = `frame ${p.renderedFrames ?? 0}/${p.totalFrames}${p.eta_s !== undefined ? ` · ${p.eta_s} s left` : ''}`;
     else if (p.stage === 'encoding' && p.totalFrames) detail = `encoded ${p.encodedFrames ?? 0}/${p.totalFrames}`;
     else if (p.stage === 'bundling') detail = `${Math.round(p.progress * 100)}%`;
     if (p.stage !== 'done') ui.setStatus(`${c.cyan(bar(p.overall))} ${pct}  ${p.stage.padEnd(9)} ${c.dim(detail)}  ${c.dim(formatMs(performance.now() - this.started))}`);
@@ -127,14 +127,28 @@ function abortOnSigint(ui: Ui): { signal: AbortSignal; dispose: () => void } {
   return { signal: controller.signal, dispose: () => process.removeListener('SIGINT', onSigint) };
 }
 
+/** "h264 VideoToolbox 8M", "h264 crf 16" (L5.15: the encoder of the record). */
+export function encodingWords(r: Pick<RenderRecord, 'encoding'>): string {
+  const e = r.encoding;
+  return e.encoder === 'h264_videotoolbox' ? `h264 VideoToolbox ${e.bitrate ?? ''}`.trimEnd() : `h264 crf ${e.crf ?? 16}`;
+}
+
+/** "on the GPU", "in software", "in software after a GPU failure" (L5.15: what drew the render). */
+export function glWords(r: Pick<RenderRecord, 'policy'>): string {
+  const p = r.policy;
+  if (!p) return 'in software';
+  if (p.fallback) return 'in software after a GPU failure';
+  return p.gl.used === 'angle' ? 'on the GPU' : 'in software';
+}
+
 function summary(ui: Ui, r: RenderRecord): void {
   const c = ui.c;
   ui.ok(`rendered ${c.bold(r.id)} → ${ui.path(r.file)}`);
   const probe = r.probe ? ` · checked: ${r.probe.duration_s.toFixed(2)} s, ${r.probe.width}×${r.probe.height}, ${r.probe.audio_streams} audio track${r.probe.audio_streams === 1 ? '' : 's'}` : '';
-  ui.line(`  ${r.duration_s.toFixed(2)} s · ${r.frames} frames @ ${r.fps} fps · ${r.width}×${r.height} · ${formatBytes(r.size_bytes)} · h264 crf ${r.encoding.crf}, ${r.encoding.audio} audio${probe}`);
+  ui.line(`  ${r.duration_s.toFixed(2)} s · ${r.frames} frames @ ${r.fps} fps · ${r.width}×${r.height} · ${formatBytes(r.size_bytes)} · ${encodingWords(r)}, ${r.encoding.audio} audio${probe}`);
   ui.line(
     c.dim(
-      `  theme ${r.template} · run ${r.run_id} · bundle ${r.bundle.cached ? 'cached' : `built in ${formatMs(r.bundle.ms)}`} · render ${formatMs(r.timings.render_ms)} (concurrency ${r.concurrency}) · total ${formatMs(r.timings.total_ms)}`,
+      `  theme ${r.template} · run ${r.run_id} · bundle ${r.bundle.cached ? 'cached' : `built in ${formatMs(r.bundle.ms)}`} · render ${formatMs(r.timings.render_ms)} (concurrency ${r.concurrency}) ${glWords(r)} · total ${formatMs(r.timings.total_ms)}`,
     ),
   );
   ui.line(c.dim(`  record ${ui.path(r.record)}`));

@@ -14,6 +14,7 @@ import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { TOOLS, clientPath, stableNodePath } from '../src/index.js';
 import { progressReporter } from '../src/server.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 const BIN = join(REPO, 'packages', 'cli', 'src', 'bin.ts');
 /** `studio` from the sources (no build): the workspace packages' `source` export condition + tsx. */
@@ -48,7 +49,7 @@ beforeAll(async () => {
     command: process.execPath,
     args: [...SOURCE_ARGS, '--root', ws, 'mcp'],
     cwd: REPO,
-    env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: home },
+    env: testChildEnv({ RETAKE_HOME: home }),
     stderr: 'pipe',
   });
   transport.stderr?.on('data', (d: Buffer) => (stderr += d.toString()));

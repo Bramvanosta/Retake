@@ -10,6 +10,11 @@
  * - Node side: `onDownload` of renderMedia / renderStill sees the `<Audio>` / `<Video>` sources Remotion downloads
  *   itself (they never pass through Chromium): a source that is not an asset-server or bundle-server URL throws
  *   before the download starts (the render fails).
+ * - One browser per guarded session: every Remotion call of a guarded render or preview names a browser executable
+ *   that is no program (GUARDED_NO_OTHER_BROWSER). Remotion opens a browser of its own only to replace the one it was
+ *   given when a page of it fails; with that path its launch fails at once, before any browser runs or is downloaded:
+ *   a guarded render never lets Remotion open a browser of its own — a frame whose page fails ends the render (render.ts
+ *   may run its own guarded software retry on the GPU path).
  * - WebSocket requests are not paused by CDP Fetch: the bundle's index.html carries a CSP meta whose connect-src
  *   allows no `ws:` / `wss:` (bundle.ts). WebRTC and DNS prefetch stay uncovered (BACKLOG, full isolation).
  *
@@ -74,6 +79,29 @@ export async function pickFreePort(): Promise<number> {
     if (port && (await listen(port, '::1')) === port) return port;
   }
   throw new Error('no free local port for the render bundle server');
+}
+
+/**
+ * The `browserExecutable` of every Remotion call of a guarded session: a file that exists and is no program, so
+ * Remotion can never open a browser of its own there — only the one we opened, reported and guarded renders. It must
+ * exist: Remotion checks the path in one queue shared by every browser it opens, and a path it rejects there would fail
+ * every later browser of the process (our own next session, the fallback's); this one passes the check, and its launch
+ * fails at once (spawn EACCES), nothing runs.
+ */
+export const GUARDED_NO_OTHER_BROWSER = '/dev/null';
+
+/**
+ * Did a guarded render or preview fail because one of its pages failed (its browser closed under it; Remotion was
+ * refused another browser)? Then the run ends with a plain error of ours.
+ */
+export function guardedPageFailure(e: unknown): boolean {
+  const message = String((e as { message?: unknown } | null)?.message ?? e);
+  return (/Failed to launch the browser process/.test(message) && message.includes(GUARDED_NO_OTHER_BROWSER)) || /Target closed|Session closed/.test(message);
+}
+
+/** What a guarded run says when a page of it failed (render.ts, preview.ts). */
+export function guardedPageFailed(what: 'render' | 'preview' = 'render'): string {
+  return `a page of the ${what} failed (its browser closed); a guarded ${what} never continues in another browser`;
 }
 
 /** The part of Remotion's HeadlessBrowser the guard uses: its CDP connection to the browser. */

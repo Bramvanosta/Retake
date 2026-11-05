@@ -22,6 +22,7 @@ import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from '../../ui/test/http.js';
 import { MCP_HTTP_BODY_MAX, TOOLS, claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport, startMcpHttpServer } from '../src/index.js';
 import type { McpHttpServer } from '../src/index.js';
+import { testChildEnv } from '../../core/test/child-env.js';
 
 type Result = { content: Array<{ type: string; text: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
 
@@ -103,7 +104,7 @@ describe('MCP over HTTP: the same server as stdio', () => {
         command: process.execPath,
         args: ['--conditions=source', '--import', 'tsx', join(REPO, 'packages', 'cli', 'src', 'bin.ts'), '--root', ws, 'mcp'],
         cwd: REPO,
-        env: { PATH: process.env.PATH ?? '', CFFIXED_USER_HOME: process.env.CFFIXED_USER_HOME ?? '', HOME: process.env.HOME ?? '', RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '', RETAKE_HOME: home },
+        env: testChildEnv({ RETAKE_HOME: home }),
         stderr: 'pipe',
       }),
     );

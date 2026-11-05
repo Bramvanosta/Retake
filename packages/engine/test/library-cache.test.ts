@@ -14,7 +14,7 @@ import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, useWorkspaceRender } from '@retake/core';
 import type { WorkspaceConfig } from '@retake/core';
 import { PREVIEW_MAX_BYTES, PREVIEW_SAMPLES_DIR, componentSourceHash, createComponent, loadComponentRegistry } from '@retake/components';
 import { loadPreviewSamples } from '@retake/editor';
@@ -33,6 +33,7 @@ import {
 } from '../src/index.js';
 import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
 import { REPO } from './helpers.js';
+import { cleanWorkerEnv, openWorkspace } from '../src/index.js';
 
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]);
 const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]);
@@ -145,8 +146,60 @@ describe('library preview keys', () => {
     const updated = await keysOf(await libraryKeyContext(tpl, reg, { browser: 'playwright /x/chromium_headless_shell-1193/headless_shell 104 2' }));
     expect(changed(a, same)).toEqual([]);
     expect(changed(a, updated)).toEqual(Object.keys(a).sort());
-    // By default: this machine's render browser (editor renderBrowserIdentity).
-    expect((await context()).browser).toMatch(/^(playwright|env) \/.+ \d+ \d+$|^remotion /);
+    // By default: this machine's render browser (editor renderBrowserIdentity) and the GL the policy resolves.
+    expect((await context()).browser).toMatch(/^((playwright|env) \/.+ \d+ \d+|remotion \S+) gl=software$/);
+  });
+
+  it('L5.15 (critique M1): the GL is in the key — the resolved policy (retake.yaml render: over the environment), never what a job found', async () => {
+    const soft = await keysOf(await context());
+    const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
+    try {
+      useWorkspaceRender({ gl: 'gpu' });
+      const gpu = await context();
+      expect(gpu.browser).toMatch(/ gl=angle$/);
+      expect(changed(soft, await keysOf(gpu))).toEqual(Object.keys(soft).sort());
+      // A process that opens a workspace (the Studio server, a job process) takes its render: — both compute one key.
+      await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: gpu\n`);
+      useWorkspaceRender(undefined);
+      expect((await context()).browser).toMatch(/ gl=software$/);
+      await openWorkspace({ root });
+      expect((await context()).browser).toMatch(/ gl=angle$/);
+      // A setting that cannot work keys as "invalid" (the preview then fails and says why), never throws here.
+      useWorkspaceRender(undefined);
+      process.env.RETAKE_RENDER_GL = 'swangle';
+      expect((await context()).browser).toMatch(/ gl=invalid$/);
+    } finally {
+      process.env.RETAKE_RENDER_GL = 'software';
+      useWorkspaceRender(undefined);
+      await writeFile(join(root, 'retake.yaml'), yaml);
+    }
+  });
+
+  it("L5.15 fixes (review B L3): the Studio and its worker compute one key — the worker gets the Studio's RETAKE_RENDER_* (cleanWorkerEnv keeps them), and both read retake.yaml render:", async () => {
+    const fixture = join(REPO, 'packages', 'engine', 'test', 'fixtures', 'library-key.mts');
+    // A process of its own, as the worker the Studio starts (the Studio hands it cleanWorkerEnv of its own environment).
+    const keyIn = (env: NodeJS.ProcessEnv): string =>
+      (JSON.parse(execFileSync(process.execPath, ['--conditions=source', '--import', 'tsx', fixture, root], { cwd: REPO, env: cleanWorkerEnv(env, root), encoding: 'utf8' }).trim().split('\n').pop()!) as { browser: string }).browser;
+    const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
+    try {
+      process.env.RETAKE_RENDER_GL = 'gpu';
+      const studio = (await context()).browser;
+      expect(studio).toMatch(/ gl=angle$/);
+      expect(keyIn({ ...process.env })).toBe(studio);
+      // retake.yaml render: is read alike by every process of the workspace: it wins over any process's variable.
+      await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: software\n`);
+      await openWorkspace({ root });
+      const pinned = (await context()).browser;
+      expect(pinned).toMatch(/ gl=software$/);
+      expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'gpu' })).toBe(pinned);
+      // The rule's limit (DESIGN §4r): without it, a worker started by another client with another variable keys apart.
+      await writeFile(join(root, 'retake.yaml'), yaml);
+      expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'software' })).not.toBe(studio);
+    } finally {
+      process.env.RETAKE_RENDER_GL = 'software';
+      useWorkspaceRender(undefined);
+      await writeFile(join(root, 'retake.yaml'), yaml);
+    }
   });
 });
 

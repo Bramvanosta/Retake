@@ -201,7 +201,11 @@ describe("the engine's needs", () => {
     const formatNeeds = new Set([...ENGINE_NEEDS.muxers, ...ENGINE_NEEDS.demuxers]);
     expect([...codecs].filter(([c]) => !codecNeeds.has(c))).toEqual([]);
     expect([...formats].filter(([c]) => !formatNeeds.has(c))).toEqual([]);
-    expect([...filters].filter(([c]) => !ENGINE_NEEDS.filters.includes(c))).toEqual([]);
+    // The VideoToolbox probe (L5.15) runs Remotion's compositor ffmpeg through callFf, never ours: its `nullsrc` is that
+    // binary's need. The exemption is held to that one file and that one filter, and the file must still go through callFf.
+    const compositorOnly: Record<string, string[]> = { 'packages/editor/src/render/policy.ts': ['nullsrc'] };
+    for (const file of Object.keys(compositorOnly)) expect(readFileSync(join(ROOT, file), 'utf8')).toMatch(/callFf/);
+    expect([...filters].filter(([c, f]) => !ENGINE_NEEDS.filters.includes(c) && !compositorOnly[f]?.includes(c))).toEqual([]);
   });
 
   it('the muxers of the files it writes (by extension: .m4a needs ipod) and the decoders of the videos a person may bring (core VIDEO_CODECS)', () => {

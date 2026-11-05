@@ -1932,6 +1932,35 @@ memory (8 / 16 / 24 GB) and keep Activity Monitor open on the CPU tab.
    --replay-unsigned` asks about it (answer no). Remove the copy afterwards, then `retake hooks rollback <project> <id>` replays the
    original once.
 
+## 17. Renders on the GPU, on your Mac (L5.15)
+
+The tests check the GPU path on a synthetic run and the app's bundle acceptance once; here it is your own workspace and
+your Mac. Note the Mac (chip, memory: 8 / 16 / 24 GB), keep Activity Monitor open on the CPU tab and, in a second tab,
+its GPU History (Window → GPU History).
+
+1. **What doctor says.** `retake doctor`: the **Renders** line reads `GPU (ANGLE (Apple, ANGLE Metal Renderer: Apple …))
+   · VideoToolbox H.264 · 3 frames at a time`, OK. In a session without a GPU (Screen Sharing into a Mac VM, if you have
+   one) it warns "no GPU found for renders … software".
+2. **A render on the GPU.** `retake render northfield-fixture quote` (the fixture's last capture): the summary says
+   "h264 VideoToolbox 8M" and "(concurrency 3) on the GPU"; the render takes about as long as before L5.15 (about a
+   minute for a minute of video on an M4). During it, Activity Monitor shows Chrome Headless Shell processes at a few
+   hundred % CPU at most (before L5.15: 700–900 %) and GPU History shows the GPU busy. Open
+   `renders/quote-v<N>.json`: `policy.gl.used` is `angle` with your GPU's name in `renderer`, `policy.encoder.used`
+   `h264_videotoolbox`, no `fallback`; `encoding` has `bitrate: "8M"` and `gop: 60`. Play the video: text crisp, scrolls
+   without blocks or smearing, the cursor and its ripples as before.
+3. **The settings.** Add `render: {gl: software, encoder: libx264}` to the workspace's `retake.yaml` and render again:
+   "h264 crf 16", "in software", the CPU back at 700–900 %; doctor's Renders line ends with "set: gl software
+   (retake.yaml render.gl), encoder libx264 (retake.yaml render.encoder)". Remove it. `RETAKE_RENDER_GL=swangle retake
+   render …` fails at once with a message naming `$RETAKE_RENDER_GL`.
+4. **A 4K export and an oversize render.** `retake export northfield-fixture latest --formats mp4_4k`: the 4K master
+   encodes with VideoToolbox (its record: 32.5M). `retake render northfield-fixture quote --scale 3` (5760×3240): it
+   renders, with the warning "VideoToolbox encodes at most 4096 pixels a side … encoded with libx264" — no crash.
+5. **In the Studio and the app.** Render from the Studio (and from the app, once installed): the render's record says the
+   same as in step 2; the Library's previews are drawn again once (their key now names the GL).
+6. **A smaller Mac (8–16 GB).** If you have one: a render of `quote` and a 4K export, Activity Monitor's Memory tab open.
+   Note the memory pressure and whether anything swaps; the GPU path's tree sums ≈ 2.7 GB of RSS on a 1080p render
+   (today's ≈ 4.1 GB; an upper bound, shared pages counted per process) — say if it fails or crawls.
+
 ## Results — first pass (L1.5, 2026-10-12)
 
 Run by a local Claude Code session with the user at the Mac: Apple M4 (10 cores, 24 GB), macOS 26.6.2, Node.js 22.16

@@ -1633,7 +1633,14 @@ editor with a live preview, undo / redo and *Use in this scenario*):
   again at the same path keeps the old one's shown versions for `restore` (they were on disk there once).
 
 ### BL-114 — Renders on the GPU, with a lighter load
-*S · measured 2026-10-28 (M4, fixture `quote`, 60 s of 1080p video) · lot L5.15 (2026-10-29)*
+*S · measured 2026-10-28 (M4, fixture `quote`, 60 s of 1080p video) · lot L5.15 (2026-10-29) · **done in L5.15***
+
+Done in L5.15 (DESIGN §4r), with three corrections from measurement: the no-GPU fallback is today's software path, not
+`swangle` (10× slower: 678 s for the fixture); VideoToolbox gets `gopSize` 2 s (Remotion passes no `-g`: ffmpeg's
+default of 12 frames) and 0.13 bit per pixel per frame (8 Mb/s at 1080p30; 4 Mb/s was short on scroll frames);
+VideoToolbox is chosen before the render (each side ≤ 4096: an oversize session breaks the encoder's pipe mid-render).
+The 5-minute render was measured at 4 min 05 s (7 346 frames): no growth of the GPU process, no failure. What follows
+is the study as it was.
 
 A render costs far more than a capture: 430 cpu-s for 60 s of video (7.2 cpu-s per video second against 0.85 for a
 take), 6.75 cores on average for 64 s and peaks at 14.5 at the default concurrency of 7. Chromium's page renderers take
@@ -2352,6 +2359,59 @@ failed 1 of 2 renders in both settings: a timeout, or an EPIPE), a watchdog of a
 recovered after a worker crash (macOS sends nothing to an orphaned group), and the memory it holds (2.9 GB today, 2.2 GB
 with BL-114's settings, for a 60-min stop: 21 000 / 24 600 pageouts). Frames stayed identical after every stop with
 the 6 h timeout. Worth it if QoS proves too weak on a smaller Mac (MACOS-CHECKLIST 16.6) or with L5.15's settings.
+
+### BL-152 — The ffmpeg-only exports on VideoToolbox
+*S · cut from L5.15*
+
+The `mp4_1080p` transcode of a 4K master (libx264 CRF 18) and `webm` (VP9) still run on the CPU; VideoToolbox could take
+the H.264 one (HEVC too, BL-155). Measure the CPU saved against the size, as L5.15 did for the render.
+
+### BL-153 — Renders on the GPU on Linux
+*M · cut from L5.15*
+
+On Linux `auto` keeps the software path: no GPU in the containers and runners Retake has run in. A machine with one
+could use ANGLE on EGL or Vulkan (`angle-egl`, `vulkan`) and NVENC / VA-API; it needs a GPU probe for containers and
+its own measurements. `encoder: videotoolbox` there stays an error.
+
+### BL-154 — The CPU the GPU path keeps: ffmpeg's 56 cpu-s and Node's
+*S · cut from L5.15 (critique L5)*
+
+On the GPU path the compositor's ffmpeg still spends ≈ 56 cpu-s per minute of 1080p (decoding Remotion's JPEG q95 frames
+and the BT.709 conversion) and Node 22–47 (282–335 on the 4-minute render, ≈ 30 % of its total). Profile both: PNG or
+raw frames, Remotion's shared-memory capture, a lower JPEG quality, the colour conversion done once.
+
+### BL-155 — HEVC or ProRes masters through VideoToolbox
+*S · cut from L5.15*
+
+A render master in HEVC (smaller at the same quality) or ProRes (for an editing tool) through the Mac's media engine.
+
+### BL-156 — A per-render `--gl` / `--encoder` flag
+*S · cut from L5.15*
+
+The settings are per machine (retake.yaml `render:`, `RETAKE_RENDER_*`), and a retake.yaml key wins over its variable:
+a flag for one render (`retake render --gl software`) if that proves too coarse.
+
+### BL-157 — A fallback for stills and previews
+*S · cut from L5.15 (critique M2)*
+
+Stills, component previews and the Library's loops share the render's GPU check but have no mid-render fallback: a
+failure is said (the Library offers Retry). Retry them once in software if GPU failures show up there.
+
+### BL-158 — Renders on a smaller Mac (8–16 GB)
+*S · cut from L5.15 (MACOS-CHECKLIST 17.6)*
+
+Measured on an M4 with 24 GB only: the GPU path's tree sums ≈ 2.7 GB of RSS on a 1080p render (today's ≈ 4.1 GB; a sum
+counts shared pages once per process, so the footprint is lower — the final harness reports it per process kind), the
+GPU process ≈ 0.7 GB per browser; two renders at once (two workspaces, BL-148) add ≈ 1.3 GB. Check memory pressure and
+swap on an 8 GB and a 16 GB Mac, and the take beside a render there.
+
+### BL-159 — A stall watchdog for the hardware encoder
+*S · cut from L5.15 (review A L1)*
+
+A cancel now ends the wait for the VideoToolbox probe at once, and a render can always be cancelled; but a hardware
+encoding session that stops taking frames mid-render (libx264 cannot) has no time limit of its own — the render waits
+until it is cancelled. Watch the encoded-frame count on the VideoToolbox path: no progress for N seconds → cancel the
+attempt and count it as a GPU-path failure (one software retry, as for the other encoder failures).
 
 ## Guard-rails for planned lots (no new scope)
 

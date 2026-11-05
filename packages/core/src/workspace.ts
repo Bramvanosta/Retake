@@ -78,6 +78,7 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
     componentsDir: dir(cfg.components_dir, 'components'),
   };
   if (cfg.browser) out.browser = cfg.browser;
+  if (cfg.render && Object.keys(cfg.render).length) out.render = { ...cfg.render };
   // A path (`tools/ffmpeg`) is the workspace's, whatever the cwd of the process reading it (a worker's is the root, the
   // Studio's or the MCP server's another); a bare name stays a command on PATH.
   if (cfg.ffmpeg) {

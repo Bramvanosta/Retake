@@ -801,8 +801,9 @@ a GENERATED registry module (the plan's component entries, built-in or workspace
 are bundled too; the bundle is cached under `<root>/.retake/cache/remotion-<hash>/` keyed by a hash of the
 composition sources, the kit, the bundled component folders and the Remotion version. Assets (capture, fonts, logo,
 music) are served by a local static HTTP server (127.0.0.1, Range, CORS) during the render. Browser:
-`$RETAKE_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell. Output: H.264 CRF 16, yuv420p BT.709,
-faststart, always an audio track (silent AAC without music); the video is encoded under a temporary name and renamed,
+`$RETAKE_CHROMIUM_HEADLESS_SHELL` or Playwright's chromium headless shell. Output: H.264 (L5.15, DESIGN §4r: on a Mac
+with a GPU drawn with ANGLE and encoded with VideoToolbox, 8 Mb/s at 1080p30, a key frame every 2 s; elsewhere and as the
+fallback, software raster and libx264 CRF 16), yuv420p BT.709, faststart, always an audio track (silent AAC without music); the video is encoded under a temporary name and renamed,
 so a failed or cancelled render leaves nothing under the final name.
 
 **Planning a run (L3.2, `render/plan-run.ts`).** `planRun({project, run, scenario?, template?, overrides?, root?,

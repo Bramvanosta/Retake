@@ -6030,6 +6030,159 @@ previews and site extractions are background work, a take is not (BL-116). Built
   true`. A later run with the machine loaded by other work (load up to 31 on 10 cores; one alone take at 26.9 fps)
   failed on kicked (median 14 against 12) — the new rule refuses that run as not quiet instead.
 
+- **The acceptance on the GPU path (L5.15, decided before its run)**: renders now run on the GPU by default on a Mac
+  (§4r), so the acceptance runs the shipped default (it sets `RETAKE_RENDER_GL` / `_ENCODER` back to `auto`: the suite
+  pins the software path). The take's quiet gate and fixed bars stay exactly as above. The reference render and every
+  render beside a take must draw the same way (the record's `policy`: GL and encoder used equal, no fallback — else a
+  refusal, not a pass; a fallback of the reference render is a failure of its own — the default path failing on this
+  Mac, never "not quiet"); their frames are compared by SSIM ≥ 0.995 on every frame on the GPU path (ANGLE and
+  VideoToolbox are not frame-identical run to run: two renders of the shipped settings, 8 Mb/s with a key frame every
+  2 s, differ by SSIM min 0.9977 (§4r); BL-114's spike at 4 Mb/s and 12-frame GOPs by 0.9956 — the bar sits under both),
+  identical framemd5 on the software path. The
+  render's speed is reported before / during / after the take; the test asserts after ≥ 0.8 × before and that every
+  process lowered to background QoS came back, and **reports "slower during" without asserting it**: on the GPU path
+  most of a render's work is the GPU's and VideoToolbox's (`VTEncoderXPCService`, a system process outside the job's
+  tree), which `taskpolicy -b` does not reach — a GPU render may barely slow down, which is good for the take, and the
+  take's own bars are what protects it.
+  *Its run* (2026-11-05, M4, the quiet gate passed at a start load of 1.99): alone 58.6 / 58.7 / 58.7 fps min, dropped
+  4 / 4 / 4, kicked 10 / 9 / 10; beside a GPU render 57.6 / 57.7 / 55.1 against the bar of 56.7, dropped 4 / 7 / 5
+  (median 5 against the alone maximum 4), kicked 10 / 10 / 9 — **not passed**: one take under the fps bar (its highest
+  load 11.15, against 5.8–6.4 for the other two) and the dropped median one over. Background QoS still slows a GPU
+  render: 29.6–33.6 frames/s before, 6.3–6.8 during each take, 30.0–30.8 after. The bars were not widened; the person
+  chose to land L5.15 with this gap and run the acceptance again on an idle Mac (R-CAP-03).
+
+
+## 4r. Renders on the GPU (L5.15; editor `render/policy.ts`, core `render-settings.ts`, `gpu.ts`)
+
+*Measured at the end of L5.15* (2026-11-05, M4, 3 interleaved runs per variant, load gate < 5, peak cores = p95 per
+interval; medians): 1080p today 453.9 cpu-s / 77.1 s / 5.9 cores mean, 7.3 p95 / 10.5 MB — GPU 185.9 cpu-s (+ 0.5 in
+`VTEncoderXPCService`) / 63.7 s / 2.9, 3.8 / 24.4 MB; 4K today 1 380 cpu-s / 210 s / 6.6, 9.3 / 23.1 MB — GPU 438 cpu-s
+(+ 0.6) / 103 s / 4.2, 4.9 / 61 MB. SSIM against today: worst frame 0.9936 (1080p), 0.9958 (4K); GPU run to run 0.9977 /
+0.99995. The signed app renders on the GPU path (the gated bundle acceptance, 8/8).
+
+BL-114's spike, measured again and corrected: on a Mac with a GPU a render draws with ANGLE (Metal) and encodes with
+VideoToolbox, 3 frames at a time — as fast as before at about 40 % of the CPU time; everywhere else, and as the one
+fallback, today's software path.
+
+- **One policy module** (`render/policy.ts`) names the GL, the encoder and the default concurrency of every Remotion
+  browser of a process: `openRenderBrowser` opens the browser of a render or a still (render.ts `openSession`) and of the
+  component previews and Library loops (preview.ts' backend); `renderPlan` alone takes the encoding fields
+  (`remotionEncoding`). The Library's GIF loops are drawn by the policy's browser (ANGLE on a Mac) and encoded as
+  before (Remotion's gif codec); `webm`, `gif_preview` and the `mp4_1080p` transcode are ffmpeg's own and untouched.
+- **Settings** (core `render-settings.ts`, `WorkspaceFileSchema.render`): `gl: auto|gpu|software`,
+  `encoder: auto|videotoolbox|libx264`, `concurrency: 1–16`, in retake.yaml `render:` (set for the process by
+  `openWorkspace`, as `ffmpeg`) or `RETAKE_RENDER_GL` / `_ENCODER` / `_CONCURRENCY`. Order: an explicit option (the
+  CLI's `--concurrency`, a test's `settings`) → retake.yaml → the variable → `auto` (so a retake.yaml key wins over its
+  variable). A bad value fails the render with a message naming the variable; `videotoolbox` outside macOS is an error
+  (Remotion's `required` would pick another hardware encoder there). `resolveRenderPolicy` is pure: `auto` → ANGLE on
+  darwin, software elsewhere; concurrency 3 with ANGLE (`GPU_CONCURRENCY`), ⌊0.75 × CPUs⌋ in 1–8 in software.
+- **The GPU check** (when the browser opens, not by doctor: a GPU can come and go): with ANGLE, CDP
+  `SystemInfo.getInfo` on the browser's connection, read by `gpuInfoOf` (moved from runner-web to core). Not
+  accelerated (a VM without a GPU, a remote session, SwiftShader) under `auto` → that browser is closed and the render
+  browser opened again in software, one warning, and the render takes the software path's default concurrency (¾ of the
+  CPUs) unless one is set — the session carries the effective policy (render.ts `Session.policy`), the record and doctor
+  say the same; under `gpu` → kept, with a warning. `onBrowser` (the worker records the
+  pid to kill it after a crash) and the network guard are called **after** the check, on the browser that renders
+  (critique H3). Cost: ≈ 30 ms for the check, ≈ 0.1 s for a reopen. The fallback is today's software raster, never
+  `swangle` (SwiftShader through ANGLE: 678 s and 3 574 cpu-s for the fixture's 61 s, against 65 s today). The check is
+  read again at the end of a render (≈ 30 ms): Chromium leaves the GPU by itself when its GPU process keeps failing, and
+  the record then says `software`.
+- **The encoder, chosen before the render**: `auto` takes VideoToolbox with the GPU path when (1) the render fits its
+  size limit and (2) the probe passes; else libx264 CRF 16 and a warning saying why. Size limit (`VIDEOTOOLBOX_MAX_SIDE`,
+  measured on an M4 with the compositor's ffmpeg, 3 frames, nullsrc): 3840×2160, 4096×2304, 2304×4096, 4096×4096,
+  4096×3072 encode; 4104×2304, 2304×4104 and 4096×4104 fail ("cannot create compression session: -12903") — **each side
+  at most 4096**. It must be decided up front: an oversize session fails only once frames flow, as a broken pipe (a
+  `write EPIPE` that Remotion leaves unhandled), and `--scale` goes up to 4. The probe (`videotoolboxRenderWorks`) runs
+  the binary that will encode — Remotion's compositor ffmpeg, through `RenderInternals.callFf` exactly as Remotion
+  spawns it (its folder as cwd and DYLD_LIBRARY_PATH: without them it aborts in dyld) — on `nullsrc` (that ffmpeg has
+  no `color` source) at the render's size, bitrate and GOP, 3 frames, ≈ 0.12–0.19 s, cached per process, binaries folder
+  and size (critique H1: the capture's probe, `color` on our ffmpeg, would always have answered no). A cancel ends the
+  wait for it at once (the probe runs on, bounded by its 15 s timeout, and its answer stays cached). It passes from the
+  repository and from a relinked copy of the compositor folder (the app's layout, bundle.mjs `relinkCompositor`); the
+  signed app itself is checked by the gated bundle acceptance only.
+- **VideoToolbox's encoding**: `hardwareAcceleration: 'required'` (never `if-possible`, which falls back to libx264
+  silently, and never `crf` with it), `videoBitrate` 0.13 bit per pixel per frame rounded to 0.5 Mb/s, at least 1 Mb/s
+  (1080p30 8 Mb/s, 4K30 32.5, 1080×1920 8, 1080² 4.5, 60 fps twice), `gopSize` 2 × fps (Remotion passes no `-g`
+  otherwise: ffmpeg's default of 12 frames, 154 key frames in the fixture's 1 844). No B-frames; the comment viewer's
+  frame-exact seek holds on such a file (engine render-frame.test.ts). VideoToolbox undershoots its target on this
+  content (8M → ≈ 3.2 Mb/s); renders are ≈ 2.3× larger than libx264 CRF 16's (24.5 MB vs 10.5 MB per minute of 1080p,
+  accepted 2026-10-28).
+- **One fallback, the render path only**: `gpuPathFailure(error, path)` says yes only for the GPU path's own failures —
+  the GPU process lost, the GL context gone, the hardware encoder or its pipe — on strong signs only, looked for in the
+  lines after ffmpeg's banner and the streams' metadata (its configuration names videotoolbox on every build, and a
+  VideoToolbox file's `encoder : Lavc… h264_videotoolbox` is quoted by any stitch failure): `[h264_videotoolbox @`, a
+  compression session (`-1290x`), the pipe (EPIPE, by code or message), a video encoder that does not open; never a
+  line that merely names the encoder, an audio encoder, a cancel, a full disk, a frame or `delayRender` timeout,
+  memory, a crashed page (usually memory), or a RenderError of the plan. A guarded render whose page fails (below) on
+  the GPU path counts too. Then the video
+  is rendered once more from frame 0 in software with libx264 at the same concurrency (never more memory after a
+  failure), through a new session (its browser reported and guarded again), to a fresh temporary name; the partial file
+  is removed first (Remotion pre-encodes in its own temp folder: the partial next to the output only exists during the
+  final mux). Progress never goes back: the stage is `retrying` and `overall` / `renderedFrames` are clamped to what was
+  reached. A cancel during it cancels. The fallback runs once: its path is software, which the classifier never retries.
+  When it fails too, the error says both ("render failed in software, after the GPU path failed (<reason>): …") and the
+  failed record keeps `policy` (with `fallback`) and the warnings so far; `timings.render_ms` is the last attempt's (the
+  GPU attempt's time is in `total_ms`). Stills and previews have the same GPU check and no fallback: a failure is said
+  (the Library has Retry).
+- **One browser per guarded run**: Remotion replaces the browser it was given when a page of it fails (a closed target,
+  a flaky network error: `renderFrameAndRetryTargetClose`, one retry per frame, not configurable) with one it opens
+  itself. Every Remotion call of a guarded session (renders, stills, previews and loops of the jobs worker) therefore
+  names `/dev/null` as its `browserExecutable` (network-guard.ts `GUARDED_NO_OTHER_BROWSER`): a guarded render never
+  lets Remotion open a browser of its own — a frame whose page fails ends the render with a plain error ("a page of the
+  render failed …"), after our own guarded software retry on the GPU path; a preview item fails alone, the next one in
+  a fresh session. `/dev/null` exists and is no program: Remotion's browser check (one promise queue for every browser
+  of the process — a path it rejects there would fail every later browser, our own included) passes, and the launch
+  fails at once (spawn EACCES), before anything runs; it leaves an empty profile folder in the temp folder. An unguarded
+  `retake render` keeps Remotion's own retry (it has the machine's network anyway). Tested with a component whose page
+  fails (network-guard.test.ts, render-gpu.test.ts).
+- **The encoder pipe's guard** (`guardEncoderPipe`, installed by the first render or still of a process): an EPIPE
+  rejected unhandled is ignored (the render itself fails with it), any other unhandled rejection is left to Node's
+  default when no other handler decides — `retake render` no longer crashes on a broken encoder pipe, as the job
+  process and the worker already did not.
+- **The record** (`RenderRecord.policy`): `gl {asked, source, resolved, used, renderer}` (the GPU's name, 200 characters
+  at most, plain text), `encoder {asked, source, used}`, `concurrency_source`, `fallback {reason}` when the software
+  path rendered it — the reason quotes the error seen (a component's own words can be in it): the engine's
+  `render_status` gives it under `untrusted.fallback_reason` only; `encoding {encoder, crf | bitrate + gop}` (`crf` is
+  optional since: VideoToolbox has none). `retake render` prints "h264 VideoToolbox 8M" / "h264 crf 16" and "on the GPU"
+  / "in software" / "in software after a GPU failure". `retake doctor`'s **Renders** line (`probeRenderPath`: the same
+  checks, nothing written) says what a 1080p render gets here: `GPU (ANGLE (Apple, ANGLE Metal Renderer: Apple M4, …)) ·
+  VideoToolbox H.264 · 3 frames at a time`, the settings set and their source; WARN when `auto` found no GPU or
+  VideoToolbox does not work, FAIL when every render would fail. (The MCP server relays no doctor line.)
+- **The Library's key** (engine library.ts): the browser identity plus ` gl=<resolved>` — the policy resolved before any
+  browser opens, which the Studio server and the job process compute alike from the same retake.yaml and environment
+  (critique M1: the GL a job found is not known where the states are computed). The rule, tested in two processes
+  (library-cache.test.ts): retake.yaml `render:` is read alike by every process of the workspace and wins; a
+  `RETAKE_RENDER_*` variable reaches the processes that have it — the worker a Studio or MCP server starts gets theirs
+  (`cleanWorkerEnv` keeps them), but a worker already running from another client keeps its own, and the Studio then
+  asks for keys its jobs do not write (they say so: `changed`, `expected`), so previews render again — pin a GL for a
+  workspace in retake.yaml (guide: workspace). A GPU picture is another picture
+  (antialiased edges); committed `preview.png` files stay valid (their staleness is their source hash).
+- **Determinism**: software renders are frame-identical run to run and across concurrency (framemd5 1844/1844); GPU
+  renders are not (ANGLE + libx264: 1178/1844 identical, SSIM min 0.998; + VideoToolbox: SSIM mean 0.99996, min 0.9977
+  between two). So `vitest.setup.ts` pins `RETAKE_RENDER_GL=software` and `RETAKE_RENDER_ENCODER=libx264` for every test
+  file (deterministic, Linux's path, today's suite times); a test of the GPU path opts in (`settings`, or the variables
+  set back to `auto`) and compares SSIM (≥ 0.995 on every frame) or structure, never bytes (render-gpu.test.ts, the
+  captures-first acceptance, the bundle acceptance). `RETAKE_TEST_RENDER_POLICY=keep` runs a suite on the shell's values.
+  A process a test starts with an environment of its own (an MCP server, a CLI command) gets the pin through
+  `testChildEnv()` (packages/core/test/child-env.ts), checked for every such environment by the retake-home canary; the
+  app's acceptances run the shipped default on purpose.
+- **What an export passes on**: a re-rendered export (square, vertical) keeps the render's warnings about files and
+  about how it was drawn and encoded (no GPU, VideoToolbox's limit or probe, the fallback: export.ts
+  `exportRenderWarnings`).
+- **Measured (design pass, M4 10 cores 24 GB; the fixture's quote, 61.5 s = 1 844 frames; loads in brackets — the machine
+  was shared)**: today (software, libx264, concurrency 7) 451–460 cpu-s, 65–67 s, 6.9–7.0 cores mean, peak 9 [2.5 /
+  10.9]; planned (ANGLE + VideoToolbox 8M gop 60, 3) 173–200 cpu-s, 59–61 s, 2.9–3.3 mean, peak 4 [12.7 / 15.3]; ANGLE +
+  libx264 at 3: 207 cpu-s, 60 s; planned at 4: 200 cpu-s, 49 s, peak 4.9. 4K (`scale: 2`): today 1 351 cpu-s, 176 s;
+  planned 420 cpu-s, 97 s [18.8 / 26.9, loaded]. A 4 min 05 s render (7 346 frames) twice on the GPU path: 1 013–1 057
+  cpu-s, 258 s, the GPU process' footprint flat at 653–685 MB, no failure (today: 1 988 cpu-s, 284 s). Where the CPU goes
+  (planned vs today, 1080p): Chromium renderers 44 vs 233 cpu-s, GPU process 11 vs 21, ffmpeg 56 vs 100 (decoding
+  Remotion's JPEG frames and the BT.709 conversion remain: BL-154), Node 22–47. These are n = 1–2 per variant on a shared
+  machine (critique M4); the lot's final figures — 3 runs each of today vs the default at 1080p and 4K on a cool-down,
+  medians and spreads, peak cores as the p95 of per-interval CPU gained, SSIM per frame against today's render and run
+  to run, the media engine's service (`VTEncoderXPCService`, system-wide) beside the tree's CPU, memory per process kind
+  (a summed RSS counts shared pages per process: an upper bound), runs whose cool-down timed out marked and left out of
+  the cooled medians — are taken at the end on a quiet Mac (scratch harness `final.mjs`) and go into R-RND-14.
+
 ## 5. Fixture product (`fixtures/wholesale`)
 
 A local stand-in for a real SaaS product so the runner can be tested end-to-end without staging access:

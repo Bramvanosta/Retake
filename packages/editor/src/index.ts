@@ -63,16 +63,42 @@ export {
   RENDER_ENCODING,
   VARIANT_SUFFIX,
   defaultConcurrency,
+  guardEncoderPipe,
   probeMedia,
   renderPlan,
   renderStill,
   renderStills,
   renderVideo,
 } from './render/render.js';
-export type { RenderNetwork, RenderPlanOptions, RenderPlanResult, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
+export type { RenderNetwork, RenderPathRecord, RenderPlanOptions, RenderPlanResult, RenderSeams, RenderStillOptions, RenderStillsOptions, RenderVideoOptions } from './render/render.js';
+export {
+  GPU_CONCURRENCY,
+  RENDER_CRF,
+  VIDEOTOOLBOX_BITS_PER_PIXEL,
+  VIDEOTOOLBOX_MAX_SIDE,
+  chooseEncoder,
+  encodingRecord,
+  gopFrames,
+  gpuPathFailure,
+  openRenderBrowser,
+  previewGlKey,
+  probeRenderPath,
+  remotionEncoding,
+  renderGpuInfo,
+  renderPolicy,
+  rendererWords,
+  resetVideotoolboxProbes,
+  resolveRenderPolicy,
+  sourceWords,
+  videotoolboxFits,
+  videotoolboxMbps,
+  videotoolboxRenderWorks,
+  withGl,
+} from './render/policy.js';
+export type { EncoderChoice, EncoderProbe, FrameSize, PolicyBrowser, RenderPathProbe, RenderEncoder, RenderGl, RenderPolicy, RenderSettingSource, VideotoolboxProbe } from './render/policy.js';
 export { PlanTrustError, editOfToday, noteEdit, planRun, preReadProblems, servedFileProblems } from './render/plan-run.js';
 export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './render/plan-run.js';
-export { allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, originOf, pickFreePort } from './render/network-guard.js';
+export { GUARDED_NO_OTHER_BROWSER, allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, originOf, pickFreePort } from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
 export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './render/theme-hash.js';
 export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
@@ -157,5 +183,5 @@ export type {
   RenderedPreview,
 } from './render/preview.js';
 export { generateTestTrack, testTrackExpression } from './render/audio.js';
-export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, findRenderRecord, gifWindow, mp4TranscodeArgs, recordPathProblem, transcodeMp4 } from './render/export.js';
+export { DEFAULT_EXPORT_FORMATS, EXPORT_FORMATS, ExportError, GIF_PREVIEW, exportMethod, exportRender, exportRenderWarnings, findRenderRecord, gifWindow, mp4TranscodeArgs, recordPathProblem, transcodeMp4 } from './render/export.js';
 export type { ExportFormat, ExportOutput, ExportProgress, ExportRenderOptions, ExportResult } from './render/export.js';
