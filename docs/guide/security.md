@@ -14,7 +14,9 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   preview's below, and nothing may frame it) and a Permissions-Policy asking that the camera, microphone, screen
   capture and location stay off for the page and its frames (L5.2: Chromium browsers enforce it; the desktop app
   denies them itself). No secret is in the app's files; the token comes from the one-time code
-  (see [Studio app](studio.md#studio-app)).
+  (see [Studio app](studio.md#studio-app)). The token is kept in the Retake home (`ui/<hash>.token`, 0600), not in the
+  workspace's `.retake/ui.json`, so a program confined to the workspace folder never reads it; on macOS the link with
+  its code reaches the browser through `osascript`'s input, never a program's arguments.
 - **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `retake ui` process
   that serves only the preview frame, its script and the files of the take being previewed (the capture, the theme's
   fonts and logo, the music, card media) — each registered only when it lies inside the project, the run or the theme,
@@ -185,6 +187,20 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   switches are validation errors in retake.yaml and project.yaml (see [Workspace](workspace.md)) and refused again at
   launch. Each launch then reads the browser's own command line and refuses a browser that holds one anyway — an
   executable that adds switches itself (`browser.executable`, `RETAKE_CHROMIUM`) — and `retake doctor` fails on it.
+- **Jobs an agent can shape run no program of the workspace.** The jobs worker and its job processes, the MCP server
+  and the Studio server serve work an agent can shape — the worker runs every job alike, so your own Studio and
+  desktop-app jobs too. There, a program a job starts — `browser.executable`, retake.yaml's `ffmpeg:`, the render
+  browser, `$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`, `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE` — may not be a
+  relative path or lie inside the workspace (its root and its projects, templates and components folders, under any
+  spelling, a symbolic link followed either way), and a command name may not be found on `PATH` in such a folder: an
+  agent can write files there. The job fails before the program starts and says to move it out of the workspace. A
+  worker the Studio or an MCP client starts does not inherit a tool variable that points inside the workspace.
+  `browser.args` there holds switches only (no page or file to open, nothing after `--`), none that loads code or
+  files or opens a debugging channel (`--user-data-dir`, `--load-extension`, `--js-flags`, `--log-file`, any
+  `--*-cmd-prefix`, `--*-launcher` or `--remote-debugging-*`…; the full list in [Workspace](workspace.md)). A command
+  typed in a terminal runs as you wrote it; `retake doctor` warns about each setting such a job would refuse.
+- **Renders never download a browser.** Every render uses Playwright's Chromium headless shell (the app's own in the
+  app) or `$RETAKE_CHROMIUM_HEADLESS_SHELL`; without one no render starts and the message says how to install it.
 - **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
   (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
   renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves

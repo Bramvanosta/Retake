@@ -26,6 +26,7 @@ import { BLOCKS_YAML, BLUE, CYAN, GREEN, MAGENTA, ORANGE, RED, YELLOW, capture, 
 import type { Rgb, SynthRun } from './synthetic-runs.js';
 
 let ws: string;
+let tools: string;
 let projectDir: string;
 let engine: Engine;
 const P = 'northfield-fixture';
@@ -49,6 +50,8 @@ function expectColours(v: RunThumbsView, want: Record<string, Rgb>, from?: strin
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-run-thumbs-'));
+  // The ffmpeg stand-ins live outside the workspace: the Studio's engine runs no program from inside it.
+  tools = await mkdtemp(join(tmpdir(), 'studio-run-thumbs-tools-'));
   process.env.RETAKE_HOME = join(ws, '.home');
   await fixtureWorkspace(ws);
   projectDir = join(ws, 'projects', P);
@@ -60,6 +63,7 @@ afterAll(async () => {
   if (savedHome === undefined) delete process.env.RETAKE_HOME;
   else process.env.RETAKE_HOME = savedHome;
   if (ws) await rm(ws, { recursive: true, force: true });
+  if (tools) await rm(tools, { recursive: true, force: true });
 });
 
 describe('the frame of a step (B3: floor on the CFR grid, clamped)', () => {
@@ -357,7 +361,7 @@ describe('reads (B6): links, names, FIFOs, bombs', () => {
     await rm(join(dir, 'frames'), { recursive: true });
     await rm(join(dir, 'frames.jsonl'));
     const real = execFileSync('sh', ['-c', 'command -v ffmpeg'], { encoding: 'utf8' }).trim();
-    const wrapper = join(ws, 'ffmpeg-args.sh');
+    const wrapper = join(tools, 'ffmpeg-args.sh');
     await writeFile(wrapper, `#!/bin/sh\nprintf '%s\\n' "$@" > "${ws}/ffmpeg-args"\nexec "${real}" "$@"\n`);
     await chmod(wrapper, 0o755);
     const v = await new RunThumbs({ ffmpeg: wrapper }).thumbs(projectDir, P, run.id, KEYS);
@@ -462,7 +466,7 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
   /** An ffmpeg wrapper that waits `s` seconds first and records its pid. */
   async function slowFfmpeg(s: number): Promise<string> {
     const real = execFileSync('sh', ['-c', 'command -v ffmpeg'], { encoding: 'utf8' }).trim();
-    const file = join(ws, `ffmpeg-slow-${s}.sh`);
+    const file = join(tools, `ffmpeg-slow-${s}.sh`);
     await writeFile(file, `#!/bin/sh\necho $$ >> "${ws}/ffmpeg-pids"\nsleep ${s}\nexec "${real}" "$@"\n`);
     await chmod(file, 0o755);
     return file;
@@ -470,7 +474,7 @@ describe('cost (B7): ffmpeg processes, abort, no Remotion', () => {
 
   /** An "ffmpeg" that never answers (it becomes `sleep`: killing it leaves nothing behind) and records its pid. */
   async function hangingFfmpeg(): Promise<string> {
-    const file = join(ws, 'ffmpeg-hang.sh');
+    const file = join(tools, 'ffmpeg-hang.sh');
     await writeFile(file, `#!/bin/sh\necho $$ >> "${ws}/ffmpeg-pids"\nexec sleep 30\n`);
     await chmod(file, 0o755);
     return file;

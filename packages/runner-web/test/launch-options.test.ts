@@ -14,13 +14,14 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem } from '@retake/core';
+import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, useAgentPolicy } from '@retake/core';
 import {
   ArtefactRenderer,
   RunnerError,
   extractSite,
   kitConfigFor,
   launchOptions,
+  launchTarget,
   openSession,
   probeChromium,
   recordSession,
@@ -115,6 +116,24 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     expect(() => launchOptions({ args: ['--remote-debugging-port=9222'] })).toThrow(/Chromium was not launched: --remote-debugging-port opens a debugging port/);
     expect(() => launchOptions({ args: ['--hide-scrollbars', '--no-sandbox'] })).toThrow(RunnerError);
     expect(() => launchOptions({ args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(/Chromium was not launched: --disable-features=IsolateOrigins turns Chromium's site isolation off/);
+  });
+
+  it('under the agent policy (a job of the worker): no argument that is not a switch, none that loads code or files, no executable inside the workspace', () => {
+    const ws = '/ws-of-an-agent';
+    const args = ['--hide-scrollbars', 'https://example.com/', '--user-data-dir=/tmp/p', '--proxy-server=http://127.0.0.1:1'];
+    expect(launchOptions({ args }).args).toEqual([...args, '--site-per-process']);
+    expect(launchTarget({ executable: `${ws}/bin/chrome` })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
+    useAgentPolicy([ws]);
+    try {
+      expect(() => launchOptions({ args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir opens the browser on a profile folder/);
+      expect(launchOptions({ args: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
+      expect(() => launchTarget({ executable: `${ws}/bin/chrome` })).toThrow(/^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/);
+      expect(() => launchTarget({ executable: 'bin/chrome' })).toThrow(/browser\.executable \(bin\/chrome\) is a relative path/);
+      expect(launchTarget({ executable: '/opt/chromium/chrome' }).executablePath).toBe('/opt/chromium/chrome');
+      expect(launchTarget({})).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
+    } finally {
+      useAgentPolicy(null);
+    }
   });
 });
 

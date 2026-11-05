@@ -14,9 +14,10 @@
  * - nothing that makes node or the system load code from the workspace: NODE_OPTIONS naming a file to load
  *   (`--require`, `--import`, `--loader`…: a relative one resolves in the worker's cwd, the workspace), NODE_PATH /
  *   DYLD_* / LD_PRELOAD / LD_LIBRARY_PATH holding a relative entry or one inside the workspace;
- * - no tool variable naming a relative path (`RETAKE_FFMPEG`, `RETAKE_FFPROBE`, `RETAKE_CHROMIUM`,
- *   `RETAKE_CHROMIUM_HEADLESS_SHELL` = `tools/x`: it would resolve in the worker's cwd, the workspace, and name another
- *   file than in the client — L5.16; core refuses one anyway);
+ * - no tool variable naming a relative path or one inside the workspace (`RETAKE_FFMPEG`, `RETAKE_FFPROBE`,
+ *   `RETAKE_CHROMIUM`, `RETAKE_CHROMIUM_HEADLESS_SHELL` = `tools/x` or `<workspace>/bin/x`: a relative one would resolve
+ *   in the worker's cwd, the workspace, and name another file than in the client; and the worker runs no program from
+ *   the workspace, where an agent writes files — core agent-policy.ts refuses one anyway);
  * - RETAKE_HOME kept, made absolute (the signed-in profiles live there; the worker's cwd is the workspace).
  *
  * Everything else stays: an automated sign-in's `{{env:NAME}}` secrets (project.yaml) are read by the worker from its
@@ -77,7 +78,7 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
     // The NODE_OPTIONS flags and path lists of core agent-policy.ts (its loader variables).
     if (k === 'NODE_OPTIONS' && NODE_OPTIONS_LOADS.test(v)) continue;
     if (LOAD_PATH_ENV.test(k) && loadsFromWorkspace(v, root, loadPathSeparator(k, delimiter))) continue;
-    if (TOOL_PATH_VARS.test(k) && isRelativeToolPath(v.trim())) continue;
+    if (TOOL_PATH_VARS.test(k) && (isRelativeToolPath(v.trim()) || (isAbsolute(v.trim()) && isUnder(v.trim(), root)))) continue;
     out[k] = v;
   }
   out.PATH = clientPath(o.node ?? process.execPath, env.PATH ?? '', o.exists ?? existsSync, root);

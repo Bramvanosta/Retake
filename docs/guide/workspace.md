@@ -36,6 +36,26 @@ spelled (`-name`, any case, a value after `=`). So is a switch that opens the br
 `--disable-web-security`, `--renderer-cmd-prefix`, `--gpu-launcher`, `--utility-cmd-prefix`,
 `--browser-subprocess-path`, `--remote-debugging-port` and `--remote-debugging-address`.
 
+**Jobs an agent can shape** — every job of the jobs worker, so every run, render, review and export the Studio, the
+desktop app or an MCP client starts (your own Studio runs included) — follow two more rules; a command you type in a
+terminal (`retake run`, `retake render`…) does not:
+
+- **Programs from outside the workspace only.** `browser.executable`, `ffmpeg:` and the tool variables
+  (`$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`, `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`) may not name a
+  relative path or a program inside the workspace (its root, `projects_dir`, `templates_dir`, `components_dir`; a
+  symbolic link is followed either way), since an agent can write files there; a command name looked up on `PATH`
+  may not be found in such a folder either. The job fails before the program starts and says what to change: move the
+  program out of the workspace and point the setting at its new place. A worker started by the Studio or an MCP
+  client does not inherit a tool variable that points inside the workspace.
+- **Switches only in `browser.args`.** An argument that is not a switch (`--name` or `--name=value`: Chromium opens
+  anything else as a page or a file, and everything after `--`) is refused, and so are the switches that load code or
+  files or open the browser to other programs: `--user-data-dir`, `--load-extension`, `--disable-extensions-except`,
+  `--register-pepper-plugins`, `--js-flags`, `--remote-allow-origins`, `--allow-file-access-from-files`,
+  `--allow-file-access`, `--enable-logging`, `--log-file`, any `--*-cmd-prefix` or `--*-launcher` and any
+  `--remote-debugging-*`. Proxy and resolver switches (`--proxy-server`, `--host-resolver-rules`…) stay.
+
+`retake doctor` warns (**Studio and MCP jobs**) about each setting these jobs would refuse.
+
 ### Render settings
 
 `render:` says how this machine renders (a GPU is a property of the machine, not of the product: it is not in

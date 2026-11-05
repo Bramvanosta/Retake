@@ -133,7 +133,7 @@ export {
   withCspMeta,
 } from './render/bundle.js';
 export type { BundleComponent, EnsureBundleOptions, RenderBundle } from './render/bundle.js';
-export { HEADLESS_SHELL_ENV, assertRenderBrowser, playwrightHeadlessShell, renderBrowser, renderBrowserIdentity } from './render/browser.js';
+export { HEADLESS_SHELL_ENV, HEADLESS_SHELL_INSTALL, assertRenderBrowser, playwrightHeadlessShell, renderBrowser, renderBrowserIdentity } from './render/browser.js';
 export type { RenderBrowser } from './render/browser.js';
 export { OVERLAY_BOX_MARGIN, brandmarkRect, captionBandOver, drawnOverlayBox, duckSpans, insetHole, layoutRects, loupePlacement, mapUseRect, overlayAvoid, overlayBoxAt, overlayRects, overlayTargets, plateOf, playsSound, shortcutRow, shortcutSlot, musicPlayGain, musicVolumeAt, srcFrameAt, standInTransition, staysInInset, trackBoxAt, trackKeysAt, transitionWindows, urlAt, useScreen } from './remotion/frames.js';
 export {

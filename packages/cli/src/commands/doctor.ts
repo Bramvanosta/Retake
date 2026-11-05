@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
+import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -375,13 +375,40 @@ function renderBrowserCheck(p: DoctorProbes): DoctorCheck | null {
   const name = 'Render browser';
   if (b.path) return { status: b.note ? 'warn' : 'ok', name, detail: `${b.path} · ${browserSource(b.source)}`, ...(b.note ? { hint: b.note } : {}) };
   if (p.bundle) return { status: 'fail', name, detail: "the app's headless shell is missing", hint: 'reinstall Retake' };
-  return { status: 'warn', name, detail: "Remotion's own headless shell (downloaded at the first render)", ...(b.note ? { hint: b.note } : {}) };
+  // Remotion never downloads a browser of its own: no render starts without one.
+  return { status: 'fail', name, detail: 'no headless shell: renders do not start', hint: 'pnpm --filter @retake/runner-web exec playwright-core install chromium-headless-shell — or point $RETAKE_CHROMIUM_HEADLESS_SHELL at one' };
+}
+
+/**
+ * What jobs of the Studio, the desktop app or an MCP client would refuse (core agent-policy.ts, whose rules a command
+ * typed in a terminal does not follow): a program named inside the workspace or by a relative path (`browser`'s
+ * executable, retake.yaml's ffmpeg, the tool variables), a `browser.args` entry that is not a switch or loads code or
+ * files. A WARN line naming each, or none. Bare command names are not looked up (the worker's PATH holds no folder of
+ * the workspace).
+ */
+export function agentJobsCheck(env: NodeJS.ProcessEnv, ws: WorkspaceConfig, browser: BrowserConfig | undefined, name = 'Studio and MCP jobs'): DoctorCheck | null {
+  const folders = workspaceFolders(ws);
+  const noLookup = { path: '', exists: () => false };
+  const programs: Array<[string | undefined, string]> = [
+    [browser?.executable, 'browser.executable'],
+    [env.RETAKE_CHROMIUM, '$RETAKE_CHROMIUM'],
+    [env.RETAKE_CHROMIUM_HEADLESS_SHELL, '$RETAKE_CHROMIUM_HEADLESS_SHELL'],
+    [ws.ffmpeg, '`ffmpeg:` of retake.yaml'],
+    [env.RETAKE_FFMPEG, '$RETAKE_FFMPEG'],
+    [env.RETAKE_FFPROBE, '$RETAKE_FFPROBE'],
+  ];
+  const problems = [
+    ...programs.flatMap(([p, what]) => (p?.trim() ? [agentProgramProblem(p, what, folders, noLookup)] : [])).filter((m): m is string => m !== null),
+    ...agentArgsProblems(browser?.args ?? []).map((a) => `browser.args[${a.index}]: ${a.message}`),
+  ];
+  if (!problems.length) return null;
+  return { status: 'warn', name, detail: `would refuse: ${problems.join(' · ')}`, hint: 'change what each says; a run typed in a terminal (retake run, retake render) is not affected' };
 }
 
 /** editor's renderBrowser, loaded when doctor runs (the editor is not loaded for every command). */
 let renderBrowserFn: (() => { path: string | null; source: string; note?: string }) | undefined;
 function systemRenderBrowser(): { path: string | null; source: string; note?: string } {
-  return renderBrowserFn ? renderBrowserFn() : { path: null, source: 'remotion' };
+  return renderBrowserFn ? renderBrowserFn() : { path: null, source: 'none' };
 }
 
 /**
@@ -616,6 +643,12 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
     return [{ status: 'fail', name: `Project ${slug}`, detail: errorMessage(e).split('\n')[0], hint: 'retake list shows the projects of the workspace' }];
   }
   const out: DoctorCheck[] = [{ status: 'ok', name: `Project ${slug}`, detail: project.dir }];
+  // The project's browser (retake.yaml's merged in): only what the workspace line does not say already.
+  const own = project.config.browser;
+  if (own && (own.executable !== ws.browser?.executable || (own.args?.length ?? 0) !== (ws.browser?.args?.length ?? 0))) {
+    const jobs = agentJobsCheck({}, ws, { ...(own.executable !== ws.browser?.executable ? { executable: own.executable } : {}), args: own.args?.slice(ws.browser?.args?.length ?? 0) ?? [] }, `Project ${slug}: Studio and MCP jobs`);
+    if (jobs) out.push(jobs);
+  }
   const envNames = Object.keys(project.config.environments ?? {});
   const defaultEnv = (() => {
     try {
@@ -1058,6 +1091,8 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   const need = opts.project ? await composeSandboxOf(ws, opts.project) : null;
   out.push(await dockerCheck(probes, need));
   out.push(...(await workspaceChecks(probes, ws)));
+  const jobs = agentJobsCheck(probes.env, ws, ws.browser);
+  if (jobs) out.push(jobs);
   out.push(await mcpCheck(probes, ws));
   if (probes.captures) out.push(capturesCheck(await probes.captures(ws.root)));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));

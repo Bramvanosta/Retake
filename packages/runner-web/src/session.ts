@@ -9,7 +9,7 @@ import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
-import { launchOptions, refuseUnsandboxed } from './launch.js';
+import { launchOptions, launchTarget, refuseUnsandboxed } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
@@ -215,12 +215,8 @@ export const NOTIFICATION_BINDING = '__retakeNotification';
 /** Name of the binding the kit calls with what its cursor shows: icon changes, presses, click ripples (L2.13). */
 export const CURSOR_BINDING = '__retakeCursor';
 
-/** playwright-core launch target for a browser config: an executable, else a channel (new headless by default). */
-export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; channel?: string } {
-  const executablePath = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
-  const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
-  return { executablePath, channel };
-}
+/** playwright-core launch target for a browser config (launch.ts). */
+export { launchTarget } from './launch.js';
 
 function isContextDestroyed(e: unknown): boolean {
   const m = e instanceof Error ? e.message : String(e);
@@ -908,10 +904,11 @@ export type { GpuInfo, SystemInfoReply } from '@retake/core';
 /** Launch one realm: a persistent context with the kit, the bindings, the notification permission and its session. */
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
   const b = opts.browser ?? {};
+  // The target first: a refused executable leaves no temporary profile behind.
+  const { executablePath, channel } = launchTarget(b);
   const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'retake-profile-'));
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
-  const { executablePath, channel } = launchTarget(b);
   if (opts.writes) enableServiceWorkerRequests();
   // L5.16c (critique M6): a persona's profile is never opened by an older Chromium than the one that opened it last.
   const major = spec.userDataDir ? launchMajor({ executablePath, channel }) : null;

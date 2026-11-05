@@ -7,8 +7,11 @@ What Retake needs on a machine, and where it finds its tools. The macOS app carr
 - macOS or Linux, Node.js 22+ (an older Node.js gets a message saying so; `.nvmrc` pins 22 for nvm, and for mise when `idiomatic_version_file_enable_tools` includes `node`), pnpm 10
 - ffmpeg and ffprobe 5.1+ on `PATH` (or `ffmpeg:` in `retake.yaml`, or `$RETAKE_FFMPEG`); used with 6.1 (Linux) and
   9.0 (macOS, Homebrew)
-- Chromium for Playwright: `pnpm --filter @retake/runner-web exec playwright-core install chromium`
-  (or point `$RETAKE_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary)
+- Chromium and its headless shell for Playwright:
+  `pnpm --filter @retake/runner-web exec playwright-core install chromium chromium-headless-shell` (or point
+  `$RETAKE_CHROMIUM` / `browser.executable` at a Chromium or Chrome binary, and `$RETAKE_CHROMIUM_HEADLESS_SHELL` at
+  a headless shell). Renders use the headless shell; without one no render starts — Remotion never downloads a
+  browser of its own — and `retake doctor` fails its **Render browser** line with the install command.
 
 **Where Retake finds its tools** (one order for every tool, L5.16): an explicit setting (`retake.yaml` `ffmpeg:`,
 `browser.executable`) → an explicit variable (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`,
@@ -18,7 +21,9 @@ repository checkout there is no bundle, so nothing changes. ffprobe is taken bes
 there, else `$RETAKE_FFPROBE`, else beside `$RETAKE_FFMPEG` when one is there, else the app's, else `PATH` — a lone
 static ffmpeg in `retake.yaml` keeps the ffprobe found before. A path in `retake.yaml` (`ffmpeg: tools/ffmpeg`) is the
 workspace's (relative to its root); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPROBE` is refused (it would name another
-file in each process) — an absolute path or a command name on `PATH`. `retake doctor` names the source on each tool line
+file in each process) — an absolute path or a command name on `PATH`. Jobs of the Studio, the desktop app or an MCP
+client run no tool from inside the workspace (a program there, or `ffmpeg: tools/ffmpeg`): keep the tools you name
+outside it (see [Workspace](workspace.md)). `retake doctor` names the source on each tool line
 (`retake.yaml`, `$RETAKE_FFMPEG`, `bundled`, `PATH`, `Playwright cache`); its MCP line checks the ffmpeg an MCP client
 will get (the registration carries `PATH` and `RETAKE_HOME` only, never your shell's `$RETAKE_FFMPEG`). An ffmpeg
 without libx264 (a foreign build) still encodes H.264, through the Mac's VideoToolbox (same SSIM as libx264 CRF 18 on a

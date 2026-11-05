@@ -6,8 +6,8 @@
  * own command line says otherwise (refuseUnsandboxed). A source scan (test/launch-options.test.ts) keeps every launch here.
  */
 import type { Browser } from 'playwright-core';
-import { environmentHttpCredentials, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
-import type { LoadedProject, PageHttpCredentials } from '@retake/core';
+import { environmentHttpCredentials, policyArgsProblems, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
+import type { BrowserConfig, LoadedProject, PageHttpCredentials } from '@retake/core';
 import { RunnerError } from './errors.js';
 
 /** The options every runner launch ends with. */
@@ -24,12 +24,28 @@ export const SITE_PER_PROCESS = '--site-per-process';
  * the OS sandbox on, and site isolation asked for (SITE_PER_PROCESS) — the headless shell and some builds leave it off
  * by default. Throws a RunnerError when a switch would turn the sandbox or site isolation off, or open the browser to
  * other code — project.yaml and retake.yaml refuse them already; this holds for a config that reached the runner
- * another way.
+ * another way. Under the agent policy (core agent-policy.ts: a job of the worker), also when an argument is not a
+ * switch or is one that loads code or files (core agentArgProblem).
  */
 export function launchOptions(o: { args: readonly string[] }): LaunchSecurity {
-  const problems = sandboxOffArgsProblems(o.args);
+  const problems = [...sandboxOffArgsProblems(o.args), ...policyArgsProblems(o.args)];
   if (problems.length) throw new RunnerError(`Chromium was not launched: ${problems.map((p) => p.message).join('; ')}`);
   return { chromiumSandbox: true, args: o.args.includes(SITE_PER_PROCESS) ? [...o.args] : [...o.args, SITE_PER_PROCESS] };
+}
+
+/**
+ * playwright-core's launch target for a browser config: `browser.executable`, else `$RETAKE_CHROMIUM`, else a channel
+ * (new headless by default; `headless-shell` lets Playwright pick its headless shell). Throws a RunnerError under the
+ * agent policy (core programProblem) when the executable is a relative path or lies inside the workspace.
+ */
+export function launchTarget(b: BrowserConfig = {}): { executablePath?: string; channel?: string } {
+  const executablePath = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
+  if (executablePath) {
+    const problem = programProblem(executablePath, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM');
+    if (problem) throw new RunnerError(`Chromium was not launched: ${problem}`);
+  }
+  const channel = executablePath ? undefined : b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
+  return { executablePath, channel };
 }
 
 /**

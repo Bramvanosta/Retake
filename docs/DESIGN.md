@@ -2082,12 +2082,22 @@ workers/worker.log      what workers print (stderr), appended
   `<Retake home>/mcp-http.token` (part 3): created once (0600 temporary file, chmod, `link()` into place: two starts
   never write two tokens), replaced by `rotate` (0600 temporary file renamed over it); trusted only as a regular file of
   this user without group / other bits holding one token — anything else `refused`, never repaired silently.
-- Discovery file `<workspace>/.retake/ui.json` `{version: 1, kind: 'ui', pid, started_at, port, url, token, since}`:
-  `claimDiscovery(file, record)` after the bind — a 0600 temporary file (chmod) hard-linked into place; on EEXIST a live
-  holder (pid + start time) is returned for reuse, a stale or broken file replaced once; a state folder this user cannot
-  write (EACCES / EPERM / EROFS) is `refused` with a fix; `readDiscovery` refuses a link, a non-regular file, another
-  user's file or any group / other permission bit; `releaseDiscovery` removes only its own record (pid + token), a
-  regular file of this user whatever its mode by then (a file made 0644 while serving does not outlive the server).
+- Discovery file `<workspace>/.retake/ui.json` `{version: 2, kind: 'ui', pid, started_at, port, url, since}` — no
+  secret: `claimDiscovery(file, record)` after the bind writes those fields only — a 0600 temporary file (chmod)
+  hard-linked into place; on EEXIST a live holder (pid + start time) is returned for reuse, a stale or broken file
+  replaced once; a state folder this user cannot write (EACCES / EPERM / EROFS) is `refused` with a fix;
+  `readDiscovery` refuses a link, a non-regular file, another user's file or any group / other permission bit, and
+  reads a version-1 record (an older Retake's, which held the token) for its holder only, never its token;
+  `releaseDiscovery` removes only its own record (pid, start time, port, since), a regular file of this user whatever
+  its mode by then (a file made 0644 while serving does not outlive the server).
+- Studio token record `studioTokenFile(root)` = `<Retake home>/ui/<sha256 of the workspace's real path, 16 hex>.token`
+  `{version: 1, root, pid, started_at, port, token}`: written by the server that won the claim (`writeStudioToken`:
+  0600 temporary file renamed over it, through `replacePrivateFile` — a link, another user's file or group / other
+  bits are `refused`, as the MCP HTTP token), read by `readStudioToken` (null for another workspace's root), removed on
+  close only while it is still its own (`releaseStudioToken`). What its place protects against: a process confined to
+  the workspace folder (or a synced copy of it) reads no secret in `.retake/`, and a ui.json it rewrites never gets the
+  token (a reuse sends it to the record's port only). A process of this user that reads the Retake home is the person
+  (the MCP HTTP token and the signed-in profiles are there too).
 
 **Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
 `test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
@@ -2131,9 +2141,13 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); L5.10a the own READ op `project_board` (§4l); since L5.2b the own op `unsaved_report`
   (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
-- `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
-  code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
-  it. `retake ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
+- `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of this home's token record
+  is reused (a new code minted through `/v1/bootstrap` on that record's port with its token), else a server is started,
+  ui.json claimed and the token record written; closing releases both. A live holder of ui.json without a token record
+  in this home (after a 2 s wait for one that just claimed it) is `busy` with what to do: another RETAKE_HOME's server
+  ("run retake ui with the RETAKE_HOME that server was started with, or stop it") or an older Retake's (version 1:
+  "stop it") — nothing is sent to its port. A build older than this one reads a version-2 record as broken and replaces
+  it (two servers on one workspace until one stops: the residue of mixing builds). `retake ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
   L5.2: each answer has `player` (the player origin; `/v1/bootstrap` answers it too — no secret, the capabilities under
   it are), undefined from an older server; `retake ui --json` prints it with `v: 1`; `retake ui --supervised` (§4j:
   `v: 2` since L5.2b, the pipe lines follow). L5.2b: after each op that succeeded and is not read-only (`unsaved_report`
@@ -3959,7 +3973,7 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   origins once its pid is gone (`kill(pid, 0)`, `desktop-core` `navigation_decision` → `ServerGone`) is refused, the
   origins are emptied and the same Restart / Quit alert offers a server of the app's own (review A L3).
 - **The shell holds no token and never reads ui.json**: it asks the CLI, whose reuse (`launchStudio`) mints a code
-  through the file's token; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
+  through the token record in the Retake home; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
   webview, never printed, never on a command line. The page keeps its token in its own sessionStorage.
 - **Pipe lines (L5.2b, push).** After the `ui` line an owned server writes, one JSON object per line, ≤ 8 KB each,
   each framed by a newline before and after (review A L3: a stray partial write of another module on stdout becomes a
@@ -4344,7 +4358,7 @@ SIGTERM = the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`); S
 terminal's server survives Quit; Open Workspace… (SIGUSR1) on a folder that is no workspace keeps the app, its server
 and its page; L5.2b (SIGUSR2 = `terminate:`): nothing pending → instant; a running job (its worker: the test
 process) holds Quit and Open Workspace… (answered Cancel), then instant once it ended; a tab's unsaved report (the
-op, with ui.json's token) named, a name that does not exist never; notifications logged by the no-storm rule — window
+op, with the token of the workspace's record in the Retake home) named, a name that does not exist never; notifications logged by the no-storm rule — window
 not in front: one at once and one summary 5 s later, in front: none; SIGTERM with a job running quits without a
 question; attached: no guard, SIGUSR2 quits at once and the job stays; the real alert (MODAL_MS): a second window of
 the app while it is up and gone after, a second SIGUSR2 ignored (H2), SIGTERM while it is up quits (M1), Return never

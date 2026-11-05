@@ -21,13 +21,20 @@
  *
  * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
  * SITE_ISOLATION_OFF_FEATURES) or open the browser to other code (BROWSER_OPEN_SWITCHES), refused in `browser.args`
- * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed.
+ * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed. For a job an agent can shape
+ * also positional arguments and the switches of AGENT_REFUSED_SWITCHES (agentArgProblem).
+ *
+ * Agent policy: whether this process serves trust `mcp` (useAgentPolicy: the jobs worker, the MCP server, the Studio
+ * server — never a command a person types), and under it the programs a job may run (programProblem: none from inside
+ * the workspace, none by a relative path) and the browser switches it may pass (policyArgsProblems).
  */
+import { accessSync, constants as fsConstants, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { AGENT_WRITABLE_PATHS, agentWritable, channelWords, realPathOf } from './agent-trust.js';
 import type { AgentChannel } from './agent-trust.js';
 import { showHiddenChars } from './brand.js';
+import { isUnder } from './client-path.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
@@ -628,6 +635,151 @@ export function sandboxOffArgsProblems(args: readonly string[]): Array<{ index: 
     if (message) out.push({ index, message });
   });
   return out;
+}
+
+/**
+ * Chromium switches (without their leading dashes) refused in `browser.args` of a job an agent can shape (agent
+ * policy, below) besides the always-refused ones: they load code or a profile of the switch's choosing, open the
+ * browser to pages driving it, or write files where the switch says. A command a person types keeps them.
+ */
+export const AGENT_REFUSED_SWITCHES: Readonly<Record<string, string>> = {
+  'user-data-dir': 'opens the browser on a profile folder of its choosing',
+  'load-extension': 'loads browser extensions from a folder',
+  'disable-extensions-except': 'loads browser extensions from a folder',
+  'register-pepper-plugins': 'loads plugins from a file',
+  'js-flags': "passes flags to Chromium's JavaScript engine",
+  'remote-allow-origins': "lets web pages connect to the browser's debugging port",
+  'allow-file-access-from-files': 'lets local files read other local files',
+  'allow-file-access': 'lets pages read local files',
+  'enable-logging': "writes the browser's log to a file",
+  'log-file': "writes the browser's log to a file of its choosing",
+};
+
+/** Families of switches refused like AGENT_REFUSED_SWITCHES: a program started in front of a child process, a debugging port or pipe. */
+export const AGENT_REFUSED_SWITCH_PATTERNS: ReadonlyArray<{ re: RegExp; why: string }> = [
+  { re: /-cmd-prefix$/, why: "starts Chromium's child processes through another program" },
+  { re: /-launcher$/, why: "starts Chromium's child processes through another program" },
+  { re: /^remote-debugging-/, why: 'opens a debugging channel that drives the browser' },
+];
+
+const AGENT_ARGS_FIX = 'jobs the Studio, the desktop app or an MCP client start take switches only, and none that loads code or files: remove it from browser.args (a run typed in a terminal keeps it)';
+
+/**
+ * Why `arg` may not be passed to Chromium for a job an agent can shape (null when it may), besides
+ * sandboxOffArgProblem: an argument that is not a switch (`--name` or `--name=value`; Chromium opens anything else as a
+ * page or a file when it starts, and reads everything after `--` so), or a switch of AGENT_REFUSED_SWITCHES /
+ * AGENT_REFUSED_SWITCH_PATTERNS.
+ */
+export function agentArgProblem(arg: string): string | null {
+  const m = typeof arg === 'string' ? SWITCH.exec(arg) : null;
+  const name = m?.[1].toLowerCase();
+  if (!m || !name || name.startsWith('-')) {
+    const shown = typeof arg === 'string' ? showHiddenChars(arg.length > 80 ? `${arg.slice(0, 77)}…` : arg) : String(arg);
+    return `"${shown}" is not a switch (Chromium opens such an argument as a page or a file) — ${AGENT_ARGS_FIX}`;
+  }
+  if (Object.hasOwn(AGENT_REFUSED_SWITCHES, name)) return `--${name} ${AGENT_REFUSED_SWITCHES[name]} — ${AGENT_ARGS_FIX}`;
+  const family = AGENT_REFUSED_SWITCH_PATTERNS.find((p) => p.re.test(name));
+  if (family) return `--${showHiddenChars(name)} ${family.why} — ${AGENT_ARGS_FIX}`;
+  return null;
+}
+
+/** agentArgProblem for each argument of a list, with its index. */
+export function agentArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
+  const out: Array<{ index: number; message: string }> = [];
+  args.forEach((a, index) => {
+    const message = agentArgProblem(a);
+    if (message) out.push({ index, message });
+  });
+  return out;
+}
+
+// ── Agent policy: the process serves trust mcp ────────────────────────────────────────────────────────────────────
+
+/**
+ * The folders of the workspace whose jobs an agent can shape in this process, or null. On in a process that serves
+ * trust `mcp`: the jobs worker and its job processes (they run every job alike, whoever submitted it — the Studio's
+ * and the desktop app's included), the MCP server and the Studio server. Off in a command a person types (the CLI).
+ * engine `openWorkspace` sets or clears it each time it opens a workspace (a process serves one).
+ */
+let agentFolders: string[] | null = null;
+
+/** Turn the agent policy on for these workspace folders (workspaceFolders), or off (null). */
+export function useAgentPolicy(folders: readonly string[] | null): void {
+  agentFolders = folders ? [...new Set(folders.map((f) => resolve(f)))] : null;
+}
+
+/** The workspace folders of the agent policy, or null when this process does not serve trust `mcp`. */
+export function agentPolicyFolders(): readonly string[] | null {
+  return agentFolders;
+}
+
+/** The folders an agent can write in a workspace: its root and its projects, templates and components folders. */
+export function workspaceFolders(ws: { root: string; projectsDir?: string; templatesDir?: string; componentsDir?: string }): string[] {
+  return [...new Set([ws.root, ws.projectsDir, ws.templatesDir, ws.componentsDir].filter((f): f is string => !!f).map((f) => resolve(f)))];
+}
+
+/** The file a bare command name runs, read from `path` as a spawn does: the first entry holding an executable file. */
+function onPath(name: string, path: string, exists: (p: string) => boolean): { file: string; entry: string } | null {
+  for (const raw of path.split(delimiter)) {
+    // An empty entry is the current folder (POSIX).
+    const entry = raw === '' ? '.' : raw;
+    const file = resolve(entry, name);
+    if (exists(file)) return { file, entry };
+  }
+  return null;
+}
+
+function isExecutableFile(p: string): boolean {
+  try {
+    if (!statSync(p).isFile()) return false;
+    accessSync(p, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface ProgramPolicyOptions {
+  /** The PATH a bare command name is looked up in (default: this process's). */
+  path?: string;
+  /** Whether a file is an executable file (default: the file system's answer). */
+  exists?: (p: string) => boolean;
+}
+
+/**
+ * Why the program `program`, named by `what` (`browser.executable`, `$RETAKE_FFMPEG`, …), may not run for a job of a
+ * workspace whose folders are `folders` (null when it may): a relative path (it names another file in each process's
+ * folder), or a path inside one of the folders, under any spelling or through a link — an agent writes files there.
+ * A bare command name is looked up in the PATH: the folder that holds it may not be relative or inside the workspace
+ * either. An absolute path elsewhere, or a command found elsewhere on the PATH, may.
+ */
+export function agentProgramProblem(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): string | null {
+  const p = program.trim();
+  if (!p) return null;
+  const shown = showHiddenChars(p);
+  const runs = 'jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it)';
+  if (!isAbsolute(p)) {
+    if (p.includes('/')) return `${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`;
+    const found = onPath(p, o.path ?? process.env.PATH ?? '', o.exists ?? isExecutableFile);
+    if (!found) return null;
+    if (!isAbsolute(found.entry)) return `${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`;
+    const inside = folders.find((f) => isUnder(found.file, f));
+    if (inside) return `${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`;
+    return null;
+  }
+  const inside = folders.find((f) => isUnder(p, f));
+  if (inside) return `${what} (${shown}) lies inside the workspace (${inside}) — ${runs}: move the program out of the workspace and point ${what} at its new place`;
+  return null;
+}
+
+/** agentProgramProblem under this process's agent policy: null when the policy is off (a command a person types). */
+export function programProblem(program: string, what: string, o: ProgramPolicyOptions = {}): string | null {
+  return agentFolders ? agentProgramProblem(program, what, agentFolders, o) : null;
+}
+
+/** agentArgsProblems under this process's agent policy: none when the policy is off. */
+export function policyArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
+  return agentFolders ? agentArgsProblems(args) : [];
 }
 
 // ── Navigation ──────────────────────────────────────────────────────────────────────────────────────────────────────

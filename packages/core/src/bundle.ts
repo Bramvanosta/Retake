@@ -23,6 +23,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { programProblem } from './agent-policy.js';
 
 /** The manifest file of a bundle (in `Contents/Resources`, or the stage folder). */
 export const BUNDLE_FILE = 'bundle.json';
@@ -343,14 +344,39 @@ export function mediaTools(): MediaTools {
   return resolveMediaTools({ configured: workspaceFfmpeg, env: process.env, bundle: bundleInfo() });
 }
 
-/** The ffmpeg to run: `explicit` (an option naming one), else this process's. */
-export function ffmpegBin(explicit?: string): string {
-  return explicit?.trim() || mediaTools().ffmpeg;
+/** How a refusal names where a tool came from (ffprobe beside retake.yaml's ffmpeg: that setting). */
+const SOURCE_NAMES: Record<MediaToolSource, string> = { 'retake.yaml': '`ffmpeg:` of retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'ffmpeg', PATH: 'ffmpeg' };
+
+/**
+ * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else this process's — refused (BundleError) under
+ * the agent policy (core agent-policy.ts) when it lies inside the workspace or is a relative path.
+ */
+function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
+  const given = explicit?.trim();
+  let bin: string;
+  let what: string;
+  if (given) {
+    bin = given;
+    what = tool;
+  } else {
+    const t = mediaTools();
+    bin = t[tool];
+    const source = tool === 'ffmpeg' ? t.ffmpegSource : t.ffprobeSource;
+    what = source === 'PATH' || source === 'bundled' ? tool : SOURCE_NAMES[source];
+  }
+  const problem = programProblem(bin, what);
+  if (problem) throw new BundleError(problem);
+  return bin;
 }
 
-/** The ffprobe to run: `explicit`, else this process's. */
+/** The ffmpeg to run: `explicit` (an option naming one), else this process's (mediaBin). */
+export function ffmpegBin(explicit?: string): string {
+  return mediaBin('ffmpeg', explicit);
+}
+
+/** The ffprobe to run: `explicit`, else this process's (mediaBin). */
 export function ffprobeBin(explicit?: string): string {
-  return explicit?.trim() || mediaTools().ffprobe;
+  return mediaBin('ffprobe', explicit);
 }
 
 /**

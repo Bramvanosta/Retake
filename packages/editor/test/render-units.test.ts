@@ -9,6 +9,7 @@ import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { useAgentPolicy } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import {
@@ -16,6 +17,8 @@ import {
   COMPOSITION_IDS,
   EDITOR_DIR,
   HEADLESS_SHELL_ENV,
+  HEADLESS_SHELL_INSTALL,
+  assertRenderBrowser,
   brandmarkRect,
   bundleComponentsFor,
   bundleHash,
@@ -308,14 +311,35 @@ describe('render versions and records', () => {
 });
 
 describe('render environment', () => {
-  it('browser: $RETAKE_CHROMIUM_HEADLESS_SHELL, else Playwright\'s headless shell, else Remotion\'s own', () => {
+  it('browser: $RETAKE_CHROMIUM_HEADLESS_SHELL, else Playwright\'s headless shell, else none', () => {
     const exe = process.execPath; // any existing file
     expect(renderBrowser({ [HEADLESS_SHELL_ENV]: exe })).toEqual({ path: exe, source: 'env' });
     const missing = renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' });
     expect(missing.note).toContain('points to a missing file');
     const fallback = renderBrowser({});
     if (fallback.source === 'playwright') expect(fallback.path).toMatch(/headless_shell/);
-    else expect(fallback).toMatchObject({ path: null, source: 'remotion' });
+    else expect(fallback).toMatchObject({ path: null, source: 'none' });
+  });
+
+  it('without a headless shell no render starts (Remotion never downloads its own): the message says how to install one', () => {
+    const none = renderBrowser({}, null, () => null);
+    expect(none).toMatchObject({ path: null, source: 'none' });
+    expect(() => assertRenderBrowser(none, null)).toThrow(`no browser to render with: Playwright's Chromium headless shell is not installed: install it (${HEADLESS_SHELL_INSTALL}) or point $${HEADLESS_SHELL_ENV} at one`);
+    expect(() => assertRenderBrowser(renderBrowser({ [HEADLESS_SHELL_ENV]: '/nope/headless_shell' }, null, () => null), null)).toThrow(/points to a missing file .*playwright-core install chromium-headless-shell/);
+    expect(() => assertRenderBrowser(renderBrowser({}, null, () => process.execPath), null)).not.toThrow();
+  });
+
+  it('under the agent policy (a job of the worker) a render browser inside the workspace is refused; the CLI renders with it', () => {
+    const shell = join(tmp, 'tools', 'headless_shell');
+    const b = { path: shell, source: 'env' as const };
+    expect(() => assertRenderBrowser(b, null)).not.toThrow();
+    useAgentPolicy([tmp]);
+    try {
+      expect(() => assertRenderBrowser(b, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
+      expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, null)).not.toThrow();
+    } finally {
+      useAgentPolicy(null);
+    }
   });
 
   it('concurrency defaults to 3/4 of the CPUs within 1–8', () => {

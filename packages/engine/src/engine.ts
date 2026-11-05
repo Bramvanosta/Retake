@@ -583,7 +583,8 @@ function legacyField(): { legacy?: LegacyInfo } {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  const ws = await openWorkspace({ root: opts.root });
+  // Every client but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
+  const ws = await openWorkspace({ root: opts.root, agent: opts.client !== 'cli' });
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
