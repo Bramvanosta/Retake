@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
+import type { ShownAction } from '../shown.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';
 
 export interface KindEnv {
@@ -10,6 +11,11 @@ export interface KindEnv {
   phase: HookPhase;
   /** Redacting logger. */
   log: (level: HookLogLevel, msg: string) => void;
+  /**
+   * Trust `mcp`: the hook was written by the agent (RunHooksOptions.agentWritten, or a hook rendered with the variables
+   * the agent wrote — HookContext.agentVars). A shell one may not set a loader variable (core agent-policy).
+   */
+  agentWritten?: boolean;
 }
 
 export type RollbackEnv = Pick<KindEnv, 'ctx' | 'log'> & {
@@ -36,6 +42,8 @@ export function baseDirOf(ctx: HookContext): string {
 export interface PreparedHook {
   /** Runtime description (templated, redacted, without the hook name). */
   description: string;
+  /** What runs, field by field, templated (not redacted yet: the caller redacts): what an approval shows in full. */
+  shown: ShownAction;
   /** Why the content that will run is destructive, or null (declared `destructive: true` is handled by the caller). */
   destructive: string | null;
   /** Why it writes (refused on a read-only run, L1.7), or null: its templated request / SQL, its rollback included. */
@@ -49,7 +57,7 @@ export interface PreparedHook {
    * Its rollback (setup only), for an approval: templated description (redacted) and why it needs a human through MCP
    * (destructive, or a shell / js rollback — the caller only asks with trust `mcp`), else null.
    */
-  rollback?: { description: string; reason: string | null };
+  rollback?: { description: string; reason: string | null; shown: ShownAction };
   execute(): Promise<ExecutedHook>;
 }
 

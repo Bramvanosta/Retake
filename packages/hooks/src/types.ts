@@ -64,6 +64,11 @@ export interface HookContext {
    */
   replayUnsigned?: boolean | ((entry: JournalEntry, file: string) => boolean | Promise<boolean>);
   /**
+   * Trust `mcp`: the names of the variables the agent wrote (a scenario's own `vars`, over project.yaml's). A hook
+   * whose templates use one counts as written by the agent (RunHooksOptions.agentWritten), wherever it is declared.
+   */
+  agentVars?: readonly string[];
+  /**
    * The channel trust-`mcp` work came through, for the wording of its refusals (L4.2): `studio` (the Studio web app:
    * "from the Studio", "run it in a terminal") or `mcp` (default: "through MCP").
    */
@@ -135,6 +140,12 @@ export interface HookResult {
   approval?: { reason: string; fingerprint: string };
   /** Trust `mcp`: its rollback (setup), templated and redacted — what an approval of the hook also approves. */
   rollback?: string;
+  /**
+   * Trust `mcp`: what runs in full, templated and redacted — one line per field (shell: run, cwd, each env entry; sql:
+   * the statement or its file and the database; js: the code or its file and the page; http: method, URL, headers,
+   * body), then its rollback's the same way (`rollback run: …`), every hidden character written out (shown.ts).
+   */
+  shown?: string[];
 }
 
 /** What `confirmDestructive` is asked about: the hook as its file declares it, where it stands, its fingerprint. */

@@ -143,6 +143,7 @@ export interface HookContextOptions {
   allowWrites?: boolean;
   /** Describe and security-check without executing. */
   dry?: boolean;
+  /** A scenario's own vars (over project.yaml's): with trust `mcp`, the variables the agent wrote (HookContext.agentVars). */
   vars?: Record<string, string>;
   runId?: string;
   scenario?: Scenario;
@@ -221,6 +222,8 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     log: o.log,
     ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
     ...(o.trust ? { trust: o.trust } : {}),
+    // Trust `mcp`: a scenario's vars are the agent's — a project hook rendered with them counts as the agent's too.
+    ...(o.trust === 'mcp' && o.vars && Object.keys(o.vars).length ? { agentVars: Object.keys(o.vars) } : {}),
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),

@@ -1754,7 +1754,22 @@ workers/worker.log      what workers print (stderr), appended
   `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
   `retake` command); the hooks that need a human (from the dry run, else from the file alone) go to the client's
   `Approver` once (`ApprovalRequest {what, project, env {name, production, access}, items [{fingerprint, phase, index,
-  name, kind, description (templated), reason}], fix}`). No approver → `needs_approval`; declined / cancelled /
+  name, kind, description (templated), reason, lines}], fix}`). `lines`: the hook in full, one line per field, then
+  its rollback's prefixed `rollback ` (hooks `shown.ts`: `actionLines` of `PreparedHook.shown` /
+  `PreparedHook.rollback.shown`, carried as `HookResult.shown` under trust `mcp`, redacted; `declaredHookLines` of the
+  raw hook when the dry run could not template it, and for a sandbox's seed steps) — every character visible (core
+  `showHiddenChars`), a further line of a value after `  | `; the form (mcp `approvalMessage`) prints a heading per
+  hook (`approvalItemTitle`: phase, position, name once, kind) and these lines. `takeApprovals` refuses (`refused`, the
+  fix) before asking anyone, approver or not, a hook whose heading and lines exceed `APPROVAL_HOOK_MAX_CHARS` (4,000)
+  or a request over `APPROVAL_FORM_MAX_CHARS` (16,000). *Agent-written hooks*: `RunHooksOptions.agentWritten` marks the
+  hooks the agent wrote — a scenario's setup, teardown and own named hooks (runner `run.ts`, engine `preflightHooks`
+  lists, `executeHooksJob` for `<scenario>:setup|teardown`); `HookContext.agentVars` (the scenario's own `vars`, set
+  by engine `createHookContext` and the runner with trust `mcp`) makes a hook whose templates use one of them count as
+  agent-written wherever it is declared. Under trust `mcp` an agent-written shell hook is refused (`HookSecurityError`
+  `mcp`, in the preflight and in the worker) when its `env` names a loader variable or its rendered command or
+  rollback sets one (core agent-policy `agentShellLoaderVariables`: `loaderAssignments` over `simpleCommands`, the
+  splitter on `;` `&` `&&` `|` `||` `(` `)` newlines and command substitutions); a person's hook is only shown in
+  full. No approver → `needs_approval`; declined / cancelled /
   timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once
   with the job. `fingerprint` = hooks `hookFingerprint(hook, {phase, index, env})`: sha256 of canonical JSON (sorted
   keys) of the **raw** hook as its file declares it, its phase, position and environment — templates unresolved, so
@@ -1767,7 +1782,7 @@ workers/worker.log      what workers print (stderr), appended
   *Rollbacks* (L3.1 review): a setup hook whose rollback is destructive (HTTP DELETE, destructive SQL inline or in its
   file) or is a shell command or JavaScript needs the approval too (its rollback runs later — a failure, a cancel, an
   environment reset — without asking again); the item's `description` ends with `; rollback: <templated rollback>`
-  (also `rollback`), and its reason with `its rollback: …` (core `rollbackApprovalReason`, hooks `PreparedHook.rollback`).
+  (also `rollback`), its `lines` end with the rollback's fields, and its reason with `its rollback: …` (core `rollbackApprovalReason`, hooks `PreparedHook.rollback`).
   *Files*: the fingerprint also folds `files` — ref → sha256 of each project file the hook references (hooks
   `hookFiles`: its sql / js file and its rollback's, and every relative word of its shell command that names an
   existing file under its working directory: `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`): a script changed

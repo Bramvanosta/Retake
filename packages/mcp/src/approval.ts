@@ -5,6 +5,7 @@
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
+import { approvalItemTitle } from '@retake/engine';
 import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
@@ -17,13 +18,17 @@ export function approvalTimeoutMs(env: NodeJS.ProcessEnv = process.env): number 
   return Number.isFinite(v) && v > 0 ? v : APPROVAL_TIMEOUT_MS;
 }
 
-/** The question the user reads: what runs, where, each hook (kind, target, why it needs them), and the terminal path. */
+/**
+ * The question the user reads: what runs, where, and each hook in full — its heading (where it stands, its name, its
+ * kind, why it needs them), then every field on a line of its own as it will run (the engine's ApprovalItem.lines:
+ * templated, secrets as `***`, hidden characters written out), its rollback's too — and the terminal path.
+ */
 export function approvalMessage(req: ApprovalRequest): string {
   const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
   return [
     `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
-    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count):`,
-    ...req.items.map((i, n) => `${n + 1}. ${i.phase} hook ${i.index + 1}${i.name ? ` "${i.name}"` : ''}: ${i.description} — ${i.reason}`),
+    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count). Each is shown in full, as it will run:`,
+    ...req.items.flatMap((i, n) => [`${n + 1}. ${approvalItemTitle(i)} — ${i.reason}`, ...i.lines.map((l) => `   ${l}`)]),
     'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
     `Instead, you can run it yourself in a terminal: ${req.fix}`,
   ].join('\n');

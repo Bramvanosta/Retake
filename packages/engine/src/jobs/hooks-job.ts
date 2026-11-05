@@ -79,7 +79,8 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
     await checkWorkspaceProtection(ctx.ws, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
     if (!dry) {
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
-      const pre = await preflightHooks(project, [{ phase: sel.phase, hooks: sel.hooks }], {
+      // A scenario's hooks are the agent's (trust `mcp`); hooks/<name>.yaml and project.yaml's reset are a person's.
+      const pre = await preflightHooks(project, [{ phase: sel.phase, hooks: sel.hooks, agentWritten: sel.scenario !== undefined }], {
         ...(env !== undefined ? { env } : {}),
         ...(sel.vars ? { vars: sel.vars } : {}),
         ...(sel.scenario ? { scenario: sel.scenario } : {}),
@@ -199,7 +200,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
   });
   try {
     const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
-    const res = await hooks.runHooks(sel.hooks, hctx, { phase: sel.phase, journal });
+    const res = await hooks.runHooks(sel.hooks, hctx, { phase: sel.phase, journal, agentWritten: sel.scenario !== undefined });
     const pending = journal.pending().length;
     return {
       kind: 'hooks',

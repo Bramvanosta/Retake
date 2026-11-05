@@ -11,7 +11,7 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
 
 let dir: string;
 let outside: string;
@@ -64,5 +64,35 @@ describe('runner, trust mcp', () => {
     // Trust author: read as before (the fake runtime then fails further on, not on the file).
     expect(await stepError(dropFile(ctx(false), { zone, path: 'assets/link.txt' }))).not.toContain('outside the project');
     expect(await stepError(evalStep(ctx(false), { file: 'scenarios/x.js' }))).not.toContain('agent can write');
+  });
+
+  it("the scenario's own hooks are the agent's — a shell one setting a loader variable is refused — and so is a project.yaml hook rendered with the scenario's vars", async () => {
+    const server = await startServer({ '/': '<html><body><h1>Home</h1></body></html>' });
+    try {
+      const steps = [{ hook: 'warm' }, { hold: 0.1 }];
+      const run = (name: string, sc: Omit<Scenario, 'video'>, project = makeProject(dir, { app: server.url })) =>
+        runScenario({ project, scenario: makeScenario(name, { pacing: FAST, ...sc }), mode: 'dry', hooks: 'run', env: 'test', runId: `${name}-${Date.now()}`, hookTrust: 'mcp', confirmHook: () => true });
+      const shared = (vars?: Record<string, string>) => {
+        const p = makeProject(dir, { app: server.url });
+        p.config.hooks = { warm: { shell: { run: '{{vars.prefix}} true' } } };
+        if (vars) p.config.vars = vars;
+        return p;
+      };
+      const setup = await run('own-setup', { setup: [{ name: 'tooling', shell: { run: 'PATH=/usr/bin:/bin true' } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
+      expect(setup.status).toBe('failed');
+      expect(setup.error?.message).toContain('setup hooks failed (tooling: refusing shell hook: it sets PATH');
+      const own = await run('own-named', { hooks: { warm: { shell: { run: 'true', env: { NODE_OPTIONS: '-r ./x.cjs' } } } }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'LANG=C' }));
+      expect(own.status).toBe('failed');
+      expect(own.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it sets NODE_OPTIONS');
+      const agentVars = await run('agent-vars', { vars: { prefix: 'PATH=/usr/bin:/bin' }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared());
+      expect(agentVars.status).toBe('failed');
+      expect(agentVars.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it sets PATH');
+      // project.yaml's hook with project.yaml's own vars: a person's — it runs.
+      const person = await run('person-vars', { scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'PATH=/usr/bin:/bin' }));
+      expect(person.error?.message).toBeUndefined();
+      expect(person.status).toBe('succeeded');
+    } finally {
+      await server.close();
+    }
   });
 });

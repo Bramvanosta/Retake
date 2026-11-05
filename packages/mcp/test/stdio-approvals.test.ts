@@ -120,7 +120,9 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(asked).toHaveLength(1);
     const msg = asked[0].message;
     expect(msg).toContain('the agent asks to run hooks catalogue:setup in project northfield-fixture, environment local, read-write');
-    expect(msg).toContain(`1. setup hook 2 "free-registry-ref": free-registry-ref: http DELETE ${fixture.urls.console}/api/products/finca-quenaro/refs; rollback: http POST ${fixture.urls.console}/api/products/finca-quenaro/refs — HTTP DELETE`);
+    expect(msg).toContain(
+      `1. setup hook 2 "free-registry-ref" (http) — HTTP DELETE\n   method: DELETE\n   url: ${fixture.urls.console}/api/products/finca-quenaro/refs\n   rollback method: POST\n   rollback url: ${fixture.urls.console}/api/products/finca-quenaro/refs\n`,
+    );
     expect(msg).toContain('"confirm: true" in a file written through MCP does not count');
     expect(msg).toContain(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     expect(asked[0].requestedSchema).toMatchObject({ type: 'object', properties: { approve: { type: 'boolean' } }, required: ['approve'] });

@@ -9,8 +9,9 @@ import { prepareHook } from './kinds/index.js';
 import type { ExecutedHook, PreparedHook } from './kinds/index.js';
 import { baseDirOf } from './kinds/common.js';
 import { JS_NEEDS_PAGE } from './kinds/js.js';
-import { logger, redactText } from './secrets.js';
-import { addDrySaved } from './template.js';
+import { logger, redactDeep, redactText } from './secrets.js';
+import { actionLines } from './shown.js';
+import { addDrySaved, tokensIn } from './template.js';
 import { journalsRollback } from './types.js';
 import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
 import { nowIso } from './util.js';
@@ -18,6 +19,31 @@ import { nowIso } from './util.js';
 export interface RunHooksOptions {
   phase: HookPhase;
   journal: Journal;
+  /**
+   * Trust `mcp`: these hooks were written by the agent (a scenario's setup, teardown or own named hooks) — a shell one
+   * may not set a loader variable (core agent-policy). A hook of a person's file (project.yaml, hooks/<name>.yaml, a
+   * sandbox's seed) is only shown in full, unless its templates use the agent's variables (HookContext.agentVars).
+   */
+  agentWritten?: boolean;
+}
+
+/** Whether a hook's templates use a variable the agent wrote (`{{vars.x}}`, or a bare `{{x}}` that is not a page). */
+function usesAgentVars(hook: HookStep, ctx: HookContext): boolean {
+  const names = new Set(ctx.agentVars ?? []);
+  if (!names.size) return false;
+  return tokensIn(hook).some((expr) => {
+    const path = expr.split('.').map((s) => s.trim());
+    if (path[0] === 'vars') return path.length > 1 && names.has(path[1]);
+    if (path.length === 1 && Object.hasOwn(ctx.env.pages, path[0])) return false;
+    return !['hooks', 'run', 'response'].includes(path[0]) && !/^(env|keychain|secret):/.test(expr) && names.has(path[0]);
+  });
+}
+
+/** What an approval shows of a prepared hook: its fields, then its rollback's, redacted (shown.ts). */
+function shownLines(ctx: HookContext, prepared: PreparedHook): string[] {
+  const own = actionLines(redactDeep(ctx, prepared.shown));
+  const rb = prepared.rollback ? actionLines(redactDeep(ctx, prepared.rollback.shown), 'rollback ') : [];
+  return [...own, ...rb];
 }
 
 export interface RunHooksResult {
@@ -115,6 +141,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
   let description = describeHook(hook);
   let approval: HookResult['approval'];
   let rollbackShown: string | undefined;
+  let shown: string[] | undefined;
   const result = (kind: HookKind | undefined, fields: Pick<HookResult, 'ok' | 'status'> & Partial<HookResult>): HookResult => ({
     index,
     name: hook?.name,
@@ -124,6 +151,7 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     ...(hook?.optional ? { optional: true } : {}),
     ...(approval && ctx.trust === 'mcp' ? { approval } : {}),
     ...(rollbackShown !== undefined && ctx.trust === 'mcp' ? { rollback: rollbackShown } : {}),
+    ...(shown && ctx.trust === 'mcp' ? { shown } : {}),
     ms: Date.now() - t0,
     ...fields,
   });
@@ -164,9 +192,11 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
       if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
       files = found.files;
     }
-    prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log });
+    const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
+    prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log, ...(agentWritten ? { agentWritten } : {}) });
     description = withName(hook.name, prepared.description);
     if (prepared.rollback) rollbackShown = prepared.rollback.description;
+    if (ctx.trust === 'mcp') shown = shownLines(ctx, prepared);
     // Through MCP a shell hook always writes: its `writes: false` was written by whoever drives the server.
     if (ctx.trust === 'mcp' && kind === 'shell' && !prepared.writes) prepared.writes = shellAlwaysWrites(ctx.via);
     // A read-only run (L1.7) refuses a hook that writes before anything else (no destructive prompt for it).

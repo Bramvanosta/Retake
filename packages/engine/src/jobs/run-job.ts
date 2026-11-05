@@ -151,9 +151,10 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       ? preflightHooks(
           project,
           [
-            { phase: 'setup', hooks: sc.setup ?? [] },
-            { phase: 'teardown', hooks: sc.teardown ?? [] },
-            ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks })),
+            // The scenario's own hooks are the agent's (trust `mcp`); a project.yaml one is a person's.
+            { phase: 'setup', hooks: sc.setup ?? [], agentWritten: true },
+            { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
+            ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
           { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
         ).catch((e: unknown) => {

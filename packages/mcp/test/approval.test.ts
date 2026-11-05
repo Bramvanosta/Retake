@@ -1,5 +1,5 @@
 /** The elicitation approver (L3.1, R-MCP-35): only `accept` with `approve: true` approves; everything else refuses. */
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -15,7 +15,7 @@ const REQ: ApprovalRequest = {
   what: 'hooks reset',
   project: 'p',
   env: { name: 'local', production: false, access: 'read-write' },
-  items: [{ fingerprint: 'f'.repeat(64), phase: 'reset', index: 0, name: 'wipe', kind: 'sql', description: 'wipe: sql "DELETE FROM quotes" on main', reason: 'SQL DELETE' }],
+  items: [{ fingerprint: 'f'.repeat(64), phase: 'reset', index: 0, name: 'wipe', kind: 'sql', description: 'wipe: sql "DELETE FROM quotes" on main', reason: 'SQL DELETE', lines: ['db: main (127.0.0.1:5432/app)', 'query: DELETE FROM quotes'] }],
   fix: 'retake -C /ws hooks run p reset',
 };
 
@@ -41,7 +41,7 @@ describe('elicitationApprover', () => {
     let seen: { message: string; timeoutMs: number } | undefined;
     await elicitationApprover(async (form, o) => ((seen = { message: form.message, timeoutMs: o.timeoutMs }), { action: 'decline' }))!.approve(REQ);
     expect(seen?.timeoutMs).toBe(APPROVAL_TIMEOUT_MS);
-    expect(seen?.message).toContain('1. reset hook 1 "wipe": wipe: sql "DELETE FROM quotes" on main — SQL DELETE');
+    expect(seen?.message).toContain('1. reset hook 1 "wipe" (sql) — SQL DELETE\n   db: main (127.0.0.1:5432/app)\n   query: DELETE FROM quotes\n');
     expect(seen?.message).toContain('environment local, read-write');
     expect(seen?.message).toContain('retake -C /ws hooks run p reset');
     expect(approvalTimeoutMs({ RETAKE_MCP_APPROVAL_TIMEOUT_MS: '1500' })).toBe(1500);
@@ -62,9 +62,82 @@ describe('elicitationApprover', () => {
       const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
       expect(pre.items.map((i) => i.reason)).toEqual(['a shell command (runs local code); its rollback: a shell command (runs local code)', 'its rollback: HTTP DELETE', 'its rollback: SQL DROP']);
       const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
-      expect(msg).toContain('1. setup hook 1 "seed": seed: shell "echo seeded"; rollback: shell "rm -rf "$HOME/important"" — a shell command');
-      expect(msg).toContain('2. setup hook 2 "arm": arm: http POST http://127.0.0.1:9/api/x; rollback: http DELETE http://127.0.0.1:9/api/all — its rollback: HTTP DELETE');
-      expect(msg).toContain('; rollback: sql "DROP TABLE customers" on postgres://u@127.0.0.1:9/db — its rollback: SQL DROP');
+      expect(msg).toContain('1. setup hook 1 "seed" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)\n   run: echo seeded\n   rollback run: rm -rf "$HOME/important"\n');
+      expect(msg).toContain('2. setup hook 2 "arm" (http) — its rollback: HTTP DELETE\n   method: POST\n   url: http://127.0.0.1:9/api/x\n   rollback method: DELETE\n   rollback url: http://127.0.0.1:9/api/all\n');
+      expect(msg).toContain('3. setup hook 3 "q" (sql) — its rollback: SQL DROP\n   db: postgres://u@127.0.0.1:9/db\n   query: SELECT 1\n   rollback db: postgres://u@127.0.0.1:9/db\n   rollback query: DROP TABLE customers\n');
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the form shows every hook in full', () => {
+  it('each field on its own line, templated: shell run / cwd / env, http method / URL / headers / body, sql statement and database, js code and page, each rollback; secrets as ***; the name once', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'retake-mcp-full-'));
+    const saved = process.env.RETAKE_TEST_FORM_TOKEN;
+    process.env.RETAKE_TEST_FORM_TOKEN = 'form-secret-value';
+    try {
+      await writeFile(join(dir, 'project.yaml'), 'name: X\nvars: {sku: abc}\ndatabases: {main: {url: "postgres://u@127.0.0.1:9/app"}}\nenvironments:\n  staging:\n    app: http://127.0.0.1:9\n');
+      await mkdir(join(dir, 'scripts'));
+      const project = await loadProject(dir);
+      const long = `echo ${'x'.repeat(300)} {{vars.sku}}`;
+      const hooks: HookStep[] = [
+        { name: 'seed', shell: { run: long, cwd: 'scripts', env: { TOKEN: '{{env:RETAKE_TEST_FORM_TOKEN}}', MODE: 'demo' }, rollback: 'echo undo {{vars.sku}}' } },
+        { name: 'free', http: { method: 'DELETE', url: '{{app}}/api/x/{{vars.sku}}', headers: { authorization: 'Bearer {{env:RETAKE_TEST_FORM_TOKEN}}' }, json: { all: true } } },
+        { name: 'wipe', sql: { query: "DELETE FROM quotes WHERE sku = '{{vars.sku}}'" } },
+        { name: 'tick', js: { page: 'app', code: 'window.sku = "{{vars.sku}}"', rollback: 'delete window.sku' } },
+      ];
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
+      const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
+      expect(msg).toContain(
+        [
+          '1. setup hook 1 "seed" (shell) — a shell command (runs local code); its rollback: a shell command (runs local code)',
+          `   run: echo ${'x'.repeat(300)} abc`,
+          '   cwd: scripts',
+          '   env TOKEN: ***',
+          '   env MODE: demo',
+          '   rollback run: echo undo abc',
+          '   rollback cwd: scripts',
+          '   rollback env TOKEN: ***',
+          '   rollback env MODE: demo',
+          '2. setup hook 2 "free" (http) — HTTP DELETE',
+          '   method: DELETE',
+          '   url: http://127.0.0.1:9/api/x/abc',
+          '   header authorization: Bearer ***',
+          '   json: {"all":true}',
+          '3. setup hook 3 "wipe" (sql) — SQL DELETE',
+          '   db: main (127.0.0.1:9/app)',
+          "   query: DELETE FROM quotes WHERE sku = 'abc'",
+          '4. setup hook 4 "tick" (js) — its rollback: JavaScript run in the page',
+          '   page: app',
+          '   code: window.sku = "abc"',
+          '   rollback page: app',
+          '   rollback code: delete window.sku',
+          'Approve to run them now',
+        ].join('\n'),
+      );
+      expect(msg).not.toContain('form-secret-value');
+      expect(msg).not.toContain('…');
+      expect(msg.match(/seed/g)).toHaveLength(1);
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_TEST_FORM_TOKEN;
+      else process.env.RETAKE_TEST_FORM_TOKEN = saved;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('hidden characters are written out, and a value of several lines never reads as another hook or field', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'retake-mcp-hidden-'));
+    try {
+      await writeFile(join(dir, 'project.yaml'), 'name: X\nenvironments:\n  staging:\n    app: http://127.0.0.1:9\n');
+      const project = await loadProject(dir);
+      const hooks: HookStep[] = [{ name: 'a\u202eb', shell: { run: 'echo ok\u200b\u001b[2J\n2. setup hook 9 "fake" (http) — nothing\nrun: true' } }];
+      const pre = await preflightHooks(project, [{ phase: 'setup', hooks }], { env: 'staging', journalFile: join(dir, 'j.json') });
+      const msg = approvalMessage({ what: 'the capture', project: 'p', env: pre.env, items: pre.items, fix: 'retake run p x' });
+      expect(msg).toContain('1. setup hook 1 "a\\u{202e}b" (shell) — a shell command (runs local code)\n   run: echo ok\\u{200b}\\u{1b}[2J\n     | 2. setup hook 9 "fake" (http) — nothing\n     | run: true\n');
+      expect(msg).not.toMatch(/^2\. /m);
+      expect(msg).not.toMatch(/^ {3}run: true$/m);
+      expect(msg).not.toMatch(/[\u202e\u200b\u001b]/);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

@@ -719,6 +719,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         running: hookGroups,
         ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
         ...(opts.hookVia ? { via: opts.hookVia } : {}),
+        ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       };
       hooks = await openHooks(deps);
@@ -1442,6 +1443,8 @@ interface SetupDeps {
   running: Set<number>;
   trust?: HookTrust;
   via?: AgentChannel;
+  /** Trust `mcp`: the scenario's own vars, the agent's (HookContextLike.agentVars). */
+  agentVars?: readonly string[];
   confirmHook?: ConfirmHook;
 }
 
@@ -1658,6 +1661,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     running: d.running,
     ...(d.trust ? { trust: d.trust } : {}),
     ...(d.via ? { via: d.via } : {}),
+    ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
   };
   return { mod, journal, ctx };
@@ -1679,7 +1683,8 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
   h.ctx.signal = d.signal;
   let res: Awaited<ReturnType<HooksModule['runHooks']>>;
   try {
-    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal });
+    // The scenario's own hooks: the agent's with trust `mcp` (a shell one may not set a loader variable).
+    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
   } finally {
     delete h.ctx.signal;
   }
@@ -1708,7 +1713,8 @@ function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name: strin
     h.ctx.signal = d.signal;
     let res: Awaited<ReturnType<HooksModule['runHooks']>>;
     try {
-      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal });
+      // A scenario's named hook is the agent's with trust `mcp`; project.yaml's is a person's (unless it uses the scenario's vars).
+      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal, agentWritten: named.source === 'scenario' });
     } finally {
       delete h.ctx.signal;
     }
@@ -1739,7 +1745,7 @@ async function teardownHooks(
   if (teardown.length) {
     ran = true;
     emit({ type: 'hook', phase: 'teardown', name: 'teardown', status: 'start', message: `${teardown.length} hook(s)` });
-    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal });
+    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal, agentWritten: true });
     res.results.forEach((r, i) =>
       emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
     );

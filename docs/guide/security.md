@@ -108,6 +108,17 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   said: a person can review it in a terminal), and each signed rollback once (`~/.retake/rollbacks-done/`). A terminal
   lists what it replays first and asks about an unsigned entry, shown in full, only with `--replay-unsigned` — never a
   sql or js one, one with secrets or a shell one on a sandbox.
+- **What you approve is shown in full.** The approval form of work submitted through MCP or the Studio shows each
+  hook as it will run, every field on its own line (a shell hook's command, working folder and each environment
+  variable; a sql hook's statement or file and database; a js hook's code or file and page; an http hook's method, URL,
+  headers and body; its rollback the same way), templated, secrets as `***`, hidden characters written out, never cut.
+  A hook over 4,000 characters or a form over 16,000 is refused before anyone is asked (run it in a terminal).
+- **Hooks the agent wrote set no loader variable.** Through MCP or the Studio, a shell hook written in the scenario
+  (or a project.yaml hook rendered with the scenario's `vars`) is refused when its `env` or its command sets a variable
+  that changes what programs load or the shell they start — `PATH`, `HOME`, `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`,
+  `ENV`, `IFS`, `LD_*`, `DYLD_*`, `GIT_*`, `PYTHON*`, `npm_config_*`, `PNPM_*`, `COREPACK_*` and the like — in any
+  command of it. Hooks of your own files (project.yaml with its own vars, `hooks/<name>.yaml`, a sandbox's seed) are
+  shown in full and asked about instead.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.

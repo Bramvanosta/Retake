@@ -8,7 +8,7 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind } from '@retake/core';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, showHiddenChars } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { EngineError } from './errors.js';
@@ -40,6 +40,40 @@ export interface ApprovalItem {
   rollback?: string;
   /** Why it needs a human: destructive (and why), a shell command, its rollback (destructive, shell or js). */
   reason: string;
+  /**
+   * What runs, in full: one line per field, templated (secrets as `***`, every hidden character written out), then its
+   * rollback's (`rollback …`) — hooks shown.ts. The form shows these lines; the hook's name is in its heading only.
+   */
+  lines: string[];
+}
+
+/** The longest hook a form shows (its lines, in characters): a longer one is refused before anyone is asked. */
+export const APPROVAL_HOOK_MAX_CHARS = 4_000;
+/** The longest form (every hook's lines, the work and the command): a longer one is refused before anyone is asked. */
+export const APPROVAL_FORM_MAX_CHARS = 16_000;
+
+/** The heading of a hook in an approval: where it stands, its name, its kind. */
+export function approvalItemTitle(i: Pick<ApprovalItem, 'phase' | 'index' | 'name' | 'kind'>): string {
+  return `${i.phase} hook ${i.index + 1}${i.name ? ` "${showHiddenChars(i.name)}"` : ''}${i.kind ? ` (${i.kind})` : ''}`;
+}
+
+/** A hook's text in a form: its heading, then its lines. */
+function itemText(i: ApprovalItem): string {
+  return [approvalItemTitle(i), ...i.lines].join('\n');
+}
+
+/**
+ * Why `req` cannot be put to a person in a form, or null: a hook over APPROVAL_HOOK_MAX_CHARS or a form over
+ * APPROVAL_FORM_MAX_CHARS — nobody reads that much before saying yes.
+ */
+function tooLongForAForm(req: ApprovalRequest): string | null {
+  const n = (x: number) => x.toLocaleString('en-US');
+  const long = req.items.filter((i) => itemText(i).length > APPROVAL_HOOK_MAX_CHARS);
+  if (long.length) {
+    return long.map((i) => `${approvalItemTitle(i)} is ${n(itemText(i).length)} characters long (a form shows at most ${n(APPROVAL_HOOK_MAX_CHARS)} per hook)`).join('; ');
+  }
+  const total = req.what.length + req.fix.length + req.items.reduce((sum, i) => sum + itemText(i).length + 1, 0);
+  return total > APPROVAL_FORM_MAX_CHARS ? `its ${req.items.length} hooks make a form of ${n(total)} characters (at most ${n(APPROVAL_FORM_MAX_CHARS)})` : null;
 }
 
 /** What a human is asked: the hooks, where they run, and the command a human can run in a terminal instead. */
@@ -98,10 +132,10 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
  */
 export async function preflightHooks(
   project: LoadedProject,
-  lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[] }>,
+  lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
   o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
 ): Promise<Preflight> {
-  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback } = await import('@retake/hooks');
+  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback, declaredHookLines } = await import('@retake/hooks');
   const { ctx, access } = await createHookContext(project, {
     env: o.env,
     dry: true,
@@ -116,9 +150,9 @@ export async function preflightHooks(
   const journal = await Journal.open(o.journalFile);
   const items: ApprovalItem[] = [];
   const refused: Preflight['refused'] = [];
-  for (const { phase, hooks } of lists) {
+  for (const { phase, hooks, agentWritten } of lists) {
     if (!hooks.length) continue;
-    const { results } = await runHooks([...hooks], ctx, { phase, journal });
+    const { results } = await runHooks([...hooks], ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
     const byIndex = new Map<number, HookResult>(results.map((r) => [r.index, r]));
     hooks.forEach((hook, index) => {
       const r = byIndex.get(index);
@@ -140,6 +174,7 @@ export async function preflightHooks(
         description: rollback ? `${description}; rollback: ${rollback}` : description,
         ...(rollback ? { rollback } : {}),
         reason,
+        lines: r?.status === 'dry' && r.shown ? r.shown : declaredHookLines(hook, { rollback: phase === 'setup' || phase === 'step' }),
       });
     });
   }
@@ -156,7 +191,7 @@ export const SHELL_SEED_REASON = 'a shell command (runs local code)';
  * none of them is asked about.
  */
 export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
-  const { hookFingerprint, hookFiles, describeHook } = await import('@retake/hooks');
+  const { hookFingerprint, hookFiles, describeHook, declaredHookLines } = await import('@retake/hooks');
   const sandbox = project.sandboxes?.[env];
   const steps = sandbox?.manifest.seed ?? [];
   const items: ApprovalItem[] = [];
@@ -177,6 +212,8 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
       kind,
       description: describeHook(step),
       reason: SHELL_SEED_REASON,
+      // As sandbox.yaml declares it (a seed step journals no rollback).
+      lines: declaredHookLines(step),
     });
   });
   return items;
@@ -216,6 +253,10 @@ function listItems(items: readonly ApprovalItem[]): string {
 export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
   if (!req.items.length) return [];
   const details = { hooks: req.items.map(({ fingerprint: _f, ...rest }) => rest), env: req.env };
+  const long = tooLongForAForm(req);
+  if (long) {
+    throw new EngineError('refused', `${req.what} was not started: ${long} — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+  }
   if (!approver) {
     throw new EngineError(
       'needs_approval',

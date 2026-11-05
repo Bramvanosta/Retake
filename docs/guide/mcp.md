@@ -285,11 +285,26 @@ hooks: submit it again —, a sandbox that would not start…).
   `run_dry {hooks: "run"}`, `hooks_run {dry: false}` or `env_reset {dry: false}` needs such hooks, the server first
   checks them without running anything (templated, secrets as `***`; what a safety rule refuses fails the call at
   once), then asks the user once, through the client's approval form (MCP elicitation, form mode): the project, the
-  environment (production or not, read-only or not), each hook with its kind, target (request and host, command,
-  SQL and database) and why it needs approval, and the `retake` command to run it in a terminal instead.
+  environment (production or not, read-only or not), each hook in full and why it needs approval, and the `retake`
+  command to run it in a terminal instead.
+  - **In full.** Each hook is shown as it will run, its name once in its heading, then every field on a line of its
+    own, templated and never cut: a shell hook's `run`, `cwd` and each `env` entry; a sql hook's statement (or its
+    file) and database; a js hook's code (or its file) and page; an http hook's method, URL, headers and body. Secrets
+    are `***`; control, bidirectional and invisible characters are written out (`\u{202e}`), and a value of several
+    lines continues on lines starting with `|`, so it never reads as another field or hook. A hook longer than 4,000
+    characters, or a form longer than 16,000, is refused before anyone is asked: run it in a terminal (the fix).
+  - **Loader variables.** A shell hook the agent wrote — the scenario's `setup`, `teardown` and own `hooks:`, and a
+    project.yaml hook whose templates use the scenario's `vars` — may not set a loader variable (`PATH`, `HOME`,
+    `NODE_OPTIONS`, `LD_*` / `DYLD_*`, `GIT_*`, `PYTHON*`, `npm_config_*` and the like: they change what a program loads
+    or the shell it starts), neither in its `env` nor in the command (`NAME=…` before any command of it, `env` /
+    `export NAME=…`, `for NAME in`, `read NAME`…, after `;`, `&&`, `||`, `|`, inside `( )`, `$( )` or backticks).
+    Such a hook is refused before anyone is asked, and again when the job runs. A hook of your own files —
+    project.yaml with its own `vars`, `hooks/<name>.yaml`, a sandbox's seed — is shown in full and asked about, not
+    refused: move such a hook there, or run it in a terminal.
   - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
     JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
-    cancel, `env_reset`) without asking again. The form shows each hook's rollback (`…; rollback: http DELETE …`).
+    cancel, `env_reset`) without asking again. The form shows each rollback in full the same way, after its hook
+    (`rollback run: …`, `rollback method: DELETE`, `rollback url: …`).
   - Approved: the job is queued with the approvals — fingerprints of the hooks *as their file declares them* (with
     their phase, position and environment) and of the project files they reference (sql / js files, the scripts a
     shell hook names: `./seed.sh`, `psql -f reset.sql`); the worker runs a hook that needs approval only when its
@@ -309,7 +324,8 @@ hooks: submit it again —, a sandbox that would not start…).
     `--yes` / the prompt approve destructive hooks, and a shell hook's `writes: false` counts.
   - A dry run (`run_dry` without `hooks: "run"`, `hooks_run` / `env_reset` by default) asks nobody.
   - **Sandbox seeds.** `sandbox_up`, `sandbox_reset` and `run_capture {sandbox: true}` may run a sandbox's seed: its
-    **shell** steps are approved the same way (a local command is local code, whatever the sandbox is). Its http and
+    **shell** steps are approved the same way, each shown in full as sandbox.yaml declares it (a local command is local
+    code, whatever the sandbox is). Its http and
     sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
     a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
 - **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any

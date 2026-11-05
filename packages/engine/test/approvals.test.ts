@@ -15,7 +15,7 @@ import { loadScenario } from '@retake/core';
 import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
 import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex } from '../src/index.js';
+import { APPROVAL_HOOK_MAX_CHARS, EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
@@ -286,6 +286,87 @@ describe('a hooks job runs the scenario bytes it was submitted with', () => {
     const echo = await engine.hooks.submit({ project: 'northfield-fixture', source: 'hooks/echo.yaml' });
     expect(echo.job.input).not.toHaveProperty('scenario_sha256');
     expect((await execHooks(echo.job.input as HooksJobInput)).result.ok).toBe(true);
+  });
+});
+
+describe('what a person is asked shows every hook in full', () => {
+  const scenario = (name: string, extra: string) =>
+    `video: ${name}\n${extra}scenes:\n  - id: home\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`;
+
+  it('a long command, its cwd and each env entry, whole; the same hook written by the agent that sets a loader variable is refused before anyone is asked', async () => {
+    await mkdir(join(project, 'scripts'), { recursive: true });
+    const long = `echo ${'z'.repeat(300)}`;
+    await writeFile(join(project, 'hooks', 'tooling.yaml'), `- name: tooling\n  shell:\n    run: "PATH=/usr/bin:/bin ${long}"\n    cwd: scripts\n    env: {NODE_OPTIONS: "--max-old-space-size=512", MODE: demo}\n`);
+    const file = join(project, 'scenarios', 'loader-hook.yaml');
+    await writeFile(file, scenario('loader-hook', `setup:\n  - name: tooling\n    shell:\n      run: "PATH=/usr/bin:/bin ${long}"\n      cwd: scripts\n      env: {MODE: demo}\n`));
+    try {
+      // A person's file (hooks/<name>.yaml): asked about, shown whole — never cut.
+      const a = accept();
+      await engine.hooks.submit({ project: 'northfield-fixture', source: 'hooks/tooling.yaml', dry: false }, { approver: a });
+      expect(a.asked[0].items[0]).toMatchObject({ name: 'tooling', kind: 'shell', lines: [`run: PATH=/usr/bin:/bin ${long}`, 'cwd: scripts', 'env NODE_OPTIONS: --max-old-space-size=512', 'env MODE: demo'] });
+      // The scenario's own hook (the agent's): refused at submit, nobody asked, nothing queued.
+      const before = (await engine.jobs.list()).length;
+      const b = accept();
+      const e = await refusal(engine.hooks.submit({ project: 'northfield-fixture', source: 'loader-hook:setup', dry: false }, { approver: b }));
+      expect(e.code).toBe('refused');
+      expect(e.message).toContain('setup hook 1 "tooling": refusing shell hook: it sets PATH — a loader variable');
+      expect(e.fix).toBe(`retake -C ${ws} hooks run northfield-fixture loader-hook:setup`);
+      expect(b.asked).toEqual([]);
+      expect((await engine.jobs.list()).length).toBe(before);
+    } finally {
+      await rm(file, { force: true });
+    }
+  });
+
+  it("a capture: a project.yaml hook rendered with the scenario's vars is the agent's (refused); with project.yaml's own vars it is a person's (asked)", async () => {
+    const yamlFile = join(project, 'project.yaml');
+    const original = await readFile(yamlFile, 'utf8');
+    const steps = `scenes:\n  - id: home\n    page: console\n    open: /\n    steps:\n      - hook: warm\n      - hold: 0.2\n`;
+    const own = join(project, 'scenarios', 'warm-own.yaml');
+    const agents = join(project, 'scenarios', 'warm-agent.yaml');
+    await writeFile(yamlFile, `${original}\nvars: {prefix: "PATH=/usr/bin:/bin"}\nhooks:\n  warm: {shell: {run: "{{vars.prefix}} echo warm"}}\n`);
+    await writeFile(own, `video: warm-own\n${steps}`);
+    await writeFile(agents, `video: warm-agent\nvars: {prefix: "PATH=/usr/bin:/bin"}\n${steps}`);
+    try {
+      const a = accept();
+      const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'warm-own', mode: 'capture' }, { approver: a });
+      expect(a.asked[0].items).toEqual([expect.objectContaining({ phase: 'step', name: 'warm', lines: ['run: PATH=/usr/bin:/bin echo warm'] })]);
+      await engine.runs.cancel('northfield-fixture', sub.run_id);
+      const b = accept();
+      const e = await refusal(engine.runs.submit({ project: 'northfield-fixture', scenario: 'warm-agent', mode: 'capture' }, { approver: b }));
+      expect(e.code).toBe('refused');
+      expect(e.message).toContain('step hook 1 "warm": refusing shell hook: it sets PATH');
+      expect(b.asked).toEqual([]);
+    } finally {
+      await writeFile(yamlFile, original);
+      await rm(own, { force: true });
+      await rm(agents, { force: true });
+    }
+  });
+
+  it('a hook over 4,000 characters, or a form over 16,000, is refused before anyone is asked: run it in a terminal', async () => {
+    const item = (index: number, chars: number) => ({ fingerprint: String(index).repeat(64).slice(0, 64), phase: 'setup' as const, index, name: `h${index}`, kind: 'shell', description: 'd', reason: 'a shell command (runs local code)', lines: [`run: ${'x'.repeat(chars)}`] });
+    const req = (items: ApprovalRequest['items']): ApprovalRequest => ({ what: 'hooks x:setup', project: 'p', env: { name: 'local', production: false, access: 'read-write' }, items, fix: 'retake hooks run p x:setup' });
+    const head = 'setup hook 1 "h0" (shell)\n'.length + 'run: '.length;
+    // Exactly at the limit: asked.
+    const ok = accept();
+    expect(await takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head)]), ok)).toHaveLength(1);
+    expect(ok.asked).toHaveLength(1);
+    const one = accept();
+    const long = await refusal(takeApprovals(req([item(0, APPROVAL_HOOK_MAX_CHARS - head + 1)]), one));
+    expect(long.code).toBe('refused');
+    expect(long.message).toBe('hooks x:setup was not started: setup hook 1 "h0" (shell) is 4,001 characters long (a form shows at most 4,000 per hook) — too long to approve in a form: run it in a terminal');
+    expect(long.fix).toBe('retake hooks run p x:setup');
+    expect(one.asked).toEqual([]);
+    // Without an approver too: the same refusal, not needs_approval.
+    expect((await refusal(takeApprovals(req([item(0, 5_000)]), undefined))).code).toBe('refused');
+    // Five hooks of 3,500 characters each: every one under its limit, the form over 16,000.
+    const many = accept();
+    const form = await refusal(takeApprovals(req([0, 1, 2, 3, 4].map((i) => item(i, 3_500))), many));
+    expect(form.message).toMatch(/^hooks x:setup was not started: its 5 hooks make a form of 17,\d{3} characters \(at most 16,000\) — too long to approve in a form: run it in a terminal$/);
+    expect(many.asked).toEqual([]);
+    const four = accept();
+    expect(await takeApprovals(req([0, 1, 2, 3].map((i) => item(i, 3_500))), four)).toHaveLength(4);
   });
 });
 

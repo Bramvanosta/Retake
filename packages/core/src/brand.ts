@@ -50,6 +50,17 @@ const UNPRINTABLE_G = new RegExp(`[\\u0000-\\u001f\\u007f-\\u009f${BIDI_CONTROL_
 export function printableText(s: string): string {
   return s.replace(INVISIBLE_G, '').replace(UNPRINTABLE_G, ' ').replace(/\s+/g, ' ').trim();
 }
+// eslint-disable-next-line no-control-regex
+const HIDDEN_G = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f\\u00ad\\u2028\\u2029${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'gu');
+
+/**
+ * Text a person reads before saying yes to it, every character there: each control (newlines kept), soft hyphen, line or
+ * paragraph separator, bidirectional or invisible character written out as `\u{1b}`.
+ */
+export function showHiddenChars(s: string): string {
+  return s.replace(HIDDEN_G, (ch) => `\\u{${ch.codePointAt(0)!.toString(16)}}`);
+}
+
 /** Body font files of a brand input, at most. */
 export const BRAND_BODY_FONTS_MAX = 4;
 

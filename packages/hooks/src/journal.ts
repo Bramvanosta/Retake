@@ -3,8 +3,6 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import {
-  BIDI_CONTROL_CHARS,
-  INVISIBLE_FORMAT_CHARS,
   canonicalJson,
   collectSecretRefs,
   homeKey,
@@ -19,6 +17,7 @@ import {
   writeJson,
 } from '@retake/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
+import { actionLines, fieldLines, shownRollback } from './shown.js';
 import { executeRollback } from './kinds/index.js';
 import { logger, redactText } from './secrets.js';
 import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntry, RollbackAction } from './types.js';
@@ -176,18 +175,10 @@ export async function pruneDoneRollbacks(keyFile: string = homeKeyFile(), now: n
   }
 }
 
-// eslint-disable-next-line no-control-regex
-const HIDDEN_RE = new RegExp(`[\\u0000-\\u0009\\u000b-\\u001f\\u007f-\\u009f${BIDI_CONTROL_CHARS}${INVISIBLE_FORMAT_CHARS}]`, 'gu');
-
-/** Text of a journal shown to a person: every control, bidirectional or invisible character written out (`\u{1b}`), newlines kept. */
-function visible(s: string): string {
-  return s.replace(HIDDEN_RE, (ch) => `\\u{${ch.codePointAt(0)!.toString(16)}}`);
-}
-
 /**
  * A rollback action in full, as it would run — its templates filled from the data the entry carries (a secret is never
  * resolved: an action that references one is shown as written) — one line per field, every character visible
- * (L5.14: what a person reads before replaying an entry Retake did not sign).
+ * (shown.ts; L5.14: what a person reads before replaying an entry Retake did not sign).
  */
 export function rollbackActionLines(action: RollbackAction): string[] {
   let a: RollbackAction = action;
@@ -199,37 +190,7 @@ export function rollbackActionLines(action: RollbackAction): string[] {
       a = action;
     }
   }
-  const out: string[] = [];
-  const field = (name: string, value: unknown) => {
-    if (value === undefined) return;
-    out.push(`${name}: ${visible(typeof value === 'string' ? value : JSON.stringify(value))}`);
-  };
-  field('kind', a.kind);
-  switch (a.kind) {
-    case 'shell':
-      field('run', a.run);
-      field('cwd', a.cwd);
-      for (const [k, v] of Object.entries(a.env ?? {})) field(`env ${k}`, v);
-      field('timeout (s)', a.timeout);
-      break;
-    case 'http':
-      field('method', (a.request.method ?? 'GET').toUpperCase());
-      field('url', a.request.url);
-      for (const [k, v] of Object.entries(a.request.headers ?? {})) field(`header ${k}`, v);
-      field('json', a.request.json);
-      field('body', a.request.body);
-      break;
-    case 'sql':
-      field('db', a.db);
-      field('file', a.file);
-      field('query', a.query);
-      break;
-    case 'js':
-      field('page', a.page);
-      field('code', a.code);
-      break;
-  }
-  return out;
+  return [...fieldLines('kind', a.kind), ...actionLines(shownRollback(a))];
 }
 
 /**

@@ -1,12 +1,12 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { allowedHosts, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import { agentShellLoaderVariables, allowedHosts, channelWords, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
 import { shellDestructiveReason } from '../destructive.js';
-import { HookError } from '../errors.js';
+import { HookError, HookSecurityError } from '../errors.js';
 import { redactText } from '../secrets.js';
 import { hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
 import { journalsRollback } from '../types.js';
@@ -14,6 +14,7 @@ import type { HookContext, HookLogLevel, RollbackAction } from '../types.js';
 import { tail } from '../util.js';
 import { baseDirOf, ignoreRollback } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
+import type { ShownAction } from '../shown.js';
 
 export const DEFAULT_SHELL_TIMEOUT_S = 120;
 /** Grace period between SIGTERM and SIGKILL of a timed-out process group. */
@@ -229,6 +230,20 @@ async function execute(
 }
 
 /**
+ * Trust `mcp`, a hook the agent wrote (KindEnv.agentWritten): its command may not set a loader variable — in its `env`
+ * or as a `NAME=` word of any simple command (core agentShellLoaderVariables) — since that changes what the programs it
+ * starts load before they run. `what`: "it" or "its rollback".
+ */
+function checkAgentLoaderVariables(ctx: HookContext, run: string, env: Record<string, string> | undefined, what: string): void {
+  const names = agentShellLoaderVariables(run, env);
+  if (!names.length) return;
+  throw new HookSecurityError(
+    `refusing shell hook: ${what} sets ${names.join(', ')} — ${names.length === 1 ? 'a loader variable' : 'loader variables'} (${names.length === 1 ? 'it changes' : 'they change'} what a program loads or the shell it starts), which a hook written ${channelWords(ctx.via)} may not set: remove ${names.length === 1 ? 'it' : 'them'} from the hook, or have a person declare the hook in project.yaml (\`hooks:\`, without the scenario's vars) or run it in a terminal`,
+    'mcp',
+  );
+}
+
+/**
  * `declared`: the hook's `writes` field (L1.7). A shell command writes unless the hook declares `writes: false`; even
  * then a destructive command (rm, dropdb, destructive SQL given to psql) and a rollback write.
  */
@@ -239,6 +254,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   const rendered = renderDeep(forward, await hookTemplateContext(ctx, forward));
   const base = await sandboxEnv(ctx, ctx.env.name, rendered.env);
   const cmd: ShellCommand = { ...rendered, ...(base ? { base } : {}) };
+  if (k.agentWritten) checkAgentLoaderVariables(ctx, rendered.run, rendered.env, 'it');
   await resolveCwd(ctx, cmd.cwd);
   checkHosts(ctx, cmd);
   const timeout = s.timeout ?? DEFAULT_SHELL_TIMEOUT_S;
@@ -246,10 +262,12 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
   ignoreRollback(k, s.rollback !== undefined);
   const hosts = hostsOf(ctx, cmd);
   let rollback: RollbackAction | undefined;
+  let rollbackShown: ShownAction | undefined;
   if (s.rollback !== undefined && journalsRollback(k.phase)) {
     const template: ShellCommand = { run: s.rollback, cwd: s.cwd, env: s.env };
     const tpl = await hookTemplateContext(ctx, template);
     const rb = renderDeep(template, tpl);
+    if (k.agentWritten) checkAgentLoaderVariables(ctx, rb.run, undefined, 'its rollback');
     const rbBase = await sandboxEnv(ctx, ctx.env.name, rb.env);
     if (rbBase) rb.base = rbBase;
     checkHosts(ctx, rb);
@@ -263,10 +281,12 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
       data: snapshotFor(ctx, template, tpl),
       description: redactText(ctx, describeShell(rb.run)),
     };
+    rollbackShown = { kind: 'shell', run: rb.run, ...(rb.cwd !== undefined ? { cwd: rb.cwd } : {}), ...(rb.env ? { env: rb.env } : {}) };
   }
   const destructive = shellDestructiveReason(cmd.run, { projectDir: baseDirOf(ctx) });
   return {
     description: redactText(ctx, describeShell(cmd.run)),
+    shown: { kind: 'shell', run: rendered.run, ...(rendered.cwd !== undefined ? { cwd: rendered.cwd } : {}), ...(rendered.env ? { env: rendered.env } : {}), ...(s.timeout !== undefined ? { timeout: s.timeout } : {}) },
     destructive,
     writes:
       declared?.writes !== false
@@ -277,7 +297,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
             ? 'its rollback: a shell command'
             : null,
     hosts,
-    ...(rollback ? { rollback: { description: rollback.description, reason: 'a shell command (runs local code)' } } : {}),
+    ...(rollback && rollbackShown ? { rollback: { description: rollback.description, reason: 'a shell command (runs local code)', shown: rollbackShown } } : {}),
     async execute() {
       return { message: await execute(ctx, log, cmd, timeout), rollback };
     },

@@ -5,12 +5,13 @@ import { checkHostAllowed, checkWriteHosts } from '../allow-list.js';
 import { describeHttp } from '../describe.js';
 import { HookError, errorMessage } from '../errors.js';
 import { redactText } from '../secrets.js';
-import { checkTokens, hookTemplateContext, render, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
+import { checkTokens, hookTemplateContext, renderDeep, snapshotFor, snapshotTemplateContext } from '../template.js';
 import { journalsRollback } from '../types.js';
 import type { HookContext, HttpRequestSpec, RollbackAction, SavedHttpResponse } from '../types.js';
 import { oneLine } from '../util.js';
 import { ignoreRollback } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
+import type { ShownAction } from '../shown.js';
 
 /** Per request, including reading the body. */
 export const HTTP_TIMEOUT_MS = 60_000;
@@ -172,21 +173,46 @@ async function rollbackAction(
   };
 }
 
+const RESPONSE_TOKEN = /\{\{\s*(response(?:\.[^}]*)?)\s*\}\}/g;
+
+/** A rollback request with its `{{response.…}}` tokens written `<response.…>` (their values are known once the hook ran). */
+function markResponse<T>(value: T): T {
+  if (typeof value === 'string') return value.replace(RESPONSE_TOKEN, (_m, p: string) => `<${p.trim()}>`) as T;
+  if (Array.isArray(value)) return value.map((v) => markResponse(v)) as T;
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, markResponse(v)])) as T;
+  return value;
+}
+
+/** A templated request, field by field (shown.ts). */
+function shownRequest(r: HttpRequestSpec): ShownAction {
+  return {
+    kind: 'http',
+    method: r.method ?? 'GET',
+    url: r.url,
+    ...(r.headers && Object.keys(r.headers).length ? { headers: r.headers } : {}),
+    ...(r.json !== undefined ? { json: r.json } : {}),
+    ...(r.body !== undefined ? { body: r.body } : {}),
+  };
+}
+
 export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<PreparedHook> {
   const { ctx } = k;
   const { rollback, save_as, ...request } = spec;
   const tpl = await hookTemplateContext(ctx, request);
-  const call = toCall(renderDeep(request, tpl), ctx);
+  const rendered = renderDeep(request, tpl);
+  const call = toCall(rendered, ctx);
   checkHostAllowed(call.url, ctx.project);
   ignoreRollback(k, rollback !== undefined);
   const rollbackTemplate = journalsRollback(k.phase) ? rollback : undefined;
   if (rollbackTemplate) checkTokens(rollbackTemplate, await hookTemplateContext(ctx, rollbackTemplate), ['response']);
   const rollbackWrites = rollbackTemplate ? httpWriteReason(rollbackTemplate) : null;
-  // Its URL as an approval shows it: templated, the response's values (known once the hook ran) as <response.…>.
-  const rollbackUrl = rollbackTemplate ? rollbackTemplate.url.replace(/\{\{\s*(response(?:\.[^}]*)?)\s*\}\}/g, '<$1>') : '';
-  const rollbackShown = rollbackTemplate ? render(rollbackUrl, await hookTemplateContext(ctx, rollbackUrl)) : '';
+  // Its request as an approval shows it: templated, the response's values (known once the hook ran) as <response.…>.
+  const rollbackMarked = rollbackTemplate ? markResponse(rollbackTemplate) : undefined;
+  const rollbackRendered = rollbackMarked ? renderDeep(rollbackMarked, await hookTemplateContext(ctx, rollbackMarked)) : undefined;
+  const rollbackShown = rollbackRendered?.url ?? '';
   return {
     description: redactText(ctx, describeHttp(call.method, call.display) + (save_as ? ` → hooks.${save_as}` : '')),
+    shown: shownRequest(rendered),
     destructive: call.method === 'DELETE' ? 'HTTP DELETE' : null,
     writes: httpWriteReason({ method: call.method, body: call.body }) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
     hosts: [new URL(call.url).hostname],
@@ -195,6 +221,7 @@ export async function prepareHttp(spec: HttpHookSpec, k: KindEnv): Promise<Prepa
           rollback: {
             description: redactText(ctx, describeHttp((rollbackTemplate.method ?? 'GET').toUpperCase(), rollbackShown)),
             reason: (rollbackTemplate.method ?? 'GET').toUpperCase() === 'DELETE' ? 'HTTP DELETE' : null,
+            shown: shownRequest(rollbackRendered!),
           },
         }
       : {}),
