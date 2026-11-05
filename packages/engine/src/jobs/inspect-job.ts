@@ -29,7 +29,7 @@ import {
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
-import { EngineError, toEngineError } from '../errors.js';
+import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { checkSandboxEnv, prepareRun } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
@@ -219,14 +219,17 @@ export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject
       }
       return { project, scenario, env: env.name, source };
     }
-    const prepared = await prepareRun(ws, project, source.scenario, { dry: true, ...(source.until !== undefined ? { until: source.until } : {}), ...(envArg !== undefined ? { env: envArg } : {}) });
+    // One read of the file: a pinned sha256 is checked on the bytes that are parsed (core loadScenario's expectSha256).
+    const prepared = await prepareRun(ws, project, source.scenario, {
+      dry: true,
+      ...(source.until !== undefined ? { until: source.until } : {}),
+      ...(envArg !== undefined ? { env: envArg } : {}),
+      ...(source.scenario_sha256 !== undefined ? { expectSha256: source.scenario_sha256 } : {}),
+    }).catch((e: unknown) => {
+      throw scenarioChangedConflict(e, `scenarios/${source.scenario} changed since the inspection was submitted: submit it again (what was checked is what runs)`);
+    });
     const env = resolveEnvironment(project, envArg ?? prepared.scenario.scenario.env);
-    const sha = sha256Hex(await readFile(prepared.scenario.file));
-    if (source.scenario_sha256 !== undefined && source.scenario_sha256 !== sha) {
-      throw new EngineError('conflict', `scenarios/${source.scenario} changed since the inspection was submitted: submit it again (what was checked is what runs)`, {
-        details: { submitted: source.scenario_sha256, current: sha },
-      });
-    }
+    const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
     return { project, scenario: prepared.scenario, env: env.name, source: { ...source, scenario_sha256: sha } };
   } catch (e) {
     throw toEngineError(e);

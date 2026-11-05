@@ -6,15 +6,16 @@
  * and the `hooks` / `env_reset` executors the worker runs — on a copy of the fixture project, the fixture product on
  * free ports.
  */
+import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadScenario } from '@retake/core';
 import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
-import { hookFingerprint } from '@retake/hooks';
+import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
-import { EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace } from '../src/index.js';
+import { EngineError, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
@@ -168,7 +169,8 @@ describe('approvals at submit', () => {
 
 describe('hooks executed by the worker (trust mcp)', () => {
   it('a dry job runs nothing and says which hooks would need approval', async () => {
-    const { result } = await execHooks({ version: 1, kind: 'hooks', project: 'northfield-fixture', source: 'catalogue:setup', dry: true, journal_id: '20261017-140000-hooks-dry', submitted_by: 'mcp' });
+    const scenario_sha256 = sha256Hex(await readFile(join(project, 'scenarios', 'catalogue.yaml')));
+    const { result } = await execHooks({ version: 1, kind: 'hooks', project: 'northfield-fixture', source: 'catalogue:setup', scenario_sha256, dry: true, journal_id: '20261017-140000-hooks-dry', submitted_by: 'mcp' });
     expect(result).toMatchObject({ kind: 'hooks', phase: 'setup', env: 'local', dry: true, ok: true });
     expect(result.results.map((r) => [r.name, r.status, r.approval?.reason])).toEqual([
       ['reset', 'dry', undefined],
@@ -202,8 +204,12 @@ describe('hooks executed by the worker (trust mcp)', () => {
     const file = join(project, 'scenarios', 'catalogue.yaml');
     const original = await readFile(file, 'utf8');
     try {
-      await writeFile(file, original.replace('finca-quenaro/refs"', 'finca-quenaro"'));
-      const { result } = await execHooks(sub.job.input as HooksJobInput);
+      const changed = original.replace('finca-quenaro/refs"', 'finca-quenaro"');
+      await writeFile(file, changed);
+      // The job's scenario bytes are pinned: other bytes are a conflict before any hook (scenario-pinning test below).
+      await expect(execHooks(sub.job.input as HooksJobInput)).rejects.toMatchObject({ code: 'conflict' });
+      // With the changed bytes' hash, the approval of the hook as submitted does not fit the changed hook.
+      const { result } = await execHooks({ ...(sub.job.input as HooksJobInput), scenario_sha256: sha256Hex(changed) });
       expect(result.ok).toBe(false);
       expect(result.results.find((x) => x.name === 'free-registry-ref')).toMatchObject({ status: 'refused' });
       expect(result.results.find((x) => x.name === 'free-registry-ref')?.untrusted.error).toContain('without a human approval');
@@ -242,6 +248,44 @@ describe('hooks executed by the worker (trust mcp)', () => {
     });
     expect(r.results[0].status).toBe('refused');
     expect(r.results[0].untrusted.error).toContain('on read-only environment production');
+  });
+});
+
+describe('a hooks job runs the scenario bytes it was submitted with', () => {
+  it('the sha256 of the bytes asked about is in the job; a scenario whose vars changed after the question is a conflict, nothing run', async () => {
+    const file = join(project, 'scenarios', 'vars-hook.yaml');
+    const asked = (sku: string) =>
+      `video: vars-hook\nvars: {sku: ${sku}}\nsetup:\n  - name: free-ref\n    http: {method: DELETE, url: "{{console}}/api/products/{{vars.sku}}/refs"}\n    confirm: true\nscenes:\n  - id: home\n    page: console\n    open: /\n    steps:\n      - hold: 0.2\n`;
+    await writeFile(file, asked('finca-quenaro'));
+    try {
+      const a = accept();
+      const sub = await engine.hooks.submit({ project: 'northfield-fixture', source: 'vars-hook:setup', dry: false }, { approver: a });
+      expect(a.asked).toHaveLength(1);
+      expect(a.asked[0].items[0].description).toContain('finca-quenaro');
+      expect((sub.job.input as HooksJobInput).scenario_sha256).toBe(sha256Hex(asked('finca-quenaro')));
+      // The hook itself is unchanged (its fingerprint too); only what it is rendered with differs.
+      await writeFile(file, asked('another-product'));
+      const journal = standaloneJournalFile(project, sub.journal_id);
+      const e = await refusal(execHooks(sub.job.input as HooksJobInput));
+      expect(e.code).toBe('conflict');
+      expect(e.message).toBe('scenarios/vars-hook changed since the hooks were submitted: submit them again (what was approved is what runs)');
+      expect(e.details).toEqual({ submitted: sha256Hex(asked('finca-quenaro')), current: sha256Hex(asked('another-product')) });
+      expect(existsSync(journal)).toBe(false);
+    } finally {
+      await rm(file, { force: true });
+    }
+  });
+
+  it('a scenario hooks job without the sha256 (queued before it was carried, or by hand) is refused: submit it again', async () => {
+    const e = await refusal(execHooks({ version: 1, kind: 'hooks', project: 'northfield-fixture', source: 'catalogue:setup', dry: true, journal_id: '20261017-170000-hooks-nosha', submitted_by: 'mcp' }));
+    expect(e.code).toBe('conflict');
+    expect(e.message).toBe('this hooks job does not say which version of scenarios/catalogue was submitted: submit it again (what was approved is what runs)');
+    // Sources that are not a scenario carry none and need none.
+    const reset = await engine.hooks.submit({ project: 'northfield-fixture', source: 'reset' });
+    expect(reset.job.input).not.toHaveProperty('scenario_sha256');
+    const echo = await engine.hooks.submit({ project: 'northfield-fixture', source: 'hooks/echo.yaml' });
+    expect(echo.job.input).not.toHaveProperty('scenario_sha256');
+    expect((await execHooks(echo.job.input as HooksJobInput)).result.ok).toBe(true);
   });
 });
 

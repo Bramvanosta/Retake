@@ -4,15 +4,17 @@
  * `confirm: true` does not count, every shell hook needs a human approval and always counts as writing.
  *
  * Submit checks the names and the source, and for a real run takes the approvals (approvals.ts): a dry run executes
- * nothing and asks nobody — its result says which hooks a real run needs approved.
+ * nothing and asks nobody — its result says which hooks a real run needs approved. A scenario's hooks
+ * (`<scenario>:setup|teardown`) carry the sha256 of the scenario bytes submit read (`scenario_sha256`, covered by the
+ * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
 import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@retake/core';
 import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@retake/core';
 import type { HookResult } from '@retake/hooks';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
-import { EngineError, toEngineError } from '../errors.js';
-import { createHookContext, selectHooks } from '../hooks.js';
+import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
+import { createHookContext, scenarioOfHooksSource, selectHooks } from '../hooks.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug } from '../refs.js';
@@ -66,9 +68,11 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
   const project = await openProjectBySlug(ctx.ws, req.project);
   let approvals: JobApproval[] = [];
   let label: string;
+  let scenarioSha: string | undefined;
   try {
     const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true });
     label = sel.label;
+    scenarioSha = sel.sha256;
     if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client);
     const env = req.env ?? sel.env;
     resolveEnvironment(project, env);
@@ -92,6 +96,8 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
     kind: 'hooks',
     project: project.slug,
     source: req.source,
+    // The bytes checked and approved here (signed with the approvals at enqueue): the worker runs no other.
+    ...(scenarioSha !== undefined ? { scenario_sha256: scenarioSha } : {}),
     ...(req.env !== undefined ? { env: req.env } : {}),
     dry,
     journal_id: newRunId(`hooks-${label}`),
@@ -168,8 +174,15 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
   const { input } = ctx;
   const hooks = await import('@retake/hooks');
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true });
-  // Checked again here: the scenario may have changed since the submit (its hooks' approvals are bound to fingerprints).
+  // A scenario's hooks run from the bytes submitted (one read, compared with their sha256 before they are parsed).
+  const scenario = scenarioOfHooksSource(input.source);
+  if (scenario !== undefined && input.scenario_sha256 === undefined) {
+    throw new EngineError('conflict', `this hooks job does not say which version of scenarios/${scenario} was submitted: submit it again (what was approved is what runs)`);
+  }
+  const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true, ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}) }).catch((e: unknown) => {
+    throw scenarioChangedConflict(e, `scenarios/${scenario} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
+  });
+  // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
   if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry }));
   await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {

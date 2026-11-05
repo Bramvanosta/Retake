@@ -52,7 +52,9 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
    (`history.jsonl`) without a job. A remote worker later reads the same queue contract, with no change to callers.
 3. **Job input contract** (what a client hands the worker; zod-validated at submit and again by the worker).
    - *Files*: a project slug, scenario names (never paths), and the sha256 of the scenario's bytes at submit: the
-     worker refuses to run other bytes. A hooks source is `reset`, `<scenario>:setup|teardown` or `hooks/<name>.yaml`.
+     worker reads the file once and parses only bytes with that hash, so what was checked and approved is what runs.
+     A hooks source is `reset`, `<scenario>:setup|teardown` (it carries that sha256 too, signed with the approvals)
+     or `hooks/<name>.yaml`.
    - *Run ids*: reserved at submit (`runs/<id>/run.json` says `queued`), so a client follows a run before it starts.
    - *Sessions*: persona names only, resolved by the worker from its own `~/.retake`; never in a payload or a
      result (no profile path, no cookie). A sign-in job opens a window on the worker's machine for a human.

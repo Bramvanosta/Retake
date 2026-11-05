@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, openWorkspace, pruneUsedApprovals, restoreApprovals, signApprovals, verifiedApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, openWorkspace, pruneUsedApprovals, restoreApprovals, sha256Hex, signApprovals, verifiedApprovals } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -87,10 +87,16 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
 
   it('the worker checks again: hooks of a scenario changed after the submit are refused', async () => {
     const sub = await mcp.hooks.submit({ project: 'w', source: 'plain:setup', dry: true });
-    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), LEAK_HOOK.replace('video: leakhook', 'video: plain'));
+    const leak = LEAK_HOOK.replace('video: leakhook', 'video: plain');
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const e = await refusal(executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: 'retake', input, signal: new AbortController().signal, event: () => undefined }));
+      const wsc = await openWorkspace({ root: ws });
+      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
+      // Other bytes than submitted: a conflict before they are parsed.
+      expect((await exec(input)).code).toBe('conflict');
+      // A job pinned to the changed bytes (queued without a submit): their agent trust is checked again here.
+      const e = await exec({ ...input, scenario_sha256: sha256Hex(leak) });
       expect(e.message).toContain('{{env:HOME}}');
     } finally {
       await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), PLAIN_HOOK);
@@ -166,6 +172,20 @@ describe('approvals are signed with the Retake home key, for their job', () => {
       expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
     }
     expect((await verifiedApprovals(signed, { jobId, root: ws, keyFile: join(ws, 'other-home', 'approvals.key') })).rejected).toBe(1);
+  });
+
+  it('a hooks job: the sha256 of its scenario bytes is signed with its approvals', async () => {
+    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const hooks: HooksJobInput = {
+      version: 1, kind: 'hooks', project: 'w', source: 'short:setup', scenario_sha256: 'a'.repeat(64), dry: false, journal_id: '20261017-120000-hooks-short-setup', submitted_by: 'mcp',
+      approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
+    };
+    const signed = await signApprovals(hooks, { jobId, root: ws, keyFile });
+    expect((await verifiedApprovals(signed, { jobId, root: ws, keyFile })).rejected).toBe(0);
+    const { scenario_sha256: _, ...unpinned } = signed;
+    for (const forged of [{ ...signed, scenario_sha256: 'c'.repeat(64) }, unpinned]) {
+      expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
+    }
   });
 });
 

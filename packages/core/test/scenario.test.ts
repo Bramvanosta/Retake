@@ -1,7 +1,19 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import { SCENARIO_COMPARE_MAX_BYTES, formatIssues, formatPath, parseScenario, scenarioChangedMessage, scenarioChangedSinceRun, validateScenario } from '@retake/core';
+import {
+  SCENARIO_COMPARE_MAX_BYTES,
+  ScenarioChangedError,
+  formatIssues,
+  formatPath,
+  loadScenario,
+  parseScenario,
+  readScenarioSource,
+  scenarioChangedMessage,
+  scenarioChangedSinceRun,
+  validateScenario,
+} from '@retake/core';
 import type { ValidationIssue } from '@retake/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
@@ -658,5 +670,54 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
     expect(scenarioChangedMessage('quote', 'r', 'x')).toContain('(the file no longer reads as YAML)');
     const many = Array.from({ length: 10 }, (_v, i) => `scene s${i} added`);
     expect(scenarioChangedMessage('quote', 'r', 'x', many)).toContain('scene s7 added; and 2 more)');
+  });
+});
+
+describe('loadScenario reads the file once and pins its bytes', () => {
+  const sha = (t: string) => createHash('sha256').update(Buffer.from(t, 'utf8')).digest('hex');
+
+  it('one read: the bytes hashed are the bytes parsed, whatever a later read of the file returns', async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const first = scenario('      - hold: 1\n');
+      const later = scenario('      - hold: 3\n');
+      await writeFiles(dir, { 'scenarios/quote.yaml': first });
+      const p = fakeProject(dir);
+      const reads: string[] = [];
+      // The first read returns the file's bytes, every later one other bytes.
+      const readFile = async (file: string) => {
+        reads.push(file);
+        return Buffer.from(reads.length === 1 ? first : later, 'utf8');
+      };
+      const loaded = await loadScenario(p, 'quote', { expectSha256: sha(first), readFile });
+      expect(reads).toEqual([`${dir}/scenarios/quote.yaml`]);
+      expect(loaded.sha256).toBe(sha(first));
+      expect(loaded.text).toBe(first);
+      expect(loaded.scenario.scenes[0].steps).toEqual([{ hold: 1 }]);
+      // Without a pin: still one read, its hash returned.
+      reads.length = 0;
+      const src = await readScenarioSource(p, 'quote', { readFile });
+      expect([reads.length, src.sha256, src.text]).toEqual([1, sha(first), first]);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('other bytes than expected: ScenarioChangedError with both hashes, nothing parsed', async () => {
+    const { dir, cleanup } = await tempDir();
+    try {
+      const shown = scenario('      - hold: 1\n');
+      // What is on disk now does not even parse: the error is the change, never its validation.
+      await writeFiles(dir, { 'scenarios/quote.yaml': 'video: [\n' });
+      const e = await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) }).catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(ScenarioChangedError);
+      expect(e).toMatchObject({ name: 'ScenarioChangedError', expected: sha(shown), actual: sha('video: [\n'), issues: [] });
+      expect((e as Error).message).toContain('changed');
+      // The same bytes as expected load.
+      await writeFiles(dir, { 'scenarios/quote.yaml': shown });
+      expect((await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) })).sha256).toBe(sha(shown));
+    } finally {
+      await cleanup();
+    }
   });
 });

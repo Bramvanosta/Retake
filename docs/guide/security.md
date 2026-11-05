@@ -111,6 +111,11 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.
+- **A job runs the scenario it was submitted with.** A capture, a rehearsal, an inspection and a scenario's own hooks
+  (`<scenario>:setup` / `:teardown`) carry the sha256 of the scenario bytes checked and approved at submit (signed
+  with the approvals). The worker reads the file once and runs those bytes only: a scenario changed in between — its
+  hooks, or only the `vars` they are rendered with — fails the job as `conflict` ("submit it again"), before any hook
+  runs.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

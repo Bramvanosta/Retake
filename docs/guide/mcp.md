@@ -206,7 +206,8 @@ exits after a minute without work. So no call outlives an agent's timeout: `run_
 `job_status {job_id, wait_s: 600}` follows it with progress notifications. Results carry their JSON on one line, and
 `run_status`, `review` / `review_get` and `page_inspect` answer compactly unless `detail: "full"` (L5.8, measured on the
 fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2,700 → 900, a review ≈ 2,200 → 400). A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
-`failed` means it could not run (a scenario changed since it was submitted, a sandbox that would not start…).
+`failed` means it could not run (a scenario changed since it was submitted — a run, an inspection or a scenario's
+hooks: submit it again —, a sandbox that would not start…).
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
@@ -292,7 +293,10 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   - Approved: the job is queued with the approvals — fingerprints of the hooks *as their file declares them* (with
     their phase, position and environment) and of the project files they reference (sql / js files, the scripts a
     shell hook names: `./seed.sh`, `psql -f reset.sql`); the worker runs a hook that needs approval only when its
-    fingerprint is listed, so a hook or a script changed between the question and the run is refused. Each approval
+    fingerprint is listed, so a hook or a script changed between the question and the run is refused. A scenario's
+    hooks (`<scenario>:setup` / `:teardown`, and a capture's) run from the scenario bytes the form was built from:
+    the job carries their sha256, and a scenario changed since — its `vars` included — fails it as `conflict`
+    (submit it again). Each approval
     is signed with a key kept in `~/.retake/approvals.key` (`RETAKE_HOME`; 0600): the worker ignores an
     approval a submit did not sign (a job file written by hand into `.retake/jobs/`). Replaying the rollbacks of
     hooks a human or an approval let run is never asked about again.

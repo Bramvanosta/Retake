@@ -25,7 +25,7 @@ import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, R
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
-import { EngineError, toEngineError } from '../errors.js';
+import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
@@ -277,9 +277,9 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     const r = await gate();
     if (r) approvals = r;
   }
-  // The bytes the gates checked (the text prepareRun parsed), never a later read of the file (review A #6); the
-  // worker checks the file against this hash before it runs.
-  const sha = sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
+  // The bytes the gates checked (those prepareRun read once and parsed), never a later read of the file (review A #6);
+  // the worker parses only bytes with this hash.
+  const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
   if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
     throw new EngineError('conflict', `scenarios/${prepared.scenario.name} changed since it was shown: look at it again, then start the run`, {
       details: { shown: req.expect_sha256, current: sha },
@@ -369,14 +369,11 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const project = await openProjectBySlug(ctx.ws, input.project);
   const runDir = join(project.dir, 'runs', input.run_id);
   try {
-    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox });
+    // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
+    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
+      throw scenarioChangedConflict(e, `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`);
+    });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
-    const sha = sha256Hex(await readFile(prepared.scenario.file));
-    if (sha !== input.scenario_sha256) {
-      throw new EngineError('conflict', `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`, {
-        details: { submitted: input.scenario_sha256, current: sha },
-      });
-    }
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
     const update = (patch: Partial<JobProgress>) => {
       Object.assign(progress, patch, { updated_at: new Date().toISOString() });

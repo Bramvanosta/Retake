@@ -24,7 +24,7 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { OLD_SECRET_ENV, clientPath, isRelativeToolPath, isUnder, retakeHome } from '@retake/core';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, OLD_SECRET_ENV, clientPath, isRelativeToolPath, isUnder, loadPathSeparator, retakeHome } from '@retake/core';
 
 /** Variables a worker started by a client never gets. */
 export const WORKER_ENV_DROPPED: readonly RegExp[] = [
@@ -52,12 +52,6 @@ export const WORKER_ENV_DROPPED: readonly RegExp[] = [
   /^GH_ENTERPRISE_TOKEN$/,
 ];
 
-/** NODE_OPTIONS flags that load a file (a module, a loader, an env file). */
-const NODE_LOADS = /(?:^|\s)(?:-r|--require|--import|--loader|--experimental-loader|--env-file(?:-if-exists)?|--experimental-config-file|--openssl-config|--redirect-warnings|--snapshot-blob)(?:[=\s]|$)/;
-
-/** Path lists that make node or the dynamic linker load code. */
-const LOAD_PATH_VARS = /^(?:NODE_PATH|DYLD_[A-Z_]+|LD_PRELOAD|LD_LIBRARY_PATH|LD_AUDIT)$/;
-
 /** Variables naming a program the worker runs (a command on PATH, or an absolute path). */
 const TOOL_PATH_VARS = /^RETAKE_(?:FFMPEG|FFPROBE|CHROMIUM|CHROMIUM_HEADLESS_SHELL)$/;
 
@@ -80,9 +74,9 @@ export function cleanWorkerEnv(env: NodeJS.ProcessEnv, root: string, o: WorkerEn
   const out: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined || WORKER_ENV_DROPPED.some((re) => re.test(k))) continue;
-    if (k === 'NODE_OPTIONS' && NODE_LOADS.test(v)) continue;
-    // LD_PRELOAD separates with spaces or colons; the others with the PATH delimiter.
-    if (LOAD_PATH_VARS.test(k) && loadsFromWorkspace(v, root, k === 'LD_PRELOAD' ? /[\s:]+/ : new RegExp(`[${delimiter}]`))) continue;
+    // The NODE_OPTIONS flags and path lists of core agent-policy.ts (its loader variables).
+    if (k === 'NODE_OPTIONS' && NODE_OPTIONS_LOADS.test(v)) continue;
+    if (LOAD_PATH_ENV.test(k) && loadsFromWorkspace(v, root, loadPathSeparator(k, delimiter))) continue;
     if (TOOL_PATH_VARS.test(k) && isRelativeToolPath(v.trim())) continue;
     out[k] = v;
   }

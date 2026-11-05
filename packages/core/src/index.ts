@@ -32,6 +32,7 @@ export * from './clock.js';
 export * from './hook-writes.js';
 export * from './named-hooks.js';
 export * from './agent-trust.js';
+export * from './agent-policy.js';
 export * from './inspect.js';
 export * from './script-draft.js';
 export * from './recording.js';

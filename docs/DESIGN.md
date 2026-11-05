@@ -1728,14 +1728,19 @@ workers/worker.log      what workers print (stderr), appended
   `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
   run status overlays it.
 - `succeeded` = ran to the end (the run's own status is `result.status`); `failed` = could not run (EngineError code
-  and message: the scenario's bytes changed since submit → `conflict`, a sandbox take failed…).
+  and message: the scenario's bytes changed since submit → `conflict`, a sandbox take failed…). The worker reads a
+  pinned scenario once (core `loadScenario` / `readScenarioSource` with `expectSha256`): those bytes are hashed and
+  compared before they are parsed (`ScenarioChangedError` → `conflict`, "submit it again"), and the run, the
+  inspection or the hooks use them, never a second read of the file.
 - Submit (`submitRunJob`): names checked, `prepareRun`, the hooks the run executes checked and approved (below), the
   scenario hashed, `reserveRunId` (core; the runner uses it too) and a `queued` run.json written, the input queued; the
   MCP engine then calls `ensureWorker`. Early exits never leave run.json `queued`: the worker closes a reserved run as
   `cancelled` (cancelled before it started) or `failed` (it could not start).
 - `hooks` / `env_reset` jobs (`jobs/hooks-job.ts`): `{version, kind: 'hooks', project, source (core HOOKS_SOURCE_RE:
-  reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project), env?, dry,
-  journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
+  reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project),
+  scenario_sha256? (for `<scenario>:setup|teardown`: the scenario file's bytes at submit, set before the approvals are
+  signed and covered by their signature; the worker refuses such a job without it or with another hash — `conflict`,
+  submit again), env?, dry, journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
   journal_id (`<stamp>-env-reset`)}`. The executors are `retake hooks run` / `retake env reset` on the engine's
   `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
   each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
@@ -1755,7 +1760,9 @@ workers/worker.log      what workers print (stderr), appended
   keys) of the **raw** hook as its file declares it, its phase, position and environment — templates unresolved, so
   `{{run.id}}` and saved responses do not differ between preflight and run. The worker's `confirmDestructive` is
   `approvalChecker(input.approvals)`: a hook that needs a human runs only when its fingerprint is listed (a changed or
-  moved hook is refused). With trust `mcp` a dry run never calls the approver: its results carry `approval {reason,
+  moved hook is refused). What the raw hook is rendered with comes from the same bytes: a run job, and a hooks job of
+  `<scenario>:setup|teardown`, carry the sha256 of the scenario bytes the preflight read, and the worker runs no other
+  (the scenario's `vars` included). With trust `mcp` a dry run never calls the approver: its results carry `approval {reason,
   fingerprint}`. The CLI (trust `author`) is unchanged: `confirm: true`, `--yes` / the prompt, `writes: false`.
   *Rollbacks* (L3.1 review): a setup hook whose rollback is destructive (HTTP DELETE, destructive SQL inline or in its
   file) or is a shell command or JavaScript needs the approval too (its rollback runs later — a failure, a cancel, an
