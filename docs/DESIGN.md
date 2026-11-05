@@ -5776,14 +5776,15 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   version (`set-version.mjs --check`, `release.mjs tag`; a pre-release version makes a pre-release), the tagged commit
   is an ancestor of `origin/main`, **what is configured** (below), then a **draft** release (CHANGELOG paragraph + how
   to install), created or edited. `build` (macos-15, contents: read, no environment, no secret, no variable — the feed
-  and public key come as the release job's outputs): Node 22.16.0, corepack's pnpm, `pnpm install --frozen-lockfile`,
+  and public key come as the release job's outputs): Node 22.16.0, corepack's pnpm (package.json's `packageManager`
+  carries its sha512, checked on download), `pnpm install --frozen-lockfile`,
   Rust 1.99.1 through the image's rustup (`rustup toolchain install … --profile minimal --target aarch64-apple-darwin`,
   `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, Playwright's
   browsers then `bundle.mjs check-pins`, our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
-  printed), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
+  printed; built at every run), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
   `/usr/bin/tar` (links kept, no extended attribute) with `tauri-cli/` and the report, its sha256 a job output,
   uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, setup-node,
-  the signing material, the artifact checked against the build job's sha256 then unpacked, then
+  the Node.js check, the signing material, the artifact checked against the build job's sha256 then unpacked, then
   `node apps/desktop/scripts/release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
   outputs (DMG, archive, .sig, SHA256SUMS-macos.txt) uploaded as an artifact; the temporary keychain and key files
   removed in a last `always()` step. `attach` (ubuntu, contents: write): the files checked against the sign job's sum,
@@ -5827,16 +5828,20 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   the person.
 - **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved
   read-only (`gh api repos/<o>/<r>/git/ref/tags/<tag>`, all lightweight tags) and written beside it: checkout v5.1.0,
-  setup-node v5.0.0, cache v5.0.0, upload-artifact v6.0.0, download-artifact v6.0.0. Node.js is exactly 22.16.0 and the
-  stage refuses any binary but the one `apps/desktop/bundle/node.json` pins (sha256 of the official darwin-arm64 build,
-  `checkNode`, also `bundle.mjs check-node` before the build job's long steps). Playwright's installer checks no hash:
+  setup-node v5.0.0, upload-artifact v6.0.0, download-artifact v6.0.0. Node.js is exactly 22.16.0:
+  `apps/desktop/bundle/node.json` pins the sha256 of the official build's bin/node for darwin-arm64 (the macOS jobs)
+  and linux-x64 (the ubuntu ones); every job hashes the `node` on PATH in the shell (`shasum -a 256`) against its
+  platform's pin right after setup-node, before any node call, and the stage refuses any other binary again
+  (`checkNode`) before it copies it. Playwright's installer checks no hash:
   each browser revision folder's tree digest (every path, link target, size, executable bit and sha256, markers left
   out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from this Mac's playwright-core
   1.56.1 install, and the stage refuses another tree (`checkBrowser`; `check-pins` right after the install). **The
   first tagged run may need these digests (and the Node.js sha256) refreshed** if GitHub's setup-node archive or the
   CDN's browser archive lays files out differently from the local installs — the build job then fails with the digest
-  it found, and `bundle.mjs browser-digest <folder>` records a checked one. Caches are this workflow's own
-  (`release-pnpm-…`, `release-ffmpeg-…`, no fallback key: never another workflow's store; review e A-L3).
+  it found, and `bundle.mjs browser-digest <folder>` records a checked one. **No cache**: no `actions/cache` step and
+  setup-node's package-manager cache off — nothing is restored from an earlier run or another workflow; the pnpm
+  store, ffmpeg and cargo are filled at every run from the lockfile and the pinned sources. RELEASING.md has
+  Playwright (the app's Chromium) bumped and browsers.json re-recorded at every release.
 - **The temporary keychain** (`apps/desktop/scripts/ci-keychain.sh import|delete <dir>`, GitHub Actions only): the user
   search list saved first, a keychain with a random password locked after 6 h, the identity re-wrapped by LibreSSL's
   `/usr/bin/openssl` (the certificate's password from the environment) with a random one-time password and imported

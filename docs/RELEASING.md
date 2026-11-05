@@ -138,31 +138,40 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
 
 ## Each release
 
-1. **The version**, everywhere it is written, then the tests (no CI workflow runs them on main yet — BACKLOG BL-144):
+1. **The browser the app ships**: bump Playwright (`playwright-core`, every package that names it, the same exact
+   version) to its newest release — its Chromium is the app's — then install its browsers
+   (`node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell`) and
+   re-record `apps/desktop/bundle/browsers.json` for the new revision folders
+   (`node apps/desktop/scripts/bundle.mjs browser-digest <Playwright's cache>/chromium-<revision>`, and the headless
+   shell's; DESIGN §4p (e)). Every release, even when nothing else changed.
+2. **The version**, everywhere it is written, then the tests (no CI workflow runs them on main yet — BACKLOG BL-144):
    ```sh
    node scripts/set-version.mjs 0.2.1
    node scripts/set-version.mjs --check      # says nothing: every file agrees
    pnpm build && pnpm test
    ```
-2. **The notes**: a `## [0.2.1] — <date>` section in `CHANGELOG.md` whose first paragraph is written for the person
+3. **The notes**: a `## [0.2.1] — <date>` section in `CHANGELOG.md` whose first paragraph is written for the person
    about to click Install and Restart (plain text: the update sheet shows it as typed; the release page shows it too).
-3. **Commit on main** and push main.
-4. **Tag that commit and push the tag** — the tag is the release:
+4. **Commit on main** and push main.
+5. **Tag that commit and push the tag** — the tag is the release:
    ```sh
    git tag v0.2.1
    git push origin v0.2.1
    ```
-5. **The workflow** (Actions › Release; `build` takes most of the time: ffmpeg on a first run, cargo; `sign` waits for
-   Apple's notarisation, which can take long for a new team's first submissions):
+6. **The workflow** (Actions › Release; `build` takes most of the time: ffmpeg and cargo, both built at every run —
+   the workflow keeps no cache; `sign` waits for Apple's notarisation, which can take long for a new team's first
+   submissions). Every job first checks, in the shell and before any `node` call, that the Node.js on its runner is
+   the binary `apps/desktop/bundle/node.json` pins for that platform (darwin-arm64 on the macOS jobs, linux-x64 on the
+   ubuntu ones):
    - `release` refuses a tag that is not the repository's version (`node scripts/set-version.mjs --check`, then
      `node scripts/release.mjs tag`) or not a commit of main, checks **what is configured** (each part all or nothing;
      the updater only on a public repository; `node scripts/release.mjs preflight`), then creates the release as a **draft** with the CHANGELOG paragraph and
      how to install.
-   - `build` (no secret at all) installs the dependencies (`pnpm install --frozen-lockfile`), Rust 1.99.1, Playwright's
-     Chromium and headless shell — checked against the digests `apps/desktop/bundle/browsers.json` pins — and our
-     ffmpeg from its sha256-checked sources, checks that Node.js is the binary `apps/desktop/bundle/node.json` pins,
-     then lays the app out and signs it ad hoc (`pnpm desktop:bundle --app-only`) and hands it over packed, with its
-     sha256.
+   - `build` (no secret at all) installs pnpm (corepack, at `package.json`'s `packageManager`: its version and the
+     sha512 the download is checked against), the dependencies (`pnpm install --frozen-lockfile`), Rust 1.99.1,
+     Playwright's Chromium and headless shell — checked against the digests `apps/desktop/bundle/browsers.json` pins —
+     and our ffmpeg from its sha256-checked sources, then lays the app out and signs it ad hoc
+     (`pnpm desktop:bundle --app-only`) and hands it over packed, with its sha256.
    - `sign`, on a fresh runner that runs only this repository's scripts (no `pnpm install`, no package script, no
      Homebrew, no cargo), checks that sha256, imports the certificate into a temporary keychain
      (`apps/desktop/scripts/ci-keychain.sh`), then `node apps/desktop/scripts/release.mjs sign`: the app re-signed with
@@ -180,7 +189,7 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
      `platform-darwin-aarch64.json`, and the `update-feed` release's `rc.json` (and `latest.json` for a stable
      version) are rebuilt — never moved back to an older version. One `publish` runs at a time in the repository,
      whatever the tag (two runs never rewrite the feed together; GitHub may cancel a third one waiting — re-run it).
-6. **Check it** (MACOS-CHECKLIST 15b): download the DMG from the release page on another account or Mac — it opens
+7. **Check it** (MACOS-CHECKLIST 15b): download the DMG from the release page on another account or Mac — it opens
    with no Gatekeeper prompt — and update the previous version through the feed (15d).
 
 **A job failed?** Fix what it says (a secret, a variable), then Actions › the run › *Re-run failed jobs* — while the
@@ -195,8 +204,8 @@ v0.2.1`) and tag the fixed commit.
 
 Two failures are the runner's, not yours: `hdiutil: … Resource busy` (the DMG step tries three times before it gives
 up) — *Re-run failed jobs*; and a notarisation that times out (75 minutes per submission) — re-run `sign`. A first run
-may also stop in `build` on a digest: GitHub's Node.js or the browsers' download laid files out differently from the
-Mac the pins were recorded on — DESIGN §4p (e) says how to record a checked one.
+may also stop on a digest: GitHub's Node.js (any job) or the browsers' download (`build`) differs from what the pins
+were recorded from — DESIGN §4p (e) and `apps/desktop/bundle/node.json`'s `about` say how to record a checked one.
 
 ## A pre-release
 
@@ -224,8 +233,13 @@ sign job refuses an app whose version (Info.plist) is not the tag's.
   temporary keychain (the key non-extractable) and files only the runner's user reads; no password is ever on a command
   line; all of it is removed in a final step that always runs.
 - What the build job builds is what gets signed: the sign job checks the artifact is the one the build job packed, but
-  trusts the build itself (build provenance: BACKLOG BL-145). Node.js and the browsers are checked against pins; the
-  Tauri CLI, our ffmpeg's sources and the lockfile's packages against hashes.
+  trusts the build itself (build provenance: BACKLOG BL-145). Node.js and the browsers are checked against pins; pnpm,
+  the Tauri CLI, our ffmpeg's sources and the lockfile's packages against hashes.
+- **No cache.** Nothing is restored from an earlier run or another workflow: every job starts from the checkout, the
+  pinned downloads and the lockfile (ffmpeg and cargo are built at every run; setup-node's package-manager cache is
+  off). **Node.js is checked by the shell** in every job, before its first `node` call: `shasum -a 256` of the
+  `node` on PATH against `apps/desktop/bundle/node.json`'s pin for the runner's platform — the binary is never asked
+  to vouch for itself.
 - `packages/cli/test/release-workflow.test.ts` reads the workflow as data, runs its step scripts against stand-ins and
   holds it to these rules.
 - The app carries Remotion's compositor and the compositor's own FFmpeg build (GPL, with fdk-aac compiled in — not our

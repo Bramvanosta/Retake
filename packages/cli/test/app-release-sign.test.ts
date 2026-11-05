@@ -76,9 +76,12 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     writeFileSync(bin, 'another binary');
     expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-arm64', pin })).toThrow(/is not the official Node\.js 22\.16\.0 binary apps\/desktop\/bundle\/node\.json pins \(sha256 [0-9a-f]{64}, pinned [0-9a-f]{64}\): install Node\.js 22\.16\.0/);
     expect(() => checkNode({ execPath: bin, version: '22.16.0', platform: 'darwin-x64', pin })).toThrow(/pins no Node\.js binary for darwin-x64/);
-    // The committed pin: one exact version and a sha256; the stage checks it before it copies anything.
+    // The committed pin: one exact version and a sha256 per platform the release workflow runs on (the macOS jobs, the
+    // ubuntu ones); the stage checks it before it copies anything.
     expect(NODE_PIN.version).toMatch(/^22\.\d+\.\d+$/);
-    expect(NODE_PIN.sha256['darwin-arm64']).toMatch(/^[0-9a-f]{64}$/);
+    expect(Object.keys(NODE_PIN.sha256).sort()).toEqual(['darwin-arm64', 'linux-x64']);
+    for (const v of Object.values(NODE_PIN.sha256)) expect(v).toMatch(/^[0-9a-f]{64}$/);
+    expect(NODE_PIN.sha256['darwin-arm64']).not.toBe(NODE_PIN.sha256['linux-x64']);
     const src = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');
     const stageInto = src.slice(src.indexOf('function stageInto('));
     expect(stageInto.indexOf('checkNode();')).toBeGreaterThan(0);
@@ -127,7 +130,7 @@ describe('the pins: the Node.js binary and the browsers the stage copies (review
     expect(src).toMatch(/checkBrowser\(from, folder\);\n\s+run\('ditto', \[from, join\(browsers, folder\)\]\);/);
   });
 
-  it('the command line: check-node, check-pins and browser-digest (what the release workflow\'s build job runs)', () => {
+  it('the command line: check-node, check-pins (what the release workflow\'s build job runs after the browsers\' install) and browser-digest', () => {
     const run = (...args: string[]) => spawnSync(process.execPath, [join(APP, 'scripts', 'bundle.mjs'), ...args], { encoding: 'utf8' });
     const d = join(dir('cli-browser'), 'chromium-1');
     put(d, 'a', 'b');

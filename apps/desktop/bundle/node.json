@@ -1,8 +1,9 @@
 {
  "v": 1,
- "about": "The Node.js the stage copies into the app (bundle.mjs checkNode, review e A-M3): this exact version, the official build (the Node.js project’s own download, signed by the project), its bin/node checked against this sha256 — the release workflow installs it with actions/setup-node and the build refuses any other binary. Upgrading: install the new version from the Node.js project’s downloads, check its SHASUMS256.txt signature, record the version here (and in .github/workflows/release.yml) with `shasum -a 256 <prefix>/bin/node`.",
+ "about": "The Node.js the stage copies into the app (bundle.mjs checkNode) and every job of the release workflow runs: this exact version, the official build (the Node.js project’s own download, signed by the project), its bin/node checked against the sha256 of its platform — the release workflow installs it with actions/setup-node, each job hashes it in the shell before its first node call (darwin-arm64 on the macOS jobs, linux-x64 on the ubuntu ones) and the build refuses any other binary. Upgrading: download each platform’s official tarball from the Node.js project, check it against SHASUMS256.txt and that file’s signature by a releaser the project lists, record the version here (and in .github/workflows/release.yml) with `shasum -a 256 <extracted>/bin/node` for each platform.",
  "version": "22.16.0",
  "sha256": {
-  "darwin-arm64": "a45751fbfe88440bebff63cd44814e4ed6deb642bc3e3c4a14c4f8ae0ed9e019"
+  "darwin-arm64": "a45751fbfe88440bebff63cd44814e4ed6deb642bc3e3c4a14c4f8ae0ed9e019",
+  "linux-x64": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
  }
 }

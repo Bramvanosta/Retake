@@ -2297,10 +2297,9 @@ and `job_end` lines); what remains:
   runner: the fast suite, `pnpm desktop:test`; the gated Chromium / Docker / Postgres tests opt-in) would let the
   release job wait for main's green run on the tagged commit, as `gh run list --commit` can tell.
 - Release extras cut from L5.16e: an Intel or universal build (BL-139), the release's DMG styled (BL-140), a
-  Homebrew cask, a cache of cargo's registry and target and of Playwright's browsers between tags (GitHub scopes a
-  tag's caches to that tag: only the pnpm store and ffmpeg caches serve re-runs), `actionlint` in that CI.
-- That CI keeps caches of its own name: the release workflow's are `release-…` with no fallback key (review e A-L3),
-  so a store a pull request's run filled is never restored into a release build — keep it so.
+  Homebrew cask, `actionlint` in that CI.
+- The release workflow keeps no cache (every run starts from the checkout, the lockfile and the pinned sources), so
+  nothing a pull request's run filled can reach a release build: a CI workflow's caches stay its own — keep it so.
 
 ### BL-145 — Build provenance for the release
 *S · noted in L5.16e's review · builds on: L5.16e*

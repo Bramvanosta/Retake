@@ -68,7 +68,6 @@ const CALLS_GH = /(?:^|[\s;|&(])gh\s/m;
 const PINS: Record<string, [string, string]> = {
   'actions/checkout': ['fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09', 'v5.1.0'],
   'actions/setup-node': ['a0853c24544627f65ddf259abe73b1d18a591444', 'v5.0.0'],
-  'actions/cache': ['a7833574556fa59680c1b7cb190c1735db73ebf0', 'v5.0.0'],
   'actions/upload-artifact': ['b7c566a772e6b6bfb58ed0dc250532a479d7789f', 'v6.0.0'],
   'actions/download-artifact': ['018cc2cf5baa6db3ef3c5f8a56943fffe632ef53', 'v6.0.0'],
 };
@@ -79,12 +78,12 @@ const MATERIAL_SECRETS = ['APPLE_API_KEY_P8', 'APPLE_CERTIFICATE', 'APPLE_CERTIF
  * A workflow step's script run as GitHub runs it (bash --noprofile --norc -eo pipefail), in the checkout, with
  * RUNNER_TEMP / GITHUB_OUTPUT of a scratch folder and `bin` (stand-ins) first on PATH. Returns the run and its outputs.
  */
-function runStep(s: Step, env: Record<string, string>, bin?: string) {
+function runStep(s: Step, env: Record<string, string>, bin?: string, cwd = REPO) {
   const temp = env.RUNNER_TEMP ?? dir('runner-temp');
   const output = join(temp, 'github-output');
   writeFileSync(output, '', { flag: 'a' });
   const r = spawnSync('/bin/bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', s.run!], {
-    cwd: REPO,
+    cwd,
     encoding: 'utf8',
     env: { PATH: `${bin ? `${bin}:` : ''}${dirname(process.execPath)}:/usr/bin:/bin`, HOME: tmp, RUNNER_TEMP: temp, GITHUB_OUTPUT: output, GITHUB_REF_NAME: 'v0.2.0', GITHUB_ACTIONS: 'true', ...env },
   });
@@ -168,7 +167,7 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
 
   it('every action is GitHub\'s own, pinned to the commit of an exact upstream tag, the tag written beside it (# vX.Y.Z)', () => {
     const lines = raw.split('\n').filter((l) => /^\s*-?\s*uses:/.test(l));
-    expect(lines.length).toBeGreaterThanOrEqual(15);
+    expect(lines.length).toBeGreaterThanOrEqual(14);
     const used = new Set<string>();
     for (const line of lines) {
       const m = /uses:\s*([\w.-]+\/[\w.-]+)@([0-9a-f]{40})\s+#\s+(v\d+\.\d+\.\d+)\s*$/.exec(line);
@@ -194,6 +193,87 @@ describe('release.yml: triggers, permissions, environments, pinned actions (L5.1
     const nodes = allSteps.filter((s) => s.uses?.startsWith('actions/setup-node@'));
     expect(nodes.length).toBe(5);
     for (const s of nodes) expect(String((s.with as any)['node-version']), label(s)).toBe(NODE_PIN.version);
+  });
+
+  it('no cache anywhere: no actions/cache step, and every setup-node has package-manager-cache: false and no cache key', () => {
+    expect(allSteps.filter((s) => s.uses?.startsWith('actions/cache')).map(label)).toEqual([]);
+    expect(raw).not.toMatch(/actions\/cache\b|restore-keys|cache-hit|CACHE_HIT/);
+    const nodes = allSteps.filter((s) => s.uses?.startsWith('actions/setup-node@'));
+    expect(nodes.length).toBe(5);
+    for (const s of nodes) {
+      expect(s.with, label(s)).toEqual({ 'node-version': expect.anything(), 'package-manager-cache': false });
+      expect(Object.keys(s.with ?? {}).some((k) => /cache/.test(k) && k !== 'package-manager-cache'), label(s)).toBe(false);
+    }
+  });
+});
+
+describe('release.yml: every job checks its Node.js in the shell before its first node call', () => {
+  const CHECK = 'Node.js is the pinned binary';
+  /** A scratch checkout holding only apps/desktop/bundle/node.json (these pins), and a stand-in `node` (these bytes) first on PATH. */
+  const scene = (pins: Record<string, string>, bytes = 'a node binary') => {
+    const cwd = dir('node-check');
+    mkdirSync(join(cwd, 'apps', 'desktop', 'bundle'), { recursive: true });
+    writeFileSync(join(cwd, 'apps', 'desktop', 'bundle', 'node.json'), `${JSON.stringify({ v: 1, version: '22.16.0', sha256: pins }, null, 1)}\n`);
+    const bin = dir('fake-node');
+    writeFileSync(join(bin, 'node'), bytes);
+    chmodSync(join(bin, 'node'), 0o755);
+    return { cwd, bin, sha: createHash('sha256').update(bytes).digest('hex') };
+  };
+  const sha = (t: string) => createHash('sha256').update(t).digest('hex');
+
+  it('in each job: checkout, setup-node, then the check (the same script everywhere) — no step before it runs anything, and it runs no node itself', () => {
+    const scripts = new Set<string>();
+    for (const [name, j] of Object.entries(jobs)) {
+      const at = j.steps.findIndex((s) => s.name === CHECK);
+      expect(at, name).toBe(2);
+      expect(j.steps.slice(0, 2).map((s) => s.uses?.split('@')[0]), name).toEqual(['actions/checkout', 'actions/setup-node']);
+      for (const s of j.steps.slice(0, at)) expect(s.run, label({ job: name, ...s })).toBeUndefined();
+      // Every later node call comes after it.
+      expect(j.steps.findIndex((s) => /(?:^|[\s;|&(`$])node\s/m.test(s.run ?? '') || BUILD_TOOL.test(s.run ?? '')), name).toBeGreaterThan(at);
+      scripts.add(j.steps[at]!.run!);
+    }
+    expect(scripts.size).toBe(1);
+    const run = [...scripts][0]!;
+    expect(run).not.toMatch(/(?:^|[\s;|&(`$])node\s/m);
+    expect(run).toMatch(/shasum -a 256 "\$bin"/);
+    expect(run).toMatch(/bin=\$\(command -v node\)/);
+  });
+
+  it('run: the pinned binary of the runner\'s platform passes; another binary, another platform\'s pin, a platform with no pin or no node at all fails, naming both sums', () => {
+    const s = step('publish', CHECK);
+    const linux = { RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64' };
+    const mac = { RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64' };
+    const ok = scene({ 'darwin-arm64': sha('other'), 'linux-x64': sha('a node binary') });
+    const pass = runStep(s, linux, ok.bin, ok.cwd);
+    expect(pass.status, pass.stderr + pass.stdout).toBe(0);
+    expect(pass.stdout).toMatch(/: the pinned binary for linux-x64\n$/);
+    const asMac = runStep(s, mac, ok.bin, ok.cwd);
+    expect(asMac.status).not.toBe(0);
+    expect(asMac.stdout).toContain(`::error::${join(ok.bin, 'node')} is not the Node.js binary apps/desktop/bundle/node.json pins for darwin-arm64 (sha256 ${ok.sha}, pinned ${sha('other')})`);
+    const tampered = scene({ 'linux-x64': sha('a node binary') }, 'a node binary, changed');
+    expect(runStep(s, linux, tampered.bin, tampered.cwd).status).not.toBe(0);
+    const unpinned = runStep(s, mac, ok.bin, scene({ 'linux-x64': ok.sha }).cwd);
+    expect(unpinned.status).not.toBe(0);
+    expect(unpinned.stdout).toMatch(/::error::apps\/desktop\/bundle\/node\.json pins no Node\.js binary for darwin-arm64\n/);
+    const other = runStep(s, { RUNNER_OS: 'Windows', RUNNER_ARCH: 'X64' }, ok.bin, ok.cwd);
+    expect(other.status).not.toBe(0);
+    expect(other.stdout).toMatch(/pins no Node\.js binary for Windows-X64/);
+    const none = runStep(s, { ...linux, PATH: '/usr/bin:/bin' }, undefined, ok.cwd);
+    expect(none.status).not.toBe(0);
+    expect(none.stdout).toMatch(/::error::no Node\.js on PATH/);
+  });
+
+  it('run against the committed node.json: it reads the pin of each platform the jobs run on (darwin-arm64, linux-x64)', async () => {
+    const { NODE_PIN } = await bundleModule();
+    expect(Object.keys(NODE_PIN.sha256).sort()).toEqual(['darwin-arm64', 'linux-x64']);
+    const fake = scene({});
+    for (const [env, platform] of [[{ RUNNER_OS: 'macOS', RUNNER_ARCH: 'ARM64' }, 'darwin-arm64'], [{ RUNNER_OS: 'Linux', RUNNER_ARCH: 'X64' }, 'linux-x64']] as const) {
+      const r = runStep(step('release', CHECK), env, fake.bin);
+      expect(r.status).not.toBe(0);
+      expect(r.stdout).toContain(`pins for ${platform} (sha256 ${fake.sha}, pinned ${NODE_PIN.sha256[platform]})`);
+    }
+    // The runners: the macOS jobs on Apple silicon, the others on x64 ubuntu — each with its pin.
+    for (const j of Object.values(jobs)) expect(['macos-15', 'ubuntu-24.04']).toContain(j['runs-on']);
   });
 });
 
@@ -292,8 +372,8 @@ describe('release.yml: secrets and the job token go only where they are used', (
     expect(BUILD_TOOL.test(m.run!) || CALLS_GH.test(m.run!) || usesToken(m)).toBe(false);
     expect(m.run).toMatch(/umask 077/);
     expect(m.run!.indexOf('missing="$missing')).toBeLessThan(m.run!.indexOf('ci-keychain.sh import'));
-    // The sign job's first steps: checkout, setup-node, then the set (review e B-L4).
-    expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(2);
+    // The sign job's first steps: checkout, setup-node, the Node.js check, then the set (review e B-L4).
+    expect(jobs.sign!.steps.findIndex((s) => s.name === 'Signing material')).toBe(3);
   });
 
   it('the job token only in the steps that call gh and in publish › Publish the update (publish-update.mjs, no build tool), holding no secret; no update-host setting anywhere (L5.16f)', () => {
@@ -345,7 +425,7 @@ describe('release.yml: secrets and the job token go only where they are used', (
 });
 
 describe('release.yml: what it runs', () => {
-  it('every script it names exists; the pnpm scripts are the repository\'s; Rust through rustup at least the MSRV; caches of its own, no fallback key', () => {
+  it('every script it names exists; the pnpm scripts are the repository\'s; Rust through rustup at least the MSRV', () => {
     const paths = new Set([...raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w.-]+\.(?:mjs|sh|json)|apps\/desktop\/bundle\/[\w.-]+\.json|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)].map((m) => m[0]));
     expect(paths.size).toBeGreaterThanOrEqual(9);
     for (const p of paths) {
@@ -361,29 +441,33 @@ describe('release.yml: what it runs', () => {
     const [, maj, min] = /rustup toolchain install (\d+)\.(\d+)\.\d+ --profile minimal --target aarch64-apple-darwin\n/.exec(rust)!.map(Number);
     expect(maj! * 1000 + min!).toBeGreaterThanOrEqual(Number(msrv[1]) * 1000 + Number(msrv[2]));
     expect(rust).toMatch(/echo "RUSTUP_TOOLCHAIN=1\.99\.1" >> "\$GITHUB_ENV"/);
-    const caches = allSteps.filter((s) => s.uses?.startsWith('actions/cache@'));
-    expect(caches.map((s) => s.job)).toEqual(['build', 'build']);
-    for (const c of caches) {
-      expect(String((c.with as any).key), label(c)).toMatch(/^release-/);
-      expect((c.with as any)['restore-keys'], label(c)).toBeUndefined();
-    }
   });
 
-  it('the build job: Node.js checked first, the browsers checked after their install, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config\'s version said', () => {
+  it('the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config\'s version said', () => {
     const names = jobs.build!.steps.map((s) => s.name ?? s.uses);
-    expect(names.indexOf('Node.js is the pinned binary')).toBeLessThan(names.indexOf('Dependencies'));
-    expect(step('build', 'Node.js is the pinned binary').run).toBe('node apps/desktop/scripts/bundle.mjs check-node');
+    expect(names.indexOf('Node.js is the pinned binary')).toBeLessThan(names.indexOf('pnpm (corepack, at package.json\'s packageManager)'));
+    expect(names.indexOf('pnpm (corepack, at package.json\'s packageManager)')).toBeLessThan(names.indexOf('Dependencies'));
     expect(step('build', 'Chromium and the headless shell').run).toMatch(/cli\.js install chromium chromium-headless-shell\nnode apps\/desktop\/scripts\/bundle\.mjs check-pins\n/);
     const lay = step('build', 'Lay out the app (ad hoc)');
     expect(lay.run).toMatch(/pnpm desktop:bundle --app-only --ffmpeg "\$RUNNER_TEMP\/ffmpeg"/);
     expect(lay.env).toEqual({ UPDATES: '${{ needs.release.outputs.updates }}', FEED: '${{ needs.release.outputs.feed }}', PUBKEY: '${{ needs.release.outputs.pubkey }}' });
     const ff = step('build', 'ffmpeg');
     expect(ff.env!.HOMEBREW_NO_AUTO_UPDATE).toBe('1');
-    expect(ff.run).toMatch(/brew install pkgconf\n\s+echo "pkg-config \$\(pkg-config --version\)/);
-    expect(ff.run).toMatch(/node scripts\/build-ffmpeg\.mjs --fetch --sources .* --out "\$RUNNER_TEMP\/ffmpeg"/);
-    expect(ff.run).toMatch(/node scripts\/build-ffmpeg\.mjs --check "\$RUNNER_TEMP\/ffmpeg"\n?$/);
-    expect(String((allSteps.find((s) => s.id === 'ffmpeg-cache')!.with as any).key)).toMatch(/steps\.image\.outputs\.id.*hashFiles\('scripts\/build-ffmpeg\.mjs', 'scripts\/ffmpeg-sources\.json'\)/);
+    expect(ff.run).toMatch(/brew install pkgconf\n\s*echo "pkg-config \$\(pkg-config --version\)/);
+    // Built at every run: the fetch, the build and the check are the step's own lines, under no condition.
+    expect(ff.run).toMatch(/^node scripts\/build-ffmpeg\.mjs --fetch --sources "\$RUNNER_TEMP\/ffmpeg-sources" --out "\$RUNNER_TEMP\/ffmpeg"\nnode scripts\/build-ffmpeg\.mjs --check "\$RUNNER_TEMP\/ffmpeg"\n?$/m);
+    expect(ff.run).not.toMatch(/\bif\b|\bfi\b|&&/);
+    expect(ff.if).toBeUndefined();
     expect(raw.match(/\bbrew\b/g)?.length).toBe(1);
+  });
+
+  it('pnpm is corepack\'s, at package.json\'s packageManager, which carries the sha512 corepack checks the download against', () => {
+    const pm = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')).packageManager;
+    expect(pm).toMatch(/^pnpm@\d+\.\d+\.\d+\+sha512\.[0-9a-f]{128}$/);
+    const p = step('build', 'pnpm (corepack, at package.json\'s packageManager)');
+    expect(p.run).toMatch(/^set -eu\ncorepack enable\npnpm --version\n?$/);
+    expect(p.env).toEqual({ COREPACK_ENABLE_DOWNLOAD_PROMPT: '0' });
+    expect(p.id).toBeUndefined();
   });
 
   it('the release job: the version files agree and the tag is that version, the tagged commit is on main, what is configured; a pre-release tag makes a pre-release', () => {

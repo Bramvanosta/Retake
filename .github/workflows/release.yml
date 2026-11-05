@@ -9,8 +9,8 @@
 #    public repository); the release created
 #    as a DRAFT — nobody sees it yet — or edited (a re-run).
 #  - build (macOS, contents: read, NO secret): dependencies, the packages, Rust, the pinned Tauri CLI, Chromium, our
-#    ffmpeg, then the app laid out and signed ad hoc exactly as `pnpm desktop:bundle` does (`--app-only`); packed
-#    (a tar that keeps the links) with its sha256 as an artifact.
+#    ffmpeg (built from its sha256-checked sources at every run), then the app laid out and signed ad hoc exactly as
+#    `pnpm desktop:bundle` does (`--app-only`); packed (a tar that keeps the links) with its sha256 as an artifact.
 #  - sign (a FRESH macOS runner, `environment: release`, contents: read): runs no dependency code — no pnpm install, no
 #    package script, no Homebrew, no cargo: the artifact checked against the build job's sha256, then our own scripts
 #    only (apps/desktop/scripts/release.mjs sign): the Developer ID signature, notarisation and stapling, the update
@@ -38,6 +38,11 @@
 #
 # The job token may write releases: it is handed only to the steps that call `gh` and to publish-update.mjs, in jobs
 # that run no build tool.
+#
+# No cache: every run starts from the checkout, the pinned downloads and the lockfile (nothing restored from an earlier
+# run). Every job checks its Node.js in the shell before its first node call: the binary on PATH against the sha256
+# apps/desktop/bundle/node.json pins for the runner's platform. pnpm is corepack's, at package.json's packageManager
+# (its sha512 checked on download).
 name: Release
 
 on:
@@ -82,6 +87,31 @@ jobs:
         with:
           node-version: 22.16.0
           package-manager-cache: false
+      - name: Node.js is the pinned binary
+        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
+        # apps/desktop/bundle/node.json pins for this runner's platform.
+        run: |
+          set -eu
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            macOS-ARM64) platform=darwin-arm64 ;;
+            Linux-X64) platform=linux-x64 ;;
+            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          if ! bin=$(command -v node); then
+            echo "::error::no Node.js on PATH"
+            exit 1
+          fi
+          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
+          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
+            exit 1
+          fi
+          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
+            exit 1
+          fi
+          echo "Node.js at $bin: the pinned binary for $platform"
       - name: The tag is the version
         id: version
         # Every version file agrees, and the tag is v<that version>; a pre-release version makes a pre-release.
@@ -179,23 +209,41 @@ jobs:
           # The stage copies the Node.js running the build into the app: exactly the version and binary
           # apps/desktop/bundle/node.json pins (the build refuses any other).
           node-version: 22.16.0
-          # setup-node would cache with pnpm before corepack has installed it.
+          # No cache of any kind (setup-node's would also run pnpm before corepack has installed it).
           package-manager-cache: false
       - name: Node.js is the pinned binary
-        run: node apps/desktop/scripts/bundle.mjs check-node
+        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
+        # apps/desktop/bundle/node.json pins for this runner's platform.
+        run: |
+          set -eu
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            macOS-ARM64) platform=darwin-arm64 ;;
+            Linux-X64) platform=linux-x64 ;;
+            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          if ! bin=$(command -v node); then
+            echo "::error::no Node.js on PATH"
+            exit 1
+          fi
+          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
+          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
+            exit 1
+          fi
+          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
+            exit 1
+          fi
+          echo "Node.js at $bin: the pinned binary for $platform"
       - name: pnpm (corepack, at package.json's packageManager)
-        id: pnpm
+        # Corepack downloads the pinned pnpm and checks it against the sha512 packageManager carries.
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
           set -eu
           corepack enable
-          echo "store=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      # This workflow's own caches (release-*), no fallback key: never another workflow's store.
-      - uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
-        with:
-          path: ${{ steps.pnpm.outputs.store }}
-          key: release-pnpm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml', 'apps/desktop/bundle/tauri-cli.json') }}
+          pnpm --version
       - name: Dependencies
         run: pnpm install --frozen-lockfile
       - name: Rust 1.99.1
@@ -222,28 +270,16 @@ jobs:
           set -eu
           node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
           node apps/desktop/scripts/bundle.mjs check-pins
-      - name: The runner image
-        id: image
-        run: echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
-      # Our ffmpeg (GPL, libx264; apps/desktop/licenses/ffmpeg), kept between runs of the same tag for the same runner
-      # image and build script.
-      - uses: actions/cache@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
-        id: ffmpeg-cache
-        with:
-          path: ${{ runner.temp }}/ffmpeg
-          key: release-ffmpeg-${{ runner.arch }}-${{ steps.image.outputs.id }}-${{ hashFiles('scripts/build-ffmpeg.mjs', 'scripts/ffmpeg-sources.json') }}
       - name: ffmpeg
+        # Our ffmpeg (GPL, libx264; apps/desktop/licenses/ffmpeg), built at every run from its pinned sources.
         env:
-          CACHE_HIT: ${{ steps.ffmpeg-cache.outputs.cache-hit }}
           HOMEBREW_NO_AUTO_UPDATE: "1"
         run: |
           set -eu
-          if [ "$CACHE_HIT" != true ]; then
-            command -v pkg-config >/dev/null || brew install pkgconf
-            echo "pkg-config $(pkg-config --version) (a build tool only: nothing of it ships)"
-            # Every archive is checked against the sha256 pinned in scripts/ffmpeg-sources.json before it is used.
-            node scripts/build-ffmpeg.mjs --fetch --sources "$RUNNER_TEMP/ffmpeg-sources" --out "$RUNNER_TEMP/ffmpeg"
-          fi
+          command -v pkg-config >/dev/null || brew install pkgconf
+          echo "pkg-config $(pkg-config --version) (a build tool only: nothing of it ships)"
+          # Every archive is checked against the sha256 pinned in scripts/ffmpeg-sources.json before it is used.
+          node scripts/build-ffmpeg.mjs --fetch --sources "$RUNNER_TEMP/ffmpeg-sources" --out "$RUNNER_TEMP/ffmpeg"
           node scripts/build-ffmpeg.mjs --check "$RUNNER_TEMP/ffmpeg"
       - name: Lay out the app (ad hoc)
         # Exactly what `pnpm desktop:bundle` makes, up to the signed ad hoc app (`--app-only`: the update archive and
@@ -296,6 +332,31 @@ jobs:
         with:
           node-version: 22.16.0
           package-manager-cache: false
+      - name: Node.js is the pinned binary
+        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
+        # apps/desktop/bundle/node.json pins for this runner's platform.
+        run: |
+          set -eu
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            macOS-ARM64) platform=darwin-arm64 ;;
+            Linux-X64) platform=linux-x64 ;;
+            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          if ! bin=$(command -v node); then
+            echo "::error::no Node.js on PATH"
+            exit 1
+          fi
+          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
+          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
+            exit 1
+          fi
+          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
+            exit 1
+          fi
+          echo "Node.js at $bin: the pinned binary for $platform"
       - name: Signing material
         id: material
         # The whole set first (review e B-L4), then the certificate into a temporary keychain, the API key and the
@@ -456,6 +517,31 @@ jobs:
         with:
           node-version: 22.16.0
           package-manager-cache: false
+      - name: Node.js is the pinned binary
+        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
+        # apps/desktop/bundle/node.json pins for this runner's platform.
+        run: |
+          set -eu
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            macOS-ARM64) platform=darwin-arm64 ;;
+            Linux-X64) platform=linux-x64 ;;
+            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          if ! bin=$(command -v node); then
+            echo "::error::no Node.js on PATH"
+            exit 1
+          fi
+          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
+          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
+            exit 1
+          fi
+          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
+            exit 1
+          fi
+          echo "Node.js at $bin: the pinned binary for $platform"
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
           name: retake-release
@@ -513,6 +599,31 @@ jobs:
         with:
           node-version: 22.16.0
           package-manager-cache: false
+      - name: Node.js is the pinned binary
+        # Before any node call, by the shell (a binary cannot vouch for itself): the node on PATH against the sha256
+        # apps/desktop/bundle/node.json pins for this runner's platform.
+        run: |
+          set -eu
+          case "$RUNNER_OS-$RUNNER_ARCH" in
+            macOS-ARM64) platform=darwin-arm64 ;;
+            Linux-X64) platform=linux-x64 ;;
+            *) echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $RUNNER_OS-$RUNNER_ARCH"; exit 1 ;;
+          esac
+          if ! bin=$(command -v node); then
+            echo "::error::no Node.js on PATH"
+            exit 1
+          fi
+          want=$(sed -n "s/^[[:space:]]*\"$platform\"[[:space:]]*:[[:space:]]*\"\([0-9a-f]\{64\}\)\".*/\1/p" apps/desktop/bundle/node.json)
+          if ! printf '%s\n' "$want" | grep -Eqx '[0-9a-f]{64}'; then
+            echo "::error::apps/desktop/bundle/node.json pins no Node.js binary for $platform"
+            exit 1
+          fi
+          got=$(shasum -a 256 "$bin" | cut -d' ' -f1)
+          if [ "$got" != "$want" ]; then
+            echo "::error::$bin is not the Node.js binary apps/desktop/bundle/node.json pins for $platform (sha256 $got, pinned $want): install the pinned version from the Node.js project's downloads, or record a checked upgrade there"
+            exit 1
+          fi
+          echo "Node.js at $bin: the pinned binary for $platform"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
