@@ -1077,7 +1077,7 @@ the timeline (13f steps 1 and 6: `highlights-v1`). First keep a copy of the scen
    "$W/projects/northfield-fixture/scenarios/highlights.yaml"` prints nothing. Within a few seconds the Studio's thread
    shows Claude's reply (*Agent · MCP*), *Proposal pending* in the list, and **Claude's proposal**: the caption line
    removed and added, line numbers, *Apply*, *Preview change*, *Apply and re-render*. Claude never reads
-   `.retake/ui.json` nor calls the Studio's `/v1` routes (Claude Code's tool log shows neither).
+   the Studio's token (`~/.retake/ui/*.token`) nor calls the Studio's `/v1` routes (Claude Code's tool log shows neither).
 5. **The diff's marks and right-to-left isolation (Safari, then Firefox).** Ask Claude: "On that thread, propose instead
    the same caption change plus a YAML comment line at the end of the file: `# note: שלום`, a tab, `end`, a no-break
    space, `end`, and two spaces at the end of the line." The newer proposal replaces the first (which now reads

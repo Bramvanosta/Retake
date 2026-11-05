@@ -1,7 +1,9 @@
 /**
  * `retake ui` (L4.1): the Studio web app of the workspace, served on 127.0.0.1 until Ctrl-C (or SIGTERM). One server
- * per workspace: when one already runs (`.retake/ui.json`), this opens it again and exits. The URL it opens
- * carries a one-time bootstrap code (valid 60 s), never the session token; `retake ui` again gives a new one.
+ * per workspace: when one already runs (`.retake/ui.json` names it; its token record is in the Retake home), this opens
+ * it again and exits. The URL it opens carries a one-time bootstrap code (valid 60 s), never the session token;
+ * `retake ui` again gives a new one. On macOS the browser gets that URL through osascript's stdin (openBrowser), never
+ * through a program's arguments.
  * `--json` prints one line `{"type":"ui","v":1,"url","port","pid","reused","player"}` on stdout and nothing else (a
  * warning — `--port` naming another port than the running server's — goes to stderr); `player` is the preview frame's
  * origin (absent when an older running server does not say it).
@@ -21,6 +23,10 @@
  * `stopped: stdin closed`… — never a URL, a code or the token.
  */
 import { spawn } from 'node:child_process';
+import type { ChildProcess, SpawnOptions } from 'node:child_process';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -82,12 +88,100 @@ function stdinClosed(onLine: (line: string) => void, max: number): Promise<strin
   });
 }
 
-/** Open a URL in the default browser (macOS `open`, elsewhere `xdg-open`); false when it could not start. */
-export function openBrowser(url: string): Promise<boolean> {
-  const cmd = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? undefined : 'xdg-open';
-  if (!cmd) return Promise.resolve(false);
+/** What `openBrowser` starts programs with (tests pass a stand-in: no browser ever opens). */
+export type Spawner = (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess;
+
+export interface OpenerOptions {
+  spawn?: Spawner;
+  platform?: NodeJS.Platform;
+  /** Where the fallback `.webloc` gets a private folder of its own (default: the system's temp folder). */
+  tmp?: string;
+  /** How long the fallback `.webloc` stays after `open` handed it over, before it is removed (ms). */
+  keepMs?: number;
+}
+
+/**
+ * The AppleScript that opens `url` in the default browser: one `open location` line, the URL a string literal (`\` and
+ * `"` escaped); null for a URL with a control character (it never reaches a script).
+ */
+export function openLocationScript(url: string): string | null {
+  if (/[\x00-\x1f\x7f]/.test(url)) return null;
+  return `open location "${url.replace(/[\\"]/g, (c) => `\\${c}`)}"\n`;
+}
+
+/** A `.webloc` (an Internet location file: a property list with one URL) for `url`, XML-escaped. */
+export function weblocText(url: string): string {
+  const esc = url.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[c]!);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<plist version="1.0">\n<dict>\n\t<key>URL</key>\n\t<string>${esc}</string>\n</dict>\n</plist>\n`;
+}
+
+/** Runs `command args` (with `input` on its stdin); true when it exits 0 within 15 s. */
+function ran(spawnFn: Spawner, command: string, args: readonly string[], input?: string): Promise<boolean> {
   return new Promise((resolve) => {
-    const child = spawn(cmd, [url], { stdio: 'ignore', detached: true });
+    let child: ChildProcess;
+    try {
+      child = spawnFn(command, args, { stdio: [input === undefined ? 'ignore' : 'pipe', 'ignore', 'ignore'] });
+    } catch {
+      resolve(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      resolve(false);
+    }, 15_000);
+    const done = (ok: boolean) => {
+      clearTimeout(timer);
+      resolve(ok);
+    };
+    child.once('error', () => done(false));
+    child.once('exit', (code) => done(code === 0));
+    if (input !== undefined) {
+      child.stdin?.on('error', () => undefined);
+      child.stdin?.end(input);
+    }
+  });
+}
+
+/**
+ * Open the Studio's URL in the default browser; false when nothing could open it (the caller prints the link). The URL
+ * carries a one-time code, so on macOS it never goes into a program's arguments, which any process of the machine can
+ * list (ps): `osascript` reads `open location "<url>"` from its stdin; when that fails, the URL is written to a 0600
+ * `.webloc` in a private temporary folder, `open` gets that file's path, and the file is removed a few seconds later.
+ * Elsewhere `xdg-open <url>` (its argument holds the code for the instant it runs; the code dies once the page redeemed
+ * it, or after 60 s); Windows: none.
+ */
+export async function openBrowser(url: string, o: OpenerOptions = {}): Promise<boolean> {
+  const spawnFn = o.spawn ?? spawn;
+  const platform = o.platform ?? process.platform;
+  if (platform === 'darwin') {
+    const script = openLocationScript(url);
+    if (!script) return false;
+    if (await ran(spawnFn, 'osascript', ['-'], script)) return true;
+    let dir: string | undefined;
+    try {
+      dir = await mkdtemp(join(o.tmp ?? tmpdir(), 'retake-open-'));
+      await chmod(dir, 0o700);
+      const file = join(dir, 'Retake Studio.webloc');
+      await writeFile(file, weblocText(url), { mode: 0o600, flag: 'wx' });
+      await chmod(file, 0o600);
+      const ok = await ran(spawnFn, 'open', [file]);
+      if (ok) await new Promise((r) => setTimeout(r, o.keepMs ?? 3000));
+      return ok;
+    } catch {
+      return false;
+    } finally {
+      if (dir) await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    }
+  }
+  if (platform === 'win32') return false;
+  return new Promise((resolve) => {
+    let child: ChildProcess;
+    try {
+      child = spawnFn('xdg-open', [url], { stdio: 'ignore', detached: true });
+    } catch {
+      resolve(false);
+      return;
+    }
     child.once('error', () => resolve(false));
     child.once('spawn', () => {
       child.unref();

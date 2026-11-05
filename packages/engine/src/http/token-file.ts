@@ -14,6 +14,7 @@
  * MCP client of `retake mcp` over stdio does): it is a secret of the person, like their shell.
  */
 import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import type { Stats } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { retakeHome } from '@retake/core';
@@ -29,8 +30,17 @@ export function mcpHttpTokenFile(env: NodeJS.ProcessEnv = process.env): string {
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,512}$/;
 
-/** The token in `file`; null when there is none. Refused (`refused`) when the file is not private to this user. */
-export async function readPrivateToken(file: string): Promise<string | null> {
+/** Why `st` is not a file private to this user (a link, not a regular file, another owner, group / other bits), or undefined. */
+export function privateFileProblem(st: Stats): string | undefined {
+  const uid = process.getuid?.();
+  return !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
+}
+
+/**
+ * The text of `file`, a file private to this user; null when there is none. Refused (`refused`, with `fix`) when it is a
+ * link, not a regular file, another user's, or readable or writable by group or others — never followed.
+ */
+export async function readPrivateText(file: string, fix: string): Promise<string | null> {
   let st;
   try {
     st = await lstat(file);
@@ -38,20 +48,41 @@ export async function readPrivateToken(file: string): Promise<string | null> {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw e;
   }
-  const uid = process.getuid?.();
-  const unsafe = !st.isFile() ? 'is not a regular file' : uid !== undefined && st.uid !== uid ? 'belongs to another user' : (st.mode & 0o077) !== 0 ? `has permissions ${(st.mode & 0o777).toString(8)} (expected 600)` : undefined;
-  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix: `remove ${file}, then run retake mcp --http again (it writes a new token: register the server again)` });
-  const token = (await readFile(file, 'utf8')).trim();
+  const unsafe = privateFileProblem(st);
+  if (unsafe) throw new EngineError('refused', `${file} ${unsafe}: not trusted`, { fix });
+  return readFile(file, 'utf8');
+}
+
+/** The token in `file`; null when there is none. Refused (`refused`) when the file is not private to this user. */
+export async function readPrivateToken(file: string): Promise<string | null> {
+  const text = await readPrivateText(file, `remove ${file}, then run retake mcp --http again (it writes a new token: register the server again)`);
+  if (text === null) return null;
+  const token = text.trim();
   if (!TOKEN_RE.test(token)) throw new EngineError('refused', `${file} holds no valid token`, { fix: `run retake mcp --http --rotate-token (then register the server again)` });
   return token;
 }
 
-async function privateTemp(file: string, token: string): Promise<string> {
+async function privateTemp(file: string, text: string): Promise<string> {
   await mkdir(dirname(file), { recursive: true, mode: 0o700 });
   const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
-  await writeFile(tmp, `${token}\n`, { mode: 0o600, flag: 'wx' });
+  await writeFile(tmp, text, { mode: 0o600, flag: 'wx' });
   await chmod(tmp, 0o600);
   return tmp;
+}
+
+/**
+ * Write `text` to `file` as a file private to this user: a 0600 temporary file (chmod: the umask never widens it)
+ * renamed over the old one, so a reader sees the old text or the new, never half. Only a regular private file (or none)
+ * is replaced: a link or another user's file stays refused (`fix` says what to do).
+ */
+export async function replacePrivateFile(file: string, text: string, fix: string): Promise<void> {
+  const tmp = await privateTemp(file, text);
+  try {
+    await readPrivateText(file, fix);
+    await rename(tmp, file);
+  } finally {
+    await unlink(tmp).catch(() => undefined);
+  }
 }
 
 /**
@@ -61,7 +92,7 @@ async function privateTemp(file: string, token: string): Promise<string> {
 export async function stableToken(file: string, o: { rotate?: boolean } = {}): Promise<{ token: string; created: boolean; rotated: boolean }> {
   if (o.rotate) {
     const token = newSecret();
-    const tmp = await privateTemp(file, token);
+    const tmp = await privateTemp(file, `${token}\n`);
     try {
       // Only a regular private file (or none) is replaced: a link or another user's file stays refused.
       await readPrivateToken(file).catch((e: unknown) => {
@@ -76,7 +107,7 @@ export async function stableToken(file: string, o: { rotate?: boolean } = {}): P
   const existing = await readPrivateToken(file);
   if (existing) return { token: existing, created: false, rotated: false };
   const token = newSecret();
-  const tmp = await privateTemp(file, token);
+  const tmp = await privateTemp(file, `${token}\n`);
   try {
     await link(tmp, file);
     return { token, created: true, rotated: false };

@@ -186,7 +186,7 @@ export interface StudioServer {
   /** `http://127.0.0.1:<port>/` — no secret. */
   url: string;
   port: number;
-  /** The bearer token of `/v1` (the discovery file holds it; the page gets it for a bootstrap code). */
+  /** The bearer token of `/v1` (its record in the Retake home holds it, never the workspace; the page gets it for a bootstrap code). */
   token: string;
   /** A new one-time bootstrap code (valid 60 s). */
   mintCode(): string;

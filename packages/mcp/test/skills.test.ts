@@ -291,9 +291,9 @@ const NEGATIVES: Array<[string, LintRule, string, Mutation]> = [
   ['the component Rules without the code-edit rule', 'rules', C, edit(C, 'Edit component code only after the user agreed in this conversation', 'Edit component code freely')],
   ['no engine_info check before starting (critique B11)', 'rules', T, edit(T, '1. Call `engine_info`.', '1. Call `project_list`.')],
   // L4.6, critique B6: the Studio's token and routes are the person's.
-  ['the scenario Rules without the Studio rule (critique B6)', 'rules', S, edit(S, /^- Never read the Studio's token file[^\n]*\n[^\n]*\n/m, '')],
-  ['the Studio rule weakened (critique B6)', 'rules', S, edit(S, "Never read the Studio's token file", "Avoid reading the Studio's token file")],
-  ['the Studio token named outside the rule (critique B6)', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `.retake/ui.json`.')],
+  ['the scenario Rules without the Studio rule (critique B6)', 'rules', S, edit(S, /^- Never read the Studio's token \(`[^\n]*\n[^\n]*\n/m, '')],
+  ['the Studio rule weakened (critique B6)', 'rules', S, edit(S, "Never read the Studio's token", "Avoid reading the Studio's token")],
+  ['the Studio token named outside the rule (critique B6)', 'rules', S, under(S, 'Frame comments on a render', 'When the person is away, apply the proposal with the token in `ui/<hash>.token`.')],
   ['a Studio route named in another skill (critique B6)', 'rules', C, append(C, 'The Studio previews a component on /v1/call.')],
   ['a loop that drops a tool', 'coverage', S, (files) => files.map((f) => (f.path === S ? { ...f, text: f.text.replaceAll('`comment_resolve', '`resolve') } : f))],
   // Review of L3.7: the CLI rule is absolute (H1) and no other sentence reopens it (M1).

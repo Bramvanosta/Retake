@@ -58,6 +58,23 @@ let base: string;
 let app: string;
 let builtOut: string | undefined;
 let env: Record<string, string>;
+
+/**
+ * The Studio server of `root` as the app's CLI records it: ui.json (pid and port, no secret) and the token record in
+ * `retakeHome` (`ui/<sha256 of the workspace's real path, 16 hex>.token`); undefined until both name the same server.
+ */
+function studioRecord(root: string, retakeHome: string): { pid: number; port: number; token: string } | undefined {
+  try {
+    const rec = JSON.parse(readFileSync(join(root, '.retake', 'ui.json'), 'utf8')) as { pid: number; port: number; token?: unknown };
+    const key = createHash('sha256').update(realpathSync(root), 'utf8').digest('hex').slice(0, 16);
+    const held = JSON.parse(readFileSync(join(retakeHome, 'ui', `${key}.token`), 'utf8')) as { pid: number; port: number; token: string };
+    if (rec.token !== undefined) throw new Error(`${root}/.retake/ui.json holds a token`);
+    return held.pid === rec.pid && held.port === rec.port ? { pid: rec.pid, port: rec.port, token: held.token } : undefined;
+  } catch (e) {
+    if (e instanceof Error && e.message.endsWith('holds a token')) throw e;
+    return undefined;
+  }
+}
 let launcher: string;
 let ws: string;
 let fixture: ChildProcess | undefined;
@@ -306,13 +323,8 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
     const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
     const uiJson = join(ws, '.retake', 'ui.json');
-    const rec = await until(() => {
-      try {
-        return JSON.parse(readFileSync(uiJson, 'utf8')) as { pid: number; port: number; token: string };
-      } catch {
-        return undefined;
-      }
-    }, 60_000, `the Studio server (${out.slice(-500)})`);
+    const rec = await until(() => studioRecord(ws, env.RETAKE_HOME), 60_000, `the Studio server (${out.slice(-500)})`);
+    expect(readFileSync(uiJson, 'utf8')).not.toContain(rec.token);
     report.studio_start_ms = Date.now() - t0;
     const cmd = spawnSync('ps', ['-o', 'command=', '-p', String(rec.pid)], { encoding: 'utf8' }).stdout.trim();
     const res = join(app, 'Contents', 'Resources');
@@ -343,14 +355,7 @@ describe.skipIf(!ENABLED)('the bundled app, built and run from itself (L5.16b, g
     shell.stderr!.on('data', (c: Buffer) => (out += c.toString('utf8')));
     const exited = new Promise<number | null>((r) => shell!.on('exit', (code) => r(code)));
     const made = join(home2, 'Retake');
-    const uiJson = join(made, '.retake', 'ui.json');
-    const rec = await until(() => {
-      try {
-        return JSON.parse(readFileSync(uiJson, 'utf8')) as { pid: number; port: number; token: string };
-      } catch {
-        return undefined;
-      }
-    }, 60_000, `the first run's Studio server (${out.slice(-800)})`);
+    const rec = await until(() => studioRecord(made, join(base, 'retake-home-first-run')), 60_000, `the first run's Studio server (${out.slice(-800)})`);
     report.first_run_ms = Date.now() - t0;
     expect(out).toContain('(test mode) alert: Welcome to Retake');
     expect(out).toContain(`first run: retake init ${made}`);

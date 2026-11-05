@@ -292,15 +292,15 @@ export type {
 export { PROPOSAL_ROWS_MAX, buildProposal, checkProposedText, diffRows, proposalRowsProblem, rebuildProposal } from './comment-proposals.js';
 export type { BuiltProposal, ProposalInput } from './comment-proposals.js';
 export { ENGINE_HTTP_API, BODY_DRAIN_MAX, BodyTooLargeError, FRAME_SRC_RE, PERMISSIONS_POLICY, STUDIO_CSP, allowedHosts, allowedOrigins, checkRequest, drainBody, fromBrowser, isJsonType, readBody, securityHeaders, studioCsp } from './http/gate.js';
-export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, readPrivateToken, stableToken } from './http/token-file.js';
+export { MCP_HTTP_TOKEN_FILE, mcpHttpTokenFile, privateFileProblem, readPrivateText, readPrivateToken, replacePrivateFile, stableToken } from './http/token-file.js';
 export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from './http/gate.js';
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';
 export { LOOPBACK, isLoopbackAddress, listenLoopback } from './http/listen.js';
 export { ERROR_STATUS } from './http/status.js';
 export { OLD_HOLDER_MAX_BYTES, oldLiveHolder, refuseBesideOldHolder } from './legacy.js';
 export type { OldHolder } from './legacy.js';
-export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, releaseDiscovery } from './http/discovery.js';
-export type { DiscoveryClaim, DiscoveryRecord } from './http/discovery.js';
+export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, readStudioToken, releaseDiscovery, releaseStudioToken, studioTokenDir, studioTokenFile, tokenHolderAlive, writeStudioToken } from './http/discovery.js';
+export type { DiscoveryClaim, DiscoveryRecord, StudioTokenRecord } from './http/discovery.js';
 export { INDEX_SCHEMA, RUNS_INDEX_MAX, WorkspaceIndex, ftsQuery, indexFile } from './index-db/index-db.js';
 export type { ActivityItem, HistoryRow, IndexChanges, IndexOptions, IndexRebuild, SearchHit } from './index-db/index-db.js';
 export { SQLITE_WARNING, isCorruptionError, loadSqlite } from './index-db/sqlite.js';
