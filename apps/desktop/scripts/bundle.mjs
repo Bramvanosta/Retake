@@ -498,6 +498,17 @@ export function breakHardLinks(dir) {
 export function deployEngine(repo, engine, filter = '@retake/cli') {
   run('pnpm', ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', '--filter', filter, '--prod', '--offline', 'deploy', engine], { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
   const unlinked = breakHardLinks(engine);
+  scrubDeployedEngine(engine);
+  return { unlinked };
+}
+
+/**
+ * What `pnpm deploy` leaves in an engine folder that names the build machine, removed: pnpm's own records (store, file:
+ * links), the workspace's pnpm settings written into the engine's package.json (patchedDependencies names each patch
+ * file by its absolute path; the patches are already applied to the copies deployed), and file: / workspace: specs,
+ * replaced by the deployed package's version.
+ */
+export function scrubDeployedEngine(engine) {
   // pnpm's own records name the build machine (store, file: links): the engine runs without them.
   for (const f of ['pnpm-lock.yaml', 'node_modules/.modules.yaml', 'node_modules/.pnpm', 'node_modules/.pnpm-workspace-state-v1.json', 'node_modules/.package-lock.json']) rmSync(join(engine, f), { recursive: true, force: true });
   const scopes = readdirSync(join(engine, 'node_modules')).filter((e) => e.startsWith('@'));
@@ -507,6 +518,10 @@ export function deployEngine(repo, engine, filter = '@retake/cli') {
     const text = readFileSync(pkgFile, 'utf8');
     const pkg = JSON.parse(text);
     let changed = false;
+    if (pkgFile === join(engine, 'package.json') && pkg.pnpm !== undefined) {
+      delete pkg.pnpm;
+      changed = true;
+    }
     for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
       for (const [name, spec] of Object.entries(pkg[group] ?? {})) {
         if (typeof spec === 'string' && (spec.includes('file:') || spec.startsWith('workspace:'))) {
@@ -517,7 +532,6 @@ export function deployEngine(repo, engine, filter = '@retake/cli') {
     }
     if (changed) writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
   }
-  return { unlinked };
 }
 
 /** Folders of the checkout a build writes although git ignores them: tauri-build's generated schemas (review A L2). */

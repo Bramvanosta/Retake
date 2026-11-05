@@ -114,6 +114,7 @@ interface StageModule {
   useBuildEnv(env: Record<string, string>): void;
   RENDERER_PATCH_MARKS: Record<string, Record<string, number>>;
   rendererPatchProblems(dir: string): string[];
+  scrubDeployedEngine(engine: string): void;
 }
 const stageModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as StageModule;
 
@@ -274,7 +275,7 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
   })())?.[1];
 
   it.runIf(hasPnpm && !!storeDir)("the engine's pnpm deploy carries the @remotion/renderer patch (offline, from the checkout's store); the installed copy has it too", async () => {
-    const { rendererPatchProblems, buildEnv } = await stageModule();
+    const { rendererPatchProblems, buildEnv, scrubDeployedEngine } = await stageModule();
     const pkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { pnpm: { patchedDependencies: Record<string, string> } };
     const editor = JSON.parse(readFileSync(join(REPO, 'packages', 'editor', 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
     // A Remotion upgrade without the patch ported to it fails here (and pnpm refuses an unused patch).
@@ -285,6 +286,11 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     try {
       expect(r.status, r.stderr || r.stdout).toBe(0);
       expect(rendererPatchProblems(join(engine, 'node_modules', '@remotion', 'renderer'))).toEqual([]);
+      // The deployed manifest names no file of the build machine once scrubbed (the patches are applied already).
+      scrubDeployedEngine(engine);
+      const manifest = readFileSync(join(engine, 'package.json'), 'utf8');
+      expect(JSON.parse(manifest).pnpm).toBeUndefined();
+      expect(manifest).not.toContain(REPO);
     } finally {
       rmSync(engine, { recursive: true, force: true });
     }
