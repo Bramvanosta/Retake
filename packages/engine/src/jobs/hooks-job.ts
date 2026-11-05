@@ -73,9 +73,9 @@ export async function submitHooksJob(ctx: SubmitContext, req: HooksSubmitRequest
     const sel = await selectHooks(project, req.source, req.env, { projectFilesOnly: true });
     label = sel.label;
     scenarioSha = sel.sha256;
-    if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client);
     const env = req.env ?? sel.env;
-    resolveEnvironment(project, env);
+    const resolved = resolveEnvironment(project, env);
+    if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, req), ctx.client, resolved);
     await checkWorkspaceProtection(ctx.ws, project, env, hooksCommandLine(ctx.cli, req), agentChannel(ctx.client));
     if (!dry) {
       const fix = hooksCommandLine(ctx.cli, { ...req, dry: false });
@@ -184,7 +184,10 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     throw scenarioChangedConflict(e, `scenarios/${scenario} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
   });
   // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
-  if (sel.scenario) checkAgentTrust(project, sel.scenario, hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry }));
+  if (sel.scenario) {
+    const fix = hooksCommandLine(ctx.cli, { project: input.project, source: input.source, ...(input.env !== undefined ? { env: input.env } : {}), dry: input.dry });
+    checkAgentTrust(project, sel.scenario, fix, undefined, resolveEnvironment(project, input.env ?? sel.env));
+  }
   await checkWorkspaceProtection(ctx.ws, project, input.env ?? sel.env);
   const { ctx: hctx, closeSessions } = await createHookContext(project, {
     env: input.env ?? sel.env,

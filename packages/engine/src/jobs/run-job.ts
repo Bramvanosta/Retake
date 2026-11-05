@@ -162,7 +162,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
         })
       : Promise.resolve(undefined));
   return [
-    async () => checkAgentTrust(project, sc, fix, ctx.client),
+    async () => checkAgentTrust(project, sc, fix, ctx.client, env),
     async () => checkWorkspaceProtection(ctx.ws, project, env.name, fix, agentChannel(ctx.client)),
     async () => {
       const p = await preflight();

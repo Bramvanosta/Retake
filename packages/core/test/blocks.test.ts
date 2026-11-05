@@ -494,6 +494,8 @@ scenes:
     const b = blocksOf(text);
     const scene = b.entries[0] as SceneBlock;
     expect(scene.open).toBe('javascript:alert(1)');
+    // Shown as written, and refused by the validation (a scenario opens only http:, https: or about:blank).
+    expect(scene.issues).toEqual([expect.objectContaining({ severity: 'error', path: ['scenes', 0, 'open'], message: expect.stringContaining('opens a javascript: URL') })]);
     expect(scene.caption).toEqual({ text: '<img src=x onerror=alert(1)>' });
     expect(scene.steps[0].target).toBe('“Pay ‮evil”');
     expect(scene.steps[0].chips[0].label).toBe('caption “<script>alert(2)</script>”');
@@ -524,6 +526,9 @@ scenes:
     expect((b.entries[0] as SceneBlock).open).toBe('https://shop.example.test/start');
     expect((b.entries[0] as SceneBlock).steps.map((s) => s.summary)).toEqual(['https://shop.example.test/quotes', 'http://shop.example.test/help', 'URL https://shop.example.test/done']);
     expect((b.entries[0] as SceneBlock).steps[0].args).toEqual({ url: 'https://shop.example.test/quotes' });
+    // Each URL a scene opens is refused by the validation, its message without the sign-in details either.
+    expect((b.entries[0] as SceneBlock).issues.map((i) => i.message)).toEqual([expect.stringMatching(/^https:\/\/shop\.example\.test\/start holds sign-in details/)]);
+    expect((b.entries[0] as SceneBlock).steps.map((s) => s.issues.length)).toEqual([1, 1, 0]);
     expect(b.hooks.setup[0].summary).toBe('POST https://api.example.test/reset');
     expect(b.hooks.setup[1].summary).toBe('curl https://api.example.test/seed');
     expect(b.video.outro).toEqual({ mode: 'custom', url: 'https://shop.example.test/signup' });

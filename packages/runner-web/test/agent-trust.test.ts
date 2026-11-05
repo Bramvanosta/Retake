@@ -54,6 +54,21 @@ describe('runner, trust mcp', () => {
     expect(author.error?.message).not.toContain('work submitted through MCP');
   });
 
+  it("a scenario opening another origin than the environment's pages fails before the browser, saying what to change", async () => {
+    const sc: Omit<Scenario, 'video'> = {
+      pacing: FAST,
+      scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ new_tab: { href: 'http://127.0.0.1:10/admin', as: 'other' } }, { open: 'http://127.0.0.1:9/ok' }] }],
+    };
+    const base = { project: makeProject(dir, { app: 'http://127.0.0.1:9' }), scenario: makeScenario('elsewhere', sc), mode: 'dry' as const, env: 'test', browser: { executable: '/nonexistent/chromium' } };
+    const rec = await runScenario({ ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: 'studio' });
+    expect(rec.status).toBe('failed');
+    expect(rec.error?.message).toMatch(/^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/);
+    expect(rec.error?.message).toContain('add its origin as a page of environment test in project.yaml');
+    expect(rec.error?.message).not.toContain('steps[1]');
+    const author = await runScenario({ ...base, runId: `elsewhere-author-${Date.now()}` });
+    expect(author.error?.message).not.toContain('work submitted');
+  });
+
   it('drop_file.path and eval.file, as templated when the step runs: inside the project; eval code not agent-writable, without a secret', async () => {
     const zone = { css: 'body' };
     expect(await stepError(dropFile(ctx(true), { zone, path: join(outside, 'secret.txt') }))).toContain('is an absolute path');

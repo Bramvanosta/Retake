@@ -536,10 +536,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 
   try {
     throwIfAborted(signal);
-    // Work submitted through MCP (L3.1, core agent-trust): the scenario names no secret, and its files stay in the
-    // project (code never from a file an agent can write) — refused before anything runs.
+    // Work submitted through MCP or from the Studio (L3.1, core agent-trust): the scenario names no secret, its files
+    // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
+    // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp' });
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env });
       if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.

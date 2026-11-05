@@ -137,6 +137,14 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   with the approvals). The worker reads the file once and runs those bytes only: a scenario changed in between — its
   hooks, or only the `vars` they are rendered with — fails the job as `conflict` ("submit it again"), before any hook
   runs.
+- **What a scenario opens.** Every scenario opens only `http:` and `https:` pages or exactly `about:blank`, never a
+  URL holding sign-in details: `file:`, `data:`, `javascript:`, `blob:`, `view-source:`, `chrome:` and the like are
+  validation errors at the field. The URL is read as a browser parses it (WHATWG URL: any case, leading spaces and
+  tabs ignored), never by matching its text. Work submitted through MCP or the Studio — every job the worker runs —
+  opens a full URL only on the exact origin of one of the pages of the environment it runs on (scheme, host and port;
+  `//host/…` refused); a path of an environment page is always fine. Checked at submit and again by the worker before
+  anything opens; a refusal names the field, the origins allowed and the fix (a person adds the origin as a page of the
+  environment in project.yaml). A templated URL is checked when it is rendered.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

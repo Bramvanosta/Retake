@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
+import { scenarioNavigationProblems } from '../agent-policy.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -111,6 +112,7 @@ class ScenarioChecker {
   run(): LocatedIssue[] {
     this.environment();
     this.scenes();
+    this.navigation();
     const saved = new Set<string>();
     const pageKeys = this.pages ? Object.keys(this.pages) : undefined;
     const project = this.opts.project;
@@ -224,6 +226,17 @@ class ScenarioChecker {
     });
     for (const name of own) {
       if (!used.has(name)) this.ctx.warning(['hooks', name], `hook "${name}" is run by no \`hook: ${name}\` step`, { path: ['hooks', name], key: true });
+    }
+  }
+
+  /**
+   * The URLs the scenario opens (core scenarioNavigationProblems): only http:, https: or about:blank, no user name or
+   * password; `<page>:/path` of a multi-page scene names a page of the environment (another prefix is refused too).
+   */
+  private navigation(): void {
+    const pageKeys = this.pages ? Object.keys(this.pages) : undefined;
+    for (const p of scenarioNavigationProblems(this.s, { ...(pageKeys ? { pageKeys } : {}), ...(this.envName !== undefined ? { envName: this.envName } : {}) })) {
+      if (!this.ctx.broken(p.path)) this.ctx.error(p.path, p.message);
     }
   }
 
@@ -381,9 +394,7 @@ class ScenarioChecker {
         if (split) {
           if (typeof s.page === 'string' && s.page !== split.page) this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` names page "${split.page}" but \`page\` is "${s.page}"`);
           envPage = split.page;
-        } else if (prefix !== undefined && this.pages && !/^(https?|file|about|data|chrome)$/i.test(prefix)) {
-          this.ctx.error([...ep, 'open'], `"${prefix}:" in \`open: ${s.open}\` is not a page of environment "${this.envName}"${suggestion(prefix, envKeys)} (available: ${envKeys.join(', ') || 'none'})`);
-        } else if (prefix === undefined && envPage === undefined && this.pages) {
+        } else if (prefix === undefined && envPage === undefined && this.pages && !URL.canParse(s.open)) {
           this.ctx.error([...ep, 'open'], `\`open: ${s.open}\` is relative but page "${e.id}" names no environment page: add \`page: <${envKeys.join(' | ') || 'page'}>\` or write \`<page>:${s.open}\``);
         }
         visited.add(e.id);

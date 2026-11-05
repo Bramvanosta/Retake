@@ -9,6 +9,7 @@
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
 import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, showHiddenChars } from '@retake/core';
+import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { EngineError } from './errors.js';
@@ -247,12 +248,14 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
 }
 
 /**
- * Work submitted through MCP (core agent-trust): a scenario that names a secret or references a file outside the
- * project (or, run as code, one an agent can write) is refused before anything is queued — the worker checks it again.
+ * Work submitted through MCP or from the Studio (core agent-trust): a scenario that names a secret or references a file
+ * outside the project (or, run as code, one an agent can write) is refused before anything is queued — the worker
+ * checks it again. With the environment the job opens (`env`), a URL the scenario opens on another origin than the
+ * environment's pages is refused too.
  */
-export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient): void {
+export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient, env?: AgentTrustEnvironment): void {
   const via = agentChannel(client);
-  const problems = agentTrustProblems(project, sc, { via });
+  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}) });
   if (problems.length) {
     throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems } });
   }

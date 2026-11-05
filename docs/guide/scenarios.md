@@ -53,6 +53,16 @@ scenes, cards and interstitials. A card or an interstitial without a `duration` 
 within its min / max (`studio/card-title` 2.5 s, 1–10 s); the review warns (`card-too-short`) when a card is shorter
 than its text needs.
 
+**What a scenario opens.** A scene's `open`, each `open` of a multi-page scene's `pages`, an `open` step and a
+`new_tab` step's `href` take a path of an environment page (`/quotes`, `quotes/1`, `?tab=2`; in `pages`, also
+`<page>:/path`) or a full URL that is `http:` or `https:` — or exactly `about:blank`. Any other scheme (`file:`,
+`data:`, `javascript:`, `blob:`, `view-source:`, `chrome:`, `about:srcdoc`…) and a URL holding sign-in details
+(`user@`, `user:…@`) are validation errors at the field, in any case and with leading spaces or tabs (the URL is read
+as the browser reads it): write the page's http(s) URL or a path, and let a persona sign in (see
+[Signing in](environments.md#signing-in-personas-and-sessions)). A templated value (`open: "{{vars.start}}"`) is
+checked once rendered, when the step runs. A scenario run through MCP or the Studio also opens only its environment's
+own origins (see [MCP](mcp.md)).
+
 **Scene-start cursor** (`cursor:` on a scene):
 
 | Value | Where the cursor rests during the still |
