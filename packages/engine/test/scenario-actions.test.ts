@@ -66,6 +66,9 @@ describe('blocker kinds (critique H3)', () => {
     expect(blockerKind(e('not_found'), null)).toEqual({ kind: 'invalid' });
     expect(blockerKind(e('refused'), null)).toEqual({ kind: 'prepare' });
     expect(blockerKind(e('refused', { problems: ['a secret'] }), 0)).toEqual({ kind: 'agent_trust' });
+    expect(blockerKind(e('refused', { problems: ['another origin'], navigation: 1 }), 0)).toEqual({ kind: 'opens_other_site' });
+    expect(blockerKind(e('refused', { problems: ['another origin', 'a secret'], navigation: 1 }), 0)).toEqual({ kind: 'agent_trust' });
+    expect(blockerKind(e('refused', { problems: [], navigation: 0 }), 0)).toEqual({ kind: 'agent_trust' });
     expect(blockerKind(e('refused'), 0)).toEqual({ kind: 'prepare' });
     expect(blockerKind(e('refused'), 1)).toEqual({ kind: 'protected_host' });
     expect(blockerKind(e('refused', { refused: [{}, {}], env: { access: 'read-write' } }), 2)).toEqual({ kind: 'hook_refused', count: 2 });

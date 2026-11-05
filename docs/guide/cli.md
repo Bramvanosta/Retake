@@ -101,7 +101,8 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **doctor** checks, one line each with `OK`, `WARN` or `FAIL` and a hint: the Node.js version, Chromium (path,
   version and a real new-headless launch), its sandbox (**Chromium sandbox**: read from the launched browser's own
   command line — a failure when it holds a switch that turns the sandbox or site isolation off, which only an
-  executable that adds switches itself can do), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
+  executable that adds switches itself can do; a Chromium that does not start as root on Linux says to run as a
+  regular user), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
   browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
   with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
@@ -157,7 +158,7 @@ invalid command line, `130` interrupted (Ctrl-C) while signing in, checking a se
 resetting or stopping a sandbox.
 
 ```
-$ retake doctor --project northfield-fixture        # Linux container without a desktop, fixture running
+$ retake doctor --project northfield-fixture        # Linux container without a desktop (a non-root user), fixture running
 retake doctor
   OK    Node.js                     22.22.0
   OK    Chromium                    141.0.7390.37 · /opt/pw-browsers/chromium-1194/chrome-linux/chrome · new headless launch 293 ms

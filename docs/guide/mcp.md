@@ -418,18 +418,22 @@ hooks: submit it again —, a sandbox that would not start…).
   links followed (no absolute path, `~` or `..` out of it; a templated path is checked when the step runs), and code is
   never run from a file Claude can write (README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`,
   `.retake/`): keep scripts in `hooks/` or `assets/`. From a terminal nothing changes.
-- **Pages stay on the environment's origins.** Every scenario opens only `http:` / `https:` URLs or `about:blank`,
+- **What a scenario opens stays on the environment's origins.** Every scenario opens only `http:` / `https:` URLs or `about:blank`,
   without sign-in details (a validation error, also at `scenario_save`; see
   [What a scenario opens](scenarios.md#scenario-language)). Through MCP and the Studio, a full URL a scenario opens (a scene's
   or a page's `open`, an `open` step, a `new_tab` `href`) must also have the exact origin of one of the pages of the
   environment the job runs on — scheme, host and port: another port of localhost is another app — and `//host/…` is
-  refused. A path of an environment page is always fine. Refused at submit (`run_dry`, `run_capture`, `page_inspect
+  refused. A path is always fine: it is resolved against the environment page of the tab it opens in — on a tab
+  opened from another one (`new_tab`) and on no environment page, against that tab's current URL, and checked like a
+  full URL once resolved. Refused at submit (`run_dry`, `run_capture`, `page_inspect
   {scenario}`, a scenario's hooks), again by the worker and — for a templated URL (`{{vars.…}}`) — once rendered, when
   its step runs (the step fails before the page loads; prewarm skips it); the refusal names the field and the origins
-  allowed. A link the page provides, followed by a `new_tab` whose click opened no tab, may go to any http(s) site. To
-  film another site, a person adds its origin as a page of the environment in project.yaml. Every job the worker runs
-  comes under this rule, the Studio's included (its status bar shows the same reason); a run typed in a terminal does
-  not.
+  allowed. A link the page provides, followed by a `new_tab` whose click opened no tab, may go to any http(s) site;
+  the rule covers what the runner opens, not where the page goes on its own: a redirect, a link the page follows or a
+  click that opens a tab may still leave the environment's origins. To film another site, a person adds its origin as
+  a page of the environment in project.yaml. Every job the worker runs comes under this rule, the Studio's included
+  (its status bar says *opens another site · add it to project.yaml*); `scenario_validate` given the environment (its
+  `env`, or the scenario's own `env:`) reports it too, at the line; a run typed in a terminal does not.
 - **Production of every project.** The hosts of the production and read-only environments of *every* project of the
   workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
   ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human

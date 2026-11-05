@@ -2,7 +2,8 @@
  * Web notifications within limits: only a page's own document reports (a frame inside it is ignored, for the cursor
  * too), the payload is checked and cut, a run keeps at most 50 notifications and reads at most 20 icons, and an icon is
  * a data: URL of at most 1 MiB or an http(s) URL of the notifying page's origin or the environment's, fetched without
- * following a redirect and cut off beyond 1 MiB.
+ * following a redirect and cut off beyond 1 MiB. The cursor binding takes finite times and points only, and at most
+ * CURSOR_EFFECTS_PER_SECOND effects from a page in a second (one warning).
  */
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -14,6 +15,7 @@ import type { NotificationArtefact, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { iconRefusal, NOTIFICATION_ICON_MAX_BYTES, NOTIFICATION_ICON_RUN_MAX, NOTIFICATION_RUN_MAX } from '../src/notifications.js';
 import { NOTIFICATION_TEXT_MAX, readNotificationPayload } from '../src/session.js';
+import { CURSOR_EFFECTS_PER_SECOND } from '../src/runtime.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
 
 const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1f4e6e"/></svg>';
@@ -138,6 +140,8 @@ addEventListener('message', () => {
 <p><button id="bigdecl" onclick="new Notification('big declared',{icon:'/big-declared.svg',tag:'bigdecl'})">Big declared</button></p>
 <p><button id="bigchunk" onclick="new Notification('big chunked',{icon:'/big-chunked.svg',tag:'bigchunk'})">Big chunked</button></p>
 <p><button id="many" onclick="for(let i=0;i<60;i++)new Notification('n'+i,{icon:'/icon.svg?i='+i,tag:'many-'+i});document.getElementById('md').textContent='many-done'">Many</button><span id="md"></span></p>
+<p><button id="cursor-odd" onclick="const c=window.__retakeCursor;c({type:'ripple',time:NaN,x:4001,y:1});c({type:'icon',time:Infinity,icon:'hand'});c({type:'ripple',time:Date.now(),x:Infinity,y:4002});c(null);c('ripple');document.getElementById('cod').textContent='odd-done'">Odd</button><span id="cod"></span></p>
+<p><button id="cursor-burst" onclick="setTimeout(()=>{for(let i=0;i<300;i++)window.__retakeCursor({type:'ripple',time:Date.now(),x:5000+i,y:5000});document.getElementById('cbd').textContent='burst-done'},50)">Burst</button><span id="cbd"></span></p>
 <script>addEventListener('message', (e) => { if (e.data === 'frame-done') document.getElementById('fd').textContent = 'frame-done'; });</script>
 </body></html>`);
       }
@@ -254,5 +258,25 @@ addEventListener('message', () => {
     expect(tl.warnings.filter((w) => w.includes(`more than ${NOTIFICATION_RUN_MAX} notifications`))).toHaveLength(1);
     expect(tl.warnings.filter((w) => w.includes(`more than ${NOTIFICATION_ICON_RUN_MAX} icons`))).toHaveLength(1);
     expect(tl.events.filter((e) => e.action === 'notification')).toHaveLength(NOTIFICATION_RUN_MAX);
+  }, 120_000);
+
+  it(`the cursor binding takes finite times and points only, and at most ${CURSOR_EFFECTS_PER_SECOND} effects from a page in a second, with one warning`, async () => {
+    const { tl } = await run('cursor-caps', [
+      { click: { css: '#cursor-odd' } },
+      { wait_for: { text: 'odd-done' } },
+      { wait: 1.1 },
+      { click: { css: '#cursor-burst' } },
+      { wait_for: { text: 'burst-done' } },
+      { wait: 0.3 },
+    ]);
+    const effects = tl.cursor_effects ?? [];
+    expect(effects.every((e) => Number.isFinite(e.t))).toBe(true);
+    expect(effects.some((e) => e.x === 4001)).toBe(false);
+    expect(effects.some((e) => e.type === 'icon' && e.icon === 'hand' && !Number.isFinite(e.t))).toBe(false);
+    expect(effects.every((e) => e.x === undefined || Number.isFinite(e.x))).toBe(true);
+    const burst = effects.filter((e) => e.type === 'ripple' && typeof e.x === 'number' && e.x >= 5000);
+    expect(burst.length).toBeGreaterThan(0);
+    expect(burst.length).toBeLessThanOrEqual(2 * CURSOR_EFFECTS_PER_SECOND);
+    expect(tl.warnings.filter((w) => w.includes(`more than ${CURSOR_EFFECTS_PER_SECOND} cursor effects in a second`))).toHaveLength(1);
   }, 120_000);
 });

@@ -22,6 +22,7 @@ import {
   gopFrames,
   gpuPathFailure,
   openRenderBrowser,
+  renderSandboxOff,
   remotionEncoding,
   resolveRenderPolicy,
   videotoolboxFits,
@@ -208,6 +209,39 @@ describe('the GPU check of a browser', () => {
     expect(f.launched).toEqual([{ gl: 'angle' }]);
     expect(b.gl).toBe('angle');
     expect(b.warnings[0]).toMatch(/found no GPU .*drawn with ANGLE anyway \(render gl: gpu, retake\.yaml render\.gl\)/);
+  });
+});
+
+describe("the render browser's sandbox, read from its own command line", () => {
+  const browserWith = (argv: string[], closed: string[], name: string) => ({
+    connection: { send: async (method: string) => (method === 'Browser.getBrowserCommandLine' ? { arguments: argv } : {}) },
+    close: async () => void closed.push(name),
+  });
+  const REMOTION = ['--headless=old', '--remote-debugging-port=0', '--no-zygote', '--site-per-process', '--user-data-dir=/x'];
+
+  it('on macOS a browser whose command line turns its sandbox or site isolation off is closed and refused; Remotion\'s own switches are not', async () => {
+    const closed: string[] = [];
+    for (const off of ['--no-sandbox', '--disable-site-isolation-trials', '--disable-features=Translate,IsolateOrigins']) {
+      await expect(openRenderBrowser({ policy: linux(), platform: 'darwin', launch: async () => browserWith([...REMOTION, off], closed, off) })).rejects.toThrow(
+        new RegExp(`the render browser runs with ${off.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} on its command line, which turns its sandbox or site isolation off — its executable adds switches itself`),
+      );
+    }
+    expect(closed).toEqual(['--no-sandbox', '--disable-site-isolation-trials', '--disable-features=Translate,IsolateOrigins']);
+    const kept = await openRenderBrowser({ policy: linux(), platform: 'darwin', launch: async () => browserWith(REMOTION, closed, 'ok') });
+    expect(kept.gl).toBe('software');
+    expect(closed).not.toContain('ok');
+  });
+
+  it('the browser opened again in software is checked too; elsewhere than macOS nothing is read (Linux renders run as Remotion starts them)', async () => {
+    const closed: string[] = [];
+    let n = 0;
+    await expect(
+      openRenderBrowser({ policy: mac(), platform: 'darwin', launch: async () => browserWith(++n === 1 ? REMOTION : [...REMOTION, '--no-sandbox'], closed, `b${n}`), gpuInfo: async () => ({ accelerated: false }) }),
+    ).rejects.toThrow(/runs with --no-sandbox/);
+    expect(closed).toEqual(['b1', 'b2']);
+    expect((await openRenderBrowser({ policy: linux(), platform: 'linux', launch: async () => browserWith([...REMOTION, '--no-sandbox'], closed, 'linux') })).gl).toBe('software');
+    expect(await renderSandboxOff(browserWith(['--no-sandbox'], [], 'x'), 'linux')).toEqual([]);
+    expect(await renderSandboxOff({ connection: { send: async () => { throw new Error('no'); } } }, 'darwin')).toEqual([]);
   });
 });
 

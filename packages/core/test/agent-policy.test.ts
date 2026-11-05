@@ -8,6 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
+  BROWSER_OPEN_SWITCHES,
+  LINUX_ONLY_SANDBOX_SWITCHES,
   LOAD_PATH_ENV,
   NODE_OPTIONS_LOADS,
   SANDBOX_OFF_SWITCHES,
@@ -16,6 +18,7 @@ import {
   loadWorkspaceConfig,
   parseProjectYaml,
   sandboxOffArgProblem,
+  sandboxSwitchOff,
 } from '@retake/core';
 
 describe('loader variables', () => {
@@ -114,12 +117,34 @@ describe('Chromium switches that turn the sandbox or site isolation off', () => 
     }
   });
 
+  it('the switches that open the browser to other code are refused too, each with what it does; the narrower reading keeps the sandbox ones only', () => {
+    const open = ['disable-web-security', 'renderer-cmd-prefix', 'gpu-launcher', 'utility-cmd-prefix', 'browser-subprocess-path', 'remote-debugging-port', 'remote-debugging-address'];
+    expect(Object.keys(BROWSER_OPEN_SWITCHES).sort()).toEqual([...open].sort());
+    for (const name of open) {
+      for (const arg of [`--${name}`, `-${name}=/tmp/x`, ` --${name.toUpperCase()}=9222`]) {
+        expect(sandboxOffArgProblem(arg), arg).toMatch(new RegExp(`^--${name} (?:turns Chromium's same-origin policy off|starts Chromium's .* (?:through|from) another program|opens a debugging port) .*remove it from browser\\.args`));
+        expect(sandboxSwitchOff(arg), arg).toBeNull();
+      }
+    }
+    expect(sandboxOffArgProblem('--remote-debugging-pipe')).toBeNull();
+    expect(sandboxSwitchOff('--no-sandbox')).toMatch(/turns Chromium's sandbox off/);
+    // Linux's own sandbox switches have no effect on macOS (Remotion passes --no-zygote): only there are they not read as off.
+    for (const name of LINUX_ONLY_SANDBOX_SWITCHES) {
+      expect(sandboxSwitchOff(`--${name}`, { platform: 'darwin' }), name).toBeNull();
+      expect(sandboxSwitchOff(`--${name}`, { platform: 'linux' }), name).toMatch(/turns Chromium's sandbox off/);
+      expect(sandboxOffArgProblem(`--${name}`), name).toMatch(/turns Chromium's sandbox off/);
+    }
+    for (const arg of ['--no-sandbox', '--disable-gpu-sandbox', '--single-process', '--disable-site-isolation-trials']) expect(sandboxSwitchOff(arg, { platform: 'darwin' }), arg).not.toBeNull();
+    expect(sandboxSwitchOff('--disable-features=IsolateOrigins')).toMatch(/turns Chromium's site isolation off/);
+  });
+
   it('project.yaml and retake.yaml refuse them in browser.args, at their line', async () => {
-    const { config, issues } = parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser:', '  args: [--lang=fr, --no-sandbox, "--disable-features=IsolateOrigins"]', ''].join('\n'));
+    const { config, issues } = parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser:', '  args: [--lang=fr, --no-sandbox, "--disable-features=IsolateOrigins", --remote-debugging-port=9222]', ''].join('\n'));
     expect(config).toBeUndefined();
     expect(issues.filter((i) => i.severity === 'error').map((i) => `${i.path.join('.')}@${i.line}: ${i.message}`)).toEqual([
       expect.stringMatching(/^browser\.args\.1@4: --no-sandbox turns Chromium's sandbox off/),
       expect.stringMatching(/^browser\.args\.2@4: --disable-features=IsolateOrigins turns Chromium's site isolation off/),
+      expect.stringMatching(/^browser\.args\.3@4: --remote-debugging-port opens a debugging port/),
     ]);
     expect(parseProjectYaml(['name: Demo', 'environments: {local: {app: "http://localhost:3000"}}', 'browser: {args: [--lang=fr]}', ''].join('\n')).config?.browser?.args).toEqual(['--lang=fr']);
     const dir = await mkdtemp(join(tmpdir(), 'retake-core-args-'));

@@ -1,7 +1,7 @@
 import { isAbsolute } from 'node:path';
 import { sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
-import { environmentAccess, rawEnvironmentPages, rawEnvironments } from '../env.js';
+import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
 import { parseRequestPattern } from '../writes.js';
@@ -166,6 +166,9 @@ export function checkProject(
       }
     }
     if (isObj(written[envName]) && raw[envName].long) checkReadOnly(written[envName], envName, Object.keys(pages), ctx);
+    const urls = Object.fromEntries(Object.entries(pages).filter((e): e is [string, string] => typeof e[1] === 'string'));
+    const credentials = environmentHttpCredentials({ config: { environments: { [envName]: urls } } as never }, envName);
+    if (credentials.problem) ctx.error(at, credentials.problem);
   }
 
   if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env) && !sandboxNames.includes(value.default_env)) {

@@ -47,6 +47,8 @@ export function blockerShort(b: Pick<RunBlocker, 'kind' | 'count' | 'fix' | 'fix
       return { words: 'protected location', action: copy };
     case 'agent_trust':
       return { words: 'uses a secret or an outside file', action: copy };
+    case 'opens_other_site':
+      return { words: 'opens another site · add it to project.yaml', action: copy };
     case 'hook_refused':
       return { words: hooks(b.count, 'refused'), action: copy };
     case 'read_only':

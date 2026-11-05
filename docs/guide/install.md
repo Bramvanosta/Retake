@@ -33,7 +33,9 @@ decoder.
 
 Every browser Retake launches runs with Chromium's OS sandbox on (`retake doctor`: **Chromium sandbox**). On Linux
 that sandbox needs unprivileged user namespaces (on by default on most distributions; Ubuntu 23.10+ restricts them
-through AppArmor): where they are off, Chromium does not start and `retake doctor` says so.
+through AppArmor) and a user that is not root: Chromium does not run sandboxed as root, so in a container run Retake as
+a regular user (a non-root `USER`). Where either is missing, Chromium does not start and `retake doctor` says what to
+change; Retake never turns the sandbox off.
 
 Smooth 30 fps captures need GPU-accelerated rendering, which desktop machines provide (an Apple M4 captures ≈ 60
 frames/s while the cursor moves, blurred dialogs included); `retake doctor` checks it (Chromium's own GPU report: the

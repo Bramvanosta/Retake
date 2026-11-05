@@ -2426,6 +2426,15 @@ package that names it, one exact version), installing its browsers and re-record
 recorded unchecked) would make it one step; the release job could then warn when the tagged commit's Chromium is older
 than the newest Playwright release.
 
+### BL-161 — Sandboxed browsers on Linux, as root and in containers
+*S · noted in a review of the browser sandbox · builds on: the hardening of the capture and render browsers*
+
+Every capture browser runs in Chromium's OS sandbox, which on Linux needs unprivileged user namespaces and a user that
+is not root: as root (the default user of many containers) Chromium does not start, and `retake doctor` says to run
+as a regular user. Renders on Linux still run as Remotion starts them (without the sandbox). What remains: a documented
+container recipe (a non-root user, the namespaces it needs), a check of the setuid sandbox helper where user namespaces
+are off, and the render browser sandboxed on Linux like on macOS.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

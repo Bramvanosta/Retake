@@ -3,6 +3,7 @@
  * builds of @remotion/renderer (the ESM one the editor imports, and the CommonJS one):
  * - on macOS the render browser keeps Chromium's OS sandbox and site isolation: its command line has none of the
  *   switches that turn them off, its renderers run sandboxed (seatbelt), a cross-site iframe is a target of its own;
+ *   one whose executable adds such a switch itself is refused (openRenderBrowser reads its command line);
  * - the bundle server listens on 127.0.0.1 and ::1 only (the render page loads http://localhost:<port>, which resolves
  *   to either); a local address that is not loopback is refused (skipped on a machine without one); a port whose ::1
  *   another listener holds is never served: a given port fails (a guarded render fails), a picked one moves on;
@@ -20,7 +21,7 @@ import { networkInterfaces, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { planRun, playwrightHeadlessShell, renderPlan } from '@retake/editor';
+import { openRenderBrowser, planRun, playwrightHeadlessShell, renderPlan } from '@retake/editor';
 import type { EditPlan } from '@retake/editor';
 import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
@@ -171,6 +172,19 @@ describe.skipIf(process.platform !== 'darwin' || !SHELL)('the render browser kee
     };
   });
   afterAll(() => closePages?.());
+
+  it('a headless shell whose executable adds --no-sandbox itself is refused and closed, before anything renders', async () => {
+    const wrapper = join(tmp, 'shell-wrapper.sh');
+    writeFileSync(wrapper, `#!/bin/sh\nexec ${JSON.stringify(SHELL)} --no-sandbox "$@"\n`, { mode: 0o755 });
+    let opened: { close(o: { silent: boolean }): Promise<unknown> } | undefined;
+    await expect(
+      openRenderBrowser({
+        policy: { gl: { resolved: 'software', asked: 'auto', source: 'default' } } as never,
+        launch: async () => (opened = await ESM.openBrowser('chrome', { browserExecutable: wrapper, chromeMode: 'headless-shell', logLevel: 'error' })),
+      }),
+    ).rejects.toThrow(/the render browser runs with --no-sandbox\b.* on its command line, which turns its sandbox or site isolation off/);
+    expect(opened).toBeDefined();
+  }, 60_000);
 
   for (const [name, build] of BUILDS) {
     it(`${name}: no sandbox or site-isolation switch on its command line; its renderers sandboxed; a cross-site iframe its own target`, async () => {

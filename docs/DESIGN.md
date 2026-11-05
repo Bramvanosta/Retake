@@ -356,11 +356,22 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   when some page has no persona. Executable: config → `$RETAKE_CHROMIUM` → Playwright default.
 - Every runner launch (capture realms, sign-in and recording windows, site extraction, artefact renderer, cursor
   atlas, doctor probe) ends its options with `...launchOptions({ args })` (launch.ts): `chromiumSandbox: true` (the OS
-  sandbox; Playwright's default is off) and the switches, refused when one turns the sandbox or site isolation off
-  (core `sandboxOffArgProblem`, lists `SANDBOX_OFF_SWITCHES` / `SITE_ISOLATION_OFF_FEATURES` in agent-policy.ts; also
-  a validation error of `browser.args` in retake.yaml and project.yaml). A source scan
-  (test/launch-options.test.ts) keeps every `launch` / `launchPersistentContext` on it. `retake doctor` reads
-  `Browser.getBrowserCommandLine` of its probe (`browserSandbox`).
+  sandbox; Playwright's default is off), `--site-per-process` appended (the headless shell leaves site isolation off
+  unless asked) and the switches, refused when one turns the sandbox or site isolation off or opens the browser to
+  other code (core `sandboxOffArgProblem`, lists `SANDBOX_OFF_SWITCHES` / `SITE_ISOLATION_OFF_FEATURES` /
+  `BROWSER_OPEN_SWITCHES` — `--disable-web-security`, the `*-cmd-prefix` / `--gpu-launcher` /
+  `--browser-subprocess-path` launchers, `--remote-debugging-port` / `-address` — in agent-policy.ts; also a validation
+  error of `browser.args` in retake.yaml and project.yaml). Right after it, every launch but the doctor's probe calls
+  `refuseUnsandboxed`: one CDP `Browser.getBrowserCommandLine` (`browserSandbox`), and a browser whose own command line
+  holds such a switch — what an executable that adds switches itself passes — is closed and refused (RunnerError). A
+  source scan (test/launch-options.test.ts) keeps every `launch` / `launchPersistentContext` on both. `retake doctor`
+  reports its probe's `browserSandbox` instead.
+- HTTP credentials: `resolveEnvironment` gives every consumer the page URLs without `user:password@`
+  (core `withoutCredentials`); `environmentHttpCredentials` returns those details, decoded, with the page's origin —
+  one origin at most, one set of details (else a validation error of the environment, and the run refused). The capture
+  realms, the sign-in window and the recording window are launched with Playwright `httpCredentials` limited to that
+  `origin` (`launchCredentials`, launch.ts), and the run registers the password as a secret value (masked wherever it
+  writes). A challenge from another origin is never answered (Playwright leaves it to the browser: it stays pending).
 - Every realm refuses local files itself before anything loads (`armFileGuard`, session.ts): a browser-level CDP
   session enables `Fetch` for `file:*` only and fails each paused request (`BlockedByClient`), in every page, popup and
   frame; no Playwright route (the HTTP cache stays on). A realm that cannot be armed is closed and the run fails.
@@ -369,12 +380,17 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   environment page — before a page is created or loaded for them: http(s) or exactly about:blank, no sign-in details;
   under trust `mcp` (`RuntimeInit.navigation`: core `pageOrigins` of the environment) an absolute URL the scenario wrote
   is on one of the environment's origins. A clicked link's href (the `new_tab` fallback) gets the scheme rule only,
-  plus `blob:` of the opener's origin. A refusal is a step error; prewarm leaves the URL out. Redirects stay Chromium's
-  (an http redirect to `file:` fails).
+  plus `blob:` of the opener's origin. Text that does not parse as an absolute URL is refused whoever wrote it; at
+  validation a scheme whose rest does not parse is refused, and in `pages[].open` a `<page>:` prefix that names no page
+  of a known environment (`admin_consol:/x`), or `file:` / `data:` / `javascript:` / `blob:` / `view-source:` /
+  `chrome:` without one. A refusal is a step error; prewarm leaves the URL out. Redirects and the links a page follows
+  itself stay Chromium's (an http redirect to `file:` fails; one to another origin is followed).
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
 - The kit's two bindings (session.ts: `__retakeNotification`, `__retakeCursor`) answer a page's main frame only
-  (`src.frame === src.page.mainFrame()`); the kit itself reports notifications from the top window only and sends each
+  (`src.frame === src.page.mainFrame()`); `Runtime.cursorEffect` takes a finite `time` (and a finite point for a
+  ripple's `x` / `y`) and at most `CURSOR_EFFECTS_PER_SECOND` (60) effects per page in a wall-clock second, one warning
+  per run beyond; the kit itself reports notifications from the top window only and sends each
   text at most one character past the limit. `readNotificationPayload` checks the payload's types (else ignored), cuts
   title, body and tag at `NOTIFICATION_TEXT_MAX` (2,048), drops an icon URL beyond `NOTIFICATION_ICON_URL_MAX` (data:
   1.5 M characters, other 2,048), and takes `url` / `origin` from the main frame. notifications.ts: per run at most
@@ -4796,9 +4812,10 @@ desktop shell write; `mode: 'dry'`, the CLI's `--dry`, MCP `run_dry`, job kinds 
 (Prepare shows one mapping line). A source lint (app-source.test.ts) fails on "dry run" in a string the page shows
 (comments, test ids, the mapping line and the ops' descriptions excepted).
 
-**The engine.** `RunBlocker.kind` (`agent_trust`, `protected_host`, `hook_refused`, `read_only`, `needs_approval` with
-`count`, `invalid`, `prepare`) — set by `runBlockers` from the gate that threw (`blockerKind`; a preflight that failed is
-`prepare`, never a safety reason); `ScenarioRunChoice.job` on an unfinished run (null: a terminal's run); `running` is
+**The engine.** `RunBlocker.kind` (`agent_trust`, `opens_other_site`, `protected_host`, `hook_refused`, `read_only`,
+`needs_approval` with `count`, `invalid`, `prepare`) — set by `runBlockers` from the gate that threw (`blockerKind`; a
+preflight that failed is `prepare`, never a safety reason; `opens_other_site` when every agent-trust problem is a URL
+outside the environment's origins: `checkAgentTrust` puts their count in `details.navigation`); `ScenarioRunChoice.job` on an unfinished run (null: a terminal's run); `running` is
 the newest unfinished run WITH a job, else the terminal's (`runningOf`: a terminal's run and a Studio job can be
 unfinished together — the one-run check sees jobs only — and Stop must reach the one it can).
 `engine.scenarios.actions` (op `scenario_actions`, a Studio read in the `ui` allow-list, strict input: project, name,

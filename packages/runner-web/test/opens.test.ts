@@ -115,6 +115,16 @@ describe('the rule (pure)', () => {
     expect(openProblem('blob:null/u', {}, { from: 'page', opener: 'about:blank' })).toMatch(/not followed/);
   });
 
+  it('text that does not parse as an absolute URL is never opened, whoever wrote it', () => {
+    for (const url of ['http://exa mple.test/', 'https://[::1', '/relative', '', 'http://u:p@exa mple.test/']) {
+      for (const source of [undefined, { from: 'page' as const, opener: 'http://127.0.0.1:9/' }]) {
+        const p = openProblem(url, {}, source);
+        expect(p, url).toMatch(/is not an absolute URL a browser can read/);
+        expect(p, url).not.toContain('u:p');
+      }
+    }
+  });
+
   it('prewarm leaves out a URL the take may not open', () => {
     const scenario = { scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ open: 'http://localhost:10/x' }] }] } as never;
     const opts = { envPages: { app: 'http://127.0.0.1:9' }, capture: { width: 800, height: 600 }, template: (e: never) => e };

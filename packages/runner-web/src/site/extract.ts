@@ -43,7 +43,7 @@ import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core';
 import type { BrowserConfig, SiteTestTarget } from '@retake/core';
 import { CancelledError, RunnerError } from '../errors.js';
-import { launchOptions } from '../launch.js';
+import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { mergeSamples, sitePalette } from './palette.js';
 import type { SitePalette } from './palette.js';
@@ -422,6 +422,8 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
 
     o.onPhase?.('loading');
     browser = await chromium.launch({ ...launchTarget(o.browser), headless: true, handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false, ...launchOptions({ args: siteBrowserArgs(port) }) });
+    const launched = browser;
+    await refuseUnsandboxed(launched, () => launched.close(), 'The extraction browser');
     stopped(stop.signal);
     const context = await browser.newContext({
       viewport: VIEWPORT,

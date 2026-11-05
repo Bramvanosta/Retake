@@ -182,13 +182,14 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
 /**
  * Which gate refused (L5.11a, critique H3): the generic `code` cannot tell agent trust from a protected host or a refused
  * hook (all `refused`), so the Studio's short words key on this. `agent_trust` — the scenario names a secret or a file
- * outside the project; `protected_host` — the location reaches another project's production / read-only host;
+ * outside the project; `opens_other_site` — every reason agent trust gave is a URL the scenario opens outside the
+ * environment's origins; `protected_host` — the location reaches another project's production / read-only host;
  * `hook_refused` — a hook a safety rule refuses; `read_only` — the same on a read-only location (its writing hooks);
  * `needs_approval` — hooks a person approves first (`count`); `too_long` — hooks too long to approve in a form (`count`):
  * a terminal runs them; `invalid` — the file or the request does not check;
  * `prepare` — anything else that stops the run being prepared.
  */
-export type RunBlockerKind = 'agent_trust' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'too_long' | 'invalid' | 'prepare';
+export type RunBlockerKind = 'agent_trust' | 'opens_other_site' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'too_long' | 'invalid' | 'prepare';
 
 /** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
 export interface RunBlocker {
@@ -253,7 +254,10 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
     return Array.isArray(v) ? v.length : undefined;
   };
   if (gate === null) return { kind: err.code === 'invalid' || err.code === 'not_found' ? 'invalid' : 'prepare' };
-  if (gate === 0 && err.code === 'refused' && Array.isArray(err.details?.problems)) return { kind: 'agent_trust' };
+  if (gate === 0 && err.code === 'refused' && Array.isArray(err.details?.problems)) {
+    const all = err.details.problems.length;
+    return { kind: all > 0 && err.details?.navigation === all ? 'opens_other_site' : 'agent_trust' };
+  }
   if (gate === 1 && err.code === 'refused') return { kind: 'protected_host' };
   if (gate === 2 && err.code === 'refused' && Array.isArray(err.details?.refused)) {
     const env = err.details?.env as { access?: string } | undefined;

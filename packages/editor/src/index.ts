@@ -86,6 +86,8 @@ export {
   remotionEncoding,
   renderGpuInfo,
   renderPolicy,
+  renderSandboxOff,
+  renderSandboxRefusal,
   rendererWords,
   resetVideotoolboxProbes,
   resolveRenderPolicy,

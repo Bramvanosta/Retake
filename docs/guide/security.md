@@ -153,7 +153,16 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   anything opens; a refusal names the field, the origins allowed and the fix (a person adds the origin as a page of the
   environment in project.yaml). A templated URL is checked once rendered and resolved, when its step runs, and fails
   the step before its page loads; prewarm skips it. A link the page itself provides (a `new_tab` click that opened no
-  tab, followed by the runner) is held to the scheme rule only, plus `blob:` documents of the page's own origin.
+  tab, followed by the runner) is held to the scheme rule only, plus `blob:` documents of the page's own origin. The
+  rule covers what the runner opens: a redirect, a link the page follows itself or a click that opens a tab may still
+  take the browser to another http(s) site.
+- **Sign-in details of an environment page.** A page URL of project.yaml may carry HTTP sign-in details
+  (`https://user:password@staging.example.com`, for a staging site behind basic authentication): Retake takes them out
+  of the URL — the runner, the logs, the timeline, the video, the Studio and the hooks' `{{pages.…}}` see it without
+  them — and gives them to the capture, sign-in and recording browsers as HTTP credentials for that page's origin
+  only: another origin that asks for a sign-in is never answered with them (its request waits). The password is
+  masked like a secret wherever a run writes. One origin per environment can carry them (with one set of details);
+  more is a validation error of the environment.
 - **The capture browser reads no local file.** Every browser a capture, a rehearsal or an inspection opens fails any
   `file:` request itself — of any page, tab, popup or frame, whatever started it —, set before anything loads; a run
   whose browser cannot be set this way does not start. An http redirect to a `file:` URL fails too.
@@ -164,17 +173,23 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   only from a `data:` URL of at most 1 MiB decoded, or from an http(s) URL on the notifying page's own origin or one of
   the environment's origins (another port of localhost is another origin), fetched with that page's cookies, without
   following a redirect and stopped beyond 1 MiB; any other icon is not requested — a warning, and the artefact keeps
-  its URL.
+  its URL. An icon served from a CDN or behind a redirect is therefore not read: to have it read, add its origin as a
+  page of the environment in project.yaml. What the cursor reports needs a finite time (and point), and a page's cursor
+  effects beyond 60 in a second are not recorded (one warning per run).
 - **Every browser runs sandboxed.** Each Chromium the runner launches — captures, rehearsals and inspections, the
   sign-in and recording windows, a site extraction, the artefact renderer, the cursor layer, `retake doctor`'s probe —
-  runs with its OS sandbox on (renderers, GPU and utility processes confined by the system) and site isolation on.
-  `browser.args` cannot turn either off: the switches that would are validation errors in retake.yaml and project.yaml
-  (see [Workspace](workspace.md)) and refused again at launch. `retake doctor` reads the launched browser's own command
-  line and fails when it holds one anyway (an executable that adds switches itself).
+  runs with its OS sandbox on (renderers, GPU and utility processes confined by the system) and site isolation on
+  (asked for at every launch: `browser.channel: headless-shell` included, which leaves it off by default).
+  `browser.args` cannot turn either off, nor open the browser to other code (`--disable-web-security`, a launcher such
+  as `--renderer-cmd-prefix` or `--gpu-launcher`, `--browser-subprocess-path`, a `--remote-debugging-port`): those
+  switches are validation errors in retake.yaml and project.yaml (see [Workspace](workspace.md)) and refused again at
+  launch. Each launch then reads the browser's own command line and refuses a browser that holds one anyway — an
+  executable that adds switches itself (`browser.executable`, `RETAKE_CHROMIUM`) — and `retake doctor` fails on it.
 - **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
   (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
   renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves
-  out the switches Remotion would add to turn them off. The server that hands the render page its bundle listens on
+  out the switches Remotion would add to turn them off, and a render browser whose own command line turns either off
+  anyway (a `RETAKE_CHROMIUM_HEADLESS_SHELL` that adds switches itself) is refused. The server that hands the render page its bundle listens on
   `127.0.0.1` and `::1` only, at the same port (the page loads `http://localhost:<port>`, which reaches either) — never
   on another address of the machine — and serves the render page's own origin only: a `Host` other than `localhost`,
   `127.0.0.1` or `[::1]` with its port gets 421, a request from another origin (an `Origin` other than its own, a

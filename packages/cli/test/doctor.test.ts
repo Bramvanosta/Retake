@@ -166,6 +166,10 @@ describe('retake doctor (mocked environment)', () => {
     const linux = await checks(macProbes({ chromium: at({ launched: false, error: 'Chromium sandboxing failed! No usable sandbox!' }) }));
     expect(linux.checks.some((c) => c.name === 'Chromium sandbox')).toBe(false);
     expect(byName(linux.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringContaining('unprivileged user namespaces') });
+    // As root, Chromium refuses its sandbox: the hint says to run as a regular user, never to turn the sandbox off.
+    const root = await checks(macProbes({ chromium: at({ launched: false, error: 'Running as root without --no-sandbox is not supported. See https://crbug.com/638180.' }) }));
+    expect(byName(root.checks, 'Chromium')).toMatchObject({ status: 'fail', hint: expect.stringMatching(/does not run sandboxed as root.*run Retake as a regular user/) });
+    expect(byName(root.checks, 'Chromium').hint).not.toMatch(/user namespaces/);
   });
 
   it('Linux without display, secret-tool or notify-send: warnings with hints, still exit 0', async () => {

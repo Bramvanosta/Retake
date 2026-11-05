@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import { gpuInfoOf } from '@retake/core';
-import type { BrowserConfig, GpuInfo, ResolvedClock, SystemInfoReply } from '@retake/core';
+import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
-import { launchOptions } from './launch.js';
+import { launchOptions, refuseUnsandboxed } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
@@ -68,6 +68,11 @@ export interface SessionOptions {
    * too; its pages are closed through about:blank.
    */
   writes?: WriteGuardOptions;
+  /**
+   * The environment's HTTP credentials (core environmentHttpCredentials: the sign-in details of its page URLs), given to
+   * every realm's browser for their origin only.
+   */
+  httpCredentials?: PageHttpCredentials;
 }
 
 /** Playwright storage state: cookies + localStorage per origin. */
@@ -934,6 +939,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       handleSIGINT: false,
       handleSIGTERM: false,
       handleSIGHUP: false,
+      ...(opts.httpCredentials ? { httpCredentials: { ...opts.httpCredentials } } : {}),
       ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])] }),
     });
   } catch (e) {
@@ -943,6 +949,12 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       ? ` — the profile ${userDataDir} is already in use by another browser (close it, e.g. the login window)`
       : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
+  }
+  try {
+    await refuseUnsandboxed(context.browser(), () => context.close(), `The capture browser${spec.name ? ` of persona ${spec.name}` : ''}`);
+  } catch (e) {
+    if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+    throw e;
   }
   if (spec.userDataDir) recordProfileBrowser(spec.userDataDir, major);
   const realm: Realm = { name: spec.name, context, spare: [...context.pages()], temp, cleanup: spec.cleanup ?? [] };

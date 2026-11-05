@@ -52,7 +52,7 @@ import { checkProfileBrowser, launchMajor } from './profile-browser.js';
 import { kitConfigFor, kitSource } from './kit/source.js';
 import { SECRET_MASK, SECRET_MIN, looksLikeToken, recorderSource, secretHash } from './kit/record-script.js';
 import type { SecretHash } from './kit/record-script.js';
-import { launchOptions } from './launch.js';
+import { launchCredentials, launchOptions, refuseUnsandboxed } from './launch.js';
 import { DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { armWriteGuard, enableServiceWorkerRequests } from './write-guard.js';
@@ -330,6 +330,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     // L5.16c: a persona's profile copy is never opened by an older Chromium than the one that opened it last.
     if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);
     const size = o.windowSize;
+    const httpCredentials = launchCredentials(o.project, o.env.name);
     context = await chromium.launchPersistentContext(userDataDir, {
       headless: o.headless === true,
       channel,
@@ -340,6 +341,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
       timezoneId: b.timezone,
       handleSIGINT: false,
       handleSIGTERM: false,
+      ...(httpCredentials ? { httpCredentials: { ...httpCredentials } } : {}),
       ...launchOptions({
         args: [
           ...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'),
@@ -348,6 +350,8 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
         ],
       }),
     });
+    const launched = context;
+    await refuseUnsandboxed(launched.browser(), () => launched.close(), 'The recording browser');
   } catch (e) {
     await removeCopies();
     throw e;

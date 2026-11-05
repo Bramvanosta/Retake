@@ -333,7 +333,9 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bun
       status: 'fail',
       name: 'Chromium',
       detail: `${c.path} (${src}) did not launch headless: ${c.error ?? 'no page rendered'}`,
-      hint: /sandbox/i.test(c.error ?? '')
+      hint: /as root|crbug\.com\/638180/i.test(c.error ?? '')
+        ? 'Chromium does not run sandboxed as root, and Retake never turns its sandbox off: run Retake as a regular user (in a container, a USER that is not root)'
+        : /sandbox/i.test(c.error ?? '')
         ? "Chromium's sandbox could not start (Retake always runs it sandboxed): on Linux it needs unprivileged user namespaces (kernel.unprivileged_userns_clone=1, or AppArmor's restriction lifted for that binary)"
         : fromApp
           ? 'reinstall Retake (its Chromium did not start)'

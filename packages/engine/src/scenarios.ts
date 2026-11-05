@@ -21,10 +21,11 @@ import {
   newHiddenCharProblem,
   parseScenario,
   parseYaml,
+  resolveEnvironment,
   textEol,
   verifyEditText,
 } from '@retake/core';
-import type { AgentChannel, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
+import type { AgentChannel, AgentTrustEnvironment, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
@@ -142,10 +143,22 @@ export interface ValidateResult {
 /**
  * What an agent may not write in a scenario (work submitted through MCP or from the Studio, core agent-trust): secret
  * references, files outside the project, code from agent-writable files — as error issues placed at their line (L4.3,
- * critique B11), worded for the channel (`via`: "through MCP" / "from the Studio").
+ * critique B11), worded for the channel (`via`: "through MCP" / "from the Studio"). With `env` (a validation that
+ * knows the environment), a URL on another origin than its pages too, as the run would refuse it; a save has none.
  */
-function agentIssues(project: LoadedProject, scenario: Scenario | undefined, text: string, via: AgentChannel | undefined): ValidationIssue[] {
-  return scenario ? agentTrustProblemsAt(project, scenario, text, { ...(via ? { via } : {}) }).map((p) => trustIssue(p)) : [];
+function agentIssues(project: LoadedProject, scenario: Scenario | undefined, text: string, via: AgentChannel | undefined, env?: AgentTrustEnvironment): ValidationIssue[] {
+  return scenario ? agentTrustProblemsAt(project, scenario, text, { ...(via ? { via } : {}), ...(env ? { env } : {}) }).map((p) => trustIssue(p)) : [];
+}
+
+/** The environment a validation names (its `env`, else the scenario's own `env:`), resolved; undefined when none or unknown. */
+function knownEnvironment(project: LoadedProject, scenario: Scenario | undefined, env: string | undefined): AgentTrustEnvironment | undefined {
+  const name = env ?? (typeof scenario?.env === 'string' ? scenario.env : undefined);
+  if (name === undefined) return undefined;
+  try {
+    return resolveEnvironment(project, name);
+  } catch {
+    return undefined;
+  }
 }
 
 function trustIssue(p: PositionedTrustProblem): ValidationIssue {
@@ -172,7 +185,7 @@ export async function validateScenarioText(
     ...(opts.agent ? { confined: opts.via ?? 'mcp' } : {}),
     ...(opts.filesRead ? { filesRead: opts.filesRead } : {}),
   });
-  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
+  const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via, knownEnvironment(project, scenario, opts.env))] : parsed;
   return { ok: !hasErrors(issues), issues };
 }
 

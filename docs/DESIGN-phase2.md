@@ -806,7 +806,13 @@ music) are served by a local static HTTP server (127.0.0.1, Range, CORS) during 
 builds of the package, CommonJS `dist/*.js` and ESM `dist/esm/index.mjs`):** on macOS `openBrowser` passes no
 `--no-sandbox` / `--disable-setuid-sandbox`, leaves `IsolateOrigins,site-per-process` out of `--disable-features` and
 passes `--site-per-process` instead of `--disable-site-isolation-trials` (the headless shell isolates sites only when
-asked): the render browser's renderers run under the seatbelt and a cross-site frame is a process of its own. Remotion's
+asked): the render browser's renderers run under the seatbelt and a cross-site frame is a process of its own.
+`openRenderBrowser` (render/policy.ts; every render, still and preview browser, the one opened again in software
+included) and the doctor's GPU check then read the browser's `Browser.getBrowserCommandLine` on macOS
+(`renderSandboxOff`: core `sandboxSwitchOff`, the sandbox and site-isolation switches only — Remotion's own
+`--remote-debugging-port=0` is not one, nor its `--no-zygote`, which like Linux's other sandbox switches has no effect
+on macOS): a browser started with one (an executable that adds switches itself) is closed
+and the render refused. Remotion's
 bundle server (`serveStatic`, also its `/proxy`) binds `127.0.0.1` and `::1` at one port — two listeners, one handler;
 `getHostsToTry` checks the loopback addresses only — and a `::1` listen that fails for any reason but "no such address"
 (EADDRNOTAVAIL / EAFNOSUPPORT: a machine without IPv6 loopback) closes the other one and fails the listen: on

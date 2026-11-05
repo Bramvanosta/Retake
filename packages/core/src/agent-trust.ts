@@ -231,8 +231,11 @@ export interface AgentTrustOptions {
   env?: AgentTrustEnvironment;
 }
 
-/** The navigation problems of agent work on a known environment (AgentTrustOptions.env), each with where it is. */
-function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Array<{ path: IssuePath; message: string }> {
+/**
+ * The navigation problems of agent work on a known environment (AgentTrustOptions.env), each with where it is: the part
+ * of agentTrustProblems about the URLs it opens (the Studio words them apart: "opens another site").
+ */
+export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Array<{ path: IssuePath; message: string }> {
   if (!o.env) return [];
   const origins = [...new Set(Object.values(o.env.pages).map(canonicalOrigin).filter((x): x is string => x !== null))];
   return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({

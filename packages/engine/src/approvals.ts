@@ -8,7 +8,7 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, showHiddenCharsLine } from '@retake/core';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
 import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
@@ -274,7 +274,9 @@ export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: strin
   const via = agentChannel(client);
   const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}) });
   if (problems.length) {
-    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems } });
+    // How many are about the URLs it opens (the Studio's own words when they are all of them: "opens another site").
+    const navigation = env ? navigationTrustProblems(sc, { via, env }).length : 0;
+    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
   }
 }
 

@@ -20,8 +20,8 @@
  * (canonicalOrigin).
  *
  * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
- * SITE_ISOLATION_OFF_FEATURES), refused in `browser.args` whoever writes them (sandboxOffArgProblem): every browser
- * Retake launches runs sandboxed.
+ * SITE_ISOLATION_OFF_FEATURES) or open the browser to other code (BROWSER_OPEN_SWITCHES), refused in `browser.args`
+ * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed.
  */
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -547,22 +547,65 @@ export const SANDBOX_OFF_SWITCHES: readonly string[] = [
   'disable-site-isolation-trials',
 ];
 
+/**
+ * The switches of SANDBOX_OFF_SWITCHES that act on Linux only (its setuid and namespace sandboxes, seccomp, the zygote):
+ * on macOS Chromium has none of these, and a launcher that passes one (Remotion passes `--no-zygote`) leaves the
+ * sandbox on. Still refused in `browser.args` everywhere.
+ */
+export const LINUX_ONLY_SANDBOX_SWITCHES: readonly string[] = ['disable-setuid-sandbox', 'disable-namespace-sandbox', 'disable-seccomp-filter-sandbox', 'no-zygote', 'no-zygote-sandbox'];
+
+/**
+ * Chromium switches (without their leading dashes) that open the browser to other code while its sandbox stays on: the
+ * same-origin policy turned off, a program of the switch's choosing started in place of (or in front of) its child
+ * processes, a debugging port any local program can drive. Always refused in `browser.args` (with SANDBOX_OFF_SWITCHES),
+ * and a launched browser whose command line holds one is refused like an unsandboxed one.
+ */
+export const BROWSER_OPEN_SWITCHES: Readonly<Record<string, string>> = {
+  'disable-web-security': "turns Chromium's same-origin policy off",
+  'renderer-cmd-prefix': "starts Chromium's renderers through another program",
+  'gpu-launcher': "starts Chromium's GPU process through another program",
+  'utility-cmd-prefix': "starts Chromium's utility processes through another program",
+  'browser-subprocess-path': "starts Chromium's child processes from another program",
+  'remote-debugging-port': 'opens a debugging port any program of this machine can drive the browser through',
+  'remote-debugging-address': 'opens a debugging port any program of this machine can drive the browser through',
+};
+
 /** Chromium features whose `--disable-features=` entry turns site isolation off (compared without case, `-` or `_`). */
 export const SITE_ISOLATION_OFF_FEATURES: readonly string[] = ['IsolateOrigins', 'SitePerProcess'];
 
 const featureKey = (name: string) => name.toLowerCase().replace(/[-_\s]/g, '');
 
 /**
- * Why `arg` may not be passed to Chromium (null when it may): a switch of SANDBOX_OFF_SWITCHES, or a
- * `--disable-features=` list naming a feature of SITE_ISOLATION_OFF_FEATURES. Read as Chromium reads its command line on
- * macOS and Linux — `--name` or `-name`, a value after `=` — and more broadly (any case, spaces around it), so a
+ * Why `arg` may not be passed to Chromium (null when it may): a switch of SANDBOX_OFF_SWITCHES or BROWSER_OPEN_SWITCHES,
+ * or a `--disable-features=` list naming a feature of SITE_ISOLATION_OFF_FEATURES. Read as Chromium reads its command
+ * line on macOS and Linux — `--name` or `-name`, a value after `=` — and more broadly (any case, spaces around it), so a
  * spelling Chromium would ignore is refused too.
  */
 export function sandboxOffArgProblem(arg: string): string | null {
-  const m = /^\s*--?([^=\s]+)(?:=(.*))?$/s.exec(arg);
+  const off = sandboxSwitchOff(arg);
+  if (off) return off;
+  const m = SWITCH.exec(arg);
+  const name = m?.[1].toLowerCase();
+  if (name && Object.hasOwn(BROWSER_OPEN_SWITCHES, name)) return `--${name} ${BROWSER_OPEN_SWITCHES[name]} — Retake's browsers never run with it: remove it from browser.args`;
+  return null;
+}
+
+/** A switch as Chromium reads it on macOS and Linux, more broadly (any case, spaces around it): its name, its value. */
+const SWITCH = /^\s*--?([^=\s]+)(?:=(.*))?$/s;
+const SWITCH_FIX = 'every browser Retake launches runs sandboxed: remove it from browser.args';
+
+/**
+ * Why `arg` turns Chromium's OS sandbox or its site isolation off (null when it does not): a switch of
+ * SANDBOX_OFF_SWITCHES, or a `--disable-features=` list naming a feature of SITE_ISOLATION_OFF_FEATURES — the narrower
+ * reading of sandboxOffArgProblem, for a browser whose launcher passes other switches of its own (the render browser).
+ * With `o.platform` other than linux, a switch of LINUX_ONLY_SANDBOX_SWITCHES does not (it has no effect there).
+ */
+export function sandboxSwitchOff(arg: string, o: { platform?: string } = {}): string | null {
+  const m = SWITCH.exec(arg);
   if (!m) return null;
   const name = m[1].toLowerCase();
-  const fix = 'every browser Retake launches runs sandboxed: remove it from browser.args';
+  const fix = SWITCH_FIX;
+  if (o.platform !== undefined && o.platform !== 'linux' && LINUX_ONLY_SANDBOX_SWITCHES.includes(name)) return null;
   if (SANDBOX_OFF_SWITCHES.includes(name)) {
     const what = name === 'disable-site-isolation-trials' ? "Chromium's site isolation" : "Chromium's sandbox";
     return `--${name} turns ${what} off — ${fix}`;
@@ -621,6 +664,9 @@ function shownUrl(url: string, parsed?: URL): string {
   return v.length > 120 ? `${v.slice(0, 117)}…` : v;
 }
 
+/** A scheme at the start of a URL as WHATWG URL reads one (leading spaces and control characters ignored). */
+const SCHEME_PREFIX = /^[\u0000-\u0020]*([a-z][a-z0-9+.-]*):/i;
+
 /** How a scenario names the page it means instead, said by every scheme refusal. */
 const NAVIGATION_FIX = 'write the http(s) URL of the page, or a path of an environment page (`/…`)';
 
@@ -658,7 +704,10 @@ export function navigationProblem(url: string, o: NavigationOptions = {}): strin
     try {
       r = new URL(url, PROBE_BASE);
     } catch {
-      return null;
+      // A scheme no browser can read the rest of (`http://exa mple/`, `file://%zz`) is not opened: refused, not left to
+      // the run. Other text that is not a URL is not judged here (the run cannot resolve it either).
+      const scheme = SCHEME_PREFIX.exec(url.replace(/[\t\n\r]/g, ''))?.[1];
+      return scheme ? `${shownUrl(url)} is not a URL a browser can read (${scheme.toLowerCase()}: then text that does not parse) — ${NAVIGATION_FIX}` : null;
     }
     if (r.host === new URL(PROBE_BASE).host) return null;
     if (r.username || r.password) return credentialsProblem(shownUrl(url, r));
@@ -668,7 +717,7 @@ export function navigationProblem(url: string, o: NavigationOptions = {}): strin
   const shown = shownUrl(url, u);
   if (u.protocol !== 'http:' && u.protocol !== 'https:') {
     if (u.protocol === 'about:' && u.href === 'about:blank') return null;
-    const what = u.protocol === 'about:' ? `${u.href.slice(0, 40)}` : `a ${u.protocol} URL`;
+    const what = u.protocol === 'about:' ? `${u.href.slice(0, 40)}` : `${/^[aeiou]/.test(u.protocol) ? 'an' : 'a'} ${u.protocol} URL`;
     return `${shown} opens ${what}: a scenario opens only http: and https: pages (or about:blank) — ${NAVIGATION_FIX}`;
   }
   if (u.username || u.password) return credentialsProblem(shown);
@@ -735,26 +784,38 @@ export function scenarioNavigationRefs(sc: unknown): NavigationRef[] {
 /** A `<page>:` prefix as a multi-page scene writes it (core splitPageOpen). */
 const PAGE_PREFIX = /^([A-Za-z_][A-Za-z0-9_-]*):/;
 
+/** Schemes that never name a page of an environment: refused in `pages[].open` even when no environment is known. */
+const NEVER_A_PAGE = /^(?:file|data|javascript|blob|view-source|chrome|chrome-extension|devtools|filesystem)$/i;
+
 /**
  * navigationProblem for every URL of a scenario (scenarioNavigationRefs), with where it is: templated text (`{{…}}`) is
  * left to the run, `<page>:/path` of a page of `o.pageKeys` is a path. Without `o.pageKeys` (no environment known), a
- * `<page>:` prefix that is not http, https or about is left to the run too — it may name a page.
+ * `<page>:` prefix that is not http, https or about is left to the run too — it may name a page —, unless it is a scheme
+ * that never does (`file:`, `data:`, `javascript:`, `blob:`, `view-source:`, `chrome:`…). With `o.pageKeys`, a prefix
+ * that names no page is refused, whatever it would open.
  */
 export function scenarioNavigationProblems(sc: unknown, o: NavigationOptions & { pageKeys?: readonly string[] } = {}): Array<{ path: IssuePath; message: string }> {
   const out: Array<{ path: IssuePath; message: string }> = [];
   for (const ref of scenarioNavigationRefs(sc)) {
     if (ref.url.includes('{{')) continue;
     let hint = '';
+    let notAPage: string | null = null;
     if (ref.pagePrefix) {
       const prefix = PAGE_PREFIX.exec(ref.url)?.[1];
       if (prefix !== undefined && !/^(?:https?|about)$/i.test(prefix)) {
-        if (!o.pageKeys) continue;
-        if (splitPageOpen(ref.url, o.pageKeys)) continue;
-        hint = `; "${prefix}:" is not a page of ${o.envName !== undefined ? `environment "${o.envName}"` : 'the environment'} either${suggestion(prefix, o.pageKeys)} (available: ${o.pageKeys.join(', ') || 'none'})`;
+        if (!o.pageKeys) {
+          if (!NEVER_A_PAGE.test(prefix)) continue;
+        } else {
+          if (splitPageOpen(ref.url, o.pageKeys)) continue;
+          const pages = `${o.envName !== undefined ? `environment "${o.envName}"` : 'the environment'}${suggestion(prefix, o.pageKeys)} (available: ${o.pageKeys.join(', ') || 'none'})`;
+          hint = `; "${prefix}:" is not a page of ${o.envName !== undefined ? `environment "${o.envName}"` : 'the environment'} either${suggestion(prefix, o.pageKeys)} (available: ${o.pageKeys.join(', ') || 'none'})`;
+          notAPage = `${shownUrl(ref.url)}: "${prefix}:" is not a page of ${pages} — write \`<page>:/path\` with a page of the environment`;
+        }
       }
     }
     const message = navigationProblem(ref.url, o);
     if (message) out.push({ path: ref.path, message: message + hint });
+    else if (notAPage) out.push({ path: ref.path, message: notAPage });
   }
   return out;
 }

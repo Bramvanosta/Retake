@@ -32,7 +32,9 @@ runs with its OS sandbox and site isolation on: a switch that turns either off â
 `--disable-setuid-sandbox`, `--disable-gpu-sandbox`, `--disable-namespace-sandbox`, `--disable-seccomp-filter-sandbox`,
 `--no-zygote`, `--no-zygote-sandbox`, `--single-process`, `--in-process-gpu`, `--disable-site-isolation-trials`, or
 `--disable-features=` naming `IsolateOrigins` or `SitePerProcess` â€” is a validation error at its line, however it is
-spelled (`-name`, any case, a value after `=`).
+spelled (`-name`, any case, a value after `=`). So is a switch that opens the browser to other code:
+`--disable-web-security`, `--renderer-cmd-prefix`, `--gpu-launcher`, `--utility-cmd-prefix`,
+`--browser-subprocess-path`, `--remote-debugging-port` and `--remote-debugging-address`.
 
 ### Render settings
 

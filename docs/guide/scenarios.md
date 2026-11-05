@@ -58,13 +58,16 @@ than its text needs.
 `<page>:/path`) or a full URL that is `http:` or `https:` — or exactly `about:blank`. Any other scheme (`file:`,
 `data:`, `javascript:`, `blob:`, `view-source:`, `chrome:`, `about:srcdoc`…) and a URL holding sign-in details
 (`user@`, `user:…@`) are validation errors at the field, in any case and with leading spaces or tabs (the URL is read
-as the browser reads it): write the page's http(s) URL or a path, and let a persona sign in (see
-[Signing in](environments.md#signing-in-personas-and-sessions)). A templated value (`open: "{{vars.start}}"`) is
+as the browser reads it), and so is a scheme whose rest a browser cannot read (`http://exa mple/`): write the page's
+http(s) URL or a path, and let a persona sign in (see [Signing in](environments.md#signing-in-personas-and-sessions))
+— a staging site behind HTTP authentication takes them in its environment page URL instead (see
+[Security](security.md)). In `pages`, a `<page>:` prefix must name a page of the environment. A templated value (`open: "{{vars.start}}"`) is
 checked once rendered and resolved against its page, when the step runs: a refused URL fails the step before the page
 loads (and `capture.prewarm` does not visit it). When a `new_tab` click opens no tab and the runner follows the clicked
 link's own `href`, that link may go to any `http:` / `https:` site (or a `blob:` document of the page's own origin);
 any other scheme fails the step. A scenario run through MCP or the Studio also opens only its environment's own
-origins (see [MCP](mcp.md)). Whatever starts it, the capture browser itself never loads a `file:` URL.
+origins (see [MCP](mcp.md)). These rules cover what the runner opens: a redirect, or a link the page follows itself,
+may lead elsewhere. Whatever starts it, the capture browser itself never loads a `file:` URL.
 
 **Scene-start cursor** (`cursor:` on a scene):
 

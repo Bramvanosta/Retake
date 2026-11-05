@@ -90,6 +90,18 @@ describe('navigationProblem: the scheme rule', () => {
     expect(navigationProblem('file:///etc/\u202Ehosts')).toContain('\\u{202e}');
   });
 
+  it('a scheme whose rest does not parse is refused, never left to the run; other text that is not a URL is not judged', () => {
+    for (const u of ['http://exa mple.test/', 'https://[::1', 'file://%zz/x', ' FILE://a b/']) {
+      expect(navigationProblem(u), u).toMatch(/is not a URL a browser can read .*write the http\(s\) URL of the page/);
+    }
+    expect(navigationProblem('https://u:p@exa mple.test/')).not.toMatch(/u:p/);
+  });
+
+  it('the article fits the scheme ("an app: URL", "a shp: URL")', () => {
+    expect(navigationProblem('app:/x')).toMatch(/opens an app: URL/);
+    expect(navigationProblem('shp:/x')).toMatch(/opens a shp: URL/);
+  });
+
   it('only exactly about:blank: another about: page, or about:blank with more, is refused', () => {
     for (const u of ['about:blank#x', 'about:blank?x', 'about:BLANK', 'about:version']) expect(navigationProblem(u), u).not.toBeNull();
   });
@@ -186,6 +198,23 @@ describe('validation: every scenario', () => {
     expect(errorsAt(f.yaml('"shp:/quotes"'), await project(), f.path).map((e) => e.message)).toEqual([
       expect.stringMatching(/opens a shp: URL.*"shp:" is not a page of environment "local" either \(did you mean "shop"\?\) \(available: console, shop\)/),
     ]);
+  });
+
+  it('a `<page>:` prefix that names no page is refused even when it would open nothing a browser reads (`admin_consol:/x`)', async () => {
+    const f = FIELDS[1];
+    for (const u of ['"shop_x:/quotes"', '"_shop:/quotes"']) {
+      expect(errorsAt(f.yaml(u), await project(), f.path).map((e) => e.message), u).toEqual([
+        expect.stringMatching(/: "_?shop_?x?:" is not a page of environment "local".*\(available: console, shop\) — write `<page>:\/path` with a page of the environment/),
+      ]);
+    }
+  });
+
+  it('without an environment, a `<page>:` prefix may name a page — but never file:, data:, javascript:, blob:, view-source: or chrome:', () => {
+    const f = FIELDS[1];
+    for (const u of ['file:///etc/hosts', 'data:text/html,x', 'javascript:alert(1)', 'blob:http://localhost:4402/x', 'view-source:http://localhost:4402/', 'chrome://version']) {
+      expect(errorsAt(f.yaml(JSON.stringify(u)), undefined, f.path), u).toHaveLength(1);
+    }
+    for (const u of ['shop:/quotes', 'admin:/x']) expect(errorsAt(f.yaml(JSON.stringify(u)), undefined, f.path), u).toEqual([]);
   });
 
   it('templated text is judged when it runs', async () => {

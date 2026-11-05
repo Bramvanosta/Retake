@@ -121,6 +121,17 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     expect((await mcp.scenarios.validate('w', FOREIGN)).ok).toBe(true);
   });
 
+  it('validate on a known environment (its `env`, or the scenario\'s own) says what the run would refuse, at the line', async () => {
+    for (const v of [await mcp.scenarios.validate('w', FOREIGN, { env: 'local' }), await mcp.scenarios.validate('w', FOREIGN.replace('video: foreign', 'video: foreign\nenv: local'))]) {
+      expect(v.ok).toBe(false);
+      expect(v.issues.filter((i) => i.severity === 'error')).toEqual([
+        expect.objectContaining({ path: ['scenes', 0, 'steps', 0, 'open'], message: expect.stringContaining('not an origin of environment local') }),
+      ]);
+    }
+    expect((await mcp.scenarios.validate('w', FOREIGN, { env: 'nowhere' })).issues.some((i) => /not an origin/.test(i.message))).toBe(false);
+    expect((await cli.scenarios.validate('w', FOREIGN, { env: 'local' })).ok).toBe(true);
+  });
+
   it('a run, an inspection or hooks of a scenario opening another origin are refused at submit, saying what to change', async () => {
     const before = (await mcp.jobs.list({ project: 'w' })).length;
     const run = await refusal(mcp.runs.submit({ project: 'w', scenario: 'foreign', mode: 'dry' }));
@@ -140,8 +151,12 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     const ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
     const check = await ui.scenarios.check('w', 'foreign');
     expect(check.ok).toBe(true);
-    expect(check.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'agent_trust', message: expect.stringContaining('from the Studio a scenario opens only its environment') })]);
+    expect(check.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'opens_other_site', message: expect.stringContaining('from the Studio a scenario opens only its environment') })]);
     expect(check.run_blockers.dry[0].message).toContain('add its origin as a page of environment local in project.yaml');
+    // Another reason beside it: the gate's general words, never "opens another site" alone.
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'), FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'));
+    const mixed = await ui.scenarios.check('w', 'foreign-secret');
+    expect(mixed.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'agent_trust' })]);
   });
 
   it('the worker checks again: a run job pinned to bytes opening another origin is refused before anything opens', async () => {

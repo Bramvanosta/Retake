@@ -89,6 +89,7 @@ import { probePages, preflightRefusal } from './page-preflight.js';
 import { PerfSampler, UNFILMED_WARN_CORES, listeningPids, localPorts } from './perf.js';
 import { prewarmPages, prewarmTargets } from './prewarm.js';
 import { openProblem } from './opens.js';
+import { launchCredentials } from './launch.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { HookStepOutcome } from './runtime.js';
@@ -550,6 +551,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
+    // Sign-in details written in the environment's page URLs: the browser's HTTP credentials for that origin, masked
+    // like a secret wherever the run writes (resolveEnvironment already took them out of the URLs).
+    const httpCredentials = launchCredentials(project, env.name);
+    if (httpCredentials?.password) secrets.addValue(httpCredentials.password);
     // L5.8 (R-FLD-33): every page of the environment answers before anything opens (a port that moved, a stopped server).
     const probes = await probePages(env.pages, { signal });
     const down = probes.filter((p) => !p.ok);
@@ -603,6 +608,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       headed: opts.headed,
       log,
       ...(writeGuard ? { writes: writeGuard } : {}),
+      ...(httpCredentials ? { httpCredentials } : {}),
       ...(prepared.length
         ? {
             realms: [...prepared.map((p) => p.realm), ...(plan.needsDefault ? [{ name: '' }] : [])],

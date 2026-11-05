@@ -19,6 +19,7 @@ describe('blocker words by kind (critique H3)', () => {
     expect(blockerShort({ kind: 'too_long', count: 2, fix })).toEqual({ words: '2 hooks too long to approve here', action: 'copy' });
     expect(blockerShort({ kind: 'protected_host', fix })).toEqual({ words: 'protected location', action: 'copy' });
     expect(blockerShort({ kind: 'agent_trust', fix })).toEqual({ words: 'uses a secret or an outside file', action: 'copy' });
+    expect(blockerShort({ kind: 'opens_other_site', fix })).toEqual({ words: 'opens another site · add it to project.yaml', action: 'copy' });
     expect(blockerShort({ kind: 'hook_refused', count: 2, fix })).toEqual({ words: '2 hooks refused', action: 'copy' });
     expect(blockerShort({ kind: 'read_only', count: 1, fix })).toEqual({ words: 'read-only location refuses its hooks', action: 'copy' });
     expect(blockerShort({ kind: 'invalid', fix_file: true })).toEqual({ words: 'the file has errors', action: 'yaml' });
@@ -28,7 +29,7 @@ describe('blocker words by kind (critique H3)', () => {
     expect(blockerShort({ kind: 'something_new' as 'prepare' })).toEqual({ words: 'needs the terminal', action: null });
     expect(blockerShort({})).toEqual({ words: 'needs the terminal', action: null });
     // A safety reason is never said for another gate (the review's worry: "protected location" for a secret).
-    const words = (['agent_trust', 'protected_host', 'hook_refused', 'read_only', 'needs_approval'] as const).map((kind) => blockerShort({ kind, count: 1, fix }).words);
+    const words = (['agent_trust', 'opens_other_site', 'protected_host', 'hook_refused', 'read_only', 'needs_approval'] as const).map((kind) => blockerShort({ kind, count: 1, fix }).words);
     expect(new Set(words).size).toBe(words.length);
   });
 });
