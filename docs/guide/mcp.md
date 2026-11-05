@@ -305,9 +305,11 @@ hooks: submit it again —, a sandbox that would not start…).
     substitutes and hides nothing. On those words:
     - no `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin`, `trap`, `alias`, `unalias`, `hash`, `enable`,
       `fc`, `source` or `.` — as the program (`/usr/bin/command` too) or after a wrapper (`nice`, `env`, `timeout`,
-      `time`, `nohup`…); set the hook's `cwd` instead of `cd`;
+      `time`, `nohup`…) or a shell's prefix word (`coproc`, `noglob`, `nocorrect`, `-`); set the hook's `cwd` instead
+      of `cd`;
     - no loader variable (`PATH`, `HOME`, `NODE_OPTIONS`, `LD_*` / `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`,
-      `PERL*`, `PSQLRC`, `npm_config_*` and the like: they change what a program loads or the shell it starts) set
+      `PERL*`, `PSQLRC`, `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`, `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`,
+      `npm_config_*`, `PIP_*`, `UV_*` and the like: they change what a program loads or the shell it starts) set
       before the program, as an `env` argument, or by `export` / `declare` / `read` / `printf -v`…; the hook's `env`
       names are letters, digits and `_` and no loader variable either;
     - no code written in the command: a shell's `-c` (`sh`, `bash`, `zsh`, `dash`…), `node` / `bun` / `tsx` `-e`,
@@ -319,14 +321,18 @@ hooks: submit it again —, a sandbox that would not start…).
     - no path through a folder an agent can write — README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
       `review/`, `exports/`, `.retake/`, of the project or of another project of the workspace — whether the file
       exists or not, however it is written (relative to `cwd`, absolute, `RUNS/…`, through a symbolic link,
-      `--file=…`, `-f…`, `@…`, a `:` or `,` list, `python -m runs.x`, `{{run.dir}}/…`); a bare word counts as a path
-      for an interpreter (`node README.md`) or after `-C`, `-f`, `--file`, `--prefix`, `--cwd`…, not as a script or
-      target name (`npm run review`, `make renders`); no path to project.yaml, nor into `hooks/` other than the script
+      `--file=…`, `-f…`, `@…`, a `:` or `,` list, `python -m runs.x`, `{{run.dir}}/…`); a bare `README.md` always
+      counts (any program may read it as its script); a bare folder name counts as a path for an interpreter
+      (`node runs`) or after `-C`, `-f`, `--file`, `--prefix`, `--cwd`…, not as a script or target name
+      (`npm run review`, `make renders`); no path to project.yaml, nor into `hooks/` other than the script
       a command runs (`sh hooks/seed.sh`, `node hooks/seed.mjs`, `psql -f hooks/reset.sql`); no `/dev/stdin`,
       `/dev/fd/…`;
     - no saved response (`{{hooks.<name>…}}`, a rollback's `{{response.…}}`): its value is not known when the hook is
-      asked about. A secret (`{{env:…}}`, `{{keychain:…}}`) is read as one plain word in the form, and when the job
-      runs its value must be one too (refused otherwise, never shown).
+      asked about; no secret (`{{env:…}}`, `{{keychain:…}}`) in its `run`, `rollback` or `cwd`, as a scenario never
+      names one.
+
+    Its rollback is held to these rules again when it is replayed (`env_reset`, `retake env reset`), on the command
+    it then runs.
 
     Each refusal names what to change. A hook that needs more belongs in your own files — `hooks/<name>.yaml`
     (`retake hooks run <project> hooks/<name>.yaml`, or `hooks_run`) or project.yaml's `hooks:` without the scenario's

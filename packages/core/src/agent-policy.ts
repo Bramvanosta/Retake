@@ -8,8 +8,10 @@
  * (DYLD_*, LD_*), bash's exported functions (BASH_FUNC_*), git (GIT_*), the interpreters (PYTHON*, PERL5LIB, PERLLIB,
  * PERL5OPT, PERL5DB, RUBYOPT, RUBYLIB, GEM_HOME, GEM_PATH, BUNDLE_GEMFILE, LUA_INIT*, LUA_PATH, LUA_CPATH, PHPRC,
  * PHP_INI_SCAN_DIR, CLASSPATH, *JAVA*_OPTIONS, R_PROFILE*, R_ENVIRON*, R_LIBS*, TCLLIBPATH, GOFLAGS), the start files
- * of psql, curl and wget (PSQLRC, CURL_HOME, WGETRC), the programs other tools start (EDITOR, VISUAL, PAGER, BROWSER)
- * and the package managers (npm_config_*, PNPM_*, YARN_*, COREPACK_*).
+ * of psql, curl and wget (PSQLRC, CURL_HOME, WGETRC), the programs other tools start (EDITOR, VISUAL, PAGER, MANPAGER,
+ * BROWSER, LESSOPEN, LESSCLOSE, SSH_ASKPASS, SUDO_ASKPASS, RUSTC_WRAPPER), the JVM build tools' options (MAVEN_OPTS,
+ * GRADLE_OPTS, ANT_OPTS), zsh's function path (FPATH) and the package managers (npm_config_*, PNPM_*, YARN_*,
+ * COREPACK_*, PIP_*, UV_*).
  *
  * Agent-written shell commands: a strict grammar — plain words joined by single spaces and ` && ` — read in one pass,
  * then a few rules per word (agentShellProblems, agentShellCwdProblems, agentShellEnvProblems).
@@ -64,7 +66,14 @@ export const LOADER_ENV_NAMES: readonly RegExp[] = [
   /^PSQLRC$/,
   /^CURL_HOME$/,
   /^WGETRC$/,
-  /^(?:EDITOR|VISUAL|PAGER|BROWSER)$/,
+  /^(?:EDITOR|VISUAL|PAGER|BROWSER|MANPAGER)$/,
+  /^(?:LESSOPEN|LESSCLOSE)$/,
+  /^(?:SSH_ASKPASS|SUDO_ASKPASS)$/,
+  /^RUSTC_WRAPPER$/,
+  /^(?:MAVEN_OPTS|GRADLE_OPTS|ANT_OPTS)$/,
+  /^FPATH$/,
+  /^PIP_/,
+  /^UV_/,
   /^RUBYOPT$/,
   /^RUBYLIB$/,
   /JAVA\w*_OPTIONS$/,
@@ -197,8 +206,12 @@ const REFUSED_BUILTINS: Record<string, string> = {
   '.': "runs a file in the hook's own shell: run it with `sh <file>`",
 };
 
-/** Programs that run the command that follows their options (`nice cd`, `env eval`, `/usr/bin/command eval`…). */
-const WRAPPERS = new Set(['env', 'nice', 'nohup', 'timeout', 'gtimeout', 'time', 'sudo', 'doas', 'stdbuf', 'caffeinate', 'ionice', 'chrt', 'taskset', 'setsid', 'unbuffer', 'flock', 'command', 'builtin']);
+/**
+ * Programs that run the command that follows their options (`nice cd`, `env eval`, `/usr/bin/command eval`…), and the
+ * words a shell reads as a prefix of the command after them: bash's `coproc`, zsh's `noglob`, `nocorrect` and `-` (an
+ * `sh` that is bash or zsh reads them so).
+ */
+const WRAPPERS = new Set(['env', 'nice', 'nohup', 'timeout', 'gtimeout', 'time', 'sudo', 'doas', 'stdbuf', 'caffeinate', 'ionice', 'chrt', 'taskset', 'setsid', 'unbuffer', 'flock', 'command', 'builtin', 'coproc', 'noglob', 'nocorrect', '-']);
 
 /** Builtins that set the variables they name (`export NAME`, `read NAME`, `printf -v NAME`…). */
 const VARIABLE_SETTERS = new Set(['export', 'declare', 'typeset', 'local', 'readonly', 'read', 'getopts', 'mapfile', 'readarray', 'let', 'printf', 'unset']);
@@ -243,6 +256,7 @@ const PACKAGE_RUNNERS: Record<string, readonly string[] | true> = {
   uvx: true,
   npm: ['exec', 'x', 'create', 'init'],
   pnpm: ['dlx', 'create'],
+  // (`pnpm exec` runs a program installed in the project: a person's dependency, not a download)
   yarn: ['dlx', 'create'],
   bun: ['x', 'create'],
   pipx: ['run'],
@@ -428,8 +442,20 @@ function commandProblems(words: readonly string[], o: AgentShellOptions, add: (p
   });
 }
 
+/** Whether agentWritablePath's answer is one of the files (not folders) an agent writes: README.md of a project. */
+function writableFile(rel: string): boolean {
+  const inProject = rel.replace(/^\.\.\/[^/]+\//, '').toLowerCase();
+  return AGENT_WRITABLE_PATHS.some((w) => !w.endsWith('/') && w.toLowerCase() === inProject);
+}
+
+/**
+ * A path problem of one candidate: through a folder an agent can write when `judged` (a bare folder name such as
+ * `review` of `npm run review` is a name), to one of the files an agent writes (README.md) always — any program may
+ * read a bare file name as its script.
+ */
 function pathProblem(candidate: string, o: AgentShellOptions, add: (p: string) => void, word: string, runs: boolean, judged = true): void {
-  const rel = judged ? agentWritablePath(candidate, { ...o, tilde: false }) : null;
+  const found = agentWritablePath(candidate, { ...o, tilde: false });
+  const rel = found !== null && (judged || writableFile(found)) ? found : null;
   if (rel !== null) {
     add(`\`${shownWord(word)}\` (a path through ${writableFolder(rel)}, which an agent can write)`);
     return;
@@ -446,17 +472,19 @@ function pathProblem(candidate: string, o: AgentShellOptions, add: (p: string) =
  * grammar in one pass — plain words of letters, digits and `. / : = @ % + , - _`, single spaces, commands joined by
  * ` && ` — so the shell expands, redirects, substitutes and quotes nothing. Then, per command:
  * - `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin`, `trap`, `alias`, `unalias`, `hash`, `enable`, `fc`,
- *   `source`, `.` as the program (by its last path part: `/usr/bin/command`) or after a wrapper (`nice`, `env`…);
+ *   `source`, `.` as the program (by its last path part: `/usr/bin/command`) or after a wrapper (`nice`, `env`…, and
+ *   the shells' prefix words `coproc`, `noglob`, `nocorrect`, `-`);
  * - a loader variable it sets: an assignment before the program, an `env` argument, the names a setter (`export`,
  *   `declare`, `read`, `printf -v`…) lists;
  * - inline interpreter code (a shell's `-c`, `node -e` / `-p` / `--eval` / `-r` / `--import`, `deno eval`,
  *   `python -c`, `perl -e`, `ruby -e`, `php -r`, `osascript -e`…), `awk` without `-f`; `xargs`, `parallel`,
  *   `find -exec`, `env -S`; a package runner (`npx`, `uvx`, `bunx`, `pnpx`) or its subcommand wherever it stands
- *   (`npm exec` / `x` / `create` / `init`, `pnpm dlx` / `create` / `exec`, `yarn dlx`, `bun x`, `pipx run`, `uv tool`,
+ *   (`npm exec` / `x` / `create` / `init`, `pnpm dlx` / `create`, `yarn dlx`, `bun x`, `pipx run`, `uv tool`,
  *   `deno npm:…`); `git -c`;
  * - a path (a word holding a `/`; a bare word an interpreter may run, or the value of `-C`, `-f`, `--file`, `--prefix`,
  *   `--cwd`…; the value of `--opt=…`, `-Xvalue`, `@file`, a `:` or `,` list; `python -m`'s module) through a folder an
- *   agent can write (agentWritablePath), whether it exists or not; project.yaml; hooks/ other than the script a command
+ *   agent can write (agentWritablePath), whether it exists or not; any word naming a file an agent writes (README.md,
+ *   bare or not); project.yaml; hooks/ other than the script a command
  *   runs (its program, an interpreter's script, a `-f` file); `/dev/stdin`, `/dev/fd/…`.
  */
 export function agentShellProblems(text: string, o: AgentShellOptions): string[] {

@@ -83,6 +83,7 @@ describe('agent-written shell commands: the rules per word', () => {
     ['text or a file run as a command', /^`(?:eval|exec|command|builtin|trap|source|\.)` \(it (?:runs|replaces)/, ['eval x', 'exec node hooks/x.js', 'command node', 'builtin cd', 'trap id EXIT', 'source hooks/x.sh', '. hooks/x.sh']],
     ['names rebound', /^`(?:alias|unalias|hash|enable)` \(it (?:renames a command|changes which program a name runs)\)/, ['alias e=eval', 'unalias ls', 'hash -p /tmp/x ls', 'enable -n echo']],
     ['by its last path part, and after a wrapper', /^`(?:command|eval|cd|trap)` /, ['/usr/bin/command eval x', '/usr/bin/cd x', 'nice -n 1 cd x', 'time -p cd x', 'env A=1 eval x', 'nohup trap id EXIT', 'timeout 5 eval x']],
+    ['after a prefix word of the shell (bash coproc, zsh noglob / nocorrect / -)', /^`(?:\.|source|eval|exec|cd)` /, ['coproc . x', 'coproc source x', 'noglob eval x', 'nocorrect exec x', '- cd x', 'coproc NAME eval x']],
     ['a shell given a script string', /`(?:sh|bash|zsh|dash) -[a-z]*c[a-z]*` \(it runs code/, ['sh -c id', 'bash -lc id', 'zsh -c x', 'nohup bash -c x', '/bin/sh -ec x']],
     [
       'inline interpreter code',
@@ -140,6 +141,17 @@ describe('agent-written shell commands: the rules per word', () => {
       ['PATH+=:/tmp/bin seed', '`PATH=` (it sets PATH, a loader variable)'],
       ['PSQLRC=/tmp/rc psql -f hooks/a.sql', '`PSQLRC=` (it sets PSQLRC, a loader variable)'],
       ['npm_config_registry=http://127.0.0.1:9 npm i', '`npm_config_registry=` (it sets npm_config_registry, a loader variable)'],
+      ['LESSOPEN=x less hooks/a', '`LESSOPEN=` (it sets LESSOPEN, a loader variable)'],
+      ['env MANPAGER=x man ls', '`MANPAGER=` (it sets MANPAGER, a loader variable)'],
+      ['SSH_ASKPASS=/tmp/a ssh h', '`SSH_ASKPASS=` (it sets SSH_ASKPASS, a loader variable)'],
+      ['export SUDO_ASKPASS=/tmp/a', '`SUDO_ASKPASS=` (it sets SUDO_ASKPASS, a loader variable)'],
+      ['RUSTC_WRAPPER=/tmp/w cargo build', '`RUSTC_WRAPPER=` (it sets RUSTC_WRAPPER, a loader variable)'],
+      ['MAVEN_OPTS=-javaagent:/tmp/a.jar mvn test', '`MAVEN_OPTS=` (it sets MAVEN_OPTS, a loader variable)'],
+      ['GRADLE_OPTS=x gradle build', '`GRADLE_OPTS=` (it sets GRADLE_OPTS, a loader variable)'],
+      ['ANT_OPTS=x ant', '`ANT_OPTS=` (it sets ANT_OPTS, a loader variable)'],
+      ['FPATH=x zsh hooks/a.zsh', '`FPATH=` (it sets FPATH, a loader variable)'],
+      ['PIP_INDEX_URL=http://127.0.0.1:9 pip install x', '`PIP_INDEX_URL=` (it sets PIP_INDEX_URL, a loader variable)'],
+      ['UV_INDEX_URL=http://127.0.0.1:9 uv sync', '`UV_INDEX_URL=` (it sets UV_INDEX_URL, a loader variable)'],
     ];
     for (const [cmd, problem] of SETS) expect(problems(cmd), cmd).toContain(problem);
     // Not an assignment to the shell (`%` is no name's), so no variable: its env names are checked (agentShellEnvProblems).
@@ -186,6 +198,15 @@ describe('agent-written shell commands: the rules per word', () => {
     expect(agentWritablePath('hooks/seed.sh', { projectDir })).toBeNull();
     expect(agentWritablePath('~/runs/x', { projectDir, home: projectDir })).toBe('runs/x');
     expect(agentWritablePath('~/runs/x', { projectDir, cwd: projectDir, home: ws, tilde: false })).toBeNull();
+  });
+
+  it('a file an agent writes (README.md), bare or not, whatever program reads it; a bare folder name stays a name', () => {
+    for (const cmd of ['tclsh README.md', 'expect readme.md', 'julia README.md', 'swift --x=README.md', 'cat ./README.md', 'sh ../other/README.md', 'jshell @README.md']) {
+      expect(problems(cmd).some((p) => /\(a path through README\.md(?: of another project)?, which an agent can write\)/i.test(p)), `${cmd} → ${JSON.stringify(problems(cmd))}`).toBe(true);
+    }
+    // From a folder beside the project's own README.md, the bare name is another file.
+    expect(problems('tclsh README.md', join(projectDir, 'scripts'))).toEqual([]);
+    for (const cmd of ['npm run review', 'make renders', 'grep -r TODO comments']) expect(problems(cmd), cmd).toEqual([]);
   });
 
   it("a person's files: project.yaml never, hooks/ only as the script a command runs", () => {
@@ -258,5 +279,6 @@ describe('agent-written shell hooks: the working folder and the env names', () =
       'its env `NODE_OPTIONS` (a loader variable)',
       'its env `PSQLRC` (a loader variable)',
     ]);
+    expect(agentShellEnvProblems({ LESSOPEN: 'x', RUSTC_WRAPPER: 'x', MAVEN_OPTS: 'x', FPATH: 'x', PIP_INDEX_URL: 'x', UV_INDEX_URL: 'x', SUDO_ASKPASS: 'x' })).toHaveLength(7);
   });
 });

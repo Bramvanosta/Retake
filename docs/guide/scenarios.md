@@ -325,9 +325,9 @@ A scenario run through MCP or the Studio is the agent's work, so its shell hooks
 `hooks:`) — and a project.yaml hook templated with the scenario's `vars` — are held to stricter rules there: they are
 shown in full and asked about, and their command, rollback and `cwd` are plain words — letters, digits and
 `. / : = @ % + , - _` — separated by single spaces, commands joined by ` && `. No quotes, `$`, pipes, redirections,
-`;`, globs or `{{hooks.…}}` values; no loader variable (`PATH=`, `NODE_OPTIONS`…), `cd` / `eval` / `exec`, a
-shell's `-c` or inline interpreter code (`node -e`, `python -c`…), `npx`, `git -c`, or a path through `scenarios/`,
-`runs/` and the other folders an agent can write, to project.yaml or into `hooks/` (the full list:
+`;`, globs, `{{hooks.…}}` values or secrets (`{{env:…}}`); no loader variable (`PATH=`, `NODE_OPTIONS`…), `cd` / `eval`
+/ `exec`, a shell's `-c` or inline interpreter code (`node -e`, `python -c`…), `npx`, `git -c`, or a path through
+`scenarios/`, `runs/` and the other folders an agent can write, to project.yaml or into `hooks/` (the full list:
 [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*). Keep such hooks to plain commands with their
 values written out — `pnpm run seed --small`, `sh hooks/seed.sh`, `npm run db:reset && npm run db:seed`,
 `sleep 1.5`, the hook's `cwd` instead of `cd` — and put anything else in `hooks/<name>.yaml` or project.yaml's

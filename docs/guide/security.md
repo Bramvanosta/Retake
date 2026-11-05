@@ -121,15 +121,18 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   separated by single spaces, commands joined by ` && `: no quotes, `$`, backticks, pipes, redirections, `;`, globs,
   `#`, `\`, control or non-ASCII characters, so the shell expands, substitutes and hides nothing — and at most 4,000
   characters, checked first. On those words it is refused for `cd` / `eval` / `exec` / `command` / `trap` / `alias` /
-  `source` (as the program or after a wrapper), a loader variable it sets (`PATH`, `HOME`, `NODE_OPTIONS`, `BASH_ENV`,
-  `IFS`, `LD_*`, `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`, `PSQLRC`, `npm_config_*`, `PNPM_*`, `COREPACK_*` and the
-  like — before the program, as an `env` argument, or by `export` / `read`…), inline interpreter code (`node -e`,
-  `python -c`, `awk` without `-f`…), `xargs`, `find -exec`, `env -S`, a package runner or its subcommand (`npx`,
+  `source` (as the program, after a wrapper or after a shell's prefix word such as `coproc`), a loader variable it sets
+  (`PATH`, `HOME`, `NODE_OPTIONS`, `BASH_ENV`, `IFS`, `LD_*`, `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`, `PSQLRC`,
+  `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`, `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`, `npm_config_*`, `PNPM_*`, `COREPACK_*`,
+  `PIP_*`, `UV_*` and the like — before the program, as an `env` argument, or by `export` / `read`…), inline interpreter
+  code (`node -e`, `python -c`, `awk` without `-f`…), `xargs`, `find -exec`, `env -S`, a package runner or its
+  subcommand (`npx`,
   `pnpm dlx`, `npm exec`…), `git -c`, any path through README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
-  `review/`, `exports/` or `.retake/` of a project of the workspace (existing or not), a path to project.yaml or into
-  `hooks/` other than the script a command runs, and a saved response (`{{hooks.…}}`), whose value is not known when
-  it is asked about. Its `env` names are letters, digits and `_`, and no loader variable. A secret it names must be a
-  plain word when the job runs. The full list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*.
+  `review/`, `exports/` or `.retake/` of a project of the workspace (existing or not; a bare `README.md` too), a path to
+  project.yaml or into `hooks/` other than the script a command runs, and a saved response (`{{hooks.…}}`), whose value
+  is not known when it is asked about. It names no secret (`{{env:…}}`, `{{keychain:…}}`), as a scenario never does.
+  Its `env` names are letters, digits and `_`, and no loader variable. Its rollback is checked again, on the text it
+  runs, when it is replayed. The full list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*.
   These rules decide how a command is written, not what a program does with its arguments: the form still shows the
   command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
   (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.

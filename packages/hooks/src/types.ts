@@ -186,7 +186,7 @@ interface RollbackBase {
 export type RollbackAction =
   | (RollbackBase & { kind: 'http'; request: HttpRequestSpec })
   | (RollbackBase & { kind: 'sql'; db: string; file?: string; query: string })
-  | (RollbackBase & { kind: 'shell'; run: string; cwd?: string; env?: Record<string, string>; timeout?: number })
+  | (RollbackBase & { kind: 'shell'; run: string; cwd?: string; env?: Record<string, string>; timeout?: number; /** Written by an agent (trust `mcp`): checked again when replayed. */ agent?: true })
   | (RollbackBase & { kind: 'js'; code: string; page?: string });
 
 /** ok: executed (its rollback, if any, is pending). failed: did not complete. rolled_back: undone. */

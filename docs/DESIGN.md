@@ -1774,20 +1774,28 @@ workers/worker.log      what workers print (stderr), appended
   agent-written wherever it is declared. Under trust `mcp` an agent-written shell hook goes through hooks
   `kinds/shell.ts` `checkAgentShell` before anything of it is rendered (in the preflight and in the worker; a refusal is
   `HookSecurityError` `mcp`, ending with the grammar and "have a person put it in hooks/<name>.yaml … or run it in a
-  terminal"): its `env` names (core `agentShellEnvProblems`: `ENV_NAME_PLAIN`, no loader variable); no
-  `{{hooks.…}}` / `{{response.…}}` token in `run` / `rollback` / `cwd` (root as core's lookup reads it); outside a dry
-  run each secret token's value is a `PLAIN_WORD` (never shown); then `agentShellView` — the text rendered with vars,
-  pages and `run` (`{{run.dir}}` defaulting to `runs/<id>` in a preflight), a secret as the word `RETAKE_VALUE` — is
-  read by core agent-policy `agentShellCwdProblems` (one plain word, not agent-writable) and `agentShellProblems`:
-  length first (`AGENT_SHELL_MAX_CHARS`, 4,000), then one pass over the characters (`plainCommands`: plain words of
+  terminal"): its `env` names (core `agentShellEnvProblems`: `ENV_NAME_PLAIN`, no loader variable — core
+  `LOADER_ENV_NAMES`, the start files and programs other tools read included: `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`,
+  `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`, `PIP_*`, `UV_*`…); no `{{hooks.…}}` / `{{response.…}}` token and no secret
+  token (`{{env:…}}`, `{{keychain:…}}`, `{{secret:…}}`) in `run` / `rollback` / `cwd` (`agentShellTokenProblems`; root
+  as core's lookup reads it — as an agent's scenario never names a secret, a secret's value is never what the checks
+  read); then `agentShellView` — the text rendered with vars, pages and `run` (`{{run.dir}}` defaulting to `runs/<id>`
+  in a preflight) — is read by core agent-policy
+  `agentShellCwdProblems` (one plain word, not agent-writable) and `agentShellProblems`: length first
+  (`AGENT_SHELL_MAX_CHARS`, 4,000), then one pass over the characters (`plainCommands`: plain words of
   `[A-Za-z0-9./:=@%+,_-]`, single spaces, `&&` as a word between two commands — `AGENT_SHELL_GRAMMAR`), then per
-  command: `REFUSED_BUILTINS` by the last path part, as the program or after a `WRAPPERS` program; loader variables set
+  command: `REFUSED_BUILTINS` by the last path part, as the program or after a `WRAPPERS` program (the wrappers, and
+  the shells' prefix words bash `coproc`, zsh `noglob` / `nocorrect` / `-`); loader variables set
   (leading assignments, `env` arguments, `VARIABLE_SETTERS` names, `printf -v`); `INTERPRETERS` code options, `awk`
   without `-f`, `xargs` / `parallel` / `find -exec` / `env -S`; `PACKAGE_RUNNERS` (a runner, or its subcommand anywhere
   after it), `deno npm:` / `jsr:`; `git -c`; paths (`pathCandidates`: the word, after `=`, `-X`, `@`, each `,` and
   `:` part) — through an agent-writable folder (`agentWritablePath`, for a word with a `/`, any word of an interpreter's
-  command, the value of a `PATH_OPTIONS` option), to project.yaml (any word), into `hooks/` unless it is the script the
-  command runs (`runsFileAt`: the program, an interpreter's first non-option word, a `-f` / `--file` / `-m` value).
+  command, the value of a `PATH_OPTIONS` option), to an agent-writable file (README.md: any word, bare or not, whatever
+  program reads it), to project.yaml (any word), into `hooks/` unless it is the script the command runs (`runsFileAt`:
+  the program, an interpreter's first non-option word, a `-f` / `--file` / `-m` value). A rollback of such a hook is
+  recorded with `agent: true` (under the entry's signature) and `rollbackShell` holds it
+  to the same rules again on the text it replays (env names, tokens, then the rendered `cwd` and command), whoever
+  replays it; a refusal is `HookSecurityError` `mcp` (status `refused`).
   `hookFiles({agentWritten})` still binds the existing files such a hook names but leaves judging them to these rules.
   A person's hook keeps the shell's full syntax and is only shown in full. No approver → `needs_approval`; declined / cancelled /
   timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once

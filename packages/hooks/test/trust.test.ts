@@ -241,7 +241,7 @@ describe('trust mcp: rollbacks and referenced files', () => {
     const res = await runHooks(hooks, context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
     expect(res.results.map((r) => r.status)).toEqual(['refused']);
     expect(res.results[0].error).toBe(
-      'refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal',
+      'refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal',
     );
     const expected = ['its env `NODE_OPTIONS`', '`LD_PRELOAD=` (it sets LD_PRELOAD', '`PATH=` (it sets PATH', '`GIT_DIR=` (it sets GIT_DIR', 'its rollback uses `HOME=` (it sets HOME', 'its env name `BASH_FUNC_touch%%`', 'its env `PSQLRC`'];
     for (const [i, hook] of hooks.entries()) {
@@ -327,7 +327,7 @@ describe('trust mcp: rollbacks and referenced files', () => {
     const res = await runHooks(hooks, ctx(), { phase: 'setup', journal: await journal(), agentWritten: true });
     expect(res.results.map((r) => r.status)).toEqual(['refused']);
     expect(res.results[0].error).toBe(
-      'refusing shell hook: it uses the characters `$`, `(`, `)` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal',
+      'refusing shell hook: it uses the characters `$`, `(`, `)` (only plain words: letters, digits and . / : = @ % + , - _) — a shell hook written through MCP is plain words (letters, digits and . / : = @ % + , - _) separated by single spaces, commands joined by ` && `, with no saved response or secret in it: have a person put it in hooks/<name>.yaml (`retake hooks run <project> hooks/<name>.yaml`), or run it in a terminal',
     );
     const expected = [
       'the characters `$`',
@@ -399,21 +399,52 @@ describe('trust mcp: rollbacks and referenced files', () => {
         expect(r.results[1].error).toContain('(a saved response: its value is not known when the hook is asked about)');
       }
     }
-    // A secret is a plain word in the preflight (its value is not read); in the run, a value that is not one is refused, never shown.
+    // A secret is never named, in the preflight or the run, whatever its value — in the command, the rollback or the working folder.
     const saved = process.env.RETAKE_TEST_AGENT_SECRET;
     try {
-      const hook: HookStep = { name: 'secret', shell: { run: 'echo {{env:RETAKE_TEST_AGENT_SECRET}}' } };
-      process.env.RETAKE_TEST_AGENT_SECRET = 'a;touch x';
-      expect((await runHooks([hook], context({ trust: 'mcp', dryRun: true }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0].status).toBe('dry');
-      const bad = await runHooks([hook], context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
-      expect(bad.results[0].status).toBe('refused');
-      expect(bad.results[0].error).toContain('the value of `{{env:RETAKE_TEST_AGENT_SECRET}}` (not a plain word)');
-      expect(bad.results[0].error).not.toContain('touch x');
       process.env.RETAKE_TEST_AGENT_SECRET = 'plain-value';
-      expect((await runHooks([hook], context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true })).results[0].status).toBe('ok');
+      const named: HookStep[] = [
+        { name: 'run', shell: { run: 'echo {{env:RETAKE_TEST_AGENT_SECRET}}' } },
+        { name: 'glued', shell: { run: 'sh {{ env:RETAKE_TEST_AGENT_SECRET }}/x.sh' } },
+        { name: 'cwd', shell: { run: 'true', cwd: '{{env:RETAKE_TEST_AGENT_SECRET}}' } },
+        { name: 'undo', shell: { run: 'true', rollback: 'echo {{keychain:svc/acct}}' } },
+      ];
+      for (const hook of named) {
+        for (const dryRun of [true, false]) {
+          const r = await runHooks([hook], context({ trust: 'mcp', dryRun, confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal(), agentWritten: true });
+          expect(r.results[0].status, `${hook.name} dry=${dryRun}`).toBe('refused');
+          expect(r.results[0].error, hook.name).toMatch(/`\{\{ ?(?:env:RETAKE_TEST_AGENT_SECRET|keychain:svc\/acct) ?\}\}` \(a secret: a shell hook the agent writes never names one\)/);
+          expect(r.results[0].error).not.toContain('plain-value');
+        }
+      }
+      // A person's hook still names one.
+      const person = await runHooks([named[0]], context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: await journal() });
+      expect(person.results[0].status).toBe('ok');
     } finally {
       if (saved === undefined) delete process.env.RETAKE_TEST_AGENT_SECRET;
       else process.env.RETAKE_TEST_AGENT_SECRET = saved;
     }
+  });
+
+  it("an agent's shell rollback is held to its rules again when it is replayed, on the text it runs; a person's is not", async () => {
+    const confirm = vi.fn(() => true);
+    await mkdir(join(tmp.dir, 'tools'), { recursive: true });
+    const hook: HookStep = { name: 'undo', shell: { run: 'true', rollback: 'sh tools/undo.sh' } };
+    const agentJournal = await Journal.open(join(tmp.dir, 'runs/r1/agent-journal.json'));
+    const personJournal = await Journal.open(join(tmp.dir, 'runs/r1/person-journal.json'));
+    expect((await runHooks([hook], context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: agentJournal, agentWritten: true })).results[0].status).toBe('ok');
+    expect((await runHooks([hook], context({ trust: 'mcp', confirmDestructive: confirm }).ctx, { phase: 'setup', journal: personJournal })).results[0].status).toBe('ok');
+    expect(agentJournal.pending()[0].rollback).toMatchObject({ kind: 'shell', agent: true });
+    expect(personJournal.pending()[0].rollback).not.toHaveProperty('agent');
+    // Since then tools/ leads into runs/, which an agent can write.
+    await mkdir(join(tmp.dir, 'runs', 'r1', 'tools'), { recursive: true });
+    await writeFile(join(tmp.dir, 'runs', 'r1', 'tools', 'undo.sh'), 'true\n');
+    await import('node:fs/promises').then((fs) => fs.rm(join(tmp.dir, 'tools'), { recursive: true }));
+    await symlink(join(tmp.dir, 'runs', 'r1', 'tools'), join(tmp.dir, 'tools'));
+    const agent = await agentJournal.rollbackAll(context().ctx);
+    expect(agent[0].status).toBe('refused');
+    expect(agent[0].error).toContain('refusing shell rollback: it uses `tools/undo.sh` (a path through runs/, which an agent can write)');
+    const person = await personJournal.rollbackAll(context().ctx);
+    expect(person[0].status).toBe('ok');
   });
 });

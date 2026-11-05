@@ -41,9 +41,9 @@ scenes:
   A shell hook you write in a scenario is plain words — letters, digits and `. / : = @ % + , - _` — separated by
   single spaces, commands joined by ` && ` (`pnpm run seed --small`, `sh hooks/seed.sh`, the hook's `cwd` instead of
   `cd`): no quotes, `$`, pipes, redirections, globs, `cd` / `eval`, inline code (`node -e`…), `npx`, `{{hooks.…}}`
-  values, loader variables (`PATH=`, `NODE_OPTIONS`…), and no path through `scenarios/`, `runs/` and the other
-  folders you can write, into `hooks/` or to project.yaml. Anything else is refused before the user is asked: ask the
-  user to put it in `hooks/<name>.yaml`.
+  values or secrets (`{{env:…}}`), loader variables (`PATH=`, `NODE_OPTIONS`…), and no path through README.md,
+  `scenarios/`, `runs/` and the other folders you can write, into `hooks/` or to project.yaml. Anything else is refused
+  before the user is asked: ask the user to put it in `hooks/<name>.yaml`.
 - Scene keys: `id` (unique), `caption` (a string or `{kicker, text}`), `page`, `open`, `persona`, `steps`, `still`,
   `cursor`, `transition`, `frame`, `irreversible`, `skip`, `offscreen` (played but left out of the video: a scene that
   only brings the product to the state the next one films), `note`.
