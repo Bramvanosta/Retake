@@ -301,6 +301,31 @@ hooks: submit it again —, a sandbox that would not start…).
     Such a hook is refused before anyone is asked, and again when the job runs. A hook of your own files —
     project.yaml with its own `vars`, `hooks/<name>.yaml`, a sandbox's seed — is shown in full and asked about, not
     refused: move such a hook there, or run it in a terminal.
+  - **Shell constructs.** The same hooks the agent wrote are read command by command (split at `;`, `&&`, `||`, `|`,
+    `( )`, newlines, `$( )` and backticks), as templated with the scenario's values, and refused before anyone is
+    asked — and again when the job runs — when their `run`, `rollback` or `cwd` use:
+    - `$` or a backtick outside single quotes (`$NAME`, `${…}`, `$(…)`, `$((…))`): write the value itself, in single
+      quotes; an unquoted glob (`*`, `?`, `[…]`: quote it — a URL with a query too), a brace expansion (`{a,b}`) or
+      `~name`; input redirection (`<`, `<<`, `<<<`, `<(…)`);
+    - `cd`, `pushd`, `popd`, `eval`, `exec`, `command` or `builtin` as the command (set the hook's `cwd` instead);
+      `xargs`, `parallel`, `find -exec` / `-execdir` / `-ok`, `env -S`;
+    - code written in the command: a shell's `-c` (`sh`, `bash`, `zsh`, `dash`…), `node` / `bun` / `tsx` `-e`, `-p`,
+      `--eval`, `-r`, `--require`, `--import`, `deno eval`, `python -c`, `perl -e`, `ruby -e`, `php -r`,
+      `osascript -e`, `awk` with a program text (`awk -f hooks/x.awk` is fine); an interpreter on the right of a pipe
+      without a script file (`| sh`, `| node`, `| python -`); a package runner (`npx`, `pnpx`, `bunx`, `pnpm dlx`,
+      `npm exec`, `yarn dlx`, `… create`); `git -c` / `--config-env`;
+    - a path through a folder an agent can write — README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
+      `review/`, `exports/`, `.retake/`, of the project or of another project of the workspace — whether the file
+      exists or not, however it is written (relative to `cwd`, absolute, `RUNS/…`, through a symbolic link,
+      `--file=…`, `-f…`, `@…`, `python -m runs.x`, `{{run.dir}}/…`), and `/dev/stdin`, `/dev/fd/…`.
+
+    A quoted string with spaces given to another command (`trap '…' EXIT`, `su -c '…'`, `ssh host '…'`) is read as a
+    script too: its `$` and backticks, its commands and its words holding a `/`. A `#` comment is skipped like the shell
+    does. A saved response (`{{hooks.<name>…}}`) and a secret count as one plain word. The refusal names what to change;
+    a hook that needs these belongs in your own files — `hooks/<name>.yaml` (`retake hooks run <project>
+    hooks/<name>.yaml`, or `hooks_run`) or project.yaml's `hooks:` without the scenario's vars — where it is shown in
+    full and asked about, or in a terminal. Plain commands pass: `pnpm run seed --small`, `sleep 1.5`,
+    `sh hooks/seed.sh`, `psql -c 'select * from t'`, `curl -s -X POST http://localhost:4401/api/reset`.
   - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
     JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
     cancel, `env_reset`) without asking again. The form shows each rollback in full the same way, after its hook

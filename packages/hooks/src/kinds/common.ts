@@ -13,7 +13,8 @@ export interface KindEnv {
   log: (level: HookLogLevel, msg: string) => void;
   /**
    * Trust `mcp`: the hook was written by the agent (RunHooksOptions.agentWritten, or a hook rendered with the variables
-   * the agent wrote — HookContext.agentVars). A shell one may not set a loader variable (core agent-policy).
+   * the agent wrote — HookContext.agentVars). A shell one may not set a loader variable nor use what core
+   * agentShellProblems lists (core agent-policy).
    */
   agentWritten?: boolean;
 }

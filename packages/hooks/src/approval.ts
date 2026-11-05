@@ -83,8 +83,10 @@ function shellFileWords(run: string): string[] {
  * directory — `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`. Each one's sha256 goes into the hook's
  * fingerprint (`files`); `problems` lists those it may not use (core projectFileProblem: outside the project folder, or
  * run as code from a file an agent can write). Files of a shell command outside the project are not followed.
+ * `agentWritten` (a hook the agent wrote): the words of its shell command still bind the files they name, but are not
+ * judged here — core agentShellProblems refuses every path of it through a folder an agent can write (kinds/shell.ts).
  */
-export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: string }): { files: Record<string, string>; problems: string[] } {
+export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: string; agentWritten?: boolean }): { files: Record<string, string>; problems: string[] } {
   const baseDir = o.baseDir ?? o.projectDir;
   const files: Record<string, string> = {};
   const problems: string[] = [];
@@ -107,6 +109,7 @@ export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: str
         const problem = projectFileProblem(o.projectDir, w, { baseDir: cwd, code: true });
         // A file the command names outside the project (a system tool by a relative path) is not the project's to bind.
         if (problem && /resolves outside the project folder/.test(problem)) continue;
+        if (problem && o.agentWritten) continue;
         if (problem) problems.push(`shell command: ${problem}`);
         else files[ref] = sha256File(abs);
       }

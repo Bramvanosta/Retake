@@ -318,6 +318,44 @@ describe('what a person is asked shows every hook in full', () => {
     }
   });
 
+  it("a scenario's shell hook using what an agent-written hook may not (cd, $…) is refused at submit and by the worker; the same hook in hooks/<name>.yaml is asked about and runs", async () => {
+    await mkdir(join(project, 'scripts'), { recursive: true });
+    const marker = join(project, 'scripts', 'ran-cd.txt');
+    const hook = 'shell: {run: "cd scripts && touch ran-cd.txt"}';
+    await writeFile(join(project, 'hooks', 'mark-cd.yaml'), `- name: mark\n  ${hook}\n`);
+    const file = join(project, 'scenarios', 'agent-cd.yaml');
+    await writeFile(file, scenario('agent-cd', `setup:\n  - name: mark\n    ${hook}\n`));
+    try {
+      const before = (await engine.jobs.list()).length;
+      const b = accept();
+      const e = await refusal(engine.hooks.submit({ project: 'northfield-fixture', source: 'agent-cd:setup', dry: false }, { approver: b }));
+      expect(e.code).toBe('refused');
+      expect(e.message).toContain('setup hook 1 "mark": refusing shell hook: it uses `cd` (it changes the folder its paths resolve from: set the hook\'s `cwd` instead)');
+      expect(e.message).toContain('have a person put it in hooks/<name>.yaml');
+      const c = accept();
+      const run = await refusal(engine.runs.submit({ project: 'northfield-fixture', scenario: 'agent-cd', mode: 'capture' }, { approver: c }));
+      expect(run.code).toBe('refused');
+      expect(run.message).toContain('refusing shell hook: it uses `cd`');
+      expect([...b.asked, ...c.asked]).toEqual([]);
+      expect((await engine.jobs.list()).length).toBe(before);
+      // A job queued without the submit (its scenario's bytes pinned): the worker refuses the hook before anything runs.
+      const { result } = await execHooks({ version: 1, kind: 'hooks', project: 'northfield-fixture', source: 'agent-cd:setup', scenario_sha256: sha256Hex(await readFile(file)), dry: false, journal_id: '20261105-100000-hooks-agent-cd', submitted_by: 'mcp' });
+      expect(result.results[0]).toMatchObject({ name: 'mark', status: 'refused' });
+      expect(result.results[0].untrusted.error).toContain('refusing shell hook: it uses `cd`');
+      expect(existsSync(marker)).toBe(false);
+      // A person's file: asked about, approved, run by the worker.
+      const a = accept();
+      const sub = await engine.hooks.submit({ project: 'northfield-fixture', source: 'hooks/mark-cd.yaml', dry: false }, { approver: a });
+      expect(a.asked[0].items).toEqual([expect.objectContaining({ name: 'mark', lines: ['run: cd scripts && touch ran-cd.txt'] })]);
+      const ran = await execHooks(sub.job.input as HooksJobInput);
+      expect(ran.result.results[0]).toMatchObject({ name: 'mark', status: 'ok' });
+      expect(existsSync(marker)).toBe(true);
+    } finally {
+      await rm(file, { force: true });
+      await rm(marker, { force: true });
+    }
+  });
+
   it("a capture: a project.yaml hook rendered with the scenario's vars is the agent's (refused); with project.yaml's own vars it is a person's (asked)", async () => {
     const yamlFile = join(project, 'project.yaml');
     const original = await readFile(yamlFile, 'utf8');

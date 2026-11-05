@@ -119,6 +119,16 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   `ENV`, `IFS`, `LD_*`, `DYLD_*`, `GIT_*`, `PYTHON*`, `npm_config_*`, `PNPM_*`, `COREPACK_*` and the like — in any
   command of it. Hooks of your own files (project.yaml with its own vars, `hooks/<name>.yaml`, a sandbox's seed) are
   shown in full and asked about instead.
+- **Hooks the agent wrote run only what the form shows.** The same shell hooks are read command by command, templated,
+  and refused before anyone is asked (and again by the worker) when their command, rollback or working folder use what
+  could run code the form does not show or reach a file an agent can write: `$` or backticks outside single quotes,
+  unquoted globs and brace expansions, input redirection, `cd` / `eval` / `exec` / `command`, `xargs`, `find -exec`,
+  `env -S`, a shell's `-c` and inline interpreter code (`node -e`, `python -c`, `perl -e`, `awk '…'`…), an interpreter
+  reading a pipe, `npx` / `pnpm dlx` / `npm exec`, `git -c`, and any path through README.md, `scenarios/`, `comments/`,
+  `runs/`, `renders/`, `review/`, `exports/` or `.retake/` of a project of the workspace, existing or not (the full
+  list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*, *Shell constructs*). The rule refuses
+  some harmless commands rather than miss one: put such a hook in `hooks/<name>.yaml` (or project.yaml's `hooks:`), or
+  run it in a terminal.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.

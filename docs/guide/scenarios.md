@@ -311,6 +311,16 @@ hooks on the same page key reuse it: an app left running there keeps working in 
 `quote` scenario keeps its console open that way, polling for the web notification the capture records). Every hook
 kind is held to the project's allow-list (see [Security](security.md#security)).
 
+A scenario run through MCP or the Studio is the agent's work, so its shell hooks (`setup`, `teardown`, its own
+`hooks:`) — and a project.yaml hook templated with the scenario's `vars` — are held to stricter rules there: they are
+shown in full and asked about, may not set a loader variable (`PATH`, `NODE_OPTIONS`…), and may not use `$` or
+backticks outside single quotes, unquoted globs, input redirection, `cd` / `eval` / `exec`, a shell's `-c` or inline
+interpreter code (`node -e`, `python -c`…), `npx`, `git -c`, or a path through `scenarios/`, `runs/` and the other
+folders an agent can write (the full list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*).
+Keep such hooks to plain commands with their values written out — `pnpm run seed --small`, `sh hooks/seed.sh`,
+`sleep 1.5`, the hook's `cwd` instead of `cd` — and put anything else in `hooks/<name>.yaml` or project.yaml's
+`hooks:`. From a terminal (`retake run`) a scenario's hooks run as written.
+
 #### Hooks during the take
 
 What the product must do at a precise moment of the take without being filmed — a payment marked through its API, a

@@ -21,7 +21,7 @@ export interface RunHooksOptions {
   journal: Journal;
   /**
    * Trust `mcp`: these hooks were written by the agent (a scenario's setup, teardown or own named hooks) — a shell one
-   * may not set a loader variable (core agent-policy). A hook of a person's file (project.yaml, hooks/<name>.yaml, a
+   * may not set a loader variable nor use what core agentShellProblems lists (core agent-policy). A hook of a person's file (project.yaml, hooks/<name>.yaml, a
    * sandbox's seed) is only shown in full, unless its templates use the agent's variables (HookContext.agentVars).
    */
   agentWritten?: boolean;
@@ -187,12 +187,13 @@ async function runOne(hook: HookStep, index: number, total: number, ctx: HookCon
     // Through MCP (core agent-trust): the files a hook references stay in the project, never agent-writable when run as
     // code; their bytes are bound to its approval (fingerprint).
     let files: Record<string, string> | undefined;
+    const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
     if (ctx.trust === 'mcp') {
-      const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx) });
+      // An agent-written shell hook's words are judged by core agentShellProblems instead (kinds/shell.ts).
+      const found = hookFiles(hook, { projectDir: ctx.project.dir, baseDir: baseDirOf(ctx), ...(agentWritten ? { agentWritten } : {}) });
       if (found.problems.length) throw new HookSecurityError(found.problems.join('; '), 'mcp');
       files = found.files;
     }
-    const agentWritten = ctx.trust === 'mcp' && (opts.agentWritten === true || usesAgentVars(hook, ctx));
     prepared = await prepareHook(hook, kind, { ctx, phase: opts.phase, log, ...(agentWritten ? { agentWritten } : {}) });
     description = withName(hook.name, prepared.description);
     if (prepared.rollback) rollbackShown = prepared.rollback.description;
