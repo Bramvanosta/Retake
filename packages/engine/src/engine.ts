@@ -98,7 +98,10 @@ import { entitlements } from './entitlements.js';
 import type { Entitlements } from './entitlements.js';
 import { usageCounts } from './history.js';
 import type { UsageCounts } from './history.js';
-import { agentChannel, pruneApprovalRequest, takePruneApproval } from './approvals.js';
+import { pruneApprovalRequest, takePruneApproval } from './approvals.js';
+import { admission } from './admission.js';
+import { ENGINE_TRUST, admits, agentChecks, agentWorkspace, anchorsOnShownRender, callerOf, chainsRecordings, cleansWorkerEnv, drivesRecordScreen, needsIfMatch, personChannel as speaksAsPerson, proposes, refusalChannel } from './caller.js';
+import type { EngineClient } from './caller.js';
 import type { Approver } from './approvals.js';
 import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker, otherCopyWarning } from './jobs/spawn.js';
@@ -112,16 +115,16 @@ import type { JobEvent, JobRecord, SiteJobResult } from './jobs/types.js';
 export const ENGINE_API_VERSION = 1;
 
 /**
- * Who drives the engine. `ui` (L4.1) is the Studio web app: the server cannot tell a person's click from script running
- * in the page, so the ops L4.1 allows it run under the agent's trust, with no approver (a person proving presence in
- * the UI — approvals, edits with secret refs — stays open: BL-106). Comments (L4.6) are a channel, not presence: `ui`
- * writes as `studio` and, like the CLI, creates and reopens threads — on the thread and render versions it showed.
+ * Who drives the engine (caller.ts: the caller of a client and every decision taken from it). `ui` is the Studio web
+ * app: the server cannot tell a person's click from script running in the page, so the ops it allows run under the
+ * agent's trust, with no approver. Comments are a channel, not presence: `ui` writes as `studio` and, like the CLI,
+ * creates and reopens threads — on the thread and render versions it showed.
  */
-export type EngineClient = 'cli' | 'mcp' | 'test' | 'ui';
+export type { EngineClient } from './caller.js';
 
-/** Agent trust (core agent-trust) for every client but the CLI (a person at a terminal) and tests: fail-safe. */
+/** The agent's checks (core agent-trust) for a client: every client but the CLI (a person at a terminal) and tests. */
 export function agentTrust(client: EngineClient): boolean {
-  return client !== 'cli' && client !== 'test';
+  return agentChecks(callerOf(client));
 }
 
 export interface EngineOptions {
@@ -592,8 +595,12 @@ function legacyField(): { legacy?: LegacyInfo } {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  // Every client but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
-  const ws = await openWorkspace({ root: opts.root, agent: opts.client !== 'cli' });
+  const caller = callerOf(opts.client);
+  // The agent's checks and wording of this caller (caller.ts).
+  const agent = agentChecks(caller);
+  const via = refusalChannel(caller);
+  // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
+  const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller) });
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
@@ -602,17 +609,16 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const queue = new FileJobQueue(ws.root, studio);
   // Who an entry is written by: the channel, never a person; anything but the CLI and the Studio counts as the MCP
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
-  const commentAuthor = (): CommentAuthor =>
-    opts.client === 'cli' ? { via: 'cli', name: defaultAuthorName() } : opts.client === 'ui' ? { via: 'studio', name: defaultAuthorName() } : { via: 'mcp', name: MCP_AUTHOR_NAME };
+  const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName() });
   // What only a person channel does (a terminal, the Studio): create and reopen threads.
   const personChannel = (what: string, where = `retake comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
-    if (opts.client !== 'cli' && opts.client !== 'ui') {
+    if (!speaksAsPerson(caller)) {
       throw new EngineError('refused', `${what} is for a person (${where}): an agent replies to and resolves comments`);
     }
   };
   // Every client but the CLI acts on the version of a thread it read.
   const needIfMatch = (ifMatch: string | undefined | null, what: string) => {
-    if (opts.client !== 'cli' && (ifMatch === undefined || ifMatch === null)) {
+    if (needsIfMatch(caller) && (ifMatch === undefined || ifMatch === null)) {
       throw new EngineError('invalid', `if_match is required to ${what} a comment: the hash comments_list returned for the thread`, { details: { argument: 'if_match' } });
     }
   };
@@ -622,7 +628,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const recordCtx = { queue, client: opts.client };
   let recordChain: Promise<unknown> = Promise.resolve();
   const studioOnly = (what: string) => {
-    if (opts.client !== 'ui' && opts.client !== 'test') throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${opts.client === 'mcp' ? 'scenario_record starts a recording and job_status reads its draft' : 'retake record records in a terminal'}`);
+    if (!drivesRecordScreen(caller)) throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);
   };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
@@ -634,9 +640,9 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       ? undefined
       : ensureWorker(ws.root, {
           ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
-          // Any client but the CLI hands its worker a clean environment (review A #3: a worker an MCP client starts
-          // serves the Studio's later jobs too); the Studio passes its own (the same cleaner).
-          ...(opts.workerEnv ? { env: opts.workerEnv } : opts.client !== 'cli' ? { env: cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) } : {}),
+          // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the
+          // Studio's later jobs too); the Studio passes its own (the same cleaner).
+          ...(opts.workerEnv ? { env: opts.workerEnv } : cleansWorkerEnv(caller) ? { env: cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) } : {}),
           ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
           startedBy: opts.client,
         });
@@ -669,8 +675,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const views = new ScenarioViews({
     ws,
     project,
-    agent: agentTrust(opts.client),
-    via: agentChannel(opts.client),
+    agent,
+    via,
     blockers: (req) => runBlockers(submitCtx, req),
     overlay: async (slug, run) => {
       const job = await queue.ofRun(slug, run.id);
@@ -716,6 +722,30 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     return view;
   };
 
+  const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
+    const p = await project(slug);
+    const text = await getScenario(p, name);
+    const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
+    if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
+    // The secrets of the login steps are looked for where the worker this client starts finds them.
+    const workerEnv = opts.workerEnv ?? (cleansWorkerEnv(caller) ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : process.env);
+    const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
+    return {
+      project: p.slug,
+      scenario: name,
+      env: r.env,
+      personas: r.personas.map((x) => ({
+        ...authStatusItem(x.state),
+        auto: x.auto,
+        has_check: x.has_check,
+        ...(x.login_env_missing ? { login_env_missing: x.login_env_missing } : {}),
+        ...(x.login_keychain ? { login_keychain: x.login_keychain } : {}),
+      })),
+      issues: r.issues,
+    };
+  };
+  // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's.
+  const admitted = admits(caller) ? admission({ queue, sessions: (slug, name, env) => forScenario(slug, name, { ...(env !== undefined ? { env } : {}), mode: 'capture' }) }) : undefined;
   return {
     root: ws.root,
     queue,
@@ -804,7 +834,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           return (id) => named.includes(`"${id}"`);
         };
         const base = { ...(req.keep_renders !== undefined ? { keep_renders: req.keep_renders } : {}) };
-        if (req.dry_run !== false || !agentTrust(opts.client)) return pruneProject(p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
+        if (req.dry_run !== false || !agent) return pruneProject(p, { ...base, dry_run: req.dry_run !== false, busy: await busy() });
         // An agent's deletion: the person is asked about what would go; the items in the approval that can still go then
         // go, each with the files it had when listed.
         const listed = await pruneProject(p, { ...base, dry_run: true, busy: await busy() });
@@ -818,7 +848,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     scenarios: {
       get: async (slug, name) => getScenario(await project(slug), name),
       // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
-      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
+      validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent, via }),
       check: async (slug, name, o = {}) => {
         const p = await project(slug);
         const text = await getScenario(p, name);
@@ -828,9 +858,9 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       view: (slug, name, o = {}) => views.view(slug, name, o),
       actions: (slug, name, o = {}) => views.actions(slug, name, o),
-      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
-      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client), registry: async () => (await memoRegistry(ws)).registry }),
-      fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent: agentTrust(opts.client) }),
+      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via }),
+      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await memoRegistry(ws)).registry }),
+      fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent }),
     },
     runs: {
       list: async (slug, o) => {
@@ -845,7 +875,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       status: runStatusWithJob,
       submit: async (req, o = {}) => {
-        const r = await submitRunJob(submitCtx, req, o.approver);
+        const submit = () => submitRunJob(submitCtx, req, o.approver);
+        const r = await (admitted ? admitted.run(req, submit) : submit());
         const worker = await startWorker();
         return { job: r.job, run_id: r.run_id, warnings: [...r.warnings, ...(worker?.other ? [otherCopyWarning(worker.other)] : [])], ...(worker ? { worker } : {}) };
       },
@@ -938,33 +969,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         await startWorker();
         return rec;
       },
-      forScenario: async (slug, name, o = {}) => {
-        const p = await project(slug);
-        const text = await getScenario(p, name);
-        const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
-        if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
-        // The secrets of the login steps are looked for where the worker this client starts finds them.
-        const workerEnv = opts.workerEnv ?? (opts.client !== 'cli' ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : process.env);
-        const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
-        return {
-          project: p.slug,
-          scenario: name,
-          env: r.env,
-          personas: r.personas.map((x) => ({
-            ...authStatusItem(x.state),
-            auto: x.auto,
-            has_check: x.has_check,
-            ...(x.login_env_missing ? { login_env_missing: x.login_env_missing } : {}),
-            ...(x.login_keychain ? { login_keychain: x.login_keychain } : {}),
-          })),
-          issues: r.issues,
-        };
-      },
+      forScenario,
     },
     renders: {
       plan: (req) => planPreview(ws, studio, req),
       submit: async (req) => {
-        const r = await submitRenderJob(submitCtx, req);
+        const submit = () => submitRenderJob(submitCtx, req);
+        const r = await (admitted ? admitted.render(req, submit) : submit());
         const worker = await startWorker();
         return { ...r, ...(worker?.other ? { warnings: [...r.warnings, otherCopyWarning(worker.other)] } : {}), ...(worker ? { worker } : {}) };
       },
@@ -974,7 +985,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       outline: async (slug, req) => renderFrames.outline(await project(slug), req),
     },
     timeline: {
-      view: (req) => timelineView(ws, studio, req, { agent: agentTrust(opts.client), via: agentChannel(opts.client) }),
+      view: (req) => timelineView(ws, studio, req, { agent, via }),
     },
     reviews: {
       submit: async (req) => {
@@ -987,7 +998,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     },
     exports: {
       submit: async (req) => {
-        const r = await submitExportJob(submitCtx, req);
+        const r = await (admitted ? admitted.export(req, (recheck) => submitExportJob(submitCtx, req, { admit: recheck })) : submitExportJob(submitCtx, req));
         const worker = await startWorker();
         return { ...r, ...(worker ? { worker } : {}) };
       },
@@ -995,7 +1006,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     templates: {
       list: (o = {}) => templateList(ws, o.project),
       get: (o) => templateGet(ws, o),
-      create: (input) => createThemeFromBrand(ws, input, { trust: 'mcp' }),
+      create: (input) => createThemeFromBrand(ws, input, { trust: ENGINE_TRUST }),
       fromSite: async (req, o = {}) => {
         const r = await submitSiteJob(submitCtx, req, o.approver);
         const worker = await startWorker();
@@ -1054,8 +1065,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     },
     record: {
       submit: async (req) => {
-        // The Studio opens one window at a time in the workspace (critique B5): checked and queued in one chain, so two
-        // tabs cannot both pass the check.
+        // The Studio opens one window at a time in the workspace: checked and queued in one chain, so two tabs cannot
+        // both pass the check.
         const once = async () => {
           const busy = (await queue.list({ kinds: ['record'], states: ['queued', 'running'], limit: 1 }))[0];
           if (busy && busy.input.kind === 'record') {
@@ -1066,7 +1077,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           return submitRecordJob(submitCtx, req);
         };
         let r: Awaited<ReturnType<typeof submitRecordJob>>;
-        if (opts.client === 'ui') {
+        if (chainsRecordings(caller)) {
           const next = recordChain.catch(() => undefined).then(once);
           recordChain = next;
           r = await next;
@@ -1111,14 +1122,14 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       add: async (slug, req) => {
         personChannel('add (creating a thread)');
         // The Studio comments the render it showed: a reused id is a conflict, never another render's frame.
-        if (opts.client === 'ui' && (req.render_created_at === undefined || req.render_created_at === null)) {
+        if (anchorsOnShownRender(caller) && (req.render_created_at === undefined || req.render_created_at === null)) {
           throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
         }
         return addComment(await project(slug), req, commentAuthor());
       },
       reply: async (slug, id, text, o = {}) => {
-        // Proposals are Claude's (critique B10): a person changes the file; any other channel's entry would be labelled as Claude's.
-        if (o.proposal !== undefined && opts.client !== 'mcp' && opts.client !== 'test') {
+        // Proposals are Claude's: a person changes the file; any other channel's entry would be labelled as Claude's.
+        if (o.proposal !== undefined && !proposes(caller)) {
           throw new EngineError('refused', 'a proposal comes from Claude (comment_reply over MCP): from a terminal or the Studio, change the scenario and reply');
         }
         return replyComment(await project(slug), id, text, commentAuthor(), {

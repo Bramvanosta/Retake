@@ -49,10 +49,14 @@ function checkFormats(formats: readonly string[] | undefined): ExportFormatName[
 }
 
 /**
- * Check, resolve the render and queue an `export` job. Formats that need a re-render are planned first, here (trust
+ * Check, resolve the render (then `admit` it: the engine's admission rules) and queue an `export` job. Formats that need a re-render are planned first, here (trust
  * `mcp`: a file outside the project, a theme folder, a remote slot value are refused now, with the command a human runs).
  */
-export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
+export async function submitExportJob(
+  ctx: SubmitContext,
+  req: ExportRequest,
+  o: { admit?: (renderId: string) => Promise<void> } = {},
+): Promise<{ job: JobRecord; render_id: string; formats: ExportFormatName[]; rerendered: ExportFormatName[] }> {
   checkProjectSlug(req.project);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const formats = checkFormats(req.formats);
@@ -63,6 +67,8 @@ export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): P
   const project = await openProjectBySlug(ctx.ws, req.project);
   const fix = (id: string) => exportCommandLine(ctx.cli, { project: req.project, render_id: id, formats });
   const record = await renderForWork(project, req.render_id, { ...(req.scenario !== undefined ? { scenario: req.scenario } : {}), fix });
+  // The admission rules see the render this export is of once `latest` is resolved (admission.ts export_cap).
+  await o.admit?.(record.id);
   const ed = await editor();
   const rerendered = formats.filter((f) => ed.exportMethod(record, f) === 'render');
   if (rerendered.length) {

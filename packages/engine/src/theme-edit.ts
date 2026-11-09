@@ -48,6 +48,8 @@ import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, Wor
 import type { PaletteCheck } from '@retake/components';
 import { FONT_MAX_BYTES, IMAGE_MAX_BYTES, SVG_MAX_BYTES, checkImage, sniffFont } from './brand/files.js';
 import { components, workspaceRegistry } from './components.js';
+import { callerOf, editsThemes } from './caller.js';
+import type { EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
 import { LocalStorage, sha256Hex } from './storage.js';
@@ -479,8 +481,8 @@ export interface ThemeEditResult {
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
-export async function editTemplate(ws: WorkspaceConfig, name: string, req: ThemeEditRequest, o: { client: string }): Promise<ThemeEditResult> {
-  if (o.client === 'mcp') throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
+export async function editTemplate(ws: WorkspaceConfig, name: string, req: ThemeEditRequest, o: { client: EngineClient }): Promise<ThemeEditResult> {
+  if (!editsThemes(callerOf(o.client))) throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
   const loc = await locateTheme(ws, name);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
   const base = readThemeText(loc);

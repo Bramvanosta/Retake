@@ -28,9 +28,11 @@ import { lstat, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef } from '@retake/core';
 import type { WorkspaceConfig } from '@retake/core';
+import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
 
-export type BrandTrust = 'mcp' | 'author';
+/** Who stands behind a brand's files: a caller's trust (caller.ts). */
+export type BrandTrust = CallerTrust;
 
 export const IMAGE_MAX_BYTES = BRAND_IMAGE_MAX_BYTES;
 export const SVG_MAX_BYTES = 512 * 1024;

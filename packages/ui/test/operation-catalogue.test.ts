@@ -1,30 +1,35 @@
 /**
- * The Studio's ops against the operation catalogue (@retake/engine/contract): the allow-list (UI_OPS) is the set the
- * catalogue says the Studio serves; the MCP tools among them are the operations both serve, the Studio's own ops the
- * ones MCP does not; each op's annotations agree with its kind; the pinned arguments and own statuses are the
- * catalogue's.
+ * The Studio's ops against the operation catalogue (@retake/engine/catalogue): the allow-list (UI_OPS) is what the
+ * catalogue says the Studio serves, in its order; the MCP tools among them are the operations both serve, the Studio's
+ * own ops the ones MCP does not; each op's read-only and destructive hints are its facets'; the pinned arguments and
+ * own statuses are the catalogue's.
  */
 import { describe, expect, it } from 'vitest';
-import { catalogueOperation, servedBy, servedNames, studioPins } from '@retake/engine/contract';
+import { annotationProblem, catalogueOperation, hintsOf, servedBy, servedNames, studioPins } from '@retake/engine/catalogue';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS, UI_OPS } from '../src/index.js';
 import { OP_STATUS } from '../src/server/studio.js';
-import { kindProblem } from '../../engine/test/catalogue-rules.js';
 import { stubTools } from './studio-tools.js';
 
 const sorted = (xs: Iterable<string>) => [...xs].sort();
 
 describe("the Studio's ops and the operation catalogue", () => {
-  it('the allow-list is what the catalogue gives the Studio (76): the MCP tools both serve and its own ops', () => {
-    expect(sorted(UI_OPS)).toEqual(sorted(servedNames('studio')));
+  it('the allow-list is what the catalogue gives the Studio (76), in its order: the MCP tools both serve and its own ops', () => {
+    expect([...UI_OPS]).toEqual(servedNames('studio'));
+    expect(UI_OPS).toHaveLength(76);
+    expect(Object.isFrozen(UI_OPS)).toBe(true);
     const mcp = new Set(TOOLS.map((t) => t.name));
     expect(sorted(UI_OPS.filter((op) => mcp.has(op)))).toEqual(sorted(servedNames('studio').filter((n) => servedBy(catalogueOperation(n)!, 'mcp'))));
     expect(sorted(OWN_OPS)).toEqual(sorted(servedNames('studio').filter((n) => !servedBy(catalogueOperation(n)!, 'mcp'))));
     expect(sorted(stubTools().keys())).toEqual(sorted(UI_OPS));
   });
 
-  it("each op's annotations agree with its operation's kind", () => {
-    for (const [name, t] of stubTools()) expect(kindProblem(catalogueOperation(name)!.kind, t.annotations), name).toBeUndefined();
+  it("each op's read-only and destructive hints are its operation's facets'", () => {
+    for (const [name, t] of stubTools()) {
+      const op = catalogueOperation(name)!;
+      expect(annotationProblem(op, t.annotations), name).toBeUndefined();
+      expect({ readOnlyHint: t.annotations.readOnlyHint, destructiveHint: t.annotations.destructiveHint }, name).toEqual(hintsOf(op));
+    }
   });
 
   it("the pinned arguments are the catalogue's, applied to the tool the Studio serves", () => {

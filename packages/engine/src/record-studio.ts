@@ -77,6 +77,7 @@ import type {
   ScenarioBlocks,
   TargetSpec,
 } from '@retake/core';
+import { callerOf, guardsStudioRecordings, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
 import type { JobQueueView } from './jobs/job-queue.js';
@@ -1093,12 +1094,12 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
 }
 
 /**
- * B16: an agent (the MCP client) never cancels a recording the person started in the Studio while it is open — a
- * cancel then would discard their recording. Throws EngineError refused; anything else passes.
+ * An agent (the MCP client) never cancels a recording the person started in the Studio while it is open — a cancel
+ * then would discard their recording (caller.ts guardsStudioRecordings). Throws EngineError refused; anything else passes.
  */
 export function checkAgentCancel(job: JobRecord, client: JobClient): void {
-  if (client !== 'mcp') return;
-  if (job.input.kind !== 'record' || job.input.submitted_by !== 'ui' || FINISHED_JOB_STATES.has(job.state)) return;
+  if (!guardsStudioRecordings(callerOf(client))) return;
+  if (job.input.kind !== 'record' || !submittedInStudio(job) || FINISHED_JOB_STATES.has(job.state)) return;
   throw new EngineError('refused', `job ${job.id} is a recording the person started in the Studio: only the Studio stops or discards it (job_cancel would discard their recording)`);
 }
 

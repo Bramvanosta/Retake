@@ -23,17 +23,16 @@
  * - `run_thumbs` (L4.2): base64 JPEGs (≤ 480 px) of up to 24 steps of one run, by the run's own step keys — shown as
  *   `data:image/jpeg;base64,…` (the CSP's `img-src data:`), never stored. Not MCP tools: Claude reads files, run_status
  *   and review contact sheets.
- * - `scenario_run` (L4.2, critique B11): the scenario screen's Dry run and Capture — engine runs.submit with pinned
- *   arguments: the mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a
- *   capture), never a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no
- *   approver, so what the screen showed as a run blocker is refused here too (the submit is the authority) with the
- *   `retake run …` command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409;
- *   a run of the scenario already queued or running makes another a 409 (one submit per scenario at a time). Not an
- *   MCP tool: Claude has run_dry / run_capture. L4.4: a capture whose scenario uses a persona whose stored session is
- *   invalid (expired, error, never) and that no run signs in by itself (no `login:` steps, not a sandbox account, not
- *   the legacy single-account file) needs `sessions_ack` naming it, else 409 `conflict` with `details.sessions` — a
- *   confirmation against a wasted take, not person presence (a page script can send it; the run's own preflight stays
- *   the authority and stops before anything is filmed). Dry runs need none.
+ * - `scenario_run` (L4.2): the scenario screen's Dry run and Capture — engine runs.submit with pinned arguments: the
+ *   mode, the scenario, an environment of the project; the default hooks (none for a dry run, all for a capture), never
+ *   a sandbox reset, never `until`, never a wait. It runs under the `ui` client's agent trust with no approver, so what
+ *   the screen showed as a run blocker is refused here too (the submit is the authority) with the `retake run …`
+ *   command to type in a terminal. `hash` (the file as the screen showed it) makes a changed file a 409. The engine's
+ *   admission rules, the same for MCP (engine admission.ts): a run of the scenario already queued or running makes
+ *   another a 409; a capture whose scenario uses a persona whose stored session is invalid (expired, error, never) and
+ *   that no run signs in by itself needs `sessions_ack` naming it, else 409 `conflict` with `details.sessions` — a
+ *   confirmation against a wasted take, not person presence (the run's own preflight stays the authority and stops
+ *   before anything is filmed). Dry runs need none. Not an MCP tool: Claude has run_dry / run_capture.
  * - `run_pause` (L4.4): Pause / Resume of the Run screen — engine runs.pause (a running run of a job pauses before its
  *   next step, a capture without filming the pause; a queued, stopping or finished run is a 409; a terminal's run is
  *   refused).
@@ -47,7 +46,8 @@
  * - `scenario_render`, `scenario_renders`, `render_cancel`, `render_review`, `review_image` (L4.5 part E): Render from
  *   the timeline or the scenario screen, the render queue and list, Cancel, the review's report and its contact sheets
  *   (renderOps). L5.12a: `review_export` — the Review report's Export video (MP4): the existing engine `export` job, one
- *   format, the fixed folder, one at a time per render and at most two exports of the workspace at once (renderOps).
+ *   format, the fixed folder; one at a time per render and at most two exports of the workspace at once are the engine's
+ *   admission rules (renderOps).
  * - L4.7: the library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
  *   theme-ops.ts (theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview); the
  *   preview pages' leases (PreviewLeases) are shared by timeline_view and theme_preview.
@@ -61,8 +61,8 @@ import { z } from 'zod';
 import { basename, dirname } from 'node:path';
 import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@retake/core';
 import type { ActionName } from '@retake/core';
-import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@retake/engine';
-import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
+import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
+import type { Engine, EnvironmentView, RenderEditSource, SessionToConfirm, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
 import type { ToolDef } from '@retake/engine/contract';
 import type { Live } from './live.js';
 import { COMMENT_OPS } from './comment-ops.js';
@@ -400,11 +400,11 @@ export interface ScenarioRunAnswer {
   untrusted?: { other_copy: { version: string; engine?: string } };
 }
 
-/** scenario_run: the scenario screen's Dry run / Capture, arguments pinned (B11). */
+/**
+ * scenario_run: the scenario screen's Dry run / Capture, arguments pinned. The engine's admission rules (one run of a
+ * scenario at a time, the sessions acknowledgement of a capture) are its own, for the Studio and MCP alike.
+ */
 export function runOps(): ToolDef[] {
-  // One submit of a scenario at a time in this Studio (two tabs, a double click), and none while a run of it waits or
-  // runs (review B L2: two dry runs queued, or a capture's hooks run twice).
-  const oneAtATime = opChain();
   const run: ToolDef<typeof RunInput> = {
     name: 'scenario_run',
     title: 'Run a scenario from the Studio',
@@ -412,25 +412,13 @@ export function runOps(): ToolDef[] {
     input: RunInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     async run(a, { engine }) {
-      const sub = await oneAtATime(`${a.project}\0${a.name}`, async () => {
-        const open = await engine.jobs.list({ project: a.project, kinds: ['run'], states: ['queued', 'running'] });
-        const busy = open.find((j) => j.input.kind === 'run' && j.input.scenario === a.name);
-        if (busy && busy.input.kind === 'run') {
-          throw new EngineError('conflict', `a ${busy.input.mode === 'dry' ? 'rehearsal' : 'capture'} of ${a.name} is ${busy.state} (${busy.input.run_id}): wait for it to end, or stop it`, {
-            details: { run_id: busy.input.run_id, job: busy.id },
-          });
-        }
-        if (a.mode === 'capture') {
-          const missing = sessionsToConfirm(await engine.auth.forScenario(a.project, a.name, { ...(a.env ? { env: a.env } : {}), mode: 'capture' })).filter((p) => !(a.sessions_ack ?? []).includes(p.persona));
-          if (missing.length) {
-            throw new EngineError(
-              'conflict',
-              `${missing.map((p) => `${p.persona} (${p.status === 'never' ? 'never signed in' : p.status})`).join(', ')}: ${missing.length === 1 ? 'its session is' : 'their sessions are'} not valid and no run signs ${missing.length === 1 ? 'it' : 'them'} in by itself. ${confirmWhy(missing)}: sign in first, or confirm the capture`,
-              { details: { sessions: missing } },
-            );
-          }
-        }
-        return engine.runs.submit({ project: a.project, scenario: a.name, mode: a.mode, ...(a.env ? { env: a.env } : {}), ...(a.hash ? { expect_sha256: a.hash } : {}) });
+      const sub = await engine.runs.submit({
+        project: a.project,
+        scenario: a.name,
+        mode: a.mode,
+        ...(a.env ? { env: a.env } : {}),
+        ...(a.hash ? { expect_sha256: a.hash } : {}),
+        ...(a.mode === 'capture' && a.sessions_ack ? { sessions_ack: a.sessions_ack } : {}),
       });
       const { other, ...worker } = sub.worker ?? { spawned: false };
       const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker } : {}), ...(other ? { untrusted: { other_copy: other } } : {}) };
@@ -440,46 +428,9 @@ export function runOps(): ToolDef[] {
   return [run] as unknown as ToolDef[];
 }
 
-/** A persona a capture's `sessions_ack` must name: its stored session is invalid and no run signs it in by itself. */
-export interface SessionToConfirm {
-  persona: string;
-  status: 'expired' | 'error' | 'never';
-  /**
-   * The run's preflight checks it before anything is filmed (it has a `check`, or it never signed in: no session to
-   * start from) and stops there if it is not valid. False (review A M2): a saved session without a `check` is used as
-   * it is — the run fails only when a page lands on the sign-in page, after its setup hooks ran.
-   */
-  checked_first: boolean;
-}
-
-/**
- * The personas of a scenario's sessions whose stored state is expired, error or never, that no run signs in by itself:
- * no usable `login:` steps (`auto`), not a sandbox account (every take signs it in), not the legacy single-account file
- * (a run starts signed out there).
- */
-export function sessionsToConfirm(s: ScenarioSessions): SessionToConfirm[] {
-  const out: SessionToConfirm[] = [];
-  for (const p of s.personas) {
-    if ((p.status === 'expired' || p.status === 'error' || p.status === 'never') && !p.auto && !p.sandbox && !p.legacy) {
-      out.push({ persona: p.persona, status: p.status, checked_first: p.has_check || p.status === 'never' });
-    }
-  }
-  return out;
-}
-
-/** What a capture does with these sessions, truthfully (the 409's text; the Studio's dialog says the same). */
-export function confirmWhy(list: SessionToConfirm[]): string {
-  const checked = list.filter((p) => p.checked_first).map((p) => p.persona);
-  const not = list.filter((p) => !p.checked_first).map((p) => p.persona);
-  const parts: string[] = [];
-  if (checked.length) parts.push(`The run checks ${not.length ? checked.join(', ') : checked.length === 1 ? 'it' : 'each'} first and stops before filming if still not valid`);
-  if (not.length) {
-    parts.push(
-      `${not.length === 1 ? 'Persona' : 'Personas'} ${not.join(', ')} cannot be checked first (no \`check\`): the run uses ${not.length === 1 ? 'its saved session' : 'their saved sessions'} as ${not.length === 1 ? 'it is' : 'they are'} and fails only when a page lands on the sign-in page — after its setup hooks ran`,
-    );
-  }
-  return parts.join('. ');
-}
+/** The personas a capture's `sessions_ack` must name, and what the capture does with them: the engine's rule. */
+export { confirmWhy, sessionsToConfirm } from '@retake/engine';
+export type { SessionToConfirm } from '@retake/engine';
 
 const statusWords = (st: { status: string; paused?: { scene: string; step: number }; job?: { pause_requested_at?: string } }) =>
   st.paused ? `paused before step ${st.paused.step + 1} of ${st.paused.scene}` : st.job?.pause_requested_at ? `${st.status}, pausing before its next step` : st.status;
@@ -760,8 +711,8 @@ const ReviewExportInput = z.strictObject({ project, render_id: renderId });
 
 /** L5.12a: the one format the Review report exports (the other formats stay `retake export` / Claude's `export`). */
 export const REVIEW_EXPORT_FORMATS = ['mp4_1080p'] as const;
-/** L5.12a fixes: the exports of the workspace queued or running at once that review_export still adds to (CLI and Claude ones count). */
-export const REVIEW_EXPORTS_OPEN = 2;
+/** The exports of the workspace queued or running at once that review_export still adds to (the engine's export_cap). */
+export const REVIEW_EXPORTS_OPEN = EXPORTS_OPEN_MAX;
 
 /** What review_export answers: the job queued (path-free: where it lands is said in words). */
 export interface ReviewExportAnswer {
@@ -849,11 +800,10 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
  * The Studio's render ops (L4.5 part E, R-UI-26):
  * - `scenario_render`: Render from the timeline (or the scenario screen) — engine renders.submit with pinned arguments:
  *   the project, the scenario and the capture shown; the theme and every override come from the files (none can be
- *   passed: landscape, the scenario's or project's theme), the review runs inline after the render (`review: {fps: 1}`,
- *   critique B12) and the scenario text is snapshotted with the job (B5). `expect_edit_sha256` (the view's `hash`) makes a
- *   changed file a 409 before anything is reserved; a render of the scenario already queued or running makes another a
- *   409 naming it (one click, one render — submits of a scenario run one at a time in this server). Not an MCP tool:
- *   Claude has `render` (with every option).
+ *   passed: landscape, the scenario's or project's theme), the review runs inline after the render (`review: {fps: 1}`)
+ *   and the scenario text is snapshotted with the job. `expect_edit_sha256` (the view's `hash`) makes a changed file a
+ *   409 before anything is reserved; a render of the scenario already queued or running makes another a 409 naming it
+ *   (the engine's admission rule, the same for MCP). Not an MCP tool: Claude has `render` (with every option).
  * - `scenario_renders`: engine renders.ofScenario — the queue (queued with what runs first / running with phase,
  *   fraction and eta / reviewing) and the renders with their review verdict, path-free.
  * - `render_cancel`: a render or review job of THIS project only (another project's job, or another kind, is refused
@@ -863,7 +813,7 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
  *   review folder, read without following a link (engine reviews.image).
  */
 export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
-  // L4.6: the Studio passes the chain thread_apply and scenario_edit share (critique B5).
+  // The Studio passes the chain thread_apply and scenario_edit share.
   const render: ToolDef<typeof RenderInput> = {
     name: 'scenario_render',
     title: 'Render a scenario from the Studio',
@@ -871,16 +821,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
     input: RenderInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {
-      const sub = await oneAtATime(scenarioKey(a.project, a.name), async () => {
-        const open = await engine.jobs.list({ project: a.project, kinds: ['render'], states: ['queued', 'running'] });
-        const busy = open.find((j) => j.input.kind === 'render' && j.input.scenario === a.name);
-        if (busy && busy.input.kind === 'render') {
-          throw new EngineError('conflict', `render ${busy.input.render_id} of ${a.name} is ${busy.state}: wait for it to end, or cancel it`, {
-            details: { render_id: busy.input.render_id, job: busy.id },
-          });
-        }
-        return engine.renders.submit({ project: a.project, scenario: a.name, run_id: a.run, review: { fps: 1 }, expect_edit_sha256: a.expect_edit_sha256 });
-      });
+      // In the chain an edit and an apply of the scenario share; one render of a scenario at a time is the engine's rule.
+      const sub = await oneAtATime(scenarioKey(a.project, a.name), () =>
+        engine.renders.submit({ project: a.project, scenario: a.name, run_id: a.run, review: { fps: 1 }, expect_edit_sha256: a.expect_edit_sha256 }),
+      );
       const data: ScenarioRenderAnswer = {
         render_id: sub.render_id,
         job: sub.job.id,
@@ -961,16 +905,8 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
     input: ReviewExportInput,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     async run(a, { engine }) {
-      // One chain for the workspace's exports (L5.12a fixes, review B-M3 / A-L8): the check and the submit of two clicks,
-      // two tabs or two renders never interleave — one export per render, at most REVIEW_EXPORTS_OPEN at once (the worker
-      // runs one heavy job at a time anyway: the cap keeps a page from queueing an export, possibly a re-render, of every render).
-      const sub = await oneAtATime('review_export', async () => {
-        const open = await engine.jobs.list({ kinds: ['export'], states: ['queued', 'running'] });
-        const busy = open.find((j) => j.input.kind === 'export' && j.input.project === a.project && j.input.render_id === a.render_id);
-        if (busy) throw new EngineError('conflict', `an export of ${a.render_id} is ${busy.state} (job ${busy.id}): wait for it to end`, { details: { job: busy.id } });
-        if (open.length >= REVIEW_EXPORTS_OPEN) throw new EngineError('conflict', `${open.length} exports are already queued or running: wait for one to end`, { details: { open: open.length } });
-        return engine.exports.submit({ project: a.project, render_id: a.render_id, formats: [...REVIEW_EXPORT_FORMATS] });
-      });
+      // One export of a render at a time, at most two of the workspace: the engine's export_cap rule.
+      const sub = await engine.exports.submit({ project: a.project, render_id: a.render_id, formats: [...REVIEW_EXPORT_FORMATS] });
       const data: ReviewExportAnswer = { render_id: sub.render_id, job: sub.job.id, state: sub.job.state, formats: [...sub.formats], where: `the project's exports folder, under ${sub.render_id}` };
       return { summary: `export of ${sub.render_id} queued (job ${sub.job.id}): ${sub.formats.join(', ')}`, data: data as unknown as Record<string, unknown> };
     },

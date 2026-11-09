@@ -30,6 +30,7 @@ import { loadWorkspaceConfig, workspaceFolders } from '@retake/core';
 import {
   BodyTooLargeError,
   BootstrapCodes,
+  ENGINE_ERROR_CODES,
   ENGINE_HTTP_API,
   ERROR_STATUS,
   checkRequest,
@@ -42,7 +43,8 @@ import {
   securityHeaders,
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
-import { callTool, capUntrusted, catalogueOperation, pinArguments, studioPins } from '@retake/engine/contract';
+import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
+import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
@@ -68,23 +70,26 @@ import { UpdateState, updateOps } from './update-ops.js';
 import type { SetupContext } from './setup-ops.js';
 
 /**
- * The ops the Studio may call: the MCP tools it serves and its own ops (ops.ts and the other *-ops.ts modules). Each
- * is an operation of the catalogue (@retake/engine/contract), which also says why the Studio serves none of the other
- * MCP tools, which arguments it pins (a page asks for less than Claude may) and its ops' own HTTP statuses. Each later
- * lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
+ * The ops the Studio may call, in catalogue order: the operations the catalogue (@retake/engine/catalogue) says the
+ * Studio serves — MCP tools it serves as they are or with pinned arguments, and its own ops (ops.ts and the other
+ * *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
+ * listed answers 404 `unknown op`.
  */
-export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
-export type UiOp = (typeof UI_OPS)[number];
+export const UI_OPS: readonly string[] = Object.freeze(servedNames('studio'));
+export type UiOp = string;
 
 /**
- * An op's own HTTP status for an engine error code (the catalogue's `studio.status`; L4.6, critique B7): a frame
- * request past the server's queue is 429 with Retry-After — the page backs off and asks for its newest frame again.
- * Its timeout is `unavailable` (503, reason `timeout`: review B L3), which the page says after one more try.
+ * Each op's own HTTP status for an engine error code (the catalogue's `studio.status`, read with studioStatus): a frame
+ * request past the server's queue is 429 with Retry-After — the page backs off and asks for its newest frame again. Its
+ * timeout is `unavailable` (503, reason `timeout`), which the page says after one more try.
  */
 export const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = Object.fromEntries(
   UI_OPS.flatMap((op) => {
-    const status = catalogueOperation(op)?.studio;
-    return status && 'status' in status && status.status ? [[op, { ...status.status }]] : [];
+    const status = Object.fromEntries(ENGINE_ERROR_CODES.flatMap((code) => {
+      const s = studioStatus(op, code);
+      return s === undefined ? [] : [[code, s]];
+    }));
+    return Object.keys(status).length ? [[op, status]] : [];
   }),
 );
 
@@ -167,7 +172,7 @@ export interface StudioServer {
   player: PlayerServer;
   /** The preview bundles (memo). */
   bundles: PlayerBundles;
-  /** The workspace components the person allowed in the preview this session (memory only; review A H1 c). */
+  /** The workspace components the person allowed in the preview this session (memory only). */
   previewAllow: PreviewAllowList;
   /** The workspace index and the event streams. */
   live: Live;
@@ -256,8 +261,7 @@ function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefine
 export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
   const log = o.log ?? (() => undefined);
   const assets = await buildUi();
-  // The Studio starts the worker when a run is submitted (L4.2), with a clean environment (critique B5) — cleaned of
-  // every folder of the workspace (its projects, templates and components folders may lie outside the root).
+  // The Studio starts the worker when a run is submitted, with a clean environment — cleaned of every folder of the workspace (its projects, templates and components folders may lie outside the root).
   const root = resolve(o.root);
   const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
   const engine = await createEngine({
@@ -278,7 +282,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!player) throw new Error('the preview server is not started');
     return player;
   };
-  // One chain for the writes of a scenario (critique B5): scenario_edit, scenario_render and thread_apply.
+  // One chain for the writes of a scenario: scenario_edit, scenario_render and thread_apply.
   const chain = opChain();
   // L4.7: the preview pages' leases — timeline pages and theme preview pages — and the forbidden folders of a preview.
   const leases = new PreviewLeases((p) => playerNow().release(p));
@@ -408,7 +412,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     if (!r.ok) {
       const e = r.error;
       const status = OP_STATUS[op as UiOp]?.[e.code] ?? ERROR_STATUS[e.code];
-      // Every error's words are path-free (review A L1): the workspace's part cut off, any other absolute path shortened —
+      // Every error's words are path-free: the workspace's part cut off, any other absolute path shortened —
       // in the message and every string of the details (an engine or scenario error may quote a file's absolute path).
       // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.

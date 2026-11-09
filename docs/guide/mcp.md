@@ -122,7 +122,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `scenario_from_script` | an optional aid, only when the user hands a timecoded script table (see *Authoring*): an outline and a skeleton draft (one `hold` per beat, the action as its `note`) validated against the project, the script's issues with line / col, timing warnings; `env` (page keys of that environment), `name` (the draft's `video`) | — |
 | `run_list` / `run_status` | runs of a project; one run's status, step, hooks, where it failed, the take's cost in one line, the paths of capture.mp4, timeline.json and the screenshots folder, and the state of its job (queued and its place, interrupted…); `detail: "full"` adds every output with its sha256, each dry-run screenshot and the take's measurements; `wait_s` (≤ 25) waits for it to finish | — |
 | `run_dry` | dry-runs a scenario (`until`, `env`, `hooks`) as a job and waits up to `wait_s` (default 20): one screenshot per step, where it failed | runs/ (the run) |
-| `run_capture` | captures a scenario as a job (`env`, `sandbox`) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
+| `run_capture` | captures a scenario as a job (`env`, `sandbox`, `sessions_ack`: the personas whose session is not valid that the user confirms) and returns at once with the run id | runs/ (the run); the environment through its setup / teardown hooks |
 | `run_cancel` | cancels a run started here: queued, it never starts; running, it stops at its next step and its teardown and rollbacks still run | — |
 | `plan_preview` | plans a render of a capture without rendering it (`run_id` default: the scenario's latest capture; `template`: a theme name; `overrides`: frame, variant, fps, scale, intro / outro / captions / camera / trim_idle, speeds, transition, components by kind or segment, music, tutorial): variant, size, duration, theme, segments with their component and timing, music, the id the next render would get, `edit` (`scenario`: today's scenario file re-planned on the run's capture, with `edit_changes`; `run`: the run as captured), `scenario_changed` (the filmed part of the scenario changed since the run, listed in `filmed_changes`: a line in the summary names the `run_capture` that films the change, and the last line says to capture first instead of offering the render); captions, warnings and the text summary under `untrusted` | — |
 | `render` | the same arguments: planned and checked, then rendered as a job; returns the reserved `render_id` at once (`<scenario>-v<N>`, `-vertical` / `-square`), the `run_id` it renders (`latest`: the newest capture whose folder name is a run id, dated ids first) and `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as `plan_preview`'s; `wait_s` waits for it | `renders/<render_id>.mp4` + `.json` |
@@ -222,6 +222,23 @@ exits after a minute without work. So no call outlives an agent's timeout: `run_
 fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2,700 → 900, a review ≈ 2,200 → 400). A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
 `failed` means it could not run (a scenario changed since it was submitted — a run, an inspection or a scenario's
 hooks: submit it again —, a sandbox that would not start…).
+
+**Admission rules.** Before it queues a run, a render or an export, the engine checks the same rules for Claude as for
+the Studio (each check and the submit after it run one at a time in the server, so two calls at once queue one job);
+a refusal is `conflict`, names what it waits for in `details`, and queues nothing:
+- **One run of a scenario at a time**: `run_dry` and `run_capture` are refused while a run of the scenario is queued or
+  running (`details.run_id`, `details.job`) — wait for it to end (`run_status`), or stop it (`run_cancel`).
+- **Sessions to confirm**: `run_capture` of a scenario whose persona's saved session is not valid (expired, error,
+  never signed in) and that no run signs in by itself (no usable `login:` steps, not a sandbox account) is refused
+  with `details.sessions` (each persona, its state, and whether the run checks it before filming) until
+  `sessions_ack` names each one. Claude tells the user, who signs in (`auth_login`) or confirms the capture; the
+  run's own preflight still stops before filming a persona it can check. A dry run needs none.
+- **One render of a scenario at a time**: `render` is refused while a render of the scenario is queued or running
+  (`details.render_id`) — follow it with `render_status`, or stop it with `job_cancel`.
+- **Exports**: `export` is refused while an export of that render is queued or running, and while two exports of the
+  workspace are (`details.open`).
+`retake run`, `retake render` and `retake export` in a terminal run in their own process and are not held to these
+rules.
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.

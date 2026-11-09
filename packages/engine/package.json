@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./catalogue": {
+      "source": "./src/catalogue.ts",
+      "types": "./dist/catalogue.d.ts",
+      "default": "./dist/catalogue.js"
+    },
     "./contract": {
       "source": "./src/contract.ts",
       "types": "./dist/contract.d.ts",

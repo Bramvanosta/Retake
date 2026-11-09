@@ -12,17 +12,18 @@ import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigat
 import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
+import { refusalChannel } from './caller.js';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
 
 /**
- * The wording channel of a client's refusals (L4.2, critique B2): the Studio (`ui`) is told "from the Studio" and to
- * run the command in a terminal, never that "this MCP client" cannot ask; every other client gets the MCP wording.
+ * The wording channel of a client's refusals (caller.ts refusalChannel): the Studio (`ui`) is told "from the Studio"
+ * and to run the command in a terminal, never that "this MCP client" cannot ask; every other client gets the MCP wording.
  */
 export function agentChannel(client: JobClient | undefined): AgentChannel {
-  return client === 'ui' ? 'studio' : 'mcp';
+  return refusalChannel(client);
 }
 
 /** Why the client cannot ask its human, for a `needs_approval` refusal. */

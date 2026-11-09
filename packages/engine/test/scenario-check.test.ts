@@ -15,7 +15,7 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { EngineError, READ_TEXT_MAX_BYTES, createEngine } from '../src/index.js';
+import { EngineError, READ_TEXT_MAX_BYTES, createEngine, sessionsToConfirm } from '../src/index.js';
 import type { Engine, RunBlocker } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
@@ -76,7 +76,9 @@ describe('scenarios.check: own issues and run blockers (B2)', () => {
       const { run_blockers } = await ui.scenarios.check(P, name);
       for (const mode of ['dry', 'capture'] as const) {
         const want: RunBlocker[] = run_blockers[mode];
-        const got = await ui.runs.submit({ project: P, scenario: name, mode }).then(
+        // The personas a capture must confirm are confirmed (the sessions_ack admission rule is not a blocker).
+        const ack = mode === 'capture' ? sessionsToConfirm(await ui.auth.forScenario(P, name, { mode })).map((p) => p.persona) : [];
+        const got = await ui.runs.submit({ project: P, scenario: name, mode, ...(ack.length ? { sessions_ack: ack } : {}) }).then(
           (r) => r,
           (e: unknown) => e as EngineError,
         );

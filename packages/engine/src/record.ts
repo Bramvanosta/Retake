@@ -48,6 +48,7 @@ import {
 } from '@retake/core';
 import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkspaceConfig } from '@retake/core';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
+import { submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
@@ -118,7 +119,7 @@ function recordInUse(project: LoadedProject, id: string, now: number): boolean {
   const held = readLock(recordLockFile(project.dir, id));
   if (held && lockAlive(held)) return true;
   const meta = readRecordMeta(join(recordsRoot(project), id), id);
-  if (meta?.submitted_by !== 'ui') return false;
+  if (!meta || !submittedInStudio(meta)) return false;
   const ann = readRecordAnnotations(join(recordsRoot(project), id));
   if ('annotations' in ann && (ann.annotations?.saved || ann.annotations?.discard)) return false;
   const started = Date.parse(meta.started_at);

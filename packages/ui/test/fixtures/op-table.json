@@ -4,11 +4,11 @@
   "project_list",
   "project_get",
   "project_update_readme",
-  "job_list",
+  "scenario_validate",
   "run_list",
   "run_status",
   "run_cancel",
-  "scenario_validate",
+  "job_list",
   "auth_status",
   "auth_login",
   "activity_list",
@@ -186,9 +186,9 @@
    }
   },
   {
-   "name": "job_list",
-   "title": "List jobs",
-   "description": "Jobs of the workspace, newest first: dry runs, captures, renders, reviews, exports, hooks and environment resets submitted through this server (by any session), with their state (queued, running, succeeded, failed, cancelled, interrupted) and progress. A job \"succeeded\" when it ran to the end; its run may still have failed (result.status).",
+   "name": "scenario_validate",
+   "title": "Validate scenario YAML",
+   "description": "Validate scenario YAML text against the project (page keys, personas, template) without saving it. Every issue has line and col in the given text. `retake schema scenario` / the README describe the scenario language.",
    "annotations": {
     "readOnlyHint": true,
     "destructiveHint": false,
@@ -199,34 +199,39 @@
     "type": "object",
     "properties": {
      "project": {
-      "description": "Only the jobs of this project.",
       "type": "string",
       "maxLength": 100,
-      "pattern": "^[a-z0-9][a-z0-9-]*$"
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Project slug (from project_list)."
      },
-     "state": {
-      "description": "Only jobs in these states.",
-      "type": "array",
-      "items": {
-       "type": "string",
-       "enum": [
-        "queued",
-        "running",
-        "succeeded",
-        "failed",
-        "cancelled",
-        "interrupted"
-       ]
-      }
+     "yaml": {
+      "type": "string",
+      "maxLength": 500000,
+      "description": "The scenario YAML text."
      },
-     "limit": {
-      "default": 20,
-      "description": "At most this many jobs (default 20).",
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 200
+     "env": {
+      "description": "Check page keys against this environment (default: the scenario env, else the project default).",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+     },
+     "until": {
+      "description": "Check that this step reference (<scene>.<step id|index>) resolves.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+     },
+     "name": {
+      "description": "The name it will be saved under (only for messages).",
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
      }
     },
+    "required": [
+     "project",
+     "yaml"
+    ],
     "additionalProperties": false
    }
   },
@@ -358,9 +363,9 @@
    }
   },
   {
-   "name": "scenario_validate",
-   "title": "Validate scenario YAML",
-   "description": "Validate scenario YAML text against the project (page keys, personas, template) without saving it. Every issue has line and col in the given text. `retake schema scenario` / the README describe the scenario language.",
+   "name": "job_list",
+   "title": "List jobs",
+   "description": "Jobs of the workspace, newest first: dry runs, captures, renders, reviews, exports, hooks and environment resets submitted through this server (by any session), with their state (queued, running, succeeded, failed, cancelled, interrupted) and progress. A job \"succeeded\" when it ran to the end; its run may still have failed (result.status).",
    "annotations": {
     "readOnlyHint": true,
     "destructiveHint": false,
@@ -371,39 +376,34 @@
     "type": "object",
     "properties": {
      "project": {
+      "description": "Only the jobs of this project.",
       "type": "string",
       "maxLength": 100,
-      "pattern": "^[a-z0-9][a-z0-9-]*$",
-      "description": "Project slug (from project_list)."
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
      },
-     "yaml": {
-      "type": "string",
-      "maxLength": 500000,
-      "description": "The scenario YAML text."
+     "state": {
+      "description": "Only jobs in these states.",
+      "type": "array",
+      "items": {
+       "type": "string",
+       "enum": [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+        "cancelled",
+        "interrupted"
+       ]
+      }
      },
-     "env": {
-      "description": "Check page keys against this environment (default: the scenario env, else the project default).",
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 100
-     },
-     "until": {
-      "description": "Check that this step reference (<scene>.<step id|index>) resolves.",
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 200
-     },
-     "name": {
-      "description": "The name it will be saved under (only for messages).",
-      "type": "string",
-      "maxLength": 100,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+     "limit": {
+      "default": 20,
+      "description": "At most this many jobs (default 20).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 200
      }
     },
-    "required": [
-     "project",
-     "yaml"
-    ],
     "additionalProperties": false
    }
   },

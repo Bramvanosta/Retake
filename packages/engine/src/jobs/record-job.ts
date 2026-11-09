@@ -23,6 +23,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
 import type { RecordJobInput, RecordedEvent, WorkspaceConfig } from '@retake/core';
+import { submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
@@ -247,7 +248,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
       },
     );
     // A Discard asked during the draft or the check: the folder goes now (B9 / B-L2), even with no Record screen open.
-    if (input.submitted_by === 'ui' && outcome.dir && (await settleDiscardAtJobEnd(project, input.rec_id).catch(() => false))) {
+    if (submittedInStudio(input) && outcome.dir && (await settleDiscardAtJobEnd(project, input.rec_id).catch(() => false))) {
       return recordResult({ ...outcome, dir: null, draft: null });
     }
     return recordResult(outcome);

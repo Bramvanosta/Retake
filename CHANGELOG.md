@@ -7,6 +7,11 @@ release — for the person about to click Install and Restart.
 ## [Unreleased]
 
 ### Changed
+- Claude (the MCP tools) is held to the same rules as the Studio before a job is queued: one run of a scenario at a
+  time (`run_dry`, `run_capture`), one render of a scenario at a time (`render`), at most one export of a render and
+  two of the workspace at once (`export`), and a capture whose persona's session is not valid and that no run signs
+  in by itself waits until `run_capture`'s new `sessions_ack` names that persona. Each refusal is a `conflict` that
+  says what it waits for.
 - The CLI prints these errors as one line instead of a stack trace: a scenario changed since it was submitted, a
   write or host refused on a read-only environment or by the allow-list, an agent's render refused, an export error,
   an unusable hooks source, a cancelled review, a full disk during a render.

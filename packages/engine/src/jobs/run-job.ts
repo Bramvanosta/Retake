@@ -48,9 +48,14 @@ export interface RunSubmitRequest {
   sandbox?: boolean;
   /**
    * sha256 of the scenario's bytes the client showed (the Studio's view `hash`): the submit is refused as `conflict`
-   * when the bytes it checks are other ones (review A #6: what was clicked is what runs).
+   * when the bytes it checks are other ones (what was clicked is what runs).
    */
   expect_sha256?: string;
+  /**
+   * A capture: the personas whose session is not valid that the caller confirms (the engine's `sessions_ack` admission
+   * rule, admission.ts: the Studio and MCP); not written with the job.
+   */
+  sessions_ack?: readonly string[];
 }
 
 export interface SubmitContext {

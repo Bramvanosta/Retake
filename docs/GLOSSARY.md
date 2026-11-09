@@ -36,8 +36,11 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | hook | — | a setup or teardown file (sql, http, js, sh) run around a capture; its rollbacks undo what it did | — |
 | sandbox | Sandbox | a disposable, local copy of the product (`sandbox.yaml`), reset to its seed before a take | — |
 | job · worker | — | work queued for the workspace's jobs worker (dry runs, captures, renders, reviews, exports, hooks, sign-ins) · the background process that runs them | — |
-| operation | — | one thing Retake does for a client, served by the `retake` command, the MCP server and / or the Studio (a dry run, a render, reading a project…); named by the MCP tool or Studio op that serves it, else by its command | `op` (the Studio server's ops, `UI_OPS`) |
-| catalogue | — | the operation catalogue: every operation once, with its kind (read, write, job, runs code, destructive) and which shells serve it, and why not (`packages/engine/src/catalogue.ts`) | — |
+| operation | — | one thing Retake does for a client, served by the `retake` command, the MCP server and / or the Studio (a dry run, a render, reading a project…); named by the MCP tool or Studio op that serves it, else by its command | `op` (the Studio server's ops, `UI_OPS`); `ToolDef` / `callTool` (an operation's definition and call, in `@retake/engine/contract`) |
+| operation catalogue | — | every operation once, with its facets and which shells serve it, and why not (`packages/engine/src/catalogue.ts`, `@retake/engine/catalogue`) | — |
+| facet · effect | — | what the catalogue says an operation does: its **effect** (`read`, `write` or `destructive`: may remove or replace what a person made), whether it is queued as a job, whose code it runs (`project`: hooks, sandbox commands; `workspace`: components and themes rendered), whether it serves other operations (a server, the worker); the MCP tools' read-only and destructive hints are its effect | `kind` (the catalogue's single field before the facets) |
+| admission rule | — | a check the engine makes before it queues a job for the Studio or MCP: one run of a scenario at a time, one render of a scenario at a time, the acknowledgement of personas whose session is not valid, at most one export of a render and two of the workspace at once | — |
+| caller | — | who drives the engine — its client (`cli`, `mcp`, `ui` for the Studio, `test`), the channel it speaks through (`cli`, `studio`, `mcp`) and the trust its work gets (`author`: a person at a terminal; `mcp`: an agent or a page); every decision the engine takes from who calls it is in one policy module (`packages/engine/src/caller.ts`) | `EngineClient`, `JobClient` (`submitted_by`), `AgentChannel`, `HookTrust`, `PlanTrust`, `BrandTrust` |
 | the Studio | — | the web app of a workspace (`retake ui`) and the desktop app around it | — |
 
 ## Homonyms
@@ -57,6 +60,11 @@ Each of these words has several meanings: say which one (the qualified form on t
 - **template** — the old name of a theme, kept only in the names listed above; a *scaffold* is the starting files a
   command copies (`retake components create`); *filling in* (templating) is replacing `{{…}}` values in
   scenarios and hooks.
+- **kind** — always qualified: a *job kind* (`run`, `render`, `export`…: `JobRecord.kind`), a *component kind*
+  (`overlay`, `transition`…), an *error kind* (`invalid`, `conflict`…: what a client outside the CLI is told), a
+  *blocker kind* (which gate refuses a run). An operation has no kind: it has facets (its effect, job, code).
+- **catalogue** — the *operation catalogue* is always called that; `catalogue` alone is the fixture project's
+  scenario of that name (`scenarios/catalogue.yaml`, the product catalogue it films).
 - **production** — a *production environment* (`production: true`: read-only unless its access says otherwise); the
   Studio's *Productions* are scenarios. Outside the Studio, *production* only ever means the environment.
 

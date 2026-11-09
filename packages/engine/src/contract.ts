@@ -3,8 +3,9 @@
  * (`ToolDef`: one zod input schema, annotations and a handler over the engine), one SDK-free call (`callTool`: the zod
  * parse with problems named per argument, then the handler; every failure an EngineError), the cap on text under
  * `untrusted` keys (`capUntrusted`), the Studio's pinned arguments (`pinArguments`), and the operation catalogue
- * (catalogue.ts: every operation once, with the shells that serve it). The MCP server serves these definitions as MCP
- * tools; the Studio's server serves them as `POST /v1/call/<op>`.
+ * re-exported (catalogue.ts: every operation once, its facets and the shells that serve it; @retake/engine/catalogue is
+ * the same without the rest, for a page). The MCP server serves these definitions as MCP tools; the Studio's server
+ * serves them as `POST /v1/call/<op>`. Not browser-safe: errors.js reaches @retake/core.
  */
 import { z } from 'zod';
 import type { Approver } from './approvals.js';
@@ -12,8 +13,24 @@ import type { ArgumentPin } from './catalogue.js';
 import type { Engine } from './engine.js';
 import { EngineError, toEngineError } from './errors.js';
 
-export { CATALOGUE, OPERATION_KINDS, SHELLS, catalogueOperation, cliCommandsOf, servedBy, servedNames, studioPins, studioStatus } from './catalogue.js';
-export type { ArgumentPin, NotServed, Operation, OperationKind, Shell, StudioServe } from './catalogue.js';
+// The operation catalogue, also its own browser-safe entry (@retake/engine/catalogue).
+export {
+  ADMISSION_RULES,
+  CATALOGUE,
+  CODE_RUNS,
+  EFFECTS,
+  SHELLS,
+  annotationProblem,
+  catalogueOperation,
+  cliCommandsOf,
+  facetProblem,
+  hintsOf,
+  servedBy,
+  servedNames,
+  studioPins,
+  studioStatus,
+} from './catalogue.js';
+export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, NotServed, Operation, Shell, StudioServe } from './catalogue.js';
 
 /** The hints a client reads about an operation (the MCP tool annotations). */
 export interface ToolAnnotations {
@@ -79,7 +96,7 @@ export function argumentProblems(error: z.ZodError): string[] {
 export type ToolCallOutcome = { ok: true; output: ToolOutput } | { ok: false; error: EngineError };
 
 /**
- * One call, SDK-free (L4.1): the zod parse (problems named per argument), then the handler with the engine; never
+ * One call, SDK-free: the zod parse (problems named per argument), then the handler with the engine; never
  * throws — every failure comes back as an EngineError. The MCP protocol layer and the Studio's HTTP API
  * (`POST /v1/call/<op>` of `retake ui`) both run operations through this, so validation, trust and errors stay one.
  */

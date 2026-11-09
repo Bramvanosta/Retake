@@ -20,7 +20,8 @@ packages/editor       (phase 2) Remotion compositions + edit planner + render AP
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
                       if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker;
-                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c)
+                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c);
+                      `@retake/engine/catalogue`: the catalogue alone, browser-safe (no run-time import)
 packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c): the contract's operations as tools
 packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
 packages/cli          `retake` command — everything the MCP does, for humans and CI
@@ -1688,7 +1689,7 @@ environments)`), and `retake review` / `render --review` print the review's envi
 
 ## 4b. Engine API and MCP server (L3.1)
 
-**`@retake/engine`** (deps: core, hooks, runner-web, sandbox). One typed, in-process API over a workspace. The CLI calls
+**`@retake/engine`** (deps: components, core, editor, hooks, review, runner-web, sandbox, zod). One typed, in-process API over a workspace. The CLI calls
 the moved functions directly with its native options, errors and exit codes; `EngineError` exists only at the
 boundary of clients outside the CLI (the MCP server; the jobs worker and the HTTP API later).
 
@@ -2159,13 +2160,32 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 **`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
 `exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
 SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef` / `ToolContext` /
-`ToolOutput`, `capUntrusted` and `pinArguments`, and the **operation catalogue** (`catalogue.ts`): every operation once
-(122: the 45 MCP tools, the Studio's 65 own ops, 12 operations only the CLI serves), its kind (read, write, job, runs
-code, destructive) and, for each shell (CLI commands, MCP tool, Studio op), the service or the one-line reason it has
-none; the Studio's entry holds its pinned arguments (`run_status` `wait_s` 0; `auth_login` `mode` headed, `wait_s` 0)
-and its ops' own statuses (`render_frame` busy → 429). Tests hold MCP `TOOLS` (in order), the Studio's `UI_OPS` and own
-ops, and the CLI's commander tree (`commandPaths()`) to it; snapshots hold the published tool list and the Studio's
-operation table byte for byte (packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
+`ToolOutput`, `capUntrusted` and `pinArguments`, and the **operation catalogue** (`catalogue.ts`, also its own
+browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (122: the 45 MCP
+tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
+`destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
+commands, `workspace`: components and themes rendered), `serves` for the commands that serve others (`mcp`, `ui`,
+`worker`) — the engine's admission rules it meets (§4d), and, for each shell (CLI commands, MCP tool, Studio op), the
+service or the one-line reason it has none; the Studio's entry holds its pinned arguments (`run_status` `wait_s` 0;
+`auth_login` `mode` headed, `wait_s` 0) and its ops' own statuses (`render_frame` busy → 429, read with
+`studioStatus`). The Studio's allow-list `UI_OPS` is `servedNames('studio')`, in catalogue order. Tests hold MCP
+`TOOLS` (in order), the Studio's own ops, and the CLI's commander tree (`commandPaths()`) to it, and every tool's
+read-only and destructive hints to its effect (`hintsOf`: read-only exactly for `read`, destructive exactly for
+`destructive`; a table test); snapshots hold the published tool list and the Studio's operation table byte for byte
+(packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
+
+**Admission rules and the caller (L6.5).** The engine's submits of a run, a render and an export hold the Studio and
+MCP (caller.ts `admits`) to four rules, each checked and followed by its submit under its own key in the engine's
+process (admission.ts): `one_run_per_scenario` (a run of the scenario queued or running → 409 `conflict` naming it),
+`sessions_ack` (a capture of a scenario whose persona's session is not valid and that no run signs in by itself needs
+`sessions_ack` naming it: `details.sessions`), `one_render_per_scenario`, `export_cap` (one export of a render, at most
+`EXPORTS_OPEN_MAX` = 2 of the workspace; a `latest` is held to it once resolved). The words are the ones the Studio
+gave when the rules were its own; the CLI's own commands (in their process) and the engine's tests are not held. Who
+calls is one `Caller` (`callerOf(client)`: client, channel `cli` / `studio` / `mcp`, trust `author` / `mcp`), and every
+decision the engine takes from it is a function of caller.ts (agent checks, refusal wording, person channel,
+`if_match`, proposals, the Record screen, the worker's clean environment, theme edits, admission); `EngineClient` is
+core's `JobClient`; `HookTrust`, `PlanTrust` and `BrandTrust` are the caller's trust (a compile-time check), and the
+engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`).
 
 **`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it; from the MCP
 package it takes only the tools it serves as they are and the Set-up sheet's registration helpers).
@@ -3077,7 +3097,8 @@ why?}`; `frame {seq, w, h, at, page?, jpeg}` (base64); `end {status?, job_state?
   auth.cancelSignIn; `auth_status` (MCP, read-only); `auth_login` NARROWED to `mode: 'headed'` and `wait_s: 0` (S6: a
   page script can only open a window the person sees, which closes after RETAKE_SIGNIN_MAX_MIN; `auto` is what
   every run's preflight does by itself).
-- *The session acknowledgement* (S7, critique B10): `scenario_run` of a capture reads auth.forScenario (capture mode)
+- *The session acknowledgement* (S7; since L6.5 an admission rule of the engine, `sessions_ack` of `runs.submit`, for
+  the Studio and MCP alike — `run_capture {sessions_ack}`; §4c): `scenario_run` of a capture reads auth.forScenario (capture mode)
   and needs `sessions_ack: string[]` naming every persona whose stored status is expired / error / never and that no
   run signs in by itself (not `auto`, not a sandbox account, not the legacy single-account file, where a run starts
   signed out) — else 409 `conflict` with `details.sessions: [{persona, status, checked_first}]` and nothing queued;
@@ -4987,8 +5008,9 @@ file on disk) through useRenders — the same refusals —, and a render queued 
 render_id}` (a render id's shape); queues the engine's existing `export` job with `formats: ['mp4_1080p']` into the
 fixed `exports/<render_id>/`; one at a time per render (a 409 naming the job while one is queued or running) and at most
 `REVIEW_EXPORTS_OPEN` = 2 exports of the workspace queued or running at once (a CLI's or Claude's count; a 409 "2
-exports are already queued or running"); the check and the submit run in one op chain for the whole workspace
-(`'review_export'`), so two clicks, two tabs or two renders never interleave (the race is tested: two calls at once on a
+exports are already queued or running"); the check and the submit run in one chain for the whole workspace (since
+L6.5 the engine's `export_cap` admission rule, `EXPORTS_OPEN_MAX`, for the Studio and MCP alike), so two clicks, two
+tabs or two renders never interleave (the race is tested: two calls at once on a
 render with no export yet give one job). The worker runs one heavy job at a time anyway (one worker per workspace, L5.14):
 the cap keeps one page from queueing an export — possibly a re-render — of every render. The answer is path-free (`job`,
 `state`, `formats`, `where` in words). The raw capture stays a command to copy, built only from a slug and a run id that

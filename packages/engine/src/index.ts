@@ -55,6 +55,27 @@ export type { EditAbility, SceneFacts, ScenarioActions, ScenarioEnvironmentFacts
 export { sandboxStatus } from './sandbox.js';
 export type { SandboxStatusView } from './sandbox.js';
 export { ENGINE_API_VERSION, agentTrust, createEngine } from './engine.js';
+export {
+  ENGINE_TRUST,
+  admits,
+  agentChecks,
+  agentWorkspace,
+  anchorsOnShownRender,
+  callerOf,
+  chainsRecordings,
+  cleansWorkerEnv,
+  drivesRecordScreen,
+  editsThemes,
+  guardsStudioRecordings,
+  needsIfMatch,
+  personChannel,
+  proposes,
+  refusalChannel,
+  submittedInStudio,
+} from './caller.js';
+export type { Caller, CallerChannel, CallerTrust } from './caller.js';
+export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, keyChain, sessionsToConfirm } from './admission.js';
+export type { Admission, AdmissionDeps, KeyChain, SessionToConfirm, SessionsView } from './admission.js';
 export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
