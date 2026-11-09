@@ -13,6 +13,7 @@ import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceC
 import type { HookResult } from '@retake/hooks';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
+import { callerOf } from '../caller.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { createHookContext, scenarioOfHooksSource, selectHooks } from '../hooks.js';
 import { openProjectBySlug } from '../projects.js';
@@ -200,6 +201,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
+    recordAs: callerOf(input.submitted_by),
   });
   try {
     const journal = await hooks.Journal.open(hooks.standaloneJournalFile(project.dir, input.journal_id));
@@ -236,6 +238,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     signal: ctx.signal,
+    recordAs: callerOf(input.submitted_by),
   });
   try {
     const outcomes = await hooks.rollbackPendingJournals(project.dir, hctx);

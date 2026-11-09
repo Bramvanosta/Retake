@@ -25,6 +25,7 @@ import {
   textEol,
   verifyEditText,
   pathInside,
+  projectPath,
 } from '@retake/core';
 import type { AgentChannel, AgentTrustEnvironment, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
@@ -33,6 +34,8 @@ import { EngineError } from './errors.js';
 import { fieldFitProblem } from './field-options.js';
 import { checkScenarioName } from './refs.js';
 import { LocalStorage, sha256Hex } from './storage.js';
+import { ProjectStore } from './store/project-store.js';
+import type { StoreScope } from './store/project-store.js';
 
 export interface ScenarioText {
   name: string;
@@ -60,7 +63,7 @@ function caseTwin(project: LoadedProject, ref: string): string | null {
   const want = basename(ref);
   let names: string[];
   try {
-    names = readdirSync(join(project.dir, 'scenarios'));
+    names = readdirSync(projectPath(project.dir, 'scenarios'));
   } catch {
     return null;
   }
@@ -93,7 +96,7 @@ export function knownScenarioVersion(path: string, hash: string): boolean {
 /** The file of a scenario name: scenarios/<name>.yaml, else an existing scenarios/<name>.yml. */
 function scenarioRef(project: LoadedProject, name: string): string {
   const yml = `scenarios/${name}.yml`;
-  if (!existsSync(join(project.dir, 'scenarios', `${name}.yaml`)) && existsSync(join(project.dir, yml))) return yml;
+  if (!existsSync(projectPath(project.dir, 'scenarios', `${name}.yaml`)) && existsSync(join(project.dir, yml))) return yml;
   return `scenarios/${name}.yaml`;
 }
 
@@ -108,7 +111,7 @@ export async function getScenario(project: LoadedProject, name: string): Promise
     throw new EngineError('not_found', `scenario "${name}" not found in ${project.slug} (scenarios: ${project.scenarios.join(', ') || 'none'})`);
   }
   const path = storage.resolve(ref);
-  const [realScenarios, real, realProject] = await Promise.all([realpath(join(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
+  const [realScenarios, real, realProject] = await Promise.all([realpath(projectPath(project.dir, 'scenarios')), realpath(path), realpath(project.dir)]);
   rememberVersion(path, read.sha256);
   return {
     name,
@@ -171,7 +174,7 @@ export async function validateScenarioText(
   opts: { env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> } = {},
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
-  const file = join(project.dir, 'scenarios', `${opts.name ?? 'untitled'}.yaml`);
+  const file = projectPath(project.dir, 'scenarios', `${opts.name ?? 'untitled'}.yaml`);
   const { scenario, issues: parsed } = parseScenario(yaml, {
     file,
     project,
@@ -201,21 +204,21 @@ export interface SaveResult {
  * null (or absent) for a new file, which must not exist when written. An existing scenarios/<name>.yml is refused
  * (a new .yaml would shadow it).
  */
-export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel } = {}): Promise<SaveResult> {
+export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope }): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = `scenarios/${name}.yaml`;
-  if (existsSync(join(project.dir, 'scenarios', `${name}.yml`))) {
+  if (existsSync(projectPath(project.dir, 'scenarios', `${name}.yml`))) {
     throw new EngineError('conflict', `scenarios/${name}.yml exists: a scenarios/${name}.yaml would shadow it — rename or remove the .yml file first (by hand)`);
   }
   const twin = caseTwin(project, ref);
   if (twin) {
     throw new EngineError('conflict', `scenarios/${twin} exists: on this disk scenarios/${name}.yaml is the same file under another spelling — save it as "${twin.replace(/\.ya?ml$/, '')}"`);
   }
-  const storage = new LocalStorage(project.dir);
-  const path = storage.resolve(ref);
+  const store = ProjectStore.of(project, opts.scope);
+  const path = store.resolve(ref);
   if (opts.agent) {
     const linked = await realpath(path).then(
-      async (real) => (pathInside(real, await realpath(join(project.dir, 'scenarios')), { dotDotPrefix: true }) ? null : real),
+      async (real) => (pathInside(real, await realpath(projectPath(project.dir, 'scenarios')), { dotDotPrefix: true }) ? null : real),
       () => null,
     );
     if (linked) throw new EngineError('refused', `${ref} is a symbolic link to a file outside scenarios/: an agent writes scenarios only inside scenarios/ — edit it in your editor`);
@@ -223,7 +226,7 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   const { scenario, issues: parsed } = parseScenario(yaml, { file: path, project, template: await templateOf(project), ...(opts.agent ? { confined: opts.via ?? 'mcp' } : {}) });
   const issues = opts.agent ? [...parsed, ...agentIssues(project, scenario, yaml, opts.via)] : parsed;
   if (hasErrors(issues)) throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, path)}`, issues, path);
-  const current = await storage.readText(ref);
+  const current = await store.readText(ref);
   if (current && (opts.ifMatch === undefined || opts.ifMatch === null)) {
     throw new EngineError('conflict', `${ref} exists: pass if_match with the hash you read (scenario_get), so a change made meanwhile is not lost`, {
       details: { current: current.sha256 },
@@ -231,7 +234,7 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
     });
   }
   const text = yaml.endsWith('\n') ? yaml : `${yaml}\n`;
-  const res = await storage.writeText(ref, text, { ifMatch: opts.ifMatch ?? null });
+  const res = await store.writeText(ref, text, { ifMatch: opts.ifMatch ?? null, what: 'scenario' });
   rememberVersion(path, res.sha256);
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
   return { name, file: res.ref, path: res.path, hash: res.sha256, created: !current, warnings: issues };
@@ -326,10 +329,10 @@ export async function editScenario(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry> },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
-  const res = await new LocalStorage(project.dir).writeText(p.base.file, p.text, { ifMatch: req.hash });
+  const res = await ProjectStore.of(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
   rememberVersion(p.base.path, res.sha256);
   return { name, file: p.base.file, path: res.path, hash: res.sha256, label: p.label, select: p.select, warnings: p.warnings, notices: p.notices, ...(p.change ? { change: p.change } : {}) };
 }

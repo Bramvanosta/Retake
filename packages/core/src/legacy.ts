@@ -16,6 +16,7 @@
 import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { defaultRetakeHome, statePath } from './layout.js';
 
 /** The product's name before L5.13. */
 export const OLD_PRODUCT_NAME = 'Demo Studio';
@@ -174,7 +175,7 @@ export function oldHomeState(env: Record<string, string | undefined> = process.e
   const where = oldHomeDir(env, home);
   if (!where) return null;
   const old = where.dir;
-  const now = join(home, '.retake');
+  const now = defaultRetakeHome(home);
   const signIns = (dir: string) => exists(join(dir, 'profiles')) || exists(join(dir, 'sessions'));
   if (old === now || !signIns(old) || signIns(now)) return null;
   const homeExists = exists(now);
@@ -309,5 +310,5 @@ export function gitignoreFix(file: string): string {
 
 /** `mv <dir>/.demo-studio <dir>/.retake`, for a workspace's or a project's tool folder. */
 export function oldDirMove(dir: string): string {
-  return `mv ${shellArg(join(dir, OLD_DIR))} ${shellArg(join(dir, '.retake'))}`;
+  return `mv ${shellArg(join(dir, OLD_DIR))} ${shellArg(statePath(dir))}`;
 }

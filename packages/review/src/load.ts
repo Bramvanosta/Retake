@@ -5,7 +5,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject, GUIDE, missingOrInvalid } from '@retake/core';
+import { loadProject, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
 import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
 import { listRenders, rendersDir } from '@retake/editor';
 import type { RenderRecord } from '@retake/editor';
@@ -98,7 +98,7 @@ export async function findPrevious(project: LoadedProject, current: RenderRecord
 
 /** The run timeline of a render (cursor track, clicks, captions as captured); undefined when the run is gone. */
 export async function renderTimeline(project: LoadedProject, record: RenderRecord): Promise<{ timeline?: Timeline; file?: string }> {
-  for (const dir of [record.run_dir, join(project.dir, 'runs', record.run_id)]) {
+  for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
     const file = join(dir, 'timeline.json');
     try {
@@ -112,7 +112,7 @@ export async function renderTimeline(project: LoadedProject, record: RenderRecor
 
 /** The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it can be read. */
 export async function renderRun(project: LoadedProject, record: RenderRecord): Promise<RunRecord | undefined> {
-  for (const dir of [record.run_dir, join(project.dir, 'runs', record.run_id)]) {
+  for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
     try {
       return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
@@ -125,5 +125,5 @@ export async function renderRun(project: LoadedProject, record: RenderRecord): P
 
 /** `<project>/review` */
 export function reviewsDir(project: Pick<LoadedProject, 'dir'>): string {
-  return join(project.dir, 'review');
+  return projectPath(project.dir, 'review');
 }

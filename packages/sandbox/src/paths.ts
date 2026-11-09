@@ -1,8 +1,8 @@
 import { join } from 'node:path';
-import { relativeInside } from '@retake/core';
+import { STATE_DIR, STATE_DIRS, relativeInside } from '@retake/core';
 
 /** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.retake/`). */
-export const SANDBOX_STATE_DIR = join('.retake', 'sandbox');
+export const SANDBOX_STATE_DIR = join(STATE_DIR, STATE_DIRS.sandbox);
 
 /** The files of one sandbox: `<project>/.retake/sandbox/<env>/…`. */
 export interface SandboxPaths {

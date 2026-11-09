@@ -2,7 +2,6 @@ import {
   AUTH_KEYS,
   PERSONA_NONE,
   checkNewProject,
-  createProject,
   listProjects,
   listTemplates,
   loginPatternForm,
@@ -10,6 +9,7 @@ import {
   resolvePersonas,
 } from '@retake/core';
 import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core';
+import { personScope, writeNewProject } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -65,7 +65,7 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
     await checkNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
   }
-  const project = await createProject(ws.root, { ...base, environments, ...(auth ? { auth } : {}) });
+  const project = await writeNewProject(ws.root, { ...base, environments, ...(auth ? { auth } : {}) }, personScope(ws.root));
   const c = ui.c;
   ui.ok(`created project ${c.bold(project.slug)} in ${ui.path(project.dir)}`);
   ui.line(c.dim('  README.md     what the product is, audience, goals, tone, accounts (by reference)'));

@@ -35,6 +35,7 @@ import {
   resolveNamedHook,
   stepHookList,
   ffmpegBin,
+  projectPath,
 } from '@retake/core';
 import type {
   AgentChannel,
@@ -74,7 +75,7 @@ import { LoginGuard, checkPersona, preflight, prepareSessions, removeSessionCopi
 import type { PreparedSession } from './auth.js';
 import { evalHookInPage } from './hook-page.js';
 import { hookResultFailed, hookResultName, loadHooksModule } from './hooks-bridge.js';
-import type { ConfirmHook, HookContextLike, HooksModule, JournalLike } from './hooks-bridge.js';
+import type { ConfirmHook, HookContextLike, HookResultLike, HooksModule, JournalLike } from './hooks-bridge.js';
 import { HOLD_MAX_MS } from './hold.js';
 import { INSPECT_PACING, inspectPage } from './inspect.js';
 import type { InspectContext, InspectRequest } from './inspect.js';
@@ -154,6 +155,11 @@ export interface RunOptions {
    * (`confirmHook`) and always counts as writing — a read-only run refuses it before anything runs.
    */
   hookTrust?: HookTrust;
+  /**
+   * Reports each hook and rollback this run executes (hooks HookContext.recordRun) with the run's id: the engine journals
+   * it in the workspace journal as its caller's (absent: not journaled).
+   */
+  recordHookRun?: (result: HookResultLike, runId: string) => Promise<void>;
   /**
    * The channel a trust-`mcp` run came through, for the wording of its refusals (L4.2): `studio` (a Studio user is told
    * "from the Studio", never about MCP) or `mcp` (default).
@@ -383,7 +389,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       );
     }
   }
-  const runsDir = resolve(opts.runsDir ?? join(project.dir, 'runs'));
+  const runsDir = resolve(opts.runsDir ?? projectPath(project.dir, 'runs'));
   // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
   // takes the next free second (core reserveRunId). A pre-assigned id (a job's, reserved at submit) reuses its folder.
   const { id: runId, dir } = opts.runId !== undefined ? { id: opts.runId, dir: join(runsDir, opts.runId) } : await reserveRunId(runsDir, loaded.name);
@@ -732,6 +738,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         ...(opts.hookVia ? { via: opts.hookVia } : {}),
         ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
+        ...(opts.recordHookRun ? { recordHookRun: opts.recordHookRun } : {}),
       };
       hooks = await openHooks(deps);
       await setupHooks(hooks, sc.setup ?? [], deps);
@@ -1459,6 +1466,7 @@ interface SetupDeps {
   /** Trust `mcp`: the scenario's own vars, the agent's (HookContextLike.agentVars). */
   agentVars?: readonly string[];
   confirmHook?: ConfirmHook;
+  recordHookRun?: RunOptions['recordHookRun'];
 }
 
 function formatIssuePath(path: ReadonlyArray<string | number>): string {
@@ -1676,6 +1684,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
+    ...(d.recordHookRun ? { recordRun: (r: HookResultLike) => d.recordHookRun!(r, d.runId) } : {}),
   };
   return { mod, journal, ctx };
 }

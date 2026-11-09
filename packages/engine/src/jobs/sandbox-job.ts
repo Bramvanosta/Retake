@@ -11,6 +11,8 @@ import type { ResetResult, Sandbox, SandboxLog } from '@retake/sandbox';
 import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { toEngineError } from '../errors.js';
+import { callerOf } from '../caller.js';
+import { hookRunRecorder } from '../store/journal.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
@@ -109,11 +111,12 @@ export async function executeSandboxJob(ctx: SandboxJobContext): Promise<Sandbox
     if (level !== 'debug') ctx.event({ type: 'log', level, message });
   };
   const seedTrust = { trust: 'mcp' as const, confirm: approvalChecker(input.approvals) };
+  const recordSeedRun = hookRunRecorder(project.root, callerOf(input.submitted_by), { project: project.slug });
   const stop = await ctx.interrupts.open({ message: 'interrupted: stopping what this command started…', onQuitSync: () => sb.killStartedSync() });
   const pages = resolveEnvironment(project, sb.env).pages;
   try {
     if (input.kind === 'sandbox_up') {
-      const res = await sb.up({ signal: stop.signal, log, seedTrust });
+      const res = await sb.up({ signal: stop.signal, log, seedTrust, recordSeedRun });
       return {
         kind: 'sandbox_up',
         env: sb.env,
@@ -123,7 +126,7 @@ export async function executeSandboxJob(ctx: SandboxJobContext): Promise<Sandbox
         pages,
       };
     }
-    const res = await sb.reset({ signal: stop.signal, log, seedTrust, ...(input.reseed ? { reseed: true } : {}) });
+    const res = await sb.reset({ signal: stop.signal, log, seedTrust, recordSeedRun, ...(input.reseed ? { reseed: true } : {}) });
     return { kind: 'sandbox_reset', env: sb.env, provider: sb.kind, reset: resetView(res), pages };
   } finally {
     stop.dispose();

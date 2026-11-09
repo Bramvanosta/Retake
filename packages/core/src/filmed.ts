@@ -27,6 +27,7 @@ import { SLUG_RE } from './schemas/primitives.js';
 import type { LoadedProject } from './types.js';
 import { listTemplateTokens } from './templating.js';
 import { parseYaml } from './validation/yaml-source.js';
+import { projectPath } from './layout.js';
 
 /** The largest scenario file or snapshot compared (a scenario_save takes 500,000 characters). */
 export const SCENARIO_COMPARE_MAX_BYTES = 2 * 1024 * 1024;
@@ -246,7 +247,7 @@ function readSmallPlainFile(file: string, max: number): string | undefined {
 
 /** `scenarios/<name>.yaml`, else `.yml` (as a name resolves). */
 function scenarioFileOf(project: Pick<LoadedProject, 'dir'>, scenario: string): string | undefined {
-  return [join(project.dir, 'scenarios', `${scenario}.yaml`), join(project.dir, 'scenarios', `${scenario}.yml`)].find((f) => existsSync(f));
+  return [projectPath(project.dir, 'scenarios', `${scenario}.yaml`), projectPath(project.dir, 'scenarios', `${scenario}.yml`)].find((f) => existsSync(f));
 }
 
 /** A run's scenario against today's file (L5.5). */
@@ -272,7 +273,7 @@ export interface ScenarioSinceRun {
  */
 export function scenarioSinceRun(project: Pick<LoadedProject, 'dir'>, runDir: string, scenario: string, nowText?: string): ScenarioSinceRun | undefined {
   if (scenario === '' || /[\\/]/.test(scenario)) return undefined;
-  const file = scenarioFileOf(project, scenario) ?? (nowText !== undefined ? join(project.dir, 'scenarios', `${scenario}.yaml`) : undefined);
+  const file = scenarioFileOf(project, scenario) ?? (nowText !== undefined ? projectPath(project.dir, 'scenarios', `${scenario}.yaml`) : undefined);
   if (!file) return undefined;
   const now = nowText !== undefined ? (nowText.length <= SCENARIO_COMPARE_MAX_BYTES ? nowText : undefined) : readSmallPlainFile(file, SCENARIO_COMPARE_MAX_BYTES);
   const then = now === undefined ? undefined : readSmallPlainFile(join(runDir, 'scenario.yaml'), SCENARIO_COMPARE_MAX_BYTES);

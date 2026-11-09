@@ -138,6 +138,23 @@ projects/<slug>/
                        # comments/<id>.jpg (the frame still of each comment thread: machine-local, never committed)
 ```
 
+### The workspace journal
+
+`<workspace>/.retake/journal.jsonl` records, one JSON line each, every **authored write** Retake makes — a scenario
+saved or edited, the README, a comment thread, a theme created, copied or edited, a component scaffolded, a project
+created (`retake new`, `project_create`), the workspace's own files (`retake init`), a sandbox scaffold — and every
+**hook run**: each setup, teardown, step, seed or reset hook executed (or refused), and each rollback replayed. A line
+says who (`by`: the client — `cli`, `mcp`, `ui` for the Studio —, its channel and its trust), what (the file or folder,
+workspace-relative; a hook's name, kind and phase — never a command, a body, a response or a secret), when (`at`) and
+the outcome (`ok`, or the error kind that stopped it: `conflict`, `refused`, `failed`…). A write also carries the hash it
+was made on (`if_match`) and the hash and size of the bytes written.
+
+The journal is append-only: each line is synced to disk before the operation replies, and nothing in Retake rewrites
+or removes it (`retake prune` leaves it alone; delete it by hand if you want it gone). It is machine-local (under
+`.retake/`, git-ignored) and separate from the job history (`history.jsonl`, what was produced: captures, dry runs,
+renders). Read it with `retake history` (`--project P`, `--writes` or `--hooks`, `--limit N`, `--json`). Files you edit
+in your own editor are not in it: it records what Retake wrote.
+
 ```yaml
 # project.yaml
 version: 1                     # format version: optional, absent = 1 (see File formats and versions)

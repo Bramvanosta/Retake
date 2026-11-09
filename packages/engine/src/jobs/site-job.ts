@@ -42,6 +42,7 @@ import {
   siteApprovalFingerprint,
   siteThemeName,
   unsafeTestResolve,
+  statePath,
 } from '@retake/core';
 import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile, WorkspaceConfig } from '@retake/core';
 import type { SiteReport } from '@retake/runner-web';
@@ -67,7 +68,7 @@ const SCREENSHOT_MAX_BYTES = 8 * 1024 * 1024;
 
 /** <workspace>/.retake/site */
 export function siteRoot(ws: WorkspaceConfig): string {
-  return join(ws.root, '.retake', 'site');
+  return statePath(ws.root, 'site');
 }
 
 /** <workspace>/.retake/site/<id> (the id checked: never a path). */
@@ -222,7 +223,7 @@ export async function pruneSites(ws: WorkspaceConfig, queue: JobQueueView, keep 
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
   // Never through a link: .retake/ and site/ must be real folders.
-  if (!(await lstat(join(ws.root, '.retake')).catch(() => null))?.isDirectory() || !(await lstat(siteRoot(ws)).catch(() => null))?.isDirectory()) return [];
+  if (!(await lstat(statePath(ws.root)).catch(() => null))?.isDirectory() || !(await lstat(siteRoot(ws)).catch(() => null))?.isDirectory()) return [];
   let names: string[];
   try {
     names = (await readdir(siteRoot(ws), { withFileTypes: true })).filter((e) => e.isDirectory() && SITE_ID_RE.test(e.name)).map((e) => e.name);

@@ -102,6 +102,7 @@ import { pruneApprovalRequest, takePruneApproval } from './approvals.js';
 import { admission } from './admission.js';
 import { ENGINE_TRUST, admits, agentChecks, agentWorkspace, anchorsOnShownRender, callerOf, chainsRecordings, cleansWorkerEnv, drivesRecordScreen, needsIfMatch, personChannel as speaksAsPerson, proposes, refusalChannel } from './caller.js';
 import type { EngineClient } from './caller.js';
+import type { StoreScope } from './store/project-store.js';
 import type { Approver } from './approvals.js';
 import type { RunBlocker, RunSubmitRequest } from './jobs/run-job.js';
 import { ensureWorker, otherCopyWarning } from './jobs/spawn.js';
@@ -601,6 +602,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const via = refusalChannel(caller);
   // Every caller but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
   const ws = await openWorkspace({ root: opts.root, agent: agentWorkspace(caller) });
+  // Every authored write of this engine goes through the project store, journaled as this caller's.
+  const scope: StoreScope = { workspace: ws.root, caller };
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
@@ -625,7 +628,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   const commentIndex = new CommentIndex();
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
   // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
-  const recordCtx = { queue, client: opts.client };
+  const recordCtx = { queue, client: opts.client, scope };
   let recordChain: Promise<unknown> = Promise.resolve();
   const studioOnly = (what: string) => {
     if (!drivesRecordScreen(caller)) throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);
@@ -823,8 +826,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     projects: {
       list: () => listProjectSummaries(ws),
       get: async (slug) => projectView(await project(slug)),
-      create: async (input) => projectView(await createProjectFromRequest(ws, input)),
-      updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch),
+      create: async (input) => projectView(await createProjectFromRequest(ws, input, scope)),
+      updateReadme: async (slug, markdown, ifMatch) => updateProjectReadme(await project(slug), markdown, ifMatch, scope),
       prune: async (slug, req = {}, o = {}) => {
         const p = await project(slug);
         // What a queued or running job names (its run, its render) stays: read again right before each pass.
@@ -858,8 +861,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       view: (slug, name, o = {}) => views.view(slug, name, o),
       actions: (slug, name, o = {}) => views.actions(slug, name, o),
-      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via }),
-      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await memoRegistry(ws)).registry }),
+      save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via, scope }),
+      edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await memoRegistry(ws)).registry, scope }),
       fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent }),
     },
     runs: {
@@ -1006,7 +1009,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     templates: {
       list: (o = {}) => templateList(ws, o.project),
       get: (o) => templateGet(ws, o),
-      create: (input) => createThemeFromBrand(ws, input, { trust: ENGINE_TRUST }),
+      create: (input) => createThemeFromBrand(ws, input, { trust: ENGINE_TRUST, scope }),
       fromSite: async (req, o = {}) => {
         const r = await submitSiteJob(submitCtx, req, o.approver);
         const worker = await startWorker();
@@ -1014,8 +1017,8 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       site: (siteId, url) => readSite(ws, siteId, url),
       view: (name) => templateView(ws, name),
-      edit: (name, req) => editTemplate(ws, name, req, { client: opts.client }),
-      copy: (req) => copyTheme(ws, req),
+      edit: (name, req) => editTemplate(ws, name, req, { client: opts.client, scope }),
+      copy: (req) => copyTheme(ws, req, { scope }),
       files: (kind) => brandFileList(ws, kind),
       sites: () => siteList(ws),
       preview: async (req) => {
@@ -1028,7 +1031,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       list: (kind) => componentList(ws, kind),
       get: (id) => componentGet(ws, id),
       validate: (id) => componentValidate(ws, id),
-      create: (req) => componentCreate(ws, req),
+      create: (req) => componentCreate(ws, req, scope),
       preview: async (req) => {
         const r = await submitPreviewJob(submitCtx, {
           project: req.project,
@@ -1125,7 +1128,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         if (anchorsOnShownRender(caller) && (req.render_created_at === undefined || req.render_created_at === null)) {
           throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
         }
-        return addComment(await project(slug), req, commentAuthor());
+        return addComment(await project(slug), req, commentAuthor(), scope);
       },
       reply: async (slug, id, text, o = {}) => {
         // Proposals are Claude's: a person changes the file; any other channel's entry would be labelled as Claude's.
@@ -1135,6 +1138,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         return replyComment(await project(slug), id, text, commentAuthor(), {
           ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
           registry: async () => (await memoRegistry(ws)).registry,
+          scope,
         });
       },
       resolve: async (slug, id, req) => {
@@ -1144,12 +1148,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           id,
           { note: req.note, ...(req.render_id !== undefined ? { render_id: req.render_id } : {}), ...(req.if_match !== undefined ? { ifMatch: req.if_match } : {}) },
           commentAuthor(),
+          { scope },
         );
       },
       reopen: async (slug, id, note, o = {}) => {
         personChannel('reopen (reopening a thread)');
         needIfMatch(o.if_match, 'reopen');
-        return reopenComment(await project(slug), id, note, commentAuthor(), o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {});
+        return reopenComment(await project(slug), id, note, commentAuthor(), { ...(o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {}), scope });
       },
       anchorAt: async (slug, req) => anchorAt(await project(slug), req),
       apply: async (slug, id, req) => {
@@ -1160,7 +1165,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           id,
           { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) },
           commentAuthor(),
-          { registry: async () => (await memoRegistry(ws)).registry },
+          { registry: async () => (await memoRegistry(ws)).registry, scope },
         );
       },
       proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry }),

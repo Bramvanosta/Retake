@@ -9,7 +9,7 @@
  */
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROJECT_SLUG_RE, RECORD_ID_RE } from '@retake/core';
+import { PROJECT_SLUG_RE, RECORD_ID_RE, statePath } from '@retake/core';
 
 /** Recording folders looked at per project, at most (the newest; the records folder keeps about 20). */
 export const RECORD_WATCH_PER_PROJECT = 40;
@@ -50,8 +50,8 @@ function realDir(dir: string): boolean {
 export function recordsWatchScan(projectsDir: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const slug of dirs(projectsDir, PROJECT_SLUG_RE).sort().slice(0, RECORD_WATCH_PROJECTS_MAX)) {
-    const root = join(projectsDir, slug, '.retake', 'records');
-    if (!realDir(join(projectsDir, slug, '.retake')) || !realDir(root)) continue;
+    const root = statePath(join(projectsDir, slug), 'records');
+    if (!realDir(statePath(join(projectsDir, slug))) || !realDir(root)) continue;
     for (const id of dirs(root, RECORD_ID_RE).sort().reverse().slice(0, RECORD_WATCH_PER_PROJECT)) {
       out.set(`${slug}/${id}`, FILES.map((f) => stamp(join(root, id, f))).join('|'));
     }

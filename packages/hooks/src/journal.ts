@@ -15,10 +15,12 @@ import {
   rollbackWriteReason,
   sandboxOf,
   writeJson,
+  projectPath,
 } from '@retake/core';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { actionLines, fieldLines, shownRollback } from './shown.js';
 import { executeRollback } from './kinds/index.js';
+import { recordHookRun } from './record.js';
 import { logger, redactText } from './secrets.js';
 import type { HookContext, HookResult, JournalEntry, JournalFile, NewJournalEntry, RollbackAction } from './types.js';
 import { isRecord, nowIso } from './util.js';
@@ -44,7 +46,7 @@ export function standaloneJournalFile(projectDir: string, id: string, opts: Jour
 
 /** The journal of `id`: a run's `runs/<id>/hooks-journal.json`, else `.retake/journals/<id>.json`; null when neither exists. */
 export function findJournal(projectDir: string, id: string, opts: JournalLocations = {}): string | null {
-  const run = join(opts.runsDir ?? join(projectDir, 'runs'), id, JOURNAL_FILE);
+  const run = join(opts.runsDir ?? projectPath(projectDir, 'runs'), id, JOURNAL_FILE);
   if (existsSync(run)) return run;
   const standalone = standaloneJournalFile(projectDir, id, opts);
   return existsSync(standalone) ? standalone : null;
@@ -350,7 +352,11 @@ export class Journal {
       const wanted = new Set(seqs);
       const entries = this.data.entries.filter((e) => wanted.has(e.seq) && isPending(e)).sort((a, b) => b.seq - a.seq);
       const results: HookResult[] = [];
-      for (const entry of entries) results.push(await this.rollbackOne(entry, ctx));
+      for (const entry of entries) {
+        const result = await this.rollbackOne(entry, ctx);
+        await recordHookRun(ctx, result);
+        results.push(result);
+      }
       return results;
     };
     const next = this.rolling.catch(() => undefined).then(run);
@@ -485,7 +491,7 @@ async function listJsonFiles(dir: string): Promise<string[]> {
  * opening them.
  */
 export async function findPendingJournals(projectDir: string, opts: JournalLocations = {}): Promise<string[]> {
-  const runsDir = opts.runsDir ?? join(projectDir, 'runs');
+  const runsDir = opts.runsDir ?? projectPath(projectDir, 'runs');
   const journalsDir = opts.journalsDir ?? join(projectDir, JOURNALS_DIR);
   const candidates: Array<{ id: string; file: string }> = [];
   for (const name of await listDirs(runsDir)) {

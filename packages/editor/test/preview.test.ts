@@ -3,6 +3,8 @@
  * caption, anchor, incoming card, moment) and real previews rendered with Remotion — into an --out folder (images
  * only) and in place (preview.png + preview.json with a fresh source hash + the README block), for any theme.
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { readFileSync, statSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -24,6 +26,12 @@ import type { ComponentRegistry } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewSamples } from '@retake/editor';
 import { REPO, SHARED_CACHE, hasTool } from './render-helpers.js';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -167,7 +175,7 @@ describe.skipIf(!canRender)('component previews rendered with Remotion', () => {
       expect(png.length).toBeGreaterThan(10_000);
 
       // In place, on a workspace component (the layout scaffold), with the motion theme.
-      const created = await createComponent(root, { id: 'acme/frame', kind: 'layout', description: 'A test frame.' });
+      const created = await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A test frame.' });
       await writeFile(join(created.dir, 'README.md'), '# acme/frame\n\nHand-written notes.\n');
       const motion = await loadTemplate('motion', root);
       const reg2 = await loadComponentRegistry({ root });

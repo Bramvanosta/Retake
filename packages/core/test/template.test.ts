@@ -4,14 +4,13 @@ import {
   ConfigError,
   DEFAULT_TEMPLATE,
   TemplateSchema,
-  createProject,
   listTemplates,
   loadProjectTemplate,
   loadTemplate,
   parseTemplateYaml,
   STARTER_TEMPLATES_DIR,
 } from '@retake/core';
-import { tempDir, writeFiles } from './helpers.js';
+import { createProject, tempDir, writeFiles } from './helpers.js';
 
 const ASSETS = {
   'logo.svg': '<svg xmlns="http://www.w3.org/2000/svg"/>',

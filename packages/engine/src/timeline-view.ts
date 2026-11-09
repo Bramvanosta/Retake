@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin, projectPath } from '@retake/core';
 import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
@@ -399,7 +399,7 @@ function renderMatcher(projectDir: string, planSha: string, themeSha: string): (
     let same = seen.get(key);
     if (same === undefined) {
       same = false;
-      const r = readPlainFile(join(projectDir, 'renders', `${renderId}.json`), 16 * 1024 * 1024);
+      const r = readPlainFile(projectPath(projectDir, 'renders', `${renderId}.json`), 16 * 1024 * 1024);
       if (r.ok) {
         try {
           const rec = JSON.parse(r.bytes.toString('utf8')) as { created_at?: unknown; template_sha256?: unknown; plan?: unknown };
@@ -572,9 +572,9 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   }
   // The run the view shows: asked, else the latest capture (its timeline.json's size and mtime are in the key).
   const runId = proposal?.run_id ?? req.run_id ?? (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 1 }))[0]?.id;
-  const timelineStat = runId ? statKey(join(project.dir, 'runs', runId, 'timeline.json')) : 'none';
+  const timelineStat = runId ? statKey(projectPath(project.dir, 'runs', runId, 'timeline.json')) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
-  const commentsStat = statKey(join(project.dir, 'comments', req.scenario));
+  const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));
   const projectStat = statKey(join(project.dir, 'project.yaml'));
   // The themes the scenario's theme switch offers (a theme copied or created since: a new view).
   const listed = await listTemplates(project.root);

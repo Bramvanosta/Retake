@@ -17,7 +17,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, listTemplates, loadTemplate, loadWorkspaceConfig } from '@retake/core';
 import { fontFileFace } from '@retake/components';
-import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, fileNameFace, personScope } from '../src/index.js';
 import type { Engine, EngineError, ThemeCreated } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -197,7 +197,7 @@ describe('template_create_from_brand (engine)', () => {
       await mkdir(join(ws, 'brand'));
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
       await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
-      const e = await refusal(createThemeFromBrand(await loadWorkspaceConfig(ws), input(), { trust: 'mcp' }));
+      const e = await refusal(createThemeFromBrand(await loadWorkspaceConfig(ws), input(), { trust: 'mcp', scope: personScope(ws) }));
       expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Retake folder/), fix: expect.stringMatching(/RETAKE_ROOT/) });
       await rm(ws, { recursive: true, force: true });
     }
@@ -336,14 +336,14 @@ describe('template_create_from_brand (engine)', () => {
 
   it('replace through MCP never takes a theme a human made with the CLI; the CLI may replace a tool-made one', async () => {
     const ws = await loadWorkspaceConfig(root);
-    await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root });
+    await createThemeFromBrand(ws, input({ name: 'bob' }), { trust: 'author', cwd: root, scope: personScope(root) });
     expect(await refusal(engine.templates.create(input({ name: 'bob', colors: { accent: '#00aa00' }, replace: true })))).toMatchObject({
       code: 'refused',
       message: expect.stringMatching(/was made by a human with retake theme create: through MCP only a theme made through MCP is replaced/),
     });
     expect((await loadTemplate('bob', root)).template.colors.accent).toBe('#0e7c66');
     await engine.templates.create(input({ name: 'carol' }));
-    expect((await createThemeFromBrand(ws, input({ name: 'carol', colors: { accent: '#00aa00' }, replace: true }), { trust: 'author', cwd: root })).replaced).toBe(true);
+    expect((await createThemeFromBrand(ws, input({ name: 'carol', colors: { accent: '#00aa00' }, replace: true }), { trust: 'author', cwd: root, scope: personScope(root) })).replaced).toBe(true);
   });
 
   it("a crash's leftovers: only this tool's .tmp- / .old-<name>-<12 hex> folders older than an hour go", async () => {

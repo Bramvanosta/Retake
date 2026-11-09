@@ -12,6 +12,7 @@ import {
   runIdMatchesScenario,
   scenarioChangedMessage,
   writeJson,
+  projectPath,
 } from '@retake/core';
 import type { LoadedProject, Scenario, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
@@ -58,7 +59,7 @@ function hasCaptureTimeline(dir: string): boolean {
  * their date, so they sort chronologically.
  */
 export function resolveRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   if (arg === 'latest') {
     let ids: string[] = [];
     try {

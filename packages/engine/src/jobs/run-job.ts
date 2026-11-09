@@ -20,12 +20,15 @@ import {
   resolveStepRef,
   usedNamedHooks,
   writeJson,
+  projectPath,
+  statePath,
 } from '@retake/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
+import { callerOf } from '../caller.js';
 import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
@@ -84,7 +87,7 @@ export function runCommandLine(cli: string, r: RunSubmitRequest): string {
 
 /** A journal file a preflight opens and never writes (a dry run journals nothing). */
 export function preflightJournal(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'journals', `preflight-${randomUUID()}.json`);
+  return statePath(project.dir, 'journals', `preflight-${randomUUID()}.json`);
 }
 
 /** Steps the run will execute (all, or up to `until`), as the runner counts them. */
@@ -301,7 +304,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       details: { shown: req.expect_sha256, current: sha },
     });
   }
-  const { id: runId, dir } = await reserveRunId(join(project.dir, 'runs'), prepared.scenario.name);
+  const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
   const queued: RunRecord = {
     version: FORMAT_VERSIONS.run,
     id: runId,
@@ -383,7 +386,7 @@ export function pauseMaxMs(env: NodeJS.ProcessEnv = process.env): number | undef
 export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const runDir = join(project.dir, 'runs', input.run_id);
+  const runDir = projectPath(project.dir, 'runs', input.run_id);
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
     const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
@@ -444,6 +447,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         hookTrust: 'mcp',
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
+        recordAs: callerOf(input.submitted_by),
         ...(ctx.live ? { live: ctx.live } : {}),
         ...(ctx.pause ? { pause: ctx.pause } : {}),
         ...(ctx.onFilming ? { onFilming: ctx.onFilming } : {}),

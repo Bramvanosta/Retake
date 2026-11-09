@@ -33,6 +33,7 @@ import { JobsWatch, liveWorker } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
+import { projectPath } from '@retake/core';
 
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;
@@ -321,7 +322,7 @@ export class Supervisor {
     if (n.project === undefined) return {};
     const dir = join(this.o.projectsDir ?? join(this.o.root, 'projects'), n.project);
     if (!(await exists(join(dir, 'project.yaml')))) return {};
-    return n.scenario !== undefined && (await exists(join(dir, 'scenarios', `${n.scenario}.yaml`))) ? n : { project: n.project };
+    return n.scenario !== undefined && (await exists(projectPath(dir, 'scenarios', `${n.scenario}.yaml`))) ? n : { project: n.project };
   }
 
   private async keep(job: JobRecord): Promise<void> {

@@ -13,6 +13,7 @@ import { logger, redactDeep, redactText } from './secrets.js';
 import { actionLines } from './shown.js';
 import { addDrySaved, tokensIn } from './template.js';
 import { journalsRollback } from './types.js';
+import { recordHookRun } from './record.js';
 import type { HookApprovalRequest, HookContext, HookLogLevel, HookPhase, HookResult, JournalEntry } from './types.js';
 import { nowIso } from './util.js';
 
@@ -308,6 +309,7 @@ export async function runHooks(hooks: HookStep[], ctx: HookContext, opts: RunHoo
       break;
     }
     const { result, entry } = await runOne(hooks[i], i, hooks.length, ctx, opts, log);
+    await recordHookRun(ctx, result);
     results.push(result);
     if (entry?.rollback && entry.status === 'ok') completed.push(entry.seq);
     if (result.ok) continue;

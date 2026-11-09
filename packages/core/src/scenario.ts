@@ -11,7 +11,6 @@ import { listScenarioNames } from './project.js';
 import { SLUG_RE } from './schemas/primitives.js';
 import { ScenarioSchema } from './schemas/scenario.js';
 import type { LoadedProject, LoadedScenario, Scenario, ValidationIssue } from './types.js';
-import { writeTextAtomic } from './util.js';
 import { checkYamlDocument } from './validation/document.js';
 import { finalizeIssues } from './validation/located.js';
 import { suggestion } from './validation/suggest.js';
@@ -20,6 +19,7 @@ import { relativeInside } from './path-inside.js';
 import { canonicalJson } from './canonical-json.js';
 import { GUIDE, missingOrInvalid } from './error-kind.js';
 import type { ErrorKind } from './error-kind.js';
+import { projectPath } from './layout.js';
 
 export type { ScenarioCheckOptions } from './checks/scenario.js';
 export { ARTEFACT_SLOTS, DOCUMENT_FILE_EXTENSIONS, isDocumentPath } from './checks/scenario.js';
@@ -91,7 +91,7 @@ export function validateScenario(s: unknown, opts: ScenarioCheckOptions = {}): V
 }
 
 function scenariosDir(project: Pick<LoadedProject, 'dir'>): string {
-  return join(project.dir, 'scenarios');
+  return projectPath(project.dir, 'scenarios');
 }
 
 /** The files a scenario name stands for, in the order they are looked up: scenarios/<name>.yaml, then .yml. */
@@ -223,15 +223,11 @@ export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string):
 }
 
 /**
- * Validate and write <project>/scenarios/<name>.yaml (atomically). Refuses to write when there is
- * an error-level issue: throws ScenarioError carrying the issues. Returns the warnings otherwise
- * and adds the name to `project.scenarios`.
+ * Check a scenario before it is saved as <project>/scenarios/<name>.yaml: refused (ScenarioError carrying the issues)
+ * on a bad name or an error-level issue; otherwise its file, the text to write (a final line break added) and the
+ * warnings. Nothing is written: the engine's project store saves it (engine scenarios.ts saveScenarioText).
  */
-export async function saveScenario(
-  project: LoadedProject,
-  name: string,
-  text: string,
-): Promise<{ file: string; issues: ValidationIssue[] }> {
+export function checkScenarioSave(project: LoadedProject, name: string, text: string): { file: string; text: string; issues: ValidationIssue[] } {
   if (!SLUG_RE.test(name)) {
     throw new ScenarioError(`invalid scenario name "${name}": use letters, digits, "-" or "_" (it becomes scenarios/<name>.yaml)`);
   }
@@ -240,7 +236,5 @@ export async function saveScenario(
   if (hasErrors(issues)) {
     throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, file)}`, issues, file);
   }
-  await writeTextAtomic(file, text.endsWith('\n') ? text : `${text}\n`);
-  if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
-  return { file, issues };
+  return { file, text: text.endsWith('\n') ? text : `${text}\n`, issues };
 }

@@ -8,6 +8,8 @@ import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEn
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig, ErrorKind } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
+import type { Caller } from './caller.js';
+import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import { refuseBesideOldHolder } from './legacy.js';
@@ -156,6 +158,8 @@ export interface ExecuteRunOptions {
   loginCommand?: (p: { project: string; env: string; persona?: string }) => string;
   /** Who stands behind the scenario's hook flags (default `author`; `mcp` for a job submitted through MCP). */
   hookTrust?: HookTrust;
+  /** Who runs it: each hook, rollback and sandbox seed step run is a line of the workspace journal as this caller's. */
+  recordAs?: Caller;
   /** The channel a trust-`mcp` job came through, for the wording of refusals (`studio`: the Studio; default `mcp`). */
   hookVia?: AgentChannel;
   /** Approves a hook that needs a human (the worker: the job's approvals). */
@@ -183,6 +187,7 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
       command: `run ${scenario}`,
       // The seed a reset may run is under the run's trust: through MCP a shell seed step needs its approval too.
       ...(opts.hookTrust ? { seedTrust: { trust: opts.hookTrust, ...(opts.confirmHook ? { confirm: opts.confirmHook } : {}) } } : {}),
+      ...(opts.recordAs ? { recordSeedRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
     });
   } catch (e) {
     const code = (e as { code?: string })?.code;
@@ -252,6 +257,7 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
       ...(opts.allowWrites ? { allowWrites: true } : {}),
       ...(opts.hideCursor ? { hideCursor: true } : {}),
       ...(opts.hookTrust ? { hookTrust: opts.hookTrust } : {}),
+      ...(opts.recordAs ? { recordHookRun: hookRunRecorder(project.root, opts.recordAs, { project: project.slug }) } : {}),
       ...(opts.hookVia ? { hookVia: opts.hookVia } : {}),
       ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       ...(opts.live ? { live: opts.live } : {}),

@@ -3,8 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyProjectDefaults } from '@retake/core';
-import type { LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
+import { applyProjectDefaults, loadProject, planNewProject } from '@retake/core';
+import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -77,4 +77,14 @@ export function lineOf(text: string, needle: string, occurrence = 1): number {
 export function colOf(text: string, needle: string, occurrence = 1): number {
   const line = text.split('\n')[lineOf(text, needle, occurrence) - 1];
   return line.indexOf(needle) + 1;
+}
+
+/** A new project written as the engine's store would (core plans it, writes nothing): its plan's files, then loaded. */
+export async function createProject(root: string, input: CreateProjectInput): Promise<LoadedProject> {
+  const plan = await planNewProject(root, input);
+  for (const f of plan.files) {
+    await mkdir(dirname(join(plan.dir, f.ref)), { recursive: true });
+    await writeFile(join(plan.dir, f.ref), f.text, { flag: 'wx' });
+  }
+  return loadProject(plan.dir, plan.wsRoot);
 }

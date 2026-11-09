@@ -23,7 +23,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo } from '@retake/core';
+import { SLUG_RE, environmentAccess, filmedChanges, loadProjectTemplate, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
 import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
@@ -452,7 +452,7 @@ export class ScenarioViews {
   // ── Text layer ──────────────────────────────────────────────────────────
 
   private async projectSig(p: LoadedProject): Promise<string> {
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), projectPath(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
@@ -535,7 +535,7 @@ export class ScenarioViews {
 
   /** What tells the cached run list is stale: the runs folder, its newest folders and their run.json, unfinished runs'. */
   private async runsSig(p: LoadedProject, memo: RunListMemo | undefined): Promise<string> {
-    const dir = join(p.dir, 'runs');
+    const dir = projectPath(p.dir, 'runs');
     let names: string[] = [];
     try {
       names = (await readdir(dir)).filter((n) => RUN_ID_RE.test(n)).sort().reverse().slice(0, 8);
@@ -574,11 +574,11 @@ export class ScenarioViews {
    * the run folder's signature holds (a finished run's files do not change; deleting frames changes the folder).
    */
   private async factsOf(projectDir: string, id: string, mode: string, finished: boolean, failed: boolean): Promise<RunFacts> {
-    const key = `${projectDir}\0${id}\0${await lsig(join(projectDir, 'runs', id))}`;
+    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
     const hit = finished ? this.facts.get(key) : undefined;
     if (hit) return hit;
     const pictures = await runPictures(projectDir, id, mode);
-    const snapshot = (await lsig(join(projectDir, 'runs', id, 'scenario.yaml'))) !== '-';
+    const snapshot = (await lsig(projectPath(projectDir, 'runs', id, 'scenario.yaml'))) !== '-';
     let failedAt: string | undefined;
     if (failed) {
       const folder = await RunFolder.open(projectDir, id);

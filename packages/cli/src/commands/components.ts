@@ -15,6 +15,7 @@ import {
 import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@retake/components';
 import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewComponentTarget, RenderedPreview } from '@retake/editor';
+import { componentWriter, personScope } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -189,7 +190,7 @@ export interface ComponentsCreateOptions {
 /** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
-  const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name });
+  const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name, write: componentWriter(ws, personScope(ws.root)) });
   // The preview (preview.png + preview.json + the README block) — skipped with a warning when no browser can render.
   let preview: RenderedPreview | undefined;
   let previewError: string | undefined;

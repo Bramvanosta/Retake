@@ -25,6 +25,7 @@ import {
   isPageOrigin,
   pageOrigins,
   resolveEnvironment,
+  statePath,
 } from '@retake/core';
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
@@ -64,7 +65,7 @@ export interface InspectSubmitRequest {
 
 /** <project>/.retake/inspect */
 export function inspectRoot(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'inspect');
+  return statePath(project.dir, 'inspect');
 }
 
 /** <project>/.retake/inspect/<id> (the id checked: never a path). */

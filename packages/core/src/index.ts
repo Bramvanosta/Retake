@@ -28,6 +28,7 @@ export * from './destructive.js';
 export * from './access.js';
 export * from './display.js';
 export * from './writes.js';
+export * from './layout.js';
 export * from './clock.js';
 export * from './hook-writes.js';
 export * from './named-hooks.js';

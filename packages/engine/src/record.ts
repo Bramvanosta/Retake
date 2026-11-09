@@ -45,10 +45,12 @@ import {
   resolveEnvironment,
   resolvePersonas,
   resolveRunAccess,
+  projectPath,
+  statePath,
 } from '@retake/core';
 import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkspaceConfig } from '@retake/core';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
-import { submittedInStudio } from './caller.js';
+import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
@@ -68,7 +70,7 @@ export const RECORD_MAX_ENV = 'RETAKE_RECORD_MAX_MIN';
 
 /** <project>/.retake/records */
 export function recordsRoot(project: LoadedProject): string {
-  return join(project.dir, '.retake', 'records');
+  return statePath(project.dir, 'records');
 }
 
 /** <project>/.retake/records/<id> (the id checked: never a path). */
@@ -156,7 +158,7 @@ export function defaultRecordName(project: LoadedProject, now = new Date()): str
 }
 
 function scenarioTaken(project: LoadedProject, name: string): boolean {
-  return project.scenarios.includes(name) || existsSync(join(project.dir, 'scenarios', `${name}.yaml`)) || existsSync(join(project.dir, 'scenarios', `${name}.yml`));
+  return project.scenarios.includes(name) || existsSync(projectPath(project.dir, 'scenarios', `${name}.yaml`)) || existsSync(projectPath(project.dir, 'scenarios', `${name}.yml`));
 }
 
 export interface RecordRequest {
@@ -510,7 +512,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
   else if (scenarioTaken(project, name)) notSaved = 'name_taken';
   else {
     try {
-      const r = await saveScenarioText(project, name, draft.yaml, { ifMatch: null, agent: req.agent === true });
+      const r = await saveScenarioText(project, name, draft.yaml, { ifMatch: null, agent: req.agent === true, scope: { workspace: ws.root, caller: callerOf(req.submittedBy ?? 'cli') } });
       saved = { file: r.file, path: r.path, hash: r.hash };
     } catch (e) {
       const err = toEngineError(e);

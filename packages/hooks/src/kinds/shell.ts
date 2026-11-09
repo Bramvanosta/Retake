@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import { resolve } from 'node:path';
+import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv, projectPath } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -262,7 +262,7 @@ async function agentShellView(ctx: HookContext, cmd: Pick<ShellCommand, 'run' | 
   const view = { run: inert(cmd.run), ...(cmd.cwd !== undefined ? { cwd: inert(cmd.cwd) } : {}) };
   const tpl = await hookTemplateContext(ctx, view);
   const id = ctx.runId ?? 'run';
-  return renderDeep(view, { ...tpl, run: { id, dir: ctx.runDir ?? join(ctx.project.dir, 'runs', id) } });
+  return renderDeep(view, { ...tpl, run: { id, dir: ctx.runDir ?? projectPath(ctx.project.dir, 'runs', id) } });
 }
 
 /** The end of every refusal of an agent-written shell hook: what it may be, and what a person does instead. */

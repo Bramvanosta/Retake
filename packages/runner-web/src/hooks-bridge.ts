@@ -39,9 +39,15 @@ export interface HookContextLike {
   agentVars?: readonly string[];
   /** Approves the hooks that need a human (RunOptions.confirmHook). */
   confirmDestructive?: ConfirmHook;
+  /** Reports each hook and rollback run (RunOptions.recordHookRun, with this run's id). */
+  recordRun?: (result: HookResultLike) => Promise<void>;
 }
 
 export interface HookResultLike {
+  index?: number;
+  kind?: string;
+  phase?: string;
+  ms?: number;
   name?: string;
   description?: string;
   ok?: boolean;

@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { resolveEnvironment, sandboxNames } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@retake/sandbox';
-import { refuseBesideOldHolder, sandboxUpText } from '@retake/engine';
+import { ProjectStore, callerOf, fileWriter, hookRunRecorder, personScope, refuseBesideOldHolder, sandboxUpText } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -107,7 +107,7 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
+    const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), recordSeedRun: hookRunRecorder(project.root, callerOf('cli'), { project: project.slug }), seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
     ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
     else if (opts.seed === false) ui.line(`  ${c.dim('seed')}      skipped (--no-seed)`);
@@ -139,7 +139,7 @@ export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, project
   const { project, sb } = await open(global, projectArg, opts.env);
   await refuseBesideOldHolder((await openWorkspace(global)).root, 'sandbox reset');
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), reseed: opts.reseed }));
+    const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), reseed: opts.reseed, recordSeedRun: hookRunRecorder(project.root, callerOf('cli'), { project: project.slug }) }));
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);
     return EXIT.ok;
   } catch (e) {
@@ -236,7 +236,7 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
   const { initSandbox, SandboxError } = await sandboxModule();
   let res;
   try {
-    res = await initSandbox(project, { env: opts.env, force: opts.force });
+    res = await initSandbox(project, { env: opts.env, force: opts.force, write: fileWriter(ProjectStore.of(project, personScope(project.root)), 'sandbox') });
   } catch (e) {
     if (e instanceof SandboxError) throw new UsageError(e.message);
     throw e;

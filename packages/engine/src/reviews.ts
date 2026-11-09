@@ -11,7 +11,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile } from '@retake/core';
+import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, readPlainFile, projectPath } from '@retake/core';
 import type { WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
@@ -97,7 +97,7 @@ export async function reviewGet(ws: WorkspaceConfig, queue: JobQueueView, slug: 
   const project = await openProjectBySlug(ws, slug);
   const record = await renderForWork(project, renderIdArg, o.scenario !== undefined ? { scenario: o.scenario } : {});
   const id = record.id;
-  const dir = join(project.dir, 'review', id);
+  const dir = projectPath(project.dir, 'review', id);
   const job = (await queue.list({ project: slug, kinds: ['review'], renderId: id, limit: 1 }))[0];
   let report: Record<string, unknown> | undefined;
   const reportFile = join(dir, 'report.json');
@@ -292,7 +292,7 @@ export async function reviewImage(ws: WorkspaceConfig, slug: string, renderId: s
   if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId) || renderId.length > 200) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
   if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
   const project = await openProjectBySlug(ws, slug);
-  const dir = join(project.dir, 'review', renderId);
+  const dir = projectPath(project.dir, 'review', renderId);
   if (!existsSync(dir)) throw new EngineError('not_found', `render ${renderId} has no review yet`);
   if (!insideFolder(project.dir, dir)) throw new EngineError('refused', `the review folder of ${renderId} lies outside the project: not shown`);
   const file = join(dir, image);

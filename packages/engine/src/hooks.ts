@@ -30,6 +30,8 @@ import {
 import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
+import type { Caller } from './caller.js';
+import { hookRunRecorder } from './store/journal.js';
 
 /**
  * A hooks source that cannot be used: `usage` — not a hooks source at all (the CLI: a usage error, exit 2); otherwise
@@ -169,6 +171,8 @@ export interface HookContextOptions {
   signal?: AbortSignal;
   /** L5.14, CLI only: asks about each rollback whose journal entry Retake did not sign for its journal (hooks journal.ts). */
   replayUnsigned?: HookContext['replayUnsigned'];
+  /** Who runs these hooks: each hook and rollback run is a line of the workspace journal, as this caller's (absent: none). */
+  recordAs?: Caller;
 }
 
 /**
@@ -235,6 +239,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),
+    ...(o.recordAs ? { recordRun: hookRunRecorder(project.root, o.recordAs, { project: project.slug, run: runId }) } : {}),
     evalInPage: async (pageKey, code) => {
       const rw = await import('@retake/runner-web');
       if (!Object.keys(env.pages).length) throw new Error(`environment "${env.name}" declares no pages for the js hook to run in`);

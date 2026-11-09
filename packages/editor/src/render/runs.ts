@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario } from '@retake/core';
+import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
 import type { LoadedProject, Scenario } from '@retake/core';
 import type { RenderRecord } from './types.js';
 import { RenderError } from './types.js';
@@ -49,7 +49,7 @@ export function findRun(project: LoadedProject, arg: string, scenario?: string):
 }
 
 function locateRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const runsDir = join(project.dir, 'runs');
+  const runsDir = projectPath(project.dir, 'runs');
   if (arg === 'latest') {
     let ids: string[] = [];
     try {
@@ -97,7 +97,7 @@ export async function runEnv(dir: string): Promise<string | undefined> {
 
 /** `<project>/renders` */
 export function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
-  return join(project.dir, 'renders');
+  return projectPath(project.dir, 'renders');
 }
 
 function escapeRe(s: string): string {
@@ -150,7 +150,7 @@ export async function reserveVersion(dir: string, name: string, owner = String(p
 
 /** The RenderRecords of a project (renders/*.json), oldest first. Unreadable files are skipped. */
 export async function listRenders(project: Pick<LoadedProject, 'dir'> | string): Promise<RenderRecord[]> {
-  const dir = typeof project === 'string' ? join(resolve(project), 'renders') : rendersDir(project);
+  const dir = typeof project === 'string' ? projectPath(resolve(project), 'renders') : rendersDir(project);
   let files: string[];
   try {
     files = (await readdir(dir)).filter((f) => f.endsWith('.json') && !f.startsWith('.'));

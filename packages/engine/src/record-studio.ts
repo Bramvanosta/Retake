@@ -60,6 +60,7 @@ import {
   scenarioBlocks,
   shownStep,
   pathInside,
+  statePath,
 } from '@retake/core';
 import type {
   DraftIssue,
@@ -89,6 +90,7 @@ import { RECORD_META_FILE, RECORD_STUDIO_FILE, readRecordAnnotations, readRecord
 import type { RecordMeta } from './record-files.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
+import type { StoreScope } from './store/project-store.js';
 import { sha256Hex } from './storage.js';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
@@ -240,6 +242,8 @@ export interface RecordStopped {
 export interface RecordStudioContext {
   queue: JobQueueView;
   client: JobClient;
+  /** Where a saved draft is written and journaled (the engine's caller). */
+  scope: StoreScope;
 }
 
 // ── Reading the folder ─────────────────────────────────────────────────────
@@ -339,7 +343,7 @@ async function folderState(project: LoadedProject, id: string): Promise<'folder'
   if (!dirSt.isDirectory() || dirSt.isSymbolicLink()) return 'link';
   try {
     const [rootSt, realProject, realRoot, realDir] = await Promise.all([lstat(root), realpath(project.dir), realpath(root), realpath(dir)]);
-    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.retake', 'records') || realDir !== join(realRoot, id) || !pathInside(realDir, realProject, { dotDotPrefix: true })) return 'link';
+    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== statePath(realProject, 'records') || realDir !== join(realRoot, id) || !pathInside(realDir, realProject, { dotDotPrefix: true })) return 'link';
   } catch {
     return 'link';
   }
@@ -351,7 +355,7 @@ async function realRecordsRoot(project: LoadedProject): Promise<string | null> {
   const root = recordsRoot(project);
   try {
     const [st, realProject, realRoot] = await Promise.all([lstat(root), realpath(project.dir), realpath(root)]);
-    return st.isDirectory() && !st.isSymbolicLink() && realRoot === join(realProject, '.retake', 'records') ? root : null;
+    return st.isDirectory() && !st.isSymbolicLink() && realRoot === statePath(realProject, 'records') ? root : null;
   } catch {
     return null;
   }
@@ -875,14 +879,14 @@ function hiddenProblem(yaml: string): string | null {
  * (the Studio never writes one), agent trust (`via: 'studio'`), never over an existing file (a taken name is a
  * conflict), errors without a path — the validator's text located by scene and step and kept under `details.untrusted`.
  */
-export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[]): Promise<{ file: string; hash: string; warnings: number }> {
+export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
   if (hid !== null) throw new EngineError('invalid', `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`);
   const taken = () => new EngineError('conflict', `scenario ${name} exists: choose another name (a recording never replaces a scenario)`, { fix: 'choose another name' });
   if (project.scenarios.includes(name)) throw taken();
   try {
-    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio' });
+    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope });
     return { file: r.file, hash: r.hash, warnings: r.warnings.length };
   } catch (e) {
     if (e instanceof Error && e.name === 'ScenarioError') {
@@ -934,7 +938,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     if (errors.length) {
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
-    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds);
+    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope);
     const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: new Date().toISOString() } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };

@@ -215,15 +215,13 @@
   },
   {
    "rule": "cycle",
-   "reason": "Approvals, comments, renders, pruning and the job runners import one another.",
+   "reason": "Approvals, pruning and the job runners import one another.",
    "entries": [
-    "packages/engine/src/approvals.ts → 8 imports inside its cycle",
+    "packages/engine/src/approvals.ts → 4 imports inside its cycle",
     "packages/engine/src/approvals.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/comments.ts → cycle of packages/engine/src/approvals.ts",
     "packages/engine/src/jobs/render-job.ts → cycle of packages/engine/src/approvals.ts",
     "packages/engine/src/jobs/run-job.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/prune.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/renders.ts → cycle of packages/engine/src/approvals.ts"
+    "packages/engine/src/prune.ts → cycle of packages/engine/src/approvals.ts"
    ]
   },
   {

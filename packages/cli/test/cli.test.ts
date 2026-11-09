@@ -129,6 +129,37 @@ describe('studio usage, schema and later phases', () => {
   });
 });
 
+describe('retake history: the workspace journal', () => {
+  it('lists the authored writes and the hook runs of the workspace, who made them and their outcome', async () => {
+    // `retake new demo` (above) wrote the project's files through the project store, as the person's.
+    const writes = await retake('history', '--writes', '--project', 'demo', '--json');
+    expect(writes.code, writes.err).toBe(EXIT.ok);
+    const lines = (JSON.parse(writes.out) as { entries: Array<{ by: { client: string }; op: string; what: string; path: string; outcome: string }> }).entries;
+    expect(lines.filter((e) => e.what === 'project').map((e) => e.path)).toEqual(
+      ['scenarios/.gitkeep', 'hooks/.gitkeep', 'assets/.gitkeep', 'project.yaml', 'README.md', '.gitignore'].map((f) => `projects/demo/${f}`),
+    );
+    expect(lines.every((e) => e.by.client === 'cli' && e.op === 'write')).toBe(true);
+    // A hook run outside a capture: one line per hook, its name and outcome — never its command.
+    const yaml = join(ws, 'projects', 'demo', 'project.yaml');
+    const before = await readFile(yaml, 'utf8');
+    await writeFile(yaml, `${before}reset:\n  - name: touch\n    shell: echo secret-value > touched.txt\n`);
+    try {
+      const run = await retake('hooks', 'run', 'demo', 'reset', '--env', 'staging', '--yes');
+      expect(run.code, run.err).toBe(EXIT.ok);
+      const hooks = await retake('history', '--hooks');
+      expect(hooks.code).toBe(EXIT.ok);
+      expect(hooks.out).toMatch(/^\S+ \S+ {2}cli {2}hook reset touch \(shell\) demo · run \S+ {2}ok$/m);
+      expect(hooks.out).not.toContain('secret-value');
+      const all = await retake('history', '--limit', '2');
+      expect(all.out.trim().split('\n')).toHaveLength(2);
+      expect((await retake('history', '--writes', '--hooks')).code).toBe(EXIT.usage);
+      expect((await retake('history', '--limit', '0')).code).toBe(EXIT.usage);
+    } finally {
+      await writeFile(yaml, before);
+    }
+  });
+});
+
 describe('parseEnvOptions', () => {
   it('parses name=key:url lists and merges repeated environments', () => {
     expect(parseEnvOptions(['staging=app:https://a.example.com', 'staging=api:http://localhost:8080/v1', 'prod=app:https://b.example.com'])).toEqual({

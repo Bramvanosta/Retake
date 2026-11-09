@@ -10,7 +10,7 @@
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SITE_ID_RE, parseSiteUrl, readPlainFile, unsafeTestResolve } from '@retake/core';
+import { SITE_ID_RE, parseSiteUrl, readPlainFile, unsafeTestResolve, statePath } from '@retake/core';
 import type { WorkspaceConfig } from '@retake/core';
 import type { PaletteCheck } from '@retake/components';
 import { components } from './components.js';
@@ -61,7 +61,7 @@ async function realFolder(p: string): Promise<boolean> {
 /** The newest site extractions of the workspace (see the header). */
 export async function siteList(ws: WorkspaceConfig): Promise<SiteList> {
   const root = siteRoot(ws);
-  if (!(await realFolder(join(ws.root, '.retake'))) || !(await realFolder(root))) return { sites: [] };
+  if (!(await realFolder(statePath(ws.root))) || !(await realFolder(root))) return { sites: [] };
   let names: string[];
   try {
     names = await readdir(root);

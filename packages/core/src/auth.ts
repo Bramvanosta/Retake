@@ -18,6 +18,7 @@ import { resolvePageUrl } from './templating.js';
 import { isCaptureScene } from './types.js';
 import type { AuthConfig, LoadedProject, LoginPattern, LoginStep, PersonaCheck, PersonaConfig, ProjectConfig, Scenario, Scene } from './types.js';
 import { expandHome } from './util.js';
+import { defaultRetakeHome } from './layout.js';
 
 /** `persona: none` — a page filmed without any persona (a fresh browser, never guarded). */
 export const PERSONA_NONE = 'none';
@@ -39,7 +40,7 @@ export function retakeHome(env: NodeJS.ProcessEnv = process.env): string {
     assertOutsideBundle(home, '$RETAKE_HOME', bundleInfoOrNull());
     return home;
   }
-  return join(homedir(), '.retake');
+  return defaultRetakeHome(homedir());
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

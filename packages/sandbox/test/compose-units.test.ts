@@ -7,6 +7,8 @@
  * `retake sandbox init` (files, ports, project.yaml edited in place, existing files, validation) and core
  * addSandboxEntry.
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -55,6 +57,12 @@ import {
   waitTimeoutS,
 } from '@retake/sandbox';
 import type { DockerExec, DockerResult, Listener, ProviderContext, PsEntry } from '@retake/sandbox';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 let tmp = '';
 const afterAllClose: Server[] = [];
@@ -740,7 +748,7 @@ describe('retake sandbox init', () => {
     const yaml = ['# My project', 'name: Init test', 'environments:', '  local: {app: "http://localhost:4600"}   # the dev server', ''].join('\n');
     const project = await bareProject('init', yaml);
     const busy = new Set([4601]);
-    const res = await initSandbox(project, { isFree: async (p) => !busy.has(p) });
+    const res = await initSandbox(project, { write: plainWrite,  isFree: async (p) => !busy.has(p) });
     // 4600: a page of environment local; 4601: busy.
     expect(res.ports).toEqual({ app: 4602, db: 4603, mailpit: 4604 });
     expect(res.projectYaml).toBe('added');
@@ -761,7 +769,7 @@ describe('retake sandbox init', () => {
     expect(loaded.config.environments.sandbox).toEqual({ app: 'http://localhost:4602' });
 
     // A second one: its own folder and ports, the first one's ports skipped.
-    const second = await initSandbox(loaded, { env: 'demo', isFree: async () => true });
+    const second = await initSandbox(loaded, { write: plainWrite,  env: 'demo', isFree: async () => true });
     expect(second.dir).toBe(join(project.dir, 'sandbox', 'demo'));
     // 4601 is free now; 4602–4604 are the first sandbox's.
     expect(second.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
@@ -771,10 +779,10 @@ describe('retake sandbox init', () => {
     expect(Object.keys(both.sandboxes!)).toEqual(['sandbox', 'demo']);
 
     // Names taken, an existing sandbox without --force; --force rewrites its files on its own ports.
-    await expect(initSandbox(both, { env: 'local' })).rejects.toThrow(/environment local already exists in project\.yaml: give the sandbox another name/);
-    await expect(initSandbox(both, { env: 'demo' })).rejects.toThrow(/sandbox demo already exists \(sandbox\/demo\/sandbox\.yaml\): --force/);
-    await expect(initSandbox(both, { env: 'Bad Name' })).rejects.toThrow(/cannot name an environment/);
-    const again = await initSandbox(both, { env: 'demo', force: true, isFree: async () => true });
+    await expect(initSandbox(both, { write: plainWrite,  env: 'local' })).rejects.toThrow(/environment local already exists in project\.yaml: give the sandbox another name/);
+    await expect(initSandbox(both, { write: plainWrite,  env: 'demo' })).rejects.toThrow(/sandbox demo already exists \(sandbox\/demo\/sandbox\.yaml\): --force/);
+    await expect(initSandbox(both, { write: plainWrite,  env: 'Bad Name' })).rejects.toThrow(/cannot name an environment/);
+    const again = await initSandbox(both, { write: plainWrite,  env: 'demo', force: true, isFree: async () => true });
     expect(again.projectYaml).toBe('kept');
     expect(again.ports).toEqual({ app: 4601, db: 4605, mailpit: 4606 });
   });
@@ -784,13 +792,13 @@ describe('retake sandbox init', () => {
     await mkdir(join(project.dir, 'sandbox', 'seed'), { recursive: true });
     await writeFile(join(project.dir, 'sandbox', 'compose.yaml'), 'services: {mine: {image: busybox:1.38.0}}\n');
     await writeFile(join(project.dir, 'sandbox', 'seed', '01-demo-data.sql'), '-- mine\n');
-    await expect(initSandbox(project, { isFree: async () => true })).rejects.toThrow(
+    await expect(initSandbox(project, { write: plainWrite,  isFree: async () => true })).rejects.toThrow(
       'sandbox/compose.yaml, sandbox/seed/01-demo-data.sql already exist: --force writes the scaffold over them, or give the sandbox another name (--env)',
     );
     expect(await readFile(join(project.dir, 'sandbox', 'compose.yaml'), 'utf8')).toBe('services: {mine: {image: busybox:1.38.0}}\n');
     expect(existsSync(join(project.dir, 'sandbox', 'sandbox.yaml'))).toBe(false);
     expect(await readFile(project.file, 'utf8')).not.toContain('sandboxes');
-    const forced = await initSandbox(project, { force: true, isFree: async () => true });
+    const forced = await initSandbox(project, { write: plainWrite,  force: true, isFree: async () => true });
     expect(await readFile(join(forced.dir, 'compose.yaml'), 'utf8')).toContain('postgres:17-alpine');
   });
 

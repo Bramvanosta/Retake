@@ -1,7 +1,6 @@
-import { join } from 'node:path';
-import { ScenarioError, isAccessError, newRunId } from '@retake/core';
+import { ScenarioError, isAccessError, newRunId, projectPath } from '@retake/core';
 import type { LoadedProject, RunAccess, Scenario } from '@retake/core';
-import { HooksSourceError, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
+import { HooksSourceError, callerOf, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
 import type { HookSelection } from '@retake/engine';
 import type { HookContext, HookResult } from '@retake/hooks';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -65,6 +64,8 @@ async function hookContext(
       ...(opts.runId !== undefined ? { runId: opts.runId } : {}),
       ...(opts.scenario ? { scenario: opts.scenario } : {}),
       loginCommand: loginCommandFor(global),
+      // Each hook and rollback run is a line of the workspace journal, as the person's.
+      recordAs: callerOf('cli'),
       replayUnsigned:
         opts.replayUnsigned === true
           ? async (entry, file) => {
@@ -184,7 +185,7 @@ async function rollbackRun(ui: Ui, project: LoadedProject, ctx: HookContext, run
   const file = hooks.findJournal(project.dir, runId);
   if (!file) {
     throw new CliError(
-      `"${runId}" has no hooks journal (looked for ${join(project.dir, 'runs', runId, hooks.JOURNAL_FILE)} and ${hooks.standaloneJournalFile(project.dir, runId)})`,
+      `"${runId}" has no hooks journal (looked for ${projectPath(project.dir, 'runs', runId, hooks.JOURNAL_FILE)} and ${hooks.standaloneJournalFile(project.dir, runId)})`,
     );
   }
   const journal = await hooks.Journal.open(file);

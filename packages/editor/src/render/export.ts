@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject, GUIDE, missingOrInvalid } from '@retake/core';
+import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
 import type { H264Encoder, LoadedProject, ErrorKind } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
@@ -274,7 +274,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const formats = [...new Set(opts.formats && opts.formats.length > 0 ? opts.formats : DEFAULT_EXPORT_FORMATS)];
   for (const f of formats) if (!(EXPORT_FORMATS as readonly string[]).includes(f)) throw new ExportError(`unknown export format "${f}": use ${EXPORT_FORMATS.join(', ')}`);
   const bin = ffmpegBin(opts.ffmpeg);
-  const dir = resolve(opts.out ?? join(project.dir, 'exports', record.id));
+  const dir = resolve(opts.out ?? projectPath(project.dir, 'exports', record.id));
   await mkdir(dir, { recursive: true });
   const emit = opts.onProgress ?? (() => undefined);
   const variant = record.variant ?? record.plan.variant;

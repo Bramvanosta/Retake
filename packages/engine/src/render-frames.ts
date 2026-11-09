@@ -26,7 +26,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, SLUG_RE, ffprobeBin } from '@retake/core';
+import { RENDER_ID_RE, SLUG_RE, ffprobeBin, projectPath } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
@@ -257,7 +257,7 @@ export class RenderFrames {
         details: { current: record.created_at },
       });
     }
-    const dir = join(project.dir, 'renders');
+    const dir = projectPath(project.dir, 'renders');
     const d = await lstat(dir).catch(() => null);
     if (!d || d.isSymbolicLink() || !d.isDirectory()) throw new EngineError('refused', 'renders/ is not a real folder of the project: its videos are not shown');
     const file = join(dir, `${renderId}.mp4`);

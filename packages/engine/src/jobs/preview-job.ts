@@ -19,7 +19,7 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, PreviewJobInputSchema } from '@retake/core';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema, statePath } from '@retake/core';
 import type { ComponentKind, LoadedTemplate, PreviewJobInput, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
@@ -68,7 +68,7 @@ export interface PreviewRequest {
 
 /** <workspace>/.retake/previews/<preview_id>/ */
 export function previewDir(ws: WorkspaceConfig, previewId: string): string {
-  return join(ws.root, '.retake', 'previews', previewId);
+  return statePath(ws.root, 'previews', previewId);
 }
 
 /** The `retake components preview` command a human runs for (about) the same component preview. */

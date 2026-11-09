@@ -43,6 +43,7 @@ import {
   realPathOf,
   verifyEditText,
   pathInside,
+  projectPath,
 } from '@retake/core';
 import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, WorkspaceConfig } from '@retake/core';
 import type { PaletteCheck } from '@retake/components';
@@ -52,7 +53,9 @@ import { callerOf, editsThemes } from './caller.js';
 import type { EngineClient } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { listProjectSummaries, openProjectBySlug } from './projects.js';
-import { LocalStorage, sha256Hex } from './storage.js';
+import { sha256Hex } from './storage.js';
+import { ProjectStore } from './store/project-store.js';
+import type { StoreScope } from './store/project-store.js';
 import { checkTemplateName } from './templates.js';
 
 /** The Retake package (the repository or its install folder): its themes are shipped files, never edited. */
@@ -294,8 +297,8 @@ function usesSignature(ws: WorkspaceConfig): string {
   const parts = [`${ws.projectsDir} ${st(ws.projectsDir)}`];
   for (const n of list(ws.projectsDir).slice(0, 1000)) {
     const dir = join(ws.projectsDir, n);
-    parts.push(`${n} ${st(join(dir, 'project.yaml'))} ${st(join(dir, 'scenarios'))}`);
-    for (const f of list(join(dir, 'scenarios')).slice(0, 2000)) parts.push(` ${f} ${st(join(dir, 'scenarios', f))}`);
+    parts.push(`${n} ${st(join(dir, 'project.yaml'))} ${st(projectPath(dir, 'scenarios'))}`);
+    for (const f of list(projectPath(dir, 'scenarios')).slice(0, 2000)) parts.push(` ${f} ${st(projectPath(dir, 'scenarios', f))}`);
   }
   return parts.join('\n');
 }
@@ -326,8 +329,8 @@ async function themeUsesNow(ws: WorkspaceConfig): Promise<Map<string, ThemeEditV
     }
     if (typeof project.config.template === 'string') of(project.config.template).projects.push(p.slug);
     for (const s of project.scenarios) {
-      const r = readPlainFile(join(project.dir, 'scenarios', `${s}.yaml`), SCENARIO_READ_MAX);
-      const r2 = r.ok ? r : readPlainFile(join(project.dir, 'scenarios', `${s}.yml`), SCENARIO_READ_MAX);
+      const r = readPlainFile(projectPath(project.dir, 'scenarios', `${s}.yaml`), SCENARIO_READ_MAX);
+      const r2 = r.ok ? r : readPlainFile(projectPath(project.dir, 'scenarios', `${s}.yml`), SCENARIO_READ_MAX);
       if (!r2.ok) continue;
       const v = parseYaml(r2.bytes.toString('utf8')).value;
       if (isObj(v) && typeof v.template === 'string') of(v.template).scenarios.push({ project: p.slug, scenario: s });
@@ -481,7 +484,7 @@ export interface ThemeEditResult {
  * edited through it). Errors: conflict (if_match; a value changed since the page read it: `details.stale`), refused
  * (not editable, a file the theme may not serve, not a known version), invalid (the edit or its value).
  */
-export async function editTemplate(ws: WorkspaceConfig, name: string, req: ThemeEditRequest, o: { client: EngineClient }): Promise<ThemeEditResult> {
+export async function editTemplate(ws: WorkspaceConfig, name: string, req: ThemeEditRequest, o: { client: EngineClient; scope: StoreScope }): Promise<ThemeEditResult> {
   if (!editsThemes(callerOf(o.client))) throw new EngineError('refused', 'themes are never edited through MCP: a person edits them in the Studio or by hand (template_create_from_brand makes new ones)');
   const loc = await locateTheme(ws, name);
   if (loc.editable !== true) throw new EngineError('refused', `not saved: ${loc.editable.why}`);
@@ -539,7 +542,7 @@ export async function editTemplate(ws: WorkspaceConfig, name: string, req: Theme
   }
   const realRoot = realPathOf(resolve(ws.root));
   const ref = relative(realRoot, loc.realFile).split(sep).join('/');
-  const res = await new LocalStorage(realRoot).writeText(ref, text, { ifMatch: base.sha256 });
+  const res = await new ProjectStore(realRoot, o.scope).writeText(ref, text, { ifMatch: base.sha256, what: 'theme' });
   rememberVersion(loc.realFile, base.sha256);
   rememberVersion(loc.realFile, res.sha256);
   const warnings = parsed.issues.filter((i) => i.severity === 'warning').map((i) => `${i.path.join('.')}: ${i.message}`);

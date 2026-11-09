@@ -138,6 +138,7 @@ export const CHECKS = [
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'setter', title: 'the process-wide setters (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) are used by packages/engine/src/workspace.ts only' },
+  { id: 'layout', title: 'the folder layout of a workspace and its projects is joined in packages/core/src/layout.ts only (entries: each file and how many `join(…)` / `resolve(…)` calls of node:path name a layout folder in it)' },
 ];
 
 function parse(ts, rel, text) {
@@ -318,6 +319,57 @@ export function wiringHits(root, files) {
   return hits;
 }
 
+/** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */
+export const LAYOUT_NAMES = ['scenarios', 'hooks', 'assets', 'comments', 'runs', 'renders', 'review', 'exports', '.retake'];
+export const LAYOUT_HOME = 'packages/core/src/layout.ts';
+const PATH_MODULES = new Set(['path', 'node:path', 'path/posix', 'node:path/posix']);
+
+/**
+ * The hand-joined layout names, read from the syntax tree: outside packages/core/src/layout.ts, each argument of a
+ * node:path `join` / `resolve` call (under its own name, an import alias, `path.join`, `path.posix.join`, `posix.join`)
+ * that is a string naming a layout folder (LAYOUT_NAMES) or starting with one (`'runs/x'`, `` `runs/${id}` ``).
+ * `[{ file, count, lines }]` (the line of each), files with none left out.
+ */
+export function layoutHits(root, files) {
+  const ts = loadTs(root);
+  const out = [];
+  const names = (t) => LAYOUT_NAMES.some((n) => t === n || t.startsWith(`${n}/`));
+  for (const { rel, text } of files) {
+    if (rel === LAYOUT_HOME || !LAYOUT_NAMES.some((n) => text.includes(`'${n}`) || text.includes(`"${n}`) || text.includes(`\`${n}`))) continue;
+    const sf = parse(ts, rel, text);
+    const fns = new Map(); // local name → join | resolve
+    const spaces = new Set(); // local names of the path module (or its posix / win32 parts)
+    sf.forEachChild((n) => {
+      if (!ts.isImportDeclaration(n) || !PATH_MODULES.has(literal(ts, n.moduleSpecifier) ?? '') || !n.importClause) return;
+      const c = n.importClause;
+      if (c.name) spaces.add(c.name.text);
+      const b = c.namedBindings;
+      if (b && ts.isNamespaceImport(b)) spaces.add(b.name.text);
+      if (b && ts.isNamedImports(b)) {
+        for (const e of b.elements) {
+          const orig = (e.propertyName ?? e.name).text;
+          if (orig === 'join' || orig === 'resolve') fns.set(e.name.text, orig);
+          if (orig === 'posix' || orig === 'win32') spaces.add(e.name.text);
+        }
+      }
+    });
+    const isSpace = (e) => (ts.isIdentifier(e) && spaces.has(e.text)) || (ts.isPropertyAccessExpression(e) && ['posix', 'win32'].includes(e.name.text) && isSpace(e.expression));
+    const isPathCall = (callee) => (ts.isIdentifier(callee) && fns.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && ['join', 'resolve'].includes(callee.name.text) && isSpace(callee.expression));
+    const lines = [];
+    (function visit(n) {
+      if (ts.isCallExpression(n) && isPathCall(n.expression)) {
+        for (const a of n.arguments) {
+          const t = literal(ts, a) ?? (ts.isTemplateExpression(a) ? a.head.text : undefined);
+          if (t !== undefined && names(t)) lines.push(sf.getLineAndCharacterOfPosition(a.getStart(sf)).line + 1);
+        }
+      }
+      n.forEachChild(visit);
+    })(sf);
+    if (lines.length) out.push({ file: rel, count: lines.length, lines });
+  }
+  return out;
+}
+
 /**
  * One ratchet entry per (rule, file, import): the strings the baseline holds, sorted. A cycle gives one entry per file
  * and one with the number of imports inside it, so a new import between files already in a cycle fails too.
@@ -325,6 +377,7 @@ export function wiringHits(root, files) {
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-joined layout name${h.count === 1 ? '' : 's'}`);
   const graph = fileGraph(scanned.fileImports);
   for (const c of cycles(graph).map((x) => x.sort())) {
     for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);

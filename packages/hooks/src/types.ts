@@ -64,6 +64,12 @@ export interface HookContext {
    */
   replayUnsigned?: boolean | ((entry: JournalEntry, file: string) => boolean | Promise<boolean>);
   /**
+   * Called once per hook or rollback this context executed or refused — never for a dry run, nor for a hook a
+   * preflight stopped before anything ran (record.ts recordHookRun): the engine journals it in the workspace journal
+   * (who, which hook, its outcome; never a value). Awaited before the next hook; a failure never fails the hook.
+   */
+  recordRun?: (result: HookResult) => Promise<void>;
+  /**
    * Trust `mcp`: the names of the variables the agent wrote (a scenario's own `vars`, over project.yaml's). A hook
    * whose templates use one counts as written by the agent (RunHooksOptions.agentWritten), wherever it is declared.
    */

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@retake/core';
+import { resolve } from 'node:path';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun, projectPath } from '@retake/core';
 import { RenderCancelledError, RenderError, VARIANT_SUFFIX, findRun, planRun, renderStill, renderVideo } from '@retake/editor';
 import type { LoadedProject } from '@retake/core';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/editor';
@@ -284,7 +284,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out
     ? resolve(opts.out)
-    : join(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[plan.variant]}-f${String(frame).padStart(5, '0')}.png`);
+    : projectPath(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[plan.variant]}-f${String(frame).padStart(5, '0')}.png`);
   // Captures first (L5.14): the run was planned (resolved) before any wait.
   const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering frame ${frame} of run ${run.id}`);

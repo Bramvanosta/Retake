@@ -4,8 +4,7 @@
  * One writer of job.json at a time: the claimer until the job runs, then whoever runs it.
  */
 import { rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema } from '@retake/core';
+import { RETAKE_VERSION, JOB_INPUT_VERSION, JOB_KINDS, JobInputSchema, projectPath } from '@retake/core';
 import type { RenderJobInput, RunJobInput } from '@retake/core';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 import type { RecordJobTestHooks } from './record-job.js';
@@ -459,7 +458,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
   async function finaliseRun(input: RunJobInput, status: 'cancelled' | 'failed', message: string): Promise<void> {
     try {
       const project = await openProjectBySlug(ws, input.project);
-      await finaliseReservedRun(join(project.dir, 'runs', input.run_id), status, message);
+      await finaliseReservedRun(projectPath(project.dir, 'runs', input.run_id), status, message);
     } catch (e) {
       log(`run ${input.run_id}: not finalised (${(e as Error).message})`);
     }

@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin } from '@retake/core';
+import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin, projectPath } from '@retake/core';
 import type { BrowserConfig, DisplayEntry, H264Encoder, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
@@ -175,7 +175,7 @@ export function rawSettings(project: LoadedProject, timeline: Pick<Timeline, 'ca
 
 /** Default package folder of a run. */
 export function rawPackageDir(project: Pick<LoadedProject, 'dir'>, runId: string, s: { format: RawFormat; fps: number; cursor: RawCursorMode }): string {
-  return join(project.dir, 'exports', `${runId}-raw-${s.format}${s.fps}-${s.cursor}`);
+  return projectPath(project.dir, 'exports', `${runId}-raw-${s.format}${s.fps}-${s.cursor}`);
 }
 
 /** Export a run as a raw package for editors. */

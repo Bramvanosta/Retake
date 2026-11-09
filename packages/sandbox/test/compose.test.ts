@@ -16,6 +16,8 @@
  * - another checkout sharing the compose project name is refused by every command, and another container publishing
  *   the sandbox's port on [::1] (OrbStack allows it next to 127.0.0.1) is refused by up (K2, K3).
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -29,6 +31,12 @@ import { loadProject } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { SandboxError, dockerEnv, findDocker, initSandbox, openSandbox, probePort } from '@retake/sandbox';
 import type { SandboxLog } from '@retake/sandbox';
+
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 const DOCKER = findDocker() ?? 'docker';
@@ -151,7 +159,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('the init scaffold: up seeds and takes a snapshot, reset restores it, --reseed retakes it, a take restores it, a seed change makes it stale, down --volumes leaves nothing', async () => {
     const name = `${PREFIX}scaffold-${rand()}`;
     const dir = await newProject('scaffold');
-    const res = await initSandbox(await loadProject(dir), { basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
     const manifest = (await readFile(res.manifest, 'utf8'))
       .replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`)
       .replace('  # restart: [app]', '  restart: [app]')
@@ -232,7 +240,7 @@ describe.skipIf(!ENABLED)('docker-compose sandboxes for real (RETAKE_TEST_DOCKER
   it('an interrupted restore — the database dropped, or its connections blocked — is repaired by up and by a take (K4)', async () => {
     const name = `${PREFIX}repair-${rand()}`;
     const dir = await newProject('repair');
-    const res = await initSandbox(await loadProject(dir), { basePort: await freeBase(3) });
+    const res = await initSandbox(await loadProject(dir), { write: plainWrite,  basePort: await freeBase(3) });
     await writeFile(res.manifest, (await readFile(res.manifest, 'utf8')).replace('  files: [compose.yaml]', `  files: [compose.yaml]\n  project: ${name}`));
     const sb = openSandbox(await loadProject(dir));
     const url = `postgres://demo:pg-sandbox-${res.ports.db}@localhost:${res.ports.db}/app`;

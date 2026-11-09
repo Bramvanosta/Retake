@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR } from '@retake/core';
-import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem } from '../src/index.js';
+import { THEME_PROVENANCE_FILE, copyTheme, createEngine, openWorkspace, replaceProblem, personScope } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -92,7 +92,7 @@ describe('copy a theme (L4.7)', () => {
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
     const repoWs = await openWorkspace({ root: REPO });
-    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }))).message).toMatch(/lies inside the Retake folder/);
+    expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root) }))).message).toMatch(/lies inside the Retake folder/);
   });
 
   it('⚑ L4.7 review A M1: a source holding a hard link is refused whole, nothing written', async () => {

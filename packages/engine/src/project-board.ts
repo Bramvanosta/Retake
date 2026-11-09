@@ -29,7 +29,7 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged } from '@retake/core';
+import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
 import type { LoadedProject, RunRecord, WorkspaceConfig } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
@@ -342,7 +342,7 @@ export class ProjectBoards {
 
   /** The last pictured step of a run's timeline and its scenes' length (memoised by the folder's and timeline's stat). */
   async poster(p: LoadedProject, runId: string): Promise<RunPoster> {
-    const dir = join(p.dir, 'runs', runId);
+    const dir = projectPath(p.dir, 'runs', runId);
     const key = `${dir}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
     const hit = this.posters.get(key);
     if (hit) return hit;
@@ -383,7 +383,7 @@ export class ProjectBoards {
     // The project's theme as validation loads it (templateOf): its folder (a file added or gone) and its template.yaml.
     const ref = p.config.template;
     const theme = SLUG_RE.test(ref) ? join(this.ctx.ws.templatesDir, ref) : resolve(p.dir, ref);
-    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), join(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
+    const files = [join(p.dir, 'project.yaml'), join(p.dir, 'sandbox.yaml'), projectPath(p.dir, 'hooks'), join(this.ctx.ws.root, 'retake.yaml'), theme, join(theme, 'template.yaml')];
     return (await Promise.all(files.map(lsig))).join('|');
   }
 
@@ -484,7 +484,7 @@ export class ProjectBoards {
 
   /** run.json of a run: re-checked by its stat (`check`), else held once read (an older finished run). */
   private async record(projectDir: string, id: string, check: boolean): Promise<RunRecord | null> {
-    const file = join(projectDir, 'runs', id, 'run.json');
+    const file = projectPath(projectDir, 'runs', id, 'run.json');
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
     if (held && !check && (held.record === null || FINISHED.has(this.statusOf(held.record.status)))) return held.record;
@@ -498,7 +498,7 @@ export class ProjectBoards {
   }
 
   private async picturesOf(projectDir: string, id: string, mode: string): Promise<Awaited<ReturnType<typeof runPictures>>> {
-    const key = `${projectDir}\0${id}\0${await lsig(join(projectDir, 'runs', id))}`;
+    const key = `${projectDir}\0${id}\0${await lsig(projectPath(projectDir, 'runs', id))}`;
     if (this.pictures.has(key)) return this.pictures.get(key)!;
     return remember(this.pictures, key, await runPictures(projectDir, id, mode), 2048);
   }
@@ -556,7 +556,7 @@ export class ProjectBoards {
     const groups = new Map<string, RunGroup>();
     let ids: string[] = [];
     try {
-      ids = (await readdir(join(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
+      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
     } catch {
       return groups;
     }
@@ -596,7 +596,7 @@ export class ProjectBoards {
 
   /** Whether today's file films the capture's take: unchanged, or only its edit changed (null: no snapshot to tell). */
   private async current(p: LoadedProject, runId: string, yaml: string, hash: string): Promise<boolean | null> {
-    const snap = join(p.dir, 'runs', runId, 'scenario.yaml');
+    const snap = projectPath(p.dir, 'runs', runId, 'scenario.yaml');
     const key = `${snap}\0${await lsig(snap)}\0${hash}`;
     if (this.currents.has(key)) return this.currents.get(key)!;
     this.stats.current++;
@@ -648,13 +648,13 @@ export class ProjectBoards {
   /** The project's render records per scenario, newest first (one readdir; records held while their stat holds). */
   private async renderRecordsOf(p: LoadedProject, names: ReadonlySet<string>): Promise<Map<string, RenderRecord[]>> {
     const out = new Map<string, RenderRecord[]>();
-    const files = await readdir(join(p.dir, 'renders')).catch(() => [] as string[]);
+    const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
     await Promise.all(
       files.map(async (f) => {
         const m = RENDER_FILE_RE.exec(f);
         if (!m || !names.has(m[1])) return;
         const key = `${p.dir}\0${f}`;
-        const sig = await lsig(join(p.dir, 'renders', f));
+        const sig = await lsig(projectPath(p.dir, 'renders', f));
         let held = this.renderRecords.get(key);
         if (!held || held.sig !== sig) {
           held = { sig, record: readRenderRecord(p.dir, f) };

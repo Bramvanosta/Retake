@@ -1,5 +1,5 @@
 import { printableText } from '@retake/core';
-import { EngineError, createThemeFromBrand, extractSiteForAuthor } from '@retake/engine';
+import { EngineError, createThemeFromBrand, extractSiteForAuthor, personScope } from '@retake/engine';
 import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -73,7 +73,7 @@ export async function themeCreateCommand(ui: Ui, global: GlobalOptions, name: st
   };
   let created: ThemeCreated;
   try {
-    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd() });
+    created = await createThemeFromBrand(ws, input, { trust: 'author', cwd: process.cwd(), scope: personScope(ws.root) });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;

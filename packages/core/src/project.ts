@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { stringify } from 'yaml';
 import type { z } from 'zod';
@@ -13,11 +13,12 @@ import { loadSandboxes, mergeSandboxes } from './sandbox.js';
 import { ProjectFileSchema } from './schemas/project.js';
 import { DEFAULT_CAPTURE } from './types.js';
 import type { CaptureSettings, FrameStyle, LoadedProject, ProjectConfig, ValidationIssue } from './types.js';
-import { slugify, writeTextAtomic } from './util.js';
+import { slugify } from './util.js';
 import { checkYamlDocument } from './validation/document.js';
 import { parseYaml } from './validation/yaml-source.js';
 import { suggestion } from './validation/suggest.js';
 import { findWorkspaceRoot, loadWorkspaceConfig } from './workspace.js';
+import { projectPath, projectRef } from './layout.js';
 
 export const PROJECT_FILE = 'project.yaml';
 export const README_FILE = 'README.md';
@@ -126,7 +127,7 @@ async function subdirs(dir: string): Promise<string[]> {
 export async function listScenarioNames(projectDir: string): Promise<string[]> {
   let files: string[];
   try {
-    files = await readdir(join(projectDir, 'scenarios'));
+    files = await readdir(projectPath(projectDir, 'scenarios'));
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;
@@ -282,8 +283,8 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
   ].join('\n');
 }
 
-/** What createProject checks before writing anything: the slug, the folder (absent or empty), the project.yaml. */
-async function newProjectPlan(root: string, input: CreateProjectInput): Promise<{ wsRoot: string; dir: string; file: string; yamlText: string }> {
+/** What planNewProject checks before naming any file: the slug, the folder (absent or empty), the project.yaml. */
+async function newProjectPlan(root: string, input: CreateProjectInput): Promise<{ wsRoot: string; slug: string; dir: string; file: string; yamlText: string }> {
   const ws = await loadWorkspaceConfig(root);
   const slug = input.slug ?? slugify(input.name);
   if (!PROJECT_SLUG_RE.test(slug)) {
@@ -298,31 +299,47 @@ async function newProjectPlan(root: string, input: CreateProjectInput): Promise<
   const yamlText = projectYamlText(input, slug);
   const { issues } = parseProjectYaml(yamlText, file);
   if (hasErrors(issues)) throw new ConfigError(issuesMessage('project', issues, file), issues, file);
-  return { wsRoot: ws.root, dir, file, yamlText };
+  return { wsRoot: ws.root, slug, dir, file, yamlText };
 }
 
-/** Throws what createProject would refuse, writing nothing (`retake new` checks before asking its questions). */
+/** Throws what planNewProject would refuse (`retake new` checks before asking its questions). */
 export async function checkNewProject(root: string, input: CreateProjectInput): Promise<void> {
   await newProjectPlan(root, input);
 }
 
-/** Create projects/<slug>/ with README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore. */
-export async function createProject(root: string, input: CreateProjectInput): Promise<LoadedProject> {
-  const { wsRoot, dir, file, yamlText } = await newProjectPlan(root, input);
-  for (const sub of ['scenarios', 'hooks', 'assets']) {
-    await mkdir(join(dir, sub), { recursive: true });
-    await writeFile(join(dir, sub, '.gitkeep'), '');
-  }
-  await writeTextAtomic(file, yamlText);
-  const readme = input.readme ?? readmeSkeleton(input.name, input.environments);
-  await writeTextAtomic(join(dir, README_FILE), readme.endsWith('\n') ? readme : `${readme}\n`);
-  await writeTextAtomic(join(dir, '.gitignore'), PROJECT_GITIGNORE.join('\n') + '\n');
-  return loadProject(dir, wsRoot);
+/** A file of a new project: its project-relative ref and text. */
+export interface NewProjectFile {
+  ref: string;
+  text: string;
 }
 
-/** Replace README.md (atomically) and update `project.readme`. */
-export async function updateReadme(project: LoadedProject, markdown: string): Promise<void> {
-  const text = markdown.endsWith('\n') ? markdown : `${markdown}\n`;
-  await writeTextAtomic(join(project.dir, README_FILE), text);
-  project.readme = text;
+/** What a new project is made of (planNewProject): its folder and its files, in the order they are written. */
+export interface NewProjectPlan {
+  /** The workspace root. */
+  wsRoot: string;
+  slug: string;
+  /** projects/<slug>/ */
+  dir: string;
+  files: NewProjectFile[];
+}
+
+/**
+ * The files of a new project projects/<slug>/ — scenarios/, hooks/ and assets/ (each with an empty .gitkeep),
+ * project.yaml, README.md and a .gitignore — checked (planNewProject throws what a creation refuses) but not written:
+ * the engine's project store writes them.
+ */
+export async function planNewProject(root: string, input: CreateProjectInput): Promise<NewProjectPlan> {
+  const { wsRoot, slug, dir, yamlText } = await newProjectPlan(root, input);
+  const readme = input.readme ?? readmeSkeleton(input.name, input.environments);
+  return {
+    wsRoot,
+    slug,
+    dir,
+    files: [
+      ...(['scenarios', 'hooks', 'assets'] as const).map((d) => ({ ref: projectRef(d, '.gitkeep'), text: '' })),
+      { ref: PROJECT_FILE, text: yamlText },
+      { ref: README_FILE, text: readme.endsWith('\n') ? readme : `${readme}\n` },
+      { ref: '.gitignore', text: PROJECT_GITIGNORE.join('\n') + '\n' },
+    ],
+  };
 }

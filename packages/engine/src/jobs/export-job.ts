@@ -9,8 +9,7 @@
  * must lie in the project folder. No output location: the folder is fixed. A cancel stops between formats and kills
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
-import { join } from 'node:path';
-import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION } from '@retake/core';
+import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
 import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@retake/core';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
 import { EngineError, toEngineError } from '../errors.js';
@@ -102,7 +101,7 @@ export async function cleanupInterruptedExport(ws: WorkspaceConfig, files: JobFi
   await killRecordedBrowser(files, job, log);
   try {
     const project = await openProjectBySlug(ws, input.project);
-    const dir = join(project.dir, 'exports', input.render_id);
+    const dir = projectPath(project.dir, 'exports', input.render_id);
     // ".<id>-vertical.partial-<pid>.mp4" (a format) and ".<id>-vertical.partial-…" (a re-render's own temporary files).
     await removePartials(dir, `.${input.render_id}`);
   } catch (e) {

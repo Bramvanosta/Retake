@@ -3,6 +3,7 @@
  * lint), the bundle setup runs first in both entry points, one version number, the stage's layout check (on a small
  * fake stage), `retake init`, the plugin marketplace and the preview writes of an app bundle.
  */
+import { createHash } from 'node:crypto';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -335,6 +336,8 @@ describe('retake init (a workspace folder of your own)', () => {
     const dir = join(tmp, 'ws-new');
     expect(await initWorkspace(dir)).toEqual({ root: dir, created: true });
     expect(readFileSync(join(dir, 'retake.yaml'), 'utf8')).toMatch(/^version: 1$/m);
+    // The bytes written, pinned (the workspace's files go through the project store since).
+    expect(createHash('sha256').update(readFileSync(join(dir, 'retake.yaml'))).digest('hex')).toBe('00a93f8141ad48a6a45b9b2fafbaa659b998525e5c92506dccfc765e0263f0e1');
     expect(readFileSync(join(dir, '.gitignore'), 'utf8')).toBe('.retake/\n');
     expect(readdirSync(join(dir, 'projects'))).toEqual([]);
     writeFileSync(join(dir, 'retake.yaml'), 'version: 1\nprojects_dir: mine\n');

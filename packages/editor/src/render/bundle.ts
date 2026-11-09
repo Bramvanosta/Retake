@@ -11,7 +11,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'n
 import { createRequire } from 'node:module';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS, bundleInfoOrNull, relativeInside } from '@retake/core';
+import { COMPONENT_KINDS, bundleInfoOrNull, relativeInside, statePath } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
 import {
   HASHED_FILE,
@@ -317,7 +317,7 @@ export async function registryBundleComponents(registry: ComponentRegistry): Pro
 
 /** <root>/.retake/cache */
 export function bundleCacheDir(root: string): string {
-  return join(resolve(root), '.retake', 'cache');
+  return statePath(resolve(root), 'cache');
 }
 
 async function isComplete(dir: string): Promise<boolean> {

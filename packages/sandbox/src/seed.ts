@@ -169,6 +169,7 @@ export async function runSeed(
   // sees a batch between exec steps: its index is moved to the seed's).
   let offset = 0;
   const trust = pctx.seedTrust;
+  if (pctx.recordSeedRun) ctx.recordRun = pctx.recordSeedRun;
   if (trust?.trust === 'mcp') {
     ctx.trust = 'mcp';
     const confirm = trust.confirm;

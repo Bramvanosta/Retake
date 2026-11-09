@@ -8,8 +8,7 @@
  * stops the review between its stages and kills ffmpeg; the previous review of the render stays as it was. No image
  * data goes into job.json: review_get makes thumbnails when it is read. The review package is imported lazily.
  */
-import { join } from 'node:path';
-import { JOB_INPUT_VERSION, RENDER_ID_RE } from '@retake/core';
+import { JOB_INPUT_VERSION, RENDER_ID_RE, projectPath } from '@retake/core';
 import type { ReviewJobInput, WorkspaceConfig } from '@retake/core';
 import type { ReviewProgress } from '@retake/review';
 import { EngineError } from '../errors.js';
@@ -70,7 +69,7 @@ export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): P
 /** review/<render_id>/ of a review job's project. */
 export async function reviewDirOf(ws: WorkspaceConfig, input: Pick<ReviewJobInput, 'project' | 'render_id'>): Promise<string> {
   const project = await openProjectBySlug(ws, input.project);
-  return join(project.dir, 'review', input.render_id);
+  return projectPath(project.dir, 'review', input.render_id);
 }
 
 /** After a review job was interrupted: the previous review set aside comes back, temporary folders go. */

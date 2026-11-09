@@ -6,17 +6,15 @@ import {
   ConfigError,
   DEFAULT_CAPTURE,
   ScenarioError,
-  createProject,
   findWorkspaceRoot,
   listProjects,
   loadProject,
   loadScenario,
   loadWorkspaceConfig,
   parseProjectYaml,
-  saveScenario,
-  updateReadme,
+  checkScenarioSave,
 } from '@retake/core';
-import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, errors, tempDir, writeFiles } from './helpers.js';
+import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, createProject, errors, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
 const savedRoot = process.env.RETAKE_ROOT;
@@ -143,27 +141,23 @@ describe('projects', () => {
     ]);
   });
 
-  it('updateReadme', async () => {
-    const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
-    await updateReadme(p, '# Northfield\n\n## Product\nSpecialty coffee wholesale.');
-    expect(p.readme).toBe('# Northfield\n\n## Product\nSpecialty coffee wholesale.\n');
-    expect((await loadProject(p.dir)).readme).toBe(p.readme);
-  });
-
-  it('saveScenario refuses invalid scenarios, then loadScenario round-trips', async () => {
+  it('checkScenarioSave refuses invalid scenarios (nothing written); a checked text loadScenario round-trips', async () => {
     const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
     const bad = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
-    const err = await saveScenario(p, 'catalogue', bad).catch((e: unknown) => e);
+    const err = await Promise.resolve().then(() => checkScenarioSave(p, 'catalogue', bad)).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ScenarioError);
     expect((err as ScenarioError).message).toMatch(/catalogue\.yaml:\d+:\d+ error scenes\[0\]\.steps\[1\]\.click: unknown key "txt"/);
     expect(existsSync(join(p.dir, 'scenarios', 'catalogue.yaml'))).toBe(false);
-    await expect(saveScenario(p, '../escape', SPEC_EXAMPLE)).rejects.toThrow(/invalid scenario name/);
+    expect(() => checkScenarioSave(p, '../escape', SPEC_EXAMPLE)).toThrow(/invalid scenario name/);
 
     await writeFiles(p.dir, SPEC_HOOK_FILES);
-    const saved = await saveScenario(p, 'catalogue', SPEC_EXAMPLE);
+    const saved = checkScenarioSave(p, 'catalogue', SPEC_EXAMPLE.trimEnd());
     expect(saved.file).toBe(join(p.dir, 'scenarios', 'catalogue.yaml'));
+    expect(saved.text).toBe(SPEC_EXAMPLE.endsWith('\n') ? SPEC_EXAMPLE : `${SPEC_EXAMPLE}\n`);
     expect(errors(saved.issues)).toEqual([]);
-    expect(p.scenarios).toEqual(['catalogue']);
+    expect(existsSync(saved.file)).toBe(false);
+    await writeFiles(p.dir, { 'scenarios/catalogue.yaml': SPEC_EXAMPLE });
+    p.scenarios = ['catalogue'];
 
     const loaded = await loadScenario(p, 'catalogue');
     expect(loaded.name).toBe('catalogue');

@@ -6,7 +6,7 @@
  * as something it started exists.
  */
 import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core';
-import type { HookApprovalRequest } from '@retake/hooks';
+import type { HookApprovalRequest, HookContext } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
 
@@ -23,6 +23,9 @@ export interface SeedTrust {
   confirm?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
 }
 
+/** What reports each seed step run (hooks HookContext.recordRun). */
+export type SeedRecorder = NonNullable<HookContext['recordRun']>;
+
 export interface ProviderContext {
   project: LoadedProject;
   sandbox: LoadedSandbox;
@@ -33,6 +36,7 @@ export interface ProviderContext {
   log: SandboxLog;
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
+  recordSeedRun?: SeedRecorder;
 }
 
 export interface UpResult {

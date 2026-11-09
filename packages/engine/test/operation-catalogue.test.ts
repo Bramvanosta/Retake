@@ -168,15 +168,15 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual(['run_status', 'auth_login', 'render_frame']);
   });
 
-  it('counts 122 operations: 45 MCP tools, 76 Studio ops, 54 served by 44 CLI commands; 55 read, 57 write, 10 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
-    expect(CATALOGUE).toHaveLength(122);
+  it('counts 123 operations: 45 MCP tools, 76 Studio ops, 55 served by 45 CLI commands; 56 read, 57 write, 10 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+    expect(CATALOGUE).toHaveLength(123);
     expect(servedNames('mcp')).toHaveLength(45);
     expect(servedNames('studio')).toHaveLength(76);
-    expect(servedNames('cli')).toHaveLength(54);
-    expect(cliCommandsOf()).toHaveLength(44);
+    expect(servedNames('cli')).toHaveLength(55);
+    expect(cliCommandsOf()).toHaveLength(45);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 55, write: 57, destructive: 10 });
-    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 105, project: 9, workspace: 8 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 57, destructive: 10 });
+    expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 106, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'component_preview',
       'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'scenario_render', 'review_export', 'library_render', 'record_start',
@@ -188,7 +188,7 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.
     const by = (n: number) => CATALOGUE.filter((o) => SHELLS.filter((s) => servedBy(o, s)).length === n).length;
-    expect([by(3), by(2), by(1)]).toEqual([5, 43, 74]);
+    expect([by(3), by(2), by(1)]).toEqual([5, 43, 75]);
   });
 
   it('looks operations up by name; servedBy reads a reason as not served', () => {

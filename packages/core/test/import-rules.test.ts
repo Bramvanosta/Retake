@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { PROJECT_DIRS, STATE_DIR } from '../src/layout.js';
 // @ts-expect-error — a plain .mjs script without types
 import * as lib from '../../../scripts/audit/lib.mjs';
 
@@ -200,6 +201,32 @@ describe('the import-rules ratchet', () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('counts the hand-joined layout names outside the layout module: node:path join / resolve under any name, a literal or a template', () => {
+    const layout = (rel: string, text: string): string[] => lib.layoutHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: { file: string; count: number }) => `${h.file} ${h.count}`);
+    const text = [
+      "import { join, resolve as res, posix } from 'node:path';",
+      "import path from 'node:path';",
+      "import * as np from 'path';",
+      "join(dir, 'runs', id);", // 1
+      "res(root, '.retake');", // 2
+      'join(dir, `scenarios/${name}.yaml`);', // 3
+      "path.join(dir, 'renders');", // 4
+      "path.posix.join('review', id);", // 5
+      "posix.join(dir, 'exports');", // 6
+      "np.resolve(dir, 'comments', 'x');", // 7
+      "join(dir, 'hooks', 'a'), join(dir, 'assets');", // 8, 9
+      // Not counted: other names, an array's join, another module's join, a layout name that is not a path argument.
+      "join(dir, 'project.yaml'); join(dir, 'runsx'); ['runs', 'x'].join('/'); other.join('runs'); f('runs');",
+    ].join('\n');
+    expect(layout('packages/engine/src/a.ts', text)).toEqual(['packages/engine/src/a.ts 9']);
+    expect(layout('packages/core/src/layout.ts', text)).toEqual([]);
+    expect(layout('packages/engine/src/b.ts', "import { join } from 'node:path';\njoin(dir, 'scenarios-old');\n")).toEqual([]);
+    // The names the check looks for are the layout module's.
+    expect([...lib.LAYOUT_NAMES].sort()).toEqual([...Object.values(PROJECT_DIRS), STATE_DIR].sort());
+    // A ratchet entry per file, with its count: one more join in a file is a new entry (and its old count a stale one).
+    expect(lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('layout '))).toEqual([]);
   });
 
   it('fails on a new entry, a stale entry, a group without a reason, and says how to update the baseline', () => {

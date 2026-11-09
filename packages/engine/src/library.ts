@@ -30,7 +30,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf } from '@retake/core';
+import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf, statePath } from '@retake/core';
 import type { LoadedTemplate, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { PreviewSamples } from '@retake/editor';
@@ -64,7 +64,7 @@ const GIF_MAGIC = Buffer.from('GIF89a', 'latin1');
 
 /** <workspace>/.retake/cache/previews */
 export function libraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): string {
-  return join(resolve(ws.root), '.retake', 'cache', 'previews');
+  return statePath(resolve(ws.root), 'cache', 'previews');
 }
 
 // ── Keys ─────────────────────────────────────────────────────────────────────

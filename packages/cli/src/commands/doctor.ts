@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/core';
+import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote, defaultRetakeHome, statePath } from '@retake/core';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -830,7 +830,7 @@ export function updateCheck(env: Record<string, string | undefined>, home: strin
   if (build === 'off') return { status: 'ok', name, detail: 'updates are off in this build (made without an update feed): a newer version comes from its disk image' };
   let checks;
   try {
-    checks = readUpdateChecks(env.RETAKE_HOME?.trim() ? retakeHome(env as NodeJS.ProcessEnv) : join(home, '.retake'));
+    checks = readUpdateChecks(env.RETAKE_HOME?.trim() ? retakeHome(env as NodeJS.ProcessEnv) : defaultRetakeHome(home));
   } catch {
     checks = { checked: null, failed: null };
   }
@@ -875,7 +875,7 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
   // The app's own record of where it put the link (a checkout reads nothing of the Retake home here).
   if (app) {
     try {
-      link = readAppSettings(p.env.RETAKE_HOME?.trim() ? retakeHome(p.env as NodeJS.ProcessEnv) : join(home, '.retake')).cli?.path ?? link;
+      link = readAppSettings(p.env.RETAKE_HOME?.trim() ? retakeHome(p.env as NodeJS.ProcessEnv) : defaultRetakeHome(home)).cli?.path ?? link;
     } catch {
       /* a RETAKE_HOME refused elsewhere: the default place */
     }
@@ -936,9 +936,9 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   }
   const tree = gitWorkTree(p, ws.root);
   if (tree) {
-    const rel = relative(tree, join(ws.root, '.retake'));
+    const rel = relative(tree, statePath(ws.root));
     const res = await p.exec('git', ['-C', tree, 'check-ignore', '-q', `${rel}/`], 5000);
-    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(join(ws.root, '.retake'))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
+    if (!res || res.code !== 0) warns.push({ detail: `${tildePath(statePath(ws.root))} (the job queue and history of this machine) is not ignored by git`, hint: `add ${WORKSPACE_GITIGNORE.join(', ')} to the workspace's .gitignore` });
   }
   if (warns.length) return { status: 'warn', name, detail: [...warns.map((w) => w.detail), ...parts].join(' · '), hint: warns.map((w) => w.hint).join('; ') };
   return { status: 'ok', name, detail: `${parts.join(' · ')} · register: retake mcp --print-config` };
@@ -1000,11 +1000,11 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
   // The old home, or the folder the old home variable names when it is set (the old build kept the sign-ins there:
   // core oldHomeDir).
   const where = home ? oldHomeDir(p.env, home) : null;
-  if (home && where && where.dir !== join(home, '.retake')) {
+  if (home && where && where.dir !== defaultRetakeHome(home)) {
     const signIns = (dir: string) => p.exists(join(dir, 'profiles')) || p.exists(join(dir, 'sessions'));
     const old = where.byVar ? `${where.shown} (set by ${where.byVar})` : where.shown;
     const oldDir = where.dir;
-    const newDir = join(home, '.retake');
+    const newDir = defaultRetakeHome(home);
     if (p.exists(oldDir)) {
       const stop = 'stop the Studio, the desktop app, MCP clients and the worker first';
       // With the variable: keeping that folder as the home is the other way (RETAKE_HOME names it).
@@ -1056,12 +1056,12 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
     const pending = journals
       ? ` · ${journals} pending rollback journal${journals === 1 ? '' : 's'} (retake env reset finds them only once moved; written before this version, a person replays them from a terminal: retake env reset ${slug} --replay-unsigned, asked about each)`
       : '';
-    const both = p.exists(join(dir, '.retake'));
+    const both = p.exists(statePath(dir));
     out.push({
       status: 'warn',
       name: `${BEFORE}: ${dir === ws.root ? 'workspace folder' : label(dir)}`,
       detail: `${join(dir, OLD_DIR)} (the tool's folder from before the rename) is not read${both ? ', next to .retake/' : ''}${pending}`,
-      hint: both ? `move what you still need from it (journals/, records/…) into ${join(dir, '.retake')} by hand, then remove it` : `stop the Studio, the worker and the project's sandboxes, then: ${oldDirMove(dir)}`,
+      hint: both ? `move what you still need from it (journals/, records/…) into ${statePath(dir)} by hand, then remove it` : `stop the Studio, the worker and the project's sandboxes, then: ${oldDirMove(dir)}`,
     });
   }
   return out;

@@ -18,7 +18,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, re
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readPlainFile, pathInside } from '@retake/core';
+import { readPlainFile, pathInside, projectPath } from '@retake/core';
 import type { PlainFileProblem, PlainFileRead } from '@retake/core';
 import { RUN_ID_RE } from './refs.js';
 
@@ -126,11 +126,11 @@ export class RunFolder {
   /** `runs/<id>` of the project when it is a real folder inside the project; null otherwise (missing, a link, outside). */
   static async open(projectDir: string, id: string): Promise<RunFolder | null> {
     if (!RUN_ID_RE.test(id) || id.length > 200) return null;
-    const path = join(projectDir, 'runs', id);
+    const path = projectPath(projectDir, 'runs', id);
     try {
       const st = await lstat(path);
       if (!st.isDirectory()) return null;
-      const [root, real] = await Promise.all([realpath(join(projectDir, 'runs')), realpath(path)]);
+      const [root, real] = await Promise.all([realpath(projectPath(projectDir, 'runs')), realpath(path)]);
       const project = await realpath(projectDir);
       if (!inside(root, project) || !inside(real, root) || real === root) return null;
       const [rs, ds] = await Promise.all([lstat(root), lstat(real)]);

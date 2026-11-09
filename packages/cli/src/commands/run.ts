@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, appendHistory, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
+import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, appendHistory, callerOf, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
 import type { PreparedRun } from '@retake/engine';
 import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 import { heavyGate } from '../heavy-gate.js';
@@ -131,6 +131,8 @@ export async function runCommand(
         ...(opts.allowWrites ? { allowWrites: true } : {}),
         ...(rawCursor && rawCursor !== 'baked' ? { hideCursor: true } : {}),
         ...(opts.dry ? {} : { onFilming }),
+        // Each hook run is a line of the workspace journal, as the person's.
+        recordAs: callerOf('cli'),
       },
       {
         issues: (issues, file) => {

@@ -18,7 +18,7 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath } from '@retake/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
@@ -263,9 +263,9 @@ export async function cleanupInterruptedRender(ws: WorkspaceConfig, files: JobFi
   try {
     await releaseRenderLock(ws, input);
     const project = await openProjectBySlug(ws, input.project);
-    await removePartials(join(project.dir, 'renders'), `.${input.render_id}.partial-`);
+    await removePartials(projectPath(project.dir, 'renders'), `.${input.render_id}.partial-`);
     // A worker killed during the inline review (L4.5): the previous review set aside comes back.
-    if (input.review) await (await import('./review-job.js')).review().then((rv) => rv.recoverReviewDir(join(project.dir, 'review', input.render_id)));
+    if (input.review) await (await import('./review-job.js')).review().then((rv) => rv.recoverReviewDir(projectPath(project.dir, 'review', input.render_id)));
   } catch (e) {
     log(`job ${job.id}: render leftovers not removed (${(e as Error).message})`);
   }
@@ -378,7 +378,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   const project = await openProjectBySlug(ctx.ws, input.project);
   const { version, variant } = parseRenderId(input.render_id, input.scenario);
   try {
-    const sha = sha256Hex(await readFile(join(project.dir, 'runs', input.run_id, 'timeline.json')));
+    const sha = sha256Hex(await readFile(projectPath(project.dir, 'runs', input.run_id, 'timeline.json')));
     if (sha !== input.timeline_sha256) {
       throw new EngineError('conflict', `the timeline of run ${input.run_id} changed since the render was submitted: submit it again`, { details: { submitted: input.timeline_sha256, current: sha } });
     }

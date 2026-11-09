@@ -8,8 +8,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile } from '@retake/core';
+import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile, projectPath } from '@retake/core';
 import type { LoadedProject, WorkspaceConfig } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
@@ -150,7 +149,7 @@ export interface RenderStatusView {
 
 async function readRecord(projectDir: string, id: string): Promise<RenderRecord | undefined> {
   try {
-    const r = JSON.parse(await readFile(join(projectDir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
+    const r = JSON.parse(await readFile(projectPath(projectDir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
     return r && r.version === 1 && r.id === id ? r : undefined;
   } catch {
     return undefined;
@@ -424,7 +423,7 @@ function reportOf(file: string): { counts: Record<string, unknown>; at: string }
 
 /** The review verdict of review/<id>/report.json (written after the render: `since`), or undefined. */
 function reportSummary(projectDir: string, id: string, since: string): { summary: RenderReviewSummary; at: string } | undefined {
-  const r = reportOf(join(projectDir, 'review', id, 'report.json'));
+  const r = reportOf(projectPath(projectDir, 'review', id, 'report.json'));
   if (!r) return undefined;
   const at = r.at;
   // A review of an earlier render of the id (its record pruned, the id reused) is not this render's.
@@ -436,7 +435,7 @@ function reportSummary(projectDir: string, id: string, since: string): { summary
 
 /** renders/<file> as a render record of its own id (version 1, a creation time), or undefined. */
 export function readRenderRecord(projectDir: string, file: string): RenderRecord | undefined {
-  const r = readJsonPlain(join(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
+  const r = readJsonPlain(projectPath(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
   return r && r.version === 1 && r.id === file.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string' ? r : undefined;
 }
 
@@ -491,7 +490,7 @@ export async function scenarioRenders(ws: WorkspaceConfig, queue: JobQueueView, 
 
   // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
   const nameRe = new RegExp(`^${escapeRe(scenario)}-v\\d+(?:-vertical|-square)?\\.json$`);
-  const files = (await readdir(join(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
+  const files = (await readdir(projectPath(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
   const records: RenderRecord[] = [];
   for (const f of files) {
     const r = readRenderRecord(project.dir, f);

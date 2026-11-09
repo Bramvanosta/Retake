@@ -21,25 +21,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_INPUT_VERSION, loadWorkspaceConfig, siteApprovalFingerprint } from '@retake/core';
 import type { SiteJobInput, WorkspaceConfig } from '@retake/core';
-import {
-  FileJobQueue,
-  MemoryJobQueue,
-  SITE_KEEP,
-  THEME_PROVENANCE_FILE,
-  createEngine,
-  createThemeFromBrand,
-  executeSiteJob,
-  historyFile,
-  isSiteWarning,
-  makeSiteDir,
-  newSiteId,
-  pruneSites,
-  readBrandFile,
-  readSite,
-  runWorker,
-  signApprovals,
-  siteDir,
-} from '../src/index.js';
+import { FileJobQueue, MemoryJobQueue, SITE_KEEP, THEME_PROVENANCE_FILE, createEngine, createThemeFromBrand, executeSiteJob, historyFile, isSiteWarning, makeSiteDir, newSiteId, pruneSites, readBrandFile, readSite, runWorker, signApprovals, siteDir, personScope } from '../src/index.js';
 import type { ApprovalOutcome, Approver, Engine, EngineError, JobRecord, SiteApprovalRequest, SiteJobResult } from '../src/index.js';
 import { BRAND_SITE_COLORS, drawPng, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
@@ -266,7 +248,7 @@ describe('site jobs without any network', () => {
   it('site: references in a create: the PNG resolves; links, linked folders, non-PNGs, other ids and fonts are refused', async () => {
     const id = newSiteId();
     const dir = await fakeExtraction(id, { 'logo-5.png': '<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>' });
-    const created = await createThemeFromBrand(ws, { name: 'quill', colors: { accent: '#0e7c66' }, logo: `site:${id}/logo-1` }, { trust: 'mcp' });
+    const created = await createThemeFromBrand(ws, { name: 'quill', colors: { accent: '#0e7c66' }, logo: `site:${id}/logo-1` }, { trust: 'mcp', scope: personScope(ws.root) });
     expect(created.logo).toMatchObject({ file: 'logo.png', format: 'png' });
     const prov = JSON.parse(await readFile(join(created.dir, THEME_PROVENANCE_FILE), 'utf8')) as { site_id?: string; inputs: { logo: string } };
     expect(prov).toMatchObject({ site_id: id, inputs: { logo: `site:${id}/logo-1` } });

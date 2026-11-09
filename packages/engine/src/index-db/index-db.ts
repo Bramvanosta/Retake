@@ -38,6 +38,7 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
+import { projectPath } from '@retake/core';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
 export const INDEX_SCHEMA = 1;
@@ -161,7 +162,7 @@ async function readSmall(dir: string, ref: string, max: number): Promise<string 
 async function readRenders(dir: string): Promise<RenderRow[]> {
   let files: string[];
   try {
-    files = (await readdir(join(dir, 'renders'))).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
+    files = (await readdir(projectPath(dir, 'renders'))).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
   } catch {
     return [];
   }

@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { parseDocument } from 'yaml';
 import { COMPONENT_ID_RE, COMPONENT_KINDS, bundleInfoOrNull, errorsOf, insideBundle, loadWorkspaceConfig, suggestion } from '@retake/core';
@@ -27,6 +27,11 @@ export interface CreateComponentOptions {
    * warning (an MCP client's scaffold: a workspace id silently replaces the built-in in every render).
    */
   noOverride?: boolean;
+  /**
+   * Writes one new file of the scaffold (an absolute path inside the components folder; its folders made): the engine's
+   * project store (`if_match` null, journaled). This package writes no file itself.
+   */
+  write: (file: string, text: string) => Promise<void>;
 }
 
 /** The namespace of the built-in library. */
@@ -94,11 +99,10 @@ export async function createComponent(root: string, opts: CreateComponentOptions
     throw new ComponentError(`the ${kind} scaffold is invalid with id ${id}:\n${formatComponentIssues(check.issues)}`, check.issues);
   }
 
-  await mkdir(dir, { recursive: true });
   const files: string[] = [];
   const write = async (file: string, text: string) => {
     const p = join(dir, file);
-    await writeFile(p, text, 'utf8');
+    await opts.write(p, text);
     files.push(p);
   };
   await write(MANIFEST_FILE, manifestText);

@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CommentThreadSchema, newCommentEntryId, newCommentId, stepFingerprint } from '@retake/core';
 import type { CommentAuthor, CommentThread, LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
-import { COMMENT_FILE_MAX_BYTES, EngineError, addComment, commentLockFile, commentStillFile, createEngine, getComment, listComments, reopenComment, replyComment, resolveComment } from '../src/index.js';
+import { COMMENT_FILE_MAX_BYTES, EngineError, addComment, commentLockFile, commentStillFile, createEngine, getComment, listComments, reopenComment, replyComment, readJournal, resolveComment } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { hasTool, makeCase, scenesTimeline, workspace } from '../../review/test/helpers.js';
 import type { Case, Workspace } from '../../review/test/helpers.js';
@@ -211,6 +211,16 @@ describe('frame comment store', () => {
     const { thread } = await add();
     const stale = thread.hash;
     const replied = await replyComment(project, thread.id, 'One more thing.', HUMAN);
+    // The thread written through the project store, journaled as its author's channel (no scope given: the CLI's).
+    expect((await readJournal(project.root, { project: project.slug })).at(-1)).toMatchObject({
+      by: { client: 'cli', channel: 'cli', trust: 'author' },
+      op: 'write',
+      what: 'thread',
+      path: `projects/${project.slug}/comments/${thread.scenario}/${thread.id}.json`,
+      if_match: stale,
+      sha256: replied.hash,
+      outcome: 'ok',
+    });
     const conflict = await engineError(resolveComment(project, thread.id, { note: 'Done.', ifMatch: stale }, { via: 'mcp', name: 'agent' }));
     expect(conflict.code).toBe('conflict');
     expect(conflict.details?.current).toBe(replied.hash);

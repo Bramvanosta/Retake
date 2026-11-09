@@ -8,6 +8,8 @@
  * drops other versions of the theme first then the least recently read, ignores other names and never follows a link;
  * reading an image touches its meta; the disk gate refuses under 1 GB with "the disk has N MB free".
  */
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
@@ -35,6 +37,12 @@ import type { LibraryEntryMeta, LibraryKeyContext } from '../src/index.js';
 import { REPO } from './helpers.js';
 import { cleanWorkerEnv, openWorkspace } from '../src/index.js';
 
+/** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
+const plainWrite = async (file: string, text: string): Promise<void> => {
+  nodeFs.mkdirSync(nodePath.dirname(file), { recursive: true });
+  nodeFs.writeFileSync(file, text);
+};
+
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from('poster')]);
 const GIF = Buffer.concat([Buffer.from('GIF89a', 'latin1'), Buffer.from('loop')]);
 const THEME = { name: 'brandx', hash: 'h1' };
@@ -50,12 +58,12 @@ beforeAll(async () => {
   await writeFile(join(root, 'templates', 'brandx', 'template.yaml'), yaml.replace(/^name: .*$/m, 'name: brandx').replace(/^  layout: .*$/m, '  layout: acme/frame'));
   await writeFile(join(root, 'retake.yaml'), 'projects_dir: projects\ntemplates_dir: templates\n');
   ws = { root } as WorkspaceConfig;
-  await createComponent(root, { id: 'acme/frame', kind: 'layout', description: 'A frame.' });
-  const card = await createComponent(root, { id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
+  await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A frame.' });
+  const card = await createComponent(root, { write: plainWrite,  id: 'acme/card-x', kind: 'card', description: 'A card with assets.' });
   await writeFile(join(card.dir, 'bg.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0x01]));
   await writeFile(card.entry, `import bg from './bg.png';\n${await readFile(card.entry, 'utf8')}\nexport const background = bg;\n`);
   await writeFile(join(card.dir, 'data.json'), '{"rows": 1}\n');
-  await createComponent(root, { id: 'acme/other', kind: 'card', description: 'Unrelated.' });
+  await createComponent(root, { write: plainWrite,  id: 'acme/other', kind: 'card', description: 'Unrelated.' });
 });
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
