@@ -5,8 +5,8 @@ Every `retake` command and its flags. Part of the [Retake guide](README.md).
 ## Command line
 
 ```
-retake new <slug> [--name N] [--template T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too)
-retake list [--json]                                  # projects (with scenarios) and templates
+retake new <slug> [--name N] [--theme T] [--env name=key:url,...]   # on a terminal without --env: asks (personas too); --template: the old name of --theme
+retake list [--json]                                  # projects (with scenarios) and themes
 retake validate <project> [scenario|file] [--env E] [--until REF] [--json]
 retake run <project> <scenario> [--dry] [--until REF] [--hooks run|skip] [--env E] [--headed] [--allow-writes] [--json]
            [--sandbox]                       # reset the sandbox to its seed first (Sandbox mode)
@@ -60,7 +60,7 @@ retake jobs status <id> [--json] · retake jobs cancel <id>   # one job; cancel 
 
 Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug messages), `--no-color`.
 
-- **validate** checks `project.yaml`, the project template (all assets present) and one scenario — or every scenario
+- **validate** checks `project.yaml`, the project's theme (all assets present) and one scenario — or every scenario
   when none is given. Messages read `file:line:col severity path: message`, with "did you mean" suggestions.
 - **run** prints one line per step with its duration and a summary with the output paths. `--dry` records nothing,
   saves a screenshot per step and never executes `irreversible` steps (it hovers their target and stops that scene).
@@ -112,7 +112,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   PATH, else where Docker Desktop, OrbStack or Homebrew put it, as the sandboxes look for it: a warning when missing,
   since only docker-compose sandboxes need it, and a failure only when the `--project`'s default sandbox — its
   `default_env` when that is a sandbox, else the first one declared — is a docker-compose one), the workspace root
-  and its projects, and the fonts of every template (the starter templates included). With
+  and its projects, and the fonts of every theme (the starter themes included). With
   `--project <slug>` it also checks that project's sessions — one line per persona (never signed in, expired, in use
   by a browser, its last check), the Retake home (a warning when it, or a session, sits inside a git work tree that
   does not ignore it), the profile of the single-account form — and sends a `HEAD`

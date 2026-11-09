@@ -54,7 +54,7 @@ async function jobOutput(engine: Engine, job: JobRecord, seconds: number, ctx: T
 const dryInput = z
   .boolean()
   .default(true)
-  .describe('Default true: template and security-check the hooks without executing anything (nobody is asked). false runs them: hooks that are destructive or run shell commands need the user\'s approval first.');
+  .describe('Default true: fill in the hooks\' {{…}} values and security-check them without executing anything (nobody is asked). false runs them: hooks that are destructive or run shell commands need the user\'s approval first.');
 
 export const hooksRun = defineTool({
   name: 'hooks_run',

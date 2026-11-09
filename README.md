@@ -176,7 +176,7 @@ pnpm retake render northfield-fixture quote --review             # the video abo
 ```
 
 The repository root's `retake.yaml` makes the repository a workspace holding the fixture project and the starter
-templates.
+themes.
 
 ## Features
 

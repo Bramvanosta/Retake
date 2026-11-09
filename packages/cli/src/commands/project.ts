@@ -20,6 +20,8 @@ import { loginCommandFor, signInPersona } from './auth.js';
 
 export interface NewOptions {
   name?: string;
+  theme?: string;
+  /** `--template`, the hidden name of `--theme` from before the glossary. */
   template?: string;
   /** Repeatable: "staging=console:https://console.staging.example.com,shop:https://shop.staging.example.com". */
   env?: string[];
@@ -50,14 +52,15 @@ export function parseEnvOptions(values: readonly string[]): ProjectConfig['envir
 /**
  * `retake new <slug>`: create a project. On a terminal without `--env`, it asks for the environments and, for each one,
  * the personas (the accounts the videos are filmed as) and offers to sign each one in (R-AUTH-08) — the slug, the
- * folder and the template are checked before the first question.
+ * folder and the theme are checked before the first question.
  */
 export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, opts: NewOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   let environments = parseEnvOptions(opts.env ?? []);
   let auth: Record<string, AuthConfig> | undefined;
   const interactive = ui.io.canPrompt && ui.io.ask !== undefined && ui.io.confirm !== undefined && !opts.env?.length;
-  const base = { name: opts.name ?? slug, slug, template: opts.template };
+  if (opts.theme !== undefined && opts.template !== undefined && opts.theme !== opts.template) throw new UsageError(`--theme ${opts.theme} and --template ${opts.template}: give the theme once (--template is the old name of --theme)`);
+  const base = { name: opts.name ?? slug, slug, template: opts.theme ?? opts.template };
   if (interactive) {
     await checkNewProject(ws.root, base);
     ({ environments, auth } = await askSetup(ui));
@@ -66,7 +69,7 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
   const c = ui.c;
   ui.ok(`created project ${c.bold(project.slug)} in ${ui.path(project.dir)}`);
   ui.line(c.dim('  README.md     what the product is, audience, goals, tone, accounts (by reference)'));
-  ui.line(c.dim(`  project.yaml  environments, capture size, template, personas${auth ? '' : ' (commented example)'}`));
+  ui.line(c.dim(`  project.yaml  environments, capture size, theme (template:), personas${auth ? '' : ' (commented example)'}`));
   ui.line(c.dim('  scenarios/    one <name>.yaml per video'));
   ui.line(c.dim('  hooks/        sql / http / js / sh files used by setup and teardown'));
   if (Object.keys(environments).length === 0) ui.warn('no environment yet: add one under `environments:` in project.yaml');
@@ -226,7 +229,7 @@ export async function listCommand(ui: Ui, global: GlobalOptions, opts: { json?: 
       : `${p.name}  ${c.dim(`${plural(p.scenarios.length, 'scenario')}${p.scenarios.length ? `: ${p.scenarios.join(', ')}` : ''}`)}`;
     ui.result(`  ${c.bold(p.slug.padEnd(width))}  ${info}`);
   }
-  ui.result(`${c.bold('Templates')} ${c.dim(ui.path(ws.templatesDir))}`);
+  ui.result(`${c.bold('Themes')} ${c.dim(ui.path(ws.templatesDir))}`);
   ui.result(templates.length ? `  ${templates.map((t) => (t.source === 'starter' ? `${t.name} ${c.dim('(starter)')}` : t.name)).join(', ')}` : c.dim('  none'));
   return EXIT.ok;
 }

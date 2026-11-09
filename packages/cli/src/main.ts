@@ -50,7 +50,7 @@ import { validateCommand } from './commands/validate.js';
 import type { ValidateOptions } from './commands/validate.js';
 import { EXIT, errorMessage, errorText, exitCodeOf, isKnownError } from './errors.js';
 import type { ExitCode } from './errors.js';
-import { processIo } from './io.js';
+import { memoryIo, processIo } from './io.js';
 import type { Io } from './io.js';
 import { Ui } from './ui.js';
 
@@ -111,19 +111,21 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .description('create a project (README.md, project.yaml, scenarios/, hooks/, assets/); on a terminal without --env it asks for environments and personas, and offers to sign each one in')
     .argument('<slug>', 'project folder name: lower-case letters, digits and "-"')
     .option('--name <name>', 'display name (default: the slug)')
-    .option('--template <name>', 'template name or ./path (default: default)')
+    .option('--theme <name>', 'theme: a workspace theme, a starter (default, editorial, motion) or ./path (default: default)')
+    // The name before the glossary (docs/GLOSSARY.md): still accepted, no longer shown.
+    .addOption(new Option('--template <name>').hideHelp())
     .option('--env <name=key:url,...>', 'environment pages, e.g. staging=app:https://app.staging.example.com (repeatable)', collect)
     .action(action((u, g, slug: string, o: NewOptions) => newCommand(u, g, slug, o)));
 
   program
     .command('list')
-    .description('list the projects (with their scenarios) and templates of the workspace')
+    .description('list the projects (with their scenarios) and themes of the workspace')
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: { json?: boolean }) => listCommand(u, g, o)));
 
   program
     .command('validate')
-    .description('validate project.yaml, its template and a scenario (every scenario when omitted)')
+    .description('validate project.yaml, its theme and a scenario (every scenario when omitted)')
     .argument('<project>', 'project slug or directory')
     .argument('[scenario]', 'scenario name or YAML file')
     .option('--env <name>', 'environment to check page keys against')
@@ -136,7 +138,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .description('run a scenario headless: capture.mp4 + timeline.json (or a dry run with screenshots)')
     .argument('<project>', 'project slug or directory')
     .argument('<scenario>', 'scenario name or YAML file')
-    .option('--dry', 'dry run: no recording, a screenshot per step, irreversible steps not executed')
+    .option('--dry', 'dry run: no video, a screenshot per step, irreversible steps not executed')
     .option('--until <ref>', 'stop after this step (<scene>.<step id|index>, a step id, or a scene id)')
     .addOption(new Option('--hooks <mode>', 'setup/teardown hooks (default: run for captures, skip for dry runs)').choices(['run', 'skip']))
     .option('--env <name>', 'environment (default: scenario env, project default_env, first one)')
@@ -210,7 +212,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('<run>', 'run id (folder under runs/), run directory, or "latest"')
     .option('--scenario <name>', 'with "latest": the latest run of this scenario')
-    .option('--theme <name>', 'plan with another theme (template name or ./path) instead of the one the run used')
+    .option('--theme <name>', 'plan with another theme (a theme name or ./path) instead of the one the run used')
     .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw, split or pip (multi-page scenes) or a layout component id')
     .option('--vertical', 'the vertical 9:16 variant (1080×1920, reframed on the cursor and the targets)')
     .option('--square', 'the square 1:1 variant (1080×1080, reframed on the cursor and the targets)')
@@ -224,7 +226,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .argument('<project>', 'project slug or directory')
     .argument('<scenario>', 'scenario name')
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
-    .option('--theme <name>', 'render with another theme (template name or ./path) instead of the one the run used')
+    .option('--theme <name>', 'render with another theme (a theme name or ./path) instead of the one the run used')
     .option('--frame <frame>', 'frame of every scene: card, browser, laptop, phone, tablet, raw, split or pip (multi-page scenes) or a layout component id')
     .option('--vertical', 'the vertical 9:16 variant (1080×1920, reframed on the cursor and the targets), written as <scenario>-v<N>-vertical.mp4')
     .option('--square', 'the square 1:1 variant (1080×1080, reframed), written as <scenario>-v<N>-square.mp4')
@@ -278,7 +280,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .requiredOption('--frame <n>', 'output frame number (0-based)')
     .option('--run <id>', 'run id, run directory or "latest" (default: the latest capture of the scenario)')
     .option('--layout <frame>', 'frame of every scene (as `retake render --frame`): card, browser, laptop, phone, tablet, raw, split or pip (multi-page scenes) or a layout id')
-    .option('--theme <name>', 'plan with another theme (template name or ./path)')
+    .option('--theme <name>', 'plan with another theme (a theme name or ./path)')
     .option('--vertical', 'a frame of the vertical 9:16 variant')
     .option('--square', 'a frame of the square 1:1 variant')
     .option('--out <file>', 'PNG file to write')
@@ -295,7 +297,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--env <name>', 'environment')
     .option('--yes', 'approve destructive hooks that lack "confirm: true"')
     .option('--allow-writes', 'let hooks write to a production environment (only where project.yaml sets access: read-write)')
-    .option('--dry', 'template and security-check the hooks without executing them')
+    .option('--dry', 'fill in the hooks\' {{…}} values and security-check them without executing them')
     .action(action((u, g, p: string, s: string, o: HookCommandOptions) => hooksRunCommand(u, g, p, s, o)));
   hooks
     .command('rollback')
@@ -385,7 +387,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
   components
     .command('create')
     .alias('new')
-    .description('scaffold a workspace component (components/<namespace>/<name>/) from the template of its kind (alias: new)')
+    .description('scaffold a workspace component (components/<namespace>/<name>/) from the scaffold of its kind (alias: new)')
     .argument('<id>', 'component id "namespace/name" (lower-case letters, digits and "-")')
     .addOption(new Option('--kind <kind>', 'what it renders').choices([...COMPONENT_KINDS]).makeOptionMandatory())
     .option('--description <text>', 'one or two sentences: what it looks like and when to use it')
@@ -401,12 +403,12 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .option('--all', 'every component: workspace, built-in library and the per-kind scaffolds')
     .option('--workspace', 'with --all: only the workspace components')
     .option('--stale', 'only previews that are missing or out of date')
-    .option('--theme <name>', 'theme of the previews (template name or path; default editorial)')
+    .option('--theme <name>', 'theme of the previews (a theme name or path; default editorial)')
     .option('--out <dir>', 'write only the images to <dir>/<namespace>/<name>.png (component folders untouched)')
     .option('--json', 'machine-readable output')
     .action(action((u, g, id: string | undefined, o: ComponentsPreviewOptions) => componentsPreviewCommand(u, g, id, o)));
 
-  const theme = program.command('theme').description('themes (templates) from brand files or a site');
+  const theme = program.command('theme').description('workspace themes (templates/<name>/) from brand files or a site');
   theme
     .command('create')
     .description('a new workspace theme (templates/<name>/) from a logo, hex colours and fonts over a base theme: palette derived and contrast-checked, files checked and copied, LICENSES.md; never an existing theme (except --replace of an unchanged one Retake made)')
@@ -491,7 +493,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('prune')
-    .description("free disk space: list (and with --yes delete) failed takes, dry runs, older captures and renders nothing uses — the last good take of each scenario, the takes renders and comments use and the last renders of each scenario stay")
+    .description("free disk space: list (and with --yes delete) failed captures, dry runs, older captures and renders nothing uses — the last good capture of each scenario, the captures renders and comments use and the last renders of each scenario stay")
     .argument('<project>', 'project slug or directory')
     .option('--keep-renders <n>', 'renders kept per scenario and variant (default 3), with their reviews')
     .option('--yes', 'delete (default: only list what would go and how much it frees)')
@@ -500,7 +502,7 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
 
   program
     .command('doctor')
-    .description('check this machine for Retake: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, template fonts')
+    .description('check this machine for Retake: Node, Chromium, ffmpeg, display, keychain, notifications, workspace, theme fonts')
     .option('--project <slug>', "also check a project: its personas' sessions (never signed in, expired, in use, inside a git work tree) and its environments' hosts (HEAD, 5 s timeout)")
     .option('--json', 'machine-readable output')
     .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));
@@ -590,6 +592,17 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
   }
 
   return program;
+}
+
+/** The help of every command, the program's first and hidden ones included (the glossary's word guard reads it). */
+export function helpTexts(): string[] {
+  const out: string[] = [];
+  const walk = (c: Command): void => {
+    out.push(c.helpInformation());
+    c.commands.forEach(walk);
+  };
+  walk(buildProgram(memoryIo(), () => {}));
+  return out;
 }
 
 /**

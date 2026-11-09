@@ -1,0 +1,299 @@
+{
+ "about": "The allowed exceptions of the import-rules ratchet (packages/core/test/import-rules.test.ts, rules in scripts/audit/lib.mjs). Each group has one rule, a one-line reason and its entries (\"<file> → <import>\"). A new entry and a stale one both fail the test: after a change, run node scripts/audit/rules.mjs . --write-baseline, write the reason of any new group, and review the diff.",
+ "groups": [
+  {
+   "rule": "R1",
+   "reason": "Loaders and writers of the authored files (projects, scenarios, themes, workspaces, sandboxes, schemas); they move to an I/O entry of core.",
+   "entries": [
+    "packages/core/src/formats.ts → node:fs",
+    "packages/core/src/plain-file.ts → node:fs",
+    "packages/core/src/project.ts → node:fs",
+    "packages/core/src/project.ts → node:fs/promises",
+    "packages/core/src/sandbox.ts → node:fs",
+    "packages/core/src/sandbox.ts → node:fs/promises",
+    "packages/core/src/scenario.ts → node:fs",
+    "packages/core/src/scenario.ts → node:fs/promises",
+    "packages/core/src/schemas/json.ts → node:fs/promises",
+    "packages/core/src/template.ts → node:fs",
+    "packages/core/src/template.ts → node:fs/promises",
+    "packages/core/src/util.ts → node:fs/promises",
+    "packages/core/src/workspace.ts → node:fs",
+    "packages/core/src/workspace.ts → node:fs/promises"
+   ]
+  },
+  {
+   "rule": "R1",
+   "reason": "Rules that probe the disk inline (checks, destructive steps, filmed files, agent trust, the client PATH, the app bundle); they move behind a file-facts port.",
+   "entries": [
+    "packages/core/src/agent-trust.ts → node:fs",
+    "packages/core/src/bundle.ts → node:fs",
+    "packages/core/src/checks/context.ts → node:fs",
+    "packages/core/src/checks/media.ts → node:fs",
+    "packages/core/src/checks/sandbox.ts → node:fs",
+    "packages/core/src/checks/scenario.ts → node:fs",
+    "packages/core/src/client-path.ts → node:fs",
+    "packages/core/src/destructive.ts → node:fs",
+    "packages/core/src/filmed.ts → node:fs"
+   ]
+  },
+  {
+   "rule": "R1",
+   "reason": "Media probes and templating commands start processes; they move to an adapter.",
+   "entries": [
+    "packages/core/src/h264.ts → node:child_process",
+    "packages/core/src/media.ts → node:child_process",
+    "packages/core/src/media.ts → node:fs",
+    "packages/core/src/templating.ts → node:child_process"
+   ]
+  },
+  {
+   "rule": "R1",
+   "reason": "The installer of the agent registrations; it moves to an integrations entry of the engine.",
+   "entries": [
+    "packages/core/src/app-setup.ts → node:child_process",
+    "packages/core/src/app-setup.ts → node:fs"
+   ]
+  },
+  {
+   "rule": "R1",
+   "reason": "State read from the home folder (agent policy, signing key, personas, names from before the rename); it moves to an I/O entry of core.",
+   "entries": [
+    "packages/core/src/agent-policy.ts → node:fs",
+    "packages/core/src/agent-policy.ts → node:os",
+    "packages/core/src/auth.ts → node:os",
+    "packages/core/src/home-key.ts → node:fs/promises",
+    "packages/core/src/home-key.ts → node:os",
+    "packages/core/src/legacy.ts → node:fs",
+    "packages/core/src/legacy.ts → node:os"
+   ]
+  },
+  {
+   "rule": "R1",
+   "reason": "Address classification uses node:net's pure parsers (isIP, BlockList) and opens no socket.",
+   "entries": [
+    "packages/core/src/ip-class.ts → node:net",
+    "packages/core/src/site.ts → node:net"
+   ]
+  },
+  {
+   "rule": "R3",
+   "reason": "The Studio server reuses the operation contract (ToolDef, callTool) of the MCP package until that contract moves into the engine.",
+   "entries": [
+    "packages/ui/src/server/comment-ops.ts → @retake/mcp",
+    "packages/ui/src/server/desktop.ts → @retake/mcp",
+    "packages/ui/src/server/library-ops.ts → @retake/mcp",
+    "packages/ui/src/server/ops.ts → @retake/mcp",
+    "packages/ui/src/server/record-ops.ts → @retake/mcp",
+    "packages/ui/src/server/setup-ops.ts → @retake/mcp",
+    "packages/ui/src/server/studio.ts → @retake/mcp",
+    "packages/ui/src/server/theme-ops.ts → @retake/mcp",
+    "packages/ui/src/server/unsaved.ts → @retake/mcp",
+    "packages/ui/src/server/update-ops.ts → @retake/mcp"
+   ]
+  },
+  {
+   "rule": "R4",
+   "reason": "CLI commands drive the adapters themselves (capture, render, review, export, hooks, sandboxes, doctor) until they run on the engine operations.",
+   "entries": [
+    "packages/cli/src/commands/auth.ts → @retake/runner-web",
+    "packages/cli/src/commands/components.ts → @retake/components",
+    "packages/cli/src/commands/components.ts → @retake/editor",
+    "packages/cli/src/commands/doctor.ts → @retake/editor",
+    "packages/cli/src/commands/doctor.ts → @retake/runner-web",
+    "packages/cli/src/commands/doctor.ts → @retake/sandbox",
+    "packages/cli/src/commands/export-capture.ts → @retake/editor",
+    "packages/cli/src/commands/export-capture.ts → @retake/runner-web",
+    "packages/cli/src/commands/export.ts → @retake/editor",
+    "packages/cli/src/commands/hooks.ts → @retake/hooks",
+    "packages/cli/src/commands/plan.ts → @retake/components",
+    "packages/cli/src/commands/plan.ts → @retake/editor",
+    "packages/cli/src/commands/render.ts → @retake/editor",
+    "packages/cli/src/commands/review.ts → @retake/editor",
+    "packages/cli/src/commands/review.ts → @retake/review",
+    "packages/cli/src/commands/run.ts → @retake/runner-web",
+    "packages/cli/src/commands/sandbox.ts → @retake/sandbox",
+    "packages/cli/src/interrupt.ts → @retake/runner-web"
+   ]
+  },
+  {
+   "rule": "R4",
+   "reason": "The Studio's player bundles the compositions with the components and the editor's render entry.",
+   "entries": [
+    "packages/ui/src/player/bundle-player.ts → @retake/components",
+    "packages/ui/src/player/bundle-player.ts → @retake/editor"
+   ]
+  },
+  {
+   "rule": "R4",
+   "reason": "The Studio server reads the component library, themes and edit plans through the adapters until the engine exposes them.",
+   "entries": [
+    "packages/ui/src/server/library-ops.ts → @retake/components",
+    "packages/ui/src/server/library-watch.ts → @retake/editor",
+    "packages/ui/src/server/ops.ts → @retake/components",
+    "packages/ui/src/server/ops.ts → @retake/editor",
+    "packages/ui/src/server/player.ts → @retake/editor",
+    "packages/ui/src/server/theme-ops.ts → @retake/components",
+    "packages/ui/src/server/theme-ops.ts → @retake/editor"
+   ]
+  },
+  {
+   "rule": "R6",
+   "reason": "CLI commands read and write files or start processes themselves (init, plan, validate, ui, doctor) until they go through the engine.",
+   "entries": [
+    "packages/cli/src/commands/components.ts → node:fs",
+    "packages/cli/src/commands/doctor.ts → node:child_process",
+    "packages/cli/src/commands/doctor.ts → node:fs",
+    "packages/cli/src/commands/export-capture.ts → node:fs/promises",
+    "packages/cli/src/commands/init.ts → node:fs",
+    "packages/cli/src/commands/init.ts → node:fs/promises",
+    "packages/cli/src/commands/mcp.ts → node:fs",
+    "packages/cli/src/commands/plan.ts → node:fs",
+    "packages/cli/src/commands/plan.ts → node:fs/promises",
+    "packages/cli/src/commands/render.ts → node:fs",
+    "packages/cli/src/commands/ui.ts → node:child_process",
+    "packages/cli/src/commands/ui.ts → node:fs/promises",
+    "packages/cli/src/commands/validate.ts → node:fs/promises"
+   ]
+  },
+  {
+   "rule": "R6",
+   "reason": "Two MCP tools read files directly (project creation, theme files) until the project store serves them.",
+   "entries": [
+    "packages/mcp/src/tools/project.ts → node:fs",
+    "packages/mcp/src/tools/theme.ts → node:fs"
+   ]
+  },
+  {
+   "rule": "R6",
+   "reason": "The Studio server watches folders, serves files and supervises its worker itself.",
+   "entries": [
+    "packages/ui/src/server/library-ops.ts → node:fs",
+    "packages/ui/src/server/library-watch.ts → node:fs",
+    "packages/ui/src/server/player.ts → node:fs",
+    "packages/ui/src/server/record-watch.ts → node:fs",
+    "packages/ui/src/server/run-live.ts → node:fs",
+    "packages/ui/src/server/setup-ops.ts → node:child_process",
+    "packages/ui/src/server/setup-ops.ts → node:fs",
+    "packages/ui/src/server/studio.ts → node:fs",
+    "packages/ui/src/server/supervise.ts → node:fs/promises",
+    "packages/ui/src/server/unsaved.ts → node:fs/promises",
+    "packages/ui/src/server/worker-env.ts → node:fs"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "Core's model modules import one another (one cycle); it is broken when core is split into domain and I/O.",
+   "entries": [
+    "packages/core/src/agent-policy.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/agent-trust.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/brand.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/checks/project.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/checks/sandbox.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/checks/scenario.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/comments.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/field-edits.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/hook-writes.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/inspect.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/jobs.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/map-edits.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/project.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/record-annotations.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/recording.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/sandbox.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/scenario-edit.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/scenario.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/step-edits.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/step-forms.ts → cycle of packages/core/src/agent-policy.ts",
+    "packages/core/src/workspace.ts → cycle of packages/core/src/agent-policy.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The capture markers and the job queue use each other.",
+   "entries": [
+    "packages/engine/src/jobs/captures.ts → cycle of packages/engine/src/jobs/captures.ts",
+    "packages/engine/src/jobs/queue.ts → cycle of packages/engine/src/jobs/captures.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "Approvals, comments, renders, pruning and the job runners import one another.",
+   "entries": [
+    "packages/engine/src/approvals.ts → cycle of packages/engine/src/approvals.ts",
+    "packages/engine/src/comments.ts → cycle of packages/engine/src/approvals.ts",
+    "packages/engine/src/jobs/render-job.ts → cycle of packages/engine/src/approvals.ts",
+    "packages/engine/src/jobs/run-job.ts → cycle of packages/engine/src/approvals.ts",
+    "packages/engine/src/prune.ts → cycle of packages/engine/src/approvals.ts",
+    "packages/engine/src/renders.ts → cycle of packages/engine/src/approvals.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The MCP HTTP transport and the server entry use each other.",
+   "entries": [
+    "packages/mcp/src/http.ts → cycle of packages/mcp/src/http.ts",
+    "packages/mcp/src/index.ts → cycle of packages/mcp/src/http.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The MCP authoring tools share helpers both ways with the other tool modules.",
+   "entries": [
+    "packages/mcp/src/tools/authoring.ts → cycle of packages/mcp/src/tools/authoring.ts",
+    "packages/mcp/src/tools/inspect.ts → cycle of packages/mcp/src/tools/authoring.ts",
+    "packages/mcp/src/tools/jobs.ts → cycle of packages/mcp/src/tools/authoring.ts",
+    "packages/mcp/src/tools/preview.ts → cycle of packages/mcp/src/tools/authoring.ts",
+    "packages/mcp/src/tools/theme.ts → cycle of packages/mcp/src/tools/authoring.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The step actions, their table and the runtime that resolves targets import one another.",
+   "entries": [
+    "packages/runner-web/src/actions/artefacts.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/calendar.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/click.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/drag.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/effects.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/index.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/keyboard.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/misc.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/pages.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/scroll.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/types.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/waits.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/actions/widgets.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/inspect.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/park.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/resolve.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/runtime.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
+    "packages/runner-web/src/scene-cursor.ts → cycle of packages/runner-web/src/actions/artefacts.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The desktop bridge and the update operations of the Studio server use each other.",
+   "entries": [
+    "packages/ui/src/server/desktop.ts → cycle of packages/ui/src/server/desktop.ts",
+    "packages/ui/src/server/update-ops.ts → cycle of packages/ui/src/server/desktop.ts"
+   ]
+  },
+  {
+   "rule": "cycle",
+   "reason": "The Studio operation table and the theme operations use each other.",
+   "entries": [
+    "packages/ui/src/server/ops.ts → cycle of packages/ui/src/server/ops.ts",
+    "packages/ui/src/server/theme-ops.ts → cycle of packages/ui/src/server/ops.ts"
+   ]
+  },
+  {
+   "rule": "queue",
+   "reason": "The Studio server builds the file job queue itself (live view, live runs, the worker supervisor) until the queue is a port the engine hands out.",
+   "entries": [
+    "packages/ui/src/server/live.ts → new FileJobQueue",
+    "packages/ui/src/server/run-live.ts → new FileJobQueue",
+    "packages/ui/src/server/supervise.ts → new FileJobQueue"
+   ]
+  }
+ ]
+}

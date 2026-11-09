@@ -1,0 +1,77 @@
+# Glossary
+
+One word per concept. The code, the `retake` command, the MCP tools and the docs use the **canonical word**; the
+Studio shows a few concepts under a **product label** of its own (a film-set vocabulary: *Productions*, *Shoot*,
+*Rehearse*, *Cast*, *Locations*), on its screens only. A name that predates this glossary and is part of a format or an
+interface (a file or folder name, a YAML key, a command flag, an MCP tool or argument name) stays as it is: the last
+column says where. A word with several meanings is qualified each time it is used (see [Homonyms](#homonyms)).
+
+Back to the [guide](guide/README.md) · the layers these words live in: [target architecture](audit/target-architecture.md).
+
+## Concepts
+
+| Canonical word | Studio label | What it is | Older names that stay |
+|---|---|---|---|
+| workspace | Workspace | the folder with `retake.yaml`: projects, themes, components | — |
+| Retake home | — | the folder of this machine's own state (`RETAKE_HOME`, default `~/.retake`): signed-in sessions, the signing key | — |
+| project | Project | one product: `projects/<slug>/` with `project.yaml`, `README.md`, `scenarios/`, `hooks/`, `assets/` | — |
+| scenario | Production | the script of one video: `scenarios/<name>.yaml`, scenes of steps | — |
+| scene · step | Scene · step (the Script mode's blocks) | a part of a scenario · one action in it (open, click, type, wait…) | — |
+| environment | Location | a named set of the product's pages (URLs) a scenario is filmed on, with its access (read-only or read-write) | `env` (`--env`, `default_env`, `env_reset`, `retake env`) |
+| persona | Cast | an account a video is filmed as, signed in once; its saved browser state is its **session** | — |
+| dry run | Rehearse | a scenario played without video: a screenshot per step, irreversible steps not executed, hooks skipped by default | `--dry`, `run_dry`, the run mode `dry` |
+| capture | Capture (in the Shoot mode) | a scenario played and filmed, with its setup and teardown hooks: `capture.mp4` + `timeline.json` | `run_capture`, `retake run` |
+| run | Run (in the Shoot mode) | the record of one dry run or capture: `runs/<id>/` with its `run.json`, named by its run id | — |
+| take | Take (*Prepare a take*) | the filming moment of a capture: the time the browser films on this Mac; one take at a time per Mac, renders wait for it | — |
+| edit plan | Edit | the planned cut of a capture (segments, components, captions, speeds, zooms) that a render follows | — |
+| render | Render | a finished video made from a capture with a theme: `renders/<scenario>-v<N>.mp4` + `.json` | — |
+| review | Review | the contact sheets, key frames, checks and report of a render: `review/<render>/` | — |
+| export | Export | a render in delivery formats (1080p, 4K, vertical, square, GIF…): `exports/<render>/` | — |
+| raw export | — | a run's footage for another editing tool: clips per scene, cursor data, markers (`retake export-capture`) | — |
+| theme | Themes (the Library) | the look of a video: colours, fonts, logo and the styling of its components; a workspace theme or a starter (default, editorial, motion) | `template`: the `templates/` folder, `template.yaml`, the `template:` key of `project.yaml`, a scenario's `video.template`, `retake schema template`, the MCP `template_*` tools and their `template` argument |
+| component | Components (the Library) | a reusable piece of a video (title card, caption, callout…): `components/<namespace>/<name>/` | — |
+| thread | Thread | a conversation anchored on a moment (and optionally a region) of a render, open or resolved: `comments/<scenario>/<id>.json` | `retake comment …` and the MCP `comment_*` / `comments_list` tools act on threads |
+| comment | Comment | one message of a thread: its first one or a reply | — |
+| recording | Recording | a flow performed by hand in a browser window that becomes a draft scenario (`retake record`, `scenario_record`); never the filmed video | — |
+| hook | — | a setup or teardown file (sql, http, js, sh) run around a capture; its rollbacks undo what it did | — |
+| sandbox | Sandbox | a disposable, local copy of the product (`sandbox.yaml`), reset to its seed before a take | — |
+| job · worker | — | work queued for the workspace's jobs worker (dry runs, captures, renders, reviews, exports, hooks, sign-ins) · the background process that runs them | — |
+| the Studio | — | the web app of a workspace (`retake ui`) and the desktop app around it | — |
+
+## Homonyms
+
+Each of these words has several meanings: say which one (the qualified form on the left of each item).
+
+- **session** — a *session* alone is a persona's saved, signed-in browser state. The others are always qualified: a
+  *Studio session* (one launch of the Studio's server, with its token), an *MCP session* (one client connection over
+  HTTP), a *Claude session* (the conversation of the agent driving Retake), a *recording in progress* (not a session).
+- **check** — always qualified: *validation* (the issues `retake validate` and `scenario_validate` report), *review
+  checks* (the checks of a render's report), *doctor checks* (is this machine ready), *the hooks' security check*,
+  *take checks* (what *Prepare a take* verifies before the browser opens), a sandbox's *health check*.
+- **export** — an *export* alone is a render in delivery formats; the footage of a run for an editing tool is a *raw
+  export*.
+- **studio** — *the Studio* is the app; `studio/*` is the namespace of the built-in components; `studio` is also the
+  name of the channel a request came through (from the Studio, as opposed to MCP).
+- **template** — the old name of a theme, kept only in the names listed above; a *scaffold* is the starting files a
+  command copies (`retake components create`); *filling in* (templating) is replacing `{{…}}` values in
+  scenarios and hooks.
+- **production** — a *production environment* (`production: true`: read-only unless its access says otherwise); the
+  Studio's *Productions* are scenarios. Outside the Studio, *production* only ever means the environment.
+
+## Retired words
+
+The help of the `retake` command and the MCP tools (titles, descriptions, argument descriptions) never use these
+words; `packages/cli/test/glossary.test.ts` reads this table. Keep it short and exact: a row is a word (its plural
+too) or a phrase.
+
+<!-- retired-words:start -->
+| Retired | Say instead | Why |
+|---|---|---|
+| rehearsal | dry run | *Rehearse* is the Studio's button for a dry run |
+| rehearse | dry run | as above |
+| shoot | capture | *Shoot* is the Studio's mode |
+| cast | personas | the Studio's label |
+| location | environment | the Studio's label |
+| productions | scenarios | the Studio's label; *production* is an environment |
+| template name | theme name | a theme is not a template |
+<!-- retired-words:end -->

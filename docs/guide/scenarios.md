@@ -198,7 +198,7 @@ A take fails early, loudly and completely rather than "succeeding" with a wrong 
 
 Everything visual in the edit is a **component** with an id `namespace/name` (lower-case letters, digits and `-`,
 e.g. `studio/intro-stack`): the built-in library uses the `studio/` namespace, your workspace `components/` folder
-your own. The theme picks a default per kind (see [Templates](themes-and-components.md#templates-themes)); a scenario overrides it per use:
+your own. The theme picks a default per kind (see [Themes](themes-and-components.md#themes)); a scenario overrides it per use:
 
 ```yaml
 intro: {component: studio/intro-minimal, duration: 2.4}

@@ -3,7 +3,9 @@
 The lens is a reference project of the same author (a desktop app, an MCP server and an HTTP server over one Rust
 workspace, built on a pure domain, an application layer with ports, one operation catalogue and one write pipeline).
 Retake keeps what serves it, adapts the rest to a TypeScript monorepo, and leaves out what has no counterpart here.
-The steps to get there are in [action-plan.md](action-plan.md).
+The steps to get there are in [action-plan.md](action-plan.md); the words for the concepts are in the
+[glossary](../GLOSSARY.md), and the layer rules below are held by an import-rules ratchet
+(`packages/core/test/import-rules.test.ts`, baseline `scripts/audit/baseline.json`).
 
 ## Principles: applies, adapted, or not
 

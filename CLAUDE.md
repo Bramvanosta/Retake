@@ -14,6 +14,8 @@ Before L5.13 the tool was called Demo Studio (command `studio`, home `~/.demo-st
    (target look), `README.md` (the front page) and `docs/guide/` (usage, scenario language, CLI: the reference).
 4. `docs/AGENTS.md` — how a lot is run with sub-agents (plan, critique, worktree, reviews, fixes) and the rules every
    sub-agent follows.
+5. `docs/GLOSSARY.md` — one word per concept (code, CLI, MCP, docs), the Studio's labels and the homonyms; the CLI help
+   and MCP descriptions avoid its retired words (`packages/cli/test/glossary.test.ts`).
 
 ## Working agreement
 - **One lot at a time**; the user decides how many lots to chain. Don't start the next lot unasked.
@@ -61,6 +63,7 @@ node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 node scripts/requirements.mjs --check-cites                   # fails when an evidence string quotes a missing test title
 node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title, expect or test id vs a git ref
+node scripts/audit/rules.mjs . --check | --write-baseline   # the import-rules ratchet (packages/core/test/import-rules.test.ts; baseline scripts/audit/baseline.json, each group with a reason)
 node scripts/rename-l513.mjs [--dry] [--only <files>]        # the L5.13 rename, for a branch from before it
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
