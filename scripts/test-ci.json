@@ -14,6 +14,7 @@
     "packages/cli/test/doctor.test.ts",
     "packages/cli/test/env-commands.test.ts",
     "packages/cli/test/glossary.test.ts",
+    "packages/cli/test/homebrew-cask.test.ts",
     "packages/cli/test/ids-characterization.test.ts",
     "packages/cli/test/jobs-characterization.test.ts",
     "packages/cli/test/jobs.test.ts",

@@ -6,6 +6,10 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Added
+- **Homebrew casks with every release.** The release writes `retake` (stable versions) and `retake@beta` (every
+  version) into the Homebrew tap, so `brew install --cask` and `brew upgrade` follow the releases.
+
 ## [0.4.0] — 2026-11-23
 
 This version downloads its Tools once: at its first start the app asks to download its browser and rendering parts
