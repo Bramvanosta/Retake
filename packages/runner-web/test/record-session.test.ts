@@ -14,12 +14,13 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
-import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { RecordedEventSchema, draftFromRecording, resolveEnvironment, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, RecordedEvent } from '@retake/core';
 import { CancelledError, disableAutofill, looksLikeSecretSegment, looksLikeToken, maskPathSecrets, recordSession, secretHash, signIn } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
 import { makeProject, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { retakeHome } from '@retake/core/io';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 /** The fixture's invented buyer account (fixtures/wholesale/README.md). */
@@ -98,7 +99,7 @@ async function record(drive: (page: Page) => Promise<void>, over: Partial<Record
   const file = join(dir, `events-${randomBytes(4).toString('hex')}.jsonl`);
   const logs: string[] = [];
   const project = over.project ?? projectWith();
-  const r = await recordSession({
+  const r = await recordSession({ policy: PERSON_POLICY,
     project,
     env: resolveEnvironment(project, 'test'),
     url: `${fixture.urls.shop}/record-lab`,
@@ -519,8 +520,8 @@ describe('recordSession: a persona', () => {
       } as LoadedProject['config']['auth'];
     });
     const env = resolveEnvironment(project, 'test');
-    const persona = resolvePersonas(project, 'test').find((x) => x.name === 'supplier')!;
-    await signIn({ project, env, persona, mode: 'auto', resolveSecret: async () => SUPPLIER_PASSWORD });
+    const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((x) => x.name === 'supplier')!;
+    await signIn({ policy: PERSON_POLICY, project, env, persona, mode: 'auto', resolveSecret: async () => SUPPLIER_PASSWORD });
     const prefs = join(persona.profileDir!, 'Default', 'Preferences');
     const before = await readFile(prefs, 'utf8');
     const { r, bytes } = await record(
@@ -652,7 +653,7 @@ describe('recordSession: how it ends', () => {
     const cancel = new AbortController();
     const file = join(dir, 'cancelled.jsonl');
     const project = projectWith();
-    const p = recordSession({
+    const p = recordSession({ policy: PERSON_POLICY,
       project,
       env: resolveEnvironment(project, 'test'),
       url: `${fixture.urls.shop}/record-lab`,

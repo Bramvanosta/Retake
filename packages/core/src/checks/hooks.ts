@@ -113,7 +113,7 @@ function checkHook(raw: unknown, p: IssuePath, ctx: CheckContext, opts: HookChec
       { path: [...p, 'writes'], key: true },
     );
   }
-  const reason = opts.destructiveOk ? null : destructiveReason(hook, { projectDir: ctx.projectDir });
+  const reason = opts.destructiveOk ? null : destructiveReason(hook, { projectDir: ctx.projectDir, files: ctx.files });
   if (reason && hook.confirm !== true) {
     ctx.error(p, `destructive hook (${reason}) requires "confirm: true"`, { path: kp, key: true });
   }

@@ -14,13 +14,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { loadProjectTemplate, readJson } from '@retake/core';
+import { loadProjectTemplate, readJson, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline } from '@retake/core';
 import { planEdit, renderStills } from '@retake/editor';
 import type { EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
 import { REPO, fixtureProject, realTimeline, template } from './helpers.js';
 import { SHARED_CACHE, hasTool, makeColourCapture, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -172,10 +173,10 @@ beforeAll(async () => {
     [narrow, [['narrow-clip', mid]]],
   ];
   for (const [p, frames] of sessions) {
-    const out = await renderStills({ plan: p, frames: frames.map(([name, frame]) => ({ frame, out: join(tmp, `${name}.png`) })), root: REPO, registry, cacheDir: SHARED_CACHE });
+    const out = await renderStills({ workPolicy: PERSON_POLICY, plan: p, frames: frames.map(([name, frame]) => ({ frame, out: join(tmp, `${name}.png`) })), root: REPO, registry, cacheDir: SHARED_CACHE });
     out.forEach((f, i) => {
       files.set(frames[i][0], f);
-      stills.set(frames[i][0], readImage(f));
+      stills.set(frames[i][0], readImage(f, PERSON_POLICY));
     });
   }
 }, LONG);
@@ -331,15 +332,15 @@ describe.skipIf(!canRender)('reference look scales with unit (synthetic plan, 96
     const reg = await loadComponentRegistry({ root: ws.root });
     const plan = planEdit({
       timeline,
-      template: await loadProjectTemplate(ws.project, 'editorial'),
+      template: await loadProjectTemplate(ws.project, 'editorial', { files: fileFacts(PERSON_POLICY) }),
       project: ws.project,
       registry: reg,
       captureFile: join(ws.runDir, 'capture.mp4'),
       overrides: { scale: 0.5 },
     });
     expect([plan.width, plan.height, plan.unit]).toEqual([960, 540, 0.5]);
-    const [file] = await renderStills({ plan, frames: [{ frame: 20, out: join(ws.root, 'half.png') }], root: ws.root, registry: reg, cacheDir: SHARED_CACHE });
-    const img = readImage(file);
+    const [file] = await renderStills({ workPolicy: PERSON_POLICY, plan, frames: [{ frame: 20, out: join(ws.root, 'half.png') }], root: ws.root, registry: reg, cacheDir: SHARED_CACHE });
+    const img = readImage(file, PERSON_POLICY);
     const card = solidRect(img, 480, 240, 24);
     expect([card.left, card.right]).toEqual([90, 869]);
     // Top / bottom: the 16:9 capture is 438.75 px tall in the 439 px card, so the edge rows are mixed (±1).

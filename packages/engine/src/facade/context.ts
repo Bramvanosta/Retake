@@ -4,7 +4,7 @@
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
 import { loginCommand as coreLoginCommand, workspaceFolders } from '@retake/core';
-import type { AgentChannel, LoadedProject, RunMode, Scenario, WorkspaceConfig } from '@retake/core';
+import type { AgentChannel, LoadedProject, RunMode, Scenario, FileFacts } from '@retake/core';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';
 import { admits, agentChecks, agentWorkspace, callerOf, cleansWorkerEnv, refusalChannel } from '../caller.js';
@@ -26,6 +26,8 @@ import type { StoreScope } from '../store/project-store.js';
 import { openWorkspace } from '../workspace.js';
 import { scenarioSessions } from './sessions.js';
 import type { EngineOptions, RunStatusWithJob, ScenarioSessions } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
+import { fileFacts } from '@retake/core/io';
 
 /** What every sub-API of the façade is built from: made once per engine, shared by its builders. */
 export interface EngineContext {
@@ -36,7 +38,9 @@ export interface EngineContext {
   readonly agent: boolean;
   /** The channel a refusal is worded for. */
   readonly via: AgentChannel;
-  readonly ws: WorkspaceConfig;
+  readonly ws: OpenedWorkspace;
+  /** How this engine's checks look at the disk (core FileFacts): its videos probed under the workspace's policy. */
+  readonly files: FileFacts;
   /** Every authored write of this engine goes through the project store, journaled as this caller's. */
   readonly scope: StoreScope;
   readonly project: (slug: string) => Promise<LoadedProject>;
@@ -88,9 +92,9 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
   const runData = new RunDataCache();
-  const runThumbs = new RunThumbs({}, runData);
+  const runThumbs = new RunThumbs({ policy: ws.policy }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
-  const renderFrames = new RenderFrames({ slots: runThumbs.ffmpegSlots, comments: commentIndex });
+  const renderFrames = new RenderFrames({ policy: ws.policy, slots: runThumbs.ffmpegSlots, comments: commentIndex });
   const startWorker: EngineContext['startWorker'] = async () =>
     opts.autoStartWorker === false
       ? undefined
@@ -142,5 +146,5 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const admitted = admits(caller)
     ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
     : undefined;
-  return { opts, caller, agent, via, ws, scope, project, studio, loginCommand, queue, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
+  return { opts, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
 }

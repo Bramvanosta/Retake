@@ -2,22 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
-import {
-  TemplateSchema,
-  errorsOf,
-  listProjects,
-  listTemplates,
-  loadProject,
-  loadProjectTemplate,
-  loadScenario,
-  loadTemplate,
-  parseTemplateYaml,
-  planPersonas,
-  resolvePersonas,
-  resolveThemeComponents,
-  COMPONENT_KINDS,
-  COMPONENT_ID_RE,
-} from '@retake/core';
+import { TemplateSchema, errorsOf, parseTemplateYaml, planPersonas, resolvePersonas, resolveThemeComponents, COMPONENT_KINDS, COMPONENT_ID_RE, PERSON_POLICY } from '@retake/core';
+import { listProjects, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, fileFacts } from '@retake/core/io';
 
 /** The repository itself is a workspace: bundled starter templates and the fixture project. */
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -27,7 +13,7 @@ describe('bundled templates', () => {
     const templates = await listTemplates(ROOT);
     expect(templates.map((t) => t.name)).toEqual(expect.arrayContaining(['default', 'editorial', 'motion']));
     for (const t of templates) {
-      const loaded = await loadTemplate(t.name, ROOT);
+      const loaded = await loadTemplate(t.name, ROOT, { files: fileFacts(PERSON_POLICY) });
       expect(loaded.template.name, t.name).toBeTruthy();
       const text = await readFile(`${t.dir}/template.yaml`, 'utf8');
       expect(parseTemplateYaml(text).issues, t.name).toEqual([]);
@@ -43,7 +29,7 @@ describe('bundled templates', () => {
 describe('bundled templates pick components (R-THM-01..03)', () => {
   it('each declares a fictional brand and an explicit component per kind, consistent with its legacy fields', async () => {
     for (const t of await listTemplates(ROOT)) {
-      const { template } = await loadTemplate(t.name, ROOT);
+      const { template } = await loadTemplate(t.name, ROOT, { files: fileFacts(PERSON_POLICY) });
       expect(template.brand?.name, t.name).toBeTruthy();
       expect(template.brand?.url, t.name).toBe('example.com');
       expect(Object.keys(template.components ?? {}).sort(), t.name).toEqual([...COMPONENT_KINDS].sort());
@@ -67,12 +53,12 @@ describe('bundled fixture project', () => {
     expect(projects.map((p) => p.slug)).toContain('northfield-fixture');
     const project = await loadProject('northfield-fixture', ROOT);
     expect(errorsOf(project.issues ?? [])).toEqual([]);
-    const template = await loadProjectTemplate(project);
+    const template = await loadProjectTemplate(project, undefined, { files: fileFacts(PERSON_POLICY) });
     expect(project.scenarios).toEqual(expect.arrayContaining(['catalogue', 'quote']));
     // The committed files show the format version (R-PRIN-13): optional, written by example.
     expect(project.config.version).toBe(1);
     for (const name of project.scenarios) {
-      const loaded = await loadScenario(project, name, { template: template.template });
+      const loaded = await loadScenario(project, name, { files: fileFacts(PERSON_POLICY), template: template.template });
       expect(errorsOf(loaded.issues), name).toEqual([]);
       expect(loaded.scenario.version, name).toBe(1);
     }
@@ -88,7 +74,7 @@ describe('bundled fixture project', () => {
     expect(resolvePersonas(project, 'local')).toEqual([]);
     const used: Record<string, string> = {};
     for (const name of project.scenarios) {
-      const { scenario } = await loadScenario(project, name);
+      const { scenario } = await loadScenario(project, name, { files: fileFacts(PERSON_POLICY) });
       const plan = planPersonas(scenario, { env: 'signed-in', envPages: project.config.environments['signed-in'], personas, hooks: true });
       expect(plan.issues, name).toEqual([]);
       expect(plan.needsDefault, name).toBe(false);
@@ -114,7 +100,7 @@ describe('bundled fixture project', () => {
       ['supplier', ['console'], true, ['roast-lot-2026']],
       ['buyer', ['shop'], true, ['filter-bloom-2026']],
     ]);
-    const { scenario, issues } = await loadScenario(project, 'sandbox-quote');
+    const { scenario, issues } = await loadScenario(project, 'sandbox-quote', { files: fileFacts(PERSON_POLICY) });
     expect(errorsOf(issues)).toEqual([]);
     expect(scenario.env).toBe('sandbox');
     expect(scenario.setup ?? []).toEqual([]);
@@ -148,7 +134,7 @@ describe('bundled fixture project', () => {
     ]);
     // sandbox-quote and signup (wait_for_email through Mailpit) validate on it; neither needs the quote PDF.
     for (const name of ['sandbox-quote', 'signup']) {
-      const { issues, text } = await loadScenario(project, name, { env: 'sandbox-docker' });
+      const { issues, text } = await loadScenario(project, name, { files: fileFacts(PERSON_POLICY), env: 'sandbox-docker' });
       expect(errorsOf(issues), name).toEqual([]);
       expect(text, name).not.toMatch(/quote\.pdf|download/);
     }
@@ -156,7 +142,7 @@ describe('bundled fixture project', () => {
 
   it('the quote scenario shows the phase-2 syntax: a card entry and a step overlay with a target', async () => {
     const project = await loadProject('northfield-fixture', ROOT);
-    const { scenario } = await loadScenario(project, 'quote');
+    const { scenario } = await loadScenario(project, 'quote', { files: fileFacts(PERSON_POLICY) });
     const card = scenario.scenes.find((e) => 'card' in e);
     expect(card).toMatchObject({ id: 'chapter-request', card: { slots: { title: expect.any(String) } } });
     const steps = scenario.scenes.flatMap((e) => ('steps' in e ? e.steps : []));

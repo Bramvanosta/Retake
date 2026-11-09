@@ -84,7 +84,7 @@ export function envApi(ctx: EngineContext): Engine['env'] {
 export function sandboxApi(ctx: EngineContext): Engine['sandbox'] {
   const { project, submitCtx, startWorker } = ctx;
   return {
-    status: async (slug, env) => sandboxStatus(await project(slug), env),
+    status: async (slug, env) => sandboxStatus(await project(slug), env, ctx.ws.policy),
     up: async (req, o = {}) => {
       const r = await submitSandboxJob(submitCtx, 'sandbox_up', req, o.approver);
       const worker = await startWorker();

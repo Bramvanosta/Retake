@@ -31,20 +31,17 @@ import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
 import { agentWritable, canonicalOrigin, channelWords, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
 import type { AgentChannel } from './agent-policy.js';
+import { needFiles } from './file-facts.js';
+import type { FileFacts } from './file-facts.js';
 import { formatPath } from './issues.js';
 import { pathInside, relativeInside } from './path-inside.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 
-const realPath = realPathOf;
-
-/** `p` resolved against the current folder, then its real path (realPathOf). */
-const resolvedRealPath = (p: string): string => realPathOf(resolve(p));
-
-/** Whether `p` is `dir` or inside it, once symbolic links are followed on both (pathInside with `real`). */
-export function insideFolder(dir: string, p: string): boolean {
-  return pathInside(p, dir, { real: resolvedRealPath });
+/** Whether `p` is `dir` or inside it, once symbolic links are followed on both (pathInside with `real`: realPathOf of each, resolved against the current folder). */
+export function insideFolder(dir: string, p: string, files: FileFacts): boolean {
+  return pathInside(p, dir, { real: (x: string): string => realPathOf(resolve(x), files) });
 }
 
 /**
@@ -52,13 +49,14 @@ export function insideFolder(dir: string, p: string): boolean {
  * project folder; a sandbox seed's: its sandbox.yaml folder) and must stay inside the project folder once symbolic
  * links are followed. `code`: the file is run (or sent to a database) — it must not be one an agent can write.
  */
-export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel } = {}): string | null {
+export function projectFileProblem(projectDir: string, ref: string, o: { baseDir?: string; code?: boolean; via?: AgentChannel; files: FileFacts }): string | null {
   const through = channelWords(o.via);
   if (isAbsolute(ref) || /^~(?:[\\/]|$)/.test(ref)) {
     return `${ref} is an absolute path: ${through} a file is referenced relative to the project folder, inside it`;
   }
-  const root = realPath(resolve(projectDir));
-  const target = realPath(resolve(o.baseDir ?? projectDir, ref));
+  const files = needFiles(o.files, 'projectFileProblem');
+  const root = realPathOf(resolve(projectDir), files);
+  const target = realPathOf(resolve(o.baseDir ?? projectDir, ref), files);
   const rel = relativeInside(target, root);
   if (rel === undefined) {
     // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
@@ -166,11 +164,11 @@ export interface RenderFileRef {
  * `..`, no symbolic link out of it), and a Lottie file (code: lottie-web evaluates its expressions) not one an agent
  * can write. One positioned message per file.
  */
-export function renderFileProblems(projectDir: string, refs: readonly RenderFileRef[]): string[] {
+export function renderFileProblems(projectDir: string, refs: readonly RenderFileRef[], files: FileFacts): string[] {
   const out: string[] = [];
   for (const f of refs) {
     const code = LOTTIE_FILE_EXTENSIONS.includes(fileExtension(f.ref));
-    const p = projectFileProblem(projectDir, f.ref, { code });
+    const p = projectFileProblem(projectDir, f.ref, { code, files });
     if (p) out.push(`${f.where}: ${code ? `${p} (a Lottie file is code: its expressions run in the render)` : p}`);
   }
   return out;
@@ -192,13 +190,15 @@ export interface AgentTrustOptions {
    * get the scheme rule of the validation only.
    */
   env?: AgentTrustEnvironment;
+  /** How the files it names are looked at (core FileFacts): real paths. */
+  files: FileFacts;
 }
 
 /**
  * The navigation problems of agent work on a known environment (AgentTrustOptions.env), each with where it is: the part
  * of agentTrustProblems about the URLs it opens (the Studio words them apart: "opens another site").
  */
-export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Array<{ path: IssuePath; message: string }> {
+export function navigationTrustProblems(sc: Scenario, o: Omit<AgentTrustOptions, 'files'>): Array<{ path: IssuePath; message: string }> {
   if (!o.env) return [];
   const origins = [...new Set(Object.values(o.env.pages).map(canonicalOrigin).filter((x): x is string => x !== null))];
   return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({
@@ -213,7 +213,7 @@ export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Arr
  * theme it names by folder (`template:`); with the environment it runs on (`o.env`), a URL it opens on another origin
  * than the environment's pages. Empty: nothing found.
  */
-export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions = {}): string[] {
+export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions): string[] {
   const problems: string[] = [];
   if (project.config && typeof sc.template === 'string') {
     const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
@@ -222,7 +222,7 @@ export function agentTrustProblems(project: { dir: string; config?: { template?:
   const secrets = secretRefsProblem(collectSecretRefs(sc), 'the scenario', o.via);
   if (secrets) problems.push(secrets);
   for (const f of scenarioFileRefs(sc)) {
-    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}), files: o.files });
     if (p) problems.push(`${f.where}: ${p}`);
   }
   for (const p of navigationTrustProblems(sc, o)) problems.push(p.message);
@@ -250,7 +250,7 @@ function stringLeaves(v: unknown, path: IssuePath, out: Array<{ path: IssuePath;
  * reference at the string that names it, a template folder at `template`. The same rules; a problem that cannot be
  * placed keeps an empty path and no line.
  */
-export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: AgentTrustOptions = {}): PositionedTrustProblem[] {
+export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: AgentTrustOptions): PositionedTrustProblem[] {
   const parsed = parseYaml(text);
   const at = (message: string, path: IssuePath): PositionedTrustProblem => {
     const off = path.length && parsed.value !== undefined ? locateOffset(parsed.source, path) : undefined;
@@ -278,7 +278,7 @@ export function agentTrustProblemsAt(project: { dir: string; config?: { template
     if (p) out.push({ message: p, path: [] });
   }
   for (const f of scenarioFileRefs(sc)) {
-    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
+    const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}), files: o.files });
     if (!p) continue;
     const named = leaves.filter((l) => l.text === f.ref || (l.text.includes(f.ref) && f.ref.length > 2));
     const leaf = named.find((l) => ['path', 'file', 'drop_file', 'eval', 'sql', 'js'].includes(String(l.path[l.path.length - 1]))) ?? named[0];

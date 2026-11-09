@@ -6,7 +6,9 @@
 import { execFile, spawn } from 'node:child_process';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
-import { ffmpegBin, ffprobeBin, ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
+import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
+import { ffmpegBin, ffprobeBin } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core';
 
 export interface VideoInfo {
   width: number;
@@ -20,9 +22,9 @@ export interface VideoInfo {
  * What ffprobe says of a video's first video stream and its length (core's ffprobe summary, as the render's own probe
  * reads it); undefined when ffprobe fails or does not answer in JSON.
  */
-function ffprobeVideo(file: string): Promise<VideoInfo | undefined> {
+function ffprobeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo | undefined> {
   return new Promise((ok) => {
-    execFile(ffprobeBin(), ffprobeSummaryArgs(file), { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+    execFile(ffprobeBin(policy), ffprobeSummaryArgs(file), { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
       if (err) return ok(undefined);
       const p = parseFfprobeSummary(String(stdout));
       if (!p) return ok(undefined);
@@ -33,8 +35,8 @@ function ffprobeVideo(file: string): Promise<VideoInfo | undefined> {
   });
 }
 
-export async function probeVideo(file: string): Promise<VideoInfo> {
-  const p = await ffprobeVideo(file);
+export async function probeVideo(file: string, policy: WorkPolicy): Promise<VideoInfo> {
+  const p = await ffprobeVideo(file, policy);
   if (!p || !p.width || !p.height) throw new ReviewError(`cannot read the video ${file} (ffprobe failed: is ffmpeg installed and the file a video?)`);
   return { width: p.width, height: p.height, fps: p.fps, duration_s: p.duration_s, frames: p.frames };
 }
@@ -46,6 +48,8 @@ export interface ExtractOptions {
   /** Size of the video (skip the scale filter when equal). */
   videoWidth: number;
   videoHeight: number;
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
   signal?: AbortSignal;
 }
 
@@ -79,7 +83,7 @@ export async function extractFrames(
   const filters = [`select='${selectExpr(wanted)}'`];
   if (opts.width !== opts.videoWidth || opts.height !== opts.videoHeight) filters.push(`scale=${opts.width}:${opts.height}:flags=area`);
   const args = ['-v', 'error', '-nostdin', '-i', file, '-vf', filters.join(','), '-fps_mode', 'passthrough', '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'];
-  const proc = spawn(ffmpegBin(), args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
+  const proc = spawn(ffmpegBin(opts.policy), args, { stdio: ['ignore', 'pipe', 'pipe'], signal: opts.signal });
   let stderr = '';
   proc.stderr.on('data', (c: Buffer) => {
     if (stderr.length < 4000) stderr += c.toString();

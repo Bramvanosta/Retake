@@ -9,7 +9,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { loadProject, loadTemplate } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline, TimelineEnvironment } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
@@ -51,6 +51,7 @@ import {
 import type { CheckContext } from '../src/index.js';
 import { FIXTURES, realTimeline, synthTimeline } from '../../editor/test/helpers.js';
 import { REPO } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;
 const plans: Record<string, { plan: EditPlan; timeline: Timeline; record: RenderRecord }> = {};
@@ -85,7 +86,7 @@ function ctxPlanned(timeline: Timeline, overrides: EditOverrides = {}): CheckCon
 beforeAll(async () => {
   registry = await loadComponentRegistry({ root: REPO });
   project = await loadProject('northfield-fixture', REPO);
-  editorial = await loadTemplate('editorial', REPO);
+  editorial = await loadTemplate('editorial', REPO, { files: fileFacts(PERSON_POLICY) });
   for (const name of ['catalogue', 'quote'] as const) {
     const timeline = realTimeline(name);
     const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4' });
@@ -193,7 +194,7 @@ describe('plan checks on the fixture plans', () => {
 
   it('a caption band over the capture (studio/caption-overlay, position over) is measured in its band, clear of the brand mark', async () => {
     const project = await loadProject('northfield-fixture', REPO);
-    const editorial = await loadTemplate('editorial', REPO);
+    const editorial = await loadTemplate('editorial', REPO, { files: fileFacts(PERSON_POLICY) });
     const timeline = realTimeline('catalogue');
     const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides: { components: { caption: 'studio/caption-overlay' } } });
     const clip = plan.segments.find((x): x is ClipSegment => x.id === 'add-product')!;
@@ -358,7 +359,7 @@ describe('environment (L1.7): the report line, stopped writes, hidden and local 
 describe('variants (vertical, square) and the theme zoom', () => {
   async function variantCtx(name: 'catalogue' | 'quote', variant: 'vertical' | 'square'): Promise<CheckContext> {
     const project = await loadProject('northfield-fixture', REPO);
-    const editorial = await loadTemplate('editorial', REPO);
+    const editorial = await loadTemplate('editorial', REPO, { files: fileFacts(PERSON_POLICY) });
     const timeline = realTimeline(name);
     const plan = planEdit({ timeline, template: editorial, project, registry, captureFile: '/captures/capture.mp4', overrides: { variant } });
     const record = { ...plans[name].record, id: `${name}-v1-${variant}`, variant, plan } as RenderRecord;

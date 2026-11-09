@@ -18,6 +18,7 @@ import type { EmailArtefact, LoadedProject, RunProgress, RunRecord, Scenario, Ti
 import { runScenario } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const CSS = `*{box-sizing:border-box} body{margin:0;font:15px/1.4 system-ui,sans-serif;background:#f6f3ef}
 button{font:inherit;padding:8px 14px;border:1px solid #c9bfb7;border-radius:8px;background:#fff;cursor:pointer}
@@ -218,7 +219,7 @@ async function run(
 ): Promise<{ rec: RunRecord; events: TimelineEvent[]; progress: RunProgress[]; warnings: string[]; ms: number }> {
   const progress: RunProgress[] = [];
   const t0 = Date.now();
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: opts.project ?? project(),
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',

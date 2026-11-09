@@ -7,7 +7,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, parseTemplateYaml, parseYaml } from '@retake/core';
+import { parseTemplateYaml, parseYaml } from '@retake/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import type { TemplateFile } from '@retake/core';
 import { PALETTE_THRESHOLDS, derivePalette, generateThemeFile } from '../src/index.js';
 import { backgroundSample, contrastRatio } from '../src/kit/style.js';

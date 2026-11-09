@@ -9,8 +9,10 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SANDBOX_SCHEMA_FILE, addSandboxEntry, bundleInfoOrNull, insideBundle, sandboxNames } from '@retake/core';
-import type { BundleInfo, LoadedProject } from '@retake/core';
+import { SANDBOX_SCHEMA_FILE, addSandboxEntry, sandboxNames } from '@retake/core';
+import { bundleInfoOrNull, insideBundle } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import { SandboxError } from './errors.js';
 import { probePort, sandboxPorts } from './ports.js';
 

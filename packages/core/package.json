@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./io": {
+      "source": "./src/io/index.ts",
+      "types": "./dist/io/index.d.ts",
+      "default": "./dist/io/index.js"
+    },
     "./schema/*.json": "./schema/*.json"
   },
   "files": [

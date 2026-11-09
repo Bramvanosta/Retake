@@ -31,7 +31,8 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
+import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
+import { readPlainFile, fileFacts } from '@retake/core/io';
 import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@retake/engine';
 import type { Engine, LibraryStatesView, TemplateSummary } from '@retake/engine';
 import type { ToolDef } from '@retake/engine/contract';
@@ -214,7 +215,7 @@ export function libraryOps(o: { chain?: OpChain } = {}): ToolDef[] {
   const viewSignature = async (engine: Engine, slug: string, asked: string | undefined): Promise<string> => {
     const ws = engine.workspace;
     const p = await openProjectBySlug(ws, slug);
-    const t = await themeForWork(p, asked);
+    const t = await themeForWork(p, asked, fileFacts(ws.policy));
     const reg = (await memoRegistry(ws)).registry;
     // One entry budget for the whole signature (review A L4), as the event stream's scan.
     const budget = watchBudget();

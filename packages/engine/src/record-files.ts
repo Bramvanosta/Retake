@@ -8,7 +8,8 @@
  */
 import { writeFile, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, readPlainFile, statePath } from '@retake/core';
+import { JOB_CLIENTS, JOB_ID_RE, RECORD_ID_RE, SLUG_RE, isIsoUtcDate, parseRecordAnnotations, statePath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
 import type { JobClient, RecordAnnotations } from '@retake/core';
 import type { ProcessIdentity } from './jobs/proc.js';
 

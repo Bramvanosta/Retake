@@ -27,7 +27,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { clientPath } from '@retake/core';
+import { clientPath } from '@retake/core/io';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';

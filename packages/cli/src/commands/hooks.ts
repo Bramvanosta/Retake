@@ -1,5 +1,5 @@
 import { ScenarioError, isAccessError, newRunId, projectPath } from '@retake/core';
-import type { LoadedProject, RunAccess, Scenario } from '@retake/core';
+import type { LoadedProject, RunAccess, Scenario, WorkPolicy } from '@retake/core';
 import { HooksSourceError, callerOf, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
 import type { HookSelection } from '@retake/engine';
 import type { HookContext, HookResult } from '@retake/hooks';
@@ -11,6 +11,7 @@ import { formatMs, plural, truncate } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
+import { fileFacts } from '@retake/core/io';
 
 export interface HookCommandOptions {
   env?: string;
@@ -48,6 +49,7 @@ async function hookContext(
   project: LoadedProject,
   opts: HookCommandOptions & { vars?: Record<string, string>; runId?: string; scenario?: Scenario },
   global: GlobalOptions,
+  policy: WorkPolicy,
 ): Promise<{ ctx: HookContext; access: RunAccess; close: () => Promise<void>; interrupted: () => boolean }> {
   // An unsigned entry is replayed only on a person's yes, typed at the question about it: never without a terminal.
   if (opts.replayUnsigned && !opts.dry && !(ui.io.canPrompt && ui.io.confirm)) {
@@ -57,6 +59,7 @@ async function hookContext(
   let made: Awaited<ReturnType<typeof createHookContext>>;
   try {
     made = await createHookContext(project, {
+      policy,
       env: opts.env,
       allowWrites: opts.allowWrites === true,
       dry: opts.dry === true,
@@ -126,7 +129,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   const project = await openProject(ws, projectArg);
   let sel: HookSelection;
   try {
-    sel = await selectHooks(project, spec, opts.env);
+    sel = await selectHooks(project, spec, opts.env, { files: fileFacts(ws.policy) });
   } catch (e) {
     if (e instanceof HooksSourceError) throw e.usage ? new UsageError(e.message) : new CliError(e.message);
     if (e instanceof ScenarioError && e.issues.length) {
@@ -139,7 +142,7 @@ export async function hooksRunCommand(ui: Ui, global: GlobalOptions, projectArg:
   const hooks = await import('@retake/hooks');
   const runId = newRunId(`hooks-${sel.label}`);
   const journalFile = hooks.standaloneJournalFile(project.dir, runId);
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, env: opts.env ?? sel.env, vars: sel.vars, runId, ...(sel.scenario ? { scenario: sel.scenario } : {}) }, global, ws.policy);
   const c = ui.c;
   ui.line(`${c.bold(`${project.slug}`)} ${sel.phase} hooks ${c.bold(sel.label)} ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''} · ${plural(sel.hooks.length, 'hook')}`)}`);
   printAccess(ui, access);
@@ -168,8 +171,9 @@ export async function hooksRollbackCommand(
   runId: string | undefined,
   opts: HookCommandOptions,
 ): Promise<ExitCode> {
-  const project = await openProject(await openWorkspace(global), projectArg);
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, opts, global);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, opts, global, ws.policy);
   printAccess(ui, access);
   try {
     const ok = runId === undefined ? await rollbackAllPending(ui, project, ctx) : await rollbackRun(ui, project, ctx, runId);
@@ -260,7 +264,7 @@ export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg:
   await refuseBesideOldHolder(project.root, 'this env reset');
   const hooks = await import('@retake/hooks');
   const runId = newRunId('env-reset');
-  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);
+  const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global, ws.policy);
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} env reset ${c.dim(`· env ${ctx.env.name}${accessLabel(access)}${opts.dry ? ' · dry' : ''}`)}`);
   printAccess(ui, access);

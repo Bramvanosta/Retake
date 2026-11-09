@@ -1,16 +1,17 @@
 /** The façade's `info()` (engine_info): the API version, this process, the features, the entitlements, what is left from before the rename. */
-import { hostname } from 'node:os';
+import { hostname, homedir } from 'node:os';
 import { RETAKE_VERSION, legacyInfo } from '@retake/core';
 import type { LegacyInfo } from '@retake/core';
 import { entitlements } from '../entitlements.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 export const ENGINE_API_VERSION = 1;
 
 /** engine_info's `legacy` field, when something from before the rename is left unread (core legacyInfo). */
 function legacyField(): { legacy?: LegacyInfo } {
-  const legacy = legacyInfo();
+  const legacy = legacyInfo(process.env, homedir(), nodeFileFacts.exists);
   return legacy ? { legacy } : {};
 }
 

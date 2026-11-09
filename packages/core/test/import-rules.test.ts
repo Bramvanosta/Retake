@@ -78,6 +78,28 @@ describe('the import-rules ratchet', () => {
     expect(hits({ 'packages/ui/src/app/gone.ts': ['@retake/core'] }, join(tmpdir(), 'retake-import-rules-none'))).toEqual(['R5 packages/ui/src/app/gone.ts → @retake/core']);
   });
 
+  it("R1 holds for core outside its io side, which the rest of core never imports; node:net's address helpers are no I/O", () => {
+    const found = hitsOf({
+      'packages/core/src/io/reader.ts': { text: "import { readFileSync } from 'node:fs';\nexport const r = readFileSync;\n", specs: ['node:fs'] },
+      'packages/core/src/pure.ts': { text: "import { r } from './io/reader.js';\nexport const x = r;\n", specs: ['./io/reader.js'] },
+      'packages/core/src/checks/deep.ts': { text: "import { r } from '../io/reader.js';\nimport { y } from '../pure.js';\n", specs: ['../io/reader.js', '../pure.js'] },
+      'packages/core/src/entry.ts': { text: "export * from '@retake/core/io';\n", specs: ['@retake/core/io'] },
+      'packages/core/src/ip.ts': { text: "import { BlockList, isIP } from 'node:net';\nimport type { Socket } from 'node:net';\nexport const a = [BlockList, isIP];\n", specs: ['node:net', 'node:net'] },
+      'packages/core/src/socket.ts': { text: "import { connect, isIP } from 'node:net';\nexport const c = [connect, isIP];\n", specs: ['node:net'] },
+      'packages/core/src/all.ts': { text: "import * as net from 'node:net';\nexport const n = net;\n", specs: ['node:net'] },
+      'packages/core/src/again.ts': { text: "import { isIP } from 'node:net';\nexport { isIPv4 } from 'node:net';\n", specs: ['node:net', 'node:net'] },
+    });
+    expect(found.sort()).toEqual([
+      'R1 packages/core/src/again.ts → node:net',
+      'R1 packages/core/src/again.ts → node:net',
+      'R1 packages/core/src/all.ts → node:net',
+      'R1 packages/core/src/checks/deep.ts → ../io/reader.js',
+      'R1 packages/core/src/entry.ts → @retake/core/io',
+      'R1 packages/core/src/pure.ts → ./io/reader.js',
+      'R1 packages/core/src/socket.ts → node:net',
+    ]);
+  });
+
   it('counts a module loader in core as I/O: node:module, process.getBuiltinModule(), import() of a computed name', () => {
     const found = hitsOf({
       'packages/core/src/loader.ts': { text: "import { createRequire } from 'node:module';\nexport const req = createRequire(import.meta.url);\n", specs: ['node:module'] },
@@ -180,11 +202,11 @@ describe('the import-rules ratchet', () => {
     expect(wiring('packages/engine/src/engine.ts', 'const Q = FileJobQueue;')).toEqual([]);
   });
 
-  it('flags a process-wide setter used outside the workspace module, called or passed on, and not its declaration', () => {
+  it('flags a process-wide setter used anywhere, called or passed on, and not its declaration', () => {
     expect(wiring('packages/cli/src/a.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual(['setter packages/cli/src/a.ts → useAgentPolicy']);
     expect(wiring('packages/ui/src/server/a.ts', "import * as core from '@retake/core';\ncore.useWorkspaceFfmpeg('x');")).toEqual(['setter packages/ui/src/server/a.ts → useWorkspaceFfmpeg']);
     expect(wiring('packages/mcp/src/a.ts', "import { useWorkspaceRender as set } from '@retake/core';\nconst f = set;\nf(undefined);")).toEqual(['setter packages/mcp/src/a.ts → useWorkspaceRender']);
-    expect(wiring('packages/engine/src/workspace.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual([]);
+    expect(wiring('packages/engine/src/workspace.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual(['setter packages/engine/src/workspace.ts → useAgentPolicy']);
     expect(wiring('packages/core/src/agent-policy.ts', 'export function useAgentPolicy(folders: string[] | null): void {}')).toEqual([]);
     expect(wiring('packages/core/src/index.ts', "export { useAgentPolicy } from './agent-policy.js';")).toEqual([]);
   });

@@ -37,7 +37,7 @@ import {
   textEol,
   textLines,
 } from '@retake/core';
-import type { CommentProposal, LoadedProject, ValidationIssue } from '@retake/core';
+import type { CommentProposal, LoadedProject, ValidationIssue, FileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from './errors.js';
 import { getScenario, prepareScenarioEdit } from './scenarios.js';
@@ -165,11 +165,11 @@ export async function checkProposedText(
   today: ScenarioText,
   text: string,
   stage: Stage,
-  o: { registry?: () => Promise<ComponentRegistry> } = {},
+  o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts },
 ): Promise<ValidationIssue[]> {
   let prepared: Awaited<ReturnType<typeof prepareScenarioEdit>>;
   try {
-    prepared = await prepareScenarioEdit(project, scenario, { hash: today.hash, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', ...(o.registry ? { registry: o.registry } : {}) });
+    prepared = await prepareScenarioEdit(project, scenario, { hash: today.hash, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
   } catch (e) {
     throw restage(e, stage);
   }
@@ -202,7 +202,7 @@ export async function checkProposedText(
  * `conflict` (the file changed since Claude read it), `invalid` (the text: line breaks, caps, identical), `refused`
  * (what the Studio would refuse), ScenarioError (validation errors, with their lines).
  */
-export async function buildProposal(project: LoadedProject, scenario: string, input: ProposalInput, o: { registry?: () => Promise<ComponentRegistry> } = {}): Promise<BuiltProposal> {
+export async function buildProposal(project: LoadedProject, scenario: string, input: ProposalInput, o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts }): Promise<BuiltProposal> {
   if (!input || typeof input !== 'object') throw invalid('a proposal is {scenario_yaml, scenario_hash}', 'proposal');
   const raw = input.scenario_yaml;
   if (typeof raw !== 'string' || raw.trim() === '') throw invalid('proposal.scenario_yaml is the whole new text of the scenario file', 'proposal.scenario_yaml');

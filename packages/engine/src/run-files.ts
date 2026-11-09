@@ -18,8 +18,9 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, re
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readPlainFile, pathInside, projectPath } from '@retake/core';
-import type { PlainFileProblem, PlainFileRead } from '@retake/core';
+import { pathInside, projectPath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
+import type { PlainFileProblem, PlainFileRead } from '@retake/core/io';
 import { RUN_ID_RE } from './refs.js';
 
 /** A frame's file name in a frame index (the recorder writes `NNNNNN.jpg` / `.png`). */

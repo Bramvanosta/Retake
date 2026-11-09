@@ -24,7 +24,7 @@ export function inspectApi(ctx: EngineContext): Engine['inspect'] {
 export function recordApi(ctx: EngineContext): Engine['record'] {
   const { opts, caller, ws, scope, project, queue, submitCtx, startWorker } = ctx;
   // L4.8: the Record screen's operations are the Studio's (and tests'): an agent starts a recording, never arranges one.
-  const recordCtx = { queue, client: opts.client, scope };
+  const recordCtx = { queue, client: opts.client, scope, files: ctx.files };
   let recordChain: Promise<unknown> = Promise.resolve();
   const studioOnly = (what: string) => {
     if (!drivesRecordScreen(caller)) throw new EngineError('refused', `${what} is the Studio's (its Record screen): ${caller.channel === 'cli' ? 'retake record records in a terminal' : 'scenario_record starts a recording and job_status reads its draft'}`);

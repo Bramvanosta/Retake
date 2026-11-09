@@ -14,10 +14,11 @@ import { appendFile, lstat, mkdir, mkdtemp, readFile, rename, rm, stat, symlink,
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadWorkspaceConfig } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import type { WorkspaceConfig } from '@retake/core';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
 let cfg: WorkspaceConfig;
@@ -40,7 +41,7 @@ beforeAll(async () => {
     line({ at: '2026-10-16T07:01:00.000Z', kind: 'run', project: P, run: { id: '20261016-090000-catalogue', scenario: 'catalogue', mode: 'capture', status: 'succeeded' } }) +
       line({ at: '2026-10-16T08:00:00.000Z', kind: 'render', project: P, job: newJobId(), submitted_by: 'mcp', render: { id: 'quote-v1', scenario: 'quote' } }),
   );
-  cfg = await loadWorkspaceConfig(ws);
+  cfg = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
 });
 
 afterAll(async () => {
@@ -219,7 +220,7 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-link-'));
     try {
       await fixtureWorkspace(dir);
-      const c = await loadWorkspaceConfig(dir);
+      const c = { ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY };
       const file = indexFile(dir);
       await mkdir(join(dir, '.retake'), { recursive: true });
       const target = join(dir, 'elsewhere', 'planted.sqlite');

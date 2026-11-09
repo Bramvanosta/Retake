@@ -16,6 +16,7 @@ import {
 } from '@retake/hooks';
 import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, startApi, tempProject, writeFiles } from './helpers.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 let tmp: Awaited<ReturnType<typeof tempProject>>;
 beforeEach(async () => {
@@ -294,9 +295,9 @@ describe('destructive hooks', () => {
 
   it('reads SQL files given to sql hooks and psql -f from the project dir', async () => {
     await writeFiles(tmp.dir, { 'hooks/clean.sql': '-- remove duplicates\nDELETE FROM registry_refs WHERE dup;', 'hooks/read.sql': 'SELECT 1;' });
-    expect(destructiveReason({ sql: 'hooks/clean.sql' }, { projectDir: tmp.dir })).toBe('hooks/clean.sql contains DELETE');
-    expect(destructiveReason({ shell: 'psql -f hooks/clean.sql' }, { projectDir: tmp.dir })).toBe('psql -f hooks/clean.sql contains DELETE');
-    expect(destructiveReason({ shell: 'psql --file=hooks/read.sql' }, { projectDir: tmp.dir })).toBeNull();
+    expect(destructiveReason({ sql: 'hooks/clean.sql' }, { files: nodeFileFacts, projectDir: tmp.dir })).toBe('hooks/clean.sql contains DELETE');
+    expect(destructiveReason({ shell: 'psql -f hooks/clean.sql' }, { files: nodeFileFacts, projectDir: tmp.dir })).toBe('psql -f hooks/clean.sql contains DELETE');
+    expect(destructiveReason({ shell: 'psql --file=hooks/read.sql' }, { files: nodeFileFacts, projectDir: tmp.dir })).toBeNull();
   });
 
   it('are refused at run time without confirm: true, unless confirmDestructive approves', async () => {

@@ -5,7 +5,7 @@
  * MP4 clips, the 1080p export) ask here once per ffmpeg path.
  */
 import { execFile } from 'node:child_process';
-import type { ErrorKind } from './error-kind.js';
+import type { ErrorKind } from '../error-kind.js';
 
 export type H264Encoder = 'libx264' | 'h264_videotoolbox';
 

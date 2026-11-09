@@ -13,9 +13,8 @@
  * - the variables the tool writes for the person's own code (hook and seed shells, sandbox process services) are
  *   written under both names (critique H2) — and never read.
  */
-import { closeSync, existsSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import type { FileFacts } from './file-facts.js';
 import { defaultRetakeHome, statePath } from './layout.js';
 
 /** The product's name before L5.13. */
@@ -132,7 +131,7 @@ export interface OldHomeDir {
  * folder is the one to look at and to name, never `~/.demo-studio`; otherwise `~/.demo-studio`. Null when RETAKE_HOME is
  * set (the person chose a home). Computes paths only, touches nothing.
  */
-export function oldHomeDir(env: Record<string, string | undefined> = process.env, home: string = homedir()): OldHomeDir | null {
+export function oldHomeDir(env: Record<string, string | undefined>, home: string): OldHomeDir | null {
   if (env.RETAKE_HOME?.trim()) return null;
   const v = env[OLD_HOME_VAR]?.trim();
   if (!v) return { dir: join(home, OLD_DIR), shown: `~/${OLD_DIR}`, word: `~/${OLD_DIR}` };
@@ -171,7 +170,7 @@ export const RECREATED_HOME_FILES = ['approvals.key', 'mcp-http.token', 'desktop
  * only, and none at all when RETAKE_HOME is set (the person chose a home; every test sets it, so tests never look at the
  * real home: critique L10).
  */
-export function oldHomeState(env: Record<string, string | undefined> = process.env, home: string = homedir(), exists: (p: string) => boolean = existsSync): OldHome | null {
+export function oldHomeState(env: Record<string, string | undefined>, home: string, exists: (p: string) => boolean): OldHome | null {
   const where = oldHomeDir(env, home);
   if (!where) return null;
   const old = where.dir;
@@ -194,7 +193,7 @@ export function oldHomeLine(s: OldHome): string {
  * The hints a sign-in preflight adds when a persona was never signed in (critique H3, review A M4): the old home still
  * holding the sign-ins, and an old DEMO_STUDIO_HOME naming a home that is no longer read.
  */
-export function oldSignInHints(env: Record<string, string | undefined> = process.env, home: string = homedir(), exists: (p: string) => boolean = existsSync): string[] {
+export function oldSignInHints(env: Record<string, string | undefined>, home: string, exists: (p: string) => boolean): string[] {
   const out: string[] = [];
   const old = oldHomeState(env, home, exists);
   if (old) out.push(oldHomeLine(old));
@@ -213,8 +212,8 @@ export interface LegacyInfo {
   old_vars?: string[];
 }
 
-export function legacyInfo(env: Record<string, string | undefined> = process.env): LegacyInfo | undefined {
-  const old = oldHomeState(env);
+export function legacyInfo(env: Record<string, string | undefined>, home: string, exists: (p: string) => boolean): LegacyInfo | undefined {
+  const old = oldHomeState(env, home, exists);
   const vars = oldVarsUnread(env);
   if (!old && !vars.length) return undefined;
   return { ...(old ? { old_home: old.shown, ...(old.byVar ? { old_home_var: old.byVar } : {}) } : {}), ...(vars.length ? { old_vars: vars } : {}) };
@@ -222,45 +221,11 @@ export function legacyInfo(env: Record<string, string | undefined> = process.env
 
 // ── the workspace file ──────────────────────────────────────────────────────────────────────────────────────────────
 
-function isDir(p: string): boolean {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false;
-  }
-}
-
-function isFile(p: string): boolean {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false;
-  }
-}
-
-/** The first `max` bytes of a file as text ('' when it cannot be read). */
-function head(file: string, max: number): string {
-  let fd: number | undefined;
-  try {
-    fd = openSync(file, 'r');
-    const buf = Buffer.alloc(max);
-    const n = readSync(fd, buf, 0, max, 0);
-    return buf.subarray(0, n).toString('utf8');
-  } catch {
-    return '';
-  } finally {
-    if (fd !== undefined) closeSync(fd);
-  }
-}
-
 /** `a` and `b` name the same folder (as written, or once links are resolved). */
-function sameDir(a: string, b: string): boolean {
+function sameDir(a: string, b: string, files: FileFacts): boolean {
   if (resolve(a) === resolve(b)) return true;
-  try {
-    return realpathSync(a) === realpathSync(b);
-  } catch {
-    return false;
-  }
+  const ra = files.realpath(a);
+  return ra !== undefined && ra === files.realpath(b);
 }
 
 /**
@@ -268,14 +233,14 @@ function sameDir(a: string, b: string): boolean {
  * generic name (critique M3): it sits next to `projects/` or an old tool folder, or its first 4 KB carry `version:` and
  * one of the workspace keys. Read only to decide that (never parsed, never used). Never in the person's home folder
  * itself (L5.13a review A L2): the old home `~/.demo-studio` and a `~/Projects` sit there on most machines, so another
- * tool's `~/studio.yaml` would stop every lookup at `~`.
+ * tool's `~/studio.yaml` would stop every lookup at `~`. `home` is the account's home folder; `files` looks at the disk.
  */
-export function oldWorkspaceFileAt(dir: string, home: string = homedir()): boolean {
+export function oldWorkspaceFileAt(dir: string, home: string, files: FileFacts): boolean {
   const file = join(dir, OLD_WORKSPACE_FILE);
-  if (!isFile(file)) return false;
-  if (home && sameDir(dir, home)) return false;
-  if (isDir(join(dir, 'projects')) || isDir(join(dir, OLD_DIR))) return true;
-  const text = head(file, 4096);
+  if (files.kind(file) !== 'file') return false;
+  if (home && sameDir(dir, home, files)) return false;
+  if (files.kind(join(dir, 'projects')) === 'directory' || files.kind(join(dir, OLD_DIR)) === 'directory') return true;
+  const text = files.readHead(file, 4096).toString('utf8');
   return /^\s*version\s*:/m.test(text) && /^\s*(?:projects_dir|templates_dir|components_dir)\s*:/m.test(text);
 }
 

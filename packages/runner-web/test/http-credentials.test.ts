@@ -11,9 +11,10 @@ import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { resolveEnvironment, resolvePersonas } from '@retake/core';
+import { resolveEnvironment, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import { recordSession, runScenario, signIn } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { retakeHome } from '@retake/core/io';
 
 const USER = 'demo-viewer';
 const PASSWORD = 'staging-pass-8317';
@@ -77,7 +78,7 @@ describe('an environment page URL with sign-in details', () => {
   it('opens the page, signed in to its origin only; the details are nowhere in what the run writes', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: other.url });
     const events: unknown[] = [];
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('staging', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait_for: { text: 'Signed in to staging' } }, { wait: 0.8 }] as never }] }),
       mode: 'dry',
@@ -112,18 +113,18 @@ describe('an environment page URL with sign-in details', () => {
     };
     const eventsFile = join(dir, 'events.jsonl');
     await writeFile(eventsFile, '');
-    await recordSession({ project, env, url: `${app.url}/`, eventsFile, headless: true, windowSize: { width: 800, height: 600 }, drive: read });
+    await recordSession({ policy: PERSON_POLICY, project, env, url: `${app.url}/`, eventsFile, headless: true, windowSize: { width: 800, height: 600 }, drive: read });
     const home = await tempDir('rw-credentials-home-');
     const saved = process.env.RETAKE_HOME;
     process.env.RETAKE_HOME = home;
     try {
       project.config.auth = { login_url: '/', personas: { viewer: { pages: ['app'] } } };
-      const persona = resolvePersonas(project, 'test').find((p) => p.name === 'viewer')!;
-      await signIn({ project, env, persona, mode: 'headed', headless: true, drive: read }).catch(() => undefined);
+      const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
+      await signIn({ policy: PERSON_POLICY, project, env, persona, mode: 'headed', headless: true, drive: read }).catch(() => undefined);
       // The automatic sign-in's browser (its check of the page, headless) gets them too.
       project.config.auth = { login_url: '/sign-in', personas: { viewer: { pages: ['app'], check: { url: 'app:/', expect_text: 'Signed in to staging' }, login: [{ open: 'app:/' }] } } };
-      const checked = resolvePersonas(project, 'test').find((p) => p.name === 'viewer')!;
-      expect((await signIn({ project, env, persona: checked, mode: 'auto' })).check.status).toBe('valid');
+      const checked = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'viewer')!;
+      expect((await signIn({ policy: PERSON_POLICY, project, env, persona: checked, mode: 'auto' })).check.status).toBe('valid');
     } finally {
       process.env.RETAKE_HOME = saved;
       await rm(home, { recursive: true, force: true });
@@ -134,7 +135,7 @@ describe('an environment page URL with sign-in details', () => {
   it('details on two origins are refused before any browser opens, without showing them', async () => {
     const project = makeProject(dir, { app: `http://${USER}:${PASSWORD}@127.0.0.1:${app.port}`, other: `http://other-user:other-pass@127.0.0.1:${other.port}` });
     const before = app.auth.length + other.auth.length;
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('two', { pacing: FAST, scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ wait: 0.1 }] as never }] }),
       mode: 'dry',

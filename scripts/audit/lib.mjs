@@ -123,8 +123,18 @@ const pkgOf = (f) => f.split('/')[1];
 const retake = (s) => (s.startsWith('@retake/') ? s.slice(8).split('/')[0] : null);
 const SHELLS = ['cli', 'mcp', 'ui'];
 const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'components'];
+/** Core's side that touches the machine (`@retake/core/io`): R1 holds for the rest of core, which never imports it. */
+export const CORE_IO_DIR = 'packages/core/src/io/';
+/** An import of core's io side from the rest of core: `@retake/core/io`, or a relative path into src/io/. */
+const coreIoImport = (s, f) => s === '@retake/core/io' || s.startsWith('@retake/core/io/') || (s.startsWith('.') && path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(CORE_IO_DIR));
+/**
+ * The bindings of an I/O module that do no I/O, by module: node:net's address helpers (isIP / isIPv4 / isIPv6 parse a
+ * string; a BlockList matches addresses in memory) — an import naming only these is not I/O; any other form of the
+ * import (another name, a default or namespace import, require(), import()) is.
+ */
+export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
-  { id: 'R1', title: 'core is I/O-free (domain; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O)', files: (f) => pkgOf(f) === 'core', bad: (s) => IO.test(s), loaders: true },
+  { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
   { id: 'R2', title: 'adapters never import application or shells', files: (f) => ADAPTERS.includes(pkgOf(f)), bad: (s) => ['engine', 'mcp', 'ui', 'cli'].includes(retake(s)) },
   { id: 'R3', title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)', files: (f) => ['mcp', 'ui'].includes(pkgOf(f)), bad: (s, f) => { const p = retake(s); return !!p && SHELLS.includes(p) && p !== pkgOf(f); } },
   { id: 'R4', title: 'shells call the application only (no direct adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)) },
@@ -138,7 +148,7 @@ export const CHECKS = [
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
-  { id: 'setter', title: 'the process-wide setters (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) are used by packages/engine/src/workspace.ts only' },
+  { id: 'setter', title: 'no process-wide setter (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) is used anywhere: the policy work runs under is a value (core WorkPolicy) the engine passes to the adapters' },
   { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
 ];
 
@@ -194,14 +204,52 @@ export function moduleUses(ts, rel, text) {
 }
 
 /**
+ * Whether every import of `spec` in a file names only bindings of `allowed` (named imports; a type-only import or
+ * binding loads nothing and is left out); false
+ * when the module is imported any other way (a default or namespace import, a side-effect import, an `export … from`,
+ * `import x = require()`, `require()` or `import()`), or not at all.
+ */
+export function importsOnly(ts, rel, text, spec, allowed) {
+  let ok = true;
+  let seen = false;
+  (function visit(n) {
+    if (!ok) return;
+    if (ts.isImportDeclaration(n) && literal(ts, n.moduleSpecifier) === spec) {
+      seen = true;
+      const c = n.importClause;
+      if (c?.isTypeOnly) return;
+      const b = c?.namedBindings;
+      if (!c || c.name || !b || !ts.isNamedImports(b) || !b.elements.every((e) => e.isTypeOnly || allowed.includes((e.propertyName ?? e.name).text))) ok = false;
+      return;
+    }
+    if (ts.isExportDeclaration(n) && literal(ts, n.moduleSpecifier) === spec) { ok = false; return; }
+    if (ts.isImportEqualsDeclaration(n) && ts.isExternalModuleReference(n.moduleReference) && literal(ts, n.moduleReference.expression) === spec) { ok = false; return; }
+    if (ts.isCallExpression(n) && (n.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(n.expression) && n.expression.text === 'require')) && literal(ts, n.arguments[0]) === spec) { ok = false; return; }
+    n.forEachChild(visit);
+  })(parse(ts, rel, text));
+  return ok && seen;
+}
+
+/**
  * Rule hits as `[{ rule, file, spec }]`, one per specifier the pre-processor lists (a file importing a module twice
  * gives the hit twice; ratchetEntries keeps one entry per rule, file and import). The type-only rule (R5) keeps the
  * specifiers the file loads as values, and the I/O rule of core (R1) adds the file's run-time module loaders, both read
  * from the syntax tree; a file that cannot be read counts as loading every one of its specifiers as a value.
  */
 export function ruleHits(root, fileImports, rules = RULES) {
-  const ts = (rules.some((r) => r.typeOnlyCheck || r.loaders) && loadTs(root)) || undefined;
+  const ts = (rules.some((r) => r.typeOnlyCheck || r.loaders || r.pure) && loadTs(root)) || undefined;
   const uses = new Map();
+  const texts = new Map();
+  const textOf = (f) => {
+    if (!texts.has(f)) {
+      try {
+        texts.set(f, fs.readFileSync(path.join(root, f), 'utf8'));
+      } catch {
+        texts.set(f, undefined);
+      }
+    }
+    return texts.get(f);
+  };
   const usesOf = (f) => {
     if (!uses.has(f)) {
       let text;
@@ -224,6 +272,10 @@ export function ruleHits(root, fileImports, rules = RULES) {
           const u = usesOf(f);
           if (u && !u.values.has(s)) continue;
         }
+        if (r.pure && Object.hasOwn(r.pure, s)) {
+          const text = textOf(f);
+          if (text !== undefined && importsOnly(ts, f, text, s, r.pure[s])) continue;
+        }
         hits.push({ rule: r.id, file: f, spec: s });
       }
       if (r.loaders) for (const l of usesOf(f)?.loaders ?? []) hits.push({ rule: r.id, file: f, spec: l });
@@ -243,8 +295,8 @@ const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
 /** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
 const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append']);
 const queueCallsAllowed = (rel) => rel.startsWith('packages/engine/src/');
+/** The process-wide setters there were before the WorkPolicy value: a use of one under these names, anywhere, is a hit. */
 const SETTERS = ['useAgentPolicy', 'useWorkspaceFfmpeg', 'useWorkspaceRender'];
-const SETTER_HOME = 'packages/engine/src/workspace.ts';
 
 /**
  * The wiring rules, read from the syntax tree: outside the composition roots (QUEUE_ROOTS, the CLI), `new FileJobQueue(…)`, a class extending it and
@@ -252,8 +304,8 @@ const SETTER_HOME = 'packages/engine/src/workspace.ts';
  * passed on), under its own name, an import alias or `ns.name` (a type position is not a use); outside
  * packages/engine/src, a call of the queue's submit or of a worker's write on something named `queue` (`queue.claim(…)`,
  * `engine.queue.enqueue(…)`, `this.queue['write'](…)`); and any use of a process-wide setter — a call or the function
- * passed on as a value, under the same names — outside packages/engine/src/workspace.ts. Declarations, imports and
- * re-exports are not uses.
+ * passed on as a value, under the same names — anywhere (there are none: the work's policy is a value). Declarations,
+ * imports and re-exports are not uses.
  */
 export function wiringHits(root, files) {
   const ts = loadTs(root);
@@ -261,7 +313,7 @@ export function wiringHits(root, files) {
   for (const { rel, text } of files) {
     const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
     const calls = !queueCallsAllowed(rel) && text.includes('queue');
-    const setters = rel !== SETTER_HOME && SETTERS.some((s) => text.includes(s));
+    const setters = SETTERS.some((s) => text.includes(s));
     if (!queue && !calls && !setters) continue;
     const sf = parse(ts, rel, text);
     const names = new Map([[QUEUE_CLASS, QUEUE_CLASS], ...SETTERS.map((s) => [s, s])]); // local name → original

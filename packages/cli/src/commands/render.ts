@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, scenarioSinceRun } from '@retake/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { defaultStillFile, editorErrorOf, findRunOf, planStep, renderInProcess, stillInProcess } from '@retake/engine';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/engine';
@@ -216,6 +217,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The render, then its line of the workspace's history (the engine's in-process operation).
     const record = await renderInProcess({
+      workPolicy: ws.policy,
       project,
       root: ws.root,
       run: runId,
@@ -232,7 +234,7 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     let review;
     if (opts.review) {
       try {
-        review = await runReview(ui, { project, root: ws.root, render: record.record, quiet: opts.json });
+        review = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: record.record, quiet: opts.json });
       } catch (e) {
         if (e instanceof Error && e.name === 'ReviewError') throw new CliError(`rendered ${record.id}, but the review failed: ${e.message}`);
         throw e;
@@ -273,6 +275,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   let planned;
   try {
     planned = await planStep({
+      workPolicy: ws.policy,
       project,
       run: opts.run ?? 'latest',
       scenario,
@@ -295,7 +298,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   ui.setStatus(ui.c.dim(`  … rendering frame ${frame} of ${scenario}`));
   try {
     // The still, then its line of the workspace's history (a still is a render too).
-    await stillInProcess({ plan, frame, out, root: ws.root, registry, project });
+    await stillInProcess({ workPolicy: ws.policy, plan, frame, out, root: ws.root, registry, project });
   } catch (e) {
     if (await isRenderError(e)) throw new CliError((e as Error).message);
     throw e;

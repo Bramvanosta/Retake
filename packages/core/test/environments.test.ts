@@ -56,6 +56,8 @@ import {
 } from '@retake/core';
 import type { HookStep, LoadedProject, ValidationIssue } from '@retake/core';
 import { errors, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
+import { fileFacts, nodeFileFacts } from '@retake/core/io';
+import { PERSON_POLICY } from '@retake/core';
 
 const msgs = (issues: ValidationIssue[]) => issues.map((i) => `${i.severity} ${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
 
@@ -763,7 +765,7 @@ describe('which hooks write (R-ENV-04)', () => {
     const tmp = await tempDir();
     try {
       await writeFiles(tmp.dir, { 'hooks/read.sql': 'SELECT count(*) FROM quotes;\n', 'hooks/undo.sql': 'DELETE FROM quotes WHERE id = 1;\n' });
-      const opts = { projectDir: tmp.dir };
+      const opts = { projectDir: tmp.dir, files: nodeFileFacts };
       const cases: Array<[HookStep, string | null]> = [
         [{ http: { url: '{{shop}}/api/health' } }, null],
         [{ http: { method: 'POST', url: '{{shop}}/api/reset' } }, 'HTTP POST'],
@@ -815,23 +817,23 @@ describe('scenario checks on read-only environments', () => {
 
   it('a writing hook on a read-only environment is a warning (the run refuses it)', () => {
     const text = scenario('production', 'setup:\n  - name: reset\n    http: {method: POST, url: "{{shop}}/api/reset"}\n  - http: {url: "{{shop}}/api/health"}\n');
-    const { scenario: s, issues } = parseScenario(text, { project: p });
+    const { scenario: s, issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project: p });
     expect(s).toBeDefined();
     expect(msgs(issues)).toEqual([
       `warning ${lineOf(text, '- name: reset')}:5 setup.0: this hook writes (HTTP POST) and environment production is production, read-only: such a run refuses it before anything runs — run with --hooks skip, or on a read-write environment`,
     ]);
-    const live = parseScenario(scenario('live', 'teardown:\n  - http: {method: DELETE, url: "{{shop}}/x"}\n    confirm: true\n'), { project: p });
+    const live = parseScenario(scenario('live', 'teardown:\n  - http: {method: DELETE, url: "{{shop}}/x"}\n    confirm: true\n'), { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(live.issues).join('\n')).toContain('environment live is production, read-only without --allow-writes: such a run refuses it before anything runs — run with --hooks skip, or with --allow-writes');
     // The same scenario on a read-write environment: no warning.
-    expect(parseScenario(text, { project: p, env: 'local' }).issues).toEqual([]);
+    expect(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: p, env: 'local' }).issues).toEqual([]);
   });
 
   it('mocks: page keys of the environment, literal values, ignored on read-write environments', () => {
     const mocks = 'mocks:\n  - {request: "POST shop:/api/quotes", status: 201, json: {id: 9001}}\n';
-    expect(parseScenario(scenario('production', mocks), { project: p }).issues).toEqual([]);
-    const local = parseScenario(scenario('local', mocks), { project: p });
+    expect(parseScenario(scenario('production', mocks), { files: fileFacts(PERSON_POLICY), project: p }).issues).toEqual([]);
+    const local = parseScenario(scenario('local', mocks), { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(local.issues)).toEqual([expect.stringContaining('warning 3:1 mocks: mocks apply to read-only runs only: environment local is read-write')]);
-    const bad = parseScenario(scenario('production', 'mocks:\n  - {request: "POST cart:/x", body: "{{run.id}}"}\n  - {request: "GET shop:/x"}\n'), { project: p });
+    const bad = parseScenario(scenario('production', 'mocks:\n  - {request: "POST cart:/x", body: "{{run.id}}"}\n  - {request: "GET shop:/x"}\n'), { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(errors(bad.issues))).toEqual([
       expect.stringContaining('mocks.0.request: unknown page "cart" in the request pattern (environment production has: console, shop)'),
       expect.stringContaining('mocks.0.body: mocks are served as written'),
@@ -841,7 +843,7 @@ describe('scenario checks on read-only environments', () => {
 
   it('`writes` belongs to shell hooks', () => {
     const text = scenario('local', 'setup:\n  - http: {method: POST, url: "{{shop}}/api/reset"}\n    writes: false\n  - shell: cat data.json\n    writes: false\n');
-    const { issues } = parseScenario(text, { project: p });
+    const { issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(errors(issues))).toEqual([expect.stringContaining('setup.0.writes: `writes` is for shell hooks: the writes of an http hook are seen in its method and body')]);
   });
 });

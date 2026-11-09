@@ -9,6 +9,7 @@ import { resolveTarget } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
 import { fileSlug } from '../util.js';
 import type { ActionResult } from './types.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 /**
  * Evaluate a function body (may `return` / `await`; receives `arg`) in the page. Evaluated through CDP, so
@@ -39,7 +40,7 @@ export async function evalStep(ctx: StepContext, args: EvalArgs): Promise<Action
   let body = args.js;
   if (body === undefined && args.file !== undefined) {
     if (rt.agentTrust) {
-      const problem = projectFileProblem(rt.project.dir, args.file, { code: true });
+      const problem = projectFileProblem(rt.project.dir, args.file, { code: true, files: nodeFileFacts });
       if (problem) throw new StepError(`eval: ${problem}`);
     }
     const file = isAbsolute(args.file) ? args.file : join(rt.project.dir, args.file);

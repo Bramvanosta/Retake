@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DEFAULT_PACING, TimelineSchema } from '@retake/core';
+import { DEFAULT_PACING, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
@@ -66,7 +66,7 @@ beforeAll(async () => {
   const url = `http://127.0.0.1:${port}`;
   server = { url, close: () => new Promise<void>((r) => (srv.closeAllConnections(), srv.close(() => r()))) };
   dir = await tempDir('rw-multipage-');
-  rec = await runScenario({
+  rec = await runScenario({ policy: PERSON_POLICY,
     project: makeProject(dir, { shop: url, console: url }),
     scenario: makeScenario('two-pages', {
       pacing: { ...FAST, page_switch_ms: 400 },
@@ -197,7 +197,7 @@ describe('multi-page scenes (R-MPC-01)', () => {
 describe('multi-page scenes: errors', () => {
   it('a mobile page cannot be filmed by a single-page scene; a page keeps its viewport', async () => {
     const project = makeProject(dir, { shop: server.url, console: server.url });
-    const bad = await runScenario({
+    const bad = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('bad-mobile', {
         pacing: FAST,
@@ -211,7 +211,7 @@ describe('multi-page scenes: errors', () => {
     });
     expect(bad.status).toBe('failed');
     expect(bad.error?.message).toMatch(/page "b" has a 390×844 viewport: a single-page scene films the capture size/);
-    const twice = await runScenario({
+    const twice = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('bad-viewport', {
         pacing: FAST,
@@ -231,7 +231,7 @@ describe('multi-page scenes: errors', () => {
 
 describe('multi-page scenes: the main capture and page URLs', () => {
   it('a capture that films no scene (all skipped) fails clearly, as before multi-page scenes: no frame was recorded', async () => {
-    const r = await runScenario({
+    const r = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { shop: server.url, console: server.url }),
       scenario: makeScenario('all-skipped', {
         pacing: FAST,
@@ -249,7 +249,7 @@ describe('multi-page scenes: the main capture and page URLs', () => {
   }, 120_000);
 
   it('a relative `open` on a page id of `pages` resolves against its environment page (base path kept), like the page-level `open`', async () => {
-    const r = await runScenario({
+    const r = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { shop: `${server.url}/app`, console: server.url }),
       scenario: makeScenario('base-path', {
         pacing: FAST,

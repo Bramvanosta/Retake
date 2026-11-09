@@ -1,17 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  TemplateError,
-  collectSecretRefs,
-  interpolate,
-  interpolateAt,
-  interpolateDeep,
-  listTemplateTokens,
-  redact,
-  secretForms,
-  resolveEnvironment,
-  resolvePageUrl,
-  resolveSecretRef,
-} from '@retake/core';
+import { TemplateError, collectSecretRefs, interpolate, interpolateAt, interpolateDeep, listTemplateTokens, redact, secretForms, resolveEnvironment, resolvePageUrl } from '@retake/core';
+import { resolveSecretRef } from '@retake/core/io';
 import type { TemplateContext } from '@retake/core';
 import { fakeProject } from './helpers.js';
 

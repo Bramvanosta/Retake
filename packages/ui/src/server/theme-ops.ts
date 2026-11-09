@@ -42,6 +42,7 @@ import { opChain } from './op-chain.js';
 import type { PreviewLeases, PreviewHeld } from './preview-leases.js';
 import type { PlayerServer } from './player.js';
 import type { PreviewAllowList } from './preview-allow.js';
+import { fileFacts } from '@retake/core/io';
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
@@ -345,7 +346,7 @@ function withDraft(t: LoadedTemplate, draft: z.infer<typeof PreviewInput>['draft
 export async function themePreview(engine: Engine, a: z.infer<typeof PreviewInput>, o: ThemeOpsOptions): Promise<ThemePreviewAnswer> {
   const ws = engine.workspace;
   const p = await openProjectBySlug(ws, a.project);
-  const loaded = await themeForWork(p, a.theme);
+  const loaded = await themeForWork(p, a.theme, fileFacts(ws.policy));
   const problems = themeAssetProblems(loaded);
   if (problems.length) throw new EngineError('refused', `${problems.map((x) => pathFree(x, ws.root)).join('; ')}: a theme serves only its own files`);
   const registry = (await memoRegistry(ws)).registry;

@@ -9,6 +9,7 @@ import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
+import type { WorkPolicy } from '@retake/core';
 
 export interface ReviewCommandOptions {
   /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */
@@ -62,10 +63,11 @@ export function printReview(ui: Ui, r: ReviewResult): void {
 /** Run a review with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
-  opts: { project: Parameters<typeof reviewStep>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewStep>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
     return await reviewStep({
+      policy: opts.policy,
       project: opts.project,
       root: opts.root,
       render: opts.render,
@@ -104,7 +106,7 @@ export async function reviewCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (gate.waited) ui.info(`reviewing render ${renderId}`);
   let result: ReviewResult;
   try {
-    result = await runReview(ui, { project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
+    result = await runReview(ui, { policy: ws.policy, project, root: ws.root, render: renderId, scenario: opts.scenario, fps, previous: opts.previous, quiet: opts.json });
   } catch (e) {
     if (e instanceof Error && e.name === 'ReviewError') throw new CliError(e.message);
     throw e;

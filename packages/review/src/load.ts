@@ -5,7 +5,8 @@
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
+import { GUIDE, missingOrInvalid, projectPath } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
 import { isRenderRecord, readRenderRecords } from '@retake/editor/plan';
 import type { RenderRecord } from '@retake/editor/plan';

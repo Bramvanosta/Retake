@@ -10,21 +10,9 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  FORMAT_VERSIONS,
-  JOB_INPUT_VERSION,
-  listSteps,
-  loginCommand as coreLoginCommand,
-  reserveRunId,
-  resolveEnvironment,
-  resolveStepRef,
-  usedNamedHooks,
-  writeJson,
-  projectPath,
-  statePath,
-  projectRef,
-} from '@retake/core';
-import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
+import { FORMAT_VERSIONS, JOB_INPUT_VERSION, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
+import { reserveRunId, writeJson } from '@retake/core/io';
+import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
@@ -42,6 +30,7 @@ import { getScenario } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
 import type { JobQueue } from './job-queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RunSubmitRequest {
   project: string;
@@ -64,7 +53,7 @@ export interface RunSubmitRequest {
 }
 
 export interface SubmitContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   queue: JobQueue;
   /** "retake -C <root>": how the commands a human is asked to run start. */
   cli: string;
@@ -166,7 +155,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
             { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
             ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
-          { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
+          { policy: ctx.ws.policy, env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
         ).catch((e: unknown) => {
           throw toEngineError(e);
         })
@@ -361,7 +350,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
 }
 
 export interface RunJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: RunJobInput;
   signal: AbortSignal;
@@ -448,6 +437,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
       prepared,
       { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox },
       {
+        policy: ctx.ws.policy,
         runId: input.run_id,
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),

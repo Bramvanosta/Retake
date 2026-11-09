@@ -13,6 +13,7 @@ import { cfrSchedule, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
 import { FAST, execFileP, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /** A list that loads after a click: a skeleton (no motion) for 1.2 s, then the rows; a counter button for motion. */
 const PAGE = `<!doctype html><html><head><style>
@@ -50,7 +51,7 @@ afterAll(async () => {
 });
 
 function capture(runId: string, keepFrames: boolean): Promise<RunRecord> {
-  return runScenario({
+  return runScenario({ policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }, { keepFrames }),
     mode: 'capture',
     runId,

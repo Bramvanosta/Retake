@@ -2,7 +2,7 @@
  * The engine façade's types: its options, the Engine interface (one member per sub-API) and the views its methods
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
-import type { ComponentKind, InspectJobInput, LegacyInfo, RecordAnnotationChange, RunMode, WorkspaceConfig } from '@retake/core';
+import type { ComponentKind, InspectJobInput, LegacyInfo, RecordAnnotationChange, RunMode } from '@retake/core';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
 import type { RunStatusView, RunSummary } from '../runs.js';
@@ -48,6 +48,7 @@ import type { RunBlocker, RunSubmitRequest } from '../jobs/run-job.js';
 import type { WorkerSpawnFn } from '../jobs/spawn.js';
 import type { PruneRequest, PruneResult } from '../prune.js';
 import type { JobEvent, JobRecord, SiteJobResult } from '../jobs/types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface EngineOptions {
   /** Workspace root; default $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
@@ -149,7 +150,7 @@ export interface ScenarioCheck extends ScenarioText, ValidateResult {
 
 export interface Engine {
   readonly root: string;
-  readonly workspace: WorkspaceConfig;
+  readonly workspace: OpenedWorkspace;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;
   /**

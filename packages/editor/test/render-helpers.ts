@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { LoadedProject, Timeline } from '@retake/core';
 import { synthTimeline } from './helpers.js';
 

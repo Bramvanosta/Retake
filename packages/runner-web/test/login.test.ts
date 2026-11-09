@@ -9,13 +9,14 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { personaPaths, resolvePersonas } from '@retake/core';
+import { personaPaths, resolvePersonas, PERSON_POLICY } from '@retake/core';
 import type { AuthConfig, LoadedProject, PersonaConfig } from '@retake/core';
 import { checkSavedSession, readSnapshot, readStatus, signIn } from '../src/index.js';
 import type { SignInOptions } from '../src/index.js';
 import { ACCOUNTS, startAuthServer } from './auth-server.js';
 import type { AuthServer } from './auth-server.js';
 import { makeProject, tempDir } from './helpers.js';
+import { retakeHome } from '@retake/core/io';
 
 let srv: AuthServer;
 let home = '';
@@ -53,7 +54,7 @@ async function setup(over: Partial<Record<'supplier' | 'buyer', Partial<PersonaC
     },
   };
   project.config.auth = auth;
-  return { project, persona: (name) => resolvePersonas(project, ENV).find((p) => p.name === name)! };
+  return { project, persona: (name) => resolvePersonas(project, ENV, { home: retakeHome() }).find((p) => p.name === name)! };
 }
 
 const env = () => ({ name: ENV, pages: { app: srv.url, store: srv.url } });
@@ -80,7 +81,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
   it('headed (driven): the master profile and the snapshot (the session cookie included) are saved, checked the way a run sees them', async () => {
     const { project, persona } = await setup();
     let opened = '';
-    const r = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page'), headless: true, onOpen: (u) => (opened = u) });
+    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page'), headless: true, onOpen: (u) => (opened = u) });
     expect(opened).toBe(`${srv.url}/home`);
     expect(r.check).toMatchObject({ status: 'valid', detail: `app:/home shows "${ACCOUNTS.supplier.name}"` });
     const f = persona('supplier');
@@ -101,7 +102,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
 
   it('headed (driven), the browser quit instead of closing the page: the last reading of the session is kept', async () => {
     const { project, persona } = await setup();
-    const r = await signIn({ project, env: env(), persona: persona('buyer'), mode: 'headed', drive: person('buyer', 'browser'), headless: true });
+    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'headed', drive: person('buyer', 'browser'), headless: true });
     expect(r.check.status).toBe('valid');
     expect(r.cookies).toBeGreaterThan(0);
   });
@@ -113,7 +114,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
       asked.push(ref);
       return ACCOUNTS.supplier.password;
     };
-    const r = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret });
+    const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret });
     expect(r.check.status).toBe('valid');
     expect(r.alreadySignedIn).toBeUndefined();
     expect(asked).toEqual(['keychain:demo-test/supplier']);
@@ -123,15 +124,15 @@ describe('retake login (R-AUTH-06): signIn', () => {
     // The buyer's cookie persists in the master: the second login finds the session still valid and runs no step.
     process.env.DS_TEST_BUYER_PASSWORD = ACCOUNTS.buyer.password;
     try {
-      expect((await signIn({ project, env: env(), persona: persona('buyer'), mode: 'auto' })).alreadySignedIn).toBeUndefined();
-      const again = await signIn({ project, env: env(), persona: persona('buyer'), mode: 'auto' });
+      expect((await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'auto' })).alreadySignedIn).toBeUndefined();
+      const again = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'auto' });
       expect(again).toMatchObject({ alreadySignedIn: true, check: { status: 'valid' } });
     } finally {
       delete process.env.DS_TEST_BUYER_PASSWORD;
     }
     // Expired on the server: the saved session is checked as expired (a live check, nothing signed in).
     srv.expire('buyer');
-    expect((await checkSavedSession({ project, env: env(), persona: persona('buyer') })).status).toBe('expired');
+    expect((await checkSavedSession({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer') })).status).toBe('expired');
   });
 
   it('over a saved session (U3): --auto keeps a session-cookie persona without a step; the window opens signed in; closing it signed out keeps the valid snapshot', async () => {
@@ -142,9 +143,9 @@ describe('retake login (R-AUTH-06): signIn', () => {
       return ACCOUNTS.supplier.password;
     };
     // The supplier's cookie is a session cookie: the master alone never holds it, the snapshot does.
-    expect((await signIn({ project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret })).check.status).toBe('valid');
+    expect((await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret })).check.status).toBe('valid');
     const saved = await readFile(persona('supplier').snapshot!, 'utf8');
-    const again = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret });
+    const again = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret });
     expect(again).toMatchObject({ alreadySignedIn: true, check: { status: 'valid' } });
     expect(again.cookies).toBeGreaterThan(0);
     expect(asked).toBe(1);
@@ -152,7 +153,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(await readFile(persona('supplier').snapshot!, 'utf8')).toBe(saved);
     // The window shows the saved session (no form to fill)…
     let shown = '';
-    const look = await signIn({
+    const look = await signIn({ policy: PERSON_POLICY,
       project,
       env: env(),
       persona: persona('supplier'),
@@ -168,7 +169,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(look.kept).toBeUndefined();
     // …and a window that ends signed out (its cookies cleared) never replaces a snapshot that still works.
     const before = await readFile(persona('supplier').snapshot!, 'utf8');
-    const out = await signIn({
+    const out = await signIn({ policy: PERSON_POLICY,
       project,
       env: env(),
       persona: persona('supplier'),
@@ -185,7 +186,7 @@ describe('retake login (R-AUTH-06): signIn', () => {
     expect(await readStatus(persona('supplier').statusFile)).toMatchObject({ status: 'valid', by: 'login' });
     // Once the server forgot the session, the signed-out window is what is saved.
     srv.expire('supplier');
-    const gone = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'headed', headless: true, drive: async (page) => void (await page.close()) });
+    const gone = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'headed', headless: true, drive: async (page) => void (await page.close()) });
     expect(gone.check.status).toBe('expired');
     expect(gone.kept).toBeUndefined();
     expect(await readStatus(persona('supplier').statusFile)).toMatchObject({ status: 'expired', by: 'login' });
@@ -194,13 +195,13 @@ describe('retake login (R-AUTH-06): signIn', () => {
   it('a first login that fails leaves no profile behind (U7); a cancelled one saves nothing (U4)', async () => {
     const { project, persona } = await setup();
     const f = persona('supplier');
-    await expect(signIn({ project, env: env(), persona: f, mode: 'auto', resolveSecret: async () => 'wrong-secret-12' })).rejects.toThrow(/automated login of persona supplier/);
+    await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: f, mode: 'auto', resolveSecret: async () => 'wrong-secret-12' })).rejects.toThrow(/automated login of persona supplier/);
     expect(existsSync(f.profileDir!)).toBe(false);
     expect(existsSync(f.snapshot!)).toBe(false);
     // Cancelled while the window is open: the window closes, nothing is written.
     const controller = new AbortController();
     await expect(
-      signIn({
+      signIn({ policy: PERSON_POLICY,
         project,
         env: env(),
         persona: f,
@@ -217,12 +218,12 @@ describe('retake login (R-AUTH-06): signIn', () => {
 
   it('auto: a failing login names the step, never the password; a storage_state persona keeps a snapshot and no profile', async () => {
     const { project, persona } = await setup({ buyer: { session: 'storage_state' } });
-    await expect(signIn({ project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret: async () => 'wrong-secret-77' })).rejects.toThrow(
+    await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret: async () => 'wrong-secret-77' })).rejects.toThrow(
       /^automated login of persona supplier \(env test\) failed: login step 5 \(wait_for text "Ada Supplier"\): timed out/,
     );
     process.env.DS_TEST_BUYER_PASSWORD = ACCOUNTS.buyer.password;
     try {
-      const r = await signIn({ project, env: env(), persona: persona('buyer'), mode: 'auto' });
+      const r = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'auto' });
       expect(r.check.status).toBe('valid');
       expect(r.profileDir).toBeUndefined();
       expect(existsSync(personaPaths(home, 'northfield', ENV, 'buyer').profileDir)).toBe(false);
@@ -238,8 +239,8 @@ describe('retake login (R-AUTH-06): signIn', () => {
     const { mkdir } = await import('node:fs/promises');
     await mkdir(master, { recursive: true });
     await writeFile(join(master, 'SingletonLock'), '');
-    await expect(signIn({ project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret: async () => 'x' })).rejects.toThrow(/is open in another browser/);
-    await expect(signIn({ project, env: env(), persona: persona('buyer'), mode: 'auto' })).rejects.toThrow(/declares no login steps/);
+    await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'auto', resolveSecret: async () => 'x' })).rejects.toThrow(/is open in another browser/);
+    await expect(signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'auto' })).rejects.toThrow(/declares no login steps/);
   });
 });
 
@@ -247,9 +248,9 @@ describe('retake login (R-AUTH-06): signIn', () => {
 describe.skipIf(process.env.RETAKE_TEST_HEADED !== '1')('retake login, a visible window (RETAKE_TEST_HEADED=1)', () => {
   it('a visible window, the page closed then the browser quit: both save a session a run can use', async () => {
     const { project, persona } = await setup();
-    const a = await signIn({ project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page') });
+    const a = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('supplier'), mode: 'headed', drive: person('supplier', 'page') });
     expect(a.check.status).toBe('valid');
-    const b = await signIn({ project, env: env(), persona: persona('buyer'), mode: 'headed', drive: person('buyer', 'browser') });
+    const b = await signIn({ policy: PERSON_POLICY, project, env: env(), persona: persona('buyer'), mode: 'headed', drive: person('buyer', 'browser') });
     expect(b.check.status).toBe('valid');
   }, 60_000);
 });

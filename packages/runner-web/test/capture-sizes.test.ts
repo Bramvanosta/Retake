@@ -7,6 +7,7 @@ import { runScenario } from '../src/index.js';
 import { SIZES_PAGE } from './pages.js';
 import { FAST, debugTemplate, execFileP, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /**
  * R-GOAL-01 / R-REC-06 (L1.4): real captures at the virtual sizes the tool promises — 2560×1440, 4K (1920×1080 at
@@ -45,7 +46,7 @@ const CASES: Case[] = [
 
 async function capture(c: Case): Promise<{ rec: RunRecord; tl: Timeline }> {
   const project = makeProject(dir, { app: server.url }, { width: c.width, height: c.height });
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project,
     template: debugTemplate(),
     mode: 'capture',

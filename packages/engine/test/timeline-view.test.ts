@@ -22,7 +22,7 @@ import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { parseYaml, stepGuard } from '@retake/core';
+import { parseYaml, stepGuard, PERSON_POLICY } from '@retake/core';
 import { captureInfo, clearTimelineViewMemo, createEngine, planSignature } from '../src/index.js';
 import type { Engine, TimelineViewResult } from '../src/index.js';
 import { FIXTURES, synthTimeline } from '../../editor/test/helpers.js';
@@ -400,14 +400,14 @@ describe.skipIf(!canProbe)('the capture\'s codec and keyframes (critique B14)', 
     try {
       encode(join(d, 'long.mp4'));
       encode(join(d, 'short.mp4'), 12);
-      const long = await captureInfo(join(d, 'long.mp4'));
+      const long = await captureInfo(join(d, 'long.mp4'), { policy: PERSON_POLICY });
       expect(long).toMatchObject({ codec: 'h264', b_frames: true, at_least: true, slow_scrub: expect.stringMatching(/keyframes at least every \d\.\d s/) });
       expect(long.keyframe_interval_s).toBeGreaterThan(3.5);
-      const short = await captureInfo(join(d, 'short.mp4'));
+      const short = await captureInfo(join(d, 'short.mp4'), { policy: PERSON_POLICY });
       expect(short).toEqual({ codec: 'h264', b_frames: false, keyframe_interval_s: 0.4 });
       await symlink(join(d, 'short.mp4'), join(d, 'link.mp4'));
-      expect(await captureInfo(join(d, 'link.mp4'))).toEqual({});
-      expect(await captureInfo(join(d, 'missing.mp4'))).toEqual({});
+      expect(await captureInfo(join(d, 'link.mp4'), { policy: PERSON_POLICY })).toEqual({});
+      expect(await captureInfo(join(d, 'missing.mp4'), { policy: PERSON_POLICY })).toEqual({});
     } finally {
       await rm(d, { recursive: true, force: true });
     }

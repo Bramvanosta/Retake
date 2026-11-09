@@ -10,13 +10,15 @@
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { clientPath, findWorkspaceRoot, oldWorkspaceFileAt } from '@retake/core';
+import { oldWorkspaceFileAt } from '@retake/core';
+import { clientPath, findWorkspaceRoot, nodeFileFacts } from '@retake/core/io';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
 import { MCP_HTTP_TOKEN_ENV, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, mcpConfigJson, mcpHttpConfigJson, mcpHttpTokenExport, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
+import { homedir } from 'node:os';
 
 export interface McpCommandOptions {
   printConfig?: boolean;
@@ -121,7 +123,7 @@ function isDir(p: string): boolean {
  */
 export function workspaceRoot(global: GlobalOptions): string | undefined {
   const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) || oldWorkspaceFileAt(root) ? root : undefined;
+  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) || oldWorkspaceFileAt(root, homedir(), nodeFileFacts) ? root : undefined;
 }
 
 export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommandOptions): Promise<ExitCode> {

@@ -7,8 +7,8 @@
  *   (`$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`) → the bundle's own →
  *   the system's (PATH, Playwright's cache). In a repository checkout there is no bundle: every resolver answers what it
  *   answered before L5.16.
- * - **Discovery:** `bundle.json` (the stage step writes it) in exactly one folder, the one an engine module sits five
- *   folders below (`<root>/engine/node_modules/@retake/core/dist`), and only when its `paths.engine` holds this module
+ * - **Discovery:** `bundle.json` (the stage step writes it) in exactly one folder, the one core's dist sits five
+ *   folders below (`<root>/engine/node_modules/@retake/core/dist`; this module is in its `io/` folder), and only when its `paths.engine` holds this module
  *   at `node_modules/@retake/core/` — never a folder above the app, never a stray `bundle.json` above a checkout. A
  *   damaged manifest of this engine never throws at import: `bundleProblems()` names it (doctor), and every resolver
  *   that needs the bundle throws it (a damaged app says so instead of falling back to the system's tools).
@@ -17,7 +17,7 @@
  *   and restores the inherited value — so it never reaches hooks, sandbox services, shells or workers.
  * - **Nothing writes inside the bundle** at run time (its signature seals every file): `assertOutsideBundle`.
  * - **The workspace's ffmpeg** (retake.yaml `ffmpeg`, made absolute against the workspace root when it names a path)
- *   is process-wide: `openWorkspace` sets it each time, so the last workspace opened wins (a process serves one).
+ *   comes first in resolveMediaTools; which ffmpeg and ffprobe a process runs, under the agent policy: media-tools.ts.
  */
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -28,6 +28,8 @@ import { fileURLToPath } from 'node:url';
 export const BUNDLE_FILE = 'bundle.json';
 /** How many folders above core's dist the manifest sits (`<root>/engine/node_modules/@retake/core/dist`). */
 const BUNDLE_DEPTH = 5;
+/** How many folders below core's dist (or src) this module sits: `io/`. */
+const MODULE_DEPTH = 1;
 
 /** `bundle.json`, as the stage step writes it (paths relative to the folder holding it). */
 export interface BundleManifest {
@@ -124,14 +126,14 @@ function holdsCore(engine: string, self: string): boolean {
 }
 
 /**
- * The bundle `file` (a module of core, in `dist/`) belongs to, or null: `bundle.json` BUNDLE_DEPTH folders above its
- * folder, when its `paths.engine` holds `file` at `node_modules/@retake/core/`. Nothing else is looked at (no walk up).
+ * The bundle `file` (this module of core, in `dist/io/`) belongs to, or null: `bundle.json` BUNDLE_DEPTH folders above
+ * core's dist, when its `paths.engine` holds `file` at `node_modules/@retake/core/`. Nothing else is looked at (no walk up).
  * A manifest there that claims this engine but is broken throws (a damaged app must say so, not fall back to the
  * system's tools); one that does not claim it is ignored.
  */
 export function findBundle(file: string, exists: (p: string) => boolean = existsSync): BundleInfo | null {
   const self = real(resolve(file));
-  const dir = resolve(dirname(self), ...Array<string>(BUNDLE_DEPTH).fill('..'));
+  const dir = resolve(dirname(self), ...Array<string>(MODULE_DEPTH + BUNDLE_DEPTH).fill('..'));
   if (!exists(join(dir, BUNDLE_FILE))) return null;
   let info: BundleInfo | null = null;
   try {
@@ -187,11 +189,11 @@ export function bundleInfoOrNull(): BundleInfo | null {
 export function engineLocation(bundle: BundleInfo | null = bundleInfoOrNull(), self: string = fileURLToPath(import.meta.url), exists: (p: string) => boolean = existsSync): string {
   if (bundle) return bundle.sealed;
   const start = dirname(real(self));
-  for (let dir = start, i = 0; i < 6; i++, dir = dirname(dir)) {
+  for (let dir = start, i = 0; i < MODULE_DEPTH + 6; i++, dir = dirname(dir)) {
     if (exists(join(dir, 'pnpm-workspace.yaml'))) return dir;
     if (dirname(dir) === dir) break;
   }
-  return dirname(start);
+  return resolve(start, ...Array<string>(MODULE_DEPTH + 1).fill('..'));
 }
 
 /**
@@ -337,74 +339,11 @@ export function resolveMediaTools(o: { configured?: string | undefined; env?: No
   return { ffmpeg: ffmpeg[0], ffprobe: ffprobe[0], ffmpegSource: ffmpeg[1], ffprobeSource: ffprobe[1] };
 }
 
-let workspaceFfmpeg: string | undefined;
-
-/**
- * The open workspace's retake.yaml `ffmpeg` for this process (a CLI command, the MCP server, the Studio server and a
- * jobs worker each serve one workspace): `openWorkspace` sets it — or clears it — each time it opens one, so every
- * spawn honours the workspace opened last, even the ones no option reaches.
- */
-export function useWorkspaceFfmpeg(ffmpeg: string | undefined): void {
-  workspaceFfmpeg = ffmpeg?.trim() || undefined;
-}
-
-/** This process's ffmpeg and ffprobe (resolveMediaTools with the workspace's setting, the environment and the bundle). */
-export function mediaTools(): MediaTools {
-  return resolveMediaTools({ configured: workspaceFfmpeg, env: process.env, bundle: bundleInfo() });
-}
-
-/** How a refusal names where a tool came from (ffprobe beside retake.yaml's ffmpeg: that setting). */
-const SOURCE_NAMES: Record<MediaToolSource, string> = { 'retake.yaml': '`ffmpeg:` of retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'ffmpeg', PATH: 'ffmpeg' };
-
-/**
- * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else this process's — under the agent policy (core
- * agent-policy.ts policyProgram, through setBundleProgramCheck) by the real path that was checked, and refused (BundleError) when it lies inside the
- * workspace or is a relative path.
- */
-let programCheck: ((program: string, what: string) => { program: string; problem: string | null }) | null = null;
-
-/**
- * The agent policy's program check for mediaBin (core agent-policy.ts useAgentPolicy sets it, null when the policy is
- * off): handed in rather than imported, so this module keeps importing nothing but node: (it is read before the rest of
- * core, from a stage whose manifest may be broken).
- */
-export function setBundleProgramCheck(check: typeof programCheck): void {
-  programCheck = check;
-}
-
-function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
-  const given = explicit?.trim();
-  let bin: string;
-  let what: string;
-  if (given) {
-    bin = given;
-    what = tool;
-  } else {
-    const t = mediaTools();
-    bin = t[tool];
-    const source = tool === 'ffmpeg' ? t.ffmpegSource : t.ffprobeSource;
-    what = source === 'PATH' || source === 'bundled' ? tool : SOURCE_NAMES[source];
-  }
-  const checked = programCheck ? programCheck(bin, what) : { program: bin, problem: null };
-  if (checked.problem) throw new BundleError(checked.problem);
-  return checked.program;
-}
-
-/** The ffmpeg to run: `explicit` (an option naming one), else this process's (mediaBin). */
-export function ffmpegBin(explicit?: string): string {
-  return mediaBin('ffmpeg', explicit);
-}
-
-/** The ffprobe to run: `explicit`, else this process's (mediaBin). */
-export function ffprobeBin(explicit?: string): string {
-  return mediaBin('ffprobe', explicit);
-}
-
 /**
  * The starter themes: the bundle's, else the repository's `templates/` (three folders above core's dist or src). Never
  * throws (template.ts evaluates it at import): a damaged bundle gives the repository's path, which does not exist in
  * an app (doctor names the damage).
  */
 export function starterTemplatesDir(bundle: BundleInfo | null = bundleInfoOrNull()): string {
-  return bundle ? bundle.paths.templates : resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'templates');
+  return bundle ? bundle.paths.templates : resolve(dirname(fileURLToPath(import.meta.url)), ...Array<string>(MODULE_DEPTH + 3).fill('..'), 'templates');
 }

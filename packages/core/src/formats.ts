@@ -5,8 +5,6 @@
  * A file of a higher version than this Retake reads is refused with one message — it was made for a newer Retake
  * — instead of a flood of unknown-key errors. Retake never rewrites a user's file to another version.
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 /**
  * The version of Retake (`retake --version`, run.json `engine.retake`, the app). One number: the root package.json's,
@@ -40,18 +38,4 @@ export function newerFormatMessage(value: unknown, format: FormatVersion): strin
   const v = (value as { version?: unknown }).version;
   if (typeof v !== 'number' || !Number.isInteger(v) || v <= format.supported) return undefined;
   return `this ${format.file} is version ${v}: it was made for a newer Retake (this one reads version ${format.supported}) — update Retake`;
-}
-
-/**
- * The refusal of a run folder whose run.json a newer Retake wrote (render, plan, raw export). Undefined when
- * run.json is absent, unreadable or of a version this Retake reads: a run without one still renders.
- */
-export function newerRunMessage(dir: string): string | undefined {
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(join(dir, 'run.json'), 'utf8'));
-  } catch {
-    return undefined;
-  }
-  return newerFormatMessage(value, { file: 'run.json', supported: FORMAT_VERSIONS.run });
 }

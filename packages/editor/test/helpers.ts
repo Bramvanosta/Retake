@@ -11,7 +11,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadProject, loadTemplate } from '@retake/core';
+import { loadProject, loadTemplate, fileFacts } from '@retake/core/io';
 import type {
   ComponentKind,
   LoadedProject,
@@ -24,6 +24,7 @@ import { createComponent, loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planEdit } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanSegment } from '@retake/editor';
+import { PERSON_POLICY } from '@retake/core';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
 const plainWrite = async (file: string, text: string): Promise<void> => {
@@ -100,7 +101,7 @@ export async function studioWorkspace(
 
 const templates: Record<string, LoadedTemplate> = {};
 export async function template(name: 'editorial' | 'motion' | 'default'): Promise<LoadedTemplate> {
-  templates[name] ??= await loadTemplate(name, REPO);
+  templates[name] ??= await loadTemplate(name, REPO, { files: fileFacts(PERSON_POLICY) });
   return templates[name];
 }
 

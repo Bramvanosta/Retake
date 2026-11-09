@@ -16,6 +16,7 @@ import { extractSite } from '../src/index.js';
 import type { SiteReport } from '../src/index.js';
 import { BRAND_SITE_COLORS, BRAND_SITE_URL, hasOpenssl, startBrandSite } from './site-fixture.js';
 import type { BrandSite } from './site-fixture.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasOpenssl();
 
@@ -27,7 +28,7 @@ describe.skipIf(!can)('site extraction of the brand-site fixture', () => {
   beforeAll(async () => {
     site = await startBrandSite();
     out = await mkdtemp(join(tmpdir(), 'site-extract-'));
-    report = await extractSite({
+    report = await extractSite({ policy: PERSON_POLICY,
       url: BRAND_SITE_URL,
       host: 'brand.test',
       outDir: out,
@@ -127,7 +128,7 @@ describe.skipIf(!can)('site extraction of the brand-site fixture', () => {
     ] as const) {
       const dir = await mkdtemp(join(tmpdir(), 'site-redirect-'));
       try {
-        const r = await extractSite({ url: `https://brand.test${path}`, host: 'brand.test', outDir: dir, testResolve: site.testResolve });
+        const r = await extractSite({ policy: PERSON_POLICY, url: `https://brand.test${path}`, host: 'brand.test', outDir: dir, testResolve: site.testResolve });
         expect(r.status, path).toBe('failed');
         expect(r.untrusted.error, path).toMatch(why);
         expect(r.network.requests, path).toBe(0);

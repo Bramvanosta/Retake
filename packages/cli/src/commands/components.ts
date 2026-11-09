@@ -1,6 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, COMPONENT_KINDS, bundleInfo, errorsOf, warningsOf } from '@retake/core';
+import { COMPONENT_ID_RE, COMPONENT_KINDS, errorsOf, warningsOf } from '@retake/core';
+import { bundleInfo, fileFacts } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core';
 import {
   PREVIEW_FILE,
@@ -14,14 +15,15 @@ import {
 } from '@retake/components';
 import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@retake/components';
 import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
-import type { PreviewComponentTarget, RenderedPreview } from '@retake/editor';
-import { componentWriter, personScope } from '@retake/engine';
+import type { PreviewComponentTarget, RenderedPreview, PreviewReadmeWriter } from '@retake/editor';
+import { componentWriter, personScope, fileWriter, ProjectStore } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural, truncate } from '../ui.js';
 import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
+import type { OpenedWorkspace } from '@retake/engine';
 
 export interface ComponentsListOptions {
   kind?: ComponentKind;
@@ -188,6 +190,14 @@ export interface ComponentsCreateOptions {
 }
 
 /** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
+/**
+ * The READMEs of the workspace's components, written through the project store of its components folder (journaled as
+ * the CLI's, on the version read); the built-in library's and the scaffolds' are written directly by the editor.
+ */
+function componentReadmes(ws: OpenedWorkspace): PreviewReadmeWriter {
+  return { root: ws.componentsDir, write: fileWriter(new ProjectStore(ws.componentsDir, personScope(ws.root), undefined, '<components_dir>'), 'component') };
+}
+
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name, write: componentWriter(ws, personScope(ws.root)) });
@@ -196,8 +206,10 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   let previewError: string | undefined;
   if (opts.preview !== false) {
     try {
-      const template = await loadPreviewTheme(opts.theme ?? PREVIEW_THEME, ws.root);
+      const template = await loadPreviewTheme(opts.theme ?? PREVIEW_THEME, ws.root, fileFacts(ws.policy));
       [preview] = await renderComponentPreviews({
+        workPolicy: ws.policy,
+        readmes: componentReadmes(ws),
         root: ws.root,
         template,
         targets: [{ id: created.manifest.id, dir: created.dir, entry: created.entry, manifest: created.manifest }],
@@ -306,10 +318,12 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
     else ui.ok('every preview is up to date');
     return EXIT.ok;
   }
-  const template = await loadPreviewTheme(themeName, ws.root);
+  const template = await loadPreviewTheme(themeName, ws.root, fileFacts(ws.policy));
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
   const done = await renderComponentPreviews({
+    workPolicy: ws.policy,
+    readmes: componentReadmes(ws),
     root: ws.root,
     registry: reg,
     template,

@@ -1,42 +1,8 @@
 import { copyFile, mkdir, readdir, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
-import {
-  ARTEFACTS_DIR,
-  agentTrustProblems,
-  channelWords,
-  FORMAT_VERSIONS,
-  compileWritePolicy,
-  guardsWrites,
-  displayPages,
-  displayTable,
-  isCaptureScene,
-  listSteps,
-  loginCommand as defaultLoginCommand,
-  loginMatchers,
-  mailboxFor,
-  networkHost,
-  pageOrigins,
-  scenePageEntries,
-  planPersonas,
-  reserveRunId,
-  resolveClock,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  resolveStepRef,
-  sceneId,
-  templateSceneEntry,
-  templateVideo,
-  timelineVideo,
-  writeJson,
-  writingHooks,
-  hookStepNames,
-  resolveNamedHook,
-  stepHookList,
-  ffmpegBin,
-  projectPath,
-} from '@retake/core';
+import { ARTEFACTS_DIR, agentTrustProblems, channelWords, FORMAT_VERSIONS, compileWritePolicy, guardsWrites, displayPages, displayTable, isCaptureScene, listSteps, loginCommand as defaultLoginCommand, loginMatchers, mailboxFor, networkHost, pageOrigins, scenePageEntries, planPersonas, resolveClock, resolveEnvironment, resolvePersonas, resolveRunAccess, resolveStepRef, sceneId, templateSceneEntry, templateVideo, timelineVideo, writingHooks, hookStepNames, resolveNamedHook, stepHookList, projectPath } from '@retake/core';
+import { reserveRunId, writeJson, ffmpegBin, nodeFileFacts, retakeHome } from '@retake/core/io';
 import type {
   AgentChannel,
   TimelineEvent,
@@ -106,9 +72,13 @@ import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
 import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
 import type { GuardedWrite, WriteGuardOptions } from './write-guard.js';
+import type { WorkPolicy } from '@retake/core';
 
 export interface RunOptions {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   scenario: LoadedScenario;
   template?: LoadedTemplate;
   mode: RunMode;
@@ -521,6 +491,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       encoder: encoderKind ?? 'libx264',
       crf: capture.crf,
       ...(opts.ffmpeg ? { ffmpeg: opts.ffmpeg } : {}),
+      policy: opts.policy,
       horizon: o.horizon,
       ...(o.thumbs ? { onThumb: (n: number, g: Buffer) => activity.add(n, g) } : {}),
     });
@@ -549,7 +520,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
     // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env });
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env, files: nodeFileFacts });
       if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
@@ -592,7 +563,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     await prefetchSecrets(secrets, sc, until, readsMail ? (mailbox ?? null) : null);
     // Sessions & personas (L1.6): which persona films each page, each one's browser on a copy of its session, checked
     // off camera before anything runs — no setup hook, no recorder yet.
-    personas = resolvePersonas(project, env.name);
+    personas = resolvePersonas(project, env.name, { home: retakeHome() });
     // A sandbox account's plain password (L1.8) is a secret as written: registered now, before anything this run writes
     // can hold it (the outline below; autoLogin registers it again when its login runs).
     for (const p of personas) for (const v of p.secrets ?? []) secrets.addValue(v);
@@ -606,6 +577,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     prepared = await prepareSessions(personas.filter((p) => plan.used.includes(p.name)), { runId, log });
     const realmOf = personaOf(plan, personas, env, () => rt);
     session = await BrowserSession.open({
+      policy: opts.policy,
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
@@ -630,7 +602,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
     if (mode === 'capture') {
       // L5.7: the encoder fed during the take, the GPU the capture renders with, a limiter turned off.
-      encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg);
+      encoderKind = await resolveEncoder(capture.encoder, opts.ffmpeg, opts.policy);
       gpu = await session.gpuInfo();
       if (gpu && !gpu.accelerated) {
         const m = `the capture browser renders without its GPU (${gpu.renderer ?? 'software'}${gpu.software?.length ? `; in software: ${gpu.software.join(', ')}` : ''}): motion may look choppy and the CPU climbs — see \`retake doctor\`${browserConfig.channel === 'headless-shell' ? ' (browser.channel: headless-shell has no GPU: remove it)' : ''}`;
@@ -986,7 +958,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     // Artefact images (emails, PDF pages, icons, project documents) are rendered after the capture, in a clean browser.
     if (rt && !(failure !== null && (isCancelled(failure) || failure instanceof LoginPageError))) {
       try {
-        await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project });
+        await rt.artefacts.finalize({ browser: projectBrowser(project, opts.browser), scenario: sc, project, policy: opts.policy });
       } catch (e) {
         timeline.warn(`artefacts: ${errorMessage(e)}`);
       }
@@ -1113,7 +1085,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           const t = trackOf(ev);
           const file = t ? join(dir, t.builder.info.file) : record.capture;
           return file ? { video: file, count: Math.max(1, Math.round(endT * capture.fps)) } : null;
-        }, capture.fps, ffmpegBin(opts.ffmpeg), log);
+        }, capture.fps, ffmpegBin(opts.policy, opts.ffmpeg), log);
   }
   // What the screen did after each click (R-FLD-23, R-FLD-26): slow transitions, waits the edit shortens.
   let transitions: RunPerf['transitions'];

@@ -8,13 +8,14 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
 import { loadComponentRegistry, themeTokens } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { LOOP_FORMAT, PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples, loopFrames } from '@retake/editor';
 import type { PreviewSamples } from '@retake/editor';
 import { REPO } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let root: string;
 let registry: ComponentRegistry;
@@ -26,7 +27,7 @@ beforeAll(async () => {
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
   samples = loadPreviewSamples();
-  for (const name of ['editorial', 'motion', 'default']) themes[name] = await loadTemplate(name, root);
+  for (const name of ['editorial', 'motion', 'default']) themes[name] = await loadTemplate(name, root, { files: fileFacts(PERSON_POLICY) });
 });
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });

@@ -15,8 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { useAgentPolicy, withOldOutgoingEnv } from '@retake/core';
-import type { LoadedProject, LoadedSandbox, SandboxManifest } from '@retake/core';
+import { withOldOutgoingEnv, PERSON_POLICY, agentPolicy } from '@retake/core';
+import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
 import {
   BREAKER_STALE_MS,
   SandboxError,
@@ -45,6 +45,9 @@ import {
   waitHealthy,
   writeState,
 } from '@retake/sandbox';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 const posix = process.platform !== 'win32';
 /** The built lock module (`pnpm build`): the race test runs it in separate processes. */
@@ -378,7 +381,7 @@ describe('a service: command and environment', () => {
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
     try {
       const env = await serviceEnv(
-        { project, sandbox },
+        { project, sandbox, policy },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}', REGION: '{{vars.region}}', NODE_ENV: 'development' } },
         { PATH: '/usr/bin', HOME: '/home/me', npm_config_cache: 'x', npm_lifecycle_event: 'studio', PNPM_SCRIPT_SRC_DIR: 'y', VITEST: 'true', VITEST_POOL_ID: '1', NODE_ENV: 'test', INIT_CWD: '/x', LANG: 'C' },
       );
@@ -402,10 +405,10 @@ describe('a service: command and environment', () => {
     const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] } } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
-    useAgentPolicy([tmp]);
+    policy = agentPolicy([tmp], policy.ffmpeg, policy.render);
     try {
       const env = await serviceEnv(
-        { project, sandbox },
+        { project, sandbox, policy },
         { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}' } },
         { PATH: `/usr/bin:${join(tmp, 'bin')}`, HOME: '/home/me', LANG: 'C', AWS_SECRET_ACCESS_KEY: 'exported', STRIPE_TEST_KEY: 'listed', NODE_OPTIONS: '--require ./x.cjs', DOCKER_HOST: 'unix:///x.sock' },
       );
@@ -420,7 +423,7 @@ describe('a service: command and environment', () => {
         ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
       });
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
       delete process.env.RETAKE_TEST_SECRET;
     }
   });

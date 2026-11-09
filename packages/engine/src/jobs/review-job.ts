@@ -9,7 +9,7 @@
  * data goes into job.json: review_get makes thumbnails when it is read. The review package is imported lazily.
  */
 import { JOB_INPUT_VERSION, RENDER_ID_RE, projectPath } from '@retake/core';
-import type { ReviewJobInput, WorkspaceConfig } from '@retake/core';
+import type { ReviewJobInput } from '@retake/core';
 import type { ReviewProgress } from '@retake/review';
 import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
@@ -19,6 +19,7 @@ import { editor, review } from '../lazy.js';
 import { reviewStep } from '../production.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 // The lazy @retake/review (lazy.ts), re-exported for the modules that import it from here.
 export { review };
@@ -68,13 +69,13 @@ export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): P
 }
 
 /** review/<render_id>/ of a review job's project. */
-export async function reviewDirOf(ws: WorkspaceConfig, input: Pick<ReviewJobInput, 'project' | 'render_id'>): Promise<string> {
+export async function reviewDirOf(ws: OpenedWorkspace, input: Pick<ReviewJobInput, 'project' | 'render_id'>): Promise<string> {
   const project = await openProjectBySlug(ws, input.project);
   return projectPath(project.dir, 'review', input.render_id);
 }
 
 /** After a review job was interrupted: the previous review set aside comes back, temporary folders go. */
-export async function cleanupInterruptedReview(ws: WorkspaceConfig, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedReview(ws: OpenedWorkspace, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'review') return;
   try {
     const rv = await review();
@@ -97,7 +98,7 @@ const STAGE_SPAN: Record<ReviewProgress['stage'], [number, number]> = {
 };
 
 export interface ReviewJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: ReviewJobInput;
   signal: AbortSignal;
@@ -126,6 +127,7 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
   let last = '';
   // The review step the CLI's `retake review` runs too.
   const result = await reviewStep({
+    policy: ctx.ws.policy,
     project,
     root: ctx.ws.root,
     render: record.id,

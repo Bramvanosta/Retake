@@ -34,7 +34,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
       if (anchorsOnShownRender(caller) && (req.render_created_at === undefined || req.render_created_at === null)) {
         throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
       }
-      return addComment(await project(slug), req, commentAuthor(), scope);
+      return addComment(await project(slug), req, commentAuthor(), scope, ws.policy);
     },
     reply: async (slug, id, text, o = {}) => {
       // Proposals are Claude's: a person changes the file; any other channel's entry would be labelled as Claude's.
@@ -45,6 +45,7 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         ...(o.proposal !== undefined ? { proposal: o.proposal } : {}),
         registry: async () => (await memoRegistry(ws)).registry,
         scope,
+        files: ctx.files,
       });
     },
     resolve: async (slug, id, req) => {
@@ -71,10 +72,10 @@ export function commentsApi(ctx: EngineContext): Engine['comments'] {
         id,
         { entry_id: req.entry_id, ...(req.if_match !== undefined && req.if_match !== null ? { ifMatch: req.if_match } : {}) },
         commentAuthor(),
-        { registry: async () => (await memoRegistry(ws)).registry, scope },
+        { registry: async () => (await memoRegistry(ws)).registry, scope, files: ctx.files },
       );
     },
-    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry }),
+    proposal: async (slug, id, entryId) => getProposal(await project(slug), id, entryId, { registry: async () => (await memoRegistry(ws)).registry, files: ctx.files }),
     counts: async (slug, o = {}) => commentIndex.counts(await project(slug), o),
   };
 }

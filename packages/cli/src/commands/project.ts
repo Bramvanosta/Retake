@@ -1,14 +1,6 @@
-import {
-  AUTH_KEYS,
-  PERSONA_NONE,
-  checkNewProject,
-  listProjects,
-  listTemplates,
-  loginPatternForm,
-  resolveEnvironment,
-  resolvePersonas,
-} from '@retake/core';
-import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig } from '@retake/core';
+import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { checkNewProject, listProjects, listTemplates, retakeHome } from '@retake/core/io';
+import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig, WorkPolicy } from '@retake/core';
 import { personScope, writeNewProject } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -74,7 +66,7 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
   ui.line(c.dim('  hooks/        sql / http / js / sh files used by setup and teardown'));
   if (Object.keys(environments).length === 0) ui.warn('no environment yet: add one under `environments:` in project.yaml');
   // Signed in with the workspace's browser settings (retake.yaml `browser`), as `retake login` would.
-  const code = auth ? await offerSignIn(ui, global, await openProject(ws, project.dir), auth) : EXIT.ok;
+  const code = auth ? await offerSignIn(ui, global, await openProject(ws, project.dir), auth, ws.policy) : EXIT.ok;
   ui.line(`next: write scenarios/<name>.yaml, then ${c.bold(`retake validate ${project.slug} <name>`)}`);
   return code;
 }
@@ -163,7 +155,7 @@ async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environm
  * After `retake new`: sign each persona in now (a browser window), or say how to later. No answer (Ctrl-C at the
  * question, the end of the input) or Ctrl-C in a window: that persona and the next ones later; EXIT.interrupted then.
  */
-async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>): Promise<ExitCode> {
+async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject, auth: Record<string, AuthConfig>, policy: WorkPolicy): Promise<ExitCode> {
   const later: string[] = [];
   const command = loginCommandFor(global);
   let asking = true;
@@ -183,9 +175,9 @@ async function offerSignIn(ui: Ui, global: GlobalOptions, project: LoadedProject
         later.push(cmd);
         continue;
       }
-      const persona = resolvePersonas(project, env).find((p) => p.name === name)!;
+      const persona = resolvePersonas(project, env, { home: retakeHome() }).find((p) => p.name === name)!;
       try {
-        const r = await signInPersona(ui, global, project, resolveEnvironment(project, env), persona, {});
+        const r = await signInPersona(ui, global, project, resolveEnvironment(project, env), persona, { policy });
         if (r === EXIT.interrupted) {
           asking = false;
           code = r;

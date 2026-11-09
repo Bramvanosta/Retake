@@ -18,12 +18,13 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import { BUNDLE_CSP, allowedDownload, allowedRequest, guardedPageFailure, originOf, planRun, renderComponentLoops, renderPlan, withCspMeta } from '@retake/editor';
 import type { BrowserProcessInfo, EditPlan, RenderNetwork } from '@retake/editor';
 import { SHARED_CACHE, hasTool, renderWorkspace } from './render-helpers.js';
 import type { RenderWorkspace } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const ALLOW = { assetPrefix: 'http://127.0.0.1:4100/tok3n/', bundlePort: 3007 };
 
@@ -182,13 +183,13 @@ async function addIntro(name: string, code: string): Promise<void> {
 }
 
 async function introPlan(component: string): Promise<EditPlan> {
-  const planned = await planRun({ project: ws.project, run: 'latest', root: ws.root, overrides: { intro: true, components: { intro: component } } });
+  const planned = await planRun({ workPolicy: PERSON_POLICY, project: ws.project, run: 'latest', root: ws.root, overrides: { intro: true, components: { intro: component } } });
   expect(planned.plan.segments[0]?.component.id).toBe(component);
   return planned.plan;
 }
 
 async function renderIntro(plan: EditPlan, network: RenderNetwork, out: string) {
-  return renderPlan({ plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network, frameRange: [0, 5], concurrency: 2 });
+  return renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, out), root: ws.root, cacheDir: SHARED_CACHE, network, frameRange: [0, 5], concurrency: 2 });
 }
 
 describe.skipIf(!canRender)('a guarded render loads only the files of its plan', () => {
@@ -245,7 +246,7 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
     const before = renderBrowsers();
     const browsers: BrowserProcessInfo[] = [];
     hits = [];
-    const err = await renderPlan({ plan, out: join(ws.root, 'closing.mp4'), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 5], concurrency: 2, onBrowser: (b) => browsers.push(b) }).then(
+    const err = await renderPlan({ workPolicy: PERSON_POLICY, plan, out: join(ws.root, 'closing.mp4'), root: ws.root, cacheDir: SHARED_CACHE, network: 'guard', frameRange: [0, 5], concurrency: 2, onBrowser: (b) => browsers.push(b) }).then(
       () => null,
       (e: unknown) => e as Error,
     );
@@ -260,12 +261,12 @@ describe.skipIf(!canRender)('a guarded render loads only the files of its plan',
 
   it('L5.15 fixes: the same in a guarded preview loop — that item fails plainly, B gets nothing, no browser outlives it', async () => {
     const registry = await loadComponentRegistry({ root: ws.root });
-    const template = await loadTemplate('editorial', ws.root);
+    const template = await loadTemplate('editorial', ws.root, { files: fileFacts(PERSON_POLICY) });
     const info = registry.get('acme/closing');
     const before = renderBrowsers();
     const browsers: BrowserProcessInfo[] = [];
     hits = [];
-    const r = await renderComponentLoops({
+    const r = await renderComponentLoops({ workPolicy: PERSON_POLICY,
       root: ws.root,
       registry,
       template,

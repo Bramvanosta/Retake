@@ -12,7 +12,8 @@
  * older running server's bootstrap answer has none.
  */
 import { resolve } from 'node:path';
-import { isUnder, loadWorkspaceConfig, realPathOf, retakeHome, workspaceFolders } from '@retake/core';
+import { isUnder, realPathOf, workspaceFolders } from '@retake/core';
+import { loadWorkspaceConfig, retakeHome, nodeFileFacts } from '@retake/core/io';
 import {
   DISCOVERY_VERSION,
   EngineError,
@@ -101,7 +102,7 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
 async function assertTokenOutside(root: string): Promise<void> {
   const dir = studioTokenDir();
   const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
-  const inside = folders.find((f) => isUnder(dir, f) || isUnder(realPathOf(dir), f));
+  const inside = folders.find((f) => isUnder(dir, f, nodeFileFacts) || isUnder(realPathOf(dir, nodeFileFacts), f, nodeFileFacts));
   if (inside) {
     throw new EngineError('refused', `the Retake home (${retakeHome()}) lies inside the workspace (${inside}): the Studio keeps its token there, where an agent can read files`, {
       fix: 'set RETAKE_HOME to a folder outside the workspace (or leave it unset: ~/.retake), then run retake ui again',

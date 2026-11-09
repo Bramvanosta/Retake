@@ -9,7 +9,7 @@
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
 import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
-import type { AgentTrustEnvironment } from '@retake/core';
+import type { AgentTrustEnvironment, WorkPolicy } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { ENGINE_TRUST, submitterChannel } from './caller.js';
@@ -17,6 +17,7 @@ import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 /**
  * The wording channel of a client's refusals (caller.ts submitterChannel): the Studio (`ui`) is told "from the Studio"
@@ -169,7 +170,7 @@ export interface Preflight {
 
 /** Why a hook needs a human, from its file alone (the preflight's backstop when its dry run could not template it). */
 function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase): string | null {
-  return hookApprovalReason(hook, phase, { projectDir: project.dir });
+  return hookApprovalReason(hook, phase, { projectDir: project.dir, files: nodeFileFacts });
 }
 
 /**
@@ -179,10 +180,11 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
 export async function preflightHooks(
   project: LoadedProject,
   lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
-  o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
+  o: { policy: WorkPolicy; env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
 ): Promise<Preflight> {
   const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback, declaredHookLines } = await import('@retake/hooks');
   const { ctx, access } = await createHookContext(project, {
+    policy: o.policy,
     env: o.env,
     dry: true,
     trust: ENGINE_TRUST,
@@ -273,7 +275,7 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
  */
 export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient, env?: AgentTrustEnvironment): void {
   const via = agentChannel(client);
-  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}) });
+  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}), files: nodeFileFacts });
   if (problems.length) {
     // How many are about the URLs it opens (the Studio's own words when they are all of them: "opens another site").
     const navigation = env ? navigationTrustProblems(sc, { via, env }).length : 0;

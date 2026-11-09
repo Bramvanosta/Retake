@@ -30,6 +30,7 @@ import {
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan, OverlayUse, PlanInputFile } from '@retake/editor';
 import type { Timeline } from '@retake/core';
 import { FIXTURES, REPO, fixtureProject, template } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const RUN = '/virtual/runs/r';
 const csv = 'month,quote requests,accepted\nJun,42,19\nJul,51,24\n';
@@ -314,7 +315,7 @@ describe('plan inputs (project files read before planning)', () => {
     const dir = mkdtempSync(join(tmpdir(), 'ds-plan-inputs-'));
     mkdirSync(join(dir, 'data'));
     writeFileSync(join(dir, 'data', 'quotes-per-month.csv'), csv);
-    const read = await planInputFiles(t, { dir });
+    const read = await planInputFiles(t, { dir }, undefined, PERSON_POLICY);
     expect(read['data/quotes-per-month.csv'].text).toBe(csv);
     expect(read['assets/logo.png'].missing).toBe(true);
   });

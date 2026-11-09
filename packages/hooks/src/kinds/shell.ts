@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv, projectPath } from '@retake/core';
+import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv, projectPath } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -15,6 +15,7 @@ import { tail } from '../util.js';
 import { baseDirOf, ignoreRollback } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 import type { ShownAction } from '../shown.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 export const DEFAULT_SHELL_TIMEOUT_S = 120;
 /** Grace period between SIGTERM and SIGKILL of a timed-out process group. */
@@ -158,8 +159,8 @@ async function resolveCwd(ctx: HookContext, cwd: string | undefined): Promise<st
  * `pass_env:`), its base only for a rollback Retake did not sign.
  */
 function inheritedEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
-  if (cmd.bare) return childEnv(process.env);
-  return policyChildEnv(process.env, { pass: ctx.project.config.pass_env }) ?? process.env;
+  if (cmd.bare) return childEnv(process.env, { folders: ctx.policy.agentFolders ?? [], files: nodeFileFacts });
+  return policyChildEnv(ctx.policy, process.env, { pass: ctx.project.config.pass_env, files: nodeFileFacts }) ?? process.env;
 }
 
 function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
@@ -237,7 +238,7 @@ async function execute(
     // The command got only some variables of this process's environment: say which (names only) — and, under the
     // agent policy, how to pass another (a rollback Retake did not sign takes none: pass_env does not reach it).
     const names = () => Object.keys(inheritedEnv(ctx, cmd));
-    const hint = cmd.bare ? ` (${bareEnvHint(names())})` : agentPolicyFolders() ? ` (${childEnvHint(names())})` : '';
+    const hint = cmd.bare ? ` (${bareEnvHint(names())})` : ctx.policy.agentFolders ? ` (${childEnvHint(names())})` : '';
     throw new HookError(`${label} ${how}${output ? `: ${tail(output, 1_000)}` : ''}${hint}`);
   }
   return 'exit 0';
@@ -295,8 +296,8 @@ function agentShellTokenProblems(texts: ReadonlyArray<string | undefined>): stri
 function agentShellTextProblems(ctx: HookContext, text: { run: string; cwd?: string }): string[] {
   const base = baseDirOf(ctx);
   return [
-    ...(text.cwd !== undefined ? agentShellCwdProblems(text.cwd, { projectDir: ctx.project.dir, cwd: base }) : []),
-    ...agentShellProblems(text.run, { projectDir: ctx.project.dir, cwd: resolve(base, text.cwd ?? '.') }),
+    ...(text.cwd !== undefined ? agentShellCwdProblems(text.cwd, { projectDir: ctx.project.dir, cwd: base, files: nodeFileFacts }) : []),
+    ...agentShellProblems(text.run, { projectDir: ctx.project.dir, cwd: resolve(base, text.cwd ?? '.'), files: nodeFileFacts }),
   ];
 }
 
@@ -359,7 +360,7 @@ export async function prepareShell(spec: string | ShellHookSpec, k: KindEnv, dec
     };
     rollbackShown = { kind: 'shell', run: rb.run, ...(rb.cwd !== undefined ? { cwd: rb.cwd } : {}), ...(rb.env ? { env: rb.env } : {}) };
   }
-  const destructive = shellDestructiveReason(cmd.run, { projectDir: baseDirOf(ctx) });
+  const destructive = shellDestructiveReason(cmd.run, { projectDir: baseDirOf(ctx), files: nodeFileFacts });
   return {
     description: redactText(ctx, describeShell(cmd.run)),
     shown: { kind: 'shell', run: rendered.run, ...(rendered.cwd !== undefined ? { cwd: rendered.cwd } : {}), ...(rendered.env ? { env: rendered.env } : {}), ...(s.timeout !== undefined ? { timeout: s.timeout } : {}) },

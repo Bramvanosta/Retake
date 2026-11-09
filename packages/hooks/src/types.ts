@@ -1,4 +1,4 @@
-import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment } from '@retake/core';
+import type { AgentChannel, HookAccess, HookKind, HookStep, HookTrust, HttpHookSpec, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
 
 /**
  * Which list of hooks is being run. Only `setup` and `step` hooks journal a rollback action. `seed` (L1.8): the steps
@@ -18,6 +18,11 @@ export type HookLogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface HookContext {
   project: LoadedProject;
+  /**
+   * What the work runs under (core WorkPolicy): under the agent policy a shell hook gets only some variables of this
+   * process's environment, and its PATH none of the workspace's folders.
+   */
+  policy: WorkPolicy;
   /** Selected environment: its pages are the `{{page}}` template keys. */
   env: ResolvedEnvironment;
   /** `{{vars.x}}` / `{{x}}` (merged over project.config.vars). */

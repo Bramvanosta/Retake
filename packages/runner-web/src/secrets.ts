@@ -1,4 +1,5 @@
-import { collectSecretRefs, redact, resolveSecretRef, secretForms } from '@retake/core';
+import { collectSecretRefs, redact, secretForms } from '@retake/core';
+import { resolveSecretRef } from '@retake/core/io';
 import type { RunProgress, RunRecord, SecretResolver, Timeline } from '@retake/core';
 
 /**

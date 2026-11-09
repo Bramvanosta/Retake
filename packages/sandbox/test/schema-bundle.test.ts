@@ -11,8 +11,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { SANDBOX_SCHEMA_FILE, loadProject, overrideBundleInfo } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { SANDBOX_SCHEMA_FILE } from '@retake/core';
+import { loadProject, overrideBundleInfo } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { createComponent } from '@retake/components';
 import { initSandbox, schemaRef } from '../src/index.js';
 

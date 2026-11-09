@@ -5,6 +5,7 @@ import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
 import type { ShownAction } from '../shown.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 export interface KindEnv {
   ctx: HookContext;
@@ -90,7 +91,7 @@ export async function readProjectFile(projectDir: string, rel: string, what: str
  */
 export async function readHookFile(ctx: HookContext, baseDir: string, rel: string, what: string): Promise<string> {
   if (ctx.trust === 'mcp') {
-    const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true });
+    const problem = projectFileProblem(ctx.project.dir, rel, { baseDir, code: true, files: nodeFileFacts });
     if (problem) throw new HookSecurityError(`${what}: ${problem}`, 'mcp');
   }
   const text = await readProjectFile(baseDir, rel, what);

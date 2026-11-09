@@ -12,6 +12,8 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- The README block `retake components preview` (and `retake components create`) writes into a component of your
+  workspace's components folder is an entry of the workspace journal too, written on the README as it was read.
 - A sandbox scaffold (`retake sandbox init --force`) and the line it adds to project.yaml are written on the version
   just read: a file changed in between is reported as a conflict instead of being overwritten. `--force` over a
   sandbox that project.yaml declares in a folder outside the project is refused (its files are not written there).

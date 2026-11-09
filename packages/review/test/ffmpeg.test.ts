@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { extractFrames, selectExpr } from '../src/ffmpeg.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let dir: string;
 let ramp: string;
@@ -42,7 +43,7 @@ describe('extractFrames', () => {
   it('delivers 250 frames of one video in one pass, each the frame asked for', async () => {
     const wanted = Array.from({ length: 250 }, (_, i) => i * 3 + 1);
     const got: Array<[number, number]> = [];
-    const delivered = await extractFrames(ramp, [...wanted, 900], { width: 64, height: 36, videoWidth: 64, videoHeight: 36 }, (frame, img) => {
+    const delivered = await extractFrames(ramp, [...wanted, 900], { policy: PERSON_POLICY, width: 64, height: 36, videoWidth: 64, videoHeight: 36 }, (frame, img) => {
       got.push([frame, img.data[0]]);
     });
     expect(delivered).toEqual(wanted); // frame 900 lies past the end

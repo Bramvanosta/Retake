@@ -41,7 +41,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page, Response, Route } from 'playwright-core';
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, SITE_RESERVED_SUFFIXES } from '@retake/core';
-import type { BrowserConfig, SiteTestTarget } from '@retake/core';
+import type { BrowserConfig, SiteTestTarget, WorkPolicy } from '@retake/core';
 import { CancelledError, RunnerError } from '../errors.js';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
@@ -158,6 +158,9 @@ export interface SiteReport {
 }
 
 export interface SiteExtractOptions {
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   /** The canonical URL (core parseSiteUrl), already checked and approved. */
   url: string;
   host: string;
@@ -421,7 +424,7 @@ export async function extractSite(o: SiteExtractOptions): Promise<SiteReport> {
     stopped(stop.signal);
 
     o.onPhase?.('loading');
-    browser = await chromium.launch({ ...launchTarget(o.browser), headless: true, handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false, ...launchOptions({ args: siteBrowserArgs(port) }) });
+    browser = await chromium.launch({ ...launchTarget(o.browser, { policy: o.policy }), headless: true, handleSIGINT: false, handleSIGTERM: false, handleSIGHUP: false, ...launchOptions({ args: siteBrowserArgs(port), policy: o.policy }) });
     const launched = browser;
     await refuseUnsandboxed(launched, () => launched.close(), 'The extraction browser');
     stopped(stop.signal);

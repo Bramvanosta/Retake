@@ -26,7 +26,8 @@ import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { loadWorkspaceConfig, workspaceFolders } from '@retake/core';
+import { workspaceFolders } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import {
   BodyTooLargeError,
   BootstrapCodes,

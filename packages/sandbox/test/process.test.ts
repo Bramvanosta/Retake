@@ -16,12 +16,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { Journal } from '@retake/hooks';
 import type { NewJournalEntry } from '@retake/hooks';
 import { SandboxError, groupTree, openSandbox, probePort, processStart, processTable, readState, sandboxPaths, signalState, writeState } from '@retake/sandbox';
 import type { Sandbox } from '@retake/sandbox';
+import { PERSON_POLICY } from '@retake/core';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const SERVER = join(REPO, 'fixtures/wholesale/server.mjs');
@@ -108,7 +109,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
     root = await mkdtemp(join(tmpdir(), 'retake-sandbox-proc-'));
     ports = await freePorts(4);
     project = await makeProject(root, 'p1', fixtureManifest(ports));
-    sb = openSandbox(project);
+    sb = openSandbox(project, undefined, PERSON_POLICY);
   });
 
   afterAll(async () => {
@@ -192,7 +193,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
 
   it('a second sandbox on the same ports is refused before it starts, naming the program that holds them', async () => {
     const pid = (await sb.status()).services[0].pid!;
-    const other = openSandbox(await makeProject(root, 'p2', fixtureManifest(ports)));
+    const other = openSandbox(await makeProject(root, 'p2', fixtureManifest(ports)), undefined, PERSON_POLICY);
     const e = await other.up({ log }).catch((x) => x);
     expect(e).toBeInstanceOf(SandboxError);
     expect(e.code).toBe('port');
@@ -243,7 +244,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
       'p3',
       ['version: 1', 'provider: process', 'services:', '  app:', `    command: [node, -e, "console.log('boom: no database at localhost:5999'); process.exit(3)"]`, `    url: http://localhost:${port}`, `    pages: {app: "http://localhost:${port}"}`, ''].join('\n'),
     );
-    const crash = openSandbox(p);
+    const crash = openSandbox(p, undefined, PERSON_POLICY);
     const t0 = Date.now();
     const e = await crash.up({ log }).catch((x) => x);
     expect(Date.now() - t0).toBeLessThan(10_000);
@@ -261,7 +262,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
       'p4',
       ['version: 1', 'provider: process', 'services:', '  slow:', `    command: '${process.execPath} -e "setInterval(() => {}, 1000)" & wait'`, `    url: http://localhost:${port}`, '    health: {path: /, timeout_s: 60}', `    pages: {app: "http://localhost:${port}"}`, ''].join('\n'),
     );
-    const slow = openSandbox(p);
+    const slow = openSandbox(p, undefined, PERSON_POLICY);
     const ac = new AbortController();
     const up = slow.up({ log, signal: ac.signal }).catch((x) => x);
     const paths = sandboxPaths(p.dir, 'sandbox');
@@ -319,7 +320,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
   /** A sandbox of the small service (`app`) with these extra sandbox.yaml lines. */
   async function svcSandbox(name: string, command: string, service: string[], extra: string[] = []): Promise<{ sb: Sandbox; project: LoadedProject }> {
     const project = await makeProject(dir, name, ['version: 1', 'provider: process', 'services:', '  app:', `    command: ${command}`, ...service.map((l) => `    ${l}`), ...extra, ''].join('\n'));
-    const s = openSandbox(project);
+    const s = openSandbox(project, undefined, PERSON_POLICY);
     opened.push(s);
     return { sb: s, project };
   }
@@ -488,9 +489,10 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     await mkdir(answered, { recursive: true });
     await writeFile(join(bin, 'ps'), `#!/bin/sh\ncase "$*" in *lstart=*-p*) for a; do last=$a; done; sleep 3; touch ${JSON.stringify(answered)}/$last;; esac\nexec /bin/ps "$@"\n`, { mode: 0o755 });
     const script = [
-      `import { loadProject } from ${JSON.stringify(join(REPO, 'packages/core/dist/index.js'))};`,
+      `import { loadProject } from ${JSON.stringify(join(REPO, 'packages/core/dist/io/index.js'))};`,
+      `import { PERSON_POLICY } from ${JSON.stringify(join(REPO, 'packages/core/dist/index.js'))};`,
       `import { openSandbox } from ${JSON.stringify(join(REPO, 'packages/sandbox/dist/index.js'))};`,
-      `await openSandbox(await loadProject(${JSON.stringify(project.dir)})).up({ seed: 'never' });`,
+      `await openSandbox(await loadProject(${JSON.stringify(project.dir)}), undefined, PERSON_POLICY).up({ seed: 'never' });`,
     ].join('\n');
     const child = spawn(process.execPath, ['--input-type=module', '-e', script], { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: 'ignore' });
     const paths = sandboxPaths(project.dir, 'sandbox');
@@ -511,7 +513,7 @@ describe.skipIf(!posix)('process sandboxes: what a reset touches, interrupts, id
     child.kill('SIGKILL');
     await new Promise((r) => child.once('exit', r));
     expect(signalState(-pid)).toBe('alive');
-    const down = await openSandbox(project).down();
+    const down = await openSandbox(project, undefined, PERSON_POLICY).down();
     expect(down.stopped).toEqual(['app']);
     expect(signalState(-pid)).not.toBe('alive');
   });

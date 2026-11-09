@@ -1,18 +1,19 @@
 /** The sessions a run of a scenario signs in and a persona's state as a client sees it (the façade's auth and admission). */
 import { workspaceFolders } from '@retake/core';
-import type { LoadedProject, RunMode, Scenario, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject, RunMode, Scenario } from '@retake/core';
 import { personaStateView, scenarioPersonaStates } from '../auth.js';
 import type { PersonaState } from '../auth.js';
 import { cleansWorkerEnv } from '../caller.js';
 import type { Caller } from '../caller.js';
 import { cleanWorkerEnv } from '../jobs/worker-env.js';
 import type { AuthStatusItem, EngineOptions, ScenarioSessions } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** What the sessions of a scenario are read with: the client's options, its caller, the workspace, its login command. */
 export interface SessionsDeps {
   opts: Pick<EngineOptions, 'workerEnv'>;
   caller: Caller;
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   loginCommand: (p: { project: string; env: string; persona?: string }) => string;
 }
 

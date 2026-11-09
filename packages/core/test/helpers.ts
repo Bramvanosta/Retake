@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyProjectDefaults, loadProject, planNewProject } from '@retake/core';
+import { applyProjectDefaults } from '@retake/core';
+import { loadProject, planNewProject } from '@retake/core/io';
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 
 const here = dirname(fileURLToPath(import.meta.url));

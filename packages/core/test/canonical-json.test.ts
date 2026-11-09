@@ -11,7 +11,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseDocument } from 'yaml';
 import { afterAll, describe, expect, it } from 'vitest';
-import { canonicalJson, scenarioTextChanged, seedHash } from '../src/index.js';
+import { canonicalJson, scenarioTextChanged } from '../src/index.js';
+import { seedHash } from '../src/io/index.js';
 import type { SandboxManifest } from '../src/index.js';
 
 // ── The copies replaced, verbatim ────────────────────────────────────────────────────────────────────────────────────

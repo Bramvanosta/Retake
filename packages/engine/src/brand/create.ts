@@ -17,24 +17,9 @@
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, sep } from 'node:path';
-import {
-  AuthorBrandInputSchema,
-  BrandInputSchema,
-  OLD_MADE_BY,
-  OLD_THEME_PROVENANCE_FILE,
-  RETAKE_VERSION,
-  STARTER_TEMPLATES_DIR,
-  TEMPLATE_FILE,
-  THEME_NAME_RE,
-  fontRefFile,
-  insideFolder,
-  loadTemplate,
-  parseTemplateYaml,
-  parseYaml,
-  printableText,
-  siteRef,
-} from '@retake/core';
-import type { BrandFontRef, BrandInput, TemplateFile, WorkspaceConfig } from '@retake/core';
+import { AuthorBrandInputSchema, BrandInputSchema, OLD_MADE_BY, OLD_THEME_PROVENANCE_FILE, RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, fontRefFile, insideFolder, parseTemplateYaml, parseYaml, printableText, siteRef } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core';
 import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -44,6 +29,7 @@ import type { StoreScope } from '../store/project-store.js';
 import { checkTemplateName, themeAssetProblems } from '../templates.js';
 import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** The provenance file of a theme this tool made (hidden: the loader and listTemplates ignore it). */
 export const THEME_PROVENANCE_FILE = '.retake-theme.json';
@@ -381,14 +367,14 @@ function fontFace(info: FontInfo, ref: BrandFontRef): { weight: number; italic: 
 }
 
 /** Create a theme from brand inputs (see the module comment). Throws EngineError: invalid, refused, conflict, not_found. */
-export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
+export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o: ThemeCreateOptions): Promise<ThemeCreated> {
   const input = parseInput(raw, o.trust);
   const now = o.now ?? new Date();
   const date = now.toISOString().slice(0, 10);
   const { name } = input;
   const replace = input.replace === true;
   const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir)) {
+  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a new theme would land among its starter themes`, {
       fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
@@ -403,7 +389,7 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
   // The base: its components, frame, captions, motion and durations; its fonts when none are given.
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root);
+    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -545,9 +531,9 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
         await stage.write(THEME_PROVENANCE_FILE, `${JSON.stringify(provenance, null, 2)}\n`);
         for (const [f, b] of written) await stage.write(f, b);
         // What a render will load: the loader, the files inside the folder, the components it picks.
-        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir });
+        const parsed = parseTemplateYaml(generated.yaml, { dir: stage.dir, files: fileFacts(ws.policy) });
         if (parsed.issues.length) throw new EngineError('internal', `the new theme does not validate: ${parsed.issues.map((i) => i.message).join('; ')}`);
-        const loaded = await loadTemplate(stage.dir);
+        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('internal', outside.join('; '));
         try {

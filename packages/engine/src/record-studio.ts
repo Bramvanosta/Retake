@@ -37,32 +37,8 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import {
-  DEFAULT_TEMPLATE,
-  JOB_ID_RE,
-  PERSONA_NONE,
-  RECORD_ID_RE,
-  RecordAnnotationChangeSchema,
-  RecordedEventSchema,
-  applyRecordChange,
-  draftFromRecording,
-  draftInvalidIssue,
-  emptyRecordAnnotations,
-  firstHiddenChar,
-  hiddenCharName,
-  isEmptyRecordAnnotations,
-  loadProjectTemplate,
-  parseScenario,
-  plainTarget,
-  readPlainFile,
-  recordZoomOptions,
-  recordedAlternatives,
-  scenarioBlocks,
-  shownStep,
-  pathInside,
-  statePath,
-  PROJECT_DIRS,
-} from '@retake/core';
+import { DEFAULT_TEMPLATE, JOB_ID_RE, PERSONA_NONE, RECORD_ID_RE, RecordAnnotationChangeSchema, RecordedEventSchema, applyRecordChange, draftFromRecording, draftInvalidIssue, emptyRecordAnnotations, firstHiddenChar, hiddenCharName, isEmptyRecordAnnotations, parseScenario, plainTarget, recordZoomOptions, recordedAlternatives, scenarioBlocks, shownStep, pathInside, statePath, PROJECT_DIRS } from '@retake/core';
+import { loadProjectTemplate, readPlainFile } from '@retake/core/io';
 import type {
   DraftIssue,
   DraftPlaceholder,
@@ -93,6 +69,7 @@ import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 import type { StoreScope } from './store/project-store.js';
 import { sha256Hex } from './storage.js';
+import type { FileFacts } from '@retake/core';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
 export const RECORD_EVENTS_MAX_BYTES = 64 * 1024 * 1024;
@@ -245,6 +222,8 @@ export interface RecordStudioContext {
   client: JobClient;
   /** Where a saved draft is written and journaled (the engine's caller). */
   scope: StoreScope;
+  /** How a draft's files are looked at (core FileFacts): the engine's, under its workspace's policy. */
+  files: FileFacts;
 }
 
 // ── Reading the folder ─────────────────────────────────────────────────────
@@ -522,7 +501,7 @@ const ACTION_EVENT_KINDS = new Set(['pointer', 'dblclick', 'type', 'select_nativ
  * recording's draft holds no YAML anchor or alias (B-M2: the block editor edits it after Save); the others' is exactly
  * their job's.
  */
-function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null): { draft: RecordingDraft } | { problem: string } {
+function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null, files: FileFacts): { draft: RecordingDraft } | { problem: string } {
   const meta = s.meta!;
   let start: ReturnType<typeof recordStart>;
   try {
@@ -550,7 +529,7 @@ function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: Re
   if (!draft.issues.some((i) => i.severity === 'error')) {
     const ids = (draft.scenario.scenes as Array<{ id: string }>).map((x) => x.id);
     const file = join(s.dir, 'draft.yaml');
-    for (const x of parseScenario(draft.yaml, { project: s.project, file, env: start.env.name }).issues) {
+    for (const x of parseScenario(draft.yaml, { files, project: s.project, file, env: start.env.name }).issues) {
       if (x.severity === 'error') draft.issues.push(draftInvalidIssue(x, ids, 'the draft does not validate in the project'));
     }
   }
@@ -645,10 +624,10 @@ const studioWords = (by: JobClient | null) =>
   by === 'mcp' ? 'Claude started this recording (its job saved the draft): it is read-only here' : by === 'cli' ? 'this recording was made in a terminal: it is read-only here' : 'this recording was not started from the Studio: it is read-only here';
 
 /** The camera insert's factors under the project theme's max_zoom (B-M3). */
-async function zoomOf(project: LoadedProject): Promise<RecordZoomView | null> {
+async function zoomOf(project: LoadedProject, files: FileFacts): Promise<RecordZoomView | null> {
   let max = DEFAULT_TEMPLATE.motion.max_zoom;
   try {
-    max = (await loadProjectTemplate(project)).template.motion.max_zoom;
+    max = (await loadProjectTemplate(project, undefined, { files })).template.motion.max_zoom;
   } catch {
     max = DEFAULT_TEMPLATE.motion.max_zoom;
   }
@@ -728,7 +707,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   // The events as drafted and checked (B8, fail closed: a record.json without the checksum never matches).
   const eventsChanged = !!s.record && s.record.events_sha256 !== sha256Hex(read.bytes);
   const shownAnn = studio ? ann : null;
-  const made = draftOf(s, read.events, shownAnn);
+  const made = draftOf(s, read.events, shownAnn, ctx.files);
   base.counts = { events: read.events.length, actions: read.events.filter((e) => ACTION_EVENT_KINDS.has(e.kind)).length, dropped_lines: read.dropped };
   const check = checkOf(s.record, eventsChanged);
   base.check = check.view;
@@ -744,14 +723,14 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
   const annotatable = open && ANNOTATE_STATES.has(s.state) && 'annotations' in annRead;
   base.can.annotate = annotatable;
   base.can.save = annotatable && FINAL_STATES.has(s.state) && !eventsChanged && read.events.length > 0;
-  if (annotatable) base.zoom = await zoomOf(project);
+  if (annotatable) base.zoom = await zoomOf(project, ctx.files);
   // The check replayed the recorder's own draft (no picks, no inserts): its failing step, found on screen (B-M4).
   let checkUntrusted = check.untrusted;
   const failedAt = checkUntrusted?.failed_at;
   if (failedAt) {
     let row: { scene: string; step: number } | null = { scene: failedAt.scene, step: failedAt.step };
     if (!isEmptyRecordAnnotations(shownAnn)) {
-      const bare = draftOf(s, read.events, null);
+      const bare = draftOf(s, read.events, null, ctx.files);
       row = 'draft' in bare ? shownStep(bare.draft.sources, d.sources, failedAt) : null;
     }
     checkUntrusted = { ...checkUntrusted, failed_row: row };
@@ -804,7 +783,7 @@ export async function recordAnnotate(ctx: RecordStudioContext, project: LoadedPr
   const change = parsed.data;
   if (change.op === 'insert' && change.insert.kind === 'camera') {
     // A factor above the project theme's max_zoom is clamped by the editor and warned by the validator (B-M3).
-    const zoom = await zoomOf(project);
+    const zoom = await zoomOf(project, ctx.files);
     if (!zoom || change.insert.zoom > zoom.max) {
       throw new EngineError('invalid', `annotate: zoom ${change.insert.zoom} is above the project theme's max_zoom (${zoom ? zoom.max : 'no zoom'}): choose ${zoom ? zoom.options.join(', ') : 'no zoom'}`);
     }
@@ -880,14 +859,14 @@ function hiddenProblem(yaml: string): string | null {
  * (the Studio never writes one), agent trust (`via: 'studio'`), never over an existing file (a taken name is a
  * conflict), errors without a path — the validator's text located by scene and step and kept under `details.untrusted`.
  */
-export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope): Promise<{ file: string; hash: string; warnings: number }> {
+export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope, files: FileFacts): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
   if (hid !== null) throw new EngineError('invalid', `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`);
   const taken = () => new EngineError('conflict', `scenario ${name} exists: choose another name (a recording never replaces a scenario)`, { fix: 'choose another name' });
   if (project.scenarios.includes(name)) throw taken();
   try {
-    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope });
+    const r = await saveScenarioText(project, name, yaml, { ifMatch: null, agent: true, via: 'studio', scope, files });
     return { file: r.file, hash: r.hash, warnings: r.warnings.length };
   } catch (e) {
     if (e instanceof Error && e.name === 'ScenarioError') {
@@ -927,7 +906,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
       throw new EngineError('conflict', 'save: the recording\'s events changed after it was drafted and checked — the draft would not be the one checked; record again');
     }
     if (!read.events.length) throw new EngineError('conflict', 'save: nothing was recorded');
-    const made = draftOf(s, read.events, a);
+    const made = draftOf(s, read.events, a, ctx.files);
     if ('problem' in made) throw new EngineError('refused', `save: ${made.problem}`);
     const d = made.draft;
     // The draft the person saw, or nothing (A-M1): its events, project.yaml (pages, vars) and annotations as they were.
@@ -939,7 +918,7 @@ export async function recordSave(ctx: RecordStudioContext, project: LoadedProjec
     if (errors.length) {
       throw new EngineError('invalid', 'not saved: the draft has errors — they are listed by scene and step', { details: { issues: errors } });
     }
-    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope);
+    const w = await saveRecordedDraft(project, req.name, d.yaml, sceneIds, ctx.scope, ctx.files);
     const next: RecordAnnotations = { ...a, rev: a.rev + 1, saved: { name: req.name, file: w.file, hash: w.hash, at: new Date().toISOString() } };
     await writeAnnotations(dir, next);
     return { name: req.name, file: w.file, hash: w.hash, rev: next.rev, warnings: w.warnings, untrusted: { issues: d.issues } };

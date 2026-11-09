@@ -1,23 +1,8 @@
 /** Claude's proposals on a thread: apply, the diff shown, the preview (see ../comments.ts). */
 import { open } from 'node:fs/promises';
 import { relative } from 'node:path';
-import {
-  COMMENT_AUTHOR_MAX,
-  COMMENT_ENTRY_ID_RE,
-  deriveStatus,
-  PROPOSAL_CHANGED_LINES_MAX,
-  applyHunks,
-  diffLines,
-  hunkStats,
-  invertHunks,
-  joinLines,
-  proposalStates,
-  sameHunks,
-  scenarioSinceRun,
-  textEol,
-  textLines,
-  projectPath,
-} from '@retake/core';
+import { COMMENT_AUTHOR_MAX, COMMENT_ENTRY_ID_RE, deriveStatus, PROPOSAL_CHANGED_LINES_MAX, applyHunks, diffLines, hunkStats, invertHunks, joinLines, proposalStates, sameHunks, textEol, textLines, projectPath } from '@retake/core';
+import { scenarioSinceRun } from '@retake/core/io';
 import type {
   CommentAuthor,
   CommentEntry,
@@ -41,6 +26,7 @@ import { renderIndex, threadView } from './views.js';
 import type { CommentView } from './views.js';
 import { writeAppended } from './threads.js';
 import type { CommentWritten } from './threads.js';
+import type { FileFacts } from '@retake/core';
 
 // ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
 
@@ -122,7 +108,7 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope } = {},
+  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: FileFacts },
 ): Promise<CommentApplied> {
   // The scenario is written as the caller's (the Studio's by default: a person applies there).
   const scope = o.scope ?? threadStore(project, author).scope;
@@ -151,7 +137,7 @@ export async function applyProposal(
     }
     let edited: Awaited<ReturnType<typeof editScenario>>;
     try {
-      edited = await editScenario(project, r.thread.scenario, { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', ...(o.registry ? { registry: o.registry } : {}), scope });
+      edited = await editScenario(project, r.thread.scenario, { hash: entry.proposal.base_sha256, edit: { kind: 'replace_text', text } }, { agent: true, via: 'studio', files: o.files, ...(o.registry ? { registry: o.registry } : {}), scope });
     } catch (e) {
       if (e instanceof EngineError && e.message.startsWith('not saved: ')) throw new EngineError(e.code, e.message.replace(/^not saved: /, 'not applied: '), { ...(e.details !== undefined ? { details: e.details } : {}), ...(e.fix !== undefined ? { fix: e.fix } : {}) });
       throw e;
@@ -227,7 +213,7 @@ export interface CommentProposalView {
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
  * canonical hunks) and shown with context; otherwise the stored hunks, unverified. Lines are data (`untrusted.rows`).
  */
-export async function getProposal(project: LoadedProject, id: string, entryId?: string, o: { registry?: () => Promise<ComponentRegistry> } = {}): Promise<CommentProposalView> {
+export async function getProposal(project: LoadedProject, id: string, entryId: string | undefined, o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts }): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
@@ -352,7 +338,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry> } = {},
+  o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);

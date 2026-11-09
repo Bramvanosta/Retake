@@ -6,19 +6,8 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  RETAKE_VERSION,
-  FORMAT_VERSIONS,
-  RunRecordSchema,
-  loadWorkspaceConfig,
-  newerFormatMessage,
-  newerRunMessage,
-  parseProjectYaml,
-  parseScenario,
-  parseTemplateYaml,
-  validateScenario,
-} from '@retake/core';
+import { ConfigError, RETAKE_VERSION, FORMAT_VERSIONS, RunRecordSchema, newerFormatMessage, parseProjectYaml, parseScenario, parseTemplateYaml, validateScenario } from '@retake/core';
+import { loadWorkspaceConfig, newerRunMessage } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { tempDir, writeFiles } from './helpers.js';
 

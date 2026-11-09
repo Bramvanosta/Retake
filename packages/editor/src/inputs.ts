@@ -6,18 +6,9 @@
  */
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import {
-  LOTTIE_FILE_EXTENSIONS,
-  MEDIA_COMPONENTS,
-  VIDEO_FILE_EXTENSIONS,
-  fileExtension,
-  isImagePath,
-  mediaFileOf,
-  probeVideoFile,
-  readLottieMeta,
-  resolveThemeComponents,
-} from '@retake/core';
-import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core';
+import { LOTTIE_FILE_EXTENSIONS, MEDIA_COMPONENTS, VIDEO_FILE_EXTENSIONS, fileExtension, isImagePath, mediaFileOf, readLottieMeta, resolveThemeComponents } from '@retake/core';
+import { probeVideoFile } from '@retake/core/io';
+import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline, WorkPolicy } from '@retake/core';
 import type { PlanInputFile } from './planner/input.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;
@@ -89,11 +80,11 @@ export function themeFileRefs(template: LoadedTemplate | undefined): string[] {
 }
 
 /** Read one user / project file for the planner (L2.12 videos and Lottie files included). */
-async function readInputFile(ref: string, file: string): Promise<PlanInputFile> {
+async function readInputFile(ref: string, file: string, work: WorkPolicy): Promise<PlanInputFile> {
   const ext = fileExtension(ref);
   if (VIDEO_FILE_EXTENSIONS.includes(ext)) {
     try {
-      const v = probeVideoFile(file);
+      const v = probeVideoFile(file, work);
       return { file, width: v.width, height: v.height, video: v };
     } catch (e) {
       const reason = (e as { reason?: string }).reason;
@@ -156,13 +147,15 @@ export function imageFileSize(bytes: Buffer): { width: number; height: number } 
 export async function planInputFiles(
   timeline: Pick<Timeline, 'scenes' | 'events'> & Partial<Pick<Timeline, 'video'>>,
   project: Pick<LoadedProject, 'dir'>,
-  template?: LoadedTemplate,
+  template: LoadedTemplate | undefined,
+  /** What the work runs under (core WorkPolicy): the ffprobe of its videos. */
+  work: WorkPolicy,
 ): Promise<Record<string, PlanInputFile>> {
   const out: Record<string, PlanInputFile> = {};
   for (const ref of [...planFileRefs(timeline), ...themeFileRefs(template)]) {
     const file = isAbsolute(ref) ? ref : join(project.dir, ref);
     try {
-      out[ref] = await readInputFile(ref, file);
+      out[ref] = await readInputFile(ref, file, work);
     } catch {
       out[ref] = { file, missing: true };
     }

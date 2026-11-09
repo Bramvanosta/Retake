@@ -4,6 +4,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
 import type { HookStep, ShellHookSpec } from '@retake/core';
 import type { HookPhase } from './types.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 /** Where a hook stands when its approval is asked for and checked: its list, its position, its environment. */
 export interface HookPlace {
@@ -79,7 +80,7 @@ export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: str
   const files: Record<string, string> = {};
   const problems: string[] = [];
   for (const { ref, what } of hookFileRefs(hook)) {
-    const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true });
+    const problem = projectFileProblem(o.projectDir, ref, { baseDir, code: true, files: nodeFileFacts });
     if (problem) problems.push(`${what}: ${problem}`);
     else files[ref] = sha256File(resolve(baseDir, ref));
   }
@@ -94,7 +95,7 @@ export function hookFiles(hook: HookStep, o: { projectDir: string; baseDir?: str
         if (!isFile(abs)) continue;
         const ref = s.cwd && cwd !== baseDir ? `${s.cwd}/${w}` : w;
         if (Object.hasOwn(files, ref)) continue;
-        const problem = projectFileProblem(o.projectDir, w, { baseDir: cwd, code: true });
+        const problem = projectFileProblem(o.projectDir, w, { baseDir: cwd, code: true, files: nodeFileFacts });
         // A file the command names outside the project (a system tool by a relative path) is not the project's to bind.
         if (problem && /resolves outside the project folder/.test(problem)) continue;
         if (problem && o.agentWritten) continue;

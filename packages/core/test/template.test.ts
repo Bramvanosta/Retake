@@ -1,15 +1,7 @@
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  DEFAULT_TEMPLATE,
-  TemplateSchema,
-  listTemplates,
-  loadProjectTemplate,
-  loadTemplate,
-  parseTemplateYaml,
-  STARTER_TEMPLATES_DIR,
-} from '@retake/core';
+import { ConfigError, DEFAULT_TEMPLATE, TemplateSchema, parseTemplateYaml } from '@retake/core';
+import { listTemplates, loadProjectTemplate, loadTemplate, STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { createProject, tempDir, writeFiles } from './helpers.js';
 
 const ASSETS = {

@@ -11,31 +11,12 @@
  *   folder (B M1).
  */
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  agentWritable,
-  findWorkspaceRoot,
-  gitignoreFix,
-  gitignoreNamesOldDirOnly,
-  legacyInfo,
-  loadWorkspaceConfig,
-  oldEnvNames,
-  oldHomeDir,
-  oldHomeLine,
-  oldHomeState,
-  oldKitImportMessage,
-  oldSignInHints,
-  oldVarsLine,
-  oldVarsUnread,
-  oldWorkspaceFileAt,
-  projectFileProblem,
-  retakeHome,
-  snapshotMachine,
-  withOldOutgoingEnv,
-} from '../src/index.js';
+import { ConfigError, agentWritable, gitignoreFix, gitignoreNamesOldDirOnly, legacyInfo, oldEnvNames, oldHomeDir, oldHomeLine, oldHomeState, oldKitImportMessage, oldSignInHints, oldVarsLine, oldVarsUnread, oldWorkspaceFileAt, projectFileProblem, snapshotMachine, withOldOutgoingEnv } from '../src/index.js';
+import { findWorkspaceRoot, loadWorkspaceConfig, retakeHome } from '../src/io/index.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 let tmp: string;
 
@@ -105,8 +86,8 @@ describe('the old home (critique H3)', () => {
     const saved = process.env.HOME;
     process.env.HOME = home; // scratch HOME: restored below
     try {
-      expect(legacyInfo({ DEMO_STUDIO_HOME: out })).toEqual({ old_home: out, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
-      expect(legacyInfo({})).toEqual({ old_home: '~/.demo-studio' });
+      expect(legacyInfo({ DEMO_STUDIO_HOME: out }, homedir(), nodeFileFacts.exists)).toEqual({ old_home: out, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
+      expect(legacyInfo({}, homedir(), nodeFileFacts.exists)).toEqual({ old_home: '~/.demo-studio' });
     } finally {
       process.env.HOME = saved;
     }
@@ -125,7 +106,7 @@ describe('the old home (critique H3)', () => {
     process.env.HOME = home;
     try {
       expect(retakeHome({})).toBe(join(home, '.retake'));
-      expect(oldHomeState({}, home)?.old).toBe(join(home, '.demo-studio'));
+      expect(oldHomeState({}, home, nodeFileFacts.exists)?.old).toBe(join(home, '.demo-studio'));
     } finally {
       process.env.HOME = saved;
     }
@@ -154,11 +135,11 @@ describe('the old workspace file (critique M3)', () => {
   });
 
   it("is this tool's next to projects/ or an old tool folder, or by its first 4 KB (version: and a workspace key) — not another tool's", () => {
-    expect(oldWorkspaceFileAt(ws('with-projects'))).toBe(true);
-    expect(oldWorkspaceFileAt(ws('with-state'))).toBe(true);
-    expect(oldWorkspaceFileAt(join(ws('parent'), 'by-content'))).toBe(true);
-    expect(oldWorkspaceFileAt(join(ws('outer'), 'apps', 'site'))).toBe(false);
-    expect(oldWorkspaceFileAt(ws('outer'))).toBe(false);
+    expect(oldWorkspaceFileAt(ws('with-projects'), homedir(), nodeFileFacts)).toBe(true);
+    expect(oldWorkspaceFileAt(ws('with-state'), homedir(), nodeFileFacts)).toBe(true);
+    expect(oldWorkspaceFileAt(join(ws('parent'), 'by-content'), homedir(), nodeFileFacts)).toBe(true);
+    expect(oldWorkspaceFileAt(join(ws('outer'), 'apps', 'site'), homedir(), nodeFileFacts)).toBe(false);
+    expect(oldWorkspaceFileAt(ws('outer'), homedir(), nodeFileFacts)).toBe(false);
   });
 
   it('stops the lookup where it lies (an ancestor with projects/ never wins); another tool\'s file is walked past', () => {
@@ -190,11 +171,11 @@ describe('the old workspace file (critique M3)', () => {
     await mkdir(join(home, '.demo-studio'), { recursive: true });
     await mkdir(join(home, 'work', 'projects'), { recursive: true });
     await writeFile(join(home, 'studio.yaml'), 'version: 2\nprojects_dir: other-tool\n');
-    expect(oldWorkspaceFileAt(home, home)).toBe(false);
+    expect(oldWorkspaceFileAt(home, home, nodeFileFacts)).toBe(false);
     // Through a link to the home folder too; elsewhere the same folder would be this tool's.
     await symlink(home, join(tmp, 'ws', 'home-link'));
-    expect(oldWorkspaceFileAt(join(tmp, 'ws', 'home-link'), home)).toBe(false);
-    expect(oldWorkspaceFileAt(home, join(tmp, 'ws', 'elsewhere'))).toBe(true);
+    expect(oldWorkspaceFileAt(join(tmp, 'ws', 'home-link'), home, nodeFileFacts)).toBe(false);
+    expect(oldWorkspaceFileAt(home, join(tmp, 'ws', 'elsewhere'), nodeFileFacts)).toBe(true);
     const saved = { HOME: process.env.HOME, RETAKE_ROOT: process.env.RETAKE_ROOT };
     process.env.HOME = home;
     delete process.env.RETAKE_ROOT;
@@ -215,7 +196,7 @@ describe('the old tool folder stays unrunnable (critique H1)', () => {
     await writeFile(join(project, '.demo-studio', 'inspect', 'i_1', 'dump.js'), 'fetch("/api/delete")');
     expect(agentWritable('.demo-studio/inspect/i_1/dump.js')).toBe(true);
     expect(agentWritable('.Demo-Studio/records/x.sql')).toBe(true);
-    expect(projectFileProblem(project, '.demo-studio/inspect/i_1/dump.js', { code: true })).toBe(
+    expect(projectFileProblem(project, '.demo-studio/inspect/i_1/dump.js', { files: nodeFileFacts, code: true })).toBe(
       '.demo-studio/inspect/i_1/dump.js is a file an agent can write through MCP (.demo-studio/inspect/i_1/dump.js): through MCP code is only run from files a human put elsewhere in the project (hooks/, assets/…)',
     );
   });
@@ -245,8 +226,8 @@ describe('the variables (critique H2) and the kit import', () => {
     expect(oldVarsUnread({ RETAKE_HOME: '/h' })).toEqual([]);
     // engine_info's field: the old home (no RETAKE_HOME, the old one holding sign-ins), the variables, or nothing.
     const H = join(tmp, 'info-home');
-    expect(legacyInfo({ ...env, RETAKE_HOME: '/h' })).toEqual({ old_vars: ['DEMO_STUDIO_CHROMIUM'] });
-    expect(legacyInfo({ RETAKE_HOME: '/h' })).toBeUndefined();
+    expect(legacyInfo({ ...env, RETAKE_HOME: '/h' }, homedir(), nodeFileFacts.exists)).toEqual({ old_vars: ['DEMO_STUDIO_CHROMIUM'] });
+    expect(legacyInfo({ RETAKE_HOME: '/h' }, homedir(), nodeFileFacts.exists)).toBeUndefined();
     expect(oldSignInHints({ DEMO_STUDIO_HOME: '/x', DEMO_STUDIO_ROOT: '/w' }, H, () => false)).toEqual([oldVarsLine(['DEMO_STUDIO_HOME'])]);
     expect(oldSignInHints({ DEMO_STUDIO_ROOT: '/w' }, H, (p) => p === join(H, '.demo-studio', 'profiles'))).toEqual([oldHomeLine(oldHomeState({}, H, (p) => p === join(H, '.demo-studio', 'profiles'))!)]);
     expect(oldSignInHints({ RETAKE_HOME: '/h', DEMO_STUDIO_HOME: '/x' }, H, () => true)).toEqual([]);

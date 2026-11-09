@@ -17,7 +17,7 @@ import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@retake/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { THEME_USES_STATS, createEngine, openWorkspace, templateView } from '../src/index.js';
 import type { Engine, EngineError } from '../src/index.js';
 import { REPO } from './helpers.js';

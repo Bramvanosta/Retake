@@ -17,6 +17,7 @@ import { iconRefusal, NOTIFICATION_ICON_MAX_BYTES, NOTIFICATION_ICON_RUN_MAX, NO
 import { NOTIFICATION_TEXT_MAX, readNotificationPayload } from '../src/session.js';
 import { CURSOR_EFFECTS_PER_SECOND } from '../src/runtime.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#1f4e6e"/></svg>';
 
@@ -158,7 +159,7 @@ addEventListener('message', () => {
 
   async function run(name: string, steps: unknown[]): Promise<{ tl: Timeline; runDir: string; ns: NotificationArtefact[] }> {
     const project = makeProject(dir, { app: app.url, assets: assets.url });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario(name, { pacing: FAST, scenes: [{ id: 'flow', open: '/app.html', steps: steps as never }] }),
       mode: 'dry',

@@ -12,7 +12,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { clientPath } from '@retake/core';
+import { clientPath } from '@retake/core/io';
 import { stableNodePath } from '@retake/engine/integrations';
 import { TOOLS } from '../src/index.js';
 import { progressReporter } from '../src/server.js';

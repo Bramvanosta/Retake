@@ -11,6 +11,7 @@ import { cursorCovers } from '../src/scene-cursor.js';
 import { CALENDAR_PAGE, CHOREO_PAGE, DESIGN_FRAME, EDITOR_PAGE, PICKERS_PAGE, POPOVER_PAGE, RICH_FRAME } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
 let dir: string;
@@ -38,7 +39,7 @@ const clicksOf = (e: TimelineEvent) => ((e.data as { clicks?: Click[] } | undefi
 const roles = (e: TimelineEvent) => clicksOf(e).map((c) => c.role);
 
 async function run(id: string, scenes: Scene[], pacing: Partial<Pacing> = FAST) {
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }, { width: 1000, height: 700 }),
     mode: 'dry',
     runId: id,

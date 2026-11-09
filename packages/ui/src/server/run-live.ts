@@ -37,7 +37,7 @@ import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
 import { JOB_STATES, PROJECT_SLUG_RE } from '@retake/core';
-import type { JobState, WorkspaceConfig } from '@retake/core';
+import type { JobState } from '@retake/core';
 import {
   ERROR_STATUS,
   EngineError,
@@ -51,7 +51,7 @@ import {
   securityHeaders,
   toEngineError,
 } from '@retake/engine';
-import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead } from '@retake/engine';
+import type { Engine, JobFiles, JobQueueView, LiveFeedFrame, RangeRead, OpenedWorkspace } from '@retake/engine';
 import { sseText } from './live.js';
 
 /** Run streams served at once, at most. */
@@ -672,7 +672,7 @@ class FrameFeed {
 
 export interface RunLiveOptions {
   engine: Engine;
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   pollMs?: number;
   log?: (message: string) => void;
 }

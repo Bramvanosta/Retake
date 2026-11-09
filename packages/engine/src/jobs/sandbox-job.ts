@@ -6,7 +6,7 @@
  * taken at submit and bound to its fingerprint, like a hook.
  */
 import { JOB_INPUT_VERSION, resolveEnvironment } from '@retake/core';
-import type { JobApproval, LoadedProject, SandboxResetJobInput, SandboxUpJobInput, WorkspaceConfig } from '@retake/core';
+import type { JobApproval, LoadedProject, SandboxResetJobInput, SandboxUpJobInput, WorkPolicy } from '@retake/core';
 import type { ResetResult, Sandbox, SandboxLog } from '@retake/sandbox';
 import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
@@ -19,6 +19,7 @@ import { checkProjectSlug } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobRecord, SandboxJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export type SandboxJobKind = 'sandbox_up' | 'sandbox_reset';
 
@@ -39,10 +40,10 @@ export function sandboxCommandLine(cli: string, kind: SandboxJobKind, r: Sandbox
   return [cli, 'sandbox', kind === 'sandbox_up' ? 'up' : 'reset', r.project, ...(r.env !== undefined ? ['--env', q(r.env)] : []), ...(kind === 'sandbox_reset' && r.reseed ? ['--reseed'] : [])].join(' ');
 }
 
-async function openProjectSandbox(project: LoadedProject, env: string | undefined): Promise<Sandbox> {
+async function openProjectSandbox(project: LoadedProject, env: string | undefined, policy: WorkPolicy): Promise<Sandbox> {
   const { openSandbox } = await import('@retake/sandbox');
   try {
-    return openSandbox(project, env);
+    return openSandbox(project, env, policy);
   } catch (e) {
     throw toEngineError(e);
   }
@@ -58,7 +59,7 @@ export async function submitSandboxJob(
   checkProjectSlug(req.project);
   checkEnvName(req.env);
   const project = await openProjectBySlug(ctx.ws, req.project);
-  const sb = await openProjectSandbox(project, req.env);
+  const sb = await openProjectSandbox(project, req.env, ctx.ws.policy);
   const items = await seedApprovalItems(project, sb.env);
   const approvals: JobApproval[] = await takeApprovals(
     {
@@ -78,7 +79,7 @@ export async function submitSandboxJob(
 }
 
 export interface SandboxJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: SandboxUpJobInput | SandboxResetJobInput;
   signal: AbortSignal;
@@ -106,7 +107,7 @@ function resetView(r: ResetResult): NonNullable<SandboxJobResult['reset']> {
 export async function executeSandboxJob(ctx: SandboxJobContext): Promise<SandboxJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const sb = await openProjectSandbox(project, input.env);
+  const sb = await openProjectSandbox(project, input.env, ctx.ws.policy);
   const log: SandboxLog = (level, message) => {
     if (level !== 'debug') ctx.event({ type: 'log', level, message });
   };

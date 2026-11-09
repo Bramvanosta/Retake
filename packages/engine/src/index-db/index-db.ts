@@ -21,7 +21,7 @@
 import { lstat, mkdir, open as openFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { HISTORY_VERSION, historyFile } from '../history.js';
 import type { HistoryEntry } from '../history.js';
 import type { JobQueueView } from '../jobs/job-queue.js';
@@ -39,6 +39,7 @@ import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
 import { projectPath, projectRef } from '@retake/core';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
 export const INDEX_SCHEMA = 1;
@@ -205,7 +206,7 @@ export class WorkspaceIndex {
 
   private constructor(
     private readonly db: DatabaseSync,
-    private readonly ws: WorkspaceConfig,
+    private readonly ws: OpenedWorkspace,
     private readonly queue: JobQueueView,
     readonly file: string,
     /** Why the file was built at open; undefined when an existing index was reused. */
@@ -216,7 +217,7 @@ export class WorkspaceIndex {
    * The workspace's index, opened (built or rebuilt when missing, corrupt or of another schema); null when this
    * Node.js has no node:sqlite (22.0–22.12). Not reconciled yet: call `reconcile()`.
    */
-  static async open(ws: WorkspaceConfig, o: IndexOptions): Promise<WorkspaceIndex | null> {
+  static async open(ws: OpenedWorkspace, o: IndexOptions): Promise<WorkspaceIndex | null> {
     const sqlite = await (o.loader ?? loadSqlite)();
     if (!sqlite) return null;
     const file = indexFile(ws.root);

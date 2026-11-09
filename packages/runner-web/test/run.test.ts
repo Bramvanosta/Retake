@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { TimelineSchema } from '@retake/core';
+import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { RunRecord, Scenario, TimelineEvent } from '@retake/core';
 import { runScenario, scaleArgs } from '../src/index.js';
 import type { RunOptions } from '../src/index.js';
@@ -37,7 +37,7 @@ afterAll(async () => {
 
 function run(name: string, scenario: Omit<Scenario, 'video'>, opts: Partial<RunOptions> = {}): Promise<RunRecord> {
   const project = makeProject(dir, { app: server.url });
-  return runScenario({
+  return runScenario({ policy: PERSON_POLICY,
     project,
     scenario: makeScenario(name, { pacing: FAST, ...scenario }),
     mode: 'dry',
@@ -144,7 +144,7 @@ describe('device scale 2 (4K-class captures, L2.8)', () => {
 
   it('captures real 2× frames: the screencast frames and capture.mp4 are width·2 × height·2', async () => {
     const project = makeProject(dir, { app: server.url }, { width: 640, height: 360 });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('scale2', { pacing: FAST, capture: { scale: 2 }, scenes: [{ id: 'doc', open: '/doc.html', steps: [{ hold: 0.6 }] }] }),
       mode: 'capture',

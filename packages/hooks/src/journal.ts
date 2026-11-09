@@ -2,27 +2,8 @@ import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import {
-  canonicalJson,
-  collectSecretRefs,
-  homeKey,
-  homeKeyFile,
-  homeSign,
-  homeSigned,
-  interpolateDeep,
-  readHomeKey,
-  readOnlyHookMessage,
-  rollbackWriteReason,
-  sandboxOf,
-  writeJson,
-  projectPath,
-  projectRef,
-  runPath,
-  STATE_DIR,
-  STATE_DIRS,
-  statePath,
-  stateRef,
-} from '@retake/core';
+import { canonicalJson, collectSecretRefs, interpolateDeep, readOnlyHookMessage, rollbackWriteReason, sandboxOf, projectPath, projectRef, runPath, STATE_DIR, STATE_DIRS, statePath, stateRef } from '@retake/core';
+import { homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, writeJson } from '@retake/core/io';
 import { HookSecurityError, JournalError, errorMessage } from './errors.js';
 import { actionLines, fieldLines, shownRollback } from './shown.js';
 import { executeRollback } from './kinds/index.js';

@@ -1,5 +1,6 @@
 import { join } from 'node:path';
-import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
+import { formatIssues, isAccessError, perfSummary } from '@retake/core';
+import { readJson } from '@retake/core/io';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
 import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, callerOf, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
@@ -126,6 +127,7 @@ export async function runCommand(
       prepared,
       opts,
       {
+        policy: ws.policy,
         // The fix of an expired session names this workspace when the command line did (-C).
         loginCommand: loginCommandFor(global),
         ...(opts.allowWrites ? { allowWrites: true } : {}),

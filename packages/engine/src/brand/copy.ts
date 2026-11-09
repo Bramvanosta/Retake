@@ -12,8 +12,8 @@
  */
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, loadTemplate, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
+import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
@@ -21,6 +21,7 @@ import { ProjectStore } from '../store/project-store.js';
 import type { StoreScope } from '../store/project-store.js';
 import { checkTemplateName, themeAssetProblems } from '../templates.js';
 import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export const THEME_COPY_MAX_FILES = 2_000;
 export const THEME_COPY_MAX_BYTES = 25 * 1024 * 1024;
@@ -73,7 +74,7 @@ function renamedText(text: string, name: string, from: string): string {
 }
 
 /** Copy a listed theme into a new workspace theme `name` (see the header). */
-export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
+export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
   const name = req?.name;
   if (typeof name !== 'string' || !THEME_NAME_RE.test(name) || name.length > 64) {
@@ -81,14 +82,14 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   }
   const now = o.now ?? new Date();
   const templatesDir = ws.templatesDir;
-  if (insideFolder(PACKAGE_ROOT, templatesDir)) {
+  if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {
     throw new EngineError('refused', `the workspace's templates_dir (${templatesDir}) lies inside the Retake folder (${PACKAGE_ROOT}): a copy would land among its starter themes`, {
       fix: 'work in a workspace of your own: set RETAKE_ROOT, or a retake.yaml whose templates_dir is outside the Retake folder',
     });
   }
   let source;
   try {
-    source = await loadTemplate(from, ws.root);
+    source = await loadTemplate(from, ws.root, { files: fileFacts(ws.policy) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -117,10 +118,10 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
             if (sha256Hex(await readFile(join(stage.dir, ...f.split('/')))) !== hashes[f]) throw new EngineError('conflict', `theme ${from}: ${f} changed while it was copied — try again`);
           }
         }
-        const parsed = parseTemplateYaml(text, { dir: stage.dir });
+        const parsed = parseTemplateYaml(text, { dir: stage.dir, files: fileFacts(ws.policy) });
         const errors = parsed.issues.filter((i) => i.severity === 'error');
         if (errors.length) throw new EngineError('invalid', `the copy does not validate: ${errors.map((i) => i.message).join('; ')}`);
-        const loaded = await loadTemplate(stage.dir);
+        const loaded = await loadTemplate(stage.dir, undefined, { files: fileFacts(ws.policy) });
         const outside = themeAssetProblems(loaded);
         if (outside.length) throw new EngineError('refused', outside.join('; '));
         try {

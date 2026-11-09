@@ -1,8 +1,9 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { PROJECT_FILE, README_FILE, environmentAccess, loadProject, planNewProject, listProjects, resolveEnvironment, resolvePersonas, pathInside } from '@retake/core';
-import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import { PROJECT_FILE, README_FILE, environmentAccess, resolveEnvironment, resolvePersonas, pathInside } from '@retake/core';
+import { loadProject, planNewProject, listProjects, retakeHome } from '@retake/core/io';
+import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
 import { LocalStorage, READ_TEXT_MAX_BYTES } from './storage.js';
@@ -10,6 +11,7 @@ import { openProject } from './workspace.js';
 import { ProjectStore } from './store/project-store.js';
 import type { StoreScope } from './store/project-store.js';
 import { checkNewProjectHosts } from './protected-hosts.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 export interface ProjectSummary {
   slug: string;
@@ -54,7 +56,7 @@ async function checkProjectFile(dir: string): Promise<void> {
 }
 
 /** Every project of the workspace with its scenarios and environments (a broken one is listed with its error). */
-export async function listProjectSummaries(ws: WorkspaceConfig): Promise<ProjectSummary[]> {
+export async function listProjectSummaries(ws: OpenedWorkspace): Promise<ProjectSummary[]> {
   const projects = await listProjects(ws.root);
   return Promise.all(
     projects.map(async (p) => {
@@ -70,7 +72,7 @@ export async function listProjectSummaries(ws: WorkspaceConfig): Promise<Project
 }
 
 /** A project by slug (never a path: core would resolve one outside the workspace). */
-export async function openProjectBySlug(ws: WorkspaceConfig, slug: string): Promise<LoadedProject> {
+export async function openProjectBySlug(ws: OpenedWorkspace, slug: string): Promise<LoadedProject> {
   await checkProjectFile(join(ws.projectsDir, checkProjectSlug(slug)));
   return openProject(ws, slug);
 }
@@ -166,7 +168,7 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
       production: env.production === true,
       access: environmentAccess(env),
       sandbox: env.sandbox !== undefined,
-      personas: resolvePersonas(project, name).map((p) => ({
+      personas: resolvePersonas(project, name, { home: retakeHome() }).map((p) => ({
         name: p.name,
         pages: p.pages,
         login_steps: (p.login?.length ?? 0) > 0,
@@ -207,7 +209,7 @@ export async function writeNewProject(root: string, input: CreateProjectInput, s
 }
 
 /** README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore of a new project; refuses an existing slug. */
-export async function createProjectFromRequest(ws: WorkspaceConfig, input: CreateProjectRequest, scope: StoreScope): Promise<LoadedProject> {
+export async function createProjectFromRequest(ws: OpenedWorkspace, input: CreateProjectRequest, scope: StoreScope): Promise<LoadedProject> {
   if (input.slug !== undefined) checkProjectSlug(input.slug);
   // Never a page on another project's production or read-only hosts (they would run read-write here).
   await checkNewProjectHosts(ws, input.environments);

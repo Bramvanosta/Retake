@@ -28,7 +28,7 @@ import {
   statePath,
   projectRef,
 } from '@retake/core';
-import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
+import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
 import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
@@ -43,6 +43,8 @@ import type { JobQueueView } from './job-queue.js';
 import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
+import { fileFacts } from '@retake/core/io';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;
@@ -207,7 +209,7 @@ export interface PreparedInspect {
  * Build the replayed scenario of a source and check it (submit, the worker, the CLI): the page key and persona against
  * the environment, or the saved scenario (its `until`, its sha256 when one was pinned); the page key's origin again.
  */
-export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject, source: InspectSourceDraft, envArg: string | undefined): Promise<PreparedInspect> {
+export async function prepareInspect(ws: OpenedWorkspace, project: LoadedProject, source: InspectSourceDraft, envArg: string | undefined): Promise<PreparedInspect> {
   try {
     if (source.kind === 'page') {
       const env = resolveEnvironment(project, envArg);
@@ -216,7 +218,7 @@ export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject
       if (!isPageOrigin(env.pages[source.page], env.pages)) throw new EngineError('refused', `page ${source.page} of environment ${env.name} is not an http(s) URL: nothing to inspect`);
       let scenario: LoadedScenario;
       try {
-        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name } });
+        scenario = inspectScenario(source.page, source.path, { ...(source.persona !== undefined ? { persona: source.persona } : {}), check: { project, env: env.name, files: fileFacts(ws.policy) } });
       } catch (e) {
         throw new EngineError('invalid', (e as Error).message);
       }
@@ -296,6 +298,8 @@ export interface InspectionRun {
 }
 
 export interface InspectionOptions {
+  /** What the work runs under (core WorkPolicy). */
+  policy: WorkPolicy;
   prepared: PreparedInspect;
   /** The folder holding inspection folders, and this one's id (its folder: <runsDir>/<id>). */
   runsDir: string;
@@ -321,6 +325,7 @@ export async function runInspection(o: InspectionOptions): Promise<InspectionRun
   let report: InspectReport | null = null;
   let signIn: InspectionRun['signIn'] = null;
   const record = await runScenario({
+    policy: o.policy,
     project: prepared.project,
     scenario: prepared.scenario,
     mode: 'dry',
@@ -391,7 +396,7 @@ export function inspectResult(id: string, dir: string, run: InspectionRun): Insp
 }
 
 export interface InspectJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: InspectJobInput;
   signal: AbortSignal;
@@ -406,13 +411,14 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
   const dir = inspectDir(project, input.inspect_id);
   const prepared = await prepareInspect(ctx.ws, project, input.source, input.env);
   await checkWorkspaceProtection(ctx.ws, project, prepared.env);
-  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }));
+  await checkSandboxEnv(project, prepared.env, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'replay', updated_at: new Date().toISOString() };
   const update = (patch: Partial<JobProgress>) => {
     Object.assign(progress, patch, { updated_at: new Date().toISOString() });
     ctx.progress({ ...progress });
   };
   const run = await runInspection({
+    policy: ctx.ws.policy,
     prepared,
     runsDir: inspectRoot(project),
     id: input.inspect_id,
@@ -435,7 +441,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
 }
 
 /** An inspection's report, read back from its folder (page text stays under `untrusted`). */
-export async function readInspection(ws: WorkspaceConfig, slug: string, id: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }> {
+export async function readInspection(ws: OpenedWorkspace, slug: string, id: string): Promise<{ dir: string; report: InspectReport | null; marked: string | null }> {
   checkProjectSlug(slug);
   const project = await openProjectBySlug(ws, slug);
   const dir = inspectDir(project, id);

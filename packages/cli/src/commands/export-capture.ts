@@ -1,7 +1,8 @@
 import { isAbsolute, join, resolve } from 'node:path';
 import { readFile } from 'node:fs/promises';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, loadProjectTemplate } from '@retake/core';
-import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, WorkspaceConfig } from '@retake/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core';
+import { loadProjectTemplate, fileFacts } from '@retake/core/io';
+import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, FileFacts } from '@retake/core';
 import { RenderError, findRun, planFileRefs, themeFileRefs } from '@retake/editor';
 import type { RawExportProgress, RawExportResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
@@ -12,6 +13,7 @@ import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { formatBytes } from './render.js';
+import type { OpenedWorkspace } from '@retake/engine';
 
 /** The raw export flags shared by `retake export-capture` and `retake run --raw`. */
 export interface RawFlags {
@@ -50,9 +52,9 @@ export function parseRawFlags(f: RawFlags): { format?: RawFormat; fps?: RawFps; 
 }
 
 /** The template a run was captured with (its cursor look), else the project's; undefined = the default look. */
-async function runTemplate(project: LoadedProject, timeline: Timeline): Promise<{ template?: LoadedTemplate; note?: string }> {
+async function runTemplate(project: LoadedProject, timeline: Timeline, files: FileFacts): Promise<{ template?: LoadedTemplate; note?: string }> {
   try {
-    return { template: await loadProjectTemplate(project, timeline.video?.template) };
+    return { template: await loadProjectTemplate(project, timeline.video?.template, { files }) };
   } catch (e) {
     return { note: `the run's template could not be loaded (${errorMessage(e)}): the cursor layer uses the default look` };
   }
@@ -72,7 +74,7 @@ export interface RawExportEvent {
  */
 export async function rawExportOfRun(
   ui: Ui,
-  ws: WorkspaceConfig,
+  ws: OpenedWorkspace,
   project: LoadedProject,
   runDir: string,
   flags: ReturnType<typeof parseRawFlags>,
@@ -85,7 +87,7 @@ export async function rawExportOfRun(
   } catch (e) {
     throw new CliError(`${runDir}: no readable timeline.json (${errorMessage(e)})`);
   }
-  const { template, note } = await runTemplate(project, timeline);
+  const { template, note } = await runTemplate(project, timeline, fileFacts(ws.policy));
   if (note && !opts.json) ui.warn(note);
   const editFiles = [...planFileRefs(timeline).map((f) => (isAbsolute(f) ? f : join(project.dir, f))), ...themeFileRefs(template)];
   const t0 = performance.now();
@@ -96,6 +98,7 @@ export async function rawExportOfRun(
   };
   try {
     const r = await exportCapture({
+      policy: ws.policy,
       project,
       runDir,
       ...(template ? { template } : {}),

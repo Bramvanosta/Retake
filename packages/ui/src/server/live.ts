@@ -32,9 +32,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { ENGINE_HTTP_API, EngineError, JobsWatch, RUNS_INDEX_MAX, WorkspaceIndex, diffSources, jobProject, listRuns, runChanges, scanSources, securityHeaders, sourceKey, workspaceChanges } from '@retake/engine';
-import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader } from '@retake/engine';
+import type { JobQueueView, RunChange, RunRow, SourceMap, SqliteLoader, OpenedWorkspace } from '@retake/engine';
 
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { libraryChanges, libraryWatchScan } from './library-watch.js';
 import { recordsChanges, recordsWatchScan } from './record-watch.js';
 
@@ -54,7 +54,7 @@ export const EVENT_POLL_MS = 1000;
 export const EVENT_KEEPALIVE_MS = 15_000;
 
 export interface LiveOptions {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   /**
    * The engine's job queue (Engine.queue): the job watch and the index each read it with a memory of their own
    * (withOwnMemory: the jobs each saw finished, the takes each counts), and the default `retake` in derived fix texts.

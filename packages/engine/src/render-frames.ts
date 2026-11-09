@@ -26,8 +26,9 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, SLUG_RE, ffprobeBin, projectPath, PROJECT_DIRS, projectRef } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { RENDER_ID_RE, SLUG_RE, projectPath, PROJECT_DIRS, projectRef } from '@retake/core';
+import { ffprobeBin } from '@retake/core/io';
+import type { LoadedProject, WorkPolicy } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
 import { EngineError } from './errors.js';
@@ -123,6 +124,8 @@ interface Opened {
 }
 
 export interface RenderFramesOptions {
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
   /** The engine's ffmpeg slots (shared with the run thumbnails). */
   slots: Semaphore;
   ffmpeg?: string;
@@ -138,10 +141,10 @@ type Review = typeof import('@retake/review/thumbs');
 const review = (): Promise<Review> => import('@retake/review/thumbs');
 
 /** ffprobe of an open descriptor (the fd protocol only); null when it cannot be read. */
-function probeFd(fd: number, o: { ffprobe?: string; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
+function probeFd(fd: number, o: { ffprobe?: string; policy: WorkPolicy; signal: AbortSignal; timeoutMs: number }): Promise<VideoProbe | null> {
   return new Promise((resolve) => {
     const args = ['-v', 'error', '-protocol_whitelist', 'fd', '-f', 'mp4', '-fd', '3', '-select_streams', 'v:0', '-show_entries', 'stream=r_frame_rate,avg_frame_rate,start_time,nb_frames,width,height', '-of', 'json', 'fd:'];
-    const proc = spawn(ffprobeBin(o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
+    const proc = spawn(ffprobeBin(o.policy, o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
     let out = '';
     proc.stdout?.on('data', (c: Buffer) => {
       if (out.length < 64 * 1024) out += c.toString();
@@ -310,7 +313,7 @@ export class RenderFrames {
         this.stats.probes++;
         const fd = this.reopen(opened);
         try {
-          probe = await probeFd(fd, { ...(this.o.ffprobe ? { ffprobe: this.o.ffprobe } : {}), signal, timeoutMs: Math.max(1, deadline - Date.now()) });
+          probe = await probeFd(fd, { ...(this.o.ffprobe ? { ffprobe: this.o.ffprobe } : {}), policy: this.o.policy, signal, timeoutMs: Math.max(1, deadline - Date.now()) });
         } finally {
           closeSync(fd);
         }
@@ -417,6 +420,7 @@ export class RenderFrames {
         this.stats.made++;
         [png] = await r.videoFramesAt({ fds: [opened.fd] }, [(req.frame - 0.5) / probe.fps], {
           maxPx: RENDER_FRAME_MAX_PX,
+          policy: this.o.policy,
           signal: ctl.signal,
           timeoutMs: Math.max(1, deadline - Date.now()),
           ...(this.o.ffmpeg ? { ffmpeg: this.o.ffmpeg } : {}),

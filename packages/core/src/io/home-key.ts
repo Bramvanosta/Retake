@@ -10,7 +10,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { chmod, link, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
-import { retakeHome } from './auth.js';
+import { retakeHome } from './home.js';
 
 export const HOME_KEY_FILE = 'approvals.key';
 

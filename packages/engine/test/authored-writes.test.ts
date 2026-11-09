@@ -11,7 +11,7 @@ import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } fro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR } from '@retake/core';
+import { STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { initSandbox } from '@retake/sandbox';
 import { componentCreate, copyTheme, createEngine, createThemeFromBrand, fileWriter, openProjectBySlug, openWorkspace, personScope, ProjectStore } from '../src/index.js';
 import type { Engine } from '../src/index.js';

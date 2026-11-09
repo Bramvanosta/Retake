@@ -42,6 +42,7 @@ import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkI
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
+import type { WorkPolicy, FileFacts } from '@retake/core';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -129,12 +130,12 @@ export async function runInputs(projectDir: string, record: RenderRecord, warnin
 }
 
 /** Make the still of a new thread (temp + rename in a real folder of the project); null and a warning when it fails. */
-export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[]): Promise<string | null> {
+export async function writeStill(projectDir: string, id: string, video: string, frame: number, region: CommentRegion | undefined, warnings: string[], policy: WorkPolicy): Promise<string | null> {
   const final = commentStillFile(projectDir, id);
   const tmp = join(dirname(final), `${id}.${randomBytes(4).toString('hex')}.tmp.jpg`);
   try {
     await toolDir(projectDir, 'comments');
-    await (await review()).extractStill(video, frame, tmp, region ? { region } : {});
+    await (await review()).extractStill(video, frame, tmp, { policy, ...(region ? { region } : {}) });
     await rename(tmp, final);
     return final;
   } catch (e) {
@@ -254,7 +255,7 @@ export async function anchorAt(project: LoadedProject, req: CommentAnchorRequest
  * over an existing file), then its still (critique B12: the thread exists whatever the still costs; a still that fails
  * is a warning).
  */
-export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope?: StoreScope): Promise<CommentAdded> {
+export async function addComment(project: LoadedProject, req: CommentAddRequest, author: CommentAuthor, scope: StoreScope | undefined, policy: WorkPolicy): Promise<CommentAdded> {
   const text = cleanText(req.text, 'the comment', 'text');
   const { record, frame, anchor, warnings } = await prepareComment(project, req);
   const clash = await caseVariantFolder(project.dir, record.scenario);
@@ -294,7 +295,7 @@ export async function addComment(project: LoadedProject, req: CommentAddRequest,
     throw new EngineError('invalid', `the comment does not make a valid thread: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
   const written = await threadStore(project, author, scope).writeText(commentRef(record.scenario, id), `${JSON.stringify(parsed.data, null, 2)}\n`, { ifMatch: null, what: 'thread' });
-  await writeStill(project.dir, id, record.file, frame, req.region, warnings);
+  await writeStill(project.dir, id, record.file, frame, req.region, warnings, policy);
   return { thread: await threadView(project.dir, parsed.data, written.sha256, await renderIndex(project.dir)), warnings };
 }
 
@@ -353,7 +354,7 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope } = {},
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: FileFacts },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
   const write = o.scope ? { scope: o.scope } : {};
@@ -362,7 +363,7 @@ export async function replyComment(
   }
   // The target is the thread's own scenario (its folder, checked against the file by readThread): never an argument.
   const f = await locateThread(project.dir, id);
-  const built = await buildProposal(project, f.scenario, o.proposal, o.registry ? { registry: o.registry } : {});
+  const built = await buildProposal(project, f.scenario, o.proposal, { files: o.files, ...(o.registry ? { registry: o.registry } : {}) });
   const w = await appendEntry(project, id, 'reply', (thread) => {
     const { status } = deriveStatus(thread.entries);
     if (status !== 'open') throw new EngineError('conflict', `not proposed: comment ${id} is resolved — a proposal answers an open thread (a person reopens it)`, { details: { status } });

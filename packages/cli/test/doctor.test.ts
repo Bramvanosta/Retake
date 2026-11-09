@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { BundleInfo } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
 import { agentJobsCheck, doctorCommand, systemProbes } from '../src/commands/doctor.js';

@@ -1,5 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { needFiles } from './file-facts.js';
+import type { FileFacts } from './file-facts.js';
 import { commandName, heredocs, nestedShellScript, shellCommands, shellWords } from './shell-words.js';
 import type { HookKind, HookStep, HttpHookSpec, ShellHookSpec, SqlHookSpec } from './types.js';
 
@@ -57,13 +58,15 @@ export function sqlSource(spec: string | SqlHookSpec): { file?: string; query?: 
 export interface DestructiveOptions {
   /** Project directory: SQL files are read from it to inspect their statements. */
   projectDir?: string;
+  /** How those files are read (core FileFacts): needed with `projectDir` (unless `readText` reads them). */
+  files?: FileFacts;
   /** Override file reading (tests); returns undefined when the file cannot be read. */
   readText?: (absPath: string) => string | undefined;
 }
 
-function defaultRead(file: string): string | undefined {
+function readWith(files: FileFacts, file: string): string | undefined {
   try {
-    return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
+    return files.exists(file) ? files.readText(file) : undefined;
   } catch {
     return undefined;
   }
@@ -75,7 +78,8 @@ const PSQL_ARG_OPTS = new Set('cdfhpUvoLFRPT'.split(''));
 /** A project file's text (relative to `opts.projectDir`), or undefined when it cannot be read or there is no project dir. */
 export function readProjectText(file: string, opts: DestructiveOptions): string | undefined {
   if (!opts.projectDir) return undefined;
-  return (opts.readText ?? defaultRead)(resolve(opts.projectDir, file));
+  const abs = resolve(opts.projectDir, file);
+  return opts.readText ? opts.readText(abs) : readWith(needFiles(opts.files, 'reading a project file'), abs);
 }
 
 /** Destructive SQL passed to psql via -c / --command / -f / --file, or null. */
@@ -174,7 +178,7 @@ export function destructiveReason(hook: HookStep, opts: DestructiveOptions = {})
         if (kw) return `SQL ${kw}`;
       }
       if (file && opts.projectDir) {
-        const text = (opts.readText ?? defaultRead)(resolve(opts.projectDir, file));
+        const text = readProjectText(file, opts);
         const kw = text === undefined ? null : sqlDestructiveKeyword(text);
         if (kw) return `${file} contains ${kw}`;
       }

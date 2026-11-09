@@ -10,8 +10,8 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, ffmpegBin } from '@retake/core';
-import type { GpuInfo, LoadedProject, LoadedTemplate, RenderSettings, Timeline } from '@retake/core';
+import { findWorkspaceRoot, loadProject, ffmpegBin } from '@retake/core/io';
+import type { GpuInfo, LoadedProject, LoadedTemplate, RenderSettings, Timeline, WorkPolicy } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
@@ -121,6 +121,8 @@ export interface RenderPlanOptions {
   onBrowser?: (b: BrowserProcessInfo) => void;
   /** Render settings over the process's (./policy.ts: an explicit option wins over retake.yaml and the environment). */
   settings?: RenderSettings;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
+  workPolicy: WorkPolicy;
   /** Tests only. */
   seams?: RenderSeams;
 }
@@ -185,6 +187,7 @@ interface Session {
  */
 async function openSession(opts: {
   plan: EditPlan;
+  workPolicy: WorkPolicy;
   root: string;
   registry?: ComponentRegistry;
   cacheDir?: string;
@@ -208,7 +211,7 @@ async function openSession(opts: {
   opts.onBundleProgress?.(1, bundle.cached);
   // The browser first: without a headless shell (or with one the agent policy refuses) no server is started.
   const browser = renderBrowser();
-  const executable = assertRenderBrowser(browser);
+  const executable = assertRenderBrowser(browser, opts.workPolicy);
   if (browser.note) warnings.push(browser.note);
   const server = await startAssetServer();
   const missing = Object.values(opts.plan.assets).filter((f) => !existsSync(f));
@@ -291,7 +294,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   const out = resolve(opts.out);
   if (extname(out).toLowerCase() !== '.mp4') throw new RenderError(`render output must be an .mp4 file: ${out}`);
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
-  const asked = renderPolicy(opts.settings);
+  const asked = renderPolicy(opts.workPolicy, opts.settings);
   const policy: RenderPolicy =
     opts.concurrency !== undefined ? { ...asked, concurrency: Math.max(1, Math.round(opts.concurrency)), concurrencySource: 'option' } : asked;
   const range = opts.frameRange;
@@ -337,6 +340,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     const t0 = performance.now();
     const session = await openSession({
       plan: opts.plan,
+      workPolicy: opts.workPolicy,
       root,
       registry: opts.registry,
       cacheDir: opts.cacheDir,
@@ -440,7 +444,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
           session.warnings.push(`the render browser left the GPU during the render (${rendererWords(end) ?? 'no renderer reported'}): part of it was drawn in software`);
         }
       }
-      await ensureAudioTrack(partial);
+      await ensureAudioTrack(partial, opts.workPolicy);
       await rename(partial, out);
       const sizeBytes = (await stat(out)).size;
       const renderer = rendererWords(gpu);
@@ -527,11 +531,11 @@ async function removeLeftovers(dir: string, partialName: string): Promise<void> 
  * Remotion's `enforceAudioTrack` adds a silent track to a video without audio; this checks it (when ffprobe is
  * available) and adds one with ffmpeg if a file ever comes out without (players and platforms expect one).
  */
-async function ensureAudioTrack(file: string): Promise<void> {
-  const p = await probeMedia(file);
+async function ensureAudioTrack(file: string, work: WorkPolicy): Promise<void> {
+  const p = await probeMedia(file, work);
   if (!p || p.audio_streams > 0) return;
   const tmp = `${file}.audio-${randomBytes(3).toString('hex')}.mp4`;
-  const r = await run(ffmpegBin(), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp]);
+  const r = await run(ffmpegBin(work), ['-v', 'error', '-y', '-i', file, '-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000', '-shortest', '-c:v', 'copy', '-c:a', 'aac', '-movflags', '+faststart', tmp]);
   if (r.code !== 0) {
     await rm(tmp, { force: true });
     throw new RenderError(`the render has no audio track and ffmpeg could not add a silent one: ${r.stderr.split('\n')[0]}`);
@@ -584,6 +588,8 @@ export interface RenderVideoOptions {
   editText?: string;
   /** Render settings over the process's (renderPlan `settings`). */
   settings?: RenderSettings;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
+  workPolicy: WorkPolicy;
   /** Tests only (renderPlan `seams`). */
   seams?: RenderSeams;
 }
@@ -613,6 +619,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   let planned: Awaited<ReturnType<typeof planRun>>;
   try {
     planned = await planRun({
+      workPolicy: opts.workPolicy,
       project,
       run: opts.run,
       ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}),
@@ -666,7 +673,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   const templateSha256 = themeContentHash(template.dir);
   let plannedConcurrency = opts.concurrency ?? defaultConcurrency();
   try {
-    if (opts.concurrency === undefined) plannedConcurrency = renderPolicy(opts.settings).concurrency;
+    if (opts.concurrency === undefined) plannedConcurrency = renderPolicy(opts.workPolicy, opts.settings).concurrency;
   } catch {
     /* renderPlan says why */
   }
@@ -704,6 +711,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   });
   try {
     const res = await renderPlan({
+      workPolicy: opts.workPolicy,
       plan,
       out: file,
       root,
@@ -725,7 +733,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     record.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
     record.browser = { path: res.browser.path, source: res.browser.source };
     record.warnings.push(...res.warnings);
-    const probe = await probeMedia(file);
+    const probe = await probeMedia(file, opts.workPolicy);
     if (probe) {
       record.probe = probe;
       const expected = plan.durationInFrames / plan.fps;
@@ -764,6 +772,8 @@ export interface RenderStillOptions {
   registry?: ComponentRegistry;
   cacheDir?: string;
   settings?: RenderSettings;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
+  workPolicy: WorkPolicy;
 }
 
 /** Render one output frame of a plan to a PNG; returns the file. */
@@ -786,6 +796,9 @@ export interface RenderStillsOptions {
   onWarnings?: (warnings: string[]) => void;
   /** Render settings over the process's (./policy.ts). Stills have no mid-render fallback: a failure is said as it is. */
   settings?: RenderSettings;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
+  workPolicy: WorkPolicy;
+
   /** Tests only. */
   seams?: Pick<RenderSeams, 'gpuInfo'>;
 }
@@ -802,10 +815,11 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
     }
   }
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
-  const policy = renderPolicy(opts.settings);
+  const policy = renderPolicy(opts.workPolicy, opts.settings);
   guardEncoderPipe();
   const session = await openSession({
     plan: opts.plan,
+    workPolicy: opts.workPolicy,
     root,
     registry: opts.registry,
     cacheDir: opts.cacheDir,

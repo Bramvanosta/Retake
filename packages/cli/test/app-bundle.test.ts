@@ -11,8 +11,9 @@ import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { BUNDLE_GUARD, BundleError, RETAKE_VERSION, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { RETAKE_VERSION, PERSON_POLICY } from '@retake/core';
+import { BUNDLE_GUARD, BundleError, bundleNodeArgs, overrideBundleInfo, readBundleManifest } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { assertRenderBrowser, renderBrowser, renderBundleRestriction, renderComponentPreviews } from '@retake/editor';
 import type { RenderPreviewsOptions } from '@retake/editor';
 import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
@@ -49,7 +50,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
         continue;
       }
       for (const f of files) {
-        if (f.endsWith(join('core', 'src', 'bundle.ts'))) continue;
+        if (f.endsWith(join('core', 'src', 'io', 'bundle.ts'))) continue;
         readFileSync(f, 'utf8')
           .split('\n')
           .forEach((line, i) => {
@@ -62,7 +63,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
 
   it('the lint itself catches the four forms', () => {
     for (const bad of ["run('ffmpeg', args)", "spawn(o.ffprobe ?? 'ffprobe', a)", "function f(ffmpeg = 'ffmpeg') {", "execFileSync('ffprobe', [])"]) expect(SPAWN.test(bad), bad).toBe(true);
-    for (const ok of ["name: 'ffmpeg' | 'ffprobe'", "whichOnPath('ffmpeg', env)", 'spawn(ffmpegBin(o.ffmpeg), a)']) expect(SPAWN.test(ok), ok).toBe(false);
+    for (const ok of ["name: 'ffmpeg' | 'ffprobe'", "whichOnPath('ffmpeg', env)", 'spawn(ffmpegBin(PERSON_POLICY, o.ffmpeg), a)']) expect(SPAWN.test(ok), ok).toBe(false);
   });
 });
 
@@ -82,8 +83,8 @@ describe('the render browser is checked before the asset server starts (review B
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
-    expect(session.indexOf('assertRenderBrowser(browser)')).toBeGreaterThan(0);
-    expect(session.indexOf('assertRenderBrowser(browser)')).toBeLessThan(session.indexOf('startAssetServer()'));
+    expect(session.indexOf('assertRenderBrowser(browser, PERSON_POLICY)')).toBeGreaterThan(0);
+    expect(session.indexOf('assertRenderBrowser(browser, PERSON_POLICY)')).toBeLessThan(session.indexOf('startAssetServer()'));
   });
 });
 
@@ -442,7 +443,7 @@ describe('every Node.js started on the bundle\'s code loads its module lookup gu
   it('the jobs worker of a bundle (the built engine) starts with the guard before its entry', () => {
     const app = appBundle();
     writeFileSync(join(app.root, BUNDLE_GUARD), '');
-    const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'index.js')).href;
+    const core = pathToFileURL(join(REPO, 'packages', 'core', 'dist', 'io', 'index.js')).href;
     const spawn = pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'jobs', 'spawn.js')).href;
     const script = `const core = await import(${JSON.stringify(core)});
 const { workerCommand } = await import(${JSON.stringify(spawn)});

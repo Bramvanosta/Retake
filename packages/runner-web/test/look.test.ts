@@ -9,6 +9,7 @@ import type { BrowserSession } from '../src/index.js';
 import { LOOK_PAGE } from './pages.js';
 import { decodePng, startServer } from './helpers.js';
 import type { RgbImage, TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /**
  * The cursor and file-chip look (L1.4: R-KIT-06, R-LOOK-23, R-LOOK-24), in two layers: structural checks that carry the
@@ -36,8 +37,8 @@ beforeAll(async () => {
   server = await startServer({ '/look.html': LOOK_PAGE });
   // The kit configuration is per browser: one session per cursor style (launched together).
   [dark, light] = await Promise.all([
-    openSession({ width: 900, height: 500, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: RIPPLE }) }),
-    openSession({ width: 900, height: 500, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-light' }) }),
+    openSession({ policy: PERSON_POLICY, width: 900, height: 500, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: RIPPLE }) }),
+    openSession({ policy: PERSON_POLICY, width: 900, height: 500, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-light' }) }),
   ]);
   [darkPage, lightPage] = await Promise.all([dark.page('main'), light.page('main')]);
   await Promise.all([darkPage.goto(`${server.url}/look.html`), lightPage.goto(`${server.url}/look.html`)]);

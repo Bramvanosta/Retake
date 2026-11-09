@@ -6,6 +6,7 @@ import type { BrowserSession, CursorEffectPayload, CursorState, KitClient, Resol
 import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTENT_PAGE, OVERLAY_A, OVERLAY_B, RESOLVER_PAGE, RIPPLE_PAGE, deepPage, latePaintPage } from './pages.js';
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
 /** Another origin (another port) serving the frame page: its content must stay out of reach. */
@@ -32,7 +33,7 @@ beforeAll(async () => {
     '/widget.html': `<!doctype html><html><body><main><button id="top-save">Save changes</button><input id="nd" type="date" min="2026-10-01" max="2026-12-31">
       <iframe id="w" srcdoc="<button id='fr-save'>Save</button>"></iframe><div id="many" hidden></div></main></body></html>`,
   });
-  session = await openSession({ width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+  session = await openSession({ policy: PERSON_POLICY, width: 1000, height: 700, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
   page = await session.page('main');
   kit = session.kit(page);
 });
@@ -396,7 +397,7 @@ describe('click ripple (R-ISS-03, R-CHO-05)', () => {
   let rp: Page;
 
   beforeAll(async () => {
-    rs = await openSession({ width: 1000, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: EDITORIAL_RIPPLE }) });
+    rs = await openSession({ policy: PERSON_POLICY, width: 1000, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'arrow-dark', ripple_color: EDITORIAL_RIPPLE }) });
     rp = await rs.page('main');
   });
   afterAll(async () => {

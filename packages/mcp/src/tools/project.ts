@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { z } from 'zod';
-import { engineLocation, newVarName, pathInside, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { newVarName, pathInside, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { engineLocation } from '@retake/core/io';
 import { README_MAX_CHARS, formatBytes, heldWork, heldWorkWords, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
 import { plural } from '../result.js';

@@ -26,6 +26,7 @@ import { constants, accessSync, chmodSync, closeSync, copyFileSync, existsSync, 
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { isUnder } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 
 /** A refusal of a setup step: `reason` is a stable word the Studio keys its words by. */
 export class SetupError extends Error {
@@ -287,8 +288,8 @@ export function checkCliFolder(dir: string, o: { uid: number; workspace: string;
   } catch {
     throw new SetupError('not_writable', `${dir} cannot be written to`);
   }
-  if (isUnder(real, o.workspace)) throw new SetupError('inside_workspace', `${dir} lies inside the workspace: choose a folder outside it`);
-  if (o.sealed && isUnder(real, o.sealed)) throw new SetupError('inside_app', `${dir} lies inside the app: choose a folder outside it`);
+  if (isUnder(real, o.workspace, nodeFileFacts)) throw new SetupError('inside_workspace', `${dir} lies inside the workspace: choose a folder outside it`);
+  if (o.sealed && isUnder(real, o.sealed, nodeFileFacts)) throw new SetupError('inside_app', `${dir} lies inside the app: choose a folder outside it`);
   return real;
 }
 

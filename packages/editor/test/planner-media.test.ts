@@ -10,11 +10,12 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry, VideoMedia } from '@retake/components';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, Timeline, TimelineEvent } from '@retake/core';
 import { MARK_WINDOW_S, OVERLAY_BOX_MARGIN, WAIT_KEEP_S, duckSpans, mapSourceRect, musicVolumeAt, overlayBoxAt, planEdit, planFileRefs, protectedSpans, stepBoxes, themeFileRefs, waitingSpans } from '@retake/editor';
 import type { ClipSegment, EditOverrides, EditPlan, PlanInputFile } from '@retake/editor';
 import { REPO, fixtureProject, seg, synthTimeline } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let registry: ComponentRegistry;
 let project: LoadedProject;
@@ -25,7 +26,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-media-plan-'));
   registry = await loadComponentRegistry({ root });
   project = await fixtureProject();
-  editorial = await loadTemplate('editorial', REPO);
+  editorial = await loadTemplate('editorial', REPO, { files: fileFacts(PERSON_POLICY) });
 });
 afterAll(async () => rm(root, { recursive: true, force: true }));
 

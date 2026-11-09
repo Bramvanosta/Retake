@@ -1,7 +1,8 @@
 /** ffprobe of media files (optional: a render record says what its file holds when ffprobe is on PATH). */
 import { execFile } from 'node:child_process';
-import { ffprobeBin, ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
-import type { FfprobeSummary } from '@retake/core';
+import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
+import { ffprobeBin } from '@retake/core/io';
+import type { FfprobeSummary, WorkPolicy } from '@retake/core';
 
 /** What ffprobe says of a media file (core's summary: size, frame rate, frames, audio streams, codecs, length). */
 export type Probe = FfprobeSummary;
@@ -17,8 +18,8 @@ export function run(cmd: string, args: string[]): Promise<{ code: number; stdout
 }
 
 /** ffprobe of a media file; undefined when ffprobe is not available. */
-export async function probeMedia(file: string): Promise<Probe | undefined> {
-  const r = await run(ffprobeBin(), ffprobeSummaryArgs(file));
+export async function probeMedia(file: string, work: WorkPolicy): Promise<Probe | undefined> {
+  const r = await run(ffprobeBin(work), ffprobeSummaryArgs(file));
   if (r.code !== 0) return undefined;
   return parseFfprobeSummary(r.stdout);
 }

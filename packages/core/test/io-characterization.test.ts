@@ -1,0 +1,164 @@
+/**
+ * What core's loaders and its disk probes answer, pinned (golden/io-loaders.json): the workspace, project, scenario,
+ * theme and sandbox readers on the fixture project and on a set of broken inputs, and the checks that look at the disk
+ * (a file a scenario names, a file through a link out of the project, an env file, a SQL file a hook runs, a run made
+ * by a newer Retake). Written before those readers moved to `@retake/core/io` and their probes behind the FileFacts
+ * port: the same answers after the move. Paths are shown relative to the repository (`<repo>`) or to the scratch
+ * folder (`<tmp>`); the fixture's contents are left out (the fixture changes with the product), synthetic values by
+ * their hash.
+ *
+ * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/io-characterization.test.ts`
+ */
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, describe, expect, it } from 'vitest';
+import { OLD_WORKSPACE_FILE, PERSON_POLICY, canonicalJson, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
+import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, newerRunMessage, nodeFileFacts, fileFacts, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
+import type { HookStep } from '@retake/core';
+
+const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
+const GOLDEN = fileURLToPath(new URL('./golden/io-loaders.json', import.meta.url));
+const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-io-char-')));
+afterAll(() => rmSync(tmp, { recursive: true, force: true }));
+
+const shown = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null).split(tmp).join('<tmp>').split(REPO).join('<repo>'));
+const hash = (v: unknown): string => createHash('sha256').update(canonicalJson(shown(v))).digest('hex').slice(0, 16);
+const issuesOf = (xs: ReadonlyArray<{ severity: string; path: unknown; message: string }> | undefined) => shown((xs ?? []).map((i) => [i.severity, i.path, i.message]));
+async function outcome<T>(f: () => Promise<T> | T, keep: (v: T) => unknown = (v) => v): Promise<unknown> {
+  try {
+    return { ok: shown(keep(await f())) };
+  } catch (e) {
+    const err = e as Error & { issues?: Array<{ severity: string; path: unknown; message: string }> };
+    return { error: err.name, message: shown(err.message), issues: issuesOf(err.issues) };
+  }
+}
+const write = (rel: string, text: string): string => {
+  const f = join(tmp, rel);
+  mkdirSync(dirname(f), { recursive: true });
+  writeFileSync(f, text);
+  return f;
+};
+
+const got: Record<string, unknown> = {};
+/** The FileFacts of a command a person types (no workspace ffmpeg, the agent policy off): what these readers looked at before. */
+const work = fileFacts(PERSON_POLICY);
+
+describe('core loaders and disk probes (characterization)', () => {
+  it('the fixture workspace and project: what every reader answers', async () => {
+    const fixtureDir = join(REPO, 'projects', 'northfield-fixture');
+    got.findWorkspaceRoot = shown(findWorkspaceRoot(join(fixtureDir, 'scenarios')));
+    got.workspace = await outcome(() => loadWorkspaceConfig(REPO));
+    got.projects = await outcome(() => listProjects(REPO), (ps) => ps.filter((p) => p.slug === 'northfield-fixture'));
+    const project = await loadProject('northfield-fixture', REPO);
+    got.project = shown({
+      slug: project.slug,
+      dir: project.dir,
+      root: project.root,
+      readme: project.readme !== null,
+      scenarios: project.scenarios,
+      issues: issuesOf(project.issues),
+      sandboxes: Object.fromEntries(Object.entries(project.sandboxes ?? {}).map(([k, s]) => [k, { file: s.file, dir: s.dir, issues: issuesOf(s.issues), secrets: s.secrets }])),
+    });
+    got.scenarioNames = await listScenarioNames(project.dir);
+    const scenarios: Record<string, unknown> = {};
+    for (const name of project.scenarios) {
+      scenarios[name] = await outcome(() => loadScenario(project, name, { files: work }), (s) => ({ name: s.name, file: s.file, issues: issuesOf(s.issues) }));
+    }
+    got.scenarios = scenarios;
+    got.scenarioSource = await outcome(() => readScenarioSource(project, 'quote'), (s) => ({ name: s.name, file: s.file, sha256: /^[0-9a-f]{64}$/.test(s.sha256) }));
+    got.templates = await outcome(() => listTemplates(REPO));
+    const themes: Record<string, unknown> = {};
+    for (const name of ['default', 'editorial', 'motion']) themes[name] = await outcome(() => loadTemplate(name, REPO, { files: work }), (t) => ({ name: t.name, dir: t.dir, assets: t.assets }));
+    got.themes = themes;
+    got.projectTheme = await outcome(() => loadProjectTemplate(project, undefined, { files: work }), (t) => ({ name: t.name, dir: t.dir }));
+    const seeds: Record<string, unknown> = {};
+    for (const [env, s] of Object.entries(project.sandboxes ?? {})) seeds[env] = { refs: shown(await seedFileRefs(s)), hash: /^[0-9a-f]{64}$/.test(await seedHash(s)), envFile: shown(composeEnvFile(s) ?? null) };
+    got.seeds = seeds;
+  });
+
+  it('broken inputs: what the readers refuse and the checks that look at the disk say', async () => {
+    const broken: Record<string, unknown> = {};
+    // Workspaces.
+    write('ws-bad/retake.yaml', 'version: 1\nprojects_dir: [x]\n');
+    broken.badWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-bad')));
+    write(`ws-old/${OLD_WORKSPACE_FILE}`, 'version: 1\n');
+    broken.oldWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-old')));
+    write('ws-new/retake.yaml', 'version: 99\n');
+    broken.newerWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-new')));
+    mkdirSync(join(tmp, 'ws-up', 'projects', 'p', 'scenarios'), { recursive: true });
+    broken.findUpProjects = shown(findWorkspaceRoot(join(tmp, 'ws-up', 'projects', 'p', 'scenarios')));
+    // Projects.
+    write('ws/retake.yaml', 'version: 1\n');
+    broken.noProject = await outcome(() => loadProject(join(tmp, 'ws', 'projects', 'none')));
+    broken.unknownSlug = await outcome(() => loadProject('nortfield', join(tmp, 'ws')));
+    write('ws/projects/p/project.yaml', 'version: 1\nname: P\nenvironments:\n  local: {app: "http://localhost:4990"}\nsandboxes:\n  sb: sandbox/sandbox.yaml\n');
+    broken.missingSandbox = await outcome(() => loadProject('p', join(tmp, 'ws')));
+    write('ws/projects/p/project.yaml', 'version: 1\nname: P\nenvironments:\n  local: {app: "http://localhost:4990"}\nhooks:\n  reset: {sql: hooks/missing.sql}\n');
+    broken.missingHookFile = await outcome(() => loadProject('p', join(tmp, 'ws')), (p) => issuesOf(p.issues));
+    broken.parseProjectMissingHook = issuesOf(parseProjectYaml(readFileSync(join(tmp, 'ws/projects/p/project.yaml'), 'utf8'), join(tmp, 'ws/projects/p/project.yaml'), nodeFileFacts).issues);
+    write('ws/projects/p/project.yaml', 'version: 1\nname: P\nenvironments:\n  local: {app: "http://localhost:4990"}\n');
+    write('ws/projects/p/README.md', '# P\n');
+    const project = await loadProject('p', join(tmp, 'ws'));
+    broken.plainProject = shown({ readme: project.readme, scenarios: project.scenarios, issues: issuesOf(project.issues) });
+    // Scenarios: files a scenario names, checked on the disk.
+    write('outside/secret.csv', 'a,b\n');
+    write('ws/projects/p/data/rows.csv', 'a,b\n');
+    symlinkSync(join(tmp, 'outside', 'secret.csv'), join(tmp, 'ws/projects/p/data/link.csv'));
+    write('ws/projects/p/assets/logo.png', 'not a png');
+    const scenarioText = (slot: string) => `version: 1\nvideo: s\nenv: local\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n      - drop_file: {zone: {css: body}, path: "${slot}"}\n`;
+    write('ws/projects/p/scenarios/missing.yaml', scenarioText('data/none.csv'));
+    write('ws/projects/p/scenarios/present.yaml', scenarioText('data/rows.csv'));
+    write('ws/projects/p/scenarios/link.yaml', scenarioText('data/link.csv'));
+    write('ws/projects/p/scenarios/abs.yaml', scenarioText('/etc/hosts'));
+    write('ws/projects/p/scenarios/image.yaml', 'version: 1\nvideo: s\nenv: local\noutro: {image: assets/logo.png, duration: 3}\nmusic: {file: assets/none.mp3}\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n      - eval: {file: scenarios/none.js}\n');
+    const p2 = await loadProject('p', join(tmp, 'ws'));
+    for (const name of ['missing', 'present', 'link', 'abs', 'image']) {
+      broken[`scenario:${name}`] = await outcome(() => loadScenario(p2, name, { files: work }), (s) => issuesOf(s.issues));
+      for (const confined of ['mcp', 'studio'] as const) broken[`scenario:${name}:${confined}`] = await outcome(() => loadScenario(p2, name, { confined, files: work }), (s) => issuesOf(s.issues));
+    }
+    const filesRead = new Set<string>();
+    parseScenario(scenarioText('data/rows.csv'), { project: p2, filesRead, files: nodeFileFacts });
+    broken.filesRead = shown([...filesRead].sort());
+    broken.inferredProject = issuesOf(parseScenario(scenarioText('data/none.csv'), { file: join(tmp, 'ws/projects/p/scenarios/x.yaml'), files: nodeFileFacts }).issues);
+    broken.noInferredProject = issuesOf(parseScenario(scenarioText('data/none.csv'), { file: join(tmp, 'ws/elsewhere/scenarios/x.yaml'), files: nodeFileFacts }).issues);
+    broken.unknownScenario = await outcome(() => loadScenario(p2, 'nope'));
+    // Themes.
+    write('ws/templates/t/template.yaml', 'version: 1\nlogo: logo.svg\n');
+    broken.themeMissingAsset = await outcome(() => loadTemplate('t', join(tmp, 'ws'), { files: work }));
+    mkdirSync(join(tmp, 'ws', 'templates', 'empty'), { recursive: true });
+    broken.themeFolderWithoutFile = await outcome(() => loadTemplate('empty', join(tmp, 'ws')));
+    broken.themeUnknown = await outcome(() => loadTemplate('defualt', join(tmp, 'ws')));
+    broken.themeMedia = issuesOf(parseTemplateYaml('version: 1\ncomponents:\n  intro: {video: clip.mp4}\n  outro: {image: logo.svg}\n', { dir: join(tmp, 'ws', 'templates', 't'), files: fileFacts(PERSON_POLICY) }).issues);
+    // Sandboxes.
+    const sbFile = write('ws/projects/p/sandbox/sandbox.yaml', 'version: 1\nprovider: docker-compose\ncompose:\n  env_file: missing.env\n  files: [compose.yaml]\npages:\n  app: {url: "http://localhost:4991"}\n');
+    broken.sandboxMissing = issuesOf(parseSandboxYaml(readFileSync(sbFile, 'utf8'), sbFile, { env: 'sb', project: { config: p2.config }, files: nodeFileFacts }).issues);
+    write('ws/projects/p/sandbox/compose.yaml', 'services:\n  app: {image: "x"}\n');
+    write('ws/projects/p/sandbox/.env', 'COMPOSE_PROFILES=all\n');
+    const sbFile2 = write('ws/projects/p/sandbox/sandbox.yaml', 'version: 1\nprovider: docker-compose\ncompose:\n  files: [compose.yaml]\npages:\n  app: {url: "http://localhost:4991"}\n');
+    broken.sandboxEnvProfiles = issuesOf(parseSandboxYaml(readFileSync(sbFile2, 'utf8'), sbFile2, { env: 'sb', project: { config: p2.config }, files: nodeFileFacts }).issues);
+    const composeManifest = (compose: unknown) => ({ provider: 'docker-compose', compose }) as unknown as Parameters<typeof composeEnvFile>[0]['manifest'];
+    broken.composeEnvFile = shown([composeEnvFile({ dir: dirname(sbFile2), manifest: composeManifest({ files: ['compose.yaml'] }) }) ?? null, composeEnvFile({ dir: dirname(sbFile2), manifest: composeManifest({ files: ['other/compose.yaml'] }) }) ?? null]);
+    // Hooks whose SQL file is read from the project.
+    write('ws/projects/p/hooks/wipe.sql', 'DELETE FROM quotes;\n');
+    write('ws/projects/p/hooks/read.sql', 'SELECT 1;\n');
+    const sql = (file: string) => ({ sql: file }) as unknown as HookStep;
+    broken.destructive = shown([destructiveReason(sql('hooks/wipe.sql'), { projectDir: p2.dir, files: nodeFileFacts }), destructiveReason(sql('hooks/read.sql'), { projectDir: p2.dir, files: nodeFileFacts }), destructiveReason(sql('hooks/none.sql'), { projectDir: p2.dir, files: nodeFileFacts })]);
+    broken.writes = shown([hookWriteReason(sql('hooks/wipe.sql'), { projectDir: p2.dir, files: nodeFileFacts }), hookWriteReason(sql('hooks/read.sql'), { projectDir: p2.dir, files: nodeFileFacts }), hookWriteReason(sql('hooks/none.sql'), { projectDir: p2.dir, files: nodeFileFacts })]);
+    // Runs.
+    write('ws/projects/p/runs/r1/run.json', '{"version": 99}');
+    write('ws/projects/p/runs/r2/run.json', '{"version": 1}');
+    broken.newerRun = shown([newerRunMessage(join(tmp, 'ws/projects/p/runs/r1')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/r2')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/none')) ?? null]);
+    write('ws/projects/p/runs/r2/scenario.yaml', scenarioText('data/old.csv'));
+    broken.sinceRun = shown(scenarioSinceRun(p2, join(tmp, 'ws/projects/p/runs/r2'), 'present') ?? null);
+    got.broken = broken;
+  });
+
+  it('matches the golden', () => {
+    if (process.env.RETAKE_UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, `${JSON.stringify(got, null, 1)}\n`);
+    if (!existsSync(GOLDEN)) throw new Error(`golden ${GOLDEN} is missing: run \`RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/io-characterization.test.ts\` and read it`);
+    expect(got).toEqual(JSON.parse(readFileSync(GOLDEN, 'utf8')));
+  });
+});

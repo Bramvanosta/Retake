@@ -5,7 +5,8 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
+import { RUN_FOLDER_RE, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
+import { newerRunMessage } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
 import { readRenderRecords } from '../render-record.js';
 import type { RenderRecord } from '../render-record.js';

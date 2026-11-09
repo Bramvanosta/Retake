@@ -15,7 +15,7 @@ import { cp, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/pro
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { loadWorkspaceConfig } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 import type { WorkspaceConfig } from '@retake/core';
 import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, reportReads, scanSources } from '@retake/engine';
 import type { BoardScenario, ProjectBoardView } from '@retake/engine';
@@ -25,6 +25,7 @@ import { productionState } from '../src/app/board-words.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 import { raw } from './http.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
 let studio: StudioServer;
@@ -201,7 +202,7 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     return dir;
   }
   beforeAll(async () => {
-    wsc = await loadWorkspaceConfig(ws);
+    wsc = { ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY };
     fresh();
   });
 

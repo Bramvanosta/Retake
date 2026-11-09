@@ -19,7 +19,7 @@ import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath, projectRef } from '@retake/core';
-import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
+import type { EditOverridesInput, LoadedProject, RenderJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { ENGINE_TRUST } from '../caller.js';
@@ -37,6 +37,7 @@ import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './ty
 
 import { editor } from '../lazy.js';
 import { planStep, renderStep } from '../production.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RenderRequest {
   project: string;
@@ -121,7 +122,7 @@ export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSourc
  * `source` says which and what changed. `editText` (L4.6): a text read instead of today's file (a proposal's preview).
  */
 export async function planRenderRequest(
-  ws: WorkspaceConfig,
+  ws: OpenedWorkspace,
   cli: string,
   req: RenderRequest,
   o: { registry?: ComponentRegistry; musicLength?: (file: string) => Promise<number | undefined>; editText?: string } = {},
@@ -131,6 +132,7 @@ export async function planRenderRequest(
   const ed = await editor();
   try {
     const planned = await planStep({
+      workPolicy: ws.policy,
       project,
       run: req.run_id ?? 'latest',
       scenario: req.scenario,
@@ -235,7 +237,7 @@ export async function submitRenderJob(
 }
 
 /** Remove the version lock a render job reserved (a cancel before it started, an early failure). */
-export async function releaseRenderLock(ws: WorkspaceConfig, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
+export async function releaseRenderLock(ws: OpenedWorkspace, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
   const project = await openProjectBySlug(ws, input.project);
   const ed = await editor();
   const { version } = parseRenderId(input.render_id, input.scenario);
@@ -257,7 +259,7 @@ function isTempProfile(dir: string): boolean {
  * pid AND start time: Remotion starts it detached, so it outlives its parent), remove its temporary profile, the
  * version lock and the partial video files. Best effort: what fails is logged.
  */
-export async function cleanupInterruptedRender(ws: WorkspaceConfig, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedRender(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'render') return;
   const input = job.input;
   await killRecordedBrowser(files, job, log);
@@ -303,7 +305,7 @@ export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: 
 }
 
 export interface RenderJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: RenderJobInput;
   signal: AbortSignal;
@@ -396,6 +398,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   let last = '';
   // The render step the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
   const record = await renderStep({
+    workPolicy: ctx.ws.policy,
     project,
     run: input.run_id,
     scenario: input.scenario,

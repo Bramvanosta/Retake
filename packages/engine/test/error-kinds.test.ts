@@ -6,27 +6,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  AccessError,
-  BundleError,
-  ClockError,
-  ConfigError,
-  DOCS_BASE_URL,
-  ERROR_KINDS,
-  EnvironmentError,
-  H264EncoderError,
-  HostRefusedError,
-  RETAKE_REPOSITORY,
-  RETAKE_VERSION,
-  SandboxConfigError,
-  ScenarioChangedError,
-  ScenarioError,
-  StepError as ScenarioStepError,
-  TemplateError,
-  WriteRefusedError,
-  docsUrl,
-  errorKindOf,
-} from '@retake/core';
+import { AccessError, ClockError, ConfigError, DOCS_BASE_URL, ERROR_KINDS, EnvironmentError, HostRefusedError, RETAKE_REPOSITORY, RETAKE_VERSION, SandboxConfigError, ScenarioChangedError, ScenarioError, StepError as ScenarioStepError, TemplateError, WriteRefusedError, docsUrl, errorKindOf } from '@retake/core';
+import { BundleError, H264EncoderError } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { ComponentError } from '@retake/components';
 import { ExportError, PlanError, PlanTrustError, RenderCancelledError, RenderDiskFullError, RenderError } from '@retake/editor';

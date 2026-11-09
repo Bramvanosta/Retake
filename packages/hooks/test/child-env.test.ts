@@ -7,7 +7,11 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { useAgentPolicy } from '@retake/core';
+import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the hooks below run under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 import { Journal, runHooks } from '@retake/hooks';
 import { makeContext, makeProject, tempProject } from './helpers.js';
 
@@ -21,7 +25,7 @@ beforeEach(async () => {
   process.env[PASSED] = 'listed-in-pass-env';
 });
 afterEach(async () => {
-  useAgentPolicy(null);
+  policy = agentPolicy(null);
   delete process.env[SECRET];
   delete process.env[PASSED];
   await tmp.cleanup();
@@ -31,7 +35,7 @@ afterEach(async () => {
 async function seen(): Promise<Record<string, string>> {
   const project = makeProject(tmp.dir, {}, { pass_env: [PASSED] });
   const journal = await Journal.open(join(tmp.dir, '.retake', 'journal.json'));
-  const res = await runHooks([{ name: 'env', shell: { run: 'env > env.txt', env: { OWN: `{{env:${SECRET}}}` } }, writes: false }], makeContext(project).ctx, { phase: 'setup', journal });
+  const res = await runHooks([{ name: 'env', shell: { run: 'env > env.txt', env: { OWN: `{{env:${SECRET}}}` } }, writes: false }], makeContext(project, { policy }).ctx, { phase: 'setup', journal });
   expect(res.ok, JSON.stringify(res.results)).toBe(true);
   const text = await readFile(join(tmp.dir, 'env.txt'), 'utf8');
   return Object.fromEntries(text.split('\n').filter((l) => l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
@@ -40,14 +44,14 @@ async function seen(): Promise<Record<string, string>> {
 async function failure(): Promise<string> {
   const project = makeProject(tmp.dir, {}, { pass_env: [PASSED] });
   const journal = await Journal.open(join(tmp.dir, '.retake', 'journal.json'));
-  const res = await runHooks([{ name: 'fails', shell: { run: 'exit 3', env: { OWN: 'x' } }, writes: false }], makeContext(project).ctx, { phase: 'setup', journal });
+  const res = await runHooks([{ name: 'fails', shell: { run: 'exit 3', env: { OWN: 'x' } }, writes: false }], makeContext(project, { policy }).ctx, { phase: 'setup', journal });
   expect(res.ok).toBe(false);
   return res.results[0].error ?? '';
 }
 
 describe('the environment of a shell hook', () => {
   it('under the agent policy: the shell\'s own variables, pass_env, its own env — never an exported secret', async () => {
-    useAgentPolicy([tmp.dir]);
+    policy = agentPolicy([tmp.dir]);
     const env = await seen();
     expect(env[SECRET]).toBeUndefined();
     expect(env[PASSED]).toBe('listed-in-pass-env');
@@ -67,7 +71,7 @@ describe('the environment of a shell hook', () => {
   });
 
   it('a hook that fails under the agent policy says which variables it saw and how to pass another', async () => {
-    useAgentPolicy([tmp.dir]);
+    policy = agentPolicy([tmp.dir]);
     const error = await failure();
     expect(error).toMatch(/^shell "exit 3" exited with code 3 \(a job the Studio, the desktop app or an MCP client starts gives its programs only some variables/);
     expect(error).toMatch(new RegExp(`this one saw HOME, (?:[A-Z_]+, )*PATH, (?:[A-Z_]+, )*${PASSED}(?:, [A-Z_]+)*; if it needs another`));

@@ -1,6 +1,7 @@
 import { delimiter, join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { bareEnvHint, childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv, useAgentPolicy } from '@retake/core';
+import { describe, expect, it } from 'vitest';
+import { PERSON_POLICY, agentPolicy, bareEnvHint, childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv } from '@retake/core';
+import { nodeFileFacts as files } from '@retake/core/io';
 
 const WS = '/work/space';
 
@@ -31,11 +32,10 @@ const SOURCE: NodeJS.ProcessEnv = {
   COMPOSE_PROFILES: 'debug',
 };
 
-afterEach(() => useAgentPolicy(null));
 
 describe('the environment of the programs a job starts under the agent policy (core childEnv)', () => {
   it('keeps the shell\'s own variables and drops everything else: secrets, loader variables, docker\'s', () => {
-    const env = childEnv(SOURCE, { folders: [WS] });
+    const env = childEnv(SOURCE, { folders: [WS], files });
     expect(Object.keys(env).sort()).toEqual(
       ['HOME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'LOGNAME', 'NODE_EXTRA_CA_CERTS', 'NO_PROXY', 'PATH', 'SHELL', 'SSL_CERT_FILE', 'TERM', 'TMPDIR', 'TZ', 'USER', 'https_proxy'].sort(),
     );
@@ -46,14 +46,13 @@ describe('the environment of the programs a job starts under the agent policy (c
   });
 
   it('cleans PATH: absolute entries outside the workspace only', () => {
-    expect(childEnv(SOURCE, { folders: [WS] }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
-    // The policy's own folders by default.
-    useAgentPolicy([WS]);
-    expect(childEnv(SOURCE).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
+    expect(childEnv(SOURCE, { folders: [WS], files }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
+    // The agent policy's own folders (a WorkPolicy's, as a hook's unsigned rollback gets them).
+    expect(childEnv(SOURCE, { folders: agentPolicy([WS]).agentFolders!, files }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
   });
 
   it('passes the names of project.yaml `pass_env:` on, never a loader variable', () => {
-    const env = childEnv(SOURCE, { folders: [WS], pass: ['DATABASE_URL', 'NODE_OPTIONS', 'GIT_SSH_COMMAND', 'NOT_SET'] });
+    const env = childEnv(SOURCE, { folders: [WS], files, pass: ['DATABASE_URL', 'NODE_OPTIONS', 'GIT_SSH_COMMAND', 'NOT_SET'] });
     expect(env.DATABASE_URL).toBe('postgres://u:pw@localhost:5432/app');
     expect(env.NODE_OPTIONS).toBeUndefined();
     expect(env.GIT_SSH_COMMAND).toBeUndefined();
@@ -62,7 +61,7 @@ describe('the environment of the programs a job starts under the agent policy (c
   });
 
   it('gives docker DOCKER_* and BUILDKIT_* too (which daemon it talks to), never COMPOSE_*', () => {
-    const env = childEnv(SOURCE, { folders: [WS], docker: true });
+    const env = childEnv(SOURCE, { folders: [WS], files, docker: true });
     expect(env).toMatchObject({ DOCKER_HOST: 'unix:///var/run/docker.sock', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', HOME: '/Users/someone' });
     expect(env.COMPOSE_PROFILES).toBeUndefined();
     expect(env.STRIPE_SECRET_KEY).toBeUndefined();
@@ -71,15 +70,14 @@ describe('the environment of the programs a job starts under the agent policy (c
   it("docker's variables by name only: a registry password or token exported as DOCKER_* / BUILDKIT_* never reaches it", () => {
     const named = { DOCKER_HOST: 'h', DOCKER_CONTEXT: 'c', DOCKER_CONFIG: '/c', DOCKER_CERT_PATH: '/p', DOCKER_TLS: '1', DOCKER_TLS_VERIFY: '1', DOCKER_API_VERSION: '1.45', DOCKER_DEFAULT_PLATFORM: 'linux/amd64', DOCKER_BUILDKIT: '1', BUILDKIT_PROGRESS: 'plain' };
     const secrets = { DOCKER_PASSWORD: 'pw', DOCKER_AUTH_CONFIG: '{"auths":{}}', DOCKER_TOKEN: 't', DOCKER_REGISTRY_PASSWORD: 'pw', BUILDKIT_TOKEN: 't', DOCKER_HOST_X: 'x' };
-    const env = childEnv({ ...named, ...secrets }, { folders: [WS], docker: true });
+    const env = childEnv({ ...named, ...secrets }, { folders: [WS], files, docker: true });
     expect(env).toEqual(named);
-    expect(childEnv({ ...named, ...secrets }, { folders: [WS] })).toEqual({});
+    expect(childEnv({ ...named, ...secrets }, { folders: [WS], files })).toEqual({});
   });
 
   it('applies only under the agent policy (policyChildEnv): a command a person types inherits', () => {
-    expect(policyChildEnv(SOURCE, { pass: ['DATABASE_URL'] })).toBeNull();
-    useAgentPolicy([WS]);
-    const env = policyChildEnv(SOURCE, { pass: ['DATABASE_URL'] });
+    expect(policyChildEnv(PERSON_POLICY, SOURCE, { pass: ['DATABASE_URL'], files })).toBeNull();
+    const env = policyChildEnv(agentPolicy([WS]), SOURCE, { pass: ['DATABASE_URL'], files });
     expect(env?.DATABASE_URL).toBe('postgres://u:pw@localhost:5432/app');
     expect(env?.STRIPE_SECRET_KEY).toBeUndefined();
   });

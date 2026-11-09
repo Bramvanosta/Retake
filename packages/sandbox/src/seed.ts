@@ -11,7 +11,8 @@
  */
 import { rmSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { interpolateDeep, isHostAllowed, normalizeHost, prefetchSecrets, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { interpolateDeep, isHostAllowed, normalizeHost, protectedBy, protectedHostMessage, redact, resolveEnvironment, runAccess, secretForms, shellHostRefs } from '@retake/core';
+import { prefetchSecrets } from '@retake/core/io';
 import type { HookStep, LoadedProject, LoadedSandbox, SeedStep } from '@retake/core';
 import { Journal, databaseTarget, hookFingerprint, runHooks, supersedePendingJournals } from '@retake/hooks';
 import type { HookContext, HookResult } from '@retake/hooks';
@@ -153,6 +154,7 @@ export async function runSeed(
   const env = resolveEnvironment(project, sandbox.env);
   const ctx: HookContext = {
     project,
+    policy: pctx.policy,
     env,
     vars: { ...(project.config.vars ?? {}) },
     runId: opts.by,

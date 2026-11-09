@@ -10,14 +10,16 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath, listTemplates, loadProjectTemplate, loadTemplate } from '@retake/core';
-import type { ComponentKind, LoadedProject, LoadedTemplate, WorkspaceConfig } from '@retake/core';
+import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath } from '@retake/core';
+import { listTemplates, loadProjectTemplate, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { ComponentKind, LoadedProject, LoadedTemplate, FileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug } from './refs.js';
 import { sha256Hex } from './storage.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Longest template.yaml text a detail returns. */
 const YAML_MAX = 20_000;
@@ -45,10 +47,10 @@ function picks(reg: ComponentRegistry, t: LoadedTemplate): { components: Partial
  * The first reason a listed theme cannot be used for work, or null (its components resolve, its files lie in its folder):
  * the timeline's theme switch shows it disabled with this (review B L4). One line; the workspace's part of a path cut off.
  */
-export async function themeUnusable(dir: string, reg: ComponentRegistry, root: string): Promise<string | null> {
+export async function themeUnusable(dir: string, reg: ComponentRegistry, root: string, files: FileFacts): Promise<string | null> {
   let issue: string | undefined;
   try {
-    const t = await loadTemplate(dir);
+    const t = await loadTemplate(dir, undefined, { files });
     issue = [...picks(reg, t).issues, ...themeAssetProblems(t)][0];
   } catch (e) {
     issue = toEngineError(e).message;
@@ -62,7 +64,7 @@ export async function themeUnusable(dir: string, reg: ComponentRegistry, root: s
  */
 export function themeAssetProblems(t: LoadedTemplate): string[] {
   const files = [t.assets.logo, t.assets.wordmark, t.assets.display, ...t.assets.body].filter((f): f is string => typeof f === 'string');
-  return files.filter((f) => !insideFolder(t.dir, f)).map((f) => `theme ${t.name}: ${f} lies outside its folder ${t.dir}`);
+  return files.filter((f) => !insideFolder(t.dir, f, nodeFileFacts)).map((f) => `theme ${t.name}: ${f} lies outside its folder ${t.dir}`);
 }
 
 export interface TemplateSummary {
@@ -113,21 +115,21 @@ function summaryOf(t: LoadedTemplate, source: TemplateSummary['source'], reg: Co
 }
 
 /** Every theme of the workspace (and, with `project`, which one is its default — its own folder too). */
-export async function templateList(ws: WorkspaceConfig, projectSlug?: string): Promise<TemplateListView> {
+export async function templateList(ws: OpenedWorkspace, projectSlug?: string): Promise<TemplateListView> {
   const project = projectSlug !== undefined ? await openProjectBySlug(ws, checkProjectSlug(projectSlug)) : undefined;
   const reg = await workspaceRegistry(ws);
   const own = project?.config.template;
   const out: TemplateSummary[] = [];
   for (const e of await listTemplates(ws.root)) {
     try {
-      out.push(summaryOf(await loadTemplate(e.dir), e.source, reg, own === e.name));
+      out.push(summaryOf(await loadTemplate(e.dir, undefined, { files: fileFacts(ws.policy) }), e.source, reg, own === e.name));
     } catch (err) {
       out.push({ name: e.name, source: e.source, dir: e.dir, ...(own === e.name ? { default: true as const } : {}), components: {}, issues: [toEngineError(err).message] });
     }
   }
   if (project && own !== undefined && isTemplatePath(own)) {
     try {
-      out.unshift(summaryOf(await loadProjectTemplate(project), 'project', reg, true));
+      out.unshift(summaryOf(await loadProjectTemplate(project, undefined, { files: fileFacts(ws.policy) }), 'project', reg, true));
     } catch (err) {
       out.unshift({ name: own, source: 'project', dir: join(project.dir, own), default: true, components: {}, issues: [toEngineError(err).message] });
     }
@@ -139,31 +141,31 @@ export async function templateList(ws: WorkspaceConfig, projectSlug?: string): P
  * The theme work submitted through MCP uses: a name (workspace templates, then the starters), or — none given — the
  * project's own theme (a folder only when project.yaml names it). NotFound / invalid as EngineErrors.
  */
-export async function themeForWork(project: LoadedProject, name?: string): Promise<LoadedTemplate> {
+export async function themeForWork(project: LoadedProject, name: string | undefined, files: FileFacts): Promise<LoadedTemplate> {
   if (name !== undefined) checkTemplateName(name);
   try {
-    return await loadProjectTemplate(project, name);
+    return await loadProjectTemplate(project, name, { files });
   } catch (e) {
     throw toEngineError(e);
   }
 }
 
 /** One theme in detail (a name; with `project`, its default when `template` is omitted). */
-export async function templateGet(ws: WorkspaceConfig, o: { template?: string; project?: string }): Promise<TemplateDetail> {
+export async function templateGet(ws: OpenedWorkspace, o: { template?: string; project?: string }): Promise<TemplateDetail> {
   if (o.template === undefined && o.project === undefined) throw new EngineError('invalid', 'name a theme (template), or a project for its own theme');
   let t: LoadedTemplate;
   let source: TemplateSummary['source'];
   let isDefault = false;
   if (o.project !== undefined) {
     const project = await openProjectBySlug(ws, checkProjectSlug(o.project));
-    t = await themeForWork(project, o.template);
+    t = await themeForWork(project, o.template, fileFacts(ws.policy));
     const own = project.config.template;
     isDefault = o.template === undefined || o.template === own;
     source = o.template === undefined && isTemplatePath(own) ? 'project' : (await listTemplates(ws.root)).find((e) => e.name === t.name)?.source ?? 'workspace';
   } else {
     checkTemplateName(o.template!);
     try {
-      t = await loadTemplate(o.template!, ws.root);
+      t = await loadTemplate(o.template!, ws.root, { files: fileFacts(ws.policy) });
     } catch (e) {
       throw toEngineError(e);
     }

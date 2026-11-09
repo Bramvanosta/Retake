@@ -26,27 +26,9 @@
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import {
-  BRAND_IMAGE_MAX_BYTES,
-  JOB_INPUT_VERSION,
-  SITE_ID_RE,
-  TEMPLATE_FILE,
-  insideFolder,
-  listProjects,
-  loadTemplate,
-  normalizeHost,
-  parseSiteUrl,
-  parseYaml,
-  realPathOf,
-  resolveEnvironment,
-  siteApprovalFingerprint,
-  siteThemeName,
-  unsafeTestResolve,
-  statePath,
-  STATE_DIR,
-  STATE_DIRS,
-} from '@retake/core';
-import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile, WorkspaceConfig } from '@retake/core';
+import { BRAND_IMAGE_MAX_BYTES, JOB_INPUT_VERSION, SITE_ID_RE, TEMPLATE_FILE, insideFolder, normalizeHost, parseSiteUrl, parseYaml, realPathOf, resolveEnvironment, siteApprovalFingerprint, siteThemeName, unsafeTestResolve, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { listProjects, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile } from '@retake/core';
 import type { SiteReport } from '@retake/runner-web';
 import { takeSiteApproval } from '../approvals.js';
 import type { Approver } from '../approvals.js';
@@ -59,6 +41,7 @@ import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import { verifiedApprovals } from './signing.js';
 import type { JobEventBody, JobProgress, JobRecord, SiteCandidateResult, SiteJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Site extractions kept per workspace (the newest). */
 export const SITE_KEEP = 10;
@@ -69,12 +52,12 @@ const SOURCES = ['header-img', 'header-svg', 'page-img', 'page-svg', 'icon', 'og
 const SCREENSHOT_MAX_BYTES = 8 * 1024 * 1024;
 
 /** <workspace>/.retake/site */
-export function siteRoot(ws: WorkspaceConfig): string {
+export function siteRoot(ws: OpenedWorkspace): string {
   return statePath(ws.root, 'site');
 }
 
 /** <workspace>/.retake/site/<id> (the id checked: never a path). */
-export function siteDir(ws: WorkspaceConfig, id: string): string {
+export function siteDir(ws: OpenedWorkspace, id: string): string {
   if (typeof id !== 'string' || !SITE_ID_RE.test(id)) throw new EngineError('invalid', `invalid site extraction id "${String(id)}": s_ followed by 26 characters (template_from_site returns it), never a path`);
   return join(siteRoot(ws), id);
 }
@@ -88,7 +71,7 @@ export function newSiteId(): string {
  * to be real folders (a link or a file there is refused), inside the workspace once links are followed, and <id> made
  * NEW (non-recursive: an existing one was planted, refused). Returns the folder.
  */
-export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<string> {
+export async function makeSiteDir(ws: OpenedWorkspace, id: string): Promise<string> {
   const dir = siteDir(ws, id);
   let parent = ws.root;
   for (const seg of [STATE_DIR, STATE_DIRS.site]) {
@@ -99,7 +82,7 @@ export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<stri
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): site extractions are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root)), realPathOf(parent))) throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: site extractions stay in it`);
   try {
     await mkdir(dir);
   } catch (e) {
@@ -110,7 +93,7 @@ export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<stri
 }
 
 /** Whether `.retake/`, `site/` and <id>/ are real folders (no link on the way to the extraction's files). */
-function plainSiteFolders(ws: WorkspaceConfig, id: string): boolean {
+function plainSiteFolders(ws: OpenedWorkspace, id: string): boolean {
   let p = ws.root;
   for (const seg of [STATE_DIR, STATE_DIRS.site, id]) {
     p = join(p, seg);
@@ -178,7 +161,7 @@ export function checkSiteUrl(url: string, fix?: string): SiteUrl {
  * Where the host is an environment page of a workspace project, or a protected host (production / read-only, read_only
  * host patterns): each as a sentence. A project that does not load contributes nothing.
  */
-export async function siteHostConflicts(ws: WorkspaceConfig, host: string): Promise<string[]> {
+export async function siteHostConflicts(ws: OpenedWorkspace, host: string): Promise<string[]> {
   const out: string[] = [];
   for (const p of await listProjects(ws.root)) {
     let project: LoadedProject;
@@ -220,7 +203,7 @@ async function activeSites(queue: JobQueueView): Promise<string[]> {
  * Keep the newest `keep` extraction folders (ids sort by creation); `except` and the folders of the jobs queued or
  * running in `queue` (the workspace's) are never removed.
  */
-export async function pruneSites(ws: WorkspaceConfig, queue: JobQueueView, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
+export async function pruneSites(ws: OpenedWorkspace, queue: JobQueueView, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
   const active = await activeSites(queue).catch(() => null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
@@ -276,7 +259,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
 }
 
 export interface SiteJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   /** The workspace's job queue (the folders of extractions queued or running are never pruned). */
   queue: JobQueueView;
@@ -296,7 +279,7 @@ export async function siteApproved(input: SiteJobInput, jobId: string, root: str
 }
 
 /** A draft brand input and the template.yaml it would make, from an extraction's colours and first candidate. */
-export async function siteDraft(ws: WorkspaceConfig, siteId: string, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>): Promise<SiteJobResult['draft']> {
+export async function siteDraft(ws: OpenedWorkspace, siteId: string, view: Pick<SiteJobResult, 'host' | 'palette' | 'candidates' | 'status'>): Promise<SiteJobResult['draft']> {
   if (view.status !== 'ok' || !view.palette) return null;
   const { roles, swatches } = view.palette;
   const lib = await components();
@@ -305,7 +288,7 @@ export async function siteDraft(ws: WorkspaceConfig, siteId: string, view: Pick<
   const baseName = tone === 'dark' ? 'motion' : 'editorial';
   let base;
   try {
-    base = await loadTemplate(baseName, ws.root);
+    base = await loadTemplate(baseName, ws.root, { files: fileFacts(ws.policy) });
   } catch {
     return null;
   }
@@ -339,7 +322,7 @@ const counts = (v: unknown): Record<string, number> =>
  * enums and the candidate files that exist kept; the rest under `untrusted` (page strings, and anything of another
  * shape). `url` and `host` come from the job's signed input, never from the file.
  */
-export function siteView(ws: WorkspaceConfig, siteId: string, url: SiteUrl, raw: unknown): Omit<SiteJobResult, 'kind' | 'draft'> {
+export function siteView(ws: OpenedWorkspace, siteId: string, url: SiteUrl, raw: unknown): Omit<SiteJobResult, 'kind' | 'draft'> {
   const dir = siteDir(ws, siteId);
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<SiteReport> & Record<string, unknown>;
   const pal = r.palette && typeof r.palette === 'object' ? r.palette : null;
@@ -411,6 +394,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   let report: SiteReport;
   try {
     report = await extractSite({
+      policy: ctx.ws.policy,
       url: url.href,
       host: url.host,
       outDir: dir,
@@ -431,7 +415,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { queue: JobQueueView; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(ws: OpenedWorkspace, rawUrl: string, o: { queue: JobQueueView; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();
@@ -440,7 +424,7 @@ export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, 
   const { extractSite } = await import('@retake/runner-web');
   let report: SiteReport;
   try {
-    report = await extractSite({ url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
+    report = await extractSite({ policy: ws.policy, url: url.href, host: url.host, outDir: dir, testResolve: test.map, ...(o.signal ? { signal: o.signal } : {}), ...(o.onPhase ? { onPhase: o.onPhase } : {}) });
   } catch (e) {
     throw toEngineError(e);
   }
@@ -451,7 +435,7 @@ export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, 
 }
 
 /** An extraction read back from its folder (site.json as a file of the workspace), with its draft; null report when absent. */
-export async function readSite(ws: WorkspaceConfig, siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }> {
+export async function readSite(ws: OpenedWorkspace, siteId: string, url: string): Promise<{ dir: string; view: SiteJobResult | null }> {
   const dir = siteDir(ws, siteId);
   let raw: unknown;
   try {

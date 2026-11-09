@@ -8,22 +8,22 @@ import type { Engine } from './types.js';
 
 /** engine.scenarios: what an agent writes is checked as the work it submits will be. */
 export function scenariosApi(ctx: EngineContext): Engine['scenarios'] {
-  const { agent, via, ws, scope, project, submitCtx, views } = ctx;
+  const { agent, via, ws, files, scope, project, submitCtx, views } = ctx;
   return {
     get: async (slug, name) => getScenario(await project(slug), name),
     // What an agent (the MCP server, the Studio app) writes is checked as the work it submits will be (core agent-trust).
-    validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent, via }),
+    validate: async (slug, yaml, o) => validateScenarioText(await project(slug), yaml, { ...o, agent, via, files }),
     check: async (slug, name, o = {}) => {
       const p = await project(slug);
       const text = await getScenario(p, name);
-      const { ok, issues } = await validateScenarioText(p, text.yaml, { name, ...(o.env !== undefined ? { env: o.env } : {}) });
+      const { ok, issues } = await validateScenarioText(p, text.yaml, { files, name, ...(o.env !== undefined ? { env: o.env } : {}) });
       const run_blockers = await runBlockers(submitCtx, { project: slug, scenario: name, ...(o.env !== undefined ? { env: o.env } : {}) });
       return { ...text, ok, issues, run_blockers };
     },
     view: (slug, name, o = {}) => views.view(slug, name, o),
     actions: (slug, name, o = {}) => views.actions(slug, name, o),
-    save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via, scope }),
-    edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await memoRegistry(ws)).registry, scope }),
-    fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent }),
+    save: async (slug, name, yaml, o) => saveScenarioText(await project(slug), name, yaml, { ...o, agent, via, scope, files }),
+    edit: async (slug, name, req) => editScenario(await project(slug), name, req, { agent, via, registry: async () => (await memoRegistry(ws)).registry, scope, files }),
+    fromScript: async (slug, markdown, o) => draftFromScript(await project(slug), markdown, { ...o, agent, files }),
   };
 }

@@ -11,10 +11,14 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ConfigError, composeEnvFile, envFileKeys, loadProject, useAgentPolicy } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { ConfigError, envFileKeys, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { composeEnvFile, loadProject } from '@retake/core/io';
+import type { LoadedProject, WorkPolicy } from '@retake/core';
 import { ComposeProvider, SandboxError, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
 import type { DockerExec, DockerRunOptions, ProviderContext } from '@retake/sandbox';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
 let tmp = '';
@@ -42,7 +46,7 @@ async function project(name: string, manifest: string[], files: Record<string, s
 
 function ctxOf(p: LoadedProject): ProviderContext {
   const sandbox = p.sandboxes!.stage;
-  return { project: p, sandbox, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
+  return { project: p, policy, sandbox, paths: sandboxPaths(p.dir, 'stage'), state: emptyState('stage', 'docker-compose'), save: () => undefined, log: () => undefined };
 }
 
 describe('env file of a docker-compose sandbox (L5.8)', () => {
@@ -59,14 +63,14 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const args = composeArgs(ref);
     expect(args.slice(args.indexOf('--env-file'), args.indexOf('--env-file') + 2)).toEqual(['--env-file', ref.envFile]);
     // The shell's APP_TAG and COMPOSE_PROFILES never reach docker; the rest of the shell does.
-    const env = dockerEnv({ PATH: '/usr/bin', APP_TAG: 'from-the-shell', COMPOSE_PROFILES: 'debug' }, ref.envKeys);
+    const env = dockerEnv(policy, { PATH: '/usr/bin', APP_TAG: 'from-the-shell', COMPOSE_PROFILES: 'debug' }, ref.envKeys);
     expect(env).toEqual({ PATH: '/usr/bin' });
     const calls: Array<{ args: string[]; opts?: DockerRunOptions }> = [];
     const exec: DockerExec = async (a, o) => {
       calls.push({ args: a, ...(o ? { opts: o } : {}) });
       return { code: 0, stdout: JSON.stringify({ name: ref.name, services: { app: { image: 'busybox:1.38.0' } } }), stderr: '', ms: 1 };
     };
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     const cfg = await provider.config(ctxOf(p));
     expect(cfg.images.app).toBe('busybox:1.38.0');
     expect(calls[0].args).toContain('--env-file');
@@ -86,7 +90,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
       if (a[0] === 'info') return { code: 0, stdout: '27.0.0', stderr: '', ms: 1 };
       return { code: 0, stdout: '', stderr: '', ms: 1 };
     };
-    const inputs = await new ComposeProvider({ exec }).hashInputs(ctxOf(p));
+    const inputs = await new ComposeProvider({ policy, exec }).hashInputs(ctxOf(p));
     expect(inputs.find((i) => i.startsWith('env-file '))).toMatch(/^env-file [0-9a-f]{64}$/);
   });
 
@@ -103,13 +107,13 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     expect(ref.pass).toEqual(['GREETING']);
     const shell = { PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', APP_TAG: 'from-the-shell', COMPOSE_PROFILES: 'debug', AWS_SECRET_ACCESS_KEY: 'exported' };
     // A command a person types: everything but COMPOSE_* and the env file's names.
-    expect(dockerEnv(shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', AWS_SECRET_ACCESS_KEY: 'exported' });
-    useAgentPolicy([p.dir]);
+    expect(dockerEnv(policy, shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', AWS_SECRET_ACCESS_KEY: 'exported' });
+    policy = agentPolicy([p.dir], policy.ffmpeg, policy.render);
     try {
-      expect(dockerEnv(shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell' });
-      expect(dockerEnv(shell, ref.envKeys)).not.toHaveProperty('GREETING');
+      expect(dockerEnv(policy, shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell' });
+      expect(dockerEnv(policy, shell, ref.envKeys)).not.toHaveProperty('GREETING');
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
     }
     // Every compose command of the provider carries project.yaml's pass_env.
     const calls: Array<DockerRunOptions | undefined> = [];
@@ -117,7 +121,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
       calls.push(o);
       return { code: 0, stdout: JSON.stringify({ services: { app: { image: 'busybox:1.38.0' } } }), stderr: '', ms: 1 };
     };
-    await new ComposeProvider({ exec }).config(ctxOf(p));
+    await new ComposeProvider({ policy, exec }).config(ctxOf(p));
     expect(calls[0]?.pass).toEqual(['GREETING']);
   });
 
@@ -135,26 +139,26 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     await standIn(outside);
     await symlink(outside, join(tmp, 'docker-elsewhere', 'docker'));
     const before = process.env.RETAKE_DOCKER;
-    useAgentPolicy([p.dir]);
+    policy = agentPolicy([p.dir], policy.ffmpeg, policy.render);
     try {
       process.env.RETAKE_DOCKER = inside;
-      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(/^sandbox stage: docker-compose sandboxes: \$RETAKE_DOCKER \(.*\/bin\/docker\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_DOCKER at its new place$/);
-      await expect(new ComposeProvider().config(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER .* lies inside the workspace/);
+      await expect(new ComposeProvider({ policy }).docker(ctxOf(p))).rejects.toThrow(/^sandbox stage: docker-compose sandboxes: \$RETAKE_DOCKER \(.*\/bin\/docker\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_DOCKER at its new place$/);
+      await expect(new ComposeProvider({ policy }).config(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER .* lies inside the workspace/);
       expect(existsSync(join(p.dir, 'bin', 'ran.txt'))).toBe(false);
       process.env.RETAKE_DOCKER = 'bin/docker';
-      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER \(bin\/docker\) is a relative path/);
+      await expect(new ComposeProvider({ policy }).docker(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER \(bin\/docker\) is a relative path/);
       process.env.RETAKE_DOCKER = join(tmp, 'docker-elsewhere', 'docker');
-      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(SandboxError);
+      await expect(new ComposeProvider({ policy }).docker(ctxOf(p))).rejects.toThrow(SandboxError);
       expect(readFileSync(join(tmp, 'docker-elsewhere', 'ran.txt'), 'utf8').trim().split('\n')[0]).toBe(realpathSync(outside));
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
       if (before === undefined) delete process.env.RETAKE_DOCKER;
       else process.env.RETAKE_DOCKER = before;
     }
     // A command a person types: the binary runs where it is.
     process.env.RETAKE_DOCKER = inside;
     try {
-      await new ComposeProvider().docker(ctxOf(p)).catch(() => undefined);
+      await new ComposeProvider({ policy }).docker(ctxOf(p)).catch(() => undefined);
       expect(existsSync(join(p.dir, 'bin', 'ran.txt'))).toBe(true);
     } finally {
       if (before === undefined) delete process.env.RETAKE_DOCKER;
@@ -169,7 +173,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const before = process.env.GREETING;
     process.env.GREETING = 'from-the-shell';
     const greeting = (cfg: unknown) => JSON.stringify(cfg).match(/"GREETING":"([^"]*)"/)?.[1];
-    useAgentPolicy([tmp]);
+    policy = agentPolicy([tmp], policy.ffmpeg, policy.render);
     try {
       const calls: string[] = [];
       const real: DockerExec = async (a, o) => {
@@ -178,12 +182,12 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
         if (a.includes('config')) calls.push(r.stdout);
         return r;
       };
-      await new ComposeProvider({ exec: real }).config(ctxOf(listed));
-      await new ComposeProvider({ exec: real }).config(ctxOf(unlisted));
+      await new ComposeProvider({ policy, exec: real }).config(ctxOf(listed));
+      await new ComposeProvider({ policy, exec: real }).config(ctxOf(unlisted));
       expect(greeting(JSON.parse(calls[0]))).toBe('from-the-shell');
       expect(greeting(JSON.parse(calls[1]))).toBe('none');
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
       if (before === undefined) delete process.env.GREETING;
       else process.env.GREETING = before;
     }
@@ -194,7 +198,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const before = process.env.APP_TAG;
     process.env.APP_TAG = 'from-the-shell';
     try {
-      const cfg = await new ComposeProvider().config(ctxOf(p));
+      const cfg = await new ComposeProvider({ policy }).config(ctxOf(p));
       expect(cfg.images.app).toBe('busybox:1.38.0');
     } finally {
       if (before === undefined) delete process.env.APP_TAG;

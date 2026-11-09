@@ -29,8 +29,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
-import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, policyProgram, prefetchSecrets, resolveEnvironment, sandboxNames } from '@retake/core';
-import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core';
+import { DEFAULT_COMPOSE_FILES, envFileKeys, interpolateDeep, policyProgram, resolveEnvironment, sandboxNames } from '@retake/core';
+import { composeEnvFile, prefetchSecrets, nodeFileFacts } from '@retake/core/io';
+import type { ExecStepSpec, LoadedProject, LoadedSandbox, WorkPolicy } from '@retake/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
 import { checkExecHosts, masker, sandboxSecrets } from './seed.js';
@@ -355,6 +356,8 @@ function indent(text: string, by = '    '): string {
 }
 
 export interface ComposeProviderOptions {
+  /** What the work runs under (core WorkPolicy): docker is checked against its agent policy and gets its environment. */
+  policy: WorkPolicy;
   /** The docker binary (default findDocker(): $RETAKE_DOCKER, PATH, the usual install places). */
   docker?: string;
   /** How docker is run (default runDocker; tests pass a fake). */
@@ -368,6 +371,7 @@ export class ComposeProvider implements Provider {
   private readonly bin: string | null;
   /** How a refusal names the binary (`$RETAKE_DOCKER` when it came from there). */
   private readonly binWhat: string;
+  private readonly policy: WorkPolicy;
   private readonly run: DockerExec;
   private readonly listen: (ports: readonly number[]) => Promise<Listener[] | null>;
   private ready: Promise<DockerInfo> | null = null;
@@ -383,14 +387,15 @@ export class ComposeProvider implements Provider {
   /** port → the address Docker publishes it on, for the sandbox's own running containers (remember()). */
   private readonly addresses = new Map<number, string>();
 
-  constructor(opts: ComposeProviderOptions = {}) {
+  constructor(opts: ComposeProviderOptions) {
+    this.policy = opts.policy;
     this.bin = opts.docker ?? (opts.exec ? 'docker' : findDocker());
     this.binWhat = opts.docker === undefined && process.env.RETAKE_DOCKER ? '$RETAKE_DOCKER' : 'docker';
     this.run =
       opts.exec ??
       ((args, o) => {
         const bin = this.program();
-        return bin ? runDocker(bin, args, o) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
+        return bin ? runDocker(bin, args, { ...o, policy: this.policy }) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
       });
     this.listen = opts.listeners ?? listeners;
   }
@@ -402,7 +407,7 @@ export class ComposeProvider implements Provider {
    */
   private program(): string | null {
     if (!this.bin) return null;
-    const checked = policyProgram(this.bin, this.binWhat);
+    const checked = policyProgram(this.policy, this.bin, this.binWhat, { files: nodeFileFacts });
     if (checked.problem) throw new SandboxError(`docker-compose sandboxes: ${checked.problem}`);
     return checked.program;
   }
@@ -956,15 +961,15 @@ export class ComposeProvider implements Provider {
     // An exec step running in a container: its processes there too (the docker client alone would leave them).
     const exec = this.running;
     this.running = null;
-    const bin = this.bin ? policyProgram(this.bin, this.binWhat) : null;
+    const bin = this.bin ? policyProgram(this.policy, this.bin, this.binWhat, { files: nodeFileFacts }) : null;
     if (exec && bin && !bin.problem) {
-      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
     }
     const names = this.started;
     this.started = [];
     if (!names.length || !bin || bin.problem) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(this.policy, process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */

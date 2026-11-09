@@ -10,6 +10,7 @@ import { isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { insideFolder, pathInside, projectFileProblem, realPathOf, relativeInside } from '../src/index.js';
 import type { PathInsideOptions } from '../src/index.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 // ── The copies replaced, verbatim (argument order normalised to (p, dir)) ──────────────────────────────────────────
 /** components compile, checks context, engine storage / record-studio / comments / theme-edit / project-lock / scenarios, ui bundle-player, mcp project. */
@@ -149,7 +150,7 @@ describe('pathInside with real paths: the sites that follow links', () => {
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
   /** agent-trust insideFolder before (lexical part strictSelf above). */
-  const oldInsideFolder = (d: string, p: string) => strictSelf(realPathOf(resolve(p)), realPathOf(resolve(d)));
+  const oldInsideFolder = (d: string, p: string) => strictSelf(realPathOf(resolve(p), nodeFileFacts), realPathOf(resolve(d), nodeFileFacts));
   /** mcp tools/project isInside before: realpathSync, the path as given when it does not resolve. */
   const realOrSame = (x: string) => {
     try {
@@ -173,17 +174,17 @@ describe('pathInside with real paths: the sites that follow links', () => {
   ];
 
   it('insideFolder keeps its answers (realPathOf of the resolved paths, a `..` segment out)', () => {
-    for (const [p, d] of cases) expect(insideFolder(d, p), `${p} in ${d}`).toBe(oldInsideFolder(d, p));
-    expect(insideFolder(dir, join(dir, 'up'))).toBe(false);
-    expect(insideFolder(dir, join(root, 'into'))).toBe(true);
+    for (const [p, d] of cases) expect(insideFolder(d, p, nodeFileFacts), `${p} in ${d}`).toBe(oldInsideFolder(d, p));
+    expect(insideFolder(dir, join(dir, 'up'), nodeFileFacts)).toBe(false);
+    expect(insideFolder(dir, join(root, 'into'), nodeFileFacts)).toBe(true);
   });
 
   it('projectFileProblem keeps its answers: the folder itself and its files in, a link or `..` out', () => {
-    expect(projectFileProblem(dir, '.')).toBeNull();
-    expect(projectFileProblem(dir, 'sub')).toBeNull();
-    expect(projectFileProblem(dir, '..cache')).toBeNull(); // a name beginning with `..`: inside (a `..` segment only leads out)
-    expect(projectFileProblem(dir, 'up/x')).toMatch(/resolves outside the project folder/);
-    expect(projectFileProblem(dir, '../out')).toMatch(/resolves outside the project folder/);
+    expect(projectFileProblem(dir, '.', { files: nodeFileFacts })).toBeNull();
+    expect(projectFileProblem(dir, 'sub', { files: nodeFileFacts })).toBeNull();
+    expect(projectFileProblem(dir, '..cache', { files: nodeFileFacts })).toBeNull(); // a name beginning with `..`: inside (a `..` segment only leads out)
+    expect(projectFileProblem(dir, 'up/x', { files: nodeFileFacts })).toMatch(/resolves outside the project folder/);
+    expect(projectFileProblem(dir, '../out', { files: nodeFileFacts })).toMatch(/resolves outside the project folder/);
   });
 
   it('the MCP project check keeps its answers (its own resolver)', () => {

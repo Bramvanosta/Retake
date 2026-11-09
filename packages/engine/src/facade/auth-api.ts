@@ -1,5 +1,6 @@
 /** The façade's `auth` (createEngine): the personas' stored state, a sign-in job and its cancel, the sessions a scenario's run signs in. */
-import { listProjects, parseScenario, projectRef } from '@retake/core';
+import { parseScenario, projectRef } from '@retake/core';
+import { listProjects, fileFacts } from '@retake/core/io';
 import type { RunMode } from '@retake/core';
 import { projectPersonaStates } from '../auth.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -15,7 +16,7 @@ export function authApi(ctx: EngineContext): Engine['auth'] {
   const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
     const p = await project(slug);
     const text = await getScenario(p, name);
-    const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
+    const { scenario } = parseScenario(text.yaml, { files: fileFacts(ctx.ws.policy), file: text.path, project: p });
     if (!scenario) throw new EngineError('invalid', `${projectRef('scenarios', name)} does not parse: fix it first (scenario_check lists its issues)`);
     return sessionsOf(p, name, scenario, o);
   };

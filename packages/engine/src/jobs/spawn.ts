@@ -12,7 +12,8 @@ import { existsSync, openSync, closeSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { RETAKE_VERSION, bundleNodeArgs, engineLocation } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core';
+import { bundleNodeArgs, engineLocation } from '@retake/core/io';
 import { LOCK_VERSION_RE, WORKER_CLIENT_RE, liveWorker, otherCopy, workersDir } from './lock.js';
 
 /** Starts the worker process: node's `spawn` (tests inject one to see the command and the environment). */

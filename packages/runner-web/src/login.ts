@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Page } from 'playwright-core';
 import { LEGACY_PERSONA, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
-import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext } from '@retake/core';
+import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext, WorkPolicy } from '@retake/core';
 import {
   autoLogin,
   checkPersona,
@@ -35,6 +35,7 @@ import { RunSecrets } from './secrets.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { throwIfAborted } from './util.js';
+import { retakeHome } from '@retake/core/io';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
 
@@ -43,6 +44,9 @@ const POLL_MS = 1500;
 
 export interface SignInOptions {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   env: { name: string; pages: Record<string, string> };
   persona: ResolvedPersona;
   /** headed: a visible window, closed by the user; auto: the persona's login steps, headless. */
@@ -230,7 +234,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
  * (0600) and checked; when it is not valid and the saved one still is, the saved one is kept, else it replaces it.
  */
 async function saveUnlessSignedOut(
-  o: Pick<SignInOptions, 'project' | 'env' | 'persona' | 'browser' | 'log' | 'signal'>,
+  o: Pick<SignInOptions, 'project' | 'env' | 'persona' | 'browser' | 'log' | 'signal' | 'policy'>,
   snapshot: string,
   state: StorageStateFile,
   meta: Pick<SnapshotMeta, 'project' | 'env' | 'persona' | 'how'>,
@@ -251,11 +255,12 @@ async function saveUnlessSignedOut(
 }
 
 /** The browser of an automated login or of a check: a session (kit, bindings) of one realm, headless. */
-function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser' | 'env'>, log: Log) {
+function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser' | 'env' | 'policy'>, log: Log) {
   const capture = o.project.config.capture;
   const httpCredentials = launchCredentials(o.project, o.env.name);
   return {
     ...(httpCredentials ? { httpCredentials } : {}),
+    policy: o.policy,
     width: capture.width,
     height: capture.height,
     scale: capture.scale,
@@ -326,7 +331,7 @@ async function autoSession(
  */
 async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
   const b = projectBrowser(o.project, o.browser);
-  const { executablePath, channel } = launchTarget(b, { headless: o.headless === true });
+  const { executablePath, channel } = launchTarget(b, { headless: o.headless === true, policy: o.policy });
   // L5.16c: never an older Chromium than the one that opened this profile last (profile-browser.ts).
   const major = launchMajor({ executablePath, channel });
   checkProfileBrowser(userDataDir, major);
@@ -342,7 +347,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     handleSIGINT: false,
     handleSIGTERM: false,
     ...(httpCredentials ? { httpCredentials: { ...httpCredentials } } : {}),
-    ...launchOptions({ args: DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), browserArgs: b.args }),
+    ...launchOptions({ args: DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), browserArgs: b.args, policy: o.policy }),
   });
   await refuseUnsandboxed(context.browser(), () => context.close(), 'The sign-in browser');
   recordProfileBrowser(userDataDir, major);
@@ -425,7 +430,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
  * browser of its own (closed after, its copy removed) — without signing in. `unchecked` when the persona declares no
  * check; a master open in another browser fails (PreflightError); `signal` cancels it (CancelledError).
  */
-export async function checkSavedSession(o: Pick<SignInOptions, 'project' | 'env' | 'persona' | 'browser' | 'log' | 'signal'>): Promise<PersonaCheckResult> {
+export async function checkSavedSession(o: Pick<SignInOptions, 'project' | 'env' | 'persona' | 'browser' | 'log' | 'signal' | 'policy'>): Promise<PersonaCheckResult> {
   const p = o.persona;
   const log: Log = o.log ?? (() => undefined);
   if (!p.check) return { status: 'unchecked', detail: 'no check declared', ms: 0 };
@@ -441,6 +446,9 @@ export async function checkSavedSession(o: Pick<SignInOptions, 'project' | 'env'
 
 export interface LoginOptions {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): which Chromium and ffmpeg, which switches, under its agent policy. */
+  policy: WorkPolicy;
+
   env?: string;
   /** Environment page key to open (default: the first one). */
   page?: string;
@@ -455,13 +463,13 @@ export interface LoginOptions {
  */
 export async function openLoginBrowser(opts: LoginOptions): Promise<{ profileDir: string; url: string }> {
   const env = resolveEnvironment(opts.project, opts.env);
-  const persona = resolvePersonas(opts.project, env.name).find((x) => x.legacy && x.name === LEGACY_PERSONA);
+  const persona = resolvePersonas(opts.project, env.name, { home: retakeHome() }).find((x) => x.legacy && x.name === LEGACY_PERSONA);
   if (!persona?.profileDir) {
     throw new RunnerError(
       `project "${opts.project.slug}" has no auth.profile${env.name ? ` for environment "${env.name}"` : ''}: add one to project.yaml to keep a signed-in browser profile`,
     );
   }
   const key = opts.page ?? Object.keys(env.pages)[0];
-  const r = await signIn({ project: opts.project, env, persona, mode: 'headed', ...(key !== undefined ? { page: key } : {}), ...(opts.url ? { url: opts.url } : {}), browser: opts.browser });
+  const r = await signIn({ project: opts.project, policy: opts.policy, env, persona, mode: 'headed', ...(key !== undefined ? { page: key } : {}), ...(opts.url ? { url: opts.url } : {}), browser: opts.browser });
   return { profileDir: persona.profileDir, url: r.url };
 }

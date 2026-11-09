@@ -26,7 +26,8 @@
  * characters per string by the server: every stored text is at most that by construction).
  */
 import { z } from 'zod';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, loadProjectTemplate, parseYaml } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, parseYaml } from '@retake/core';
+import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@retake/engine';
 import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
 import type { ToolDef } from '@retake/engine/contract';
@@ -278,7 +279,7 @@ async function offerFacts(engine: Engine, slug: string, t: CommentView): Promise
     const ref = doc && typeof doc === 'object' && typeof doc.template === 'string' ? doc.template : undefined;
     // A theme folder named by the scenario is refused by the Studio's render (a theme is named): never read here.
     if (ref !== undefined && isTemplatePath(ref) && ref !== p.config.template) files = { missing: "The scenario's template: is a folder" };
-    else files = { name: (await loadProjectTemplate(p, ref)).name };
+    else files = { name: (await loadProjectTemplate(p, ref, { files: fileFacts(engine.workspace.policy) })).name };
   } catch {
     files = { missing: "The files' theme cannot be read" };
   }

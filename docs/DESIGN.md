@@ -40,7 +40,26 @@ else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, 
 
 ## 1. @retake/core
 
-Exports everything from `types.ts` plus:
+Two entries (L6.9). `@retake/core` is the pure domain — the scenario language, schemas, validation, the agent policy's
+rules and lists — and imports no I/O module (the import-rules ratchet's R1). `@retake/core/io` (`src/io/`) is its side
+that touches the machine: the readers below (workspace, projects, scenarios, themes, sandboxes), the app bundle and the
+media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key, secret references, atomic file writes,
+the media probes, and the Node implementation of the **FileFacts** port. The pure side never imports it.
+
+- **FileFacts** (`file-facts.ts`): what a pure rule learns from the disk — exists, kind, real path (as given / as the
+  file system spells it), text, first bytes, executable, a video's ffprobe. Every check that looks at a file (a file a
+  scenario, a project, a theme or a sandbox names; the real paths of the agent rules; the SQL a hook runs) is handed
+  one; one that needs the disk without it throws `FileFactsMissingError`, never reads as "no file". `nodeFileFacts`
+  (io) answers from node:fs and probes no video; `fileFacts(policy)` (io) probes them with the ffprobe of a work's
+  policy; `memoryFileFacts` (core) answers from a table.
+- **WorkPolicy** (`agent-policy.ts`): what a piece of work runs under — `agentFolders` (the agent policy on for a
+  workspace's folders, or null: a command a person types), the workspace's retake.yaml `ffmpeg` and `render:`. The
+  engine's `openWorkspace` returns it with the workspace (`OpenedWorkspace.policy`) and passes it to every adapter that
+  starts a program, a browser or ffmpeg (runner `launchTarget` / `launchOptions`, editor `assertRenderBrowser` /
+  `renderPolicy`, `ffmpegBin(policy)`, sandbox providers, a hook's context); there is no process-wide policy.
+
+The readers and writers below are `@retake/core/io`'s; the parsers (`parseProjectYaml`, `parseScenario`…) are core's
+and take the FileFacts their checks use (`files`).
 
 ```ts
 // workspace
@@ -263,8 +282,8 @@ HookContext = {
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
   `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged. What it inherits (`inheritedEnv`):
-  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes, the MCP
-  server and the Studio server) core
+  `process.env` in the CLI; under the agent policy (the context's core `WorkPolicy`: the worker and its job processes,
+  the MCP server and the Studio server) core
   `policyChildEnv` — `CHILD_ENV_BASE` (PATH without relative entries or entries inside the workspace folders, HOME,
   USER, LOGNAME, SHELL, TMPDIR, TERM, LANG, LC_*, TZ, the proxy and certificate variables) plus project.yaml
   `pass_env:` (core `passEnvProblem` refuses a loader variable at validation, `childEnv` drops one again); an unsigned
@@ -5509,8 +5528,8 @@ differ — whether the stage succeeded or not. (Found by L5.16a's reviews: the f
 `packages/*/package.json` through pnpm's hard links.) Measured (L5.16a): 977 MB = Node 110, engine 314 (after D7: `@remotion/cli`
 dropped; @remotion/bundler still needs @remotion/studio), browsers 500, ffmpeg 53 MB; ≈ 10 s on APFS.
 
-**Discovery** (core `bundle.ts`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five above core's own
-`dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
+**Discovery** (core io `bundle.ts`, in `dist/io/`): `bundleInfo()` looks for `bundle.json` in exactly one folder, five
+above core's own `dist/` (`Resources/engine/node_modules/@retake/core/dist`), and accepts it only when its `paths.engine` holds that
 module at `node_modules/@retake/core/` — never a folder above the app, never a stray `bundle.json` above a checkout.
 One that claims this engine but is broken (a path leaving the folder, links followed) is never thrown at import
 (`prepareBundle` and `starterTemplatesDir` go on, `bundleProblems()` keeps it, doctor shows an "App bundle" FAIL line);
@@ -5526,13 +5545,13 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   retake.yaml's value is made absolute against the workspace root by `loadWorkspaceConfig` when it names a path (a
   bare name stays a command); a relative `$RETAKE_FFMPEG` / `$RETAKE_FFPROBE` is refused (BundleError: it would name
   another file in each process's cwd), and `cleanWorkerEnv` drops a relative `RETAKE_FFMPEG` / `RETAKE_FFPROBE` /
-  `RETAKE_CHROMIUM*` from a worker a client starts. `mediaTools()` is this process's: `openWorkspace` registers — or
-  clears — the workspace's setting each time (`useWorkspaceFfmpeg`, process-wide: a CLI command, the MCP server, the
-  Studio server and a worker each serve one workspace; the one opened last wins, a test switches roots), so the sites no
-  option reached (the preview quantiser, the silent-track fix, the review's frame reader, the pixel helpers) honour
-  retake.yaml too.
-  Every spawn goes through `ffmpegBin(explicit?)` / `ffprobeBin(explicit?)`; a source lint (cli `app-bundle.test.ts`)
-  fails on a command literal `'ffmpeg'` / `'ffprobe'` anywhere else.
+  `RETAKE_CHROMIUM*` from a worker a client starts. `mediaTools(policy)` is a work's: the workspace's setting rides on
+  the `WorkPolicy` `openWorkspace` returns (L6.9: no process-wide setting), and the engine passes it to every site,
+  those no option reached included (the preview quantiser, the silent-track fix, the review's frame reader, the pixel
+  helpers), so they honour retake.yaml too.
+  Every spawn goes through `ffmpegBin(policy, explicit?)` / `ffprobeBin(policy, explicit?)` (core io
+  `media-tools.ts`); a source lint (cli `app-bundle.test.ts`) fails on a command literal `'ffmpeg'` / `'ffprobe'`
+  anywhere else.
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
 - Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:

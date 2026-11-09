@@ -9,9 +9,9 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { useAgentPolicy } from '@retake/core';
 import { FileJobQueue, createEngine, runWorker } from '../src/index.js';
 import { REPO } from './helpers.js';
+
 
 const CLI = join(REPO, 'packages', 'cli', 'dist', 'bin.js');
 const SECRET = 'T_JOB_CHILD_ENV_SECRET';
@@ -35,7 +35,6 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  useAgentPolicy(null);
   for (const [k, v] of [['RETAKE_HOME', saved.home], [SECRET, saved.secret], [PASSED, saved.passed]] as const) {
     if (v === undefined) delete process.env[k];
     else process.env[k] = v;
@@ -50,7 +49,6 @@ describe('a shell hook\'s environment: an allow-list for a job of the worker, ev
     const engine = await createEngine({ root: ws, client: 'test', autoStartWorker: false });
     const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/env.yaml', dry: false }, accept);
     // The worker turns the policy on for itself.
-    useAgentPolicy(null);
     const logs: string[] = [];
     expect(await runWorker({ root: ws, idleExitMs: 400, pollMs: 50, log: (m) => logs.push(m) })).toBe(0);
     const job = await new FileJobQueue(ws).get(sub.job.id);
@@ -63,7 +61,6 @@ describe('a shell hook\'s environment: an allow-list for a job of the worker, ev
   }, 60_000);
 
   it('`retake hooks run` in a terminal passes the whole environment on', async () => {
-    useAgentPolicy(null);
     await rm(join(project, 'env.txt'), { force: true });
     const code = await new Promise<number | null>((ok) => {
       const child = spawn(process.execPath, [CLI, '-C', ws, 'hooks', 'run', 'w', 'hooks/env.yaml', '--yes'], { cwd: ws, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] });

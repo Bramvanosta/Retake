@@ -14,7 +14,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { APP_BUNDLE_ID, UPDATES_FILE, readUpdateChecks, writeAppSettings } from '@retake/engine/integrations';
-import type { BundleInfo } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
 

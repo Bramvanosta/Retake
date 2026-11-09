@@ -805,7 +805,7 @@ import('bufferutil').then(() => parentPort.postMessage(r + ' / loaded'), (e) => 
 
   it('the stage carries the guard where the launcher, launch.json and core expect it', async () => {
     const { GUARD } = await bundleModule();
-    const core = readFileSync(join(REPO, 'packages', 'core', 'src', 'bundle.ts'), 'utf8');
+    const core = readFileSync(join(REPO, 'packages', 'core', 'src', 'io', 'bundle.ts'), 'utf8');
     expect(core).toContain(`export const BUNDLE_GUARD = '${GUARD}';`);
     expect(readFileSync(join(APP, 'bundle', 'retake.sh'), 'utf8')).toContain('exec "$res/node/bin/node" --require "$res/node/guard.cjs" "$res/engine/dist/bin.js" "$@"');
     const js = readFileSync(join(APP, 'scripts', 'bundle.mjs'), 'utf8');

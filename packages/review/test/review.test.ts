@@ -16,6 +16,7 @@ import type { OutputTimeline } from '../src/timeline.js';
 import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import { hasTool, makeCase, scenesTimeline, workspace } from './helpers.js';
 import type { Workspace } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const can = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 240_000;
@@ -30,7 +31,7 @@ afterAll(async () => {
 
 const codes = (r: ReviewResult) => r.findings.map((f) => f.code);
 const of = (r: ReviewResult, code: string): Finding[] => r.findings.filter((f) => f.code === code);
-const review = (render: string, extra: Partial<Parameters<typeof reviewRender>[0]> = {}) => reviewRender({ project: ws.project, render, registry: ws.registry, ...extra });
+const review = (render: string, extra: Partial<Parameters<typeof reviewRender>[0]> = {}) => reviewRender({ policy: PERSON_POLICY, project: ws.project, render, registry: ws.registry, ...extra });
 
 describe.skipIf(!can)('reviewRender', () => {
   it('a clean synthetic render: no error or warning, every artefact written', async () => {

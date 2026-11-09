@@ -11,13 +11,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadScenario } from '@retake/core';
+import { loadScenario, fileFacts } from '@retake/core/io';
 import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
 import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
 import type { ApprovalOutcome, ApprovalRequest, Approver, Engine, JobEventBody } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 interface Fixture {
   urls: { console: string; shop: string };
@@ -104,7 +105,7 @@ describe('approvals at submit', () => {
         rollback: `http POST ${fixture.urls.console}/api/products/finca-quenaro/refs`,
       }),
     ]);
-    const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'catalogue')).scenario;
+    const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'catalogue', { files: fileFacts(PERSON_POLICY) })).scenario;
     const fp = hookFingerprint(sc.setup![1], { phase: 'setup', index: 1, env: 'local' });
     // Signed at enqueue with the Retake home's key (the worker ignores an approval without a valid signature).
     expect(sub.job.input.approvals).toEqual([{ fingerprint: fp, by: 'human-elicitation', at: expect.any(String), sig: expect.stringMatching(/^[0-9a-f]{64}$/) }]);
@@ -116,7 +117,7 @@ describe('approvals at submit', () => {
     const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'off-camera', mode: 'capture' }, { approver: a });
     expect(a.asked).toHaveLength(1);
     expect(a.asked[0].items).toEqual([expect.objectContaining({ phase: 'step', index: 1, name: 'queue', kind: 'shell', reason: 'a shell command (runs local code)', description: 'queue: shell "sleep 1.5"' })]);
-    const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'off-camera')).scenario;
+    const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'off-camera', { files: fileFacts(PERSON_POLICY) })).scenario;
     const entry = (sc.hooks!['cafe-requests-a-quote'] as HookStep[])[1];
     expect(sub.job.input.approvals?.map((x) => x.fingerprint)).toEqual([hookFingerprint(entry, { phase: 'step', index: 1, env: 'local' })]);
     await engine.runs.cancel('northfield-fixture', sub.run_id);

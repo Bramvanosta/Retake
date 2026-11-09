@@ -12,6 +12,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { mp4TranscodeArgs, transcodeMp4 } from '@retake/editor';
 import { encodeFrames, resolveEncoder } from '../src/index.js';
 import { RAW_ENCODING, clipArgs, encodeClip, rawCodecLabel } from '../src/raw/encode.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-h264-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
@@ -45,11 +46,11 @@ exit 0
 
 describe('capture encoder (resolveEncoder)', () => {
   it.runIf(process.platform === 'darwin')('libx264 asked, absent → VideoToolbox; neither → a clear error naming the ffmpeg', async () => {
-    expect(await resolveEncoder('libx264', fakeFfmpeg({ x264: true, vtWorks: true }).bin)).toBe('libx264');
-    expect(await resolveEncoder('libx264', fakeFfmpeg({ x264: false, vtWorks: true }).bin)).toBe('videotoolbox');
-    expect(await resolveEncoder('auto', fakeFfmpeg({ x264: true, vtWorks: false }).bin)).toBe('libx264');
+    expect(await resolveEncoder('libx264', fakeFfmpeg({ x264: true, vtWorks: true }).bin, PERSON_POLICY)).toBe('libx264');
+    expect(await resolveEncoder('libx264', fakeFfmpeg({ x264: false, vtWorks: true }).bin, PERSON_POLICY)).toBe('videotoolbox');
+    expect(await resolveEncoder('auto', fakeFfmpeg({ x264: true, vtWorks: false }).bin, PERSON_POLICY)).toBe('libx264');
     const none = fakeFfmpeg({ x264: false, vtWorks: false }).bin;
-    await expect(resolveEncoder('auto', none)).rejects.toThrow(new RegExp(`${none.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} has no libx264`));
+    await expect(resolveEncoder('auto', none, PERSON_POLICY)).rejects.toThrow(new RegExp(`${none.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')} has no libx264`));
   });
 });
 
@@ -60,7 +61,7 @@ describe('the frames encode, the raw clips and the 1080p export', () => {
     writeFileSync(join(frames, 'a.jpg'), 'x');
     for (const x264 of [true, false]) {
       const ff = fakeFfmpeg({ x264, vtWorks: true });
-      await encodeFrames(frames, [{ file: 'a.jpg', t: 0 }], join(tmp, 'out.mp4'), { fps: 30, endT: 0.1, crf: 18, ffmpeg: ff.bin });
+      await encodeFrames(frames, [{ file: 'a.jpg', t: 0 }], join(tmp, 'out.mp4'), { policy: PERSON_POLICY, fps: 30, endT: 0.1, crf: 18, ffmpeg: ff.bin });
       const args = readFileSync(ff.log, 'utf8');
       expect(args).toContain(x264 ? '-c:v libx264' : '-c:v h264_videotoolbox -q:v 85 -profile:v high');
       if (!x264) expect(args).not.toContain('libx264');
@@ -86,7 +87,7 @@ describe('the frames encode, the raw clips and the 1080p export', () => {
       const ff = fakeFfmpeg({ x264, vtWorks: true });
       const work = join(tmp, `clip-work-${n}`);
       mkdirSync(work);
-      const used = await encodeClip({ source, files: ['a.jpg', 'b.jpg'], fps: 30, width: 1280, height: 720, format: 'mp4', timecode: '00:00:00:00', out: join(work, 'c.mp4'), tmp: work, ffmpeg: ff.bin });
+      const used = await encodeClip({ policy: PERSON_POLICY, source, files: ['a.jpg', 'b.jpg'], fps: 30, width: 1280, height: 720, format: 'mp4', timecode: '00:00:00:00', out: join(work, 'c.mp4'), tmp: work, ffmpeg: ff.bin });
       expect(used).toBe(x264 ? 'libx264' : 'h264_videotoolbox');
       const args = readFileSync(ff.log, 'utf8');
       expect(args).toContain(x264 ? '-c:v libx264 -profile:v high' : '-c:v h264_videotoolbox -q:v 85 -profile:v high -g 30');
@@ -95,7 +96,7 @@ describe('the frames encode, the raw clips and the 1080p export', () => {
     const ff = fakeFfmpeg({ x264: false, vtWorks: true });
     const work = join(tmp, 'clip-prores');
     mkdirSync(work);
-    expect(await encodeClip({ source, files: ['a.jpg'], fps: 30, width: 1280, height: 720, format: 'prores', timecode: '00:00:00:00', out: join(work, 'c.mov'), tmp: work, ffmpeg: ff.bin })).toBeUndefined();
+    expect(await encodeClip({ policy: PERSON_POLICY, source, files: ['a.jpg'], fps: 30, width: 1280, height: 720, format: 'prores', timecode: '00:00:00:00', out: join(work, 'c.mov'), tmp: work, ffmpeg: ff.bin })).toBeUndefined();
     expect(readFileSync(ff.log, 'utf8')).toContain('-c:v prores_ks');
   });
 

@@ -40,10 +40,11 @@ async function sandboxModule() {
 
 /** The project and its sandbox (`--env`, default the first one declared). */
 async function open(global: GlobalOptions, projectArg: string, env: string | undefined): Promise<{ project: LoadedProject; sb: Sandbox }> {
-  const project = await openProject(await openWorkspace(global), projectArg);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
   const { openSandbox, SandboxError } = await sandboxModule();
   try {
-    return { project, sb: openSandbox(project, env) };
+    return { project, sb: openSandbox(project, env, ws.policy) };
   } catch (e) {
     if (e instanceof SandboxError && env !== undefined) throw new UsageError(e.message);
     throw e;
@@ -242,7 +243,7 @@ export async function sandboxInitCommand(ui: Ui, global: GlobalOptions, projectA
     throw e;
   }
   // The result must load as written: the project with its new sandbox.
-  const { loadProject } = await import('@retake/core');
+  const { loadProject } = await import('@retake/core/io');
   const reloaded = await loadProject(project.dir);
   const warnings = reloaded.sandboxes?.[res.env]?.issues ?? [];
   const envFlag = sandboxNames(reloaded)[0] === res.env ? '' : ` --env ${res.env}`;

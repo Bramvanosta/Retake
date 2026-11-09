@@ -20,7 +20,7 @@
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_INPUT_VERSION, PreviewJobInputSchema, statePath } from '@retake/core';
-import type { ComponentKind, LoadedTemplate, PreviewJobInput, WorkspaceConfig } from '@retake/core';
+import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
@@ -52,6 +52,8 @@ import { newJobId } from './ids.js';
 import { editor } from '../lazy.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
+import { fileFacts } from '@retake/core/io';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];
@@ -67,7 +69,7 @@ export interface PreviewRequest {
 }
 
 /** <workspace>/.retake/previews/<preview_id>/ */
-export function previewDir(ws: WorkspaceConfig, previewId: string): string {
+export function previewDir(ws: OpenedWorkspace, previewId: string): string {
   return statePath(ws.root, 'previews', previewId);
 }
 
@@ -85,10 +87,10 @@ interface PreparedPreview {
 }
 
 /** The theme and registry of a preview: the project, the theme (a name or the project's own) serving only its own files. */
-async function previewTheme(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'project' | 'template'>): Promise<{ template: LoadedTemplate; registry: ComponentRegistry }> {
+async function previewTheme(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'project' | 'template'>): Promise<{ template: LoadedTemplate; registry: ComponentRegistry }> {
   checkProjectSlug(req.project);
   const project = await openProjectBySlug(ws, req.project);
-  const template = await themeForWork(project, req.template);
+  const template = await themeForWork(project, req.template, fileFacts(ws.policy));
   const assets = themeAssetProblems(template);
   if (assets.length) throw new EngineError('refused', `${assets.join('; ')}: through MCP a theme serves only its own files`, { details: { problems: assets } });
   return { template, registry: await workspaceRegistry(ws) };
@@ -98,7 +100,7 @@ async function previewTheme(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'pro
  * The library states of a theme (engine `components.library`): keys and cache states of `components` (each one of the
  * registry; default all of it), computed with the worker's own key builder.
  */
-export async function libraryStatesOf(ws: WorkspaceConfig, req: { project: string; template?: string; components?: readonly string[] }): Promise<LibraryStatesView> {
+export async function libraryStatesOf(ws: OpenedWorkspace, req: { project: string; template?: string; components?: readonly string[] }): Promise<LibraryStatesView> {
   const { template, registry } = await previewTheme(ws, req);
   if (req.components) {
     if (req.components.length > 500) throw new EngineError('invalid', 'at most 500 components at once');
@@ -107,11 +109,11 @@ export async function libraryStatesOf(ws: WorkspaceConfig, req: { project: strin
       if (!registry.has(id)) throw new EngineError('not_found', `component ${id} is not in the registry (component_list names them)`);
     }
   }
-  return libraryStates(ws, await libraryKeyContext(template, registry), req.components);
+  return libraryStates(ws, await libraryKeyContext(template, registry, { policy: ws.policy }), req.components);
 }
 
 /** Check a preview's input and build its targets (submit, and again in the worker). EngineError invalid / refused / not_found. */
-async function preparePreview(ws: WorkspaceConfig, req: Pick<PreviewJobInput, 'project' | 'template' | 'target'>): Promise<PreparedPreview> {
+async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'project' | 'template' | 'target'>): Promise<PreparedPreview> {
   const { template, registry } = await previewTheme(ws, req);
   const lib = await components();
   const targets: PreviewComponentTarget[] = [];
@@ -204,7 +206,7 @@ export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest):
 }
 
 export interface PreviewJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: PreviewJobInput;
   signal: AbortSignal;
@@ -233,6 +235,7 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
   ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: new Date().toISOString() });
   let warnings: string[] = [];
   const done = await ed.renderComponentPreviews({
+    workPolicy: ctx.ws.policy,
     root: ctx.ws.root,
     registry: prepared.registry,
     template: prepared.template,
@@ -281,7 +284,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
   const freeBytes = ctx.test?.freeBytes ?? freeBytesOf;
   await checkLibraryDisk(ws.root, freeBytes);
   const { template, registry } = await previewTheme(ws, input);
-  const keys: LibraryKeyContext = await libraryKeyContext(template, registry);
+  const keys: LibraryKeyContext = await libraryKeyContext(template, registry, { policy: ctx.ws.policy });
   const theme = { name: template.name, hash: keys.themeHash };
   const cacheDir = await ensureLibraryCacheDir(ws);
   const wants: LibraryWant[] = [];
@@ -353,6 +356,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         }
       };
       const done = await ed.renderComponentLoops({
+        workPolicy: ws.policy,
         root: ws.root,
         registry,
         template,

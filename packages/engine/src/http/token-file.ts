@@ -17,7 +17,7 @@ import { chmod, link, lstat, mkdir, readFile, rename, unlink, writeFile } from '
 import type { Stats } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { retakeHome } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { newSecret } from './token.js';
 

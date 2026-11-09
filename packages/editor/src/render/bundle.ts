@@ -11,7 +11,8 @@ import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'n
 import { createRequire } from 'node:module';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS, bundleInfoOrNull, relativeInside, statePath } from '@retake/core';
+import { COMPONENT_KINDS, relativeInside, statePath } from '@retake/core';
+import { bundleInfoOrNull } from '@retake/core/io';
 import type { ComponentKind } from '@retake/core';
 import {
   HASHED_FILE,

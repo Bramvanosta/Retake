@@ -9,6 +9,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { encodeFrames } from '@retake/runner-web';
+import { PERSON_POLICY } from '@retake/core';
 
 export type Rgb = [number, number, number];
 export const RED: Rgb = [220, 30, 30];
@@ -178,13 +179,13 @@ export async function writeRun(projectDir: string, r: SynthRun): Promise<string>
     const index = await writeFrames(dir, 'frames', r.frames);
     mainFrames = index.length;
     await writeFile(join(dir, 'frames.jsonl'), index.map((e) => JSON.stringify(e)).join('\n') + '\n');
-    if (r.video) await encodeFrames(join(dir, 'frames'), index, join(dir, 'capture.mp4'), { fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
+    if (r.video) await encodeFrames(join(dir, 'frames'), index, join(dir, 'capture.mp4'), { policy: PERSON_POLICY, fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
   }
   const tracks = [];
   for (const t of r.tracks ?? []) {
     const index = await writeFrames(dir, `frames-${t.id}`, t.frames);
     await writeFile(join(dir, `frames-${t.id}.jsonl`), index.map((e) => JSON.stringify(e)).join('\n') + '\n');
-    if (r.video) await encodeFrames(join(dir, `frames-${t.id}`), index, join(dir, `capture-${t.id}.mp4`), { fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
+    if (r.video) await encodeFrames(join(dir, `frames-${t.id}`), index, join(dir, `capture-${t.id}.mp4`), { policy: PERSON_POLICY, fps, crf: 12, endT: duration, width: W, height: H, jpeg: false, preset: 'ultrafast' });
     tracks.push({ id: t.id, file: `capture-${t.id}.mp4`, frames_file: `frames-${t.id}.jsonl`, width: W, height: H, scale: 1, fps, frames: index.length, recording: [{ t_start: 0, t_end: duration }], pages: [], cursor: [] });
   }
   if (!r.noTimeline) {

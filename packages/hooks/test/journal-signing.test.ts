@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { JOURNAL_FILE, Journal, ROLLBACKS_DONE_DIR, openPendingJournals, pruneDoneRollbacks, rollbackActionLines, rollbackJournals, rollbackPendingJournals, runHooks, standaloneJournalFile } from '@retake/hooks';
 import type { RollbackAction } from '@retake/hooks';
+import { agentPolicy } from '@retake/core';
 import type { HookStep } from '@retake/core';
 import { makeContext, makeProject, tempProject, writeFiles } from './helpers.js';
 
@@ -270,6 +271,22 @@ describe('rollback journal entries are signed (L5.14)', () => {
     // Asked about the one that may run only; it ran without the rest of the terminal's environment.
     expect(asked).toEqual([list[0]!.file]);
     expect(await order()).toEqual(['bare:unset']);
+  });
+
+  it('an unsigned shell rollback replayed under the agent policy gets no PATH entry inside the workspace (the policy of its context)', async () => {
+    const entry = JSON.stringify({ version: 1, created_at: '2026-11-04T09:00:00.000Z', updated_at: '2026-11-04T09:00:00.000Z', entries: [{ seq: 1, kind: 'shell', phase: 'setup', description: 'x', started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:00.000Z', status: 'ok', rollback: { kind: 'shell', run: 'echo "path:$PATH" >> order.log', description: 'shell', data: {} }, rolled_back: false }] });
+    await writeFiles(tmp.dir, { 'runs/20261104-130000-path/hooks-journal.json': entry });
+    const project = makeProject(tmp.dir);
+    const inside = join(tmp.dir, 'bin');
+    const saved = process.env.PATH;
+    process.env.PATH = [inside, '/usr/bin', '/bin'].join(':');
+    try {
+      const list = await openPendingJournals(tmp.dir, { keyFile });
+      await rollbackJournals(list, makeContext(project, { replayUnsigned: () => true, policy: agentPolicy([tmp.dir]) }).ctx);
+    } finally {
+      process.env.PATH = saved;
+    }
+    expect(await order()).toEqual(['path:/usr/bin:/bin']);
   });
 
   it('an unsigned shell rollback that fails says which variables it saw and never advises pass_env (it gets none), with or without the agent policy', async () => {

@@ -30,13 +30,15 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
-import type { LoadedTemplate, WorkspaceConfig } from '@retake/core';
+import { LIBRARY_PREVIEW_KEY_RE, insideFolder, realPathOf, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, readPlainFile, nodeFileFacts } from '@retake/core/io';
+import type { LoadedTemplate, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { PreviewSamples } from '@retake/editor';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
 import { editor } from './lazy.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** Bump when the cache layout or what a key covers changes (every key changes). */
 export const LIBRARY_PREVIEW_FORMAT = 1;
@@ -63,7 +65,7 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const GIF_MAGIC = Buffer.from('GIF89a', 'latin1');
 
 /** <workspace>/.retake/cache/previews */
-export function libraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): string {
+export function libraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): string {
   return statePath(resolve(ws.root), 'cache', 'previews');
 }
 
@@ -94,7 +96,7 @@ export interface LibraryKeyContext {
   registryHash: () => Promise<string>;
 }
 
-export async function libraryKeyContext(template: LoadedTemplate, registry: ComponentRegistry, o: { browser?: string } = {}): Promise<LibraryKeyContext> {
+export async function libraryKeyContext(template: LoadedTemplate, registry: ComponentRegistry, o: { browser?: string; policy: WorkPolicy }): Promise<LibraryKeyContext> {
   const ed = await editor();
   let registryHash: Promise<string> | undefined;
   return {
@@ -105,7 +107,7 @@ export async function libraryKeyContext(template: LoadedTemplate, registry: Comp
     samples: ed.loadPreviewSamples(),
     // The GL the previews are drawn with is part of the picture (L5.15, critique M1): the resolved policy, which the
     // Studio server and the job process compute alike (same retake.yaml, same environment), never the GL a job found.
-    browser: o.browser ?? `${ed.renderBrowserIdentity()} gl=${ed.previewGlKey()}`,
+    browser: o.browser ?? `${ed.renderBrowserIdentity()} gl=${ed.previewGlKey(o.policy)}`,
     folders: new Map(),
     files: new Map(),
     registryHash: () => (registryHash ??= libraryRegistryHash(registry)),
@@ -199,7 +201,7 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
  * The cache folder, made when missing: `.retake`, `cache` and `previews` each a real folder (not a link, not a
  * file) inside the workspace once links are followed — else refused and nothing is written (B17).
  */
-export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string> {
+export async function ensureLibraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): Promise<string> {
   let parent = resolve(ws.root);
   for (const seg of [STATE_DIR, STATE_DIRS.cache, 'previews']) {
     parent = join(parent, seg);
@@ -209,12 +211,12 @@ export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): 
     const st = await lstat(parent);
     if (!st.isDirectory()) throw new EngineError('refused', `${parent} is not a folder (a link or a file): library previews are written only into plain folders of the workspace — remove it`);
   }
-  if (!insideFolder(realPathOf(resolve(ws.root)), realPathOf(parent))) throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
+  if (!insideFolder(realPathOf(resolve(ws.root), nodeFileFacts), realPathOf(parent, nodeFileFacts), nodeFileFacts)) throw new EngineError('refused', `${parent} leaves the workspace: library previews stay in it`);
   return parent;
 }
 
 /** The cache folder when each segment is a real folder already (reads never make or follow anything), else null. */
-export async function plainLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string | null> {
+export async function plainLibraryCacheDir(ws: Pick<OpenedWorkspace, 'root'>): Promise<string | null> {
   let parent = resolve(ws.root);
   for (const seg of [STATE_DIR, STATE_DIRS.cache, 'previews']) {
     parent = join(parent, seg);
@@ -341,7 +343,7 @@ export async function readLibraryEntry(cacheDir: string, key: string, o: { image
  * A cached image for the Studio (B6 caps are the kinds' caps): its bytes and kind, meta.json touched (the prune drops
  * the least recently read first). Null for anything but a complete entry.
  */
-export async function readLibraryImage(ws: Pick<WorkspaceConfig, 'root'>, key: string): Promise<{ kind: LibraryPreviewKind; component: string; bytes: Buffer } | null> {
+export async function readLibraryImage(ws: Pick<OpenedWorkspace, 'root'>, key: string): Promise<{ kind: LibraryPreviewKind; component: string; bytes: Buffer } | null> {
   const dir = await plainLibraryCacheDir(ws);
   if (!dir) return null;
   const e = await readLibraryEntry(dir, key, { image: true });
@@ -517,7 +519,7 @@ export interface LibraryStatesView {
  * templates_dir is the starters folder lists it as `workspace`)?
  */
 export function isEditorialStarter(template: Pick<LoadedTemplate, 'dir'>): boolean {
-  return realPathOf(resolve(template.dir)) === realPathOf(join(STARTER_TEMPLATES_DIR, 'editorial'));
+  return realPathOf(resolve(template.dir), nodeFileFacts) === realPathOf(join(STARTER_TEMPLATES_DIR, 'editorial'), nodeFileFacts);
 }
 
 /** readLibraryEntry, a failure recorded under another registry bundle read as `missing` (asked again once). */
@@ -532,7 +534,7 @@ export async function currentEntry(ctx: Pick<LibraryKeyContext, 'registryHash'>,
  * committed preview.png is the poster in the editorial starter while it is fresh (Q7, B15): a workspace component's own
  * preview.png is never used (who wrote it is unknown), nor a workspace override of a built-in id.
  */
-export async function libraryStates(ws: Pick<WorkspaceConfig, 'root'>, ctx: LibraryKeyContext, ids?: readonly string[]): Promise<LibraryStatesView> {
+export async function libraryStates(ws: Pick<OpenedWorkspace, 'root'>, ctx: LibraryKeyContext, ids?: readonly string[]): Promise<LibraryStatesView> {
   const comps = await components();
   const dir = await plainLibraryCacheDir(ws);
   const editorial = isEditorialStarter(ctx.template);

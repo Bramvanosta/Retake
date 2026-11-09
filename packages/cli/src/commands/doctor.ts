@@ -2,9 +2,11 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, RETAKE_VERSION, clientPath, engineLocation, defaultRetakeHome, statePath } from '@retake/core';
+import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, unsafeTestResolve, RETAKE_VERSION, defaultRetakeHome, statePath, PERSON_POLICY } from '@retake/core';
+import { findWorkspaceRoot, listProjects, listTemplates, loadTemplate, retakeHome, bundleInfoOrNull, bundleProblems, resolveMediaTools, clientPath, engineLocation, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, cliLinkState, cliOnPath, defaultCliDir, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, stableNodePath, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/engine/integrations';
-import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
+import type { BrowserConfig, LoadedProject, WorkspaceConfig, WorkPolicy } from '@retake/core';
+import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -14,6 +16,7 @@ import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { checkedText, loginCommandFor, projectPersonaStates, retakeCommand, tildePath } from './auth.js';
 import type { PersonaState } from './auth.js';
+import type { OpenedWorkspace } from '@retake/engine';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -43,11 +46,11 @@ export interface DoctorProbes {
   /** Run a command; null when it cannot be started (not found). */
   exec(cmd: string, args: string[], timeoutMs: number): Promise<ExecResult | null>;
   exists(path: string): boolean;
-  chromium(browser: BrowserConfig | undefined): Promise<ChromiumProbe>;
+  chromium(browser: BrowserConfig | undefined, policy: WorkPolicy): Promise<ChromiumProbe>;
   /** HEAD request: an HTTP status (reachable), or the network error. */
   head(url: string, timeoutMs: number): Promise<{ status?: number; error?: string; ms: number }>;
   /** A sandbox of the project, as `retake sandbox status` sees it (L1.8; no lock, nothing started). */
-  sandbox?(project: LoadedProject, env: string): Promise<SandboxProbe>;
+  sandbox?(project: LoadedProject, env: string, policy: WorkPolicy): Promise<SandboxProbe>;
   /** The Node.js running this command (default process.execPath): what `retake mcp --print-config` registers. */
   execPath?: string;
   /**
@@ -72,7 +75,7 @@ export interface DoctorProbes {
   /** L5.14, the "Captures first" line: this user's filming markers on this Mac (nothing made, nothing named); absent, no line. */
   captures?(root: string): Promise<CapturesProbe>;
   /** L5.15, the "Renders" line: the render path a 1080p render takes here (editor probeRenderPath); absent, no line. */
-  renders?(): Promise<RendersProbe>;
+  renders?(policy: WorkPolicy): Promise<RendersProbe>;
 }
 
 /** What the "Renders" line reads (editor RenderPathProbe, structurally). */
@@ -191,10 +194,10 @@ export function systemProbes(): DoctorProbes {
       }
     },
     read: readSmallFile,
-    sandbox: async (project, env) => {
+    sandbox: async (project, env, policy) => {
       const { openSandbox } = await import('@retake/sandbox');
       try {
-        const st = await openSandbox(project, env).status();
+        const st = await openSandbox(project, env, policy).status();
         const problems = st.services
           .filter((x) => !x.orphan && (x.state !== 'running' || x.healthy === false))
           .map((x) => `${x.name}: ${x.state === 'stopped' ? 'not running' : x.state === 'starting' ? 'starting' : `not healthy (${x.health})`}`);
@@ -203,12 +206,12 @@ export function systemProbes(): DoctorProbes {
         return { state: 'down', provider: project.sandboxes?.[env]?.manifest.provider ?? '?', problems: [], services: 0, error: errorMessage(e) };
       }
     },
-    chromium: async (browser) => (await import('@retake/runner-web')).probeChromium(browser),
+    chromium: async (browser, policy) => (await import('@retake/runner-web')).probeChromium(browser, { policy }),
     execPath: process.execPath,
     bundle: bundleInfoOrNull(),
     bundleProblems,
     renderBrowser: systemRenderBrowser,
-    renders: async () => (await import('@retake/editor')).probeRenderPath(),
+    renders: async (policy) => (await import('@retake/editor')).probeRenderPath({ work: policy }),
     captures: async (root) => {
       const e = await import('@retake/engine');
       const loc = e.capturesLocation(process.env);
@@ -390,7 +393,7 @@ function renderBrowserCheck(p: DoctorProbes): DoctorCheck | null {
  */
 export function agentJobsCheck(env: NodeJS.ProcessEnv, ws: WorkspaceConfig, browser: BrowserConfig | undefined, name = 'Studio and MCP jobs'): DoctorCheck | null {
   const folders = workspaceFolders(ws);
-  const noLookup = { path: '', exists: () => false };
+  const noLookup = { path: '', exists: () => false, files: nodeFileFacts };
   const programs: Array<[string | undefined, string]> = [
     [browser?.executable, 'browser.executable'],
     [env.RETAKE_CHROMIUM, '$RETAKE_CHROMIUM'],
@@ -604,7 +607,7 @@ export async function dockerCheck(p: DoctorProbes, need: DockerNeed | null = nul
   return { status: 'ok', name, detail: `${server} · Compose ${compose}${context ? ` · context ${context}` : ''} · ${bin}` };
 }
 
-async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck[]> {
+async function workspaceChecks(p: DoctorProbes, ws: OpenedWorkspace): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [];
   const marker = p.exists(join(ws.root, WORKSPACE_FILE)) ? WORKSPACE_FILE : `no ${WORKSPACE_FILE}`;
   const projects = await listProjects(ws.root).catch(() => []);
@@ -627,7 +630,7 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
   }
   for (const t of templates) {
     try {
-      const loaded = await loadTemplate(t.dir, ws.root);
+      const loaded = await loadTemplate(t.dir, ws.root, { files: fileFacts(ws.policy) });
       const fonts = [loaded.assets.display, ...loaded.assets.body];
       const from = t.source === 'starter' ? ' · starter theme' : '';
       out.push({ status: 'ok', name: `Template ${t.name}`, detail: `fonts present (${fonts.length} file${fonts.length === 1 ? '' : 's'})${from}` });
@@ -638,7 +641,7 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
   return out;
 }
 
-async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string, global: GlobalOptions): Promise<DoctorCheck[]> {
+async function projectChecks(p: DoctorProbes, ws: OpenedWorkspace, slug: string, global: GlobalOptions): Promise<DoctorCheck[]> {
   // The commands of the hints, with `-C <root>` when the command line named the workspace root.
   const loginCommand = loginCommandFor(global);
   let project: LoadedProject;
@@ -703,7 +706,7 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
     out.push({ status: 'ok', name: 'Profile', detail: 'none configured (a fresh temporary profile per run)' });
   }
 
-  for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global));
+  for (const env of sandboxes) out.push(await sandboxCheck(p, project, env, global, ws.policy));
   // L5.8 (R-FLD-30): a local environment with a database, a mailbox or reset hooks and no sandbox: point to one.
   const advice = sandboxAdvice(project);
   if (advice) out.push({ status: 'warn', name: 'Sandbox', ...sandboxAdviceText(advice, slug, retakeCommand(global)) });
@@ -732,12 +735,12 @@ async function projectChecks(p: DoctorProbes, ws: WorkspaceConfig, slug: string,
  * One sandbox (L1.8): up and healthy (OK), or not running / partly (WARN, with the command that starts it — `run
  * --sandbox` starts it too). Never a failure: a sandbox is started on demand.
  */
-async function sandboxCheck(p: DoctorProbes, project: LoadedProject, env: string, global: GlobalOptions): Promise<DoctorCheck> {
+async function sandboxCheck(p: DoctorProbes, project: LoadedProject, env: string, global: GlobalOptions, policy: WorkPolicy): Promise<DoctorCheck> {
   const name = `Sandbox ${env}`;
   const envFlag = sandboxNames(project)[0] === env ? '' : ` --env ${env}`;
   const studio = retakeCommand(global);
   if (!p.sandbox) return { status: 'ok', name, detail: 'not checked' };
-  const s = await p.sandbox(project, env);
+  const s = await p.sandbox(project, env, policy);
   if (s.error) return { status: 'warn', name, detail: `${s.provider} · ${s.error.split('\n')[0]}` };
   const seed = s.seed ? ` · seed ${s.seed}` : '';
   if (s.state === 'up') return { status: 'ok', name, detail: `${s.provider} · up, ${s.services === 1 ? 'its service is' : `its ${s.services} services are`} healthy${seed}` };
@@ -1037,7 +1040,7 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
   if (refused) {
     const m = oldWorkspaceFileMessage(ws.root);
     out.push({ status: 'fail', name: `${BEFORE}: workspace file`, detail: m.message, hint: m.fix });
-  } else if (p.exists(join(ws.root, WORKSPACE_FILE)) && oldWorkspaceFileAt(ws.root)) {
+  } else if (p.exists(join(ws.root, WORKSPACE_FILE)) && oldWorkspaceFileAt(ws.root, homedir(), nodeFileFacts)) {
     out.push({ status: 'warn', name: `${BEFORE}: workspace file`, detail: `${join(ws.root, OLD_WORKSPACE_FILE)} (from before the rename) lies next to ${WORKSPACE_FILE}: not read`, hint: `copy what it still holds into ${WORKSPACE_FILE}, then remove it` });
   }
   const dirs = [ws.root, ...(p.list?.(ws.projectsDir) ?? []).sort().map((slug) => join(ws.projectsDir, slug))];
@@ -1068,12 +1071,12 @@ export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused
 }
 
 /** Every doctor check, in display order. */
-export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, opts: { project?: string; global?: GlobalOptions; refused?: string } = {}): Promise<DoctorCheck[]> {
+export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: GlobalOptions; refused?: string } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
   const damaged = probes.bundleProblems?.() ?? [];
   if (damaged.length) out.push({ status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' });
   out.push(...appChecks(probes));
-  const chromium = await probes.chromium(ws.browser);
+  const chromium = await probes.chromium(ws.browser, ws.policy);
   out.push(chromiumCheck(chromium, ws.browser, probes.bundle));
   const sandbox = chromiumSandboxCheck(chromium);
   if (sandbox) out.push(sandbox);
@@ -1082,7 +1085,7 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   if (render) out.push(render);
   const gpu = gpuCheck(chromium, ws.browser);
   if (gpu) out.push(gpu);
-  if (probes.renders) out.push(rendersCheck(await probes.renders()));
+  if (probes.renders) out.push(rendersCheck(await probes.renders(ws.policy)));
   const ffmpeg = await mediaTool(probes, 'ffmpeg', ws.ffmpeg);
   out.push(ffmpeg);
   out.push(await mediaTool(probes, 'ffprobe', ws.ffmpeg));
@@ -1132,15 +1135,15 @@ export interface DoctorOptions {
 
 /** `retake doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
 export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes()): Promise<ExitCode> {
-  let ws: WorkspaceConfig;
+  let ws: OpenedWorkspace;
   let refused: string | undefined;
   try {
     ws = await openWorkspace(global);
   } catch (e) {
     // The workspace file from before L5.13 alone: a "Before Retake" line says to rename it; the rest is still checked.
     const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-    if (!(e instanceof ConfigError) || probes.exists(join(root, WORKSPACE_FILE)) || !oldWorkspaceFileAt(root)) throw e;
-    ws = { root, projectsDir: join(root, 'projects'), templatesDir: join(root, 'templates'), componentsDir: join(root, 'components') };
+    if (!(e instanceof ConfigError) || probes.exists(join(root, WORKSPACE_FILE)) || !oldWorkspaceFileAt(root, homedir(), nodeFileFacts)) throw e;
+    ws = { root, projectsDir: join(root, 'projects'), templatesDir: join(root, 'templates'), componentsDir: join(root, 'components'), policy: PERSON_POLICY };
     refused = errorMessage(e);
   }
   const checks = await doctorChecks(probes, ws, { project: opts.project, global, refused });

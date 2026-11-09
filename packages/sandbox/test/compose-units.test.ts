@@ -17,8 +17,9 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { addSandboxEntry, loadProject } from '@retake/core';
-import type { LoadedProject } from '@retake/core';
+import { addSandboxEntry, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { loadProject } from '@retake/core/io';
+import type { LoadedProject, WorkPolicy } from '@retake/core';
 import {
   ComposeProvider,
   SandboxError,
@@ -57,6 +58,9 @@ import {
   waitTimeoutS,
 } from '@retake/sandbox';
 import type { DockerExec, DockerResult, Listener, ProviderContext, PsEntry } from '@retake/sandbox';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI). */
 const plainWrite = async (file: string, text: string): Promise<void> => {
@@ -138,6 +142,7 @@ function ctxOf(project: LoadedProject): ProviderContext & { logs: string[] } {
   const logs: string[] = [];
   const ctx = {
     project,
+    policy,
     sandbox,
     paths: sandboxPaths(project.dir, 'sandbox'),
     state: emptyState('sandbox', 'docker-compose'),
@@ -253,7 +258,7 @@ describe('compose project, argv and output parsing', () => {
     expect(findDocker({ RETAKE_DOCKER: '/opt/x/docker', PATH: '/bin' }, () => false)).toBe('/opt/x/docker');
     expect(findDocker({ PATH: '/nowhere' }, (p) => p === '/home/u/.orbstack/bin/docker', '/home/u')).toBe('/home/u/.orbstack/bin/docker');
     expect(findDocker({ PATH: '/nowhere' }, () => false, '/home/u')).toBeNull();
-    const env = dockerEnv({ PATH: '/bin', COMPOSE_PROFILES: 'extra', COMPOSE_FILE: 'x.yaml', compose_project_name: 'y', DOCKER_HOST: 'unix:///x' });
+    const env = dockerEnv(policy, { PATH: '/bin', COMPOSE_PROFILES: 'extra', COMPOSE_FILE: 'x.yaml', compose_project_name: 'y', DOCKER_HOST: 'unix:///x' });
     expect(env).toEqual({ PATH: '/bin', DOCKER_HOST: 'unix:///x' });
   });
 
@@ -290,7 +295,7 @@ describe('the compose provider on a fake docker', () => {
       [/ logs --no-color --no-log-prefix --tail 30 db$/, ok('database system is starting up')],
       [/ stop app db$/, ok()],
     ]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     const ctx = ctxOf(project);
     const err = await provider.up(ctx).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(SandboxError);
@@ -308,7 +313,7 @@ describe('the compose provider on a fake docker', () => {
       const project = await composeProjectDir('up-kept', ['services:', `  app: {url: "http://localhost:${port}", health: /, pages: {app: "http://localhost:${port}"}}`]);
       const ps = [psLine({ service: 'app', health: 'healthy', ports: [port] }), psLine({ service: 'db' })].join('\n');
       const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok(ps)], [/ up -d --wait /, ok()]]);
-      const provider = new ComposeProvider({ exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port }] });
+      const provider = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port }] });
       const res = await provider.up(ctxOf(project), { build: true });
       expect(res).toMatchObject({ started: [], kept: ['app', 'db'], changed: [] });
       expect(calls.find((c) => c.includes('up'))!.slice(-6)).toEqual(['-d', '--wait', '--wait-timeout', '120', '--remove-orphans', '--build']);
@@ -323,13 +328,13 @@ describe('the compose provider on a fake docker', () => {
     try {
       const project = await composeProjectDir('up-busy', ['services:', `  app: {url: "http://localhost:${port}", pages: {app: "http://localhost:${port}"}}`]);
       const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok('')]]);
-      const err = await new ComposeProvider({ exec }).up(ctxOf(project)).catch((e: unknown) => e);
+      const err = await new ComposeProvider({ policy, exec }).up(ctxOf(project)).catch((e: unknown) => e);
       expect((err as SandboxError).code).toBe('port');
       expect((err as Error).message).toMatch(new RegExp(`port ${port} \\(service app, published\\) is in use by another program \\(node, pid ${process.pid}\\) — stop it or change the port in .*compose\\.yaml`));
       expect(calls.some((c) => c.includes('up'))).toBe(false);
 
       const unpublished = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port + 1], db: [] }))], [/ ps --all --format json$/, ok('')]]);
-      const err2 = await new ComposeProvider({ exec: unpublished.exec }).up(ctxOf(project)).catch((e: unknown) => e);
+      const err2 = await new ComposeProvider({ policy, exec: unpublished.exec }).up(ctxOf(project)).catch((e: unknown) => e);
       expect((err2 as Error).message).toMatch(new RegExp(`port ${port} \\(service app, url, page app\\) is not published by the compose files \\(they publish: ${port + 1}\\)`));
     } finally {
       server.close();
@@ -342,7 +347,7 @@ describe('the compose provider on a fake docker', () => {
       const project = await composeProjectDir('up-foreign', ['services:', `  app: {url: "http://localhost:${port}", pages: {app: "http://localhost:${port}"}}`]);
       const ps = [psLine({ service: 'app', ports: [port] }), psLine({ service: 'db' })].join('\n');
       const { exec } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok(ps)], [/ up -d --wait /, ok()]]);
-      const provider = new ComposeProvider({
+      const provider = new ComposeProvider({ policy,
         exec,
         listeners: async () => [
           { pid: 1, pgid: 1, command: 'OrbStack Helper', port },
@@ -361,7 +366,7 @@ describe('the compose provider on a fake docker', () => {
     const project = await composeProjectDir('other-dir', ['compose: {project: retake-test-shared}', 'services:', '  app: {url: "http://localhost:47392", pages: {app: "http://localhost:47392"}}']);
     const ps = psLine({ service: 'app', wd: '/somewhere/else/sandbox' });
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47392], db: [] }))], [/ ps --all --format json$/, ok(ps)]]);
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     await expect(provider.up(ctxOf(project))).rejects.toThrow(/compose project retake-test-shared belongs to another folder \(\/somewhere\/else\/sandbox\): give this sandbox its own name \(compose\.project in/);
     await expect(provider.down(ctxOf(project))).rejects.toThrow(/belongs to another folder/);
     expect(calls.some((c) => c.includes('up') || c.includes('down'))).toBe(false);
@@ -372,9 +377,9 @@ describe('the compose provider on a fake docker', () => {
     const { exec, calls } = fakeDocker([...READY, [/ ps --all --format json$/, ok(psLine({ service: 'app' }))], [/ down /, ok()]]);
     const ctx = ctxOf(project);
     ctx.state.provider_state = { compose: { project: 'x' }, snapshot: { hash: 'h' } };
-    const kept = await new ComposeProvider({ exec }).down(ctxOf(project));
+    const kept = await new ComposeProvider({ policy, exec }).down(ctxOf(project));
     expect(kept).toEqual({ stopped: ['app'], dataGone: false });
-    const res = await new ComposeProvider({ exec }).down(ctx, { volumes: true });
+    const res = await new ComposeProvider({ policy, exec }).down(ctx, { volumes: true });
     expect(res).toEqual({ stopped: ['app'], dataGone: true });
     expect(ctx.state.provider_state).toEqual({});
     const downs = calls.filter((c) => c.includes('down')).map((c) => c.slice(c.indexOf('down')).join(' '));
@@ -400,7 +405,7 @@ describe('the compose provider on a fake docker', () => {
       [/ ps --all --format json$/, ok('')],
       [/ down /, ok()],
     ]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     const ctx = ctxOf(project);
     ctx.state.provider_state = { compose: { project: 'retake-test-old', dir: ref.dir } };
     await expect(provider.up(ctx)).rejects.toMatchObject({
@@ -425,7 +430,7 @@ describe('the compose provider on a fake docker', () => {
     const project = await composeProjectDir('other-dir-all', ['compose: {project: retake-test-shared2}', 'services:', '  app: {url: "http://localhost:47404", pages: {app: "http://localhost:47404"}}']);
     const ps = psLine({ service: 'db', ports: [47405], wd: '/somewhere/else/sandbox' });
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47404], db: [47405] }))], [/ ps --all --format json$/, ok(ps)], [/ (exec|restart|logs) /, ok('done\n')]]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     const other = /compose project retake-test-shared2 belongs to another folder \(\/somewhere\/else\/sandbox\)/;
     await expect(provider.status(ctxOf(project))).rejects.toThrow(other);
     await expect(provider.publishedBy(ctxOf(project), 47405)).rejects.toThrow(other);
@@ -436,7 +441,7 @@ describe('the compose provider on a fake docker', () => {
     expect(calls.filter((c) => c.includes('exec') || c.includes('restart') || c.includes('logs'))).toEqual([]);
     // A container of the project without the folder label is not taken for the sandbox's own either.
     const unlabelled = fakeDocker([...READY, [/ ps --all --format json$/, ok(psLine({ service: 'db', ports: [47405] }))]]);
-    await expect(new ComposeProvider({ exec: unlabelled.exec, listeners: async () => [] }).publishedBy(ctxOf(project), 47405)).rejects.toMatchObject({
+    await expect(new ComposeProvider({ policy, exec: unlabelled.exec, listeners: async () => [] }).publishedBy(ctxOf(project), 47405)).rejects.toMatchObject({
       code: 'port',
       message: expect.stringMatching(/port 47405 \(the snapshot's database\) is published by container p-db-1, which was not made from this sandbox's folder \(no folder label\)/),
     });
@@ -456,7 +461,7 @@ describe('the compose provider on a fake docker', () => {
       [/ ps --all --format json$/, ok(ps)],
       [/ up -d --wait /, () => ((others = `${own}\n${intruder}`), ok())],
     ]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port: 47406 }] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port: 47406 }] });
     const before = await provider.up(ctxOf(project)).catch((e: unknown) => e);
     expect(before).toMatchObject({ code: 'port' });
     expect((before as Error).message).toMatch(/port 47406 \(service app, published\) is also published by container other-web-1 of compose project other \(on \[::\]\); port 47407 \(service db, published\) is also published by container other-web-1 of compose project other \(on \[::\]\) — localhost could reach it instead of the sandbox: stop it or change the port in /);
@@ -532,7 +537,7 @@ describe('the compose provider on a fake docker', () => {
     const project = await composeProjectDir('pinned', ['services:', `  app: {url: "http://localhost:${port}", health: {path: /up, text: ready}, pages: {app: "http://localhost:${port}"}}`, 'mailbox: {provider: mailpit, url: "http://localhost:' + port + '"}']);
     const ref = composeProject(project, project.sandboxes!.sandbox);
     const { exec } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [port], db: [] }))], [/ ps --all --format json$/, ok([psLine({ service: 'app', health: 'healthy', ports: [port], wd: ref.dir }), psLine({ service: 'db', wd: ref.dir })].join('\n'))], [/ up -d --wait /, ok()]]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port }] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 1, pgid: 1, command: 'OrbStack Helper', port }] });
     const ctx = ctxOf(project);
     seen.length = 0;
     await provider.up(ctx);
@@ -560,7 +565,7 @@ describe('the compose provider on a fake docker', () => {
       if (args.includes('exec')) env = opts?.env;
       return exec(args, opts);
     };
-    const provider = new ComposeProvider({ exec: wrapped });
+    const provider = new ComposeProvider({ policy, exec: wrapped });
     const ctx = ctxOf(project);
     expect(await provider.exec(ctx, { service: 'db', command: "psql -c 'select 1'", env: { PGUSER: 'demo' } })).toContain('?column?');
     expect(env).toEqual({ PGUSER: 'demo', RETAKE_EXEC: expect.stringMatching(/^[0-9a-f]{16}$/) });
@@ -585,7 +590,7 @@ describe('the compose provider on a fake docker', () => {
     project.config.environment_settings = { ...project.config.environment_settings, production: { production: true } };
     project.config.vars = { remote: 'https://data.example.net/dump.sql' };
     const { exec, calls } = fakeDocker([...READY, [/ config --format json$/, ok(configJson({ app: [47402], db: [] }))], [/ ps --all --format json$/, ok('')], [/ exec -T /, ok('done\n')]]);
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     const ctx = ctxOf(project);
     expect(await provider.exec(ctx, { service: 'app', command: 'curl -fsS http://db:5432/ http://localhost:47402/' })).toBe('done\n');
     // Templated hosts are seen once rendered (validation could not see them).
@@ -613,7 +618,7 @@ describe('the compose provider on a fake docker', () => {
       }
       return ready.exec(args, opts);
     };
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 50);
     const e = await provider.exec({ ...ctxOf(project), signal: ac.signal }, { service: 'db', command: 'sleep 30' }).catch((x) => x);
@@ -647,7 +652,7 @@ describe('the compose provider on a fake docker', () => {
       [/ exec -T .*exit 4/, { code: 4, stdout: '' }],
       [/ exec -T /, ok('loaded\n')],
     ]);
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     const seen: unknown[] = [];
     const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ index: r.index, name: r.name, kind: r.kind, phase: r.phase, status: r.status, ...r }) };
     await expect(runSeed(ctx, provider, { by: 'test', log: () => undefined })).rejects.toMatchObject({ code: 'seed', message: expect.stringContaining('seed step 5/5') });
@@ -675,7 +680,7 @@ describe('the compose provider on a fake docker', () => {
       [/ logs --no-color --no-log-prefix --tail 5 app$/, ok('GET /\n')],
       [/ logs --no-color --no-log-prefix --tail 5 db$/, ok('ready\n')],
     ]);
-    const provider = new ComposeProvider({ exec });
+    const provider = new ComposeProvider({ policy, exec });
     const st = await provider.status(ctxOf(project));
     expect(st.map((s) => [s.name, s.state, s.healthy, s.orphan ?? false])).toEqual([
       ['app', 'running', true, false],
@@ -700,7 +705,7 @@ describe('the compose provider on a fake docker', () => {
       [/^image inspect --format \{\{\.Id\}\} app:1 db:1$/, ok('sha256:aaa\nsha256:bbb\n')],
       [/ ps --all --format json$/, ok([psLine({ service: 'db', ports: [47397], wd: composeProject(project, project.sandboxes!.sandbox).dir }), psLine({ service: 'app', state: 'exited', ports: [] })].join('\n'))],
     ]);
-    const provider = new ComposeProvider({ exec, listeners: async () => [] });
+    const provider = new ComposeProvider({ policy, exec, listeners: async () => [] });
     expect(await provider.hashInputs(ctxOf(project))).toEqual(['image app=sha256:aaa', 'image db=sha256:bbb']);
     expect(await provider.publishedBy(ctxOf(project), 47397)).toBe('db');
     await expect(provider.publishedBy(ctxOf(project), 5432)).rejects.toThrow(/port 5432 \(the snapshot's database\) is not published by a running service of compose project retake-hash-sandbox-[0-9a-f]{8}/);
@@ -709,15 +714,15 @@ describe('the compose provider on a fake docker', () => {
       /port 8025 \(the mailbox http:\/\/localhost:8025\) is not published by a running service of compose project .* — every reset empties it$/,
     );
     expect(await provider.servedBy(ctxOf(project), 47397, { what: 'the mailbox', why: 'x' })).toBe('db');
-    const foreign = new ComposeProvider({ exec, listeners: async () => [{ pid: 9, pgid: 9, command: 'OrbStack Helper', port: 47397 }, { pid: 10, pgid: 10, command: 'postgres', port: 47397 }] });
+    const foreign = new ComposeProvider({ policy, exec, listeners: async () => [{ pid: 9, pgid: 9, command: 'OrbStack Helper', port: 47397 }, { pid: 10, pgid: 10, command: 'postgres', port: 47397 }] });
     await expect(foreign.publishedBy(ctxOf(project), 47397)).rejects.toThrow(/also used by another program \(postgres, pid 10\)/);
   });
 
   it('a docker-compose sandbox without docker says how to get it (status, up)', async () => {
     const project = await composeProjectDir('nodocker', ['services:', '  app: {url: "http://localhost:47398", pages: {app: "http://localhost:47398"}}']);
-    const sb = openSandbox(project);
+    const sb = openSandbox(project, undefined, policy);
     const exec: DockerExec = async () => ({ code: null, stdout: '', stderr: '', ms: 0, error: 'spawn docker ENOENT' });
-    const provider = new ComposeProvider({ exec, docker: '/nowhere/docker' });
+    const provider = new ComposeProvider({ policy, exec, docker: '/nowhere/docker' });
     await expect(provider.status(ctxOf(project))).rejects.toThrow(/sandbox sandbox: docker-compose sandboxes need Docker with Compose v2\.17 or later: \/nowhere\/docker could not be run/);
     expect(sb.kind).toBe('docker-compose');
   });

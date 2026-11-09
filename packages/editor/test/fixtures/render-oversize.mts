@@ -5,7 +5,7 @@
  * crashing it (render-gpu.test.ts). Args: <workspace root> <out.mp4> <cacheDir> <auto|force-videotoolbox>.
  * Prints one JSON line: {ok, error?, warnings, path, encoding, guarded: the unhandled-rejection handlers the render left}.
  */
-import { loadProject } from '@retake/core';
+import { loadProject } from '@retake/core/io';
 import { planRun, renderPlan } from '@retake/editor';
 
 const [root, out, cacheDir, mode] = process.argv.slice(2);

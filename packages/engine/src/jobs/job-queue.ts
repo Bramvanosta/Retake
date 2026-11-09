@@ -14,7 +14,8 @@
  * (job-child.ts) and the CLI's in-process commands (packages/cli/src/workspace.ts), plus the file queue's own
  * withOwnMemory(); everything else is handed one (the ratchet's `queue` rule).
  */
-import type { JobInput, JobKind, JobState, PlainFileProblem } from '@retake/core';
+import type { JobInput, JobKind, JobState } from '@retake/core';
+import type { PlainFileProblem } from '@retake/core/io';
 import type { ProcessIdentity } from './proc.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
 

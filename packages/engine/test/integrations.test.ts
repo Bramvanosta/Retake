@@ -137,10 +137,10 @@ describe('one import path', () => {
     const names = ['mcpConfigJson', 'mcpServerEntry', 'stableNodePath', 'pluginInstallSteps', 'SERVER_NAME', 'writeDesktopEntry', 'installCliLink', 'SetupError', 'readAppSettings', 'UPDATES_FILE'];
     const integrations: Record<string, unknown> = await import('@retake/engine/integrations');
     for (const n of names) expect(integrations[n], n).toBeDefined();
-    for (const entry of [await import('@retake/core'), await import('@retake/engine'), await import('@retake/mcp')] as Array<Record<string, unknown>>) {
+    for (const entry of [await import('@retake/core'), await import('@retake/core/io'), await import('@retake/engine'), await import('@retake/mcp')] as Array<Record<string, unknown>>) {
       expect(names.filter((n) => n in entry)).toEqual([]);
     }
-    // clientPath stays core's (one path: the MCP package no longer hands it on).
+    // clientPath stays core's (its io side, @retake/core/io: one path — the MCP package no longer hands it on).
     expect('clientPath' in (await import('@retake/mcp'))).toBe(false);
   });
 });

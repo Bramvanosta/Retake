@@ -5,7 +5,7 @@
  * seed and the reset, and keeps the state file; a provider reads and updates `ctx.state` and calls `ctx.save()` as soon
  * as something it started exists.
  */
-import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core';
+import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider, WorkPolicy } from '@retake/core';
 import type { HookApprovalRequest } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
@@ -42,6 +42,8 @@ export type SeedRecorder = (result: SeedRunResult, run?: string) => Promise<void
 
 export interface ProviderContext {
   project: LoadedProject;
+  /** What the work runs under (core WorkPolicy): the programs, the environment of the services and the seed's hooks. */
+  policy: WorkPolicy;
   sandbox: LoadedSandbox;
   paths: SandboxPaths;
   state: SandboxState;

@@ -25,8 +25,9 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin, projectPath, scenarioRef } from '@retake/core';
-import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
+import { listTemplates, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
+import type { FieldAt, FieldValue, LoadedProject, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
 import { listComments, proposalForPreview } from './comments.js';
@@ -44,6 +45,7 @@ import type { RenderEditSource } from './jobs/render-job.js';
 import { getScenario, scenarioEditBlocker } from './scenarios.js';
 import { sha256Hex } from './storage.js';
 import { themeUnusable } from './templates.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 export interface TimelineViewRequest {
   project: string;
@@ -172,7 +174,7 @@ function componentsSignature(dir: string): string {
 }
 
 /** The workspace's component registry, reused while its components' folders are unchanged (timeline views, set_field). */
-export async function memoRegistry(ws: WorkspaceConfig): Promise<{ sig: string; registry: ComponentRegistry }> {
+export async function memoRegistry(ws: OpenedWorkspace): Promise<{ sig: string; registry: ComponentRegistry }> {
   const sig = componentsSignature(ws.componentsDir);
   if (!registryMemo || registryMemo.sig !== sig) {
     const c = await components();
@@ -191,11 +193,11 @@ const statKey = (file: string): string => {
   }
 };
 
-async function musicLength(file: string): Promise<number | undefined> {
+async function musicLength(file: string, policy: WorkPolicy): Promise<number | undefined> {
   const key = `${file}|${statKey(file)}`;
   if (musicMemo.has(key)) return musicMemo.get(key);
   const ed = await editor();
-  const probe = await ed.probeMedia(file);
+  const probe = await ed.probeMedia(file, policy);
   const length = probe && probe.duration_s > 0 ? probe.duration_s : undefined;
   if (musicMemo.size > 32) musicMemo.delete(musicMemo.keys().next().value!);
   musicMemo.set(key, length);
@@ -221,7 +223,7 @@ export const SLOW_SCRUB_KEYFRAME_S = 1;
  * The capture's codec, B-frames and keyframe spacing over its first 30 s: ffprobe reads the packets (no decoding) from
  * a descriptor opened without following a link — ffprobe opens no path. Empty when ffprobe is missing or fails.
  */
-export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs?: number } = {}): Promise<TimelineCaptureInfo> {
+export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs?: number; policy: WorkPolicy }): Promise<TimelineCaptureInfo> {
   let fd: number;
   try {
     fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
@@ -235,7 +237,7 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
       let text = '';
       let p: ReturnType<typeof spawn>;
       try {
-        p = spawn(ffprobeBin(o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
+        p = spawn(ffprobeBin(o.policy, o.ffprobe), args, { stdio: ['ignore', 'pipe', 'ignore', fd] });
       } catch {
         resolve(null);
         return;
@@ -274,11 +276,11 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
   }
 }
 
-function memoCapture(file: string): Promise<TimelineCaptureInfo> {
+function memoCapture(file: string, policy: WorkPolicy): Promise<TimelineCaptureInfo> {
   const key = `${file}|${statKey(file)}`;
   let p = captureMemo.get(key);
   if (!p) {
-    p = captureInfo(file);
+    p = captureInfo(file, { policy });
     if (captureMemo.size > 16) captureMemo.delete(captureMemo.keys().next().value!);
     captureMemo.set(key, p);
   }
@@ -428,7 +430,7 @@ function stepLabels(text: string | undefined): Record<string, string> {
 }
 
 async function buildView(
-  ws: WorkspaceConfig,
+  ws: OpenedWorkspace,
   cli: string,
   project: LoadedProject,
   req: TimelineViewRequest,
@@ -445,7 +447,7 @@ async function buildView(
       ws,
       cli,
       { project: req.project, scenario: req.scenario, ...(req.run_id ? { run_id: req.run_id } : {}) },
-      { registry, musicLength, ...(proposal ? { editText: proposal.text } : {}) },
+      { registry, musicLength: (file) => musicLength(file, ws.policy), ...(proposal ? { editText: proposal.text } : {}) },
     ));
   } catch (e) {
     if (e instanceof EngineError && e.code === 'refused') {
@@ -497,7 +499,7 @@ async function buildView(
   const shownText = proposal ? proposal.text : file.yaml;
   const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
   const choices = await choicesOf(registry, root, plan, editable, themes);
-  const capture = await memoCapture(planned.captureFile);
+  const capture = await memoCapture(planned.captureFile, ws.policy);
   const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
   const { untrusted, ...shape } = model;
   const view: TimelineView = {
@@ -543,7 +545,7 @@ function depsOf(ed: Awaited<ReturnType<typeof editor>>, r: TimelineViewResult): 
  * The timeline view of a scenario's take (see the module comment). The same key (file, run, timeline, components)
  * returns the memoised view: a click's write and the event it raises plan once.
  */
-export async function timelineView(ws: WorkspaceConfig, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@retake/core').AgentChannel }): Promise<TimelineViewResult> {
+export async function timelineView(ws: OpenedWorkspace, cli: string, req: TimelineViewRequest, o: { agent: boolean; via: import('@retake/core').AgentChannel }): Promise<TimelineViewResult> {
   const t0 = performance.now();
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
@@ -552,7 +554,7 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   let file: { hash?: string; yaml?: string; blocked?: string } = {};
   try {
     const text = await getScenario(project, req.scenario);
-    const parsed = text.utf8 ? parseScenario(text.yaml, { file: text.path, project }).scenario : undefined;
+    const parsed = text.utf8 ? parseScenario(text.yaml, { files: fileFacts(ws.policy), file: text.path, project }).scenario : undefined;
     const blocked = scenarioEditBlocker(project, text, parsed, o);
     file = { hash: text.hash, yaml: text.yaml, ...(blocked ? { blocked: blocked.why } : {}) };
   } catch (e) {
@@ -566,7 +568,7 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
     if (!pr || typeof pr !== 'object' || typeof pr.comment_id !== 'string' || !COMMENT_ID_RE.test(pr.comment_id) || typeof pr.entry_id !== 'string' || !COMMENT_ENTRY_ID_RE.test(pr.entry_id)) {
       throw new EngineError('invalid', 'proposal is {comment_id: c_…, entry_id: r_…}: the thread and the reply holding the proposal', { details: { argument: 'proposal' } });
     }
-    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry });
+    proposal = await proposalForPreview(project, req.scenario, pr, { registry: async () => (await memoRegistry(ws)).registry, files: fileFacts(ws.policy) });
     if (req.run_id !== undefined && req.run_id !== proposal.run_id) {
       throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
     }
@@ -582,7 +584,7 @@ export async function timelineView(ws: WorkspaceConfig, cli: string, req: Timeli
   const unusable: Record<string, string> = {};
   const reg = (await memoRegistry(ws)).registry;
   for (const t of listed) {
-    const why = await themeUnusable(t.dir, reg, ws.root);
+    const why = await themeUnusable(t.dir, reg, ws.root, fileFacts(ws.policy));
     if (why !== null) unusable[t.name] = why;
   }
   const themes: ThemeChoices = { names: listed.map((t) => t.name), unusable, ...(typeof project.config.template === 'string' ? { project: project.config.template } : {}) };

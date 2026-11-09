@@ -10,7 +10,7 @@
  */
 import { readdir } from 'node:fs/promises';
 import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@retake/core';
-import type { AuthLoginJobInput, WorkspaceConfig } from '@retake/core';
+import type { AuthLoginJobInput } from '@retake/core';
 import { EngineError, toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
 import type { JobQueueView } from './job-queue.js';
@@ -20,6 +20,7 @@ import { checkProjectSlug } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { AuthLoginJobResult, JobEventBody, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** The environment variable that changes how long a headed sign-in window of a job may stay open (minutes). */
 export const AUTH_HEADED_MAX_ENV = 'RETAKE_SIGNIN_MAX_MIN';
@@ -138,7 +139,7 @@ export async function submitAuthLoginJob(ctx: SubmitContext, req: AuthLoginSubmi
 }
 
 export interface AuthLoginJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: AuthLoginJobInput;
   signal: AbortSignal;
@@ -173,7 +174,7 @@ export async function executeAuthLoginJob(ctx: AuthLoginJobContext): Promise<Aut
     }
   }
   const interrupts = input.mode === 'headed' ? withTimeLimit(ctx.interrupts, maxMs, () => (timedOut = true)) : ctx.interrupts;
-  const outcome = await signInPersona(project, env, target.persona, { mode: input.mode }, {
+  const outcome = await signInPersona(project, env, target.persona, { mode: input.mode, policy: ctx.ws.policy }, {
     interrupts,
     log: (level, message) => {
       if (level !== 'debug') ctx.event({ type: 'log', level, message });

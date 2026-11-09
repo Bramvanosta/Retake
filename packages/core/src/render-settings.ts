@@ -1,7 +1,7 @@
 /**
  * The render settings of a machine (L5.15, DESIGN §4r): how Remotion's browser draws (`gl`), which encoder writes the
- * video (`encoder`) and how many frames render at a time (`concurrency`). From retake.yaml `render:` (the workspace
- * `openWorkspace` opened last in this process, as `ffmpeg`), else `RETAKE_RENDER_GL` / `RETAKE_RENDER_ENCODER` /
+ * video (`encoder`) and how many frames render at a time (`concurrency`). From retake.yaml `render:` (the work's
+ * WorkPolicy `render`, core agent-policy.ts, as `ffmpeg`), else `RETAKE_RENDER_GL` / `RETAKE_RENDER_ENCODER` /
  * `RETAKE_RENDER_CONCURRENCY`, else `auto`. A GPU is a property of the machine, not of the product: not in project.yaml.
  * The policy itself (what `auto` means here, the probes, the fallback) is the editor's (render/policy.ts).
  */
@@ -52,19 +52,4 @@ export function renderSettingsFromEnv(env: Record<string, string | undefined>): 
     out.concurrency = n;
   }
   return out;
-}
-
-let workspaceRender: RenderSettings | undefined;
-
-/**
- * The open workspace's retake.yaml `render:` for this process (a CLI command, the MCP server, the Studio server and a
- * jobs worker each serve one workspace): `openWorkspace` sets it — or clears it — each time it opens one.
- */
-export function useWorkspaceRender(settings: RenderSettings | undefined): void {
-  workspaceRender = settings && Object.keys(settings).length ? { ...settings } : undefined;
-}
-
-/** This process's workspace render settings (retake.yaml `render:`), or undefined. */
-export function workspaceRenderSettings(): RenderSettings | undefined {
-  return workspaceRender ? { ...workspaceRender } : undefined;
 }

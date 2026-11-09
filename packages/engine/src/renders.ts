@@ -8,8 +8,9 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, readPlainFile, projectPath } from '@retake/core';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, projectPath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
+import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
@@ -20,6 +21,7 @@ import type { RenderRequest } from './jobs/render-job.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord, JobYield, RenderJobResult } from './jobs/types.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 export interface PlanPreviewSegment {
   id: string;
@@ -68,7 +70,7 @@ export interface PlanPreviewView {
 const s3 = (frames: number, fps: number) => Math.round((frames / fps) * 1000) / 1000;
 
 /** Plan a render request (trust `mcp`) and describe the plan; nothing is rendered, no browser is opened. */
-export async function planPreview(ws: WorkspaceConfig, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
+export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderRequest): Promise<PlanPreviewView> {
   const { project, planned, source } = await planRenderRequest(ws, cli, req);
   const ed = await editor();
   const plan = planned.plan;
@@ -196,7 +198,7 @@ async function latestRenderId(projectDir: string, queue: JobQueueView, slug: str
 }
 
 /** A render's status: its newest job (queued, running, its result or error), then its record. */
-export async function renderStatus(ws: WorkspaceConfig, queue: JobQueueView, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
+export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
   checkProjectSlug(slug);
   if (scenario !== undefined) checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
@@ -482,7 +484,7 @@ export function renderView(projectDir: string, r: RenderRecord, renderJobs: read
 }
 
 /** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
-export async function scenarioRenders(ws: WorkspaceConfig, queue: JobQueueView, slug: string, scenario: string): Promise<ScenarioRendersView> {
+export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, slug: string, scenario: string): Promise<ScenarioRendersView> {
   checkProjectSlug(slug);
   checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);

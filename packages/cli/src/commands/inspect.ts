@@ -72,6 +72,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   try {
     // The inspection, the older ones of the project pruned (not with --out), then its line of the workspace's history.
     run = await inspectInProcess({
+      policy: ws.policy,
       root: ws.root,
       ...(opts.out === undefined ? { prune: workspaceQueue(ws) } : {}),
       prepared,

@@ -22,7 +22,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
-import type { RecordJobInput, RecordedEvent, WorkspaceConfig } from '@retake/core';
+import type { RecordJobInput, RecordedEvent } from '@retake/core';
 import { ENGINE_TRUST, submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
@@ -36,6 +36,7 @@ import { checkEnvName } from './hooks-job.js';
 import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, RecordJobResult } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RecordSubmitRequest {
   project: string;
@@ -123,7 +124,7 @@ export async function submitRecordJob(ctx: SubmitContext, req: RecordSubmitReque
 export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windowSize'>;
 
 export interface RecordJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   /** The workspace's job queue (a recording whose job is queued or running is never pruned). */
   queue: JobQueueView;
@@ -185,7 +186,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
   const project = await openProjectBySlug(ctx.ws, input.project);
   const start = recordStart(project, { env: input.env, persona: input.persona, page: input.source.page, path: input.source.path });
   await checkWorkspaceProtection(ctx.ws, project, start.env.name);
-  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }));
+  await checkSandboxEnv(project, start.env.name, (level, message) => ctx.event({ type: 'log', level, message }), ctx.ws.policy);
   const progress: JobProgress = { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: new Date().toISOString() };
   const update = (patch: Partial<JobProgress>) => {
     Object.assign(progress, patch, { updated_at: new Date().toISOString() });
@@ -281,7 +282,7 @@ export const RECORD_DRAFT_MAX = 200_000;
  * A recording's draft read back from its folder (null when there is none: nothing recorded, cancelled, or pruned since).
  * Its text holds what the person typed and the page's names: a client shows it as untrusted data.
  */
-export async function readRecording(ws: WorkspaceConfig, slug: string, recId: string): Promise<{ dir: string; draft: string | null; truncated: boolean }> {
+export async function readRecording(ws: OpenedWorkspace, slug: string, recId: string): Promise<{ dir: string; draft: string | null; truncated: boolean }> {
   checkProjectSlug(slug);
   const project = await openProjectBySlug(ws, slug);
   const dir = recordDir(project, recId);

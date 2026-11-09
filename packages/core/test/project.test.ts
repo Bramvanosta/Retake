@@ -2,18 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  DEFAULT_CAPTURE,
-  ScenarioError,
-  findWorkspaceRoot,
-  listProjects,
-  loadProject,
-  loadScenario,
-  loadWorkspaceConfig,
-  parseProjectYaml,
-  parseScenario,
-} from '@retake/core';
+import { ConfigError, DEFAULT_CAPTURE, ScenarioError, parseProjectYaml, parseScenario, PERSON_POLICY } from '@retake/core';
+import { findWorkspaceRoot, listProjects, loadProject, loadScenario, loadWorkspaceConfig, fileFacts, nodeFileFacts } from '@retake/core/io';
 import { SPEC_EXAMPLE, SPEC_HOOK_FILES, STAGING, createProject, errors, tempDir, writeFiles } from './helpers.js';
 
 let ws: { dir: string; cleanup: () => Promise<void> };
@@ -146,9 +136,9 @@ describe('projects', () => {
     const file = join(p.dir, 'scenarios', 'catalogue.yaml');
     await writeFiles(p.dir, SPEC_HOOK_FILES);
     const bad = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
-    expect(errors(parseScenario(bad, { file, project: p }).issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual(['scenes.0.steps.1.click: unknown key "txt" (did you mean "text"?)']);
+    expect(errors(parseScenario(bad, { files: fileFacts(PERSON_POLICY), file, project: p }).issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual(['scenes.0.steps.1.click: unknown key "txt" (did you mean "text"?)']);
     expect(existsSync(file)).toBe(false);
-    expect(errors(parseScenario(SPEC_EXAMPLE.trimEnd(), { file, project: p }).issues)).toEqual([]);
+    expect(errors(parseScenario(SPEC_EXAMPLE.trimEnd(), { files: fileFacts(PERSON_POLICY), file, project: p }).issues)).toEqual([]);
     expect(existsSync(file)).toBe(false);
     await writeFiles(p.dir, { 'scenarios/catalogue.yaml': SPEC_EXAMPLE });
     p.scenarios = ['catalogue'];
@@ -193,7 +183,7 @@ describe('parseProjectYaml semantic checks', () => {
       '  - http: {url: "{{console}}/api/reset", method: POST}',
       'vars: {agent: "{{env:AGENT_EMAIL}}", plain: Harbour Coffee Co.}',
     ].join('\n');
-    const { config, issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
+    const { config, issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml', nodeFileFacts);
     expect(config).toBeUndefined();
     expect(errors(issues).map((i) => `${i.line} ${i.message}`)).toEqual([
       '2 unknown environment "prod" (available: staging)',
@@ -216,7 +206,7 @@ describe('parseProjectYaml semantic checks', () => {
       '  - shell: "psql -h db.staging.example.com -c \'select 1\' && curl -fsS https://console.staging.example.com/api/reset"',
       '  - shell: "pg_restore --host db.prod.example.com demo.dump"',
     ].join('\n');
-    const { issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml');
+    const { issues } = parseProjectYaml(text, '/nonexistent/northfield/project.yaml', nodeFileFacts);
     expect(errors(issues).map((i) => `${i.line} ${i.message}`)).toEqual([
       '7 shell hook names host db.prod.example.com (pg_restore -h): it is not allowed: use localhost, an environment host, or add it to allow_hosts (allowed: localhost, 127.0.0.1, ::1, console.staging.example.com, db.staging.example.com)',
     ]);

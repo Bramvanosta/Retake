@@ -15,6 +15,7 @@ import type { Page } from 'playwright-core';
 import { kitConfigFor, openSession, runScenario, useRealTime } from '../src/index.js';
 import type { CursorEffectPayload } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let server: Server;
 let A = '';
@@ -60,7 +61,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('the clock in a session (R-ENV-05)', () => {
   it('anchored at capture time 0: every browser, document, frame, popup and worker reads the time then, and it runs', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined), realms: [{ name: 'a' }, { name: 'b' }], realmOf: (id) => (id === 'a' || id === 'b' ? id : '') });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined), realms: [{ name: 'a' }, { name: 'b' }], realmOf: (id) => (id === 'a' || id === 'b' ? id : '') });
     try {
       const a = await session.page('a');
       const b = await session.page('b');
@@ -122,7 +123,7 @@ describe('the clock in a session (R-ENV-05)', () => {
   });
 
   it('the product\'s own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
       await page.goto(`${A}/`);
@@ -166,7 +167,7 @@ describe('the clock in a session (R-ENV-05)', () => {
   });
 
   it('freeze: Date never moves while timers still fire', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
       await page.goto(`${A}/`);
@@ -185,7 +186,7 @@ describe('the clock in a session (R-ENV-05)', () => {
   });
 
   it('a page kept on the real time (session check, sign-in) never gets the clock: its documents and frames included (T5)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const real = await session.page('check');
       await useRealTime(real);
@@ -214,7 +215,7 @@ describe('the clock in a session (R-ENV-05)', () => {
 describe('the kit keeps its own time sources (L1.7 hardening)', () => {
   it('a page that breaks its timers and frames, under a clock: cursor effects carry the real time, scrollAnimate lasts its real duration, afterPaint resolves', async () => {
     const effects: CursorEffectPayload[] = [];
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     session.onCursorEffect = (_p, e) => effects.push(e);
     try {
       const page = await session.page('main');
@@ -264,7 +265,7 @@ describe('the kit keeps its own time sources (L1.7 hardening)', () => {
 describe('a run with a clock (R-ENV-05)', () => {
   it('the capture reads the clock from capture time 0; cursor effects stay on the capture clock; the clock is recorded', async () => {
     const project = makeProject(dir, { app: A });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario: makeScenario('clock-run', {
         pacing: FAST,
@@ -292,7 +293,7 @@ describe('a run with a clock (R-ENV-05)', () => {
     const project = makeProject(dir, { app: A });
     project.config.browser = { timezone: 'Europe/Paris' };
     const take = async (n: number, clock: string | { at: string; freeze: true }) => {
-      const rec = await runScenario({
+      const rec = await runScenario({ policy: PERSON_POLICY,
         project,
         scenario: makeScenario('clock-takes', {
           pacing: FAST,

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RunRecordSchema, TimelineSchema } from '@retake/core';
+import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline } from '@retake/core';
 import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
@@ -31,7 +31,7 @@ describe('acceptance: 1920×1080 capture with the debug cursor', () => {
 
   it('captures a multi-step scenario to capture.mp4 + timeline.json', async () => {
     const project = makeProject(dir, { console: server.url }, { width: W, height: H });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       template: debugTemplate(),
       mode: 'capture',

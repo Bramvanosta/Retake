@@ -17,9 +17,9 @@
  */
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { WorkspaceConfig } from '@retake/core';
 import { historyFile } from '../history.js';
 import { projectPath } from '@retake/core';
+import type { OpenedWorkspace } from '../workspace.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
 
@@ -44,7 +44,7 @@ async function sig(path: string): Promise<string> {
 }
 
 /** Project folders of the workspace (a folder of projects_dir holding a project.yaml), by slug. */
-async function projectSlugs(ws: WorkspaceConfig): Promise<string[]> {
+async function projectSlugs(ws: OpenedWorkspace): Promise<string[]> {
   let entries;
   try {
     entries = await readdir(ws.projectsDir, { withFileTypes: true });
@@ -89,7 +89,7 @@ async function commentFolders(dir: string): Promise<string[]> {
  * Signatures of every source of the workspace. `unfinished` names, per project, the runs whose run.json is still being
  * written (the runner rewrites it in place while it runs: the runs/ folder alone would not change).
  */
-export async function scanSources(ws: WorkspaceConfig, unfinished: ReadonlyMap<string, readonly string[]> = new Map()): Promise<SourceMap> {
+export async function scanSources(ws: OpenedWorkspace, unfinished: ReadonlyMap<string, readonly string[]> = new Map()): Promise<SourceMap> {
   const out: SourceMap = new Map();
   for (const slug of await projectSlugs(ws)) {
     const dir = join(ws.projectsDir, slug);

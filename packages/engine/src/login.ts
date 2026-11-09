@@ -5,9 +5,10 @@
  * usage errors); what it tells its client goes through `SignInPorts`. Nothing here ever receives a credential.
  */
 import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
-import type { LoadedProject, ResolvedEnvironment, ResolvedPersona } from '@retake/core';
+import type { LoadedProject, ResolvedEnvironment, ResolvedPersona, WorkPolicy } from '@retake/core';
 import type { SignInResult } from '@retake/runner-web';
 import type { InterruptPort } from './interrupts.js';
+import { retakeHome } from '@retake/core/io';
 
 /** A sign-in that cannot be made as asked (`usage`: the CLI reports it as a usage error, exit 2; else exit 1). */
 export class LoginOptionError extends Error {
@@ -23,7 +24,7 @@ export class LoginOptionError extends Error {
 /** The persona a sign-in is for: `wanted`, else the environment's only one. */
 function pickPersona(project: LoadedProject, envName: string, personas: ResolvedPersona[], wanted: string | undefined): ResolvedPersona {
   if (personas.length === 0) {
-    const withPersonas = Object.keys(project.config.environments ?? {}).filter((e) => resolvePersonas(project, e).length > 0);
+    const withPersonas = Object.keys(project.config.environments ?? {}).filter((e) => resolvePersonas(project, e, { home: retakeHome() }).length > 0);
     throw new LoginOptionError(
       withPersonas.length
         ? `environment "${envName}" of ${project.slug} has no personas: pick an environment that has some with --env (${withPersonas.join(', ')})`
@@ -46,7 +47,7 @@ function pickPersona(project: LoadedProject, envName: string, personas: Resolved
  */
 export function loginTarget(project: LoadedProject, opts: { env?: string; persona?: string; auto?: boolean }): { env: ResolvedEnvironment; persona: ResolvedPersona } {
   const env = resolveEnvironment(project, opts.env);
-  const personas = resolvePersonas(project, env.name);
+  const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const legacy = personas.find((p) => p.legacy);
   if (legacy) {
     // The single-account form (auth.profile): a window on that profile, as before personas.
@@ -88,7 +89,7 @@ export async function signInPersona(
   project: LoadedProject,
   env: { name: string; pages: Record<string, string> },
   persona: ResolvedPersona,
-  opts: { mode: 'headed' | 'auto'; page?: string; url?: string },
+  opts: { mode: 'headed' | 'auto'; page?: string; url?: string; policy: WorkPolicy },
   ports: SignInPorts,
 ): Promise<SignInOutcome> {
   if (opts.mode === 'headed' && process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY) {
@@ -103,6 +104,7 @@ export async function signInPersona(
   try {
     result = await signIn({
       project,
+      policy: opts.policy,
       env,
       persona,
       mode: opts.mode,

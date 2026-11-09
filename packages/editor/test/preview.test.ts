@@ -10,7 +10,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadTemplate } from '@retake/core';
+import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedTemplate } from '@retake/core';
 import {
   PREVIEW_MAX_BYTES,
@@ -26,6 +26,7 @@ import type { ComponentRegistry } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples, loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewSamples } from '@retake/editor';
 import { REPO, SHARED_CACHE, hasTool } from './render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /** The scaffold's writer in these tests: plain files (the engine's project store in the CLI and the engine). */
 const plainWrite = async (file: string, text: string): Promise<void> => {
@@ -45,7 +46,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-preview-'));
   await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(join(REPO, 'templates'))}\n`);
   registry = await loadComponentRegistry({ root });
-  editorial = await loadTemplate('editorial', root);
+  editorial = await loadTemplate('editorial', root, { files: fileFacts(PERSON_POLICY) });
   samples = loadPreviewSamples();
 });
 afterAll(async () => {
@@ -134,7 +135,7 @@ describe('component preview specs', () => {
   });
 
   it('another theme picks its own context components (motion: browser layout, overlay caption)', async () => {
-    const motion = await loadTemplate('motion', root);
+    const motion = await loadTemplate('motion', root, { files: fileFacts(PERSON_POLICY) });
     const cap = build('studio/caption-below', motion);
     expect(cap.spec.scene!.layout.id).toBe('studio/layout-browser');
     expect(build('studio/layout-card', motion).spec.scene!.caption!.id).toBe('studio/caption-overlay');
@@ -142,12 +143,12 @@ describe('component preview specs', () => {
   });
 
   it('the preview theme: a workspace template, else the starter of that name', async () => {
-    expect((await loadPreviewTheme('editorial', root)).name).toBe('editorial');
+    expect((await loadPreviewTheme('editorial', root, fileFacts(PERSON_POLICY))).name).toBe('editorial');
     const bare = await mkdtemp(join(tmpdir(), 'retake-preview-bare-'));
     try {
       await writeFile(join(bare, 'retake.yaml'), 'projects_dir: projects\n');
-      expect((await loadPreviewTheme('motion', bare)).name).toBe('motion');
-      await expect(loadPreviewTheme('nope', bare)).rejects.toThrow(/template "nope" not found/);
+      expect((await loadPreviewTheme('motion', bare, fileFacts(PERSON_POLICY))).name).toBe('motion');
+      await expect(loadPreviewTheme('nope', bare, fileFacts(PERSON_POLICY))).rejects.toThrow(/template "nope" not found/);
     } finally {
       await rm(bare, { recursive: true, force: true });
     }
@@ -163,7 +164,7 @@ describe.skipIf(!canRender)('component previews rendered with Remotion', () => {
         return { id, dir: i.dir, entry: i.entry, manifest: i.manifest };
       });
       const out = join(root, 'out');
-      const done = await renderComponentPreviews({ root, registry, template: editorial, targets, outDir: out, cacheDir: SHARED_CACHE });
+      const done = await renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry, template: editorial, targets, outDir: out, cacheDir: SHARED_CACHE });
       expect(done.map((d) => d.file)).toEqual([join(out, 'studio', 'card-title.png'), join(out, 'studio', 'layout-phone.png')]);
       for (const d of done) {
         expect(pngSize(d.file), d.id).toEqual(PREVIEW_SIZE);
@@ -177,9 +178,9 @@ describe.skipIf(!canRender)('component previews rendered with Remotion', () => {
       // In place, on a workspace component (the layout scaffold), with the motion theme.
       const created = await createComponent(root, { write: plainWrite,  id: 'acme/frame', kind: 'layout', description: 'A test frame.' });
       await writeFile(join(created.dir, 'README.md'), '# acme/frame\n\nHand-written notes.\n');
-      const motion = await loadTemplate('motion', root);
+      const motion = await loadTemplate('motion', root, { files: fileFacts(PERSON_POLICY) });
       const reg2 = await loadComponentRegistry({ root });
-      const [p] = await renderComponentPreviews({ root, registry: reg2, template: motion, targets: [{ id: 'acme/frame', dir: created.dir, entry: created.entry, manifest: created.manifest }], cacheDir: SHARED_CACHE });
+      const [p] = await renderComponentPreviews({ workPolicy: PERSON_POLICY, root, registry: reg2, template: motion, targets: [{ id: 'acme/frame', dir: created.dir, entry: created.entry, manifest: created.manifest }], cacheDir: SHARED_CACHE });
       expect(p.file).toBe(join(created.dir, 'preview.png'));
       expect(pngSize(p.file)).toEqual(PREVIEW_SIZE);
       expect(previewStatus(created.dir, { theme: 'motion' }).state).toBe('fresh');

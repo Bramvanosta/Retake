@@ -14,7 +14,7 @@ import { execFileSync } from 'node:child_process';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TimelineSchema } from '@retake/core';
+import { TimelineSchema, PERSON_POLICY } from '@retake/core';
 import type { Timeline, TimelineEvent, TimelineLoading } from '@retake/core';
 import { CaptureClock, ScreencastRecorder, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { FrameIndexEntry } from '../src/index.js';
@@ -88,7 +88,7 @@ beforeAll(async () => {
       { id: 'spa', page: 'app', open: '/', steps: [{ click: { css: '#spa' } }, { hold: 0.3 }] },
     ],
   });
-  const rec = await runScenario({ project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav-${Date.now()}` });
+  const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav-${Date.now()}` });
   expect(rec.error?.message).toBeUndefined();
   tl = await readTimeline(rec.timeline!);
   runDir = rec.dir;
@@ -167,7 +167,7 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
 
 describe('control: the same navigation recorded without the hold (R-ISS-08)', () => {
   it('the skeleton is filmed without the hold, never with it', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     try {
       const page = await session.page('main');
       const out: Record<string, { frames: Buffer[]; loading: TimelineLoading[] }> = {};
@@ -213,7 +213,7 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
       ],
     });
     const t0 = Date.now();
-    const rec = await runScenario({ project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav2-${Date.now()}` });
+    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, template: debugTemplate(), mode: 'capture', runId: `nav2-${Date.now()}` });
     ms = Date.now() - t0;
     expect(rec.error?.message).toBeUndefined();
     tl2 = await readTimeline(rec.timeline!);
@@ -271,7 +271,7 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
       pacing: FAST,
       scenes: [{ id: 'two', pages: { left: { page: 'app', open: '/redirect' }, right: { page: 'other', open: '/late' } }, steps }],
     });
-    const rec = await runScenario({ project, scenario, mode: 'capture', runId: `two-${Date.now()}` });
+    const rec = await runScenario({ policy: PERSON_POLICY, project, scenario, mode: 'capture', runId: `two-${Date.now()}` });
     expect(rec.error?.message).toBeUndefined();
     const t = await readTimeline(rec.timeline!);
     // The left page's own navigation (the skeleton page, ≥ 1 s) happened during the right page's steps.

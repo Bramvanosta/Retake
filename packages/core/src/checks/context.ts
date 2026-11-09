@@ -1,5 +1,6 @@
-import { existsSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
+import { needFiles } from '../file-facts.js';
+import type { FileFacts } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { brokenUnder } from '../validation/document.js';
 import type { LocatedIssue } from '../validation/located.js';
@@ -28,6 +29,8 @@ export class CheckContext {
     readonly projectDir?: string,
     /** How messages name that directory ("the project", "the template folder"). */
     readonly dirLabel = 'the project',
+    /** How the checks look at the disk (core FileFacts): needed as soon as a file is checked in a directory. */
+    readonly files?: FileFacts,
   ) {}
 
   error(path: IssuePath, message: string, loc?: LocatedIssue['loc']): void {
@@ -65,9 +68,14 @@ export class CheckContext {
       return;
     }
     this.filesRead?.add(abs);
+    const files = needFiles(this.files, 'a file check');
     let isFile = false;
     try {
-      isFile = existsSync(abs) && statSync(abs).isFile() && (!this.confined || pathInside(realpathSync(abs), realpathSync(dir), { dotDotPrefix: true }));
+      if (files.exists(abs) && files.kind(abs) === 'file') {
+        const real = this.confined ? files.realpath(abs) : undefined;
+        const realDir = this.confined ? files.realpath(dir) : undefined;
+        isFile = !this.confined || (real !== undefined && realDir !== undefined && pathInside(real, realDir, { dotDotPrefix: true }));
+      }
     } catch {
       isFile = false;
     }

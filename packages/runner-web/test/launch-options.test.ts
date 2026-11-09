@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, useAgentPolicy } from '@retake/core';
+import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, PERSON_POLICY, agentPolicy } from '@retake/core';
 import {
   ArtefactRenderer,
   RunnerError,
@@ -35,6 +35,11 @@ import { makeProject, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
 import { BRAND_SITE_URL, hasOpenssl, startBrandSite } from './site-fixture.js';
 import type { BrandSite } from './site-fixture.js';
+import { retakeHome } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 
@@ -112,33 +117,33 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
   });
 
   it('launchOptions turns the sandbox on, asks for site isolation, and refuses a switch that turns either off', () => {
-    expect(launchOptions({ args: ['--hide-scrollbars'] })).toEqual({ chromiumSandbox: true, args: ['--hide-scrollbars', '--site-per-process'] });
-    expect(launchOptions({ args: ['--site-per-process', '--hide-scrollbars'] }).args).toEqual(['--site-per-process', '--hide-scrollbars']);
-    expect(() => launchOptions({ args: ['--remote-debugging-port=9222'] })).toThrow(/Chromium was not launched: --remote-debugging-port opens a debugging port/);
-    expect(() => launchOptions({ args: ['--hide-scrollbars', '--no-sandbox'] })).toThrow(RunnerError);
-    expect(() => launchOptions({ args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(/Chromium was not launched: --disable-features=IsolateOrigins turns Chromium's site isolation off/);
+    expect(launchOptions({ policy: policy, args: ['--hide-scrollbars'] })).toEqual({ chromiumSandbox: true, args: ['--hide-scrollbars', '--site-per-process'] });
+    expect(launchOptions({ policy: policy, args: ['--site-per-process', '--hide-scrollbars'] }).args).toEqual(['--site-per-process', '--hide-scrollbars']);
+    expect(() => launchOptions({ policy: policy, args: ['--remote-debugging-port=9222'] })).toThrow(/Chromium was not launched: --remote-debugging-port opens a debugging port/);
+    expect(() => launchOptions({ policy: policy, args: ['--hide-scrollbars', '--no-sandbox'] })).toThrow(RunnerError);
+    expect(() => launchOptions({ policy: policy, args: ['--disable-features=Translate,IsolateOrigins'] })).toThrow(/Chromium was not launched: --disable-features=IsolateOrigins turns Chromium's site isolation off/);
   });
 
   it('under the agent policy (a job of the worker): no argument that is not a switch, none that loads code or files, no executable inside the workspace', () => {
     const ws = '/ws-of-an-agent';
     const args = ['--hide-scrollbars', 'https://example.com/', '--user-data-dir=/tmp/p', '--proxy-server=http://127.0.0.1:1'];
-    expect(launchOptions({ args: [], browserArgs: args }).args).toEqual([...args, '--site-per-process']);
-    expect(launchTarget({ executable: `${ws}/bin/chrome` })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
-    useAgentPolicy([ws]);
+    expect(launchOptions({ policy: policy, args: [], browserArgs: args }).args).toEqual([...args, '--site-per-process']);
+    expect(launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
+    policy = agentPolicy([ws], policy.ffmpeg, policy.render);
     try {
-      expect(() => launchOptions({ args: [], browserArgs: args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/);
-      expect(launchOptions({ args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
+      expect(() => launchOptions({ policy: policy, args: [], browserArgs: args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/);
+      expect(launchOptions({ policy: policy, args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
       // The allow-list is for browser.args: the runner's own switches come first and are not judged by it.
-      expect(launchOptions({ args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', '--site-per-process']);
-      expect(() => launchOptions({ args: ['--lang=fr'], browserArgs: ['--a-switch-of-the-runner'] })).toThrow(/--a-switch-of-the-runner is not one of the switches/);
+      expect(launchOptions({ policy: policy, args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', '--site-per-process']);
+      expect(() => launchOptions({ policy: policy, args: ['--lang=fr'], browserArgs: ['--a-switch-of-the-runner'] })).toThrow(/--a-switch-of-the-runner is not one of the switches/);
       // The always-refused switches stay refused in either list.
-      expect(() => launchOptions({ args: ['--no-sandbox'], browserArgs: [] })).toThrow(/--no-sandbox turns Chromium's sandbox off/);
-      expect(() => launchTarget({ executable: `${ws}/bin/chrome` })).toThrow(/^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/);
-      expect(() => launchTarget({ executable: 'bin/chrome' })).toThrow(/browser\.executable \(bin\/chrome\) is a relative path/);
-      expect(launchTarget({ executable: '/opt/chromium/chrome' }).executablePath).toBe('/opt/chromium/chrome');
-      expect(launchTarget({})).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
+      expect(() => launchOptions({ policy: policy, args: ['--no-sandbox'], browserArgs: [] })).toThrow(/--no-sandbox turns Chromium's sandbox off/);
+      expect(() => launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toThrow(/^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/);
+      expect(() => launchTarget({ executable: 'bin/chrome' }, { policy: policy })).toThrow(/browser\.executable \(bin\/chrome\) is a relative path/);
+      expect(launchTarget({ executable: '/opt/chromium/chrome' }, { policy: policy }).executablePath).toBe('/opt/chromium/chrome');
+      expect(launchTarget({}, { policy: policy })).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
     }
   });
 
@@ -151,25 +156,25 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     // A workspace that holds Playwright's browser folder (as when PLAYWRIGHT_BROWSERS_PATH points into it).
     let browsers = dirname(shell!);
     while (!full!.startsWith(`${browsers}/`)) browsers = dirname(browsers);
-    expect(launchTarget({ channel: 'headless-shell' })).toEqual({ executablePath: undefined, channel: undefined });
-    useAgentPolicy([browsers]);
+    expect(launchTarget({ channel: 'headless-shell' }, { policy: policy })).toEqual({ executablePath: undefined, channel: undefined });
+    policy = agentPolicy([browsers], policy.ffmpeg, policy.render);
     try {
       const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
-      expect(() => launchTarget({ channel: 'headless-shell' })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
-      expect(() => launchTarget({})).toThrow(/lies inside the workspace/);
-      expect(() => launchTarget({ channel: 'headless-shell' }, { headless: false })).toThrow(/lies inside the workspace/);
+      expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
+      expect(() => launchTarget({}, { policy: policy })).toThrow(/lies inside the workspace/);
+      expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy, headless: false })).toThrow(/lies inside the workspace/);
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
     }
     const dir = await tempDir('retake-launch-link-');
     try {
       await symlink(full!, join(dir, 'chrome'));
-      expect(launchTarget({ executable: join(dir, 'chrome') }).executablePath).toBe(join(dir, 'chrome'));
-      useAgentPolicy(['/ws-of-an-agent']);
+      expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(join(dir, 'chrome'));
+      policy = agentPolicy(['/ws-of-an-agent'], policy.ffmpeg, policy.render);
       try {
-        expect(launchTarget({ executable: join(dir, 'chrome') }).executablePath).toBe(realpathSync(full!));
+        expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(realpathSync(full!));
       } finally {
-        useAgentPolicy(null);
+        policy = agentPolicy(null, policy.ffmpeg, policy.render);
       }
     } finally {
       await rm(dir, { recursive: true, force: true });
@@ -256,7 +261,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
 
   it('the capture session (persistent profile, new headless)', async () => {
     site = 'session';
-    const session = await openSession({ width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
       await page.goto(`${app.url}/`);
@@ -272,7 +277,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
 
   it('the capture session on the headless shell (browser.channel: headless-shell), which isolates sites only when asked', async () => {
     site = 'shell';
-    const session = await openSession({ width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined), browser: { channel: 'headless-shell' } });
+    const session = await openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined), browser: { channel: 'headless-shell' } });
     try {
       const page = await session.page('main');
       await page.goto(`${app.url}/`);
@@ -288,7 +293,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
 
   it("the doctor's probe, which also reads the sandbox from the command line", async () => {
     site = 'probe';
-    const probe = await probeChromium();
+    const probe = await probeChromium(undefined, { policy: policy });
     expect(probe.launched, probe.error).toBe(true);
     expect(probe.sandbox).toEqual({ on: true, off: [] });
     expect(commandLineOf('probe').off).toEqual([]);
@@ -302,7 +307,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     const saved = process.env.RETAKE_CHROMIUM;
     process.env.RETAKE_CHROMIUM = wrapper;
     try {
-      const probe = await probeChromium();
+      const probe = await probeChromium(undefined, { policy: policy });
       expect(probe.launched, probe.error).toBe(true);
       expect(probe.source).toBe('RETAKE_CHROMIUM');
       expect(probe.sandbox).toEqual({ on: false, off: ['--no-sandbox'] });
@@ -314,7 +319,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
 
   it('the artefact renderer', async () => {
     site = 'artefacts';
-    const r = new ArtefactRenderer();
+    const r = new ArtefactRenderer({}, policy);
     try {
       await r.email('<!doctype html><p>Your quote is ready.</p>', join(dir, 'mail.png'));
     } finally {
@@ -328,7 +333,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
 
   it("the raw layer's cursor atlas", async () => {
     site = 'atlas';
-    const atlas = await renderCursorAtlas({ kit: kitConfigFor(undefined), scale: 1 });
+    const atlas = await renderCursorAtlas({ policy: PERSON_POLICY, kit: kitConfigFor(undefined), scale: 1 });
     expect(atlas.ripple.length).toBeGreaterThan(0);
     expect(commandLineOf('atlas').off).toEqual([]);
     expect(commandLineOf('atlas').isolated).toBe(true);
@@ -340,7 +345,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     try {
       brand = await startBrandSite();
       const out = await tempDir('rw-launch-site-');
-      const r = await extractSite({ url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: brand.testResolve });
+      const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: out, testResolve: brand.testResolve });
       expect(r.status, JSON.stringify(r.untrusted)).toBe('ok');
     } finally {
       await brand?.close();
@@ -359,8 +364,8 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     try {
       const project = makeProject(await tempDir('rw-launch-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
-      const persona = resolvePersonas(project, 'test').find((p) => p.name === 'supplier')!;
-      await signIn({ project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }).catch(() => undefined);
+      const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'supplier')!;
+      await signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) }).catch(() => undefined);
     } finally {
       process.env.RETAKE_HOME = saved;
       await rm(home, { recursive: true, force: true });
@@ -374,7 +379,7 @@ describe('each launch site, launched for real: no switch turns the sandbox or si
     const project = makeProject(await tempDir('rw-launch-record-'), { app: app.url });
     const eventsFile = join(dir, 'events.jsonl');
     await writeFile(eventsFile, '');
-    await recordSession({
+    await recordSession({ policy: policy,
       project,
       env: resolveEnvironment(project, 'test'),
       url: `${app.url}/`,
@@ -419,11 +424,11 @@ describe('each launch site refuses a browser whose own command line turns the sa
   });
 
   it('the capture session refuses it', async () => {
-    await expect(openSession({ width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) })).rejects.toThrow(REFUSED);
+    await expect(openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) })).rejects.toThrow(REFUSED);
   }, 60_000);
 
   it('the artefact renderer refuses it', async () => {
-    const r = new ArtefactRenderer();
+    const r = new ArtefactRenderer({}, policy);
     try {
       await expect(r.email('<!doctype html><p>Your quote is ready.</p>', join(dir, 'mail.png'))).rejects.toThrow(REFUSED);
     } finally {
@@ -432,13 +437,13 @@ describe('each launch site refuses a browser whose own command line turns the sa
   }, 60_000);
 
   it("the raw layer's cursor atlas refuses it", async () => {
-    await expect(renderCursorAtlas({ kit: kitConfigFor(undefined), scale: 1 })).rejects.toThrow(REFUSED);
+    await expect(renderCursorAtlas({ policy: PERSON_POLICY, kit: kitConfigFor(undefined), scale: 1 })).rejects.toThrow(REFUSED);
   }, 60_000);
 
   it.skipIf(!hasOpenssl())('the site extraction refuses it (a failed extraction, saying why)', async () => {
     const brand = await startBrandSite();
     try {
-      const r = await extractSite({ url: BRAND_SITE_URL, host: 'brand.test', outDir: await tempDir('rw-launch-wrap-site-'), testResolve: brand.testResolve });
+      const r = await extractSite({ policy: policy, url: BRAND_SITE_URL, host: 'brand.test', outDir: await tempDir('rw-launch-wrap-site-'), testResolve: brand.testResolve });
       expect(r.status).toBe('failed');
       expect(r.untrusted.error).toMatch(REFUSED);
     } finally {
@@ -453,8 +458,8 @@ describe('each launch site refuses a browser whose own command line turns the sa
     try {
       const project = makeProject(await tempDir('rw-launch-wrap-login-'), { app: auth.url });
       project.config.auth = { login_url: '/sign-in', personas: { supplier: { pages: ['app'] } } };
-      const persona = resolvePersonas(project, 'test').find((p) => p.name === 'supplier')!;
-      await expect(signIn({ project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) })).rejects.toThrow(REFUSED);
+      const persona = resolvePersonas(project, 'test', { home: retakeHome() }).find((p) => p.name === 'supplier')!;
+      await expect(signIn({ policy: policy, project, env: { name: 'test', pages: { app: auth.url } }, persona, mode: 'headed', headless: true, drive: async (page) => void (await page.close()) })).rejects.toThrow(REFUSED);
     } finally {
       process.env.RETAKE_HOME = savedHome;
       await rm(home, { recursive: true, force: true });
@@ -464,7 +469,7 @@ describe('each launch site refuses a browser whose own command line turns the sa
   it('the recording window refuses it', async () => {
     const project = makeProject(await tempDir('rw-launch-wrap-record-'), { app: app.url });
     await expect(
-      recordSession({ project, env: resolveEnvironment(project, 'test'), url: `${app.url}/`, headless: true, windowSize: { width: 800, height: 600 }, drive: async (page) => void (await page.close()) }),
+      recordSession({ policy: policy, project, env: resolveEnvironment(project, 'test'), url: `${app.url}/`, headless: true, windowSize: { width: 800, height: 600 }, drive: async (page) => void (await page.close()) }),
     ).rejects.toThrow(REFUSED);
   }, 60_000);
 });
@@ -489,7 +494,7 @@ for p in sys.argv[1:]:
 
 describe.skipIf(!process.env.RETAKE_TEST_SLOW || !sandboxChecker())('macOS: the kernel sees the capture browser sandboxed (slow)', () => {
   it('its renderers and GPU process are sandboxed, the browser process alone is not', async () => {
-    const session = await openSession({ width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: policy, width: 640, height: 400, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');
       await page.setContent('<canvas id="c"></canvas><script>document.getElementById("c").getContext("webgl")</script><h1>GPU</h1>');

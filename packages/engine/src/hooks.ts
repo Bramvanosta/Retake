@@ -8,26 +8,9 @@
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, resolve } from 'node:path';
-import {
-  ScenarioError,
-  compileWritePolicy,
-  guardsWrites,
-  hasErrors,
-  loadScenario,
-  loginMatchers,
-  matchLoginUrl,
-  newRunId,
-  parseHookFile,
-  planPersonas,
-  resolveEnvironment,
-  resolvePersonas,
-  resolveRunAccess,
-  runAccess,
-  urlOriginPath,
-  pathInside,
-  GUIDE,
-} from '@retake/core';
-import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind } from '@retake/core';
+import { ScenarioError, compileWritePolicy, guardsWrites, hasErrors, loginMatchers, matchLoginUrl, newRunId, parseHookFile, planPersonas, resolveEnvironment, resolvePersonas, resolveRunAccess, runAccess, urlOriginPath, pathInside, GUIDE } from '@retake/core';
+import { loadScenario, retakeHome, nodeFileFacts } from '@retake/core/io';
+import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind, WorkPolicy, FileFacts } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
 import type { Caller } from './caller.js';
@@ -82,7 +65,7 @@ export function scenarioOfHooksSource(spec: string): string | undefined {
  * inside the project — never an absolute path or one relative to the current folder. `expectSha256`: the scenario of
  * `<scenario>:setup|teardown` is read once and parsed only when its bytes have that sha256 (core ScenarioChangedError).
  */
-export async function selectHooks(project: LoadedProject, spec: string, envOpt?: string, o: { projectFilesOnly?: boolean; expectSha256?: string } = {}): Promise<HookSelection> {
+export async function selectHooks(project: LoadedProject, spec: string, envOpt: string | undefined, o: { projectFilesOnly?: boolean; expectSha256?: string; files: FileFacts }): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
     if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);
@@ -91,7 +74,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
   const m = SCENARIO_HOOKS_RE.exec(spec);
   if (m) {
     const [, name, which] = m;
-    const loaded = await loadScenario(project, name, { env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
+    const loaded = await loadScenario(project, name, { files: o.files, env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
     return {
@@ -122,7 +105,7 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
       file = candidates.find((f) => existsSync(f));
       if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidates.join(' and ')})`, false);
     }
-    const { hooks, issues } = parseHookFile(await readFile(file, 'utf8'), { file, project });
+    const { hooks, issues } = parseHookFile(await readFile(file, 'utf8'), { file, project, files: nodeFileFacts });
     if (!hooks || hasErrors(issues)) throw new ScenarioError(`hooks file ${file} is invalid`, issues, file);
     const base = file.replace(/^.*[\\/]/, '').replace(/\.ya?ml$/i, '');
     return { label: base, hooks, phase: 'setup' };
@@ -148,6 +131,8 @@ export function hooksAccess(project: LoadedProject, env: ReturnType<typeof resol
 }
 
 export interface HookContextOptions {
+  /** What the work runs under (core WorkPolicy): the hooks' shell environment and js-hook browser. */
+  policy: WorkPolicy;
   env?: string;
   /** Let hooks write to a production environment whose project.yaml sets `access: read-write` (CLI only). */
   allowWrites?: boolean;
@@ -185,7 +170,7 @@ export interface HookContextOptions {
 export async function createHookContext(project: LoadedProject, o: HookContextOptions): Promise<{ ctx: HookContext; access: RunAccess; closeSessions: () => Promise<void> }> {
   const env = resolveEnvironment(project, o.env);
   const { access, accessOf } = hooksAccess(project, env, o.allowWrites === true);
-  const personas = resolvePersonas(project, env.name);
+  const personas = resolvePersonas(project, env.name, { home: retakeHome() });
   const sessions = new Map<string, Promise<import('@retake/runner-web').BrowserSession>>();
   const command = o.loginCommand;
   const runId = o.runId ?? newRunId('hooks');
@@ -212,6 +197,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
       ? await rw.prepareSessions([persona], { runId, log: (level, msg) => ctx.log(level, msg), failure: `js hooks cannot use the saved session of persona ${persona.name}:` })
       : [];
     return rw.openSession({
+      policy: o.policy,
       width: capture.width,
       height: capture.height,
       scale: capture.scale,
@@ -224,6 +210,7 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
   };
   const ctx: HookContext = {
     project,
+    policy: o.policy,
     env,
     vars: { ...(project.config.vars ?? {}), ...(o.vars ?? {}) },
     runId: o.runId,

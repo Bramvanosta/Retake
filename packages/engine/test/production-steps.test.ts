@@ -53,6 +53,7 @@ import { createEngine, executeExportJob, executeRenderJob, executeReviewJob, exp
 import type { Engine } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES } from '../../editor/test/render-helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const SCENARIO = 'steps';
 const RUN = '20260101-120000-steps';
@@ -167,7 +168,7 @@ describe('the in-process operations write one history line each; the steps none'
     const before = await historyLines();
     await renderStep({ project, root, run: RUN, scenario: SCENARIO });
     expect(await historyLines()).toEqual(before);
-    await renderInProcess({ project, root, run: RUN, scenario: SCENARIO });
+    await renderInProcess({ workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(added).toEqual([{ v: 1, at: expect.any(String), kind: 'render', project: 'demo', submitted_by: 'cli', state: 'succeeded', ms: 4321, counted: { captures: 0, dry_runs: 0, renders: 1 } }]);
     // The CLI passes its own options through, untouched (no trust, no guard: a person's render).
@@ -180,9 +181,9 @@ describe('the in-process operations write one history line each; the steps none'
     const before = await historyLines();
     await exportStep({ project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16'] });
     expect(await historyLines()).toEqual(before);
-    await exportInProcess({ project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'] });
+    await exportInProcess({ workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['vertical_9x16', 'square_1x1'] });
     seen.exportMethod = 'transcode';
-    await exportInProcess({ project, root, render: `${SCENARIO}-v1`, formats: ['webm'] });
+    await exportInProcess({ workPolicy: PERSON_POLICY, project, root, render: `${SCENARIO}-v1`, formats: ['webm'] });
     const added = (await historyLines()).slice(before.length).map((l) => JSON.parse(l) as Record<string, unknown>);
     expect(added).toEqual([{ v: 1, at: expect.any(String), kind: 'export', project: 'demo', submitted_by: 'cli', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 2 } }]);
   });

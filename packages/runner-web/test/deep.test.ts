@@ -5,6 +5,7 @@ import { runScenario } from '../src/index.js';
 import { FRAME_PAGE, deepPage } from './pages.js';
 import { FAST, debugTemplate, frameAt, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 /**
  * R-ISS-07: a real capture through open shadow roots and same-origin frames — the drawn cursor lands on targets
@@ -37,7 +38,7 @@ describe('capture through web components and iframes (R-ISS-07)', () => {
 
   it('runs a scenario whose targets live in shadow roots and frames', async () => {
     const project = makeProject(dir, { app: server.url }, { width: W, height: H });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       template: debugTemplate(),
       mode: 'capture',

@@ -11,6 +11,7 @@ import type { StepContext } from '../runtime.js';
 import { clamp, formatBytes, mimeFor } from '../util.js';
 import { approach, clickData } from './click.js';
 import type { ActionResult } from './types.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 /** Default size of a fake dropped file. */
 export const FAKE_FILE_BYTES = 48 * 1024;
@@ -62,7 +63,7 @@ interface FilePayload {
 async function loadPayload(ctx: StepContext, args: DropFileArgs): Promise<FilePayload> {
   if (args.path) {
     if (ctx.rt.agentTrust) {
-      const problem = projectFileProblem(ctx.rt.project.dir, args.path);
+      const problem = projectFileProblem(ctx.rt.project.dir, args.path, { files: nodeFileFacts });
       if (problem) throw new StepError(`drop_file: ${problem}`);
     }
     const file = isAbsolute(args.path) ? args.path : join(ctx.rt.project.dir, args.path);

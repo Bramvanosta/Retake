@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RETAKE_VERSION } from '@retake/core';
 import { readAppSettings } from '@retake/engine/integrations';
-import type { BundleInfo } from '@retake/core';
+import type { BundleInfo } from '@retake/core/io';
 import { TOOLS } from '@retake/mcp';
 import { OWN_OPS, PS_EVERY_MS, SETUP_OPS, SETUP_WRITES_PER_MIN, SHELL_LINE_MAX, UI_OPS, applyShellLine, parseShellLine, startStudioServer } from '../src/index.js';
 import type { SetupContext, StudioServer } from '../src/index.js';

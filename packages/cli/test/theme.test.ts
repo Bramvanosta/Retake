@@ -9,12 +9,13 @@ import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { STARTER_TEMPLATES_DIR, loadTemplate } from '@retake/core';
+import { STARTER_TEMPLATES_DIR, loadTemplate, fileFacts } from '@retake/core/io';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { unsafeTestResolveCheck } from '../src/commands/doctor.js';
 import type { DoctorProbes } from '../src/commands/doctor.js';
 import { BRAND_SITE_COLORS, hasOpenssl, startBrandSite } from '../../runner-web/test/site-fixture.js';
 import type { BrandSite } from '../../runner-web/test/site-fixture.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
 let files: string;
@@ -49,7 +50,7 @@ describe('retake theme create', () => {
     expect(out.palette.background).toEqual({ type: 'linear', from: '#ffffff', to: '#eeeeee' });
     expect(out.fonts.map((f) => f.file)).toEqual(['fonts/display-Bold.ttf', 'fonts/body-Regular.ttf']);
     expect(out.warnings.join('\n')).toMatch(/captions.kicker of editorial uses the body font at weight 600/);
-    expect((await loadTemplate('acme', ws)).template.brand).toEqual({ name: 'Acme', url: 'acme.test' });
+    expect((await loadTemplate('acme', ws, { files: fileFacts(PERSON_POLICY) })).template.brand).toEqual({ name: 'Acme', url: 'acme.test' });
   });
 
   it('prints the palette and the next step; refusals exit 1 with the reason', async () => {

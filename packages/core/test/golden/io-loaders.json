@@ -1,0 +1,924 @@
+{
+ "findWorkspaceRoot": "<repo>",
+ "workspace": {
+  "ok": {
+   "root": "<repo>",
+   "projectsDir": "<repo>/projects",
+   "templatesDir": "<repo>/templates",
+   "componentsDir": "<repo>/components"
+  }
+ },
+ "projects": {
+  "ok": [
+   {
+    "slug": "northfield-fixture",
+    "name": "Northfield (fixture)",
+    "dir": "<repo>/projects/northfield-fixture"
+   }
+  ]
+ },
+ "project": {
+  "slug": "northfield-fixture",
+  "dir": "<repo>/projects/northfield-fixture",
+  "root": "<repo>",
+  "readme": true,
+  "scenarios": [
+   "catalogue",
+   "embedded",
+   "highlights",
+   "live-quote",
+   "mobile-quote",
+   "off-camera",
+   "own-media",
+   "phone-and-desktop",
+   "proforma",
+   "quote",
+   "read-only",
+   "reports",
+   "sandbox-quote",
+   "signup",
+   "two-personas"
+  ],
+  "issues": [],
+  "sandboxes": {
+   "sandbox": {
+    "file": "<repo>/projects/northfield-fixture/sandbox/sandbox.yaml",
+    "dir": "<repo>/projects/northfield-fixture/sandbox",
+    "issues": [],
+    "secrets": {
+     "supplier": [
+      "roast-lot-2026"
+     ],
+     "buyer": [
+      "filter-bloom-2026"
+     ]
+    }
+   },
+   "sandbox-docker": {
+    "file": "<repo>/projects/northfield-fixture/sandbox/docker/sandbox.yaml",
+    "dir": "<repo>/projects/northfield-fixture/sandbox/docker",
+    "issues": [],
+    "secrets": {
+     "supplier": [
+      "roast-lot-2026"
+     ],
+     "buyer": [
+      "filter-bloom-2026"
+     ]
+    }
+   }
+  }
+ },
+ "scenarioNames": [
+  "catalogue",
+  "embedded",
+  "highlights",
+  "live-quote",
+  "mobile-quote",
+  "off-camera",
+  "own-media",
+  "phone-and-desktop",
+  "proforma",
+  "quote",
+  "read-only",
+  "reports",
+  "sandbox-quote",
+  "signup",
+  "two-personas"
+ ],
+ "scenarios": {
+  "catalogue": {
+   "ok": {
+    "name": "catalogue",
+    "file": "<repo>/projects/northfield-fixture/scenarios/catalogue.yaml",
+    "issues": []
+   }
+  },
+  "embedded": {
+   "ok": {
+    "name": "embedded",
+    "file": "<repo>/projects/northfield-fixture/scenarios/embedded.yaml",
+    "issues": []
+   }
+  },
+  "highlights": {
+   "ok": {
+    "name": "highlights",
+    "file": "<repo>/projects/northfield-fixture/scenarios/highlights.yaml",
+    "issues": []
+   }
+  },
+  "live-quote": {
+   "ok": {
+    "name": "live-quote",
+    "file": "<repo>/projects/northfield-fixture/scenarios/live-quote.yaml",
+    "issues": []
+   }
+  },
+  "mobile-quote": {
+   "ok": {
+    "name": "mobile-quote",
+    "file": "<repo>/projects/northfield-fixture/scenarios/mobile-quote.yaml",
+    "issues": []
+   }
+  },
+  "off-camera": {
+   "ok": {
+    "name": "off-camera",
+    "file": "<repo>/projects/northfield-fixture/scenarios/off-camera.yaml",
+    "issues": []
+   }
+  },
+  "own-media": {
+   "ok": {
+    "name": "own-media",
+    "file": "<repo>/projects/northfield-fixture/scenarios/own-media.yaml",
+    "issues": []
+   }
+  },
+  "phone-and-desktop": {
+   "ok": {
+    "name": "phone-and-desktop",
+    "file": "<repo>/projects/northfield-fixture/scenarios/phone-and-desktop.yaml",
+    "issues": []
+   }
+  },
+  "proforma": {
+   "ok": {
+    "name": "proforma",
+    "file": "<repo>/projects/northfield-fixture/scenarios/proforma.yaml",
+    "issues": []
+   }
+  },
+  "quote": {
+   "ok": {
+    "name": "quote",
+    "file": "<repo>/projects/northfield-fixture/scenarios/quote.yaml",
+    "issues": []
+   }
+  },
+  "read-only": {
+   "ok": {
+    "name": "read-only",
+    "file": "<repo>/projects/northfield-fixture/scenarios/read-only.yaml",
+    "issues": []
+   }
+  },
+  "reports": {
+   "ok": {
+    "name": "reports",
+    "file": "<repo>/projects/northfield-fixture/scenarios/reports.yaml",
+    "issues": []
+   }
+  },
+  "sandbox-quote": {
+   "ok": {
+    "name": "sandbox-quote",
+    "file": "<repo>/projects/northfield-fixture/scenarios/sandbox-quote.yaml",
+    "issues": []
+   }
+  },
+  "signup": {
+   "ok": {
+    "name": "signup",
+    "file": "<repo>/projects/northfield-fixture/scenarios/signup.yaml",
+    "issues": []
+   }
+  },
+  "two-personas": {
+   "ok": {
+    "name": "two-personas",
+    "file": "<repo>/projects/northfield-fixture/scenarios/two-personas.yaml",
+    "issues": []
+   }
+  }
+ },
+ "scenarioSource": {
+  "ok": {
+   "name": "quote",
+   "file": "<repo>/projects/northfield-fixture/scenarios/quote.yaml",
+   "sha256": true
+  }
+ },
+ "templates": {
+  "ok": [
+   {
+    "name": "default",
+    "dir": "<repo>/templates/default",
+    "source": "workspace"
+   },
+   {
+    "name": "editorial",
+    "dir": "<repo>/templates/editorial",
+    "source": "workspace"
+   },
+   {
+    "name": "motion",
+    "dir": "<repo>/templates/motion",
+    "source": "workspace"
+   }
+  ]
+ },
+ "themes": {
+  "default": {
+   "ok": {
+    "name": "default",
+    "dir": "<repo>/templates/default",
+    "assets": {
+     "logo": "<repo>/templates/default/logo.svg",
+     "display": "<repo>/templates/default/fonts/Inter-SemiBold.ttf",
+     "body": [
+      "<repo>/templates/default/fonts/Inter-Regular.ttf",
+      "<repo>/templates/default/fonts/Inter-SemiBold.ttf",
+      "<repo>/templates/default/fonts/Inter-Bold.ttf"
+     ],
+     "wordmark": "<repo>/templates/default/wordmark.svg"
+    }
+   }
+  },
+  "editorial": {
+   "ok": {
+    "name": "editorial",
+    "dir": "<repo>/templates/editorial",
+    "assets": {
+     "logo": "<repo>/templates/editorial/logo.svg",
+     "display": "<repo>/templates/editorial/fonts/InstrumentSerif-Regular.ttf",
+     "body": [
+      "<repo>/templates/editorial/fonts/Inter-Regular.ttf",
+      "<repo>/templates/editorial/fonts/Inter-SemiBold.ttf",
+      "<repo>/templates/editorial/fonts/Inter-Bold.ttf"
+     ],
+     "wordmark": "<repo>/templates/editorial/wordmark.svg"
+    }
+   }
+  },
+  "motion": {
+   "ok": {
+    "name": "motion",
+    "dir": "<repo>/templates/motion",
+    "assets": {
+     "logo": "<repo>/templates/motion/logo.svg",
+     "display": "<repo>/templates/motion/fonts/SpaceGrotesk-Bold.ttf",
+     "body": [
+      "<repo>/templates/motion/fonts/Inter-Regular.ttf",
+      "<repo>/templates/motion/fonts/Inter-SemiBold.ttf",
+      "<repo>/templates/motion/fonts/Inter-Bold.ttf"
+     ],
+     "wordmark": "<repo>/templates/motion/wordmark.svg"
+    }
+   }
+  }
+ },
+ "projectTheme": {
+  "ok": {
+   "name": "editorial",
+   "dir": "<repo>/templates/editorial"
+  }
+ },
+ "seeds": {
+  "sandbox": {
+   "refs": [],
+   "hash": true,
+   "envFile": null
+  },
+  "sandbox-docker": {
+   "refs": [],
+   "hash": true,
+   "envFile": null
+  }
+ },
+ "broken": {
+  "badWorkspace": {
+   "error": "ConfigError",
+   "message": "workspace config <tmp>/ws-bad/retake.yaml has 1 error:\n<tmp>/ws-bad/retake.yaml:2:15 error projects_dir: expected a string, got a list",
+   "issues": [
+    [
+     "error",
+     [
+      "projects_dir"
+     ],
+     "expected a string, got a list"
+    ]
+   ]
+  },
+  "oldWorkspace": {
+   "ok": {
+    "root": "<tmp>/ws-old",
+    "projectsDir": "<tmp>/ws-old/projects",
+    "templatesDir": "<tmp>/ws-old/templates",
+    "componentsDir": "<tmp>/ws-old/components"
+   }
+  },
+  "newerWorkspace": {
+   "error": "ConfigError",
+   "message": "workspace config <tmp>/ws-new/retake.yaml has 1 error:\n<tmp>/ws-new/retake.yaml:1:10 error version: this retake.yaml is version 99: it was made for a newer Retake (this one reads version 1) — update Retake",
+   "issues": [
+    [
+     "error",
+     [
+      "version"
+     ],
+     "this retake.yaml is version 99: it was made for a newer Retake (this one reads version 1) — update Retake"
+    ]
+   ]
+  },
+  "findUpProjects": "<tmp>/ws-up",
+  "noProject": {
+   "error": "ConfigError",
+   "message": "no project.yaml in <tmp>/ws/projects/none",
+   "issues": []
+  },
+  "unknownSlug": {
+   "error": "ConfigError",
+   "message": "project \"nortfield\" not found in <tmp>/ws/projects (available: none)",
+   "issues": []
+  },
+  "missingSandbox": {
+   "error": "ConfigError",
+   "message": "project <tmp>/ws/projects/p/project.yaml has 1 error:\n<tmp>/ws/projects/p/project.yaml:6:7 error sandboxes.sb: sandbox manifest \"sandbox/sandbox.yaml\" not found in the project",
+   "issues": [
+    [
+     "error",
+     [
+      "sandboxes",
+      "sb"
+     ],
+     "sandbox manifest \"sandbox/sandbox.yaml\" not found in the project"
+    ]
+   ]
+  },
+  "missingHookFile": {
+   "error": "ConfigError",
+   "message": "project <tmp>/ws/projects/p/project.yaml has 1 error:\n<tmp>/ws/projects/p/project.yaml:6:16 error hooks.reset.sql: SQL file \"hooks/missing.sql\" not found in the project",
+   "issues": [
+    [
+     "error",
+     [
+      "hooks",
+      "reset",
+      "sql"
+     ],
+     "SQL file \"hooks/missing.sql\" not found in the project"
+    ]
+   ]
+  },
+  "parseProjectMissingHook": [
+   [
+    "error",
+    [
+     "hooks",
+     "reset",
+     "sql"
+    ],
+    "SQL file \"hooks/missing.sql\" not found in the project"
+   ]
+  ],
+  "plainProject": {
+   "readme": "# P\n",
+   "scenarios": [],
+   "issues": []
+  },
+  "scenario:missing": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/missing.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/missing.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"data/none.csv\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"missing\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"data/none.csv\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:missing:mcp": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/missing.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/missing.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"data/none.csv\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"missing\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"data/none.csv\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:missing:studio": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/missing.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/missing.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"data/none.csv\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"missing\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"data/none.csv\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:present": {
+   "ok": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"present\""
+    ]
+   ]
+  },
+  "scenario:present:mcp": {
+   "ok": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"present\""
+    ]
+   ]
+  },
+  "scenario:present:studio": {
+   "ok": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"present\""
+    ]
+   ]
+  },
+  "scenario:link": {
+   "ok": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"link\""
+    ]
+   ]
+  },
+  "scenario:link:mcp": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/link.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/link.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"data/link.csv\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"link\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"data/link.csv\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:link:studio": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/link.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/link.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"data/link.csv\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"link\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"data/link.csv\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:abs": {
+   "ok": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"abs\""
+    ]
+   ]
+  },
+  "scenario:abs:mcp": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/abs.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/abs.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"/etc/hosts\" resolves outside the project folder: through MCP only files of the project folder are read",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"abs\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"/etc/hosts\" resolves outside the project folder: through MCP only files of the project folder are read"
+    ]
+   ]
+  },
+  "scenario:abs:studio": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/abs.yaml has 1 error:\n<tmp>/ws/projects/p/scenarios/abs.yaml:8:46 error scenes[0].steps[1].drop_file.path: file \"/etc/hosts\" resolves outside the project folder: from the Studio only files of the project folder are read",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"abs\""
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "drop_file",
+      "path"
+     ],
+     "file \"/etc/hosts\" resolves outside the project folder: from the Studio only files of the project folder are read"
+    ]
+   ]
+  },
+  "scenario:image": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/image.yaml has 3 errors:\n<tmp>/ws/projects/p/scenarios/image.yaml:4:16 error outro.image: \"assets/logo.png\" is not a PNG image (its content does not match its extension)\n<tmp>/ws/projects/p/scenarios/image.yaml:5:15 error music.file: music file \"assets/none.mp3\" not found in the project\n<tmp>/ws/projects/p/scenarios/image.yaml:10:22 error scenes[0].steps[1].eval.file: JS file \"scenarios/none.js\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"image\""
+    ],
+    [
+     "error",
+     [
+      "outro",
+      "image"
+     ],
+     "\"assets/logo.png\" is not a PNG image (its content does not match its extension)"
+    ],
+    [
+     "error",
+     [
+      "music",
+      "file"
+     ],
+     "music file \"assets/none.mp3\" not found in the project"
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "eval",
+      "file"
+     ],
+     "JS file \"scenarios/none.js\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:image:mcp": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/image.yaml has 3 errors:\n<tmp>/ws/projects/p/scenarios/image.yaml:4:16 error outro.image: \"assets/logo.png\" is not a PNG image (its content does not match its extension)\n<tmp>/ws/projects/p/scenarios/image.yaml:5:15 error music.file: music file \"assets/none.mp3\" not found in the project\n<tmp>/ws/projects/p/scenarios/image.yaml:10:22 error scenes[0].steps[1].eval.file: JS file \"scenarios/none.js\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"image\""
+    ],
+    [
+     "error",
+     [
+      "outro",
+      "image"
+     ],
+     "\"assets/logo.png\" is not a PNG image (its content does not match its extension)"
+    ],
+    [
+     "error",
+     [
+      "music",
+      "file"
+     ],
+     "music file \"assets/none.mp3\" not found in the project"
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "eval",
+      "file"
+     ],
+     "JS file \"scenarios/none.js\" not found in the project"
+    ]
+   ]
+  },
+  "scenario:image:studio": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/image.yaml has 3 errors:\n<tmp>/ws/projects/p/scenarios/image.yaml:4:16 error outro.image: \"assets/logo.png\" is not a PNG image (its content does not match its extension)\n<tmp>/ws/projects/p/scenarios/image.yaml:5:15 error music.file: music file \"assets/none.mp3\" not found in the project\n<tmp>/ws/projects/p/scenarios/image.yaml:10:22 error scenes[0].steps[1].eval.file: JS file \"scenarios/none.js\" not found in the project",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"image\""
+    ],
+    [
+     "error",
+     [
+      "outro",
+      "image"
+     ],
+     "\"assets/logo.png\" is not a PNG image (its content does not match its extension)"
+    ],
+    [
+     "error",
+     [
+      "music",
+      "file"
+     ],
+     "music file \"assets/none.mp3\" not found in the project"
+    ],
+    [
+     "error",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "eval",
+      "file"
+     ],
+     "JS file \"scenarios/none.js\" not found in the project"
+    ]
+   ]
+  },
+  "filesRead": [
+   "<tmp>/ws/projects/p/data/rows.csv"
+  ],
+  "inferredProject": [
+   [
+    "warning",
+    [
+     "video"
+    ],
+    "video \"s\" differs from the file name \"x\""
+   ],
+   [
+    "error",
+    [
+     "scenes",
+     0,
+     "steps",
+     1,
+     "drop_file",
+     "path"
+    ],
+    "file \"data/none.csv\" not found in the project"
+   ]
+  ],
+  "noInferredProject": [
+   [
+    "warning",
+    [
+     "video"
+    ],
+    "video \"s\" differs from the file name \"x\""
+   ],
+   [
+    "warning",
+    [
+     "scenes",
+     0,
+     "steps",
+     1,
+     "drop_file",
+     "path"
+    ],
+    "cannot check that file \"data/none.csv\" exists: no project given"
+   ]
+  ],
+  "unknownScenario": {
+   "error": "ScenarioError",
+   "message": "scenario \"nope\" not found in <tmp>/ws/projects/p/scenarios (available: abs, image, link, missing, present)",
+   "issues": []
+  },
+  "themeMissingAsset": {
+   "error": "ConfigError",
+   "message": "template \"t\" (<tmp>/ws/templates/t) is missing 5 asset files: logo.svg, fonts/Display.ttf, fonts/Body-Regular.ttf, fonts/Body-SemiBold.ttf, fonts/Body-Bold.ttf",
+   "issues": [
+    [
+     "error",
+     [],
+     "missing asset file \"logo.svg\""
+    ],
+    [
+     "error",
+     [],
+     "missing asset file \"fonts/Display.ttf\""
+    ],
+    [
+     "error",
+     [],
+     "missing asset file \"fonts/Body-Regular.ttf\""
+    ],
+    [
+     "error",
+     [],
+     "missing asset file \"fonts/Body-SemiBold.ttf\""
+    ],
+    [
+     "error",
+     [],
+     "missing asset file \"fonts/Body-Bold.ttf\""
+    ]
+   ]
+  },
+  "themeFolderWithoutFile": {
+   "error": "ConfigError",
+   "message": "template \"empty\": no template.yaml in <tmp>/ws/templates/empty (a workspace folder of that name takes precedence over the starter template)",
+   "issues": []
+  },
+  "themeUnknown": {
+   "error": "ConfigError",
+   "message": "template \"defualt\" not found in <tmp>/ws/templates or the starter templates (did you mean \"default\"?) (available: default, editorial, motion, t)",
+   "issues": []
+  },
+  "themeMedia": [
+   [
+    "error",
+    [
+     "components",
+     "intro",
+     "video"
+    ],
+    "video file \"clip.mp4\" not found in the template folder"
+   ],
+   [
+    "error",
+    [
+     "components",
+     "outro",
+     "image"
+    ],
+    "image file \"logo.svg\" not found in the template folder"
+   ]
+  ],
+  "sandboxMissing": [
+   [
+    "error",
+    [],
+    "missing required key \"services\""
+   ],
+   [
+    "error",
+    [
+     "compose",
+     "env_file"
+    ],
+    "env file \"missing.env\" not found in the sandbox folder"
+   ],
+   [
+    "error",
+    [
+     "compose",
+     "files",
+     0
+    ],
+    "compose file \"compose.yaml\" not found in the sandbox folder"
+   ],
+   [
+    "error",
+    [],
+    "unknown key \"pages\""
+   ]
+  ],
+  "sandboxEnvProfiles": [
+   [
+    "error",
+    [],
+    "missing required key \"services\""
+   ],
+   [
+    "error",
+    [
+     "compose",
+     "files",
+     0
+    ],
+    "the env file next to the compose file (.env) sets COMPOSE_PROFILES: docker compose would start other services than sandbox.yaml says — remove it (or give `env_file` another file)"
+   ],
+   [
+    "error",
+    [],
+    "unknown key \"pages\""
+   ]
+  ],
+  "composeEnvFile": [
+   "<tmp>/ws/projects/p/sandbox/.env",
+   null
+  ],
+  "destructive": [
+   "hooks/wipe.sql contains DELETE",
+   null,
+   null
+  ],
+  "writes": [
+   "hooks/wipe.sql: SQL DELETE",
+   null,
+   null
+  ],
+  "newerRun": [
+   "this run.json is version 99: it was made for a newer Retake (this one reads version 1) — update Retake",
+   null,
+   null
+  ],
+  "sinceRun": {
+   "file": "<tmp>/ws/projects/p/scenarios/present.yaml",
+   "now": "version: 1\nvideo: s\nenv: local\nscenes:\n  - id: one\n    steps:\n      - open: \"http://localhost:4990/\"\n      - drop_file: {zone: {css: body}, path: \"data/rows.csv\"}\n",
+   "then": "version: 1\nvideo: s\nenv: local\nscenes:\n  - id: one\n    steps:\n      - open: \"http://localhost:4990/\"\n      - drop_file: {zone: {css: body}, path: \"data/old.csv\"}\n",
+   "changed": true,
+   "filmed": [
+    "scene one: step one.1 changed"
+   ]
+  }
+ }
+}

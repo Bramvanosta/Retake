@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomBytes } from 'node:crypto';
 import type { Page } from 'playwright-core';
-import { RecordedEventSchema, resolveEnvironment } from '@retake/core';
+import { RecordedEventSchema, resolveEnvironment, PERSON_POLICY } from '@retake/core';
 import type { RecordedEvent } from '@retake/core';
 import { kitConfigFor, kitSource, recordSession } from '../src/index.js';
 import type { RecordSessionOptions, RecordSessionResult } from '../src/index.js';
@@ -53,7 +53,7 @@ async function record(drive: (page: Page, seen: RecordedEvent[]) => Promise<void
   const file = join(dir, `events-${randomBytes(4).toString('hex')}.jsonl`);
   const project = makeProject(dir, { console: fixture.urls.console, shop: fixture.urls.shop }, { width: 1280, height: 800 });
   const seen: RecordedEvent[] = [];
-  const r = await recordSession({
+  const r = await recordSession({ policy: PERSON_POLICY,
     project,
     env: resolveEnvironment(project, 'test'),
     url: `${fixture.urls.shop}/record-lab`,

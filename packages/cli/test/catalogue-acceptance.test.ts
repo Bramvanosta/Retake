@@ -15,7 +15,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RunRecordSchema, TimelineSchema, loadProject, loadScenario } from '@retake/core';
+import { RunRecordSchema, TimelineSchema, PERSON_POLICY } from '@retake/core';
+import { loadProject, loadScenario, fileFacts } from '@retake/core/io';
 import type { BBox, LoadedProject, RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
 import { debugTemplate, execFileP, ffprobeDuration, frameAt, magentaCentroid } from '../../runner-web/test/helpers.js';
@@ -98,9 +99,9 @@ describe.skipIf(!ENABLED)('catalogue scenario on the fixture, 1920×1080, debug 
     const project: LoadedProject = await loadProject(join(REPO, 'projects/northfield-fixture'), REPO);
     // The local environment on the fixture's ports (its display URLs unchanged); the file is not touched.
     project.config.environments = { ...project.config.environments, local: { console: fixture.urls.console, shop: fixture.urls.shop } };
-    const scenario = await loadScenario(project, 'catalogue');
+    const scenario = await loadScenario(project, 'catalogue', { files: fileFacts(PERSON_POLICY) });
     expect(scenario.issues.filter((i) => i.severity === 'error')).toEqual([]);
-    rec = await runScenario({
+    rec = await runScenario({ policy: PERSON_POLICY,
       project,
       scenario,
       env: 'local',

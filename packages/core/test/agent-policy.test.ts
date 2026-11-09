@@ -7,19 +7,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  BROWSER_OPEN_SWITCHES,
-  LINUX_ONLY_SANDBOX_SWITCHES,
-  LOAD_PATH_ENV,
-  NODE_OPTIONS_LOADS,
-  SANDBOX_OFF_SWITCHES,
-  isLoaderEnvName,
-  loadPathSeparator,
-  loadWorkspaceConfig,
-  parseProjectYaml,
-  sandboxOffArgProblem,
-  sandboxSwitchOff,
-} from '@retake/core';
+import { BROWSER_OPEN_SWITCHES, LINUX_ONLY_SANDBOX_SWITCHES, LOAD_PATH_ENV, NODE_OPTIONS_LOADS, SANDBOX_OFF_SWITCHES, isLoaderEnvName, loadPathSeparator, parseProjectYaml, sandboxOffArgProblem, sandboxSwitchOff } from '@retake/core';
+import { loadWorkspaceConfig } from '@retake/core/io';
 
 describe('loader variables', () => {
   it('names every variable that makes a program load code or change its shell or configuration folders', () => {

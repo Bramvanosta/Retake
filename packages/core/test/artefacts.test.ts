@@ -7,9 +7,10 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { TimelineSchema, isDocumentPath, isHostAllowed, parseProjectYaml, parseScenario } from '@retake/core';
+import { TimelineSchema, isDocumentPath, isHostAllowed, parseProjectYaml, parseScenario, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, Timeline, ValidationIssue } from '@retake/core';
 import { errors, warnings } from './helpers.js';
+import { fileFacts } from '@retake/core/io';
 
 const errs = (issues: ValidationIssue[]) => errors(issues).map((i) => `${i.line}:${i.col} ${i.path.join('.')}: ${i.message}`);
 const warns = (issues: ValidationIssue[]) => warnings(issues).map((i) => `${i.path.join('.')}: ${i.message}`);
@@ -58,24 +59,24 @@ describe('wait_for_email and download (R-MAIL-02, R-DOC-01)', () => {
   it('parse with their artefact names', () => {
     const r = parseScenario(
       scenario('- wait_for_email: {to: "@cafe.example", subject: "/confirm/i", timeout: 20, as: welcome}', '- download: {click: Download quote PDF, as: quote}'),
-      { project: project() },
+      { files: fileFacts(PERSON_POLICY), project: project() },
     );
     expect(errs(r.issues)).toEqual([]);
     expect(warns(r.issues)).toEqual([]);
   });
 
   it('need `as`, a mailbox, a valid regex and a target', () => {
-    expect(errs(parseScenario(scenario('- wait_for_email: {to: x}'), { project: project() }).issues).join('\n')).toMatch(/as/);
-    expect(errs(parseScenario(scenario('- wait_for_email: {to: x, as: w}'), { project: project(false) }).issues).join('\n')).toMatch(
+    expect(errs(parseScenario(scenario('- wait_for_email: {to: x}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/as/);
+    expect(errs(parseScenario(scenario('- wait_for_email: {to: x, as: w}'), { files: fileFacts(PERSON_POLICY), project: project(false) }).issues).join('\n')).toMatch(
       /has no `mailbox`: add mailbox/,
     );
-    expect(errs(parseScenario(scenario('- wait_for_email: {subject: "/(/", as: w}'), { project: project() }).issues).join('\n')).toMatch(/invalid regular expression/);
-    expect(errs(parseScenario(scenario('- download: {click: {nth: 1}, as: d}'), { project: project() }).issues).join('\n')).toMatch(/target needs at least one of/);
-    expect(warns(parseScenario(scenario('- wait_for_email: {as: w}'), { project: project() }).issues).join('\n')).toMatch(/captures the first new message/);
+    expect(errs(parseScenario(scenario('- wait_for_email: {subject: "/(/", as: w}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/invalid regular expression/);
+    expect(errs(parseScenario(scenario('- download: {click: {nth: 1}, as: d}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/target needs at least one of/);
+    expect(warns(parseScenario(scenario('- wait_for_email: {as: w}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/captures the first new message/);
   });
 
   it('report duplicate artefact names', () => {
-    const r = parseScenario(scenario('- download: {click: A, as: doc}', '- download: {click: B, as: doc}'), { project: project() });
+    const r = parseScenario(scenario('- download: {click: A, as: doc}', '- download: {click: B, as: doc}'), { files: fileFacts(PERSON_POLICY), project: project() });
     expect(errs(r.issues).join('\n')).toMatch(/document "doc" is already captured at scenes\[0\]\.steps\[0\]/);
   });
 });
@@ -98,20 +99,20 @@ describe('artefact references in slots (validation)', () => {
 
   it('accepts captured names, project files and notification names / indexes', () => {
     for (const slots of ['{email: welcome}', '{document: quote}', '{document: assets/terms.pdf}', '{notification: "2"}', '{notification: quote-request}']) {
-      expect(errs(parseScenario(withCard(slots), { project: project() }).issues), slots).toEqual([]);
+      expect(errs(parseScenario(withCard(slots), { files: fileFacts(PERSON_POLICY), project: project() }).issues), slots).toEqual([]);
     }
   });
 
   it('reports unknown names with a suggestion, missing project files and wrong file types', () => {
-    const e1 = errs(parseScenario(withCard('{email: welcom}'), { project: project() }).issues).join('\n');
+    const e1 = errs(parseScenario(withCard('{email: welcom}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n');
     expect(e1).toMatch(/unknown email "welcom": no wait_for_email step captures it as `as: welcom` \(did you mean "welcome"\?\)/);
-    expect(errs(parseScenario(withCard('{document: assets/missing.pdf}'), { project: project() }).issues).join('\n')).toMatch(/document "assets\/missing\.pdf" not found/);
-    expect(errs(parseScenario(withCard('{document: assets/terms.docx}'), { project: project() }).issues).join('\n')).toMatch(/must be a \.pdf, \.png/);
-    expect(errs(parseScenario(withCard('{notification: "0"}'), { project: project() }).issues).join('\n')).toMatch(/1-based index/);
+    expect(errs(parseScenario(withCard('{document: assets/missing.pdf}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/document "assets\/missing\.pdf" not found/);
+    expect(errs(parseScenario(withCard('{document: assets/terms.docx}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/must be a \.pdf, \.png/);
+    expect(errs(parseScenario(withCard('{notification: "0"}'), { files: fileFacts(PERSON_POLICY), project: project() }).issues).join('\n')).toMatch(/1-based index/);
   });
 
   it('checks overlay slots too', () => {
-    const r = parseScenario(scenario('- wait: 1', '  overlay: {component: studio/mail-notification, slots: {email: nope}}'), { project: project() });
+    const r = parseScenario(scenario('- wait: 1', '  overlay: {component: studio/mail-notification, slots: {email: nope}}'), { files: fileFacts(PERSON_POLICY), project: project() });
     expect(errs(r.issues).join('\n')).toMatch(/steps\.0\.overlay\.slots\.email: unknown email "nope"/);
   });
 

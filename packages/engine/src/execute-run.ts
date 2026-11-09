@@ -4,8 +4,9 @@
  * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig, ErrorKind } from '@retake/core';
+import { parseScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
+import { loadProjectTemplate, readScenarioSource, fileFacts } from '@retake/core/io';
+import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, ErrorKind, WorkPolicy } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
 import type { Caller } from './caller.js';
@@ -13,6 +14,7 @@ import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
 import { refuseBesideOldHolder } from './legacy.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
 export class RunOptionError extends Error {
@@ -68,7 +70,7 @@ export interface RunRequest {
 }
 
 export interface PreparedRun {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   project: LoadedProject;
   scenario: LoadedScenario;
   template?: LoadedTemplate;
@@ -113,15 +115,15 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  * mailbox receives. The file is read once (its sha256 is `scenario.sha256`, checked against `expectSha256` when given):
  * the sandbox's pick and the validation work on the same bytes.
  */
-export async function prepareRun(ws: WorkspaceConfig, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
+export async function prepareRun(ws: OpenedWorkspace, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
   if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
   const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
   const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
-  const scenario = parseScenarioSource(project, src, { env: sandboxEnv ?? req.env, until: req.until });
+  const scenario = parseScenarioSource(project, src, { files: fileFacts(ws.policy), env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;
   let templateWarning: string | undefined;
   try {
-    template = await loadProjectTemplate(project, scenario.scenario.template);
+    template = await loadProjectTemplate(project, scenario.scenario.template, { files: fileFacts(ws.policy) });
   } catch (e) {
     // Phase 1 only takes the cursor ripple colour from the template: capture with the defaults.
     templateWarning = `${errorMessage(e)} — capturing with the default cursor colours`;
@@ -147,6 +149,8 @@ export interface RunPorts {
 }
 
 export interface ExecuteRunOptions {
+  /** What the work runs under (core WorkPolicy): its programs, browser and ffmpeg, under the agent policy. */
+  policy: WorkPolicy;
   /** A run id reserved ahead (core reserveRunId: a job's); default a new one. */
   runId?: string;
   /** `--allow-writes` (L1.7): checked by the caller first (checkAllowWrites). */
@@ -177,7 +181,7 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
   // L5.13: never beside an old Studio or worker, whose takes lock the old tool folder (engine legacy.ts).
   await refuseBesideOldHolder(project.root, 'this sandbox take');
   const { openSandbox } = await import('@retake/sandbox');
-  const sb = openSandbox(project, env);
+  const sb = openSandbox(project, env, opts.policy);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });
   let take: Take;
   try {
@@ -208,10 +212,10 @@ async function prepareSandboxTake(project: LoadedProject, env: string, scenario:
  * A run on a sandbox environment without `sandbox`: no reset, and the sandbox must be up (its SandboxError otherwise);
  * a take holding its lock is a warning. Nothing for other environments.
  */
-export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note']): Promise<void> {
+export async function checkSandboxEnv(project: LoadedProject, env: string, note: RunPorts['note'], policy: WorkPolicy): Promise<void> {
   if (!sandboxOf(project, env)) return;
   const { openSandbox, describeLock } = await import('@retake/sandbox');
-  const { lock } = await openSandbox(project, env).checkRunning();
+  const { lock } = await openSandbox(project, env, policy).checkRunning();
   if (lock) note('warn', `sandbox ${env} is in use by ${describeLock(lock)}: this run films it as it is, while that command may reset it`);
   note('info', `sandbox ${env}: filmed as it is, without a reset (--sandbox resets it to its seed first)`);
 }
@@ -237,11 +241,12 @@ export async function executeRun(p: PreparedRun, req: RunRequest, opts: ExecuteR
   // as it is, and must be up.
   let take: Take | undefined;
   if (sandboxEnv) take = await prepareSandboxTake(project, sandboxEnv, scenario.name, ports, opts);
-  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note);
+  else await checkSandboxEnv(project, resolveEnvironment(project, req.env ?? scenario.scenario.env).name, ports.note, opts.policy);
 
   const { runScenario } = await import('@retake/runner-web');
   try {
     return await runScenario({
+      policy: opts.policy,
       project,
       scenario,
       template,

@@ -9,7 +9,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@retake/core';
+import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
+import { reserveRunId } from '@retake/core/io';
 import type { RunJobInput } from '@retake/core';
 import {
   EngineError,

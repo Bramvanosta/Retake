@@ -26,7 +26,8 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, OLD_SECRET_ENV, clientPath, isUnder, loadPathSeparator, retakeHome } from '@retake/core';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, OLD_SECRET_ENV, isUnder, loadPathSeparator } from '@retake/core';
+import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
 
 /** Variables a worker started by a client never gets. */
 export const WORKER_ENV_DROPPED: readonly RegExp[] = [
@@ -59,7 +60,7 @@ function loadsFromWorkspace(value: string, folders: readonly string[], sepRe: Re
   return value
     .split(sepRe)
     .filter((p) => p !== '')
-    .some((p) => !isAbsolute(p) || folders.some((f) => isUnder(p, f)));
+    .some((p) => !isAbsolute(p) || folders.some((f) => isUnder(p, f, nodeFileFacts)));
 }
 
 export interface WorkerEnvOptions {

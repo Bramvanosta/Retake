@@ -14,7 +14,7 @@
  * only (a byte-bounded LRU keyed by the run folder, the run's file signatures and the run's step key): never written.
  */
 import { closeSync } from 'node:fs';
-import type { TimelineEvent } from '@retake/core';
+import type { TimelineEvent, WorkPolicy } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RunDataCache, errorScreenshotName, fileSlug, frameAt, gridFrame, seekTime, stepScreenshotName } from './run-data.js';
 import type { PageSource, RunData } from './run-data.js';
@@ -136,6 +136,8 @@ class ThumbCache {
 }
 
 export interface RunThumbsOptions {
+  /** What the work runs under (core WorkPolicy): which ffmpeg and ffprobe, under its agent policy. */
+  policy: WorkPolicy;
   /** Thumbnail cache size in base64 characters (default THUMB_CACHE_BYTES). */
   cacheBytes?: number;
   /** ffmpeg binary (default: core `ffmpegBin()` — retake.yaml, $RETAKE_FFMPEG, the app's, PATH). */
@@ -163,7 +165,7 @@ export class RunThumbs {
   readonly stats = { made: 0, ffmpeg: 0, ffmpegPeak: 0, sourceBytes: 0, sourceBytesPeak: 0 };
 
   constructor(
-    private readonly o: RunThumbsOptions = {},
+    private readonly o: RunThumbsOptions,
     runs?: RunDataCache,
   ) {
     this.runs = runs ?? new RunDataCache();
@@ -332,6 +334,7 @@ export class RunThumbs {
       this.stats.ffmpeg++;
       this.stats.ffmpegPeak = Math.max(this.stats.ffmpegPeak, this.ffmpeg.busy);
       return await r.videoFramesAt(input, seconds, {
+        policy: this.o.policy,
         ...(signal ? { signal } : {}),
         ...(this.o.ffmpeg ? { ffmpeg: this.o.ffmpeg } : {}),
         ...(this.o.ffmpegTimeoutMs ? { timeoutMs: this.o.ffmpegTimeoutMs } : {}),

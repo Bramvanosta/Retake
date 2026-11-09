@@ -30,7 +30,8 @@
 import { randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_ID_RE, readPlainFile } from '@retake/core';
+import { JOB_ID_RE } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
 import { jobsDir } from '../workspace-state.js';
 import type { JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';

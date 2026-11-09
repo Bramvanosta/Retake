@@ -8,29 +8,8 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  ConfigError,
-  SandboxConfigError,
-  allowedHosts,
-  applyProjectDefaults,
-  databasesFor,
-  formatIssues,
-  isHostAllowed,
-  isLoopbackHost,
-  loadProject,
-  mailboxFor,
-  parseProjectYaml,
-  parseSandboxYaml,
-  parseScenario,
-  resolveEnvironment,
-  resolvePersonas,
-  sandboxNames,
-  sandboxOf,
-  seedFileRefs,
-  seedHash,
-  unmaskedPasswordReason,
-  weakPasswordReason,
-} from '@retake/core';
+import { ConfigError, SandboxConfigError, allowedHosts, applyProjectDefaults, databasesFor, formatIssues, isHostAllowed, isLoopbackHost, mailboxFor, parseProjectYaml, parseSandboxYaml, parseScenario, resolveEnvironment, resolvePersonas, sandboxNames, sandboxOf, unmaskedPasswordReason, weakPasswordReason, PERSON_POLICY } from '@retake/core';
+import { loadProject, seedFileRefs, seedHash, fileFacts, nodeFileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { errors, lineOf, tempDir, warnings, writeFiles } from './helpers.js';
 
@@ -127,11 +106,11 @@ async function sandboxDir(files: Record<string, string>): Promise<string> {
 describe('sandbox.yaml: schema and checks (R-SBX-01)', () => {
   it('the process and docker-compose examples are valid', async () => {
     const pdir = await sandboxDir({ 'sandbox.yaml': PROCESS, 'app/server.mjs': '', 'seed/01-demo.sql': 'INSERT INTO t VALUES (1);\n' });
-    const p = parseSandboxYaml(PROCESS, join(pdir, 'sandbox.yaml'), { env: 'sandbox' });
+    const p = parseSandboxYaml(PROCESS, join(pdir, 'sandbox.yaml'), { files: nodeFileFacts, env: 'sandbox' });
     expect(msgs(p.issues)).toEqual([]);
     expect(p.manifest?.services.fixture.pages?.console).toEqual({ url: 'http://localhost:4503', display: 'console.northfield.example' });
     const cdir = await sandboxDir({ 'sandbox.yaml': COMPOSE, 'compose.yaml': COMPOSE_YAML, 'seed/01-demo-data.sql': 'CREATE TABLE t (id int);\nDELETE FROM t;\n' });
-    const c = parseSandboxYaml(COMPOSE, join(cdir, 'sandbox.yaml'), { env: 'sandbox' });
+    const c = parseSandboxYaml(COMPOSE, join(cdir, 'sandbox.yaml'), { files: nodeFileFacts, env: 'sandbox' });
     // A destructive seed step needs no `confirm: true` (a seed rebuilds a disposable copy).
     expect(msgs(c.issues)).toEqual([]);
     expect(c.manifest?.reset?.strategy).toBe('snapshot');
@@ -195,7 +174,7 @@ accounts:
     login:
       - type: {into: {label: Email}, text: "{{account.username}}"}
 `;
-    const { issues } = parseSandboxYaml(text, join(dir, 'sandbox.yaml'), { env: 'sandbox' });
+    const { issues } = parseSandboxYaml(text, join(dir, 'sandbox.yaml'), { files: nodeFileFacts, env: 'sandbox' });
     expect(msgs(errors(issues))).toEqual([
       `error ${lineOf(text, 'command: [node')}:5 services.app.command: \`command\` is for provider process: a docker-compose service is started from its compose file`,
       `error ${lineOf(text, 'health: {tcp')}:14 services.app.health.tcp: a TCP check of a port Docker publishes always succeeds (its proxy accepts the connection): give the compose service a healthcheck, or check an http path`,
@@ -243,7 +222,7 @@ reset: {strategy: snapshot}
   it('snapshot: a Postgres database of the sandbox, named, not a system one, short enough; snapshot settings without it are noted', async () => {
     const dir = await sandboxDir({ 'compose.yaml': COMPOSE_YAML });
     const base = 'version: 1\nprovider: docker-compose\nservices:\n  app: {url: http://localhost:4600, pages: {app: http://localhost:4600}}\n';
-    const check = (rest: string) => msgs(parseSandboxYaml(base + rest, join(dir, 'sandbox.yaml')).issues);
+    const check = (rest: string) => msgs(parseSandboxYaml(base + rest, join(dir, 'sandbox.yaml'), { files: nodeFileFacts }).issues);
     expect(check('reset: {strategy: snapshot}\n')).toEqual([
       'error 5:19 reset.strategy: a snapshot reset needs the Postgres database it snapshots: add `databases: {main: {url: "postgres://…@localhost:<port>/<db>"}}`',
     ]);
@@ -345,13 +324,13 @@ services:
 seed:
   - exec: {service: tools, command: "seed"}
 `;
-    const { issues } = parseSandboxYaml(text, join(dir, 'sandbox.yaml'), { env: 'sandbox' });
+    const { issues } = parseSandboxYaml(text, join(dir, 'sandbox.yaml'), { files: nodeFileFacts, env: 'sandbox' });
     expect(msgs(errors(issues))).toEqual([
       `error ${lineOf(text, '  tools:')}:3 services: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it (Retake runs docker compose without COMPOSE_PROFILES) — remove its \`profiles\``,
       `error ${lineOf(text, 'service: tools')}:21 seed.0.exec.service: service "tools" has \`profiles:\` in the compose files: a sandbox never starts it, so an exec step cannot run in it — remove its \`profiles\``,
     ]);
     // Not named by sandbox.yaml: a profiled service is simply not started.
-    expect(errors(parseSandboxYaml('version: 1\nprovider: docker-compose\nservices:\n  app: {url: http://localhost:4600, pages: {app: http://localhost:4600}}\n', join(dir, 'sandbox.yaml')).issues)).toEqual([]);
+    expect(errors(parseSandboxYaml('version: 1\nprovider: docker-compose\nservices:\n  app: {url: http://localhost:4600, pages: {app: http://localhost:4600}}\n', join(dir, 'sandbox.yaml'), { files: nodeFileFacts }).issues)).toEqual([]);
   });
 
   it('the loopback hosts of a sandbox\'s mailbox and databases are allowed hosts at run time (db.localhost, 127.0.0.2: I7)', async () => {
@@ -504,7 +483,7 @@ describe('project.yaml sandboxes: each one an environment (R-SBX-01, R-SBX-03)',
     // A secret reference stays one: resolved (and masked) by the run like any {{env:…}}.
     expect(personas[1].login?.[2]).toEqual({ type: { into: { label: 'Password' }, text: '{{env:NORTHFIELD_SUPPLIER_PASSWORD}}' } });
     // A scenario on the sandbox binds its pages to these personas.
-    const { issues } = parseScenario('video: x\nenv: sandbox\nscenes:\n  - {id: a, page: shop, persona: buyer, open: /, steps: [{hold: 1}]}\n', { project: p });
+    const { issues } = parseScenario('video: x\nenv: sandbox\nscenes:\n  - {id: a, page: shop, persona: buyer, open: /, steps: [{hold: 1}]}\n', { files: fileFacts(PERSON_POLICY), project: p });
     expect(msgs(issues)).toEqual([]);
   });
 
@@ -524,14 +503,14 @@ describe('project.yaml sandboxes: each one an environment (R-SBX-01, R-SBX-03)',
     const p = await loadProject(await workspace(PROJECT, { ...SANDBOX_FILES, 'sandbox/sandbox.yaml': noMailbox }));
     expect(mailboxFor(p, 'sandbox')).toBeUndefined();
     const scenario = 'video: x\nscenes:\n  - {id: a, page: shop, open: /, steps: [{wait_for_email: {to: x@example.com, as: welcome}}]}\n';
-    expect(msgs(parseScenario(`env: sandbox\n${scenario}`, { project: p }).issues)).toEqual([
+    expect(msgs(parseScenario(`env: sandbox\n${scenario}`, { files: fileFacts(PERSON_POLICY), project: p }).issues)).toEqual([
       'error 4:59 scenes.0.steps.0.wait_for_email: sandbox sandbox has no `mailbox`: add mailbox: {provider: mailpit, url: http://localhost:<port>} to its sandbox.yaml',
     ]);
-    expect(msgs(parseScenario(scenario, { project: p, env: 'local' }).issues)).toEqual([]);
+    expect(msgs(parseScenario(scenario, { files: fileFacts(PERSON_POLICY), project: p, env: 'local' }).issues)).toEqual([]);
   });
 
   it('project.yaml checks: names, collisions with environments and auth, default_env, missing manifest, auth.<sandbox>', async () => {
-    const check = (yaml: string, dir?: string) => msgs(parseProjectYaml(yaml, dir ? join(dir, 'project.yaml') : undefined).issues);
+    const check = (yaml: string, dir?: string) => msgs(parseProjectYaml(yaml, dir ? join(dir, 'project.yaml') : undefined, nodeFileFacts).issues);
     const dir = await sandboxDir({ 'sandbox/sandbox.yaml': '' });
     expect(
       check(
@@ -609,7 +588,7 @@ sandboxes:
 describe('seed hash (R-SBX-05 support)', () => {
   it('stable for the same seed; changes with a SQL file, a file of seed/, the strategy or extra inputs', async () => {
     const dir = await sandboxDir({ 'sandbox.yaml': COMPOSE, 'compose.yaml': COMPOSE_YAML, 'seed/01-demo-data.sql': 'INSERT INTO t VALUES (1);\n', 'seed/.hidden': 'x' });
-    const { manifest } = parseSandboxYaml(COMPOSE, join(dir, 'sandbox.yaml'));
+    const { manifest } = parseSandboxYaml(COMPOSE, join(dir, 'sandbox.yaml'), { files: nodeFileFacts });
     const s = { dir, manifest: manifest! };
     expect(await seedFileRefs(s)).toEqual([join(dir, 'seed', '01-demo-data.sql')]);
     const h1 = await seedHash(s);

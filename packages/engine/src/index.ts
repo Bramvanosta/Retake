@@ -16,7 +16,7 @@
  * the workspace's sources and the job watch behind the Studio's event stream.
  */
 export { openWorkspace, openProject } from './workspace.js';
-export type { WorkspaceOptions } from './workspace.js';
+export type { OpenedWorkspace, WorkspaceOptions } from './workspace.js';
 export { personaState, personaStateView, projectPersonaStates, scenarioPersonaStates, tildePath } from './auth.js';
 export type { LoginCommandOf, PersonaState, PersonaStateView } from './auth.js';
 export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';

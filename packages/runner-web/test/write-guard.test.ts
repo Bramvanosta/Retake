@@ -13,7 +13,7 @@ import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { rm } from 'node:fs/promises';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { WriteRefusedError, compileWritePolicy } from '@retake/core';
+import { WriteRefusedError, compileWritePolicy, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject, ResolvedEnvironment, RunProgress, Scenario, WriteMockSpec } from '@retake/core';
 import { closePage, evalHookInPage, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { BrowserSession, GuardedWrite } from '../src/index.js';
@@ -504,7 +504,7 @@ describe('js hook tabs on a read-only run: their own guard, never mocked', () =>
 
 describe('js hook tabs never have fetchLater nor SharedWorker (their requests would escape the tab\'s own guard)', () => {
   it('on a read-write run too (the allow-list guard)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     const opts = { project: makeProject(dir, { app: A }), env: { name: 'test', pages: { app: A } }, log: () => undefined };
     try {
       expect(await evalHookInPage(session, opts, 'app', 'return [typeof fetchLater, typeof SharedWorker]')).toEqual(['undefined', 'undefined']);
@@ -544,7 +544,7 @@ describe('a read-only run (R-ENV-03)', () => {
         },
       ],
     };
-    const rec = await runScenario({ project: project(), scenario: makeScenario('ro-form', scenario), mode: 'capture', env: 'test', runId: `ro-form-${Date.now()}`, onProgress: (e) => events.push(e) });
+    const rec = await runScenario({ policy: PERSON_POLICY, project: project(), scenario: makeScenario('ro-form', scenario), mode: 'capture', env: 'test', runId: `ro-form-${Date.now()}`, onProgress: (e) => events.push(e) });
     expect(rec.error?.message).toBeUndefined();
     expect(rec.status).toBe('succeeded');
     const tl = await readTimeline(rec.timeline!);
@@ -569,7 +569,7 @@ describe('a read-only run (R-ENV-03)', () => {
   });
 
   it('a js setup hook whose write is stopped is refused (read-only), never mocked; nothing reached the server', async () => {
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: project(),
       scenario: makeScenario('ro-hook', {
         pacing: FAST,
@@ -596,7 +596,7 @@ describe('a read-only run (R-ENV-03)', () => {
     p.config.environments.production = { app: A };
     p.config.environment_settings = { production: { production: true } };
     const events: RunProgress[] = [];
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-cross', {
         pacing: FAST,
@@ -627,7 +627,7 @@ describe('a read-only run (R-ENV-03)', () => {
     expect(hits).toEqual([]);
     // Without the hook: the page's write to its own host passes, the one to production's host is stopped.
     hits.length = 0;
-    const rec2 = await runScenario({
+    const rec2 = await runScenario({ policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-cross2', {
         pacing: FAST,
@@ -662,7 +662,7 @@ describe('a read-only run (R-ENV-03)', () => {
 
   it('a read-write run arms nothing: the same writes reach the server, no environment writes', async () => {
     const p = makeProject(dir, { app: A });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: p,
       scenario: makeScenario('rw-form', { pacing: FAST, scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ eval: `await fetch('/api/quotes', { method: 'POST', body: '{}' })` }] }] }),
       mode: 'dry',

@@ -79,6 +79,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The export, then — when it re-rendered formats — its line of the workspace's history (the engine's in-process operation).
     const r = await exportInProcess({
+      workPolicy: ws.policy,
       project,
       root: ws.root,
       render,

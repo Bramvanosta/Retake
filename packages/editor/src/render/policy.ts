@@ -17,8 +17,8 @@
  *   video once more in software with libx264, from scratch.
  */
 import { availableParallelism, cpus as osCpus } from 'node:os';
-import { RENDER_CONCURRENCY_MAX, RenderSettingsError, gpuInfoOf, renderSettingsFromEnv, sandboxSwitchOff, workspaceRenderSettings } from '@retake/core';
-import type { GpuInfo, RenderEncoderSetting, RenderGlSetting, RenderSettings, SystemInfoReply } from '@retake/core';
+import { RENDER_CONCURRENCY_MAX, RenderSettingsError, gpuInfoOf, renderSettingsFromEnv, sandboxSwitchOff } from '@retake/core';
+import type { GpuInfo, RenderEncoderSetting, RenderGlSetting, RenderSettings, SystemInfoReply, WorkPolicy } from '@retake/core';
 import { RenderCancelledError, RenderError, isDiskFullError } from './types.js';
 
 /** How the render browser draws: ANGLE (the GPU: Metal on macOS) or Chromium's software raster (no `--use-gl`). */
@@ -106,9 +106,9 @@ export function sourceWords(source: RenderSettingSource, key: keyof RenderSettin
   return source === 'retake.yaml' ? `retake.yaml render.${key}` : source === 'env' ? `$${env}` : source === 'option' ? 'the command' : 'the default';
 }
 
-/** This process's policy: the open workspace's retake.yaml `render:`, the environment, then `option`. */
-export function renderPolicy(option?: RenderSettings): RenderPolicy {
-  return resolveRenderPolicy({ ...(option ? { option } : {}), workspace: workspaceRenderSettings(), env: process.env, platform: process.platform });
+/** The render policy of a work: its workspace's retake.yaml `render:` (`work`: core WorkPolicy), the environment, then `option`. */
+export function renderPolicy(work: WorkPolicy, option?: RenderSettings): RenderPolicy {
+  return resolveRenderPolicy({ ...(option ? { option } : {}), workspace: work.render ? { ...work.render } : undefined, env: process.env, platform: process.platform });
 }
 
 /** The policy with a GL other than the resolved one (the software reopen, the fallback): its default concurrency follows unless set. */
@@ -122,9 +122,9 @@ export function withGl(p: RenderPolicy, gl: RenderGl, o: { keepConcurrency?: boo
  * resolved policy before any browser opens — the Studio server and the job process compute the same one from the same
  * retake.yaml and environment. A setting that cannot work gives "invalid" (the preview itself then fails and says why).
  */
-export function previewGlKey(): string {
+export function previewGlKey(work: WorkPolicy): string {
   try {
-    return renderPolicy().gl.resolved;
+    return renderPolicy(work).gl.resolved;
   } catch {
     return 'invalid';
   }
@@ -435,10 +435,10 @@ export interface RenderPathProbe {
  * The render path of this machine as a 1080p30 render would take it — the same checks, nothing written: the policy,
  * the render browser opened as renders open it (ANGLE: its GPU), and the VideoToolbox probe. Never throws.
  */
-export async function probeRenderPath(o: { gpuInfo?: (b: { connection: unknown }) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe } = {}): Promise<RenderPathProbe> {
+export async function probeRenderPath(o: { work: WorkPolicy; gpuInfo?: (b: { connection: unknown }) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe }): Promise<RenderPathProbe> {
   let policy: RenderPolicy;
   try {
-    policy = renderPolicy();
+    policy = renderPolicy(o.work);
   } catch (e) {
     return { error: (e as Error).message };
   }

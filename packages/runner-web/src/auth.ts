@@ -10,28 +10,11 @@
  */
 import { constants as fsConstants } from 'node:fs';
 import { chmod, cp, lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm } from 'node:fs/promises';
-import { hostname, tmpdir } from 'node:os';
+import { hostname, tmpdir, homedir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import type { BrowserContext, Page } from 'playwright-core';
-import {
-  PERSONA_CHECK_TIMEOUT_S,
-  describeTarget,
-  environmentLoginPatterns,
-  interpolateAt,
-  isAbsoluteUrl,
-  loginCommand,
-  loginMatchers,
-  matchLoginUrl,
-  normalizeStep,
-  normalizeTarget,
-  oldSignInHints,
-  resolveCheckUrl,
-  resolvePageUrl,
-  snapshotMachine,
-  splitPageOpen,
-  urlOriginPath,
-  writeTextAtomic,
-} from '@retake/core';
+import { PERSONA_CHECK_TIMEOUT_S, describeTarget, environmentLoginPatterns, interpolateAt, isAbsoluteUrl, loginCommand, loginMatchers, matchLoginUrl, normalizeStep, normalizeTarget, oldSignInHints, resolveCheckUrl, resolvePageUrl, snapshotMachine, splitPageOpen, urlOriginPath } from '@retake/core';
+import { writeTextAtomic, nodeFileFacts } from '@retake/core/io';
 import type {
   LoadedProject,
   LoginMatcher,
@@ -803,7 +786,7 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
   if (failures.length) {
     // L5.13: never signed in, perhaps only because the sign-ins are left in the home from before the rename (H3), or an
     // old variable names the home the person chose then (review A M4).
-    if (once) for (const hint of oldSignInHints()) failures.push(`  ${hint}`);
+    if (once) for (const hint of oldSignInHints(process.env, homedir(), nodeFileFacts.exists)) failures.push(`  ${hint}`);
     throw preflightFailure(failures.map((l) => deps.secrets.redactText(l)));
   }
 }

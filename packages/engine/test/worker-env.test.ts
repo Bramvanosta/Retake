@@ -9,10 +9,15 @@ import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadWorkspaceConfig, programProblem, useAgentPolicy } from '@retake/core';
+import { programProblem, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
+import type { WorkPolicy } from '@retake/core';
+
+/** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
+let policy: WorkPolicy = PERSON_POLICY;
 
 let ws: string;
 const savedHome = process.env.RETAKE_HOME;
@@ -95,14 +100,14 @@ describe('cleanWorkerEnv', () => {
     };
     const env = cleanWorkerEnv({ ...tools, PATH: '/usr/bin' }, ws, { exists: () => false });
     expect(env).toMatchObject(tools);
-    useAgentPolicy([ws]);
+    policy = agentPolicy([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
-      expect(programProblem(env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG')).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
-      expect(programProblem(env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE')).toMatch(/is a relative path/);
-      expect(programProblem(env.RETAKE_DOCKER!, '$RETAKE_DOCKER')).toMatch(/lies inside the workspace/);
+      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
+      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { files: nodeFileFacts })).toMatch(/is a relative path/);
+      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
-      useAgentPolicy(null);
+      policy = agentPolicy(null, policy.ffmpeg, policy.render);
     }
   });
 

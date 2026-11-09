@@ -1,5 +1,3 @@
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { z } from 'zod';
 import { ProjectFileSchema } from './project.js';
 import { SandboxFileSchema } from './sandbox.js';
@@ -138,15 +136,3 @@ export const JSON_SCHEMAS = {
 } as const;
 
 export type JsonSchemaName = keyof typeof JSON_SCHEMAS;
-
-/** Write `<dir>/<name>.schema.json` for every schema; returns the written paths. */
-export async function writeJsonSchemas(dir: string): Promise<string[]> {
-  await mkdir(dir, { recursive: true });
-  const files: string[] = [];
-  for (const [name, fn] of Object.entries(JSON_SCHEMAS)) {
-    const file = join(dir, `${name}.schema.json`);
-    await writeFile(file, JSON.stringify(fn(), null, 2) + '\n', 'utf8');
-    files.push(file);
-  }
-  return files;
-}

@@ -44,8 +44,8 @@ import {
   writeDesktopEntry,
   zshPathLine,
 } from '@retake/engine/integrations';
-import { engineLocation } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { engineLocation } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'app-setup-')));
 afterAll(() => rmSync(base, { recursive: true, force: true }));
@@ -533,8 +533,8 @@ describe('which copy of Retake an engine is (critique M6)', () => {
   it('the app it runs from, else the checkout holding it', () => {
     const b = { sealed: '/Applications/Retake.app' } as BundleInfo;
     expect(engineLocation(b)).toBe('/Applications/Retake.app');
-    expect(engineLocation(null, '/repo/packages/core/dist/bundle.js', (p) => p === '/repo/pnpm-workspace.yaml')).toBe('/repo');
-    expect(engineLocation(null, '/x/node_modules/@retake/core/dist/bundle.js', () => false)).toBe('/x/node_modules/@retake/core');
+    expect(engineLocation(null, '/repo/packages/core/dist/io/bundle.js', (p) => p === '/repo/pnpm-workspace.yaml')).toBe('/repo');
+    expect(engineLocation(null, '/x/node_modules/@retake/core/dist/io/bundle.js', () => false)).toBe('/x/node_modules/@retake/core');
     // This checkout.
     expect(existsSync(join(engineLocation(null), 'pnpm-workspace.yaml'))).toBe(true);
   });

@@ -7,6 +7,7 @@ import { RunSecrets, autoLogin, kitConfigFor, openSession, runScenario } from '.
 import { DOC_PAGE, DRY_PAGE, OPTIONS_PAGE, SHOP_PAGE, STRATEGY_PAGE, WIDGETS_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 let server: TestServer;
 let dir: string;
@@ -36,7 +37,7 @@ const steps = (events: TimelineEvent[]) => events.filter((e) => e.step >= 0);
 describe('composite widgets and the other actions', () => {
   it('select (native + searchable listbox), menu with confirm (re-open quirk), pick in a dialog, and more', async () => {
     const project = makeProject(dir, { app: server.url });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'widgets',
@@ -133,7 +134,7 @@ describe('composite widgets and the other actions', () => {
 
   it('switches pages per scene, interpolates templates, records interstitials and skipped scenes', async () => {
     const project = makeProject(dir, { app: server.url, shop: `${server.url}/s` });
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'pages',
@@ -203,7 +204,7 @@ describe('options of the scenario language (L1.4)', () => {
 
   beforeAll(async () => {
     const project = makeProject(dir, { app: server.url, other: server.url });
-    rec = await runScenario({
+    rec = await runScenario({ policy: PERSON_POLICY,
       project,
       mode: 'dry',
       runId: 'options',
@@ -463,7 +464,7 @@ describe('options of the scenario language (L1.4)', () => {
   });
 
   it('login steps wait for a request a click started too, and time out on one that hangs (R-ACT-21)', async () => {
-    const session = await openSession({ width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
+    const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     try {
       const pages = { app: server.url };
       const persona = (login: ResolvedPersona['login']): ResolvedPersona =>

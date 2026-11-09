@@ -30,7 +30,7 @@ import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
-import type { LoadedProject, RunRecord, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject, RunRecord } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
@@ -47,6 +47,8 @@ import { readRecord } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
+import type { OpenedWorkspace } from './workspace.js';
+import { fileFacts } from '@retake/core/io';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;
@@ -139,7 +141,7 @@ export interface RunPoster {
 }
 
 export interface ProjectBoardContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   queue: JobQueueView;
   /** The queue's paths: a job's record is memoised by its file's stat (JobFiles.record). */
   files: Pick<JobFiles, 'record'>;
@@ -148,7 +150,8 @@ export interface ProjectBoardContext {
   overlay(slug: string, run: { id: string; status: RunRecord['status'] }): Promise<ViewRunStatus>;
 }
 
-interface FileFacts {
+/** What the board knows of one scenario file (not core's FileFacts port). */
+interface BoardFileFacts {
   hash?: string;
   yaml?: string;
   file: BoardScenario['file'];
@@ -232,7 +235,7 @@ function themeName(p: LoadedProject, ref: string | undefined): string | undefine
 
 /** The project boards of one engine (memos apart from the scenario views'). */
 export class ProjectBoards {
-  private readonly files = new Map<string, FileFacts>();
+  private readonly files = new Map<string, BoardFileFacts>();
   private readonly paths = new Map<string, string>();
   private readonly runs = new Map<string, RunEntry>();
   private readonly pictures = new Map<string, Awaited<ReturnType<typeof runPictures>>>();
@@ -252,7 +255,7 @@ export class ProjectBoards {
     const p = await this.ctx.project(slug);
     const names = p.scenarios.slice(0, BOARD_SCENARIOS_MAX);
     const psig = await this.projectSig(p);
-    const [facts, groups, pass] = await Promise.all([pool(names, BOARD_CONCURRENCY, (n) => this.fileFacts(p, n, psig)), this.runGroups(p, new Set(names)), this.jobsOf(slug)]);
+    const [facts, groups, pass] = await Promise.all([pool(names, BOARD_CONCURRENCY, (n) => this.boardFileFacts(p, n, psig)), this.runGroups(p, new Set(names)), this.jobsOf(slug)]);
     const jobs = pass.jobs;
     const envs = p.config.environments ?? {};
     const renderJobs = jobs.filter((j) => j.input.kind === 'render');
@@ -392,7 +395,7 @@ export class ProjectBoards {
     return (await Promise.all(deps.map(lsig))).join('|');
   }
 
-  private async fileFacts(p: LoadedProject, name: string, psig: string): Promise<FileFacts> {
+  private async boardFileFacts(p: LoadedProject, name: string, psig: string): Promise<BoardFileFacts> {
     const known = this.paths.get(`${p.dir}\0${name}`);
     let sig = '';
     if (known) {
@@ -425,7 +428,7 @@ export class ProjectBoards {
     }
     const filesRead = new Set<string>();
     const at = Date.now();
-    const { ok, issues } = await validateScenarioText(p, text.yaml, { name, filesRead });
+    const { ok, issues } = await validateScenarioText(p, text.yaml, { files: fileFacts(this.ctx.ws.policy), name, filesRead });
     const deps = [...filesRead].sort();
     const depSig = await this.depSig(deps);
     const blocks = scenarioBlocks(text.yaml, { issues });
@@ -441,7 +444,7 @@ export class ProjectBoards {
     content.hooks = blocks.hooks.setup.length + blocks.hooks.teardown.length + blocks.hooks.named.length;
     const t = blocks.video.title;
     const title = (t?.text ?? t?.kicker ?? '').trim().slice(0, BOARD_TITLE_MAX);
-    const facts: FileFacts = {
+    const facts: BoardFileFacts = {
       hash: text.hash,
       yaml: text.yaml,
       file: { parsed: blocks.parsed, ok, errors: issues.filter((i) => i.severity === 'error').length, warnings: issues.filter((i) => i.severity === 'warning').length },

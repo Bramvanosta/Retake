@@ -1,8 +1,9 @@
 import { resolve } from 'node:path';
-import { listProjects, loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core';
+import { loginCommand as coreLoginCommand, resolveEnvironment } from '@retake/core';
+import { listProjects } from '@retake/core/io';
 import { LoginOptionError, loginTarget, projectPersonaStates, signInPersona as signInCore, tildePath } from '@retake/engine';
 import type { LoginCommandOf, PersonaState } from '@retake/engine';
-import type { LoadedProject, ResolvedPersona } from '@retake/core';
+import type { LoadedProject, ResolvedPersona, WorkPolicy } from '@retake/core';
 import type { PersonaCheckResult } from '@retake/runner-web';
 import { CliError, EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -68,7 +69,7 @@ export async function signInPersona(
   project: LoadedProject,
   env: { name: string; pages: Record<string, string> },
   persona: ResolvedPersona,
-  opts: { auto?: boolean; page?: string; url?: string },
+  opts: { auto?: boolean; page?: string; url?: string; policy: WorkPolicy },
 ): Promise<ExitCode> {
   const c = ui.c;
   const mode = opts.auto ? 'auto' : 'headed';
@@ -79,7 +80,7 @@ export async function signInPersona(
       project,
       env,
       persona,
-      { mode, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
+      { mode, policy: opts.policy, ...(opts.page !== undefined ? { page: opts.page } : {}), ...(opts.url !== undefined ? { url: opts.url } : {}) },
       {
         interrupts: { open: (o) => onInterrupt(ui, o) },
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
@@ -126,14 +127,15 @@ export async function signInPersona(
 
 /** `retake login <project> [--env] [--persona] [--page] [--url] [--auto]`: sign one persona in and save its session. */
 export async function loginCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: LoginOptions): Promise<ExitCode> {
-  const project = await openProject(await openWorkspace(global), projectArg);
+  const ws = await openWorkspace(global);
+  const project = await openProject(ws, projectArg);
   let target: ReturnType<typeof loginTarget>;
   try {
     target = loginTarget(project, opts);
   } catch (e) {
     throw cliLoginError(e);
   }
-  return signInPersona(ui, global, project, target.env, target.persona, opts);
+  return signInPersona(ui, global, project, target.env, target.persona, { ...opts, policy: ws.policy });
 }
 
 // ── retake auth status ───────────────────────────────────────────────────────
@@ -206,6 +208,7 @@ export async function authStatusCommand(ui: Ui, global: GlobalOptions, opts: Aut
         let res: PersonaCheckResult;
         try {
           res = await checkSavedSession({
+            policy: ws.policy,
             project: r.project,
             env: resolveEnvironment(r.project, r.state.env),
             persona: r.persona,

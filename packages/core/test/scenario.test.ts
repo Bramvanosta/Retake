@@ -3,18 +3,8 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
-import {
-  SCENARIO_COMPARE_MAX_BYTES,
-  ScenarioChangedError,
-  formatIssues,
-  formatPath,
-  loadScenario,
-  parseScenario,
-  readScenarioSource,
-  scenarioChangedMessage,
-  scenarioChangedSinceRun,
-  validateScenario,
-} from '@retake/core';
+import { SCENARIO_COMPARE_MAX_BYTES, ScenarioChangedError, formatIssues, formatPath, parseScenario, scenarioChangedMessage, validateScenario, PERSON_POLICY } from '@retake/core';
+import { loadScenario, readScenarioSource, scenarioChangedSinceRun, fileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
@@ -34,14 +24,14 @@ function scenario(steps: string, head = ''): string {
 
 describe('docs/SPEC.md §6 example', () => {
   it('parses with zero errors and zero warnings against a staging project holding its hook files', () => {
-    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { file: 'catalogue.yaml', project });
+    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { files: fileFacts(PERSON_POLICY), file: 'catalogue.yaml', project });
     expect(issues, formatIssues(issues)).toEqual([]);
     expect(s?.video).toBe('catalogue');
     expect(s?.scenes).toHaveLength(4);
   });
 
   it('missing hook SQL files of the example are errors, positioned on the hook (R-VAL-06)', () => {
-    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { file: 'catalogue.yaml', project: fakeProject() });
+    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { files: fileFacts(PERSON_POLICY), file: 'catalogue.yaml', project: fakeProject() });
     expect(s).toBeUndefined();
     const es = errors(issues);
     expect(es.map((w) => w.message)).toEqual([
@@ -68,7 +58,7 @@ describe('docs/SPEC.md §6 example', () => {
         '      - wait: 1',
         '',
       ].join('\n');
-      const before = errors(parseScenario(text, { project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
+      const before = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
       expect(before).toEqual([
         'setup.0.sql: SQL file "hooks/seed.sql" not found in the project',
         'setup.1.sql.file: SQL file "hooks/other.sql" not found in the project',
@@ -81,7 +71,7 @@ describe('docs/SPEC.md §6 example', () => {
         'hooks/undo.sql': 'select 3;',
         'hooks/prepare.js': 'return 1;',
       });
-      expect(errors(parseScenario(text, { project: fakeProject(dir) }).issues)).toEqual([]);
+      expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: fakeProject(dir) }).issues)).toEqual([]);
       // Without a project nothing can be checked: warnings only.
       const loose = parseScenario(text).issues;
       expect(errors(loose)).toEqual([]);
@@ -92,7 +82,7 @@ describe('docs/SPEC.md §6 example', () => {
   });
 
   it('parses without a project (files cannot be checked → warnings)', () => {
-    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { file: 'catalogue.yaml' });
+    const { scenario: s, issues } = parseScenario(SPEC_EXAMPLE, { files: fileFacts(PERSON_POLICY), file: 'catalogue.yaml' });
     expect(s).toBeDefined();
     expect(errors(issues)).toEqual([]);
     expect(warnings(issues).every((w) => w.message.includes('no project given'))).toBe(true);
@@ -100,14 +90,14 @@ describe('docs/SPEC.md §6 example', () => {
 
   it('validateScenario accepts the parsed object', () => {
     const { scenario: s } = parseScenario(SPEC_EXAMPLE);
-    expect(errors(validateScenario(s, { project }))).toEqual([]);
+    expect(errors(validateScenario(s, { files: fileFacts(PERSON_POLICY), project }))).toEqual([]);
   });
 });
 
 describe('structural errors are precise and positioned', () => {
   it('unknown key with did-you-mean, located on the key', () => {
     const text = SPEC_EXAMPLE.replace('click: {text: New import}', 'click: {txt: New import}');
-    const { scenario: s, issues } = parseScenario(text, { project });
+    const { scenario: s, issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project });
     expect(s).toBeUndefined();
     const e = only(issues);
     expect(e.path).toEqual(['scenes', 0, 'steps', 1, 'click']);
@@ -121,7 +111,7 @@ describe('structural errors are precise and positioned', () => {
 
   it('wrong type points at the value', () => {
     const text = scenario('      - wait: soon\n      - scroll: {to: 560, duration: fast}\n');
-    const { issues } = parseScenario(text, { project });
+    const { issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project });
     expect(errors(issues).map((i) => [formatIssues([i]), i.col])).toEqual([
       [`${lineOf(text, 'wait: soon')}:15 error scenes[0].steps[0].wait: expected a number, got "soon"`, 15],
       [
@@ -132,58 +122,58 @@ describe('structural errors are precise and positioned', () => {
   });
 
   it('numbers where text is expected suggest quoting', () => {
-    const { issues } = parseScenario(scenario('      - pick: {field: Year, option: [2026, "2027"]}\n'), { project });
+    const { issues } = parseScenario(scenario('      - pick: {field: Year, option: [2026, "2027"]}\n'), { files: fileFacts(PERSON_POLICY), project });
     expect(only(issues).message).toBe('expected a string, got 2026 (quote it to use it as text: "2026")');
     expect(only(issues).path).toEqual(['scenes', 0, 'steps', 0, 'pick', 'option', 0]);
   });
 
   it('two actions in one step', () => {
     const text = scenario('      - click: Save\n        hover: Cancel\n');
-    const e = only(parseScenario(text, { project }).issues);
+    const e = only(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.message).toBe('several actions in one step (click, hover): split them into separate steps');
     expect(e.path).toEqual(['scenes', 0, 'steps', 0]);
     expect([e.line, e.col]).toEqual([lineOf(text, 'hover: Cancel'), colOf(text, 'hover')]);
   });
 
   it('hold next to another action is the hold modifier, not a second action', () => {
-    const { issues } = parseScenario(scenario('      - click: Save\n        hold: 2\n'), { project });
+    const { issues } = parseScenario(scenario('      - click: Save\n        hold: 2\n'), { files: fileFacts(PERSON_POLICY), project });
     expect(errors(issues)).toEqual([]);
   });
 
   it('misspelt action', () => {
     const text = scenario('      - clik: {text: Save}\n');
-    const e = only(parseScenario(text, { project }).issues);
+    const e = only(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.message).toBe('unknown action "clik" (did you mean "click"?)');
     expect(e.line).toBe(lineOf(text, 'clik'));
   });
 
   it('a step without an action lists the actions', () => {
-    const e = only(parseScenario(scenario('      - caption: Hello\n'), { project }).issues);
+    const e = only(parseScenario(scenario('      - caption: Hello\n'), { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.message).toMatch(/^a step needs exactly one action key: open, click, double_click/);
   });
 
   it('missing required key is reported on the parent mapping', () => {
     const text = scenario('      - type: {into: {role: textbox}}\n');
-    const e = only(parseScenario(text, { project }).issues);
+    const e = only(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.path).toEqual(['scenes', 0, 'steps', 0, 'type']);
     expect(e.message).toBe('missing required key "text"');
     expect(e.line).toBe(lineOf(text, 'type:'));
   });
 
   it('enum values get a suggestion', () => {
-    const e = only(parseScenario(scenario('      - click: Save\n        camera: {zoom: 1.2, ease: slowly}\n'), { project }).issues);
+    const e = only(parseScenario(scenario('      - click: Save\n        camera: {zoom: 1.2, ease: slowly}\n'), { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.message).toBe('expected one of "slow", "normal", "fast", "linear" or a list, got "slowly" (did you mean "slow"?)');
   });
 
   it('ranges: speed (0, 8], camera zoom [1, 3] and duration ≥ 0.8', () => {
     const text = scenario('      - click: Save\n        speed: 10\n        camera: {zoom: 4, duration: 0.3}\n');
-    const msgs = errors(parseScenario(text, { project }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
+    const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
     expect(msgs).toEqual([
       'scenes.0.steps.0.speed: must be ≤ 8, got 10',
       'scenes.0.steps.0.camera.zoom: must be ≤ 3, got 4',
       'scenes.0.steps.0.camera.duration: must be ≥ 0.8, got 0.3',
     ]);
-    const zero = parseScenario(scenario('      - click: Save\n        speed: 0\n'), { project });
+    const zero = parseScenario(scenario('      - click: Save\n        speed: 0\n'), { files: fileFacts(PERSON_POLICY), project });
     expect(only(zero.issues).message).toBe('must be > 0, got 0');
   });
 
@@ -229,21 +219,21 @@ describe('structural errors are precise and positioned', () => {
 describe('semantic checks', () => {
   it('unknown page key, with suggestion and available keys', () => {
     const text = SPEC_EXAMPLE.replace('page: console', 'page: consol');
-    const e = only(parseScenario(text, { project }).issues);
+    const e = only(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.path).toEqual(['scenes', 0, 'page']);
     expect(e.message).toBe('unknown page "consol" in environment "staging" (did you mean "console"?) (available: console, shop)');
     expect([e.line, e.col]).toEqual([lineOf(text, 'page: consol'), colOf(text, 'page: consol') + 'page: '.length]);
   });
 
   it('unknown environment', () => {
-    const e = only(parseScenario(scenario('      - hold: 1\n', 'env: stagng\n'), { project }).issues);
+    const e = only(parseScenario(scenario('      - hold: 1\n', 'env: stagng\n'), { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(e.message).toBe('unknown environment "stagng" (did you mean "staging"?) (available: staging)');
     expect(e.line).toBe(2);
   });
 
   it('page keys of open steps and js hooks', () => {
     const text = scenario('      - open: {url: /x, page: shopp}\n', 'setup:\n  - js: {code: "return 1", page: admin}\n');
-    const msgs = errors(parseScenario(text, { project }).issues).map((i) => i.message);
+    const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => i.message);
     expect(msgs).toEqual([
       'unknown page "admin" (available: console, shop)',
       'unknown page "shopp" in environment "staging" (did you mean "shop"?) (available: console, shop)',
@@ -286,7 +276,7 @@ describe('semantic checks', () => {
       '',
     ].join('\n');
     const text = scenario('      - hold: 1\n', head);
-    const errs = errors(parseScenario(text, { project }).issues);
+    const errs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(errs.map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
       'setup.0: destructive hook (SQL DELETE) requires "confirm: true"',
       'setup.1: destructive hook (HTTP DELETE) requires "confirm: true"',
@@ -310,7 +300,7 @@ describe('semantic checks', () => {
       '',
     ].join('\n');
     const text = scenario('      - hold: 1\n', head);
-    const errs = errors(parseScenario(text, { project }).issues);
+    const errs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(errs.map((i) => `${i.path.join('.')}: ${i.message.replace(/ \(allowed: .*\)$/, '')}`)).toEqual([
       'setup.0.shell: shell hook names host api.prod.example.com (URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
       'setup.2.shell.env.DATABASE_URL: shell hook names host db.prod.example.com (env DATABASE_URL): it is not allowed: use localhost, an environment host, or add it to allow_hosts',
@@ -324,7 +314,7 @@ describe('semantic checks', () => {
     expect(errors(parseScenario(text).issues)).toEqual([]);
     // allow_hosts admits the host.
     const allowed = fakeProject(project.dir, { allow_hosts: ['api.prod.example.com', '*.example.com', 'other.example.net'] });
-    expect(errors(parseScenario(text, { project: allowed }).issues)).toEqual([]);
+    expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: allowed }).issues)).toEqual([]);
   });
 
   it('SQL files are inspected when the project dir exists', async () => {
@@ -335,10 +325,10 @@ describe('semantic checks', () => {
         'hooks/restore-registry-refs.sql': "INSERT INTO registry_log VALUES ('DELETE is only text here');\n",
       });
       const p = fakeProject(dir);
-      const ok = parseScenario(SPEC_EXAMPLE, { project: p });
+      const ok = parseScenario(SPEC_EXAMPLE, { files: fileFacts(PERSON_POLICY), project: p });
       expect(ok.issues, formatIssues(ok.issues)).toEqual([]);
       const unconfirmed = SPEC_EXAMPLE.replace('    confirm: true\n', '');
-      const e = only(parseScenario(unconfirmed, { project: p }).issues);
+      const e = only(parseScenario(unconfirmed, { files: fileFacts(PERSON_POLICY), project: p }).issues);
       expect(e.message).toBe('destructive hook (hooks/remove-registry-refs.sql contains UPDATE) requires "confirm: true"');
       expect(e.path).toEqual(['setup', 1]);
     } finally {
@@ -359,7 +349,7 @@ describe('semantic checks', () => {
         ].join('\n'),
         'music: {file: assets/bed.mp3}\n',
       );
-      const msgs = errors(parseScenario(text, { project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
+      const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project: fakeProject(dir) }).issues).map((i) => `${i.path.join('.')}: ${i.message}`);
       expect(msgs).toEqual([
         'music.file: music file "assets/bed.mp3" not found in the project',
         'scenes.0.steps.1.drop_file.path: file "assets/missing.xlsx" not found in the project',
@@ -385,7 +375,7 @@ describe('semantic checks', () => {
         '',
       ].join('\n'),
     );
-    const msgs = errors(parseScenario(text, { project }).issues).map((i) => `${i.path[3]}: ${i.message}`);
+    const msgs = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${i.path[3]}: ${i.message}`);
     expect(msgs).toEqual([
       '0: select needs `combobox` (the trigger) or `field` (its label)',
       '1: menu needs `row` (text in the row) or `trigger`',
@@ -418,7 +408,7 @@ describe('semantic checks', () => {
       ].join('\n'),
       'vars: {day: 3 March 2027}\n',
     );
-    const issues = parseScenario(text, { project }).issues;
+    const issues = parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues;
     expect(errors(issues).map((i) => `${i.path.slice(3).join('.')}: ${i.message}`)).toEqual([
       '0.date.field: target needs at least one of text, contains, role, label, aria, placeholder, css or testid',
     ]);
@@ -434,7 +424,7 @@ describe('semantic checks', () => {
 
   it('template tokens must exist', () => {
     const head = 'vars: {product: geisha}\nsetup:\n  - http: {method: POST, url: "{{consle}}/api/{{vars.prodct}}/{{env:TOKEN}}/{{run.id}}/{{run.dir}}/{{run.name}}"}\n';
-    const msgs = errors(parseScenario(scenario('      - open: "/p/{{vars.product}}"\n', head), { project }).issues).map(
+    const msgs = errors(parseScenario(scenario('      - open: "/p/{{vars.product}}"\n', head), { files: fileFacts(PERSON_POLICY), project }).issues).map(
       (i) => i.message,
     );
     expect(msgs).toEqual([
@@ -444,7 +434,7 @@ describe('semantic checks', () => {
     ]);
     // vars values are inserted as written (L1.2 review: D5): a token in one is an error, positioned on the value.
     const text = scenario('      - click: "{{vars.who}}"\n', 'vars: {pw: "{{env:DEMO_PW}}", who: "Agent {{vars.pw}}", plain: Harbour}\n');
-    expect(errors(parseScenario(text, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
+    expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
       'vars.pw: {{env:DEMO_PW}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
       'vars.who: {{vars.pw}}: a vars value is not templated (it would be inserted as written): write the value, or put the token where the variable is used',
     ]);
@@ -479,7 +469,7 @@ describe('semantic checks', () => {
       '    steps:',
       '      - wait: 1',
     ].join('\n');
-    const es = errors(parseScenario(text, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message.replace(/: secret references belong.*$/, '')}`);
+    const es = errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${formatPath(i.path)}: ${i.message.replace(/: secret references belong.*$/, '')}`);
     const shown = (expr: string) => `{{${expr}}} would be shown in the video and kept in clear in timeline.json`;
     expect(es).toEqual([
       `title.kicker: ${shown('env:KICKER')}`,
@@ -496,7 +486,7 @@ describe('semantic checks', () => {
     ]);
     // A screenshot name is a file name used as written: a token there is not slug-like.
     const shot = scenario('      - screenshot: {name: "shot-{{vars.customer}}"}\n      - screenshot: "{{vars.customer}}"\n', 'vars: {customer: x}\n');
-    expect(errors(parseScenario(shot, { project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
+    expect(errors(parseScenario(shot, { files: fileFacts(PERSON_POLICY), project }).issues).map((i) => `${formatPath(i.path)}: ${i.message}`)).toEqual([
       'scenes[0].steps[0].screenshot.name: screenshot name must be slug-like: letters, digits, "-" or "_", starting with a letter or digit',
       'scenes[0].steps[1].screenshot: screenshot name must be slug-like: letters, digits, "-" or "_", starting with a letter or digit',
     ]);
@@ -511,7 +501,7 @@ describe('semantic checks', () => {
       '      - click: Save',
       '        camera: {zoom: 1.8}',
     ].join('\n');
-    const { scenario: s, issues } = parseScenario(text, { project, file: 'other.yaml' });
+    const { scenario: s, issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project, file: 'other.yaml' });
     expect(s).toBeDefined();
     expect(warnings(issues).map((i) => i.message)).toEqual([
       'video "demo" differs from the file name "other"',
@@ -522,9 +512,9 @@ describe('semantic checks', () => {
 
   it('--until references must resolve', () => {
     const text = scenario('      - click: Save\n        id: save\n');
-    expect(errors(parseScenario(text, { until: 'main.save' }).issues)).toEqual([]);
-    expect(errors(parseScenario(text, { until: 'save' }).issues)).toEqual([]);
-    const e = only(parseScenario(text, { until: 'main.nope' }).issues);
+    expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), until: 'main.save' }).issues)).toEqual([]);
+    expect(errors(parseScenario(text, { files: fileFacts(PERSON_POLICY), until: 'save' }).issues)).toEqual([]);
+    const e = only(parseScenario(text, { files: fileFacts(PERSON_POLICY), until: 'main.nope' }).issues);
     expect(e.message).toMatch(/^--until "main.nope" does not match any step/);
   });
 
@@ -554,7 +544,7 @@ describe('semantic checks', () => {
       '    steps: [{click: Save}]',
       '',
     ].join('\n');
-    const { issues } = parseScenario(text, { project });
+    const { issues } = parseScenario(text, { files: fileFacts(PERSON_POLICY), project });
     expect(errors(issues).map((i) => `${i.path.join('.')}: ${i.message}`)).toEqual([
       'scenes.5.cursor: target needs at least one of text, contains, role, label, aria, placeholder, css or testid',
     ]);
@@ -563,7 +553,7 @@ describe('semantic checks', () => {
       'scenes.4.cursor: point (2400, 40) is outside the 1920×1080 viewport: it is clamped inside',
     ]);
     expect(warnings(issues)[0].line).toBe(6);
-    const ok = parseScenario(text.replace('    cursor: {in: dialog}\n', ''), { project });
+    const ok = parseScenario(text.replace('    cursor: {in: dialog}\n', ''), { files: fileFacts(PERSON_POLICY), project });
     expect(ok.scenario?.scenes.map((sc) => ('cursor' in sc ? sc.cursor : undefined))).toEqual([
       'keep',
       { x: 1500, y: 540 },
@@ -572,7 +562,7 @@ describe('semantic checks', () => {
       { x: 2400, y: 40 },
       undefined,
     ]);
-    const bad = only(parseScenario(text.replace('    cursor: {in: dialog}\n', '').replace('cursor: auto', 'cursor: [1, 2]'), { project }).issues);
+    const bad = only(parseScenario(text.replace('    cursor: {in: dialog}\n', '').replace('cursor: auto', 'cursor: [1, 2]'), { files: fileFacts(PERSON_POLICY), project }).issues);
     expect(bad.path).toEqual(['scenes', 3, 'cursor']);
   });
 });
@@ -676,12 +666,12 @@ describe('scenarioChangedSinceRun (L3.8: a render shows the run as captured)', (
 
 describe('hook names and env names a person reads', () => {
   it('a control character in a hook name or a shell hook\'s env name is an error; other characters are kept', () => {
-    const bad = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: "seed\\n   run: pnpm run seed"\n    shell: {run: echo ok, env: {"A\\tB": x}}\n'), { project: fakeProject() });
+    const bad = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: "seed\\n   run: pnpm run seed"\n    shell: {run: echo ok, env: {"A\\tB": x}}\n'), { files: fileFacts(PERSON_POLICY), project: fakeProject() });
     expect(errors(bad.issues).map((i) => i.message)).toEqual([
       expect.stringContaining('a hook name: no control character (a line break, a tab, an escape)'),
       expect.stringContaining('an env name: no control character (a line break, a tab, an escape)'),
     ]);
-    const ok = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: Seed – café\n    shell: {run: echo ok, env: {SKU: x}}\n'), { project: fakeProject() });
+    const ok = parseScenario(scenario('      - hold: 1\n', 'setup:\n  - name: Seed – café\n    shell: {run: echo ok, env: {SKU: x}}\n'), { files: fileFacts(PERSON_POLICY), project: fakeProject() });
     expect(errors(ok.issues)).toEqual([]);
   });
 });
@@ -702,7 +692,7 @@ describe('loadScenario reads the file once and pins its bytes', () => {
         reads.push(file);
         return Buffer.from(reads.length === 1 ? first : later, 'utf8');
       };
-      const loaded = await loadScenario(p, 'quote', { expectSha256: sha(first), readFile });
+      const loaded = await loadScenario(p, 'quote', { files: fileFacts(PERSON_POLICY), expectSha256: sha(first), readFile });
       expect(reads).toEqual([`${dir}/scenarios/quote.yaml`]);
       expect(loaded.sha256).toBe(sha(first));
       expect(loaded.text).toBe(first);
@@ -722,7 +712,7 @@ describe('loadScenario reads the file once and pins its bytes', () => {
       const shown = scenario('      - hold: 1\n');
       // What is on disk now does not even parse: the error is the change, never its validation.
       await writeFiles(dir, { 'scenarios/quote.yaml': 'video: [\n' });
-      const e = await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) }).catch((x: unknown) => x);
+      const e = await loadScenario(fakeProject(dir), 'quote', { files: fileFacts(PERSON_POLICY), expectSha256: sha(shown) }).catch((x: unknown) => x);
       expect(e).toBeInstanceOf(ScenarioChangedError);
       expect(e).toMatchObject({ name: 'ScenarioChangedError', expected: sha(shown), actual: sha('video: [\n'), issues: [] });
       // Named as the project knows it, never by its absolute path (the file keeps that).
@@ -730,7 +720,7 @@ describe('loadScenario reads the file once and pins its bytes', () => {
       expect((e as ScenarioChangedError).file).toBe(join(dir, 'scenarios', 'quote.yaml'));
       // The same bytes as expected load.
       await writeFiles(dir, { 'scenarios/quote.yaml': shown });
-      expect((await loadScenario(fakeProject(dir), 'quote', { expectSha256: sha(shown) })).sha256).toBe(sha(shown));
+      expect((await loadScenario(fakeProject(dir), 'quote', { files: fileFacts(PERSON_POLICY), expectSha256: sha(shown) })).sha256).toBe(sha(shown));
     } finally {
       await cleanup();
     }

@@ -106,6 +106,7 @@ export type {
   RenderLoopsOptions,
   RenderLoopsResult,
   RenderPreviewsOptions,
+  PreviewReadmeWriter,
   RenderedLoop,
   RenderedLoopItem,
   RenderedPoster,

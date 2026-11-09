@@ -10,11 +10,12 @@
  */
 import { lstat, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { SITE_ID_RE, parseSiteUrl, readPlainFile, unsafeTestResolve, statePath } from '@retake/core';
-import type { WorkspaceConfig } from '@retake/core';
+import { SITE_ID_RE, parseSiteUrl, unsafeTestResolve, statePath } from '@retake/core';
+import { readPlainFile } from '@retake/core/io';
 import type { PaletteCheck } from '@retake/components';
 import { components } from './components.js';
 import { SITE_KEEP, siteRoot, siteView } from './jobs/site-job.js';
+import type { OpenedWorkspace } from './workspace.js';
 
 const SITE_JSON_MAX = 1024 * 1024;
 const TEXT_MAX = 300;
@@ -59,7 +60,7 @@ async function realFolder(p: string): Promise<boolean> {
 }
 
 /** The newest site extractions of the workspace (see the header). */
-export async function siteList(ws: WorkspaceConfig): Promise<SiteList> {
+export async function siteList(ws: OpenedWorkspace): Promise<SiteList> {
   const root = siteRoot(ws);
   if (!(await realFolder(statePath(ws.root))) || !(await realFolder(root))) return { sites: [] };
   let names: string[];

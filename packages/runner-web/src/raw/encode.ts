@@ -10,12 +10,13 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import type { H264Encoder, RawFormat } from '@retake/core';
+import type { RawFormat, WorkPolicy } from '@retake/core';
+import type { H264Encoder } from '@retake/core/io';
 import { cfrSchedule, materialize, runFfmpeg } from '../encode.js';
 import { EncodeError } from '../errors.js';
 import type { FrameIndexEntry } from '../recorder.js';
 import { gridFrameOf, type RawClipPlan, type RawSource } from './plan.js';
-import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder } from '@retake/core';
+import { H264_VIDEOTOOLBOX_QUALITY, ffmpegBin, ffprobeBin, h264CodecArgs, h264Encoder } from '@retake/core/io';
 
 /** Codec settings of the clips. */
 export const RAW_ENCODING = {
@@ -75,7 +76,7 @@ export async function readFrameSource(runDir: string, src: RawSource): Promise<F
 }
 
 /** Fallback: decode the source's CFR video once (JPEG q 2), frame m stamped at m / fps. */
-export async function decodeVideoFrames(runDir: string, src: RawSource, fps: number, tmp: string, ffmpeg: string = ffmpegBin(), signal?: AbortSignal): Promise<FrameSource> {
+export async function decodeVideoFrames(runDir: string, src: RawSource, fps: number, tmp: string, ffmpeg: string, signal?: AbortSignal): Promise<FrameSource> {
   const video = join(runDir, src.video);
   if (!existsSync(video)) throw new EncodeError(`the run has neither its frames nor its video for ${src.track === 'main' ? 'the capture' : `page ${src.track}`} (${video})`);
   const dir = join(tmp, `decoded-${src.track}`);
@@ -136,12 +137,14 @@ export async function encodeClip(opts: {
   out: string;
   tmp: string;
   ffmpeg?: string;
+  /** What the work runs under (core WorkPolicy): which ffmpeg, under its agent policy. */
+  policy: WorkPolicy;
   signal?: AbortSignal;
 }): Promise<H264Encoder | undefined> {
   const seq = join(opts.tmp, 'seq');
   await materialize(opts.source.dir, opts.files, seq, opts.source.ext);
   try {
-    const bin = ffmpegBin(opts.ffmpeg);
+    const bin = ffmpegBin(opts.policy, opts.ffmpeg);
     const h264 = opts.format === 'mp4' ? await h264Encoder(bin) : undefined;
     await runFfmpeg(bin, clipArgs({ seq, ext: opts.source.ext, jpeg: opts.source.jpeg, fps: opts.fps, frames: opts.files.length, width: opts.width, height: opts.height, format: opts.format, timecode: opts.timecode, out: opts.out, ...(h264 ? { h264 } : {}) }), opts.signal);
     return h264;
@@ -151,7 +154,7 @@ export async function encodeClip(opts: {
 }
 
 /** One continuous file of clips of one size and codec (stream copy; each clip starts on a key frame), timecode 0. */
-export async function concatClips(files: readonly string[], out: string, tmp: string, ffmpeg: string = ffmpegBin(), signal?: AbortSignal): Promise<void> {
+export async function concatClips(files: readonly string[], out: string, tmp: string, ffmpeg: string, signal?: AbortSignal): Promise<void> {
   const list = join(tmp, 'selects.txt');
   await writeFile(list, files.map((f) => `file '${f.replace(/'/g, "'\\''")}'`).join('\n') + '\n');
   const faststart = out.endsWith('.mp4') ? ['-movflags', '+faststart'] : [];
@@ -177,10 +180,10 @@ export interface ProbedVideo {
 }
 
 /** ffprobe a clip (`count`: decode and count every frame instead of trusting the container). */
-export function probeVideo(file: string, opts: { ffprobe?: string; count?: boolean } = {}): Promise<ProbedVideo> {
+export function probeVideo(file: string, opts: { ffprobe?: string; count?: boolean; policy: WorkPolicy }): Promise<ProbedVideo> {
   const args = ['-v', 'error', ...(opts.count ? ['-count_frames'] : []), '-select_streams', 'v:0', '-show_entries', 'stream=codec_name,profile,pix_fmt,width,height,r_frame_rate,nb_frames,nb_read_frames,duration:stream_tags=timecode,alpha_mode:format=duration,size:format_tags=timecode', '-of', 'json', file];
   return new Promise((ok, fail) => {
-    execFile(ffprobeBin(opts.ffprobe), args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(ffprobeBin(opts.policy, opts.ffprobe), args, { maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) return fail(new EncodeError(`ffprobe failed on ${file}: ${String(stderr).trim() || err.message}`));
       try {
         const j = JSON.parse(stdout) as { streams?: Array<Record<string, unknown> & { tags?: Record<string, string> }>; format?: { duration?: string; size?: string; tags?: Record<string, string> } };

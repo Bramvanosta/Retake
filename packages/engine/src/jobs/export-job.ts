@@ -10,7 +10,7 @@
  * ffmpeg or the re-render; a killed worker's leftovers (the re-render's browser, partial files) are removed by the next.
  */
 import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
-import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@retake/core';
+import type { ExportFormatName, ExportJobInput } from '@retake/core';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
@@ -23,6 +23,7 @@ import { killRecordedBrowser, removePartials } from './render-job.js';
 import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
+import type { OpenedWorkspace } from '../workspace.js';
 
 /** Formats exported when none are named (derived from the master: no re-render). */
 export const DEFAULT_JOB_EXPORT_FORMATS: readonly ExportFormatName[] = ['mp4_1080p', 'webm', 'gif_preview'];
@@ -76,7 +77,7 @@ export async function submitExportJob(
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
-      await planStep({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await planStep({ workPolicy: ctx.ws.policy, project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -98,7 +99,7 @@ export async function submitExportJob(
  * After an export job was interrupted (its worker killed): the re-render's browser it recorded is killed, and the partial
  * files of exports/<render_id>/ are removed. Best effort.
  */
-export async function cleanupInterruptedExport(ws: WorkspaceConfig, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedExport(ws: OpenedWorkspace, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'export') return;
   const input = job.input;
   await killRecordedBrowser(files, job, log);
@@ -113,7 +114,7 @@ export async function cleanupInterruptedExport(ws: WorkspaceConfig, files: JobFi
 }
 
 export interface ExportJobContext {
-  ws: WorkspaceConfig;
+  ws: OpenedWorkspace;
   cli: string;
   input: ExportJobInput;
   signal: AbortSignal;
@@ -133,6 +134,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
   let last = '';
   // The export step the CLI's `retake export` runs too, with the trust of work submitted through MCP.
   const result = await exportStep({
+    workPolicy: ctx.ws.policy,
     project,
     root: ctx.ws.root,
     render: input.render_id,

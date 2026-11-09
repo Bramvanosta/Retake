@@ -23,6 +23,7 @@ import {
   verifyEditText,
 } from '../src/index.js';
 import type { Scenario } from '../src/index.js';
+import { nodeFileFacts } from '@retake/core/io';
 
 const cp = (h: number) => String.fromCodePoint(h);
 
@@ -104,7 +105,7 @@ describe('agentTrustProblemsAt (critique B11)', () => {
     const { scenario } = parseScenario(text);
     expect(scenario).toBeDefined();
     const project = { dir, config: { template: 'default' } };
-    const at = agentTrustProblemsAt(project, scenario as Scenario, text, { via: 'studio' });
+    const at = agentTrustProblemsAt(project, scenario as Scenario, text, { files: nodeFileFacts, via: 'studio' });
     expect(at.map((p) => [p.line, p.path.join('.')])).toEqual([
       [2, 'template'],
       [8, 'scenes.0.steps.0.type.text'],
@@ -112,7 +113,7 @@ describe('agentTrustProblemsAt (critique B11)', () => {
       [11, 'scenes.0.steps.2.drop_file.path'],
     ]);
     expect(at[1].message).toMatch(/^the scenario uses \{\{env:ONE\}\}: from the Studio a scenario never resolves a secret/);
-    const flat = agentTrustProblems(project, scenario as Scenario, { via: 'studio' });
+    const flat = agentTrustProblems(project, scenario as Scenario, { files: nodeFileFacts, via: 'studio' });
     expect(flat).toHaveLength(3);
     expect(at.filter((p) => !p.message.startsWith('the scenario uses')).map((p) => p.message)).toEqual(flat.filter((m) => !m.startsWith('the scenario uses')));
   });

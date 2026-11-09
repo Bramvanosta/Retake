@@ -23,6 +23,7 @@ import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
 import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+import { PERSON_POLICY } from '@retake/core';
 
 const SHOTS = process.env.RETAKE_PAUSE_SHOTS;
 const FPS = 30;
@@ -277,7 +278,7 @@ async function take(name: string, opts: Partial<RunOptions> & { pauseBefore?: nu
   const events: Take['events'] = [];
   const gate = { requested: false };
   const { pauseBefore, pauseMs, ...rest } = opts;
-  const rec = await runScenario({
+  const rec = await runScenario({ policy: PERSON_POLICY,
     project: makeProject(dir, { app: server.url }),
     mode: 'capture',
     runId: `${name}-${Date.now()}`,
@@ -429,7 +430,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
 describe('other capture pauses', () => {
   it('a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause', async () => {
     const gate = { requested: false };
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),
       mode: 'capture',
       runId: `pages-${Date.now()}`,
@@ -470,7 +471,7 @@ describe('other capture pauses', () => {
 
   it('a capture paused longer than its maximum stops (cancelled, with the reason)', async () => {
     const t0 = Date.now();
-    const rec = await runScenario({
+    const rec = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),
       mode: 'capture',
       runId: `max-${Date.now()}`,

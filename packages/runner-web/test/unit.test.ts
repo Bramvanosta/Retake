@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay } from '@retake/core';
+import { DEFAULT_CAPTURE, DEFAULT_PACING, TimelineSchema, isoDay, parseDay, PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import {
   arcPath,
@@ -342,7 +342,7 @@ describe('encodeFrames', () => {
         { file: '000003.jpg', t: 1.1 },
       ],
       out,
-      { fps: 30, crf: 18, endT: 2, width: 64, height: 48, preset: 'ultrafast' },
+      { policy: PERSON_POLICY, fps: 30, crf: 18, endT: 2, width: 64, height: 48, preset: 'ultrafast' },
     );
     expect(Math.abs((await ffprobeDuration(out)) - 2)).toBeLessThanOrEqual(0.05);
     const px = async (t: number) => {

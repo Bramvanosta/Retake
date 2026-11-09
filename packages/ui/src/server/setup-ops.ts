@@ -30,8 +30,9 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { UpdateState } from './update-ops.js';
-import { RETAKE_VERSION, bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core';
-import type { BundleInfo } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core';
+import { bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core/io';
+import type { BundleInfo } from '@retake/core/io';
 import { readFileSync, existsSync } from 'node:fs';
 import { EngineError } from '@retake/engine';
 import {

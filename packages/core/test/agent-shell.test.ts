@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { AGENT_SHELL_MAX_CHARS, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, agentWritablePath } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 
 const ws = realpathSync(mkdtempSync(join(tmpdir(), 'retake-agent-shell-')));
 const projectDir = join(ws, 'projects', 'p');
@@ -17,7 +18,7 @@ writeFileSync(join(projectDir, 'hooks/seed.sh'), 'echo person\n');
 symlinkSync(join(projectDir, 'runs'), join(projectDir, 'scripts', 'out'));
 afterAll(() => rmSync(ws, { recursive: true, force: true }));
 
-const problems = (text: string, cwd?: string) => agentShellProblems(text, { projectDir, ...(cwd ? { cwd } : {}) });
+const problems = (text: string, cwd?: string) => agentShellProblems(text, { files: nodeFileFacts, projectDir, ...(cwd ? { cwd } : {}) });
 
 describe('agent-written shell commands: the grammar', () => {
   it('only the characters of plain words, single spaces and ` && `: anything else is named, once', () => {
@@ -194,10 +195,10 @@ describe('agent-written shell commands: the rules per word', () => {
     }
     // Relative words resolve from the command's working folder.
     expect(problems('sh r1/x.sh', join(projectDir, 'runs'))[0]).toBe('`r1/x.sh` (a path through runs/, which an agent can write)');
-    expect(agentWritablePath('scenarios', { projectDir, cwd: projectDir, tilde: false })).toBe('scenarios');
-    expect(agentWritablePath('hooks/seed.sh', { projectDir })).toBeNull();
-    expect(agentWritablePath('~/runs/x', { projectDir, home: projectDir })).toBe('runs/x');
-    expect(agentWritablePath('~/runs/x', { projectDir, cwd: projectDir, home: ws, tilde: false })).toBeNull();
+    expect(agentWritablePath('scenarios', { files: nodeFileFacts, projectDir, cwd: projectDir, tilde: false })).toBe('scenarios');
+    expect(agentWritablePath('hooks/seed.sh', { files: nodeFileFacts, projectDir })).toBeNull();
+    expect(agentWritablePath('~/runs/x', { files: nodeFileFacts, projectDir, home: projectDir })).toBe('runs/x');
+    expect(agentWritablePath('~/runs/x', { files: nodeFileFacts, projectDir, cwd: projectDir, home: ws, tilde: false })).toBeNull();
   });
 
   it('a file an agent writes (README.md), bare or not, whatever program reads it; a bare folder name stays a name', () => {
@@ -260,7 +261,7 @@ describe('agent-written shell commands: the rules per word', () => {
 
 describe('agent-written shell hooks: the working folder and the env names', () => {
   it('a working folder is one plain word, not through a folder an agent can write', () => {
-    const o = { projectDir, cwd: projectDir };
+    const o = { projectDir, cwd: projectDir, files: nodeFileFacts };
     expect(agentShellCwdProblems('scripts', o)).toEqual([]);
     expect(agentShellCwdProblems('../app', o)).toEqual([]);
     expect(agentShellCwdProblems('scenarios', o)).toEqual(['its working folder `scenarios` (a path through scenarios/, which an agent can write)']);

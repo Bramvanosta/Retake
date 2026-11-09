@@ -13,6 +13,8 @@ import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { policyChildEnv } from '@retake/core';
 import { SandboxError } from './errors.js';
+import { nodeFileFacts } from '@retake/core/io';
+import type { WorkPolicy } from '@retake/core';
 
 /** Oldest Compose this provider runs (`up --wait-timeout`). */
 export const MIN_COMPOSE_VERSION: readonly number[] = [2, 17, 0];
@@ -63,9 +65,9 @@ export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: str
  * names of `pass`: project.yaml `pass_env:`) —, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor the
  * names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
  */
-export function dockerEnv(base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = [], pass: readonly string[] = []): NodeJS.ProcessEnv {
+export function dockerEnv(policy: WorkPolicy, base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = [], pass: readonly string[] = []): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  const inherited = policyChildEnv(base, { docker: true, pass }) ?? base;
+  const inherited = policyChildEnv(policy, base, { docker: true, pass, files: nodeFileFacts }) ?? base;
   for (const [k, v] of Object.entries(inherited)) if (v !== undefined && !/^COMPOSE_/i.test(k) && !unset.includes(k)) out[k] = v;
   return out;
 }
@@ -101,6 +103,8 @@ export interface DockerResult {
 }
 
 export interface DockerRunOptions {
+  /** What the work runs under (core WorkPolicy): the environment docker gets (dockerEnv). */
+  policy?: WorkPolicy;
   timeoutMs?: number;
   signal?: AbortSignal;
   cwd?: string;
@@ -120,13 +124,13 @@ export interface DockerRunOptions {
 export type DockerExec = (args: string[], opts?: DockerRunOptions) => Promise<DockerResult>;
 
 /** Run `bin args…` with dockerEnv, output captured (and streamed by line), killed on timeout / abort. */
-export function runDocker(bin: string, args: string[], opts: DockerRunOptions = {}): Promise<DockerResult> {
+export function runDocker(bin: string, args: string[], opts: DockerRunOptions & { policy: WorkPolicy }): Promise<DockerResult> {
   const t0 = Date.now();
   return new Promise((resolve) => {
     if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', ms: 0, aborted: true });
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(opts.policy, process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
     }
