@@ -3,6 +3,7 @@ import { basename, isAbsolute, join } from 'node:path';
 import type { ElementHandle } from 'playwright-core';
 import { isPoint, projectFileProblem } from '@retake/core';
 import type { DragArgs, DropFileArgs, PointSpec, TargetSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { StepError } from '../errors.js';
 import { distance, moveDuration } from '../motion.js';
 import { resolveTarget } from '../resolve.js';
@@ -11,7 +12,6 @@ import type { StepContext } from '../runtime.js';
 import { clamp, formatBytes, mimeFor } from '../util.js';
 import { approach, clickData } from './click.js';
 import type { ActionResult } from './types.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 /** Default size of a fake dropped file. */
 export const FAKE_FILE_BYTES = 48 * 1024;

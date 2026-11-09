@@ -27,9 +27,9 @@
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
-import { nodeFileFacts } from '@retake/core/io';
 import type { OpenedWorkspace } from '../workspace.js';
 
 /** Who stands behind a brand's files: a caller's trust (caller.ts). */

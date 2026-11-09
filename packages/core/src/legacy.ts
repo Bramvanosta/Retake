@@ -84,7 +84,7 @@ export function oldEnvNames(env: Record<string, string | undefined>): string[] {
  * start, in engine_info and in the sign-in preflight. Names only, never their values; the outgoing names (written for
  * the person's code) are not counted.
  */
-export function oldVarsUnread(env: Record<string, string | undefined> = process.env): string[] {
+export function oldVarsUnread(env: Record<string, string | undefined>): string[] {
   const outgoing: readonly string[] = OUTGOING_ENV;
   return oldEnvNames(env).filter((k) => {
     const rest = k.slice(OLD_ENV_PREFIX.length);

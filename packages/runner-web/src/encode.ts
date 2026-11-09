@@ -1,10 +1,10 @@
 import { spawn } from 'node:child_process';
 import { copyFile, link, mkdir, rm } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { EncodeError } from './errors.js';
-import type { FrameIndexEntry } from './recorder.js';
 import { ffmpegBin, h264CodecArgs, h264Encoder } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
+import { EncodeError } from './errors.js';
+import type { FrameIndexEntry } from './recorder.js';
 
 export interface EncodeOptions {
   fps: number;

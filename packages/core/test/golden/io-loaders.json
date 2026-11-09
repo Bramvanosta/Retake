@@ -919,6 +919,105 @@
    "filmed": [
     "scene one: step one.1 changed"
    ]
+  },
+  "seed": {
+   "issues": [],
+   "refs": [
+    "<tmp>/ws/projects/p/seeded/extra.sql",
+    "<tmp>/ws/projects/p/seeded/seed/01-schema.sql",
+    "<tmp>/ws/projects/p/seeded/seed/rows/quotes.csv"
+   ],
+   "hash": "7862247d1766d7ea51a1f04e7a13703cd69994a7f1ecb78cc7ed2215c1d61619",
+   "extra": "5c31423612f611a9513956bb358e5bfc6d80997b0f88095d4bedca4bc80d6b7c"
+  },
+  "videoProbe": {
+   "ok": {
+    "container": "mov,mp4,m4a,3gp,3g2,mj2",
+    "codec": "h264",
+    "width": 1920,
+    "height": 1080,
+    "duration_s": 3.6,
+    "fps": 30,
+    "audio": true,
+    "alpha": false,
+    "profile": "High",
+    "pix_fmt": "yuvj420p"
+   }
+  },
+  "videoProbeWebm": {
+   "ok": {
+    "container": "matroska,webm",
+    "codec": "vp9",
+    "width": 480,
+    "height": 480,
+    "duration_s": 1.2,
+    "fps": 30,
+    "audio": false,
+    "alpha": true,
+    "profile": "Profile 0",
+    "pix_fmt": "yuv420p"
+   }
+  },
+  "videoProbeNotVideo": {
+   "ok": {
+    "container": "image2",
+    "codec": "png",
+    "width": 0,
+    "height": 0,
+    "duration_s": 0.04,
+    "fps": 25,
+    "audio": false,
+    "alpha": false
+   }
+  },
+  "scenario:video": {
+   "error": "ScenarioError",
+   "message": "scenario <tmp>/ws/projects/p/scenarios/video.yaml has 2 errors:\n<tmp>/ws/projects/p/scenarios/video.yaml:4:48 error intro.to: `to` (99 s) is past the end of \"assets/clip.mp4\" (3.6 s)\n<tmp>/ws/projects/p/scenarios/video.yaml:5:16 error outro.video: \"assets/logo.mp4\" is not a video the renderer can read: ffprobe cannot read it ([mov,mp4,m4a,3gp,3g2,mj2 @ 0x…] moov atom not found)",
+   "issues": [
+    [
+     "warning",
+     [
+      "video"
+     ],
+     "video \"s\" differs from the file name \"video\""
+    ],
+    [
+     "error",
+     [
+      "intro",
+      "to"
+     ],
+     "`to` (99 s) is past the end of \"assets/clip.mp4\" (3.6 s)"
+    ],
+    [
+     "warning",
+     [
+      "intro",
+      "duration"
+     ],
+     "the video part lasts 3.1 s: its last frame is held for 26.9 s"
+    ],
+    [
+     "error",
+     [
+      "outro",
+      "video"
+     ],
+     "\"assets/logo.mp4\" is not a video the renderer can read: ffprobe cannot read it ([mov,mp4,m4a,3gp,3g2,mj2 @ 0x…] moov atom not found)"
+    ],
+    [
+     "warning",
+     [
+      "scenes",
+      0,
+      "steps",
+      1,
+      "overlay",
+      "video"
+     ],
+     "\"assets/clip.mp4\" has no alpha channel: it covers the capture inside its box — export ProRes 4444 (.mov) or VP9 with alpha (.webm) for a transparent overlay (docs/BRING-YOUR-OWN-MOTION.md)"
+    ]
+   ]
   }
  }
 }

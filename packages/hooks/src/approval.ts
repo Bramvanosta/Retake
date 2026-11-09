@@ -3,8 +3,8 @@ import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
 import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
 import type { HookStep, ShellHookSpec } from '@retake/core';
-import type { HookPhase } from './types.js';
 import { nodeFileFacts } from '@retake/core/io';
+import type { HookPhase } from './types.js';
 
 /** Where a hook stands when its approval is asked for and checked: its list, its position, its environment. */
 export interface HookPlace {

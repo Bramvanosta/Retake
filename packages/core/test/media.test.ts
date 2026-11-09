@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { MEDIA_COMPONENTS, isTemplateMediaRef, mediaFileOf, mediaSegmentUse, overlayUseOf, parseScenario, parseTemplateYaml, readLottieMeta, resolveThemeComponents, videoProbeFromJson, DEFAULT_TEMPLATE, PERSON_POLICY } from '@retake/core';
+import { MEDIA_COMPONENTS, isTemplateMediaRef, mediaFileOf, mediaSegmentUse, overlayUseOf, parseScenario, parseTemplateYaml, readLottieMeta, resolveThemeComponents, videoProbeFromJson, workPolicyFrom, DEFAULT_TEMPLATE, PERSON_POLICY } from '@retake/core';
 import { probeVideoFile, fileFacts } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { colOf, fakeProject, lineOf, tempDir } from './helpers.js';
@@ -205,6 +205,41 @@ describe.skipIf(!can)('validation of user files (positioned)', () => {
     expect(probeVideoFile(join(dir, 'assets', 'intro.mp4'), PERSON_POLICY)).toBe(p);
     expect(probeVideoFile(join(dir, 'assets', 'burst.webm'), PERSON_POLICY)).toMatchObject({ codec: 'vp9', alpha: true });
     expect(() => probeVideoFile(join(dir, 'assets', 'dot.json'), PERSON_POLICY)).toThrow(/ffprobe cannot read it|no video stream/);
+  });
+
+  it('the cache is per ffprobe: another ffprobe reads the same file again (its answer is its own)', () => {
+    const file = join(dir, 'assets', 'opaque.mp4');
+    expect(probeVideoFile(file, PERSON_POLICY)).toMatchObject({ codec: 'h264' });
+    const broken = join(dir, 'broken-ffprobe');
+    writeFileSync(broken, '#!/bin/sh\necho "this ffprobe reads nothing" >&2\nexit 3\n', { mode: 0o755 });
+    const saved = process.env.RETAKE_FFPROBE;
+    process.env.RETAKE_FFPROBE = broken;
+    try {
+      expect(() => probeVideoFile(file, PERSON_POLICY)).toThrow('ffprobe cannot read it (this ffprobe reads nothing)');
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_FFPROBE;
+      else process.env.RETAKE_FFPROBE = saved;
+    }
+    expect(probeVideoFile(file, PERSON_POLICY)).toMatchObject({ codec: 'h264' });
+  });
+
+  it("a work's ffprobe its policy refuses: the video is reported as one the renderer cannot read, in the refusal's words", () => {
+    const inside = join(dir, 'bin', 'ffprobe');
+    mkdirSync(join(dir, 'bin'), { recursive: true });
+    writeFileSync(inside, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    const saved = process.env.RETAKE_FFPROBE;
+    process.env.RETAKE_FFPROBE = inside;
+    try {
+      const issues = parseScenario('video: own\nintro: {video: assets/intro.mp4}\nscenes:\n  - id: a\n    page: shop\n    open: /\n    steps:\n      - hover: {text: Save}\n', { files: fileFacts(workPolicyFrom([dir])), project: fakeProject(dir) }).issues;
+      expect(issues.filter((i) => i.severity === 'error').map((i) => i.message)).toEqual([
+        expect.stringMatching(/^"assets\/intro\.mp4" is not a video the renderer can read: \$RETAKE_FFPROBE \(.*\/bin\/ffprobe\) lies inside the workspace /),
+      ]);
+      // Under the person's policy the same ffprobe runs.
+      expect(() => probeVideoFile(join(dir, 'assets', 'intro.mp4'), PERSON_POLICY)).toThrow(/ffprobe output not understood|ffprobe cannot read it/);
+    } finally {
+      if (saved === undefined) delete process.env.RETAKE_FFPROBE;
+      else process.env.RETAKE_FFPROBE = saved;
+    }
   });
 
   it("checks a theme's own files against the template folder", () => {

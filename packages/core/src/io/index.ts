@@ -1,8 +1,10 @@
 /**
  * `@retake/core/io`: the side of core that touches the machine — the readers of a workspace, its projects, scenarios,
  * themes and sandboxes, the app bundle and the media tools, the Retake home and its signing key, secret references,
- * atomic file writes, and the Node implementation of the FileFacts port (`nodeFileFacts`). `@retake/core` itself is
- * pure: it imports none of this.
+ * atomic file writes, the Node implementations of the FileFacts and VideoProber ports (`nodeFileFacts`,
+ * `fileFacts(policy)`) and this process's PATH for a program's check (`programLookup`). `@retake/core` itself does no
+ * I/O and imports none of this; it reads the environment only in three listed defaults (docs/DESIGN.md §1:
+ * defaultSecrets, expandHome, unsafeTestResolve) — the clock and ids aside.
  */
 export * from './bundle.js';
 export * from './client-path.js';

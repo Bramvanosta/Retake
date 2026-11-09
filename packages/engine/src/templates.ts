@@ -12,7 +12,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath } from '@retake/core';
 import { listTemplates, loadProjectTemplate, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { ComponentKind, LoadedProject, LoadedTemplate, FileFacts } from '@retake/core';
+import type { ComponentKind, LoadedProject, LoadedTemplate, WorkFileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -47,7 +47,7 @@ function picks(reg: ComponentRegistry, t: LoadedTemplate): { components: Partial
  * The first reason a listed theme cannot be used for work, or null (its components resolve, its files lie in its folder):
  * the timeline's theme switch shows it disabled with this (review B L4). One line; the workspace's part of a path cut off.
  */
-export async function themeUnusable(dir: string, reg: ComponentRegistry, root: string, files: FileFacts): Promise<string | null> {
+export async function themeUnusable(dir: string, reg: ComponentRegistry, root: string, files: WorkFileFacts): Promise<string | null> {
   let issue: string | undefined;
   try {
     const t = await loadTemplate(dir, undefined, { files });
@@ -141,7 +141,7 @@ export async function templateList(ws: OpenedWorkspace, projectSlug?: string): P
  * The theme work submitted through MCP uses: a name (workspace templates, then the starters), or — none given — the
  * project's own theme (a folder only when project.yaml names it). NotFound / invalid as EngineErrors.
  */
-export async function themeForWork(project: LoadedProject, name: string | undefined, files: FileFacts): Promise<LoadedTemplate> {
+export async function themeForWork(project: LoadedProject, name: string | undefined, files: WorkFileFacts): Promise<LoadedTemplate> {
   if (name !== undefined) checkTemplateName(name);
   try {
     return await loadProjectTemplate(project, name, { files });

@@ -5,7 +5,7 @@
  * page inspections; this is a skeleton for when the user hands a table.
  */
 import { draftScenarioFromScript, resolveEnvironment } from '@retake/core';
-import type { LoadedProject, ScriptIssue, ScriptOutline, FileFacts } from '@retake/core';
+import type { LoadedProject, ScriptIssue, ScriptOutline, WorkFileFacts } from '@retake/core';
 import { checkScenarioName } from './refs.js';
 import { validateScenarioText } from './scenarios.js';
 import type { ValidateResult } from './scenarios.js';
@@ -29,7 +29,7 @@ export interface ScriptDraftView {
 export async function draftFromScript(
   project: LoadedProject,
   markdown: string,
-  opts: { env?: string; name?: string; agent?: boolean; files: FileFacts },
+  opts: { env?: string; name?: string; agent?: boolean; files: WorkFileFacts },
 ): Promise<ScriptDraftView> {
   const name = opts.name ?? 'draft';
   checkScenarioName(name);

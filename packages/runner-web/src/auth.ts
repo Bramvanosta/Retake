@@ -786,7 +786,7 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
   if (failures.length) {
     // L5.13: never signed in, perhaps only because the sign-ins are left in the home from before the rename (H3), or an
     // old variable names the home the person chose then (review A M4).
-    if (once) for (const hint of oldSignInHints(process.env, homedir(), nodeFileFacts.exists)) failures.push(`  ${hint}`);
+    if (once) for (const hint of oldSignInHints(process.env, homedir(), (p) => nodeFileFacts.kind(p) !== undefined)) failures.push(`  ${hint}`);
     throw preflightFailure(failures.map((l) => deps.secrets.redactText(l)));
   }
 }

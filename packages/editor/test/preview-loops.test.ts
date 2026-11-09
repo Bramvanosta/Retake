@@ -331,8 +331,8 @@ describe('the README of a component preview', () => {
     const components = join(root, 'components');
     const inside = await copyOf('studio/intro-stack', components);
     const outside = await copyOf('studio/intro-stack', join(root, 'elsewhere'));
-    const writes: Array<{ file: string; text: string; previous: string | undefined }> = [];
-    const readmes = { root: components, write: async (file: string, text: string, previous: string | undefined) => void writes.push({ file, text, previous }) };
+    const writes: Array<{ file: string; text: string; previous: string | null }> = [];
+    const readmes = { root: components, write: async (file: string, text: string, previous: string | null) => void writes.push({ file, text, previous }) };
     const [a] = await renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY });
     expect(writes).toHaveLength(1);
     expect(writes[0].file).toBe(join(inside.dir, 'README.md'));
@@ -346,5 +346,29 @@ describe('the README of a component preview', () => {
     expect(writes).toHaveLength(1);
     expect(b.readme).toBe(join(outside.dir, 'README.md'));
     expect(await readFile(join(outside.dir, 'README.md'), 'utf8')).toMatch(/Regenerate the preview and this block[\s\S]*The author's words\./);
+    // No README yet: the writer is told so (null: created, never over one made in between), not "unknown".
+    await rm(join(inside.dir, 'README.md'));
+    await renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY });
+    expect(writes).toHaveLength(2);
+    expect(writes[1].previous).toBeNull();
+    expect(writes[1].text).toMatch(/Regenerate the preview and this block/);
+  });
+
+  it('a README the writer refuses: the error says the image and preview.json were written (they are), the README not', async () => {
+    const components = join(root, 'components');
+    const inside = await copyOf('studio/intro-stack', components);
+    const readmes = {
+      root: components,
+      write: async () => {
+        throw new Error(`${join(inside.dir, 'README.md')} leads out of the components folder (a symbolic link): not written`);
+      },
+    };
+    await rm(join(inside.dir, 'preview.png'), { force: true });
+    await rm(join(inside.dir, 'preview.json'), { force: true });
+    await expect(renderComponentPreviews({ root, registry, template: editorial, targets: [inside], backend: fake(), readmes, workPolicy: PERSON_POLICY })).rejects.toThrow(
+      `preview of studio/intro-stack: its preview.png and preview.json were written, its README.md was not — ${join(inside.dir, 'README.md')} leads out of the components folder (a symbolic link): not written`,
+    );
+    expect([existsSync(join(inside.dir, 'preview.png')), existsSync(join(inside.dir, 'preview.json'))]).toEqual([true, true]);
+    expect(await readFile(join(inside.dir, 'README.md'), 'utf8')).toBe('# Mine\n\nThe author\'s words.\n');
   });
 });

@@ -7,8 +7,8 @@
 import { LEGACY_PERSONA, resolveEnvironment, resolvePersonas } from '@retake/core';
 import type { LoadedProject, ResolvedEnvironment, ResolvedPersona, WorkPolicy } from '@retake/core';
 import type { SignInResult } from '@retake/runner-web';
-import type { InterruptPort } from './interrupts.js';
 import { retakeHome } from '@retake/core/io';
+import type { InterruptPort } from './interrupts.js';
 
 /** A sign-in that cannot be made as asked (`usage`: the CLI reports it as a usage error, exit 2; else exit 1). */
 export class LoginOptionError extends Error {

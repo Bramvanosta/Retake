@@ -4,11 +4,11 @@
  * callback resolved). Frame numbers are exact for the CFR videos the renderer and the runner write.
  */
 import { execFile, spawn } from 'node:child_process';
-import type { RgbImage } from './pixels.js';
-import { ReviewError } from './load.js';
 import { ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
 import { ffmpegBin, ffprobeBin } from '@retake/core/io';
 import type { WorkPolicy } from '@retake/core';
+import type { RgbImage } from './pixels.js';
+import { ReviewError } from './load.js';
 
 export interface VideoInfo {
   width: number;

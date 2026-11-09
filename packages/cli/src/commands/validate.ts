@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { ConfigError, SandboxConfigError, ScenarioError, errorsOf, parseScenario, warningsOf } from '@retake/core';
-import { loadProjectTemplate, loadScenario, fileFacts, nodeFileFacts } from '@retake/core/io';
-import type { LoadedProject, Template, ValidationIssue, FileFacts } from '@retake/core';
+import { fileFacts, loadProjectTemplate, loadScenario } from '@retake/core/io';
+import type { LoadedProject, Template, ValidationIssue, WorkFileFacts } from '@retake/core';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -42,7 +42,7 @@ export async function validateCommand(
 ): Promise<ExitCode> {
   const reports: FileReport[] = [];
   let project: LoadedProject;
-  let files: FileFacts = nodeFileFacts;
+  let files: WorkFileFacts;
   try {
     const ws = await openWorkspace(global);
     files = fileFacts(ws.policy);
@@ -87,7 +87,7 @@ async function validateScenarioFile(
   project: LoadedProject,
   name: string,
   opts: ValidateOptions & { template?: Template },
-  files: FileFacts,
+  files: WorkFileFacts,
 ): Promise<FileReport> {
   try {
     const loaded = await loadScenario(project, name, { files, env: opts.env, until: opts.until, template: opts.template });

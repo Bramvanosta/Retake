@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { withOldOutgoingEnv, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { withOldOutgoingEnv, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
 import {
   BREAKER_STALE_MS,
@@ -405,7 +405,7 @@ describe('a service: command and environment', () => {
     const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] } } as unknown as LoadedProject;
     const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
     process.env.RETAKE_TEST_SECRET = 'from-env-1234';
-    policy = agentPolicy([tmp], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       const env = await serviceEnv(
         { project, sandbox, policy },
@@ -423,7 +423,7 @@ describe('a service: command and environment', () => {
         ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
       });
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       delete process.env.RETAKE_TEST_SECRET;
     }
   });

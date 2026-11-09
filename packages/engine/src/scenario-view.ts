@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SLUG_RE, environmentAccess, filmedChanges, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
 import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, FileFacts } from '@retake/core';
+import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
@@ -863,7 +863,7 @@ async function bindSteps(yaml: string, text: TextLayer, run: RunData): Promise<B
 async function editAbility(
   p: LoadedProject,
   file: ScenarioText,
-  o: { agent: boolean; via: AgentChannel; files: FileFacts },
+  o: { agent: boolean; via: AgentChannel; files: WorkFileFacts },
   facts: { parsed: boolean; ok: boolean; truncated: boolean },
 ): Promise<ScenarioView['edit']> {
   let scenario;

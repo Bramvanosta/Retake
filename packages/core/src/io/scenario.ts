@@ -7,13 +7,13 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve, sep } from 'node:path';
 import type { ScenarioCheckOptions } from '../checks/scenario.js';
+import type { WorkFileFacts } from '../file-facts.js';
 import { projectPath } from '../layout.js';
 import { relativeInside } from '../path-inside.js';
 import { ScenarioChangedError, ScenarioError, parseScenarioSource, scenarioSourceEnv } from '../scenario.js';
 import type { ScenarioSource } from '../scenario.js';
 import type { LoadedProject, LoadedScenario } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
-import { nodeFileFacts } from './file-facts.js';
 import { listScenarioNames } from './project.js';
 
 function scenariosDir(project: Pick<LoadedProject, 'dir'>): string {
@@ -73,16 +73,18 @@ export async function readScenarioSource(project: LoadedProject, nameOrPath: str
 
 /**
  * Load and validate a scenario of a project, from one read of its file (readScenarioSource: `expectSha256` pins its
- * bytes). Throws ScenarioError on any error-level issue, ScenarioChangedError on other bytes than expected.
+ * bytes). `files` looks at the files it names (core FileFacts; fileFacts(policy) of the work that loads it, whose
+ * VideoProber checks its video files) — always given, never a default. Throws ScenarioError on any error-level issue,
+ * ScenarioChangedError on other bytes than expected.
  */
 export async function loadScenario(
   project: LoadedProject,
   nameOrPath: string,
-  opts: Omit<ScenarioCheckOptions, 'project' | 'file'> & ScenarioReadOptions = {},
+  opts: Omit<ScenarioCheckOptions, 'project' | 'file' | 'files'> & ScenarioReadOptions & { files: WorkFileFacts },
 ): Promise<LoadedScenario> {
   const { expectSha256, readFile: read, ...check } = opts;
   const src = await readScenarioSource(project, nameOrPath, { ...(expectSha256 !== undefined ? { expectSha256 } : {}), ...(read ? { readFile: read } : {}) });
-  return parseScenarioSource(project, src, { files: nodeFileFacts, ...check });
+  return parseScenarioSource(project, src, check);
 }
 
 /**

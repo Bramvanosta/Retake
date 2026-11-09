@@ -840,11 +840,14 @@ export const PERSON_POLICY: WorkPolicy = Object.freeze({ agentFolders: null });
  * retake.yaml `ffmpeg` and `render:` come along (an empty `render:` is none).
  */
 export function workPolicy(ws: { root: string; projectsDir?: string; templatesDir?: string; componentsDir?: string; ffmpeg?: string; render?: RenderSettings }, o: { agent: boolean }): WorkPolicy {
-  return agentPolicy(o.agent ? workspaceFolders(ws) : null, ws.ffmpeg, ws.render);
+  return workPolicyFrom(o.agent ? workspaceFolders(ws) : null, ws.ffmpeg, ws.render);
 }
 
-/** A WorkPolicy from its parts: the agent folders (resolved, each once) or null, the workspace's ffmpeg and render settings. */
-export function agentPolicy(folders: readonly string[] | null, ffmpeg?: string, render?: RenderSettings): WorkPolicy {
+/**
+ * A WorkPolicy from its parts: the agent folders (resolved, each once) — or null, a person's policy (the agent policy
+ * off) — and the workspace's ffmpeg and render settings.
+ */
+export function workPolicyFrom(folders: readonly string[] | null, ffmpeg?: string, render?: RenderSettings): WorkPolicy {
   const ff = ffmpeg?.trim() || undefined;
   return Object.freeze({
     agentFolders: folders ? Object.freeze([...new Set(folders.map((f) => resolve(f)))]) : null,
@@ -870,8 +873,8 @@ function onPath(name: string, path: string, exists: (p: string) => boolean): { f
 }
 
 export interface ProgramPolicyOptions {
-  /** The PATH a bare command name is looked up in (default: this process's). */
-  path?: string;
+  /** The PATH a bare command name is looked up in (this process's: `@retake/core/io` programLookup()). */
+  path: string;
   /** Whether a file is an executable file (default: the file system's answer, FileFacts.isExecutable). */
   exists?: (p: string) => boolean;
   /** How the file system is looked at (core FileFacts): real paths, executable files. */
@@ -903,7 +906,7 @@ export function agentProgram(program: string, what: string, folders: readonly st
   if (!isAbsolute(p)) {
     if (p.includes('/')) return refused(`${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`);
     const files = needFiles(o.files, 'agentProgram');
-    const found = onPath(p, o.path ?? process.env.PATH ?? '', o.exists ?? ((f) => files.isExecutable(f)));
+    const found = onPath(p, o.path, o.exists ?? ((f) => files.isExecutable(f)));
     if (!found) return { program, problem: null };
     if (!isAbsolute(found.entry)) return refused(`${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
     const inside = folders.find((f) => isUnder(found.file, f, files));

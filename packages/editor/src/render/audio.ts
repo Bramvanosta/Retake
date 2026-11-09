@@ -34,7 +34,7 @@ export function testTrackExpression(): string {
  * Write a `seconds`-long stereo test track (AAC in .m4a, 48 kHz, ≈ 12 KB/s) to `out`. Needs ffmpeg on PATH (or
  * `ffmpeg`). Returns `out`.
  */
-export async function generateTestTrack(out: string, opts: { seconds?: number; ffmpeg?: string; work: WorkPolicy }): Promise<string> {
+export async function generateTestTrack(out: string, opts: { seconds?: number; ffmpeg?: string; workPolicy: WorkPolicy }): Promise<string> {
   const seconds = opts.seconds ?? 16;
   if (!(seconds > 0 && seconds <= 600)) throw new Error(`test track length ${seconds} s: use 0–600 s`);
   await mkdir(dirname(out), { recursive: true });
@@ -42,7 +42,7 @@ export async function generateTestTrack(out: string, opts: { seconds?: number; f
   const tmp = `${out}.tmp-${process.pid}.m4a`;
   const args = ['-v', 'error', '-y', '-f', 'lavfi', '-i', `aevalsrc=exprs='${e}|${e}':s=48000:d=${seconds}`, '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', tmp];
   await new Promise<void>((resolve, reject) => {
-    execFile(ffmpegBin(opts.work, opts.ffmpeg), args, (err, _stdout, stderr) => {
+    execFile(ffmpegBin(opts.workPolicy, opts.ffmpeg), args, (err, _stdout, stderr) => {
       if (err) reject(new Error(`ffmpeg could not make the test track: ${String(stderr).trim().split('\n')[0] || err.message}`));
       else resolve();
     });

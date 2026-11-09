@@ -7,13 +7,13 @@ import { commentAuthorName, printableText, regionProblem } from '@retake/core';
 import type { CommentAuthor, CommentRegion } from '@retake/core';
 import { EngineError, addComment, defaultAuthorName, listComments, reopenComment, replyComment, resolveComment } from '@retake/engine';
 import type { CommentListView, CommentView, CommentWritten } from '@retake/engine';
+import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 export interface CommentAddOptions {
   at?: string;

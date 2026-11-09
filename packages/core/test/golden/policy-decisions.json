@@ -146,6 +146,56 @@
     "ok": "<tmp>/outside/bin/tool"
    }
   },
+  "ffmpeg: $RETAKE_FFMPEG inside": {
+   "ffmpeg": {
+    "ok": "<tmp>/ws/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/ws/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG relative": {
+   "ffmpeg": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   },
+   "ffprobe": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG bare": {
+   "ffmpeg": {
+    "ok": "ffmpeg"
+   },
+   "ffprobe": {
+    "ok": "ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG through a link in": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/link-in"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFPROBE inside, $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/ws/bin/tool"
+   }
+  },
   "render": {
    "gl": "gpu",
    "concurrency": 2
@@ -335,6 +385,60 @@
     "ok": "<tmp>/outside/bin/tool"
    }
   },
+  "ffmpeg: $RETAKE_FFMPEG inside": {
+   "ffmpeg": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (<tmp>/ws/bin/tool) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_FFMPEG at its new place"
+   },
+   "ffprobe": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (<tmp>/ws/bin/ffprobe) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_FFMPEG at its new place"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG relative": {
+   "ffmpeg": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   },
+   "ffprobe": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG bare": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/ffmpeg"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG through a link in": {
+   "ffmpeg": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (<tmp>/outside/bin/link-in) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_FFMPEG at its new place"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFPROBE inside, $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFPROBE (<tmp>/ws/bin/tool) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_FFPROBE at its new place"
+   }
+  },
   "render": {
    "gl": "gpu",
    "concurrency": 2
@@ -488,10 +592,185 @@
     "ok": "<tmp>/outside/bin/tool"
    }
   },
+  "ffmpeg: $RETAKE_FFMPEG inside": {
+   "ffmpeg": {
+    "ok": "<tmp>/ws/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/ws/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG relative": {
+   "ffmpeg": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   },
+   "ffprobe": {
+    "error": "BundleError",
+    "message": "$RETAKE_FFMPEG (bin/tool) must be an absolute path or a command on PATH: a relative path names another file in each process"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG bare": {
+   "ffmpeg": {
+    "ok": "ffmpeg"
+   },
+   "ffprobe": {
+    "ok": "ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFMPEG through a link in": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/link-in"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/outside/bin/ffprobe"
+   }
+  },
+  "ffmpeg: $RETAKE_FFPROBE inside, $RETAKE_FFMPEG outside": {
+   "ffmpeg": {
+    "ok": "<tmp>/outside/bin/tool"
+   },
+   "ffprobe": {
+    "ok": "<tmp>/ws/bin/tool"
+   }
+  },
   "render": {
    "gl": "gpu",
    "concurrency": 2
   },
   "renderEmpty": null
+ },
+ "shell": {
+  "paths": {
+   "runs/r1/a.sh": "runs/r1/a.sh",
+   "./scenarios/../hooks/a.sh": null,
+   "hooks/a.sh": null,
+   "README.md": "README.md",
+   "RUNS/r1/a.sh": "runs/r1/a.sh",
+   "../q/runs/a.sh": "../q/runs/a.sh",
+   "../q/hooks/a.sh": null,
+   "tools/a.sh": "runs/a.sh",
+   "<tmp>/outside/into-runs/a.sh": "runs/r1/a.sh",
+   "file://<tmp>/ws/projects/p/README.md": "README.md",
+   "~/x.sh": null,
+   "~": null,
+   "/etc/hosts": null,
+   "missing/deeper/a.sh": null
+  },
+  "pathsFromRuns": {
+   "runs/r1/a.sh": "runs/runs/r1/a.sh",
+   "./scenarios/../hooks/a.sh": "runs/hooks/a.sh",
+   "hooks/a.sh": "runs/hooks/a.sh",
+   "README.md": "runs/README.md",
+   "RUNS/r1/a.sh": "runs/RUNS/r1/a.sh",
+   "../q/runs/a.sh": null,
+   "../q/hooks/a.sh": null,
+   "tools/a.sh": "runs/tools/a.sh",
+   "<tmp>/outside/into-runs/a.sh": "runs/r1/a.sh",
+   "file://<tmp>/ws/projects/p/README.md": "README.md",
+   "~/x.sh": null,
+   "~": null,
+   "/etc/hosts": null,
+   "missing/deeper/a.sh": "runs/missing/deeper/a.sh"
+  },
+  "commands": {
+   "sh runs/r1/a.sh": [
+    "`runs/r1/a.sh` (a path through runs/, which an agent can write)"
+   ],
+   "cat README.md && ls": [
+    "`README.md` (a path through README.md, which an agent can write)"
+   ],
+   "node scenarios/x.js": [
+    "`scenarios/x.js` (a path through scenarios/, which an agent can write)"
+   ],
+   "bash hooks/a.sh": [],
+   "sh tools/a.sh": [
+    "`tools/a.sh` (a path through runs/, which an agent can write)"
+   ],
+   "sh ../q/runs/a.sh": [
+    "`../q/runs/a.sh` (a path through runs/ of another project, which an agent can write)"
+   ],
+   "psql -f runs/r1/x.sql": [
+    "`runs/r1/x.sql` (a path through runs/, which an agent can write)"
+   ],
+   "cp a b; rm c": [
+    "the character `;` (only plain words: letters, digits and . / : = @ % + , - _)"
+   ],
+   "echo $HOME": [
+    "the character `$` (only plain words: letters, digits and . / : = @ % + , - _)"
+   ],
+   "node -e 1": [
+    "`node -e` (it runs code written in the command) — put the code in a script under hooks/"
+   ],
+   "npx something": [
+    "`npx` (it runs a package, downloading it when it is not installed)"
+   ],
+   "ls /etc": []
+  },
+  "cwds": {
+   ".": [],
+   "runs": [
+    "its working folder `runs` (a path through runs/, which an agent can write)"
+   ],
+   "hooks": [],
+   "tools/r1": [
+    "its working folder `tools/r1` (a path through runs/, which an agent can write)"
+   ],
+   "../q/runs": [
+    "its working folder `../q/runs` (a path through runs/ of another project, which an agent can write)"
+   ],
+   "two words": [
+    "its working folder `two words` (one plain word: letters, digits and . / : = @ % + , - _)"
+   ]
+  }
+ },
+ "caseFolded": {
+  "program: inside, upper case": {
+   "problem": "browser.executable (<tmp>/WS/BIN/TOOL) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point browser.executable at its new place",
+   "policy": {
+    "program": "<tmp>/WS/BIN/TOOL",
+    "problem": "$RETAKE_CHROMIUM (<tmp>/WS/BIN/TOOL) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_CHROMIUM at its new place"
+   }
+  },
+  "program: inside, mixed case": {
+   "problem": "browser.executable (<tmp>/Ws/bin/Tool) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point browser.executable at its new place",
+   "policy": {
+    "program": "<tmp>/Ws/bin/Tool",
+    "problem": "$RETAKE_CHROMIUM (<tmp>/Ws/bin/Tool) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_CHROMIUM at its new place"
+   }
+  },
+  "program: inside, missing, other case": {
+   "problem": "browser.executable (<tmp>/WS/bin/not-there) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point browser.executable at its new place",
+   "policy": {
+    "program": "<tmp>/WS/bin/not-there",
+    "problem": "$RETAKE_CHROMIUM (<tmp>/WS/bin/not-there) lies inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point $RETAKE_CHROMIUM at its new place"
+   }
+  },
+  "program: bare, PATH inside in other case": {
+   "problem": "browser.executable (tool) is found on PATH at <tmp>/WS/BIN/tool, inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): remove that folder from PATH, or give the absolute path of a program outside the workspace",
+   "policy": {
+    "program": "tool",
+    "problem": "$RETAKE_CHROMIUM (tool) is found on PATH at <tmp>/WS/BIN/tool, inside the workspace (<tmp>/ws) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): remove that folder from PATH, or give the absolute path of a program outside the workspace"
+   }
+  },
+  "program: outside, upper case": {
+   "problem": null,
+   "policy": {
+    "program": "<tmp>/outside/bin/tool",
+    "problem": null
+   }
+  },
+  "env": {
+   "PATH": "<tmp>/OUTSIDE/bin:/usr/bin"
+  },
+  "folders": "browser.executable (<tmp>/ws/bin/tool) lies inside the workspace (<tmp>/WS) — jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it): move the program out of the workspace and point browser.executable at its new place"
  }
 }

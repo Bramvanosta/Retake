@@ -7,7 +7,7 @@ import { policyProgram } from '../agent-policy.js';
 import type { WorkPolicy } from '../agent-policy.js';
 import { BundleError, bundleInfo, resolveMediaTools } from './bundle.js';
 import type { MediaToolSource, MediaTools } from './bundle.js';
-import { nodeFileFacts } from './file-facts.js';
+import { programLookup } from './file-facts.js';
 
 /** A work's ffmpeg and ffprobe (resolveMediaTools with its workspace's setting, this process's environment and the bundle). */
 export function mediaTools(policy: WorkPolicy): MediaTools {
@@ -35,7 +35,7 @@ function mediaBin(policy: WorkPolicy, tool: 'ffmpeg' | 'ffprobe', explicit?: str
     const source = tool === 'ffmpeg' ? t.ffmpegSource : t.ffprobeSource;
     what = source === 'PATH' || source === 'bundled' ? tool : SOURCE_NAMES[source];
   }
-  const checked = policyProgram(policy, bin, what, { files: nodeFileFacts });
+  const checked = policyProgram(policy, bin, what, programLookup());
   if (checked.problem) throw new BundleError(checked.problem);
   return checked.program;
 }

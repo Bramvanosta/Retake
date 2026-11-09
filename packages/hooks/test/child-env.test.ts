@@ -7,7 +7,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 
 /** The policy the hooks below run under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
@@ -25,7 +25,7 @@ beforeEach(async () => {
   process.env[PASSED] = 'listed-in-pass-env';
 });
 afterEach(async () => {
-  policy = agentPolicy(null);
+  policy = workPolicyFrom(null);
   delete process.env[SECRET];
   delete process.env[PASSED];
   await tmp.cleanup();
@@ -51,7 +51,7 @@ async function failure(): Promise<string> {
 
 describe('the environment of a shell hook', () => {
   it('under the agent policy: the shell\'s own variables, pass_env, its own env — never an exported secret', async () => {
-    policy = agentPolicy([tmp.dir]);
+    policy = workPolicyFrom([tmp.dir]);
     const env = await seen();
     expect(env[SECRET]).toBeUndefined();
     expect(env[PASSED]).toBe('listed-in-pass-env');
@@ -71,7 +71,7 @@ describe('the environment of a shell hook', () => {
   });
 
   it('a hook that fails under the agent policy says which variables it saw and how to pass another', async () => {
-    policy = agentPolicy([tmp.dir]);
+    policy = workPolicyFrom([tmp.dir]);
     const error = await failure();
     expect(error).toMatch(/^shell "exit 3" exited with code 3 \(a job the Studio, the desktop app or an MCP client starts gives its programs only some variables/);
     expect(error).toMatch(new RegExp(`this one saw HOME, (?:[A-Z_]+, )*PATH, (?:[A-Z_]+, )*${PASSED}(?:, [A-Z_]+)*; if it needs another`));

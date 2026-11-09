@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { programProblem, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { programProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { loadWorkspaceConfig, nodeFileFacts } from '@retake/core/io';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
@@ -101,14 +101,14 @@ describe('cleanWorkerEnv', () => {
     };
     const env = cleanWorkerEnv({ ...tools, PATH: '/usr/bin' }, ws, { exists: () => false });
     expect(env).toMatchObject(tools);
-    policy = agentPolicy([ws], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
       expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
       expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { files: nodeFileFacts })).toMatch(/is a relative path/);
       expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 

@@ -32,6 +32,7 @@ import { basename, join, resolve } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
+import { fileFacts } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue-core.js';
@@ -48,7 +49,6 @@ import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 /** Scenarios the board describes, at most (past it: names only, `truncated`). */
 export const BOARD_SCENARIOS_MAX = 200;

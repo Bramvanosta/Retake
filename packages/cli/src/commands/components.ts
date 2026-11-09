@@ -17,13 +17,13 @@ import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, 
 import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
 import type { PreviewComponentTarget, RenderedPreview, PreviewReadmeWriter } from '@retake/editor';
 import { componentWriter, personScope, fileWriter, ProjectStore } from '@retake/engine';
+import type { OpenedWorkspace } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural, truncate } from '../ui.js';
 import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
-import type { OpenedWorkspace } from '@retake/engine';
 
 export interface ComponentsListOptions {
   kind?: ComponentKind;
@@ -189,15 +189,16 @@ export interface ComponentsCreateOptions {
   preview?: boolean;
 }
 
-/** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 /**
  * The READMEs of the workspace's components, written through the project store of its components folder (journaled as
- * the CLI's, on the version read); the built-in library's and the scaffolds' are written directly by the editor.
+ * the CLI's, on the version read — or created when there was none); the built-in library's and the scaffolds' are
+ * written directly by the editor.
  */
 function componentReadmes(ws: OpenedWorkspace): PreviewReadmeWriter {
   return { root: ws.componentsDir, write: fileWriter(new ProjectStore(ws.componentsDir, personScope(ws.root), undefined, '<components_dir>'), 'component') };
 }
 
+/** `retake components create <id> --kind K [--description D] [--name N]`: scaffold a workspace component. */
 export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id: string, opts: ComponentsCreateOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const created = await createComponent(ws.root, { id, kind: opts.kind, description: opts.description, name: opts.name, write: componentWriter(ws, personScope(ws.root)) });

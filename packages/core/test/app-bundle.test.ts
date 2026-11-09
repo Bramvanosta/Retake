@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { ConfigError, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { ConfigError, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { BundleError, bundleProblems, H264EncoderError, assertOutsideBundle, findBundle, h264CodecArgs, h264Encoder, insideBundle, loadProject, loadWorkspaceConfig, mediaTools, overrideBundleInfo, parseEncoders, pickH264, prepareBundle, readBundleManifest, resetFfmpegEncoders, resolveMediaTools, retakeHome, starterTemplatesDir } from '@retake/core/io';
 import type { BundleInfo } from '@retake/core/io';
 
@@ -186,7 +186,7 @@ describe('ffmpeg / ffprobe: explicit config → explicit env → bundled → sys
     const dir = join(tmp, `wsff${n++}`);
     mkdirSync(dir);
     for (const t of ['ffmpeg', 'ffprobe']) writeFileSync(join(dir, t), '');
-    expect(mediaTools(agentPolicy(null, join(dir, 'ffmpeg')))).toMatchObject({ ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe'), ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
+    expect(mediaTools(workPolicyFrom(null, join(dir, 'ffmpeg')))).toMatchObject({ ffmpeg: join(dir, 'ffmpeg'), ffprobe: join(dir, 'ffprobe'), ffmpegSource: 'retake.yaml', ffprobeSource: 'retake.yaml' });
   });
 
   it("retake.yaml's ffmpeg: a path is the workspace's (made absolute against its root, whatever the cwd); a command name stays one", async () => {

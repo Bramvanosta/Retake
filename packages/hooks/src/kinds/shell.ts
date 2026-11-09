@@ -3,6 +3,7 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv, projectPath } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
 import { shellDestructiveReason } from '../destructive.js';
@@ -15,7 +16,6 @@ import { tail } from '../util.js';
 import { baseDirOf, ignoreRollback } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
 import type { ShownAction } from '../shown.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 export const DEFAULT_SHELL_TIMEOUT_S = 120;
 /** Grace period between SIGTERM and SIGKILL of a timed-out process group. */

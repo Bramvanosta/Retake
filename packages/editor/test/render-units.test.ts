@@ -45,7 +45,7 @@ import {
 } from '@retake/editor';
 import type { BundleComponent, ClipSegment, EditPlan, RenderRecord } from '@retake/editor';
 import { fixtureProject, realTimeline, template } from './helpers.js';
-import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
@@ -346,12 +346,12 @@ describe('render environment', () => {
     const shell = join(tmp, 'tools', 'headless_shell');
     const b = { path: shell, source: 'env' as const };
     expect(() => assertRenderBrowser(b, policy, null)).not.toThrow();
-    policy = agentPolicy([tmp], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       expect(() => assertRenderBrowser(b, policy, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
       expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, policy, null)).not.toThrow();
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 
@@ -359,11 +359,11 @@ describe('render environment', () => {
     const link = join(tmp, 'shell-link');
     symlinkSync(process.execPath, link);
     expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(link);
-    policy = agentPolicy([join(tmp, 'ws-of-an-agent')], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([join(tmp, 'ws-of-an-agent')], policy.ffmpeg, policy.render);
     try {
       expect(assertRenderBrowser({ path: link, source: 'env' }, policy, null)).toBe(realpathSync(process.execPath));
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 

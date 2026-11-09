@@ -13,6 +13,7 @@ import { chromium } from 'playwright-core';
 import type { Page } from 'playwright-core';
 import { LEGACY_PERSONA, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
 import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext, WorkPolicy } from '@retake/core';
+import { retakeHome } from '@retake/core/io';
 import {
   autoLogin,
   checkPersona,
@@ -35,7 +36,6 @@ import { RunSecrets } from './secrets.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { throwIfAborted } from './util.js';
-import { retakeHome } from '@retake/core/io';
 
 type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
 

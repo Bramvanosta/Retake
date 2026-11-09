@@ -86,8 +86,8 @@ describe('the old home (critique H3)', () => {
     const saved = process.env.HOME;
     process.env.HOME = home; // scratch HOME: restored below
     try {
-      expect(legacyInfo({ DEMO_STUDIO_HOME: out }, homedir(), nodeFileFacts.exists)).toEqual({ old_home: out, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
-      expect(legacyInfo({}, homedir(), nodeFileFacts.exists)).toEqual({ old_home: '~/.demo-studio' });
+      expect(legacyInfo({ DEMO_STUDIO_HOME: out }, homedir(), (p: string) => nodeFileFacts.kind(p) !== undefined)).toEqual({ old_home: out, old_home_var: 'DEMO_STUDIO_HOME', old_vars: ['DEMO_STUDIO_HOME'] });
+      expect(legacyInfo({}, homedir(), (p: string) => nodeFileFacts.kind(p) !== undefined)).toEqual({ old_home: '~/.demo-studio' });
     } finally {
       process.env.HOME = saved;
     }
@@ -106,7 +106,7 @@ describe('the old home (critique H3)', () => {
     process.env.HOME = home;
     try {
       expect(retakeHome({})).toBe(join(home, '.retake'));
-      expect(oldHomeState({}, home, nodeFileFacts.exists)?.old).toBe(join(home, '.demo-studio'));
+      expect(oldHomeState({}, home, (p: string) => nodeFileFacts.kind(p) !== undefined)?.old).toBe(join(home, '.demo-studio'));
     } finally {
       process.env.HOME = saved;
     }
@@ -226,8 +226,8 @@ describe('the variables (critique H2) and the kit import', () => {
     expect(oldVarsUnread({ RETAKE_HOME: '/h' })).toEqual([]);
     // engine_info's field: the old home (no RETAKE_HOME, the old one holding sign-ins), the variables, or nothing.
     const H = join(tmp, 'info-home');
-    expect(legacyInfo({ ...env, RETAKE_HOME: '/h' }, homedir(), nodeFileFacts.exists)).toEqual({ old_vars: ['DEMO_STUDIO_CHROMIUM'] });
-    expect(legacyInfo({ RETAKE_HOME: '/h' }, homedir(), nodeFileFacts.exists)).toBeUndefined();
+    expect(legacyInfo({ ...env, RETAKE_HOME: '/h' }, homedir(), (p: string) => nodeFileFacts.kind(p) !== undefined)).toEqual({ old_vars: ['DEMO_STUDIO_CHROMIUM'] });
+    expect(legacyInfo({ RETAKE_HOME: '/h' }, homedir(), (p: string) => nodeFileFacts.kind(p) !== undefined)).toBeUndefined();
     expect(oldSignInHints({ DEMO_STUDIO_HOME: '/x', DEMO_STUDIO_ROOT: '/w' }, H, () => false)).toEqual([oldVarsLine(['DEMO_STUDIO_HOME'])]);
     expect(oldSignInHints({ DEMO_STUDIO_ROOT: '/w' }, H, (p) => p === join(H, '.demo-studio', 'profiles'))).toEqual([oldHomeLine(oldHomeState({}, H, (p) => p === join(H, '.demo-studio', 'profiles'))!)]);
     expect(oldSignInHints({ RETAKE_HOME: '/h', DEMO_STUDIO_HOME: '/x' }, H, () => true)).toEqual([]);

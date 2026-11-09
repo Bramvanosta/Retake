@@ -8,6 +8,7 @@ import { CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, cliLinkState, cliOnPath, 
 import type { BrowserConfig, LoadedProject, WorkspaceConfig, WorkPolicy } from '@retake/core';
 import type { BundleInfo, MediaToolSource, MediaTools } from '@retake/core/io';
 import type { ChromiumProbe } from '@retake/runner-web';
+import type { OpenedWorkspace } from '@retake/engine';
 import { EXIT, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -16,7 +17,6 @@ import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { checkedText, loginCommandFor, projectPersonaStates, retakeCommand, tildePath } from './auth.js';
 import type { PersonaState } from './auth.js';
-import type { OpenedWorkspace } from '@retake/engine';
 
 export type CheckStatus = 'ok' | 'warn' | 'fail';
 
@@ -211,7 +211,7 @@ export function systemProbes(): DoctorProbes {
     bundle: bundleInfoOrNull(),
     bundleProblems,
     renderBrowser: systemRenderBrowser,
-    renders: async (policy) => (await import('@retake/editor')).probeRenderPath({ work: policy }),
+    renders: async (policy) => (await import('@retake/editor')).probeRenderPath({ workPolicy: policy }),
     captures: async (root) => {
       const e = await import('@retake/engine');
       const loc = e.capturesLocation(process.env);

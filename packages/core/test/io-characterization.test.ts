@@ -4,18 +4,18 @@
  * (a file a scenario names, a file through a link out of the project, an env file, a SQL file a hook runs, a run made
  * by a newer Retake). Written before those readers moved to `@retake/core/io` and their probes behind the FileFacts
  * port: the same answers after the move. Paths are shown relative to the repository (`<repo>`) or to the scratch
- * folder (`<tmp>`); the fixture's contents are left out (the fixture changes with the product), synthetic values by
- * their hash.
+ * folder (`<tmp>`); the fixture's contents are left out (the fixture changes with the product), except what ffprobe says
+ * of its committed video files. The cases after the first commit (a synthetic sandbox's seed hash, the fixture's videos
+ * probed and checked) were recorded against the code before the move and match it.
  *
  * Goldens are written only on request: `RETAKE_UPDATE_GOLDEN=1 npx vitest run packages/core/test/io-characterization.test.ts`
  */
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OLD_WORKSPACE_FILE, PERSON_POLICY, canonicalJson, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
+import { OLD_WORKSPACE_FILE, PERSON_POLICY, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
 import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, newerRunMessage, nodeFileFacts, fileFacts, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
 
@@ -24,8 +24,8 @@ const GOLDEN = fileURLToPath(new URL('./golden/io-loaders.json', import.meta.url
 const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'retake-io-char-')));
 afterAll(() => rmSync(tmp, { recursive: true, force: true }));
 
-const shown = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null).split(tmp).join('<tmp>').split(REPO).join('<repo>'));
-const hash = (v: unknown): string => createHash('sha256').update(canonicalJson(shown(v))).digest('hex').slice(0, 16);
+// ffprobe names the demuxer it failed in with its address in memory (`[mov,mp4,… @ 0x…]`): left out.
+const shown = (v: unknown): unknown => JSON.parse(JSON.stringify(v ?? null).split(tmp).join('<tmp>').split(REPO).join('<repo>').replace(/ @ 0x[0-9a-f]+\]/g, ' @ 0x…]'));
 const issuesOf = (xs: ReadonlyArray<{ severity: string; path: unknown; message: string }> | undefined) => shown((xs ?? []).map((i) => [i.severity, i.path, i.message]));
 async function outcome<T>(f: () => Promise<T> | T, keep: (v: T) => unknown = (v) => v): Promise<unknown> {
   try {
@@ -124,13 +124,13 @@ describe('core loaders and disk probes (characterization)', () => {
     broken.filesRead = shown([...filesRead].sort());
     broken.inferredProject = issuesOf(parseScenario(scenarioText('data/none.csv'), { file: join(tmp, 'ws/projects/p/scenarios/x.yaml'), files: nodeFileFacts }).issues);
     broken.noInferredProject = issuesOf(parseScenario(scenarioText('data/none.csv'), { file: join(tmp, 'ws/elsewhere/scenarios/x.yaml'), files: nodeFileFacts }).issues);
-    broken.unknownScenario = await outcome(() => loadScenario(p2, 'nope'));
+    broken.unknownScenario = await outcome(() => loadScenario(p2, 'nope', { files: work }));
     // Themes.
     write('ws/templates/t/template.yaml', 'version: 1\nlogo: logo.svg\n');
     broken.themeMissingAsset = await outcome(() => loadTemplate('t', join(tmp, 'ws'), { files: work }));
     mkdirSync(join(tmp, 'ws', 'templates', 'empty'), { recursive: true });
-    broken.themeFolderWithoutFile = await outcome(() => loadTemplate('empty', join(tmp, 'ws')));
-    broken.themeUnknown = await outcome(() => loadTemplate('defualt', join(tmp, 'ws')));
+    broken.themeFolderWithoutFile = await outcome(() => loadTemplate('empty', join(tmp, 'ws'), { files: work }));
+    broken.themeUnknown = await outcome(() => loadTemplate('defualt', join(tmp, 'ws'), { files: work }));
     broken.themeMedia = issuesOf(parseTemplateYaml('version: 1\ncomponents:\n  intro: {video: clip.mp4}\n  outro: {image: logo.svg}\n', { dir: join(tmp, 'ws', 'templates', 't'), files: fileFacts(PERSON_POLICY) }).issues);
     // Sandboxes.
     const sbFile = write('ws/projects/p/sandbox/sandbox.yaml', 'version: 1\nprovider: docker-compose\ncompose:\n  env_file: missing.env\n  files: [compose.yaml]\npages:\n  app: {url: "http://localhost:4991"}\n');
@@ -153,6 +153,25 @@ describe('core loaders and disk probes (characterization)', () => {
     broken.newerRun = shown([newerRunMessage(join(tmp, 'ws/projects/p/runs/r1')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/r2')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/none')) ?? null]);
     write('ws/projects/p/runs/r2/scenario.yaml', scenarioText('data/old.csv'));
     broken.sinceRun = shown(scenarioSinceRun(p2, join(tmp, 'ws/projects/p/runs/r2'), 'present') ?? null);
+    // The seed of a synthetic sandbox: the files it reads (its SQL steps, its seed folder) and their hash.
+    write('ws/projects/p/seeded/seed/01-schema.sql', 'CREATE TABLE quotes (id int);\n');
+    write('ws/projects/p/seeded/seed/rows/quotes.csv', 'id\n1\n');
+    write('ws/projects/p/seeded/seed/.hidden', 'left out\n');
+    write('ws/projects/p/seeded/extra.sql', 'INSERT INTO quotes VALUES (2);\n');
+    const seeded = write('ws/projects/p/seeded/sandbox.yaml', 'version: 1\nprovider: process\nservices:\n  app: {command: [node, server.mjs], url: "http://localhost:4992", pages: {app: {url: "http://localhost:4992"}}}\nseed:\n  - sql: seed/01-schema.sql\n  - sql: {file: extra.sql, db: main}\ndatabases:\n  main: {url: "postgres://u:sandbox-pass-4992@localhost:4992/app"}\n');
+    const seededManifest = parseSandboxYaml(readFileSync(seeded, 'utf8'), seeded, { env: 'seeded', project: { config: p2.config }, files: nodeFileFacts });
+    const seededSandbox = { dir: dirname(seeded), manifest: seededManifest.manifest! };
+    broken.seed = { issues: issuesOf(seededManifest.issues), refs: shown(await seedFileRefs(seededSandbox)), hash: await seedHash(seededSandbox), extra: await seedHash(seededSandbox, ['image:sha256:0']) };
+    // The fixture's committed videos, probed (ffprobe of this machine) and checked as a scenario's intro and overlay.
+    const fixtureAssets = join(REPO, 'projects', 'northfield-fixture', 'assets');
+    copyFileSync(join(fixtureAssets, 'intro.mp4'), join(tmp, 'ws/projects/p/assets/clip.mp4'));
+    copyFileSync(join(fixtureAssets, 'sparkle-burst.webm'), join(tmp, 'ws/projects/p/assets/burst.webm'));
+    broken.videoProbe = await outcome(() => work.probeVideo(join(tmp, 'ws/projects/p/assets/clip.mp4')));
+    broken.videoProbeWebm = await outcome(() => work.probeVideo(join(tmp, 'ws/projects/p/assets/burst.webm')));
+    broken.videoProbeNotVideo = await outcome(() => work.probeVideo(join(tmp, 'ws/projects/p/assets/logo.png')));
+    write('ws/projects/p/scenarios/video.yaml', 'version: 1\nvideo: s\nenv: local\nintro: {video: assets/clip.mp4, from: 0.5, to: 99, volume: 1, duration: 30}\noutro: {video: assets/logo.mp4}\nscenes:\n  - id: one\n    steps:\n      - open: "http://localhost:4990/"\n      - click: {text: Go}\n        overlay: {video: assets/clip.mp4}\n      - click: {text: Again}\n        overlay: {video: assets/burst.webm, loop: true, duration: 9}\n');
+    copyFileSync(join(tmp, 'ws/projects/p/assets/logo.png'), join(tmp, 'ws/projects/p/assets/logo.mp4'));
+    broken['scenario:video'] = await outcome(() => loadScenario(p2, 'video', { files: work }), (sc) => issuesOf(sc.issues));
     got.broken = broken;
   });
 

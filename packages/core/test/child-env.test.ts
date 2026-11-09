@@ -1,6 +1,6 @@
 import { delimiter, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { PERSON_POLICY, agentPolicy, bareEnvHint, childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom, bareEnvHint, childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv } from '@retake/core';
 import { nodeFileFacts as files } from '@retake/core/io';
 
 const WS = '/work/space';
@@ -48,7 +48,7 @@ describe('the environment of the programs a job starts under the agent policy (c
   it('cleans PATH: absolute entries outside the workspace only', () => {
     expect(childEnv(SOURCE, { folders: [WS], files }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
     // The agent policy's own folders (a WorkPolicy's, as a hook's unsigned rollback gets them).
-    expect(childEnv(SOURCE, { folders: agentPolicy([WS]).agentFolders!, files }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
+    expect(childEnv(SOURCE, { folders: workPolicyFrom([WS]).agentFolders!, files }).PATH).toBe(['/usr/bin', '/opt/homebrew/bin'].join(delimiter));
   });
 
   it('passes the names of project.yaml `pass_env:` on, never a loader variable', () => {
@@ -77,7 +77,7 @@ describe('the environment of the programs a job starts under the agent policy (c
 
   it('applies only under the agent policy (policyChildEnv): a command a person types inherits', () => {
     expect(policyChildEnv(PERSON_POLICY, SOURCE, { pass: ['DATABASE_URL'], files })).toBeNull();
-    const env = policyChildEnv(agentPolicy([WS]), SOURCE, { pass: ['DATABASE_URL'], files });
+    const env = policyChildEnv(workPolicyFrom([WS]), SOURCE, { pass: ['DATABASE_URL'], files });
     expect(env?.DATABASE_URL).toBe('postgres://u:pw@localhost:5432/app');
     expect(env?.STRIPE_SECRET_KEY).toBeUndefined();
   });

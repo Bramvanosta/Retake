@@ -99,16 +99,20 @@ export function checkRef(ref: string): string {
 export class LocalStorage implements Storage {
   readonly scheme = 'local' as const;
 
-  constructor(readonly root: string) {}
+  constructor(
+    readonly root: string,
+    /** How refusals name the root ("the project folder"; a store of the components folder: "the components folder"). */
+    private readonly folder = 'the project folder',
+  ) {}
 
   resolve(ref: string): string {
     return join(this.root, ...checkRef(ref).split('/'));
   }
 
   refOf(path: string): string {
-    if (!isAbsolute(path) || !pathInside(path, this.root, { dotDotPrefix: true })) throw new EngineError('invalid', `${path} is outside the project folder ${this.root}`);
+    if (!isAbsolute(path) || !pathInside(path, this.root, { dotDotPrefix: true })) throw new EngineError('invalid', `${path} is outside ${this.folder} ${this.root}`);
     const rel = relative(this.root, path);
-    if (rel === '') throw new EngineError('invalid', `${path} is the project folder itself, not a file of it`);
+    if (rel === '') throw new EngineError('invalid', `${path} is ${this.folder} itself, not a file of it`);
     return rel.split(sep).join('/');
   }
 
@@ -148,7 +152,7 @@ export class LocalStorage implements Storage {
       throw e;
     }
     const fix = { fix: `replace it with a regular file inside ${this.root}` };
-    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
+    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not read`, { ...fix, details: { reason: 'link_out' } });
     const r = readPlainFile(real, max);
     if (r.ok) return r.bytes;
     switch (r.reason) {
@@ -173,7 +177,7 @@ export class LocalStorage implements Storage {
     const dir = dirname(path);
     await mkdir(dir, { recursive: true });
     const [realRoot, realDir] = await Promise.all([realpath(this.root), realpath(dir)]);
-    if (!pathInside(realDir, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${dir} leads out of the project folder (a symbolic link): not written`);
+    if (!pathInside(realDir, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${dir} leads out of ${this.folder} (a symbolic link): not written`);
   }
 
   /**
@@ -199,7 +203,7 @@ export class LocalStorage implements Storage {
       if ((e as NodeJS.ErrnoException).code === 'ENOENT') throw new EngineError('refused', `${path} is a symbolic link to a file that does not exist: not written`, fix);
       throw e;
     }
-    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of the project folder (a symbolic link): not written`, fix);
+    if (!pathInside(real, realRoot, { dotDotPrefix: true })) throw new EngineError('refused', `${path} leads out of ${this.folder} (a symbolic link): not written`, fix);
     return real;
   }
 

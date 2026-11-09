@@ -11,9 +11,8 @@ import type { TemplateEntry } from '../template.js';
 import type { LoadedProject, LoadedTemplate } from '../types.js';
 import { suggestion } from '../validation/suggest.js';
 import { starterTemplatesDir } from './bundle.js';
-import { nodeFileFacts } from './file-facts.js';
 import { findWorkspaceRoot, loadWorkspaceConfig } from './workspace.js';
-import type { FileFacts } from '../file-facts.js';
+import type { WorkFileFacts } from '../file-facts.js';
 
 function isFile(p: string): boolean {
   try {
@@ -33,7 +32,6 @@ function isDirectory(p: string): boolean {
 
 /** The starter templates shipped with Retake (default, editorial, motion): the app bundle's, else `templates/` of the repository. */
 export const STARTER_TEMPLATES_DIR = starterTemplatesDir();
-
 
 /** Sub-folders of a directory (hidden ones left out); [] when it does not exist. */
 async function subfolders(dir: string): Promise<string[]> {
@@ -99,14 +97,14 @@ async function resolveTemplateDir(nameOrDir: string, root: string | undefined, b
 }
 
 /**
- * How a theme is loaded: `files` looks at its own files (core FileFacts; default nodeFileFacts, which probes no video —
- * a theme showing a video file of its own is checked with the FileFacts of the work that loads it, fileFacts(policy)).
+ * How a theme is loaded: `files` looks at its own files (core FileFacts) — always given, never a default: the FileFacts
+ * of the work that loads it, fileFacts(policy), whose VideoProber checks a video file the theme shows.
  */
 export interface TemplateLoadOptions {
-  files?: FileFacts;
+  files: WorkFileFacts;
 }
 
-async function loadTemplateDir(dir: string, files: FileFacts): Promise<LoadedTemplate> {
+async function loadTemplateDir(dir: string, files: WorkFileFacts): Promise<LoadedTemplate> {
   const file = join(dir, TEMPLATE_FILE);
   const { template, issues } = parseTemplateYaml(await readFile(file, 'utf8'), { dir, files });
   if (!template) throw new ConfigError(issuesMessage('template', issues, file), issues, file);
@@ -138,14 +136,14 @@ async function loadTemplateDir(dir: string, files: FileFacts): Promise<LoadedTem
  * DEFAULT_TEMPLATE, with asset paths resolved and checked. Throws ConfigError listing every
  * missing asset file.
  */
-export async function loadTemplate(nameOrDir: string, root?: string, o: TemplateLoadOptions = {}): Promise<LoadedTemplate> {
-  return loadTemplateDir(await resolveTemplateDir(nameOrDir, root, process.cwd()), o.files ?? nodeFileFacts);
+export async function loadTemplate(nameOrDir: string, root: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate> {
+  return loadTemplateDir(await resolveTemplateDir(nameOrDir, root, process.cwd()), o.files);
 }
 
 /**
  * The template of a project: `override` ?? project.config.template. A path-like reference
  * ("./template") is resolved against the project directory, a name against the workspace templates, then the starters.
  */
-export async function loadProjectTemplate(project: LoadedProject, override?: string, o: TemplateLoadOptions = {}): Promise<LoadedTemplate> {
-  return loadTemplateDir(await resolveTemplateDir(override ?? project.config.template, project.root, project.dir), o.files ?? nodeFileFacts);
+export async function loadProjectTemplate(project: LoadedProject, override: string | undefined, o: TemplateLoadOptions): Promise<LoadedTemplate> {
+  return loadTemplateDir(await resolveTemplateDir(override ?? project.config.template, project.root, project.dir), o.files);
 }

@@ -4,12 +4,12 @@ import { isAbsolute, join } from 'node:path';
 import type { Page } from 'playwright-core';
 import { collectSecretRefs, interpolate, interpolateDeep, isPoint, projectFileProblem, secretRefsProblem } from '@retake/core';
 import type { EmitArgs, EvalArgs, HookArgs, NormalizedArgsMap, NotifyArgs, ScreenshotArgs, TargetSpec } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { StepError, errorMessage } from '../errors.js';
 import { resolveTarget } from '../resolve.js';
 import type { StepContext } from '../runtime.js';
 import { fileSlug } from '../util.js';
 import type { ActionResult } from './types.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 /**
  * Evaluate a function body (may `return` / `await`; receives `arg`) in the page. Evaluated through CDP, so

@@ -66,7 +66,7 @@ export interface DestructiveOptions {
 
 function readWith(files: FileFacts, file: string): string | undefined {
   try {
-    return files.exists(file) ? files.readText(file) : undefined;
+    return files.kind(file) !== undefined ? files.readText(file) : undefined;
   } catch {
     return undefined;
   }

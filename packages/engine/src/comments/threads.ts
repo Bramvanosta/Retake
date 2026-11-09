@@ -42,7 +42,7 @@ import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkI
 import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
-import type { WorkPolicy, FileFacts } from '@retake/core';
+import type { WorkPolicy, WorkFileFacts } from '@retake/core';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -354,7 +354,7 @@ export async function replyComment(
   id: string,
   rawText: string,
   author: CommentAuthor,
-  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: FileFacts },
+  o: { proposal?: ProposalInput; registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
 ): Promise<CommentWritten> {
   const text = cleanText(rawText, 'the reply', 'text');
   const write = o.scope ? { scope: o.scope } : {};

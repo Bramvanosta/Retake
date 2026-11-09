@@ -3,6 +3,7 @@ import type { LoadedProject, RunAccess, Scenario, WorkPolicy } from '@retake/cor
 import { HooksSourceError, callerOf, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
 import type { HookSelection } from '@retake/engine';
 import type { HookContext, HookResult } from '@retake/hooks';
+import { fileFacts } from '@retake/core/io';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -11,7 +12,6 @@ import { formatMs, plural, truncate } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
-import { fileFacts } from '@retake/core/io';
 
 export interface HookCommandOptions {
   env?: string;

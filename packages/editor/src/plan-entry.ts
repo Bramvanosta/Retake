@@ -3,7 +3,8 @@
  * → EditPlan, pure and deterministic) and the modules it is made of, the EditPlan contract, the frame geometry the
  * compositions and the review share (where a layout, a pane, an overlay or the brand mark sits on a frame), the views
  * of a plan (summary, timeline) and the render record's type. No module reachable from here imports the renderer,
- * Remotion, React or the file system, and the components only through their renderer-free entry
+ * Remotion, React or the file system, or reads the environment beyond core's three listed defaults (docs/DESIGN.md §1;
+ * the clock and ids aside), and the components only through their renderer-free entry
  * (`@retake/components/geometry`): importing it loads no React, Remotion, esbuild or sharp module
  * (test/plan-entry.test.ts walks the imports and traces a Node process importing the built entry); a review imports
  * the editor only through this entry (scripts/audit/lib.mjs R8).

@@ -29,6 +29,7 @@ import type {
   TimelineEnvironment,
   TimelineWrite,
   WritePolicy,
+  WorkPolicy,
 } from '@retake/core';
 import { snapshotMailbox } from './actions/artefacts.js';
 import { ActivityRecorder, analyzeActivity, clicksOf, slowTransitions } from './activity.js';
@@ -72,7 +73,6 @@ import { CaptureClock, TimelineBuilder, motionCapture } from './timeline.js';
 import type { MotionCapture } from './timeline.js';
 import { fileSlug, pad, throwIfAborted, wallNow } from './util.js';
 import type { GuardedWrite, WriteGuardOptions } from './write-guard.js';
-import type { WorkPolicy } from '@retake/core';
 
 export interface RunOptions {
   project: LoadedProject;

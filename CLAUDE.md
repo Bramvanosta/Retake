@@ -77,14 +77,17 @@ node scripts/set-version.mjs <version> | --check                # one version ev
 ```
 
 ## Where things live
-- `packages/core` scenario language, schemas, validation · `packages/runner-web` headless capture, in-page kit, raw
-  export (`src/raw/`) · `packages/hooks` setup/teardown hooks · `packages/components` component system, kit,
-  built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`), Remotion compositions
-  (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report · `packages/cli` the `retake`
-  command · `packages/sandbox` sandbox engine (process and docker-compose providers, Postgres snapshots, `init`
-  scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker · `packages/mcp` the MCP
-  server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the Studio web app and its
-  server (`retake ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `retake ui --supervised`) · `skills/` the Claude skills and plugin root.
+- `packages/core` scenario language, schemas, validation (no I/O; its readers, the app bundle, the media tools and the
+  Node side of its FileFacts / VideoProber ports: `packages/core/src/io`, `@retake/core/io`) · `packages/runner-web`
+  headless capture, in-page kit, raw export (`src/raw/`) · `packages/hooks` setup/teardown hooks · `packages/components`
+  component system, kit, built-in library (`library/studio/*`), scaffolds · `packages/editor` planner (`planEdit`),
+  Remotion compositions (`src/remotion/`), render / export · `packages/review` contact sheets, checks, report ·
+  `packages/cli` the `retake` command · `packages/sandbox` sandbox engine (process and docker-compose providers,
+  Postgres snapshots, `init` scaffold) · `packages/engine` engine API shared by the CLI and MCP, job queue and worker ·
+  `packages/mcp` the MCP server (`retake mcp`, stdio and HTTP, SDK imported only in `src/server.ts`) · `packages/ui` the
+  Studio web app and its server (`retake ui`; design system in `src/app/ui-kit` + `tokens.ts`, reference
+  `docs/reference/studio-ui.md`) · `apps/desktop` the macOS app (Tauri shell around `retake ui --supervised`) ·
+  `skills/` the Claude skills and plugin root.
 - `fixtures/wholesale` the fictional product filmed by the tests; `projects/northfield-fixture` its project
   (scenarios, hooks, assets; generated `runs/`, `renders/`, `review/`, `exports/` are git-ignored);
   `templates/` starter themes (default, editorial, motion); `scripts/` helpers; `docs/` everything else.

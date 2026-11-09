@@ -54,6 +54,7 @@ import type {
   RecordingDraft,
   ScenarioBlocks,
   TargetSpec,
+  WorkFileFacts,
 } from '@retake/core';
 import { callerOf, guardsStudioRecordings, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -69,7 +70,6 @@ import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 import type { StoreScope } from './store/project-store.js';
 import { sha256Hex } from './storage.js';
-import type { FileFacts } from '@retake/core';
 
 /** The largest events.jsonl read (bytes): a 30-minute recording is far below it. */
 export const RECORD_EVENTS_MAX_BYTES = 64 * 1024 * 1024;
@@ -223,7 +223,7 @@ export interface RecordStudioContext {
   /** Where a saved draft is written and journaled (the engine's caller). */
   scope: StoreScope;
   /** How a draft's files are looked at (core FileFacts): the engine's, under its workspace's policy. */
-  files: FileFacts;
+  files: WorkFileFacts;
 }
 
 // ── Reading the folder ─────────────────────────────────────────────────────
@@ -501,7 +501,7 @@ const ACTION_EVENT_KINDS = new Set(['pointer', 'dblclick', 'type', 'select_nativ
  * recording's draft holds no YAML anchor or alias (B-M2: the block editor edits it after Save); the others' is exactly
  * their job's.
  */
-function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null, files: FileFacts): { draft: RecordingDraft } | { problem: string } {
+function draftOf(s: Situation, events: readonly RecordedEvent[], annotations: RecordAnnotations | null, files: WorkFileFacts): { draft: RecordingDraft } | { problem: string } {
   const meta = s.meta!;
   let start: ReturnType<typeof recordStart>;
   try {
@@ -624,7 +624,7 @@ const studioWords = (by: JobClient | null) =>
   by === 'mcp' ? 'Claude started this recording (its job saved the draft): it is read-only here' : by === 'cli' ? 'this recording was made in a terminal: it is read-only here' : 'this recording was not started from the Studio: it is read-only here';
 
 /** The camera insert's factors under the project theme's max_zoom (B-M3). */
-async function zoomOf(project: LoadedProject, files: FileFacts): Promise<RecordZoomView | null> {
+async function zoomOf(project: LoadedProject, files: WorkFileFacts): Promise<RecordZoomView | null> {
   let max = DEFAULT_TEMPLATE.motion.max_zoom;
   try {
     max = (await loadProjectTemplate(project, undefined, { files })).template.motion.max_zoom;
@@ -859,7 +859,7 @@ function hiddenProblem(yaml: string): string | null {
  * (the Studio never writes one), agent trust (`via: 'studio'`), never over an existing file (a taken name is a
  * conflict), errors without a path — the validator's text located by scene and step and kept under `details.untrusted`.
  */
-export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope, files: FileFacts): Promise<{ file: string; hash: string; warnings: number }> {
+export async function saveRecordedDraft(project: LoadedProject, name: string, yaml: string, sceneIds: readonly string[], scope: StoreScope, files: WorkFileFacts): Promise<{ file: string; hash: string; warnings: number }> {
   checkScenarioName(name);
   const hid = hiddenProblem(yaml);
   if (hid !== null) throw new EngineError('invalid', `not saved: ${hid} — a hidden character (a direction control, a zero-width or line-separator character) reads as something else than it is, and the Studio never writes one`);

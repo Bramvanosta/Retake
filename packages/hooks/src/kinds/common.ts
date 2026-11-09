@@ -1,11 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { collectSecretRefs, projectFileProblem, secretRefsProblem } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { HookError, HookSecurityError } from '../errors.js';
 import { journalsRollback } from '../types.js';
 import type { ShownAction } from '../shown.js';
 import type { HookContext, HookLogLevel, HookPhase, RollbackAction } from '../types.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 export interface KindEnv {
   ctx: HookContext;

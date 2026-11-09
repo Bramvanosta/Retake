@@ -11,6 +11,7 @@ import type {
   LoadedProject,
   ProposalState,
   ValidationIssue,
+  WorkFileFacts,
 } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { EngineError } from '../errors.js';
@@ -26,7 +27,6 @@ import { renderIndex, threadView } from './views.js';
 import type { CommentView } from './views.js';
 import { writeAppended } from './threads.js';
 import type { CommentWritten } from './threads.js';
-import type { FileFacts } from '@retake/core';
 
 // ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
 
@@ -108,7 +108,7 @@ export async function applyProposal(
   id: string,
   req: CommentApplyRequest,
   author: CommentAuthor,
-  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: FileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; scope?: StoreScope; files: WorkFileFacts },
 ): Promise<CommentApplied> {
   // The scenario is written as the caller's (the Studio's by default: a person applies there).
   const scope = o.scope ?? threadStore(project, author).scope;
@@ -213,7 +213,7 @@ export interface CommentProposalView {
  * rebuilt from today's file when it is the base (pending, undone) or the result (applied), checked (result hash,
  * canonical hunks) and shown with context; otherwise the stored hunks, unverified. Lines are data (`untrusted.rows`).
  */
-export async function getProposal(project: LoadedProject, id: string, entryId: string | undefined, o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts }): Promise<CommentProposalView> {
+export async function getProposal(project: LoadedProject, id: string, entryId: string | undefined, o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts }): Promise<CommentProposalView> {
   const f = await locateThread(project.dir, id);
   const r = await readThread(project.dir, f);
   if (!r.ok) throw new EngineError('invalid', r.problem);
@@ -338,7 +338,7 @@ export async function proposalForPreview(
   project: LoadedProject,
   scenario: string,
   req: { comment_id: string; entry_id: string },
-  o: { registry?: () => Promise<ComponentRegistry>; files: FileFacts },
+  o: { registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
 ): Promise<ProposalPreview> {
   const f = await locateThread(project.dir, req.comment_id);
   const r = await readThread(project.dir, f);

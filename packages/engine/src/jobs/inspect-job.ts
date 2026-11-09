@@ -30,6 +30,7 @@ import {
 } from '@retake/core';
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkPolicy } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
+import { fileFacts } from '@retake/core/io';
 import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
@@ -44,7 +45,6 @@ import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 /** Inspections kept per project (the newest). */
 export const INSPECT_KEEP = 20;

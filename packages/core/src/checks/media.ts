@@ -5,7 +5,7 @@
  * an overlay video with an alpha channel, and the fields that only apply to some kinds.
  */
 import { resolve } from 'node:path';
-import { needFiles } from '../file-facts.js';
+import { needFiles, needProber } from '../file-facts.js';
 import type { FileFacts } from '../file-facts.js';
 import type { IssuePath } from '../issues.js';
 import { MEDIA_EXTENSIONS, MediaProbeError, VIDEO_CODECS, fileExtension, mediaFileKinds, readLottieMeta } from '../media.js';
@@ -136,13 +136,15 @@ export function checkMediaFields(spec: unknown, p: IssuePath, ctx: CheckContext,
     return out;
   }
 
+  const prober = needProber(files, 'a video file check');
   let v: VideoProbe;
   try {
-    v = files.probeVideo(abs);
+    v = prober.probeVideo(abs);
   } catch (e) {
-    const err = e as MediaProbeError;
-    if (err.reason === 'no-ffprobe') ctx.warning([...p, kind], `cannot check "${path}": ${err.message} (the render needs it too)`);
-    else ctx.error([...p, kind], `"${path}" is not a video the renderer can read: ${err.message}`);
+    // What ffprobe cannot say of the file is reported; anything else (a bug, a missing port) is not a file problem.
+    if (!(e instanceof MediaProbeError)) throw e;
+    if (e.reason === 'no-ffprobe') ctx.warning([...p, kind], `cannot check "${path}": ${e.message} (the render needs it too)`);
+    else ctx.error([...p, kind], `"${path}" is not a video the renderer can read: ${e.message}`);
     return out;
   }
   out.video = v;

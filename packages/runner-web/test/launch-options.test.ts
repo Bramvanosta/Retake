@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { resolveEnvironment, resolvePersonas, sandboxOffArgProblem, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import {
   ArtefactRenderer,
   RunnerError,
@@ -129,7 +129,7 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     const args = ['--hide-scrollbars', 'https://example.com/', '--user-data-dir=/tmp/p', '--proxy-server=http://127.0.0.1:1'];
     expect(launchOptions({ policy: policy, args: [], browserArgs: args }).args).toEqual([...args, '--site-per-process']);
     expect(launchTarget({ executable: `${ws}/bin/chrome` }, { policy: policy })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
-    policy = agentPolicy([ws], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       expect(() => launchOptions({ policy: policy, args: [], browserArgs: args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/);
       expect(launchOptions({ policy: policy, args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
@@ -143,7 +143,7 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
       expect(launchTarget({ executable: '/opt/chromium/chrome' }, { policy: policy }).executablePath).toBe('/opt/chromium/chrome');
       expect(launchTarget({}, { policy: policy })).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
   });
 
@@ -157,24 +157,24 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
     let browsers = dirname(shell!);
     while (!full!.startsWith(`${browsers}/`)) browsers = dirname(browsers);
     expect(launchTarget({ channel: 'headless-shell' }, { policy: policy })).toEqual({ executablePath: undefined, channel: undefined });
-    policy = agentPolicy([browsers], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([browsers], policy.ffmpeg, policy.render);
     try {
       const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
       expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
       expect(() => launchTarget({}, { policy: policy })).toThrow(/lies inside the workspace/);
       expect(() => launchTarget({ channel: 'headless-shell' }, { policy: policy, headless: false })).toThrow(/lies inside the workspace/);
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
     const dir = await tempDir('retake-launch-link-');
     try {
       await symlink(full!, join(dir, 'chrome'));
       expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(join(dir, 'chrome'));
-      policy = agentPolicy(['/ws-of-an-agent'], policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(['/ws-of-an-agent'], policy.ffmpeg, policy.render);
       try {
         expect(launchTarget({ executable: join(dir, 'chrome') }, { policy: policy }).executablePath).toBe(realpathSync(full!));
       } finally {
-        policy = agentPolicy(null, policy.ffmpeg, policy.render);
+        policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       }
     } finally {
       await rm(dir, { recursive: true, force: true });

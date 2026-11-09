@@ -57,7 +57,7 @@ describe.skipIf(!canRender)('square, music bed and export on real renders', () =
   }, LONG);
 
   it('a procedural test track loops under the video and is ducked under footage (louder on the intro)', async () => {
-    const track = await generateTestTrack(join(ws.project.dir, 'assets', 'bed.m4a'), { work: PERSON_POLICY, seconds: 1.5 });
+    const track = await generateTestTrack(join(ws.project.dir, 'assets', 'bed.m4a'), { workPolicy: PERSON_POLICY, seconds: 1.5 });
     expect(Number(probe(track).format.duration)).toBeCloseTo(1.5, 1);
     record = await renderVideo({ workPolicy: PERSON_POLICY,
       project: ws.project,

@@ -2,16 +2,16 @@
 import { hostname, homedir } from 'node:os';
 import { RETAKE_VERSION, legacyInfo } from '@retake/core';
 import type { LegacyInfo } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { entitlements } from '../entitlements.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 export const ENGINE_API_VERSION = 1;
 
 /** engine_info's `legacy` field, when something from before the rename is left unread (core legacyInfo). */
 function legacyField(): { legacy?: LegacyInfo } {
-  const legacy = legacyInfo(process.env, homedir(), nodeFileFacts.exists);
+  const legacy = legacyInfo(process.env, homedir(), (p) => nodeFileFacts.kind(p) !== undefined);
   return legacy ? { legacy } : {};
 }
 

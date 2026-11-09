@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { COMPONENT_KINDS, RETAKE_VERSION, oldHomeLine, oldHomeState, oldVarsLine, oldVarsUnread } from '@retake/core';
 import { assertOutsideBundle, bundleInfoOrNull, nodeFileFacts } from '@retake/core/io';
 import type { JsonSchemaName } from '@retake/core';
+import { homedir } from 'node:os';
 import { commentAddCommand, commentListCommand, commentReopenCommand, commentReplyCommand, commentResolveCommand } from './commands/comment.js';
 import type { CommentAddOptions, CommentListOptions, CommentWriteOptions } from './commands/comment.js';
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from './commands/components.js';
@@ -60,7 +61,6 @@ import { Ui } from './ui.js';
 /** L5.14: heavy commands wait for a take filming on this Mac, then yield to later ones; `--no-wait` skips both. */
 const NO_WAIT = 'start at once even while a take films on this Mac (default: wait for it, then go on at background priority during later takes)';
 import type { GlobalOptions } from './workspace.js';
-import { homedir } from 'node:os';
 
 export const VERSION = RETAKE_VERSION;
 
@@ -645,9 +645,9 @@ export async function main(argv: readonly string[] = process.argv, io: Io = proc
   // L5.13: sign-ins left in the home from before the rename are not read — one line on stderr (never stdout: MCP over
   // stdio and `ui --supervised` speak there), until they are moved (critique H3; legacy.ts). Likewise the old variables
   // still set without their new twin (the old HOME or ROOT: another home, another workspace — reviews A M4 / B M4).
-  const old = oldHomeState(process.env, homedir(), nodeFileFacts.exists);
+  const old = oldHomeState(process.env, homedir(), (p) => nodeFileFacts.kind(p) !== undefined);
   if (old) io.err(`${oldHomeLine(old)}\n`);
-  const vars = oldVarsUnread();
+  const vars = oldVarsUnread(process.env);
   if (vars.length) io.err(`${oldVarsLine(vars)}\n`);
   const program = buildProgram(io, (c) => (code = c));
   try {

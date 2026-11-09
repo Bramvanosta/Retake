@@ -1,8 +1,9 @@
 /**
- * The Node implementation of core's FileFacts port (core file-facts.ts): node:fs answers. Its videos are probed by
- * fileFacts(policy) (work-files.ts), with the ffprobe of a work.
+ * The Node implementation of core's FileFacts port (core file-facts.ts): node:fs answers. A work's videos are probed by
+ * its VideoProber (fileFacts(policy), work-files.ts), with the ffprobe of that work.
  */
-import { accessSync, closeSync, constants as fsConstants, existsSync, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
+import { accessSync, closeSync, constants as fsConstants, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs';
+import type { ProgramPolicyOptions } from '../agent-policy.js';
 import type { FileFacts, FileKind } from '../file-facts.js';
 
 function kind(p: string): FileKind | undefined {
@@ -54,23 +55,25 @@ function isExecutable(p: string): boolean {
   }
 }
 
-const disk = {
-  exists: (p: string) => existsSync(p),
+/**
+ * FileFacts read from this machine's file system: kinds, real paths, texts, executables, whether case counts. No
+ * VideoProber: a video is probed under a work's policy (fileFacts(policy)); a check given nodeFileFacts that must probe
+ * one throws FileFactsMissingError.
+ */
+export const nodeFileFacts: FileFacts = Object.freeze({
   kind,
   realpath,
   nativeRealpath,
   readText: (p: string) => readFileSync(p, 'utf8'),
   readHead,
   isExecutable,
-};
+  ignoresCase: process.platform === 'darwin' || process.platform === 'win32',
+});
 
 /**
- * FileFacts read from this machine's file system for the checks that need no program: existence, kinds, real paths,
- * texts. It probes no video — that needs a work's policy (fileFacts(policy)) — and throws if asked to.
+ * How this process finds the program a policy checks (core ProgramPolicyOptions): its PATH, read when called, and
+ * nodeFileFacts.
  */
-export const nodeFileFacts: FileFacts = Object.freeze({
-  ...disk,
-  probeVideo(): never {
-    throw new Error('nodeFileFacts probes no video: the check of a work\'s files is given fileFacts(policy) (@retake/core/io)');
-  },
-});
+export function programLookup(): ProgramPolicyOptions {
+  return { path: process.env.PATH ?? '', files: nodeFileFacts };
+}

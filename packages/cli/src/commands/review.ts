@@ -2,6 +2,7 @@ import type { Finding, ReviewProgress } from '@retake/review';
 import { environmentLine, findingLine, summaryLine } from '@retake/review';
 import { findRenderOf, reviewWork } from '@retake/engine';
 import type { ReviewResult } from '@retake/engine';
+import type { WorkPolicy } from '@retake/core';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -9,7 +10,6 @@ import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import { heavyGate } from '../heavy-gate.js';
 import type { GlobalOptions } from '../workspace.js';
-import type { WorkPolicy } from '@retake/core';
 
 export interface ReviewCommandOptions {
   /** `--no-wait` (wait: false): start even while a take films, at normal priority (L5.14). */

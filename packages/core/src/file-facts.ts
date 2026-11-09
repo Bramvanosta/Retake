@@ -1,10 +1,11 @@
 /**
- * FileFacts: the port through which core's pure rules learn what they need from the disk — whether a file a scenario,
- * a project, a theme or a sandbox names is there, what it is, its real path, its text or first bytes, whether it is a
- * program, what a video file holds. Core declares it; `@retake/core/io` gives the Node implementation (`nodeFileFacts`,
- * `fileFacts(policy)`), and every caller that checks files on the disk passes one in. `memoryFileFacts` answers from a
- * table (tests). A rule that needs the disk and is given no FileFacts throws (FileFactsMissingError): it never reads as
- * "no file there".
+ * The ports through which core's pure rules learn what they need from the machine. FileFacts: the disk — what is at a
+ * path a scenario, a project, a theme or a sandbox names, its real path, its text or first bytes, whether it is a
+ * program, whether the file system ignores case. VideoProber: what a video file holds (ffprobe, which runs under a
+ * work's policy). Core declares them; `@retake/core/io` gives the Node implementations — nodeFileFacts (the disk only)
+ * and fileFacts(policy) (WorkFileFacts: the disk and the work's VideoProber) — and every caller that checks files on the
+ * disk passes one in; memoryFileFacts answers both from a table (tests). A rule that needs the disk, or a video probed,
+ * and is given no such port throws (FileFactsMissingError): it never reads as "no file there".
  */
 import { dirname, resolve } from 'node:path';
 import type { VideoProbe } from './media.js';
@@ -14,9 +15,7 @@ import { MediaProbeError } from './media.js';
 export type FileKind = 'file' | 'directory' | 'other';
 
 export interface FileFacts {
-  /** Whether anything is at `p`, links followed (a broken link: no) — node's existsSync. */
-  exists(p: string): boolean;
-  /** What is at `p`, links followed; undefined when nothing can be read there. */
+  /** What is at `p`, links followed; undefined when nothing is there (a broken link included) or it cannot be read. */
   kind(p: string): FileKind | undefined;
   /** The real path of `p` (links followed, the case as given — node's realpathSync); undefined when it cannot be resolved. */
   realpath(p: string): string | undefined;
@@ -28,33 +27,62 @@ export interface FileFacts {
   readHead(p: string, n: number): Buffer;
   /** Whether `p` is a regular file this process may run (links followed). */
   isExecutable(p: string): boolean;
+  /**
+   * Whether the file system ignores case by default (macOS, Windows): a path that does not exist (yet) is compared
+   * without case there (core client-path.ts isUnder).
+   */
+  readonly ignoresCase: boolean;
+}
+
+/** The port that says what a video file holds: ffprobe's answer, under the policy of the work that asks. */
+export interface VideoProber {
   /** What ffprobe says of a video file: MediaProbeError when it cannot say (`no-ffprobe`, `unreadable`, `no-video`). */
   probeVideo(file: string): VideoProbe;
 }
 
-/** A rule that needs the disk was given no FileFacts: a caller's mistake, never a missing file. */
+/** The ports of a work's checks: the disk and the work's VideoProber (`@retake/core/io` fileFacts(policy)). */
+export type WorkFileFacts = FileFacts & VideoProber;
+
+/**
+ * The FileFacts a check is given, with the VideoProber of its work when it may look into a video file (WorkFileFacts;
+ * nodeFileFacts is the disk only: a video check given it throws FileFactsMissingError).
+ */
+export type CheckFiles = FileFacts & Partial<VideoProber>;
+
+/** A rule that needs the disk (or a video probed) was given no FileFacts (no VideoProber): a caller's mistake, never a missing file. */
 export class FileFactsMissingError extends Error {
-  constructor(what: string) {
-    super(`${what} needs a FileFacts (core file-facts.ts) to look at the disk: pass nodeFileFacts or fileFacts(policy) of @retake/core/io`);
+  constructor(what: string, port: 'FileFacts' | 'VideoProber' = 'FileFacts') {
+    super(
+      port === 'VideoProber'
+        ? `${what} needs a VideoProber (core file-facts.ts) to probe a video: pass fileFacts(policy) of @retake/core/io`
+        : `${what} needs a FileFacts (core file-facts.ts) to look at the disk: pass nodeFileFacts or fileFacts(policy) of @retake/core/io`,
+    );
     this.name = 'FileFactsMissingError';
   }
 }
 
 /** `files`, or the refusal of a rule that needs the disk without one. */
-export function needFiles(files: FileFacts | undefined, what: string): FileFacts {
+export function needFiles<F extends FileFacts>(files: F | undefined, what: string): F {
   if (!files) throw new FileFactsMissingError(what);
   return files;
 }
 
+/** The VideoProber `files` carries, or the refusal (FileFactsMissingError) of a check that must probe a video without one. */
+export function needProber(files: CheckFiles, what: string): VideoProber {
+  if (typeof files.probeVideo !== 'function') throw new FileFactsMissingError(what, 'VideoProber');
+  return files as WorkFileFacts;
+}
+
 /**
- * FileFacts answering from a table (tests): `entries` maps absolute paths to a file's text, `null` for a folder, or
- * `{ link: target }` for a symbolic link (followed by every answer). Folders above every entry exist. Nothing is
- * executable unless listed in `executables`; `probeVideo` answers `videos[file]`, else MediaProbeError `unreadable`.
+ * FileFacts and a VideoProber answering from a table (tests): `entries` maps absolute paths to a file's text, `null` for
+ * a folder, or `{ link: target }` for a symbolic link (followed by every answer). Folders above every entry exist.
+ * Nothing is executable unless listed in `executables`; `probeVideo` answers `videos[file]`, else MediaProbeError
+ * `unreadable`; case counts unless `ignoresCase`.
  */
 export function memoryFileFacts(
   entries: Readonly<Record<string, string | null | { link: string }>>,
-  o: { executables?: readonly string[]; videos?: Readonly<Record<string, VideoProbe>> } = {},
-): FileFacts {
+  o: { executables?: readonly string[]; videos?: Readonly<Record<string, VideoProbe>>; ignoresCase?: boolean } = {},
+): WorkFileFacts {
   const table = new Map(Object.entries(entries).map(([k, v]) => [resolve(k), v]));
   const folders = new Set<string>();
   for (const k of table.keys()) for (let d = dirname(k); d !== dirname(d); d = dirname(d)) folders.add(d);
@@ -83,7 +111,6 @@ export function memoryFileFacts(
     return typeof v === 'string' ? 'file' : 'directory';
   };
   return {
-    exists: (p) => follow(p) !== undefined,
     kind,
     realpath: (p) => follow(p),
     nativeRealpath: (p) => follow(p),
@@ -99,6 +126,7 @@ export function memoryFileFacts(
       return typeof v === 'string' ? Buffer.from(v, 'utf8').subarray(0, n) : Buffer.alloc(0);
     },
     isExecutable: (p) => kind(p) === 'file' && (o.executables ?? []).some((e) => follow(e) === follow(p)),
+    ignoresCase: o.ignoresCase ?? false,
     probeVideo(file) {
       const v = o.videos?.[resolve(file)];
       if (!v) throw new MediaProbeError(`${file} not found`, 'unreadable');

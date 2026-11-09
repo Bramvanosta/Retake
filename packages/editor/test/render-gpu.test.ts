@@ -271,7 +271,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     try {
       process.env.RETAKE_RENDER_GL = 'auto';
       process.env.RETAKE_RENDER_ENCODER = 'auto';
-      const doctor = await probeRenderPath({ work: PERSON_POLICY, gpuInfo: SWIFTSHADER });
+      const doctor = await probeRenderPath({ workPolicy: PERSON_POLICY, gpuInfo: SWIFTSHADER });
       expect(doctor).toMatchObject({ gl: 'software', encoder: 'libx264', concurrency: res.concurrency });
     } finally {
       process.env.RETAKE_RENDER_GL = saved.gl;

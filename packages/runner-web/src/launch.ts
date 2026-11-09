@@ -9,8 +9,8 @@ import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
 import { environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
 import type { BrowserConfig, LoadedProject, PageHttpCredentials, WorkPolicy } from '@retake/core';
+import { programLookup } from '@retake/core/io';
 import { RunnerError } from './errors.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 const require = createRequire(import.meta.url);
 
@@ -67,7 +67,7 @@ export function playwrightExecutable(channel: string | undefined, headless: bool
 export function launchTarget(b: BrowserConfig = {}, o: { headless?: boolean; policy: WorkPolicy }): { executablePath?: string; channel?: string } {
   const given = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
   if (given) {
-    const checked = policyProgram(o.policy, given, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM', { files: nodeFileFacts });
+    const checked = policyProgram(o.policy, given, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM', programLookup());
     if (checked.problem) throw new RunnerError(`Chromium was not launched: ${checked.problem}`);
     return { executablePath: checked.program, channel: undefined };
   }
@@ -75,7 +75,7 @@ export function launchTarget(b: BrowserConfig = {}, o: { headless?: boolean; pol
   if (o.policy.agentFolders) {
     const picked = playwrightExecutable(channel, o.headless !== false);
     const what = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
-    const problem = picked ? programProblem(o.policy, picked, what, { files: nodeFileFacts }) : null;
+    const problem = picked ? programProblem(o.policy, picked, what, programLookup()) : null;
     if (problem) throw new RunnerError(`Chromium was not launched: ${problem}`);
   }
   return { executablePath: undefined, channel };

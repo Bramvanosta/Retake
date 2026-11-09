@@ -2,7 +2,7 @@ import { basename, dirname, join } from 'node:path';
 import { PERSONA_NONE, authFor, mailPersona, personaEmail, planPersonas, projectPersonaNames, resolvePersonas } from '../auth.js';
 import { scenarioNavigationProblems } from '../agent-policy.js';
 import { needFiles } from '../file-facts.js';
-import type { FileFacts } from '../file-facts.js';
+import type { CheckFiles } from '../file-facts.js';
 import { formatPath } from '../issues.js';
 import type { IssuePath } from '../issues.js';
 import { isEditTextPath, isLiteralPath } from '../scenario-template.js';
@@ -43,8 +43,11 @@ export interface ScenarioCheckOptions {
   confined?: 'mcp' | 'studio';
   /** Filled with the absolute path of every file the checks look for (CheckContext.filesRead). */
   filesRead?: Set<string>;
-  /** How the files a scenario names are looked at (core FileFacts): needed with `project` or `file`. */
-  files?: FileFacts;
+  /**
+   * How the files a scenario names are looked at (core FileFacts, and the work's VideoProber for its video files):
+   * needed with `project` or `file`.
+   */
+  files?: CheckFiles;
 }
 
 const STATIC_PAGE_IDS = ['main', 'previous'];
@@ -69,12 +72,12 @@ export function isDocumentPath(value: string): boolean {
 }
 
 /** projects/<p>/scenarios/x.yaml → projects/<p> (when it holds a project.yaml). */
-function inferProjectDir(file: string | undefined, files: FileFacts | undefined): string | undefined {
+function inferProjectDir(file: string | undefined, files: CheckFiles | undefined): string | undefined {
   if (!file) return undefined;
   const dir = dirname(file);
   if (basename(dir) !== 'scenarios') return undefined;
   const projectDir = dirname(dir);
-  return needFiles(files, 'the project of a scenario file').exists(join(projectDir, 'project.yaml')) ? projectDir : undefined;
+  return needFiles(files, 'the project of a scenario file').kind(join(projectDir, 'project.yaml')) !== undefined ? projectDir : undefined;
 }
 
 class ScenarioChecker {
@@ -472,6 +475,8 @@ class ScenarioChecker {
     if (!project || !this.ctx.structurallyValid) return;
     const seen = new Set<string>();
     for (const env of Object.keys(project.config.environments ?? {})) {
+      // Only the plan's conflicts are read below: `home` places the personas' profile and session files, which no
+      // conflict names, so any folder does (no Retake home is read for a validation).
       const personas = resolvePersonas(project, env, { home: '/' });
       if (personas.length === 0) continue;
       const plan = planPersonas(this.s as unknown as Scenario, { env, envPages: project.config.environments[env], personas, hooks: true });

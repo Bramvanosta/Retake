@@ -1,6 +1,6 @@
 // The shared part of the import probes (read-only): one scan of `packages/*/src`, the layer rules, file cycles and the
-// wiring rules (who builds the file job queue, who submits to it or writes as its worker, who calls the process-wide
-// setters), plus the ratchet that compares
+// wiring rules (who builds the file job queue, who submits to it or writes as its worker, where a module-level variable
+// would hold the work's policy), plus the ratchet that compares
 // them with the committed baseline (scripts/audit/baseline.json). Used by imports.mjs, rules.mjs and the import-rules
 // test (packages/core/test/import-rules.test.ts), so the scripts and the test have one implementation.
 import fs from 'node:fs';
@@ -125,8 +125,13 @@ const SHELLS = ['cli', 'mcp', 'ui'];
 const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'components'];
 /** Core's side that touches the machine (`@retake/core/io`): R1 holds for the rest of core, which never imports it. */
 export const CORE_IO_DIR = 'packages/core/src/io/';
-/** An import of core's io side from the rest of core: `@retake/core/io`, or a relative path into src/io/. */
-const coreIoImport = (s, f) => s === '@retake/core/io' || s.startsWith('@retake/core/io/') || (s.startsWith('.') && path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(CORE_IO_DIR));
+/** An import of core's io side from the rest of core: `@retake/core/io`, or a relative path to src/io (`./io`) or into it. */
+const coreIoImport = (s, f) => {
+  if (s === '@retake/core/io' || s.startsWith('@retake/core/io/')) return true;
+  if (!s.startsWith('.')) return false;
+  const to = path.posix.normalize(path.posix.join(path.posix.dirname(f), s));
+  return to === CORE_IO_DIR.slice(0, -1) || to.startsWith(CORE_IO_DIR);
+};
 /**
  * The bindings of an I/O module that do no I/O, by module: node:net's address helpers (isIP / isIPv4 / isIPv6 parse a
  * string; a BlockList matches addresses in memory) — an import naming only these is not I/O; any other form of the
@@ -148,7 +153,7 @@ export const CHECKS = [
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
-  { id: 'setter', title: 'no process-wide setter (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) is used anywhere: the policy work runs under is a value (core WorkPolicy) the engine passes to the adapters' },
+  { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
   { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
 ];
 
@@ -295,17 +300,22 @@ const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
 /** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
 const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append']);
 const queueCallsAllowed = (rel) => rel.startsWith('packages/engine/src/');
-/** The process-wide setters there were before the WorkPolicy value: a use of one under these names, anywhere, is a hit. */
-const SETTERS = ['useAgentPolicy', 'useWorkspaceFfmpeg', 'useWorkspaceRender'];
+/** The packages where the work's policy is passed as a value (core WorkPolicy): core, the engine and the adapters. */
+const POLICY_VALUE_PACKAGES = ['core', 'engine', ...ADAPTERS];
+/** A module-level variable named for the policy's state (what the process-wide setters before WorkPolicy held). */
+const POLICY_STATE_NAME = /polic|agentfolders|ffmpeg|ffprobe|programcheck|rendersettings|workspacerender/i;
+/** A module-level variable typed or set with the policy's types. */
+const POLICY_STATE_TYPE = /\b(?:WorkPolicy|RenderSettings|RenderPolicy|ProgramPolicyOptions)\b/;
 
 /**
  * The wiring rules, read from the syntax tree: outside the composition roots (QUEUE_ROOTS, the CLI), `new FileJobQueue(…)`, a class extending it and
  * any other use of the class as a value (`const Q = FileJobQueue`, a destructured `{ FileJobQueue }`, `ns.FileJobQueue`
  * passed on), under its own name, an import alias or `ns.name` (a type position is not a use); outside
  * packages/engine/src, a call of the queue's submit or of a worker's write on something named `queue` (`queue.claim(…)`,
- * `engine.queue.enqueue(…)`, `this.queue['write'](…)`); and any use of a process-wide setter — a call or the function
- * passed on as a value, under the same names — anywhere (there are none: the work's policy is a value). Declarations,
- * imports and re-exports are not uses.
+ * `engine.queue.enqueue(…)`, `this.queue['write'](…)`). Declarations, imports and re-exports are not uses. And in core,
+ * the engine and the adapters, a module-level `let` / `var` (exported or not, a destructured name too) that holds the
+ * work's policy — named after it (POLICY_STATE_NAME) or typed or set with its types (POLICY_STATE_TYPE): the policy is a
+ * value the engine passes on, never state a setter changes (a `const` of such a type is a value, not state).
  */
 export function wiringHits(root, files) {
   const ts = loadTs(root);
@@ -313,10 +323,12 @@ export function wiringHits(root, files) {
   for (const { rel, text } of files) {
     const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
     const calls = !queueCallsAllowed(rel) && text.includes('queue');
-    const setters = SETTERS.some((s) => text.includes(s));
-    if (!queue && !calls && !setters) continue;
+    const state = POLICY_VALUE_PACKAGES.includes(pkgOf(rel)) && /\b(?:let|var)\b/.test(text);
+    if (!queue && !calls && !state) continue;
     const sf = parse(ts, rel, text);
-    const names = new Map([[QUEUE_CLASS, QUEUE_CLASS], ...SETTERS.map((s) => [s, s])]); // local name → original
+    if (state) for (const name of policyStateNames(ts, sf)) hits.push({ rule: 'policy-state', file: rel, spec: `let ${name}` });
+    if (!queue && !calls) continue;
+    const names = new Map([[QUEUE_CLASS, QUEUE_CLASS]]); // local name → original
     sf.forEachChild(function imports(n) {
       if (ts.isImportSpecifier(n)) {
         const orig = (n.propertyName ?? n.name).text;
@@ -358,18 +370,30 @@ export function wiringHits(root, files) {
         const queueNamed = !!on && ((ts.isIdentifier(on) && on.text === 'queue') || (ts.isPropertyAccessExpression(on) && on.name.text === 'queue'));
         if (method && QUEUE_WRITES.has(method) && queueNamed) found.add(`queue-call:queue.${method}`);
       }
-      if (setters && (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n))) {
-        const orig = nameOf(n);
-        const p = n.parent;
-        const declName = p && (ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p)) && p.name === n;
-        const inner = ts.isIdentifier(n) && p && ts.isPropertyAccessExpression(p) && p.name === n; // counted on the access
-        if (orig && SETTERS.includes(orig) && !declName && !inner) found.add(`setter:${orig}`);
-      }
       n.forEachChild((c) => visit(c, typeHere));
     })(sf);
     for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
   }
   return hits;
+}
+
+/** The names of the module-level `let` / `var` declarations of `sf` that hold the work's policy (wiringHits). */
+function policyStateNames(ts, sf) {
+  const out = [];
+  const bound = (n, into) => {
+    if (ts.isIdentifier(n)) into.push(n.text);
+    else for (const e of n.elements) if (!ts.isOmittedExpression(e)) bound(e.name, into);
+  };
+  for (const st of sf.statements) {
+    if (!ts.isVariableStatement(st) || st.declarationList.flags & (ts.NodeFlags.Const | ts.NodeFlags.Using)) continue;
+    for (const d of st.declarationList.declarations) {
+      const names = [];
+      bound(d.name, names);
+      const typed = [d.type, d.initializer].some((x) => x && POLICY_STATE_TYPE.test(x.getText(sf)));
+      for (const name of names) if (typed || POLICY_STATE_NAME.test(name)) out.push(name);
+    }
+  }
+  return out;
 }
 
 /** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */

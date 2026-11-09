@@ -11,7 +11,7 @@ import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ConfigError, envFileKeys, PERSON_POLICY, agentPolicy } from '@retake/core';
+import { ConfigError, envFileKeys, PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { composeEnvFile, loadProject } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import { ComposeProvider, SandboxError, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
@@ -108,12 +108,12 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const shell = { PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', APP_TAG: 'from-the-shell', COMPOSE_PROFILES: 'debug', AWS_SECRET_ACCESS_KEY: 'exported' };
     // A command a person types: everything but COMPOSE_* and the env file's names.
     expect(dockerEnv(policy, shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell', AWS_SECRET_ACCESS_KEY: 'exported' });
-    policy = agentPolicy([p.dir], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([p.dir], policy.ffmpeg, policy.render);
     try {
       expect(dockerEnv(policy, shell, ref.envKeys, ref.pass)).toEqual({ PATH: '/usr/bin', HOME: '/home/me', DOCKER_HOST: 'tcp://127.0.0.1:2375', DOCKER_CONTEXT: 'orbstack', BUILDKIT_PROGRESS: 'plain', GREETING: 'from-the-shell' });
       expect(dockerEnv(policy, shell, ref.envKeys)).not.toHaveProperty('GREETING');
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
     // Every compose command of the provider carries project.yaml's pass_env.
     const calls: Array<DockerRunOptions | undefined> = [];
@@ -139,7 +139,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     await standIn(outside);
     await symlink(outside, join(tmp, 'docker-elsewhere', 'docker'));
     const before = process.env.RETAKE_DOCKER;
-    policy = agentPolicy([p.dir], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([p.dir], policy.ffmpeg, policy.render);
     try {
       process.env.RETAKE_DOCKER = inside;
       await expect(new ComposeProvider({ policy }).docker(ctxOf(p))).rejects.toThrow(/^sandbox stage: docker-compose sandboxes: \$RETAKE_DOCKER \(.*\/bin\/docker\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_DOCKER at its new place$/);
@@ -151,7 +151,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
       await expect(new ComposeProvider({ policy }).docker(ctxOf(p))).rejects.toThrow(SandboxError);
       expect(readFileSync(join(tmp, 'docker-elsewhere', 'ran.txt'), 'utf8').trim().split('\n')[0]).toBe(realpathSync(outside));
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       if (before === undefined) delete process.env.RETAKE_DOCKER;
       else process.env.RETAKE_DOCKER = before;
     }
@@ -173,7 +173,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     const before = process.env.GREETING;
     process.env.GREETING = 'from-the-shell';
     const greeting = (cfg: unknown) => JSON.stringify(cfg).match(/"GREETING":"([^"]*)"/)?.[1];
-    policy = agentPolicy([tmp], policy.ffmpeg, policy.render);
+    policy = workPolicyFrom([tmp], policy.ffmpeg, policy.render);
     try {
       const calls: string[] = [];
       const real: DockerExec = async (a, o) => {
@@ -187,7 +187,7 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
       expect(greeting(JSON.parse(calls[0]))).toBe('from-the-shell');
       expect(greeting(JSON.parse(calls[1]))).toBe('none');
     } finally {
-      policy = agentPolicy(null, policy.ffmpeg, policy.render);
+      policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
       if (before === undefined) delete process.env.GREETING;
       else process.env.GREETING = before;
     }

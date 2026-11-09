@@ -12,12 +12,12 @@ import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigat
 import type { AgentTrustEnvironment, WorkPolicy } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
+import { nodeFileFacts } from '@retake/core/io';
 import { ENGINE_TRUST, submitterChannel } from './caller.js';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
-import { nodeFileFacts } from '@retake/core/io';
 
 /**
  * The wording channel of a client's refusals (caller.ts submitterChannel): the Studio (`ui`) is told "from the Studio"

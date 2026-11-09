@@ -50,6 +50,7 @@ import {
 } from '@retake/core';
 import type { DraftIssue, JobClient, LoadedProject, LoadedScenario, RecordedEvent, ResolvedEnvironment, ResolvedPersona, RunProgress, RunRecord, WorkPolicy } from '@retake/core';
 import type { RecordSessionOptions, RecordSessionResult } from '@retake/runner-web';
+import { retakeHome, fileFacts } from '@retake/core/io';
 import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
@@ -63,7 +64,6 @@ import { refuseBesideOldHolder } from './legacy.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 import type { OpenedWorkspace } from './workspace.js';
-import { retakeHome, fileFacts } from '@retake/core/io';
 
 /** Recordings kept per project (the newest). */
 export const RECORD_KEEP = 20;

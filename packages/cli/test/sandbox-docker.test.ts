@@ -22,7 +22,7 @@ import { loadProject } from '@retake/core/io';
 import { MailboxClient, inlineCids } from '@retake/runner-web';
 import { dockerEnv, findDocker, openSandbox, probePort } from '@retake/sandbox';
 import { EXIT, main, memoryIo } from '../src/index.js';
-import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */

@@ -1,6 +1,6 @@
 /**
- * The media probes (core media.ts reads their answers): ffprobe of a video file, cached by path, size and modification
- * time, and the metadata of a Lottie file on the disk.
+ * The media probes (core media.ts reads their answers): ffprobe of a video file, cached by path, size, modification
+ * time and the ffprobe that read it, and the metadata of a Lottie file on the disk.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
@@ -17,22 +17,24 @@ export function ffprobeCommand(policy: WorkPolicy): string {
 }
 
 /**
- * ffprobe a video file (synchronous, cached by path + size + mtime): codec, size, length, sound, alpha. Throws
- * MediaProbeError (`no-ffprobe` when ffprobe is missing, `unreadable` / `no-video` for a file it cannot use); the
- * ffprobe is the work's (`policy`: ffprobeBin).
+ * ffprobe a video file (synchronous, cached by path + size + mtime + the ffprobe run): codec, size, length, sound,
+ * alpha. Throws MediaProbeError (`no-ffprobe` when ffprobe is missing, `unreadable` / `no-video` for a file it cannot
+ * use); the ffprobe is the work's (`policy`: ffprobeBin — its refusal, a BundleError, is thrown as it is).
  */
 export function probeVideoFile(file: string, policy: WorkPolicy): VideoProbe {
-  let key = file;
+  let st;
   try {
-    const st = statSync(file);
-    key = `${file}\0${st.size}\0${st.mtimeMs}`;
+    st = statSync(file);
   } catch {
     throw new MediaProbeError(`${file} not found`, 'unreadable');
   }
+  const ffprobe = ffprobeCommand(policy);
+  // Another ffprobe (another workspace's, another policy's) may read the file otherwise: its answer is its own.
+  const key = `${file}\0${st.size}\0${st.mtimeMs}\0${ffprobe}`;
   const hit = probeCache.get(key);
   if (hit instanceof MediaProbeError) throw hit;
   if (hit) return hit;
-  const r = spawnSync(ffprobeCommand(policy), ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const r = spawnSync(ffprobe, ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
   if (r.error) {
     // Not cached: installing ffmpeg fixes it.
     throw new MediaProbeError(`ffprobe is not available (${(r.error as NodeJS.ErrnoException).code ?? r.error.message}): install ffmpeg`, 'no-ffprobe');

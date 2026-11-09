@@ -4,7 +4,7 @@ import { realpath } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
 import { SCENARIO_EDIT_MAX_CHARS, ScenarioError, StepEditError, agentTrustProblemsAt, applyFieldEdit, applyStepEdit, changedHookInputs, changedHookSections, filmedChangesOf, hasErrors, hookInputsChangedMessage, hooksChangedMessage, issuesMessage, newHiddenCharProblem, parseScenario, parseYaml, resolveEnvironment, textEol, verifyEditText, pathInside, projectPath, projectRef, scenarioFile, scenarioRef } from '@retake/core';
 import { listTemplates, loadProjectTemplate, nodeFileFacts } from '@retake/core/io';
-import type { AgentChannel, AgentTrustEnvironment, FieldEdit, LoadedProject, PositionedTrustProblem, Scenario, StepEdit, Template, ValidationIssue, FileFacts } from '@retake/core';
+import type { AgentChannel, AgentTrustEnvironment, FieldEdit, LoadedProject, PositionedTrustProblem, Scenario, StepEdit, Template, ValidationIssue, WorkFileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
@@ -102,7 +102,7 @@ export async function getScenario(project: LoadedProject, name: string): Promise
 }
 
 /** The project's template, for the checks that need it (theme slots, components); undefined when it does not load. */
-async function templateOf(project: LoadedProject, files: FileFacts): Promise<Template | undefined> {
+async function templateOf(project: LoadedProject, files: WorkFileFacts): Promise<Template | undefined> {
   try {
     return (await loadProjectTemplate(project, undefined, { files })).template;
   } catch {
@@ -148,7 +148,7 @@ function trustIssue(p: PositionedTrustProblem): ValidationIssue {
 export async function validateScenarioText(
   project: LoadedProject,
   yaml: string,
-  opts: { files: FileFacts; env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> },
+  opts: { files: WorkFileFacts; env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> },
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
   const file = scenarioFile(project.dir, opts.name ?? 'untitled');
@@ -182,7 +182,7 @@ export interface SaveResult {
  * null (or absent) for a new file, which must not exist when written. An existing scenarios/<name>.yml is refused
  * (a new .yaml would shadow it).
  */
-export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: FileFacts }): Promise<SaveResult> {
+export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope; files: WorkFileFacts }): Promise<SaveResult> {
   checkScenarioName(name);
   const ref = scenarioRef(name);
   if (existsSync(scenarioFile(project.dir, name, '.yml'))) {
@@ -318,7 +318,7 @@ export async function editScenario(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: FileFacts },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; scope: StoreScope; files: WorkFileFacts },
 ): Promise<ScenarioEditResult> {
   const p = await prepareScenarioEdit(project, name, req, o);
   const res = await ProjectStore.of(project, o.scope).writeText(p.base.file, p.text, { ifMatch: req.hash, what: 'scenario' });
@@ -350,7 +350,7 @@ export async function prepareScenarioEdit(
   project: LoadedProject,
   name: string,
   req: ScenarioEditRequest,
-  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: FileFacts },
+  o: { agent: boolean; via: AgentChannel; registry?: () => Promise<ComponentRegistry>; files: WorkFileFacts },
 ): Promise<PreparedScenarioEdit> {
   const base = await getScenario(project, name);
   if (base.hash !== req.hash) {

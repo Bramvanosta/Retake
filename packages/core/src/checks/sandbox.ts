@@ -152,7 +152,7 @@ function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[
     if (!checkRelative(c.env_file, ['compose', 'env_file'], 'env file', ctx)) return;
     file = resolve(ctx.projectDir, c.env_file);
     at = ['compose', 'env_file'];
-    if (!files.exists(file)) {
+    if (files.kind(file) === undefined) {
       ctx.error(at, `env file "${c.env_file}" not found in ${DIR_LABEL}`);
       return;
     }
@@ -160,7 +160,7 @@ function checkEnvFile(c: Record<string, unknown>, composeFiles: readonly string[
     if (!composeFiles.length || machinePath(composeFiles[0])) return;
     file = resolve(dirname(resolve(ctx.projectDir, composeFiles[0])), '.env');
     at = Array.isArray(c.files) ? ['compose', 'files', 0] : ['provider'];
-    if (!files.exists(file)) return;
+    if (files.kind(file) === undefined) return;
   }
   let text: string;
   try {
@@ -181,7 +181,7 @@ function checkDir(rel: string, path: IssuePath, what: string, ctx: CheckContext)
   const files = needFiles(ctx.files, 'a folder check');
   let ok = false;
   try {
-    ok = files.exists(abs) && files.kind(abs) === 'directory';
+    ok = files.kind(abs) === 'directory';
   } catch {
     ok = false;
   }

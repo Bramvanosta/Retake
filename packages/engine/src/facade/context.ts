@@ -4,7 +4,8 @@
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
 import { loginCommand as coreLoginCommand } from '@retake/core';
-import type { AgentChannel, LoadedProject, RunMode, Scenario, FileFacts } from '@retake/core';
+import type { AgentChannel, LoadedProject, RunMode, Scenario, WorkFileFacts } from '@retake/core';
+import { fileFacts } from '@retake/core/io';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';
 import { admits, agentChecks, agentWorkspace, callerOf, refusalChannel } from '../caller.js';
@@ -27,7 +28,6 @@ import { openWorkspace } from '../workspace.js';
 import { scenarioSessions } from './sessions.js';
 import type { EngineOptions, RunStatusWithJob, ScenarioSessions } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 /** What every sub-API of the façade is built from: made once per engine, shared by its builders. */
 export interface EngineContext {
@@ -40,7 +40,7 @@ export interface EngineContext {
   readonly via: AgentChannel;
   readonly ws: OpenedWorkspace;
   /** How this engine's checks look at the disk (core FileFacts): its videos probed under the workspace's policy. */
-  readonly files: FileFacts;
+  readonly files: WorkFileFacts;
   /** Every authored write of this engine goes through the project store, journaled as this caller's. */
   readonly scope: StoreScope;
   readonly project: (slug: string) => Promise<LoadedProject>;

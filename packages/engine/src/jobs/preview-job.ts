@@ -23,6 +23,7 @@ import { JOB_INPUT_VERSION, PreviewJobInputSchema, statePath } from '@retake/cor
 import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
+import { fileFacts } from '@retake/core/io';
 import { checkComponentId, components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import {
@@ -53,7 +54,6 @@ import { editor } from '../lazy.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 /** The kinds a theme preview shows, in order (R-MCP-11). */
 export const THEME_PREVIEW_KINDS: readonly ComponentKind[] = ['intro', 'layout', 'card', 'interstitial', 'outro'];

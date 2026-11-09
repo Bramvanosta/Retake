@@ -11,13 +11,13 @@ import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import type { BrowserConfig, CursorIcon, RawLayerFormat, WorkPolicy } from '@retake/core';
+import { ffmpegBin } from '@retake/core/io';
 import { EncodeError } from '../errors.js';
 import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
 import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { CURSOR_LOOK, type CursorFrame } from './cursor.js';
-import { ffmpegBin } from '@retake/core/io';
 
 /** Atlas geometry (CSS px): each sprite in a cell, its hotspot (the cursor point / ripple centre) at `hot`. */
 export const ATLAS = { cell: 128, hot: 64, columns: 12, ripple_step_s: 1 / 120, scale_steps: 10 } as const;

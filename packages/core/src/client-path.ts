@@ -15,11 +15,11 @@ function spellings(p: string, files: FileFacts): string[] {
   return real === undefined ? [abs] : [...new Set([abs, real])];
 }
 
-/** File systems that ignore case by default: a path that does not exist (yet) is compared without case there. */
-const FOLD_CASE = process.platform === 'darwin' || process.platform === 'win32';
-
-/** Whether `p` is `folder` or inside it, under any spelling of either (and any case where the system ignores it). */
+/**
+ * Whether `p` is `folder` or inside it, under any spelling of either — and without case where the file system ignores it
+ * (FileFacts.ignoresCase: a path that does not exist yet has no spelling of the disk's to compare).
+ */
 export function isUnder(p: string, folder: string, files: FileFacts): boolean {
   const roots = spellings(folder, files);
-  return spellings(p, files).some((x) => roots.some((r) => pathInside(x, r, { compare: 'spelling', fold: FOLD_CASE })));
+  return spellings(p, files).some((x) => roots.some((r) => pathInside(x, r, { compare: 'spelling', fold: files.ignoresCase })));
 }

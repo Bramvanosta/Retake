@@ -193,8 +193,17 @@ const statKey = (file: string): string => {
   }
 };
 
+/** The ffprobe a work runs, for a memo's key (its refusal's words when the work's policy refuses it): another ffprobe's answer is not this one's. */
+const ffprobeKey = (policy: WorkPolicy): string => {
+  try {
+    return ffprobeBin(policy);
+  } catch (e) {
+    return `refused: ${(e as Error).message}`;
+  }
+};
+
 async function musicLength(file: string, policy: WorkPolicy): Promise<number | undefined> {
-  const key = `${file}|${statKey(file)}`;
+  const key = `${file}|${statKey(file)}|${ffprobeKey(policy)}`;
   if (musicMemo.has(key)) return musicMemo.get(key);
   const ed = await editor();
   const probe = await ed.probeMedia(file, policy);
@@ -277,7 +286,7 @@ export async function captureInfo(file: string, o: { ffprobe?: string; timeoutMs
 }
 
 function memoCapture(file: string, policy: WorkPolicy): Promise<TimelineCaptureInfo> {
-  const key = `${file}|${statKey(file)}`;
+  const key = `${file}|${statKey(file)}|${ffprobeKey(policy)}`;
   let p = captureMemo.get(key);
   if (!p) {
     p = captureInfo(file, { policy });

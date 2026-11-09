@@ -14,11 +14,11 @@ import { oldWorkspaceFileAt } from '@retake/core';
 import { clientPath, findWorkspaceRoot, nodeFileFacts } from '@retake/core/io';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
 import { MCP_HTTP_TOKEN_ENV, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, mcpConfigJson, mcpHttpConfigJson, mcpHttpTokenExport, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
+import { homedir } from 'node:os';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import type { GlobalOptions } from '../workspace.js';
-import { homedir } from 'node:os';
 
 export interface McpCommandOptions {
   printConfig?: boolean;

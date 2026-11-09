@@ -53,6 +53,9 @@ export interface FolderStage {
   copy(rel: string, from: string): Promise<void>;
 }
 
+/** How a refusal names the folder of a store with a label of its own (default: the project folder, LocalStorage). */
+const FOLDER_NOUNS: Readonly<Record<string, string>> = { '<components_dir>': 'the components folder', '<templates_dir>': 'the themes folder' };
+
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
 
 export class ProjectStore {
@@ -68,8 +71,8 @@ export class ProjectStore {
     /** The journal's name of the folder when it is outside the workspace (default `<project>`, else `<store>`). */
     label?: string,
   ) {
-    this.#storage = new LocalStorage(root);
     this.#place = { label: label ?? (project !== undefined ? '<project>' : '<store>'), base: root };
+    this.#storage = new LocalStorage(root, FOLDER_NOUNS[this.#place.label]);
   }
 
   /** The store of a project's folder. */
@@ -220,13 +223,15 @@ export function personScope(workspace: string): StoreScope {
 
 /**
  * A writer of files of `store`'s folder for an adapter that names them by absolute path (a sandbox scaffold, the line
- * project.yaml gains): written on the version the adapter read (`previous`: `if_match` its hash — a change made since
- * is a conflict, never lost), else on the file as it is just before (its hash, or null: created, never over a file).
+ * project.yaml gains, a component's README): written on the version the adapter read — `previous` a text: `if_match`
+ * its hash, a change made since is a conflict, never lost; `previous` null: the adapter found no file, `if_match` null,
+ * created and never over one made since — else (`previous` left out) on the file as it is just before (its hash, or
+ * null: created, never over a file).
  */
-export function fileWriter(store: ProjectStore, what: JournalWhat): (file: string, text: string, previous?: string) => Promise<void> {
+export function fileWriter(store: ProjectStore, what: JournalWhat): (file: string, text: string, previous?: string | null) => Promise<void> {
   return async (file, text, previous) => {
     const ref = store.refOf(file);
-    const ifMatch = previous !== undefined ? sha256Hex(Buffer.from(previous, 'utf8')) : ((await store.readText(ref))?.sha256 ?? null);
+    const ifMatch = previous === null ? null : previous !== undefined ? sha256Hex(Buffer.from(previous, 'utf8')) : ((await store.readText(ref))?.sha256 ?? null);
     await store.writeText(ref, text, { ifMatch, what });
   };
 }

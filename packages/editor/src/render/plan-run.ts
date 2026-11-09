@@ -16,7 +16,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { displayPages, editReplannedMessage, insideFolder, isCaptureScene, issuesMessage, parseScenario, renderFileProblems, replanEdit, resolveEnvironment, templateRefProblem, timelineVideo, GUIDE } from '@retake/core';
 import { loadProjectTemplate, readJson, scenarioSinceRun, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline, ErrorKind, WorkPolicy, FileFacts } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
@@ -254,7 +254,7 @@ export function editOfToday(
   mode: 'auto' | 'run' = 'auto',
   editText: string | undefined,
   /** How today's scenario's files are looked at (core FileFacts): the work's. */
-  files: FileFacts,
+  files: WorkFileFacts,
 ): { timeline: Timeline; edit: PlannedEdit; warnings: string[]; text?: string } {
   const asCaptured = (edit: PlannedEdit, warnings: string[] = []) => ({ timeline: captured, edit, warnings });
   if (mode === 'run') return asCaptured({ from: 'run' });

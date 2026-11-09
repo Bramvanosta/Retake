@@ -9,9 +9,9 @@
 import { lstat, readdir } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { realPathOf } from '@retake/core';
+import { nodeFileFacts } from '@retake/core/io';
 import { EngineError } from '../errors.js';
 import { FONT_EXTENSIONS, FONT_MAX_BYTES, IMAGE_MAX_BYTES, LOGO_EXTENSIONS, SVG_MAX_BYTES, brandSourceProblem } from './files.js';
-import { nodeFileFacts } from '@retake/core/io';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export const BRAND_LIST_MAX_ENTRIES = 5_000;

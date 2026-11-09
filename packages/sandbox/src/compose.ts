@@ -30,7 +30,7 @@ import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } 
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
 import { DEFAULT_COMPOSE_FILES, envFileKeys, interpolateDeep, policyProgram, resolveEnvironment, sandboxNames } from '@retake/core';
-import { composeEnvFile, prefetchSecrets, nodeFileFacts } from '@retake/core/io';
+import { composeEnvFile, prefetchSecrets, programLookup } from '@retake/core/io';
 import type { ExecStepSpec, LoadedProject, LoadedSandbox, WorkPolicy } from '@retake/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
@@ -407,7 +407,7 @@ export class ComposeProvider implements Provider {
    */
   private program(): string | null {
     if (!this.bin) return null;
-    const checked = policyProgram(this.policy, this.bin, this.binWhat, { files: nodeFileFacts });
+    const checked = policyProgram(this.policy, this.bin, this.binWhat, programLookup());
     if (checked.problem) throw new SandboxError(`docker-compose sandboxes: ${checked.problem}`);
     return checked.program;
   }
@@ -961,7 +961,7 @@ export class ComposeProvider implements Provider {
     // An exec step running in a container: its processes there too (the docker client alone would leave them).
     const exec = this.running;
     this.running = null;
-    const bin = this.bin ? policyProgram(this.policy, this.bin, this.binWhat, { files: nodeFileFacts }) : null;
+    const bin = this.bin ? policyProgram(this.policy, this.bin, this.binWhat, programLookup()) : null;
     if (exec && bin && !bin.problem) {
       spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(this.policy, process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
     }

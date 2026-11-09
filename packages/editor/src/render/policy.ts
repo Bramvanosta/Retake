@@ -435,10 +435,10 @@ export interface RenderPathProbe {
  * The render path of this machine as a 1080p30 render would take it — the same checks, nothing written: the policy,
  * the render browser opened as renders open it (ANGLE: its GPU), and the VideoToolbox probe. Never throws.
  */
-export async function probeRenderPath(o: { work: WorkPolicy; gpuInfo?: (b: { connection: unknown }) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe }): Promise<RenderPathProbe> {
+export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b: { connection: unknown }) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe }): Promise<RenderPathProbe> {
   let policy: RenderPolicy;
   try {
-    policy = renderPolicy(o.work);
+    policy = renderPolicy(o.workPolicy);
   } catch (e) {
     return { error: (e as Error).message };
   }

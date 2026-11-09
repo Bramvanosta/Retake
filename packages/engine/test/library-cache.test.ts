@@ -16,7 +16,7 @@ import { cp, link, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import { loadTemplate, fileFacts } from '@retake/core/io';
 import type { WorkspaceConfig, WorkPolicy } from '@retake/core';
 import { PREVIEW_MAX_BYTES, PREVIEW_SAMPLES_DIR, componentSourceHash, createComponent, loadComponentRegistry } from '@retake/components';
@@ -166,23 +166,23 @@ describe('library preview keys', () => {
     const soft = await keysOf(await context());
     const yaml = await readFile(join(root, 'retake.yaml'), 'utf8');
     try {
-      policy = agentPolicy(policy.agentFolders, policy.ffmpeg, { gl: 'gpu' });
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, { gl: 'gpu' });
       const gpu = await context();
       expect(gpu.browser).toMatch(/ gl=angle$/);
       expect(changed(soft, await keysOf(gpu))).toEqual(Object.keys(soft).sort());
       // A process that opens a workspace (the Studio server, a job process) takes its render: — both compute one key.
       await writeFile(join(root, 'retake.yaml'), `${yaml}render:\n  gl: gpu\n`);
-      policy = agentPolicy(policy.agentFolders, policy.ffmpeg, undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       expect((await context()).browser).toMatch(/ gl=software$/);
       policy = (await openWorkspace({ root })).policy;
       expect((await context()).browser).toMatch(/ gl=angle$/);
       // A setting that cannot work keys as "invalid" (the preview then fails and says why), never throws here.
-      policy = agentPolicy(policy.agentFolders, policy.ffmpeg, undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       process.env.RETAKE_RENDER_GL = 'swangle';
       expect((await context()).browser).toMatch(/ gl=invalid$/);
     } finally {
       process.env.RETAKE_RENDER_GL = 'software';
-      policy = agentPolicy(policy.agentFolders, policy.ffmpeg, undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       await writeFile(join(root, 'retake.yaml'), yaml);
     }
   });
@@ -209,7 +209,7 @@ describe('library preview keys', () => {
       expect(keyIn({ ...process.env, RETAKE_RENDER_GL: 'software' })).not.toBe(studio);
     } finally {
       process.env.RETAKE_RENDER_GL = 'software';
-      policy = agentPolicy(policy.agentFolders, policy.ffmpeg, undefined);
+      policy = workPolicyFrom(policy.agentFolders, policy.ffmpeg, undefined);
       await writeFile(join(root, 'retake.yaml'), yaml);
     }
   });

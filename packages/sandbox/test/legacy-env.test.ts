@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { LoadedProject, LoadedSandbox, WorkPolicy } from '@retake/core';
 import { serviceEnv } from '../src/index.js';
-import { PERSON_POLICY, agentPolicy } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 
 /** The policy the work below runs under (core WorkPolicy): a command a person types until a test turns the agent policy on. */
 let policy: WorkPolicy = PERSON_POLICY;

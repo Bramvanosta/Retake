@@ -40,7 +40,7 @@ describe('every ffmpeg / ffprobe spawn goes through the resolver (core mediaTool
   // A command literal where a program is started or defaulted: spawn('ffmpeg', …), x ?? 'ffmpeg', ffmpeg = 'ffmpeg'.
   const SPAWN = /\b(?:spawn|spawnSync|execFile|execFileSync|exec|run|runFfmpeg)\(\s*(['"`])ff(?:mpeg|probe)\1|(?:\?\?|\|\|)\s*(['"`])ff(?:mpeg|probe)\2|=\s*(['"`])ff(?:mpeg|probe)\3\s*[,)]/;
 
-  it('no source names ffmpeg / ffprobe as a command outside core/src/bundle.ts', () => {
+  it('no source names ffmpeg / ffprobe as a command outside core/src/io/bundle.ts', () => {
     const offenders: string[] = [];
     for (const pkg of readdirSync(join(REPO, 'packages'))) {
       let files: string[];
@@ -83,8 +83,8 @@ describe('the render browser is checked before the asset server starts (review B
   it('render.ts: renderBrowser / assertRenderBrowser come before startAssetServer() in openSession', () => {
     const code = readFileSync(join(REPO, 'packages', 'editor', 'src', 'render', 'render.ts'), 'utf8');
     const session = code.slice(code.indexOf('async function openSession('));
-    expect(session.indexOf('assertRenderBrowser(browser, PERSON_POLICY)')).toBeGreaterThan(0);
-    expect(session.indexOf('assertRenderBrowser(browser, PERSON_POLICY)')).toBeLessThan(session.indexOf('startAssetServer()'));
+    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeGreaterThan(0);
+    expect(session.indexOf('assertRenderBrowser(browser, opts.workPolicy)')).toBeLessThan(session.indexOf('startAssetServer()'));
   });
 });
 

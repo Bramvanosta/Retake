@@ -9,7 +9,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { AGENT_ALLOWED_SWITCHES, AGENT_REFUSED_FEATURES, PERSON_POLICY, agentArgProblem, agentArgsProblems, agentPolicy, agentProgram, agentProgramProblem, policyArgsProblems, policyProgram, programProblem, workspaceFolders } from '@retake/core';
+import { AGENT_ALLOWED_SWITCHES, AGENT_REFUSED_FEATURES, PERSON_POLICY, agentArgProblem, agentArgsProblems, workPolicyFrom, agentProgram, agentProgramProblem, policyArgsProblems, policyProgram, programProblem, workspaceFolders } from '@retake/core';
 import type { WorkPolicy } from '@retake/core';
 import { ffmpegBin, ffprobeBin, loadWorkspaceConfig, nodeFileFacts as files } from '@retake/core/io';
 
@@ -56,17 +56,17 @@ describe('programs under the agent policy', () => {
     expect(agentProgramProblem('no-such-tool-anywhere', 'ffmpeg', folders, { files, path: join(ws, 'bin') })).toBeNull();
   });
 
-  it('off in a command a person types: programProblem and policyArgsProblems say nothing until useAgentPolicy', () => {
+  it('off in a command a person types: programProblem and policyArgsProblems say nothing until the policy of the work turns the agent policy on', () => {
     expect(policy.agentFolders).toBeNull();
     expect(programProblem(policy, inWs, 'browser.executable', { files })).toBeNull();
     expect(policyArgsProblems(policy, ['https://example.com/', '--user-data-dir=/x'])).toEqual([]);
-    policy = agentPolicy(workspaceFolders({ root: ws, projectsDir: join(ws, 'projects'), templatesDir: join(outside, 'templates') }), policy.ffmpeg);
+    policy = workPolicyFrom(workspaceFolders({ root: ws, projectsDir: join(ws, 'projects'), templatesDir: join(outside, 'templates') }), policy.ffmpeg);
     expect(policy.agentFolders).toEqual([ws, join(ws, 'projects'), join(outside, 'templates')]);
     expect(programProblem(policy, inWs, 'browser.executable', { files })).toMatch(/lies inside the workspace/);
     // The workspace's other folders count too (templates_dir outside the root).
     expect(programProblem(policy, join(outside, 'templates', 'x'), 'browser.executable', { files })).toMatch(/lies inside the workspace/);
     expect(policyArgsProblems(policy, ['--hide-scrollbars', 'https://example.com/'])).toEqual([{ index: 1, message: expect.stringMatching(/is not a switch/) }]);
-    policy = agentPolicy(null, policy.ffmpeg);
+    policy = workPolicyFrom(null, policy.ffmpeg);
     expect(programProblem(policy, inWs, 'browser.executable', { files })).toBeNull();
   });
 
@@ -78,7 +78,7 @@ describe('programs under the agent policy', () => {
     expect(agentProgram('no-such-tool-anywhere', 'ffmpeg', folders, { files, path: join(outside, 'bin') })).toEqual({ program: 'no-such-tool-anywhere', problem: null });
     expect(agentProgram(join(outside, 'bin', 'link-in'), 'browser.executable', folders, { files })).toEqual({ program: join(outside, 'bin', 'link-in'), problem: expect.stringMatching(/lies inside the workspace/) });
     expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files })).toEqual({ program: join(outside, 'bin', 'link-to-out'), problem: null });
-    policy = agentPolicy(folders, policy.ffmpeg);
+    policy = workPolicyFrom(folders, policy.ffmpeg);
     expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files })).toEqual({ program: outTool, problem: null });
     expect(policyProgram(policy, inWs, 'browser.executable', { files }).problem).toMatch(/lies inside the workspace/);
   });
@@ -86,21 +86,21 @@ describe('programs under the agent policy', () => {
   it("ffmpeg and ffprobe: retake.yaml's or a variable's inside the workspace is refused under the policy, run by the CLI", async () => {
     writeFileSync(join(ws, 'retake.yaml'), 'ffmpeg: bin/tool\n');
     const cfg = await loadWorkspaceConfig(ws);
-    policy = agentPolicy(policy.agentFolders, cfg.ffmpeg);
+    policy = workPolicyFrom(policy.agentFolders, cfg.ffmpeg);
     expect(ffmpegBin(policy)).toBe(inWs);
-    policy = agentPolicy(workspaceFolders(cfg), policy.ffmpeg);
+    policy = workPolicyFrom(workspaceFolders(cfg), policy.ffmpeg);
     expect(() => ffmpegBin(policy)).toThrow(/^`ffmpeg:` of retake\.yaml \(.*\/ws\/bin\/tool\) lies inside the workspace/);
     expect(() => ffmpegBin(policy, inWs)).toThrow(/^ffmpeg \(.*\) lies inside the workspace/);
     expect(ffmpegBin(policy, outTool)).toBe(outTool);
     // Started by the real path that was checked: a link changed afterwards starts nothing else.
     symlinkSync(outTool, join(outside, 'bin', 'ff-link'));
     expect(ffmpegBin(policy, join(outside, 'bin', 'ff-link'))).toBe(outTool);
-    policy = agentPolicy(policy.agentFolders, undefined);
+    policy = workPolicyFrom(policy.agentFolders, undefined);
     const saved = process.env.RETAKE_FFPROBE;
     process.env.RETAKE_FFPROBE = inWs;
     try {
       expect(() => ffprobeBin(policy)).toThrow(/^\$RETAKE_FFPROBE \(.*\) lies inside the workspace .* point \$RETAKE_FFPROBE at its new place$/);
-      policy = agentPolicy(null, policy.ffmpeg);
+      policy = workPolicyFrom(null, policy.ffmpeg);
       expect(ffprobeBin(policy)).toBe(inWs);
     } finally {
       if (saved === undefined) delete process.env.RETAKE_FFPROBE;

@@ -100,6 +100,36 @@ describe('the project store', () => {
     expect(last()).toMatchObject({ path: 'projects/acme/sandbox/new.yaml', if_match: null, outcome: 'ok' });
   });
 
+  it('a writer told there was no file (`previous` null) creates it, and never writes over one made in between', async () => {
+    const store = ProjectStore.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root));
+    const write = fileWriter(store, 'component');
+    const fresh = join(root, 'projects', 'acme', 'notes', 'fresh.md');
+    await write(fresh, '# Fresh\n', null);
+    expect(last()).toMatchObject({ path: 'projects/acme/notes/fresh.md', if_match: null, outcome: 'ok' });
+    // Read as missing, then made by someone else before the write: a conflict, their file kept.
+    const between = join(root, 'projects', 'acme', 'notes', 'between.md');
+    await mkdir(join(root, 'projects', 'acme', 'notes'), { recursive: true });
+    await writeFile(between, '# Theirs\n');
+    expect((await failure(write(between, '# Mine\n', null))).code).toBe('conflict');
+    expect(last()).toMatchObject({ path: 'projects/acme/notes/between.md', if_match: null, outcome: 'conflict' });
+    expect(await readFile(between, 'utf8')).toBe('# Theirs\n');
+  });
+
+  it('a store with a label names its own folder in a refusal: a README linked out of the components folder', async () => {
+    const components = join(root, 'components');
+    await mkdir(join(components, 'acme', 'card'), { recursive: true });
+    await writeFile(join(root, 'outside.md'), '# Outside\n');
+    await symlink(join(root, 'outside.md'), join(components, 'acme', 'card', 'README.md'));
+    const write = fileWriter(new ProjectStore(components, personScope(root), undefined, '<components_dir>'), 'component');
+    const e = await failure(write(join(components, 'acme', 'card', 'README.md'), '# Card\n', '# Outside\n'));
+    expect([e.code, e.message]).toEqual(['refused', `${join(components, 'acme', 'card', 'README.md')} leads out of the components folder (a symbolic link): not written`]);
+    expect(await readFile(join(root, 'outside.md'), 'utf8')).toBe('# Outside\n');
+    // A project's store keeps its words.
+    await symlink(join(root, 'outside.md'), join(root, 'projects', 'acme', 'linked.md'));
+    const p = await failure(fileWriter(ProjectStore.of({ dir: join(root, 'projects', 'acme'), slug: 'acme' }, personScope(root)), 'readme')(join(root, 'projects', 'acme', 'linked.md'), 'x', '# Outside\n'));
+    expect(p.message).toMatch(/linked\.md leads out of the project folder \(a symbolic link\): not written$/);
+  });
+
   it('a folder is staged, renamed into place and journaled with its files; a failed build leaves nothing and is journaled', async () => {
     const store = new ProjectStore(join(root, 'templates'), personScope(root));
     await mkdir(join(root, 'templates'), { recursive: true });

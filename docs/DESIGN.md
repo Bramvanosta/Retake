@@ -40,23 +40,38 @@ else `start`. `retake.yaml` (optional) may set `projects_dir`, `templates_dir`, 
 
 ## 1. @retake/core
 
-Two entries (L6.9). `@retake/core` is the pure domain — the scenario language, schemas, validation, the agent policy's
-rules and lists — and imports no I/O module (the import-rules ratchet's R1). `@retake/core/io` (`src/io/`) is its side
+Two entries (L6.9). `@retake/core` is the domain — the scenario language, schemas, validation, the agent policy's
+rules and lists — with no I/O (it imports no I/O module: the import-rules ratchet's R1) and no environment read, but
+three listed defaults: `defaultSecrets` (`{{env:VAR}}` filled in without a resolver), `expandHome` (`~` is `$HOME`) and
+`unsafeTestResolve` (the site test resolver's variable, which the site job's input schema reads); the clock and ids are
+allowed (`ids.ts`, `newRunId`, a schema file found from `import.meta.url`). `@retake/core/io` (`src/io/`) is its side
 that touches the machine: the readers below (workspace, projects, scenarios, themes, sandboxes), the app bundle and the
 media tools (`bundle.ts`, `media-tools.ts`), the Retake home and its signing key, secret references, atomic file writes,
-the media probes, and the Node implementation of the **FileFacts** port. The pure side never imports it.
+the media probes, the Node implementations of the ports below, and the environment the domain is given (this process's
+PATH: `programLookup()`; whether its file system ignores case: `nodeFileFacts.ignoresCase`). The domain never imports it.
 
-- **FileFacts** (`file-facts.ts`): what a pure rule learns from the disk — exists, kind, real path (as given / as the
-  file system spells it), text, first bytes, executable, a video's ffprobe. Every check that looks at a file (a file a
-  scenario, a project, a theme or a sandbox names; the real paths of the agent rules; the SQL a hook runs) is handed
-  one; one that needs the disk without it throws `FileFactsMissingError`, never reads as "no file". `nodeFileFacts`
-  (io) answers from node:fs and probes no video; `fileFacts(policy)` (io) probes them with the ffprobe of a work's
-  policy; `memoryFileFacts` (core) answers from a table.
+- **FileFacts** and **VideoProber** (`file-facts.ts`): what a domain rule learns from the machine. FileFacts is the
+  disk — kind (a file, a folder, something else, or nothing), real path (as given / as the file system spells it),
+  text, first bytes, executable, whether the file system ignores case; VideoProber is a video's ffprobe, which runs
+  under a work's policy. Every check that looks at a file (a file a scenario, a project, a theme or a sandbox names; the
+  real paths of the agent rules; the SQL a hook runs) is handed a FileFacts, and a check that probes a video also its
+  work's VideoProber; one that needs either without it throws `FileFactsMissingError`, never reads as "no file". What
+  ffprobe cannot say of a file (`MediaProbeError`) is reported; any other error is thrown. `nodeFileFacts` (io) is the
+  disk only; `fileFacts(policy)` (io, a `WorkFileFacts`) adds the VideoProber of a work's policy (a policy that refuses
+  the work's ffprobe: the file is one the renderer cannot read, in the refusal's words); `memoryFileFacts` (core)
+  answers both from a table. The loaders (`loadScenario`, `loadTemplate`, `loadProjectTemplate`) take a
+  `WorkFileFacts` always — there is no default.
 - **WorkPolicy** (`agent-policy.ts`): what a piece of work runs under — `agentFolders` (the agent policy on for a
-  workspace's folders, or null: a command a person types), the workspace's retake.yaml `ffmpeg` and `render:`. The
-  engine's `openWorkspace` returns it with the workspace (`OpenedWorkspace.policy`) and passes it to every adapter that
-  starts a program, a browser or ffmpeg (runner `launchTarget` / `launchOptions`, editor `assertRenderBrowser` /
-  `renderPolicy`, `ffmpegBin(policy)`, sandbox providers, a hook's context); there is no process-wide policy.
+  workspace's folders, or null: a person's policy, a command a person types), the workspace's retake.yaml `ffmpeg` and
+  `render:`. The engine's `openWorkspace` returns it with the workspace (`OpenedWorkspace.policy`: `workPolicy(ws,
+  {agent})`; `workPolicyFrom(folders, ffmpeg, render)` builds one from its parts, `PERSON_POLICY` is a person's without
+  workspace settings) and passes it to every adapter that starts a program, a browser or ffmpeg (runner
+  `launchTarget` / `launchOptions`, editor `assertRenderBrowser` / `renderPolicy`, `ffmpegBin(policy)`, sandbox
+  providers, a hook's context) under the option key `policy` — `workPolicy` in the editor's render, export and preview
+  options, whose `policy` is the render's RenderPolicy; there is no process-wide policy (the ratchet's `policy-state`:
+  no module-level `let` of core, the engine or an adapter holds it). A program's check takes the PATH it looks a bare
+  name up in (`ProgramPolicyOptions.path`, this process's: `programLookup()`). The probes' memos (`probeVideoFile`, the
+  timeline's music length and capture keyframes) are keyed by the ffprobe that answered too.
 
 The readers and writers below are `@retake/core/io`'s; the parsers (`parseProjectYaml`, `parseScenario`…) are core's
 and take the FileFacts their checks use (`files`).

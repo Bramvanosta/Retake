@@ -11,6 +11,7 @@
 import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
 import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval } from '@retake/core';
 import type { HookResult } from '@retake/hooks';
+import { fileFacts } from '@retake/core/io';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { ENGINE_TRUST, callerOf } from '../caller.js';
@@ -23,7 +24,6 @@ import type { SubmitContext } from './run-job.js';
 import { preflightJournal } from './run-job.js';
 import type { EnvResetJobResult, HookResultView, HooksJobResult, JobEventBody, JobRecord } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
-import { fileFacts } from '@retake/core/io';
 
 export interface HooksSubmitRequest {
   project: string;

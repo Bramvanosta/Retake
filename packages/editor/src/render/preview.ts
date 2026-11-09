@@ -20,11 +20,13 @@
  */
 import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { STARTER_TEMPLATES_DIR, assertOutsideBundle, ffmpegBin, loadTemplate } from '@retake/core/io';
-import type { GpuInfo, LoadedTemplate, RenderSettings, WorkPolicy, FileFacts } from '@retake/core';
+import { pathInside } from '@retake/core';
+import type { GpuInfo, LoadedTemplate, RenderSettings, WorkPolicy, WorkFileFacts } from '@retake/core';
 import {
   PREVIEW_FILE,
   PREVIEW_FORMAT,
@@ -53,8 +55,6 @@ import { guardEncoderPipe } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
-import { pathInside } from '@retake/core';
-import { existsSync } from 'node:fs';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
@@ -64,7 +64,7 @@ export { STARTER_TEMPLATES_DIR };
  * that name shipped with Retake (the committed previews use the starter `editorial`): `loadTemplate` falls back
  * to the starters itself.
  */
-export async function loadPreviewTheme(nameOrDir: string, root: string, files: FileFacts): Promise<LoadedTemplate> {
+export async function loadPreviewTheme(nameOrDir: string, root: string, files: WorkFileFacts): Promise<LoadedTemplate> {
   return loadTemplate(nameOrDir, root, { files });
 }
 
@@ -166,10 +166,11 @@ export interface PreviewReadmeWriter {
   /** The folder whose components' READMEs go through `write` (a workspace's components folder). */
   root: string;
   /**
-   * Write `file` (a component's README.md under `root`) with `text`, merged into `previous` (the README as it was read;
-   * undefined: there was none) — the engine's project store: an authored write, journaled.
+   * Write `file` (a component's README.md under `root`) with `text`, merged into `previous`: the README as it was read —
+   * the write is made on that version (`if_match` its hash) — or null when there was none (`if_match` null: created,
+   * never over a README made in between). The engine's project store: an authored write, journaled.
    */
-  write(file: string, text: string, previous: string | undefined): Promise<void>;
+  write(file: string, text: string, previous: string | null): Promise<void>;
 }
 
 export interface RenderPreviewsOptions extends PreviewSessionOptions {
@@ -456,7 +457,7 @@ interface SessionContext {
   /** A scratch folder of this session (removed at its end). */
   scratch: string;
   /** What the work runs under (core WorkPolicy): the ffmpeg that quantizes a poster. */
-  work: WorkPolicy;
+  workPolicy: WorkPolicy;
 }
 
 /** A failed item of a session and the step it failed at (a `bundle` / `render` failure may be another component's). */
@@ -563,7 +564,7 @@ async function previewSession<J extends SessionJob, R>(
       cancelled(opts.signal);
       const item = built[i];
       try {
-        results.push({ job: item.job, value: await each({ renderer, scratch, work: opts.workPolicy }, item, i) });
+        results.push({ job: item.job, value: await each({ renderer, scratch, workPolicy: opts.workPolicy }, item, i) });
       } catch (e) {
         if (e instanceof RenderCancelledError || opts.signal?.aborted) throw new RenderCancelledError();
         if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${(e as Error).message}`);
@@ -600,7 +601,7 @@ async function renderPoster(ctx: SessionContext, id: string, preview: BuiltPrevi
   let quantized = false;
   if ((await stat(raw)).size > PREVIEW_MAX_BYTES) {
     const q = join(ctx.scratch, `${tag}-q.png`);
-    if (await quantizePng(raw, q, ctx.work)) {
+    if (await quantizePng(raw, q, ctx.workPolicy)) {
       image = q;
       quantized = true;
     }
@@ -637,12 +638,22 @@ async function renderLoop(ctx: SessionContext, preview: BuiltPreview, out: strin
   return { too_large: true, bytes };
 }
 
-/** A component's README.md with its generated block for `meta`: through `readmes` when it lies under its root, else directly. */
+/**
+ * A component's README.md with its generated block for `meta`: through `readmes` when it lies under its root (on the
+ * README as read, or created when there was none), else directly. Written after the image and preview.json: a refusal
+ * of the README (the project store's: a link out of the components folder, a README changed meanwhile) says that
+ * those two were written.
+ */
 async function writeReadmeOf(target: PreviewComponentTarget, meta: PreviewMeta, readmes: PreviewReadmeWriter | undefined): Promise<string> {
   const file = join(target.dir, 'README.md');
   if (!readmes || !pathInside(file, readmes.root)) return writePreviewReadme(target.dir, target.manifest, meta);
-  const existing = existsSync(file) ? await readFile(file, 'utf8') : undefined;
-  await readmes.write(file, mergePreviewReadme(existing, previewReadmeBlock(target.manifest, meta)), existing);
+  const existing = existsSync(file) ? await readFile(file, 'utf8') : null;
+  try {
+    await readmes.write(file, mergePreviewReadme(existing ?? undefined, previewReadmeBlock(target.manifest, meta)), existing);
+  } catch (e) {
+    if (isDiskFullError(e)) throw e;
+    throw new RenderError(`preview of ${target.id}: its ${PREVIEW_FILE} and ${PREVIEW_META_FILE} were written, its README.md was not — ${(e as Error).message}`);
+  }
   return file;
 }
 

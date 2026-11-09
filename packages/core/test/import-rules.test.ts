@@ -1,6 +1,7 @@
 /**
- * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R7), file cycles, who builds the
- * file job queue and who calls the process-wide setters, held to the committed baseline (scripts/audit/baseline.json).
+ * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R8), file cycles, who builds the
+ * file job queue, and no module-level variable holding the work's policy, held to the committed baseline
+ * (scripts/audit/baseline.json).
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
  * The rules are scripts/audit/lib.mjs, shared with the audit scripts (rules.mjs, imports.mjs).
  */
@@ -76,6 +77,50 @@ describe('the import-rules ratchet', () => {
     expect(flagged.sort()).toEqual(['default', 'double-quotes', 'dynamic', 'mixed', 'reexport', 'reexport-all', 'require', 'side-effect', 'value']);
     // A file that cannot be read counts as a value import (the check fails closed).
     expect(hits({ 'packages/ui/src/app/gone.ts': ['@retake/core'] }, join(tmpdir(), 'retake-import-rules-none'))).toEqual(['R5 packages/ui/src/app/gone.ts → @retake/core']);
+  });
+
+  it('core outside its io side reads the environment in three listed defaults only (docs/DESIGN.md §1): defaultSecrets, expandHome, unsafeTestResolve', () => {
+    const scanned = lib.scan(ROOT);
+    const reads = scanned.files
+      .filter((f: { rel: string }) => f.rel.startsWith('packages/core/src/') && !f.rel.startsWith(lib.CORE_IO_DIR))
+      .flatMap((f: { rel: string; text: string }) => {
+        const lines = f.text.split('\n');
+        // Each read, named by the function it is in (the nearest declaration above it).
+        const fn = (i: number): string => lines.slice(0, i + 1).reverse().map((l) => /\bfunction (\w+)/.exec(l)?.[1]).find(Boolean) ?? `line ${i + 1}`;
+        return lines.flatMap((line, i) => (/\bprocess\.(?:env|platform|cwd|argv|execPath|getBuiltinModule)\b/.test(line) && !/^\s*(?:\*|\/\/)/.test(line) ? [`${f.rel} ${fn(i)}`] : []));
+      });
+    expect(reads.sort()).toEqual(['packages/core/src/site.ts unsafeTestResolve', 'packages/core/src/templating.ts defaultSecrets', 'packages/core/src/util.ts expandHome']);
+  });
+
+  it('R1 sees every form of an import of the io side read from a source (scan): static, bare folder, re-export, require(), import(), import = require()', () => {
+    const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+    try {
+      mkdirSync(join(root, 'packages', 'core', 'src', 'io'), { recursive: true });
+      writeFileSync(join(root, 'packages', 'core', 'package.json'), '{"name": "@retake/core"}\n');
+      const files: Record<string, string> = {
+        'io/index.ts': "export const r = 1;\n",
+        'bare.ts': "import { r } from './io';\nexport const x = r;\n",
+        'index-file.ts': "export * from './io/index.js';\n",
+        'req.ts': "const io = require('./io/index.js');\nexport const x = io;\n",
+        'dyn.ts': "export const load = () => import('../src/io/index.js');\n",
+        'eq.ts': "import io = require('@retake/core/io');\nexport const x = io;\n",
+        'type-only.ts': "import type { R } from './io/index.js';\nexport type X = R;\n",
+        'iota.ts': "import { y } from './iota-helpers.js';\nexport const z = y;\n",
+        'iota-helpers.ts': 'export const y = 1;\n',
+      };
+      for (const [rel, text] of Object.entries(files)) writeFileSync(join(root, 'packages', 'core', 'src', rel), text);
+      const scanned = lib.scan(root);
+      expect(lib.ruleHits(root, scanned.fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`).sort()).toEqual([
+        'R1 packages/core/src/bare.ts → ./io',
+        'R1 packages/core/src/dyn.ts → ../src/io/index.js',
+        'R1 packages/core/src/eq.ts → @retake/core/io',
+        'R1 packages/core/src/index-file.ts → ./io/index.js',
+        'R1 packages/core/src/req.ts → ./io/index.js',
+        'R1 packages/core/src/type-only.ts → ./io/index.js',
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("R1 holds for core outside its io side, which the rest of core never imports; node:net's address helpers are no I/O", () => {
@@ -202,13 +247,17 @@ describe('the import-rules ratchet', () => {
     expect(wiring('packages/engine/src/engine.ts', 'const Q = FileJobQueue;')).toEqual([]);
   });
 
-  it('flags a process-wide setter used anywhere, called or passed on, and not its declaration', () => {
-    expect(wiring('packages/cli/src/a.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual(['setter packages/cli/src/a.ts → useAgentPolicy']);
-    expect(wiring('packages/ui/src/server/a.ts', "import * as core from '@retake/core';\ncore.useWorkspaceFfmpeg('x');")).toEqual(['setter packages/ui/src/server/a.ts → useWorkspaceFfmpeg']);
-    expect(wiring('packages/mcp/src/a.ts', "import { useWorkspaceRender as set } from '@retake/core';\nconst f = set;\nf(undefined);")).toEqual(['setter packages/mcp/src/a.ts → useWorkspaceRender']);
-    expect(wiring('packages/engine/src/workspace.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual(['setter packages/engine/src/workspace.ts → useAgentPolicy']);
-    expect(wiring('packages/core/src/agent-policy.ts', 'export function useAgentPolicy(folders: string[] | null): void {}')).toEqual([]);
-    expect(wiring('packages/core/src/index.ts', "export { useAgentPolicy } from './agent-policy.js';")).toEqual([]);
+  it('flags a module-level let / var of core, the engine or an adapter that holds the policy work runs under, and nothing else', () => {
+    // The state the process-wide setters held before WorkPolicy, by name or by type.
+    expect(wiring('packages/core/src/agent-policy.ts', 'let agentFolders: string[] | null = null;')).toEqual(['policy-state packages/core/src/agent-policy.ts → let agentFolders']);
+    expect(wiring('packages/core/src/io/bundle.ts', 'export let workspaceFfmpeg: string | undefined;\nlet programCheck = null;')).toEqual(['policy-state packages/core/src/io/bundle.ts → let workspaceFfmpeg', 'policy-state packages/core/src/io/bundle.ts → let programCheck']);
+    expect(wiring('packages/editor/src/render/policy.ts', "import type { RenderSettings } from '@retake/core';\nvar current: RenderSettings | undefined;")).toEqual(['policy-state packages/editor/src/render/policy.ts → let current']);
+    expect(wiring('packages/runner-web/src/launch.ts', "let { a, b: [held] } = { a: 1, b: [PERSON_POLICY as WorkPolicy] };")).toEqual(['policy-state packages/runner-web/src/launch.ts → let a', 'policy-state packages/runner-web/src/launch.ts → let held']);
+    expect(wiring('packages/engine/src/workspace.ts', 'let opened = workPolicy(ws, { agent: true }) as WorkPolicy;')).toEqual(['policy-state packages/engine/src/workspace.ts → let opened']);
+    // A value is not state: a const, a parameter, a local variable, a class field; another package's let (the shells: not checked).
+    expect(wiring('packages/core/src/a.ts', "const PERSON: WorkPolicy = Object.freeze({ agentFolders: null });\nexport function f(policy: WorkPolicy) {\n  let ffmpeg = policy.ffmpeg;\n  return ffmpeg;\n}\nclass C { policy: WorkPolicy | null = null }")).toEqual([]);
+    expect(wiring('packages/hooks/src/a.ts', 'let cached: string | undefined;\nlet seq = 0;')).toEqual([]);
+    expect(wiring('packages/cli/src/commands/doctor.ts', 'let renderPolicyFn: (() => string) | undefined;')).toEqual([]);
   });
 
   it('rules.mjs --check without a root checks the current folder', () => {
