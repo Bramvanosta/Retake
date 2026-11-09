@@ -8,7 +8,8 @@
  * - it owns the workspace's server: the `ui.json` holder is its child, whose command line holds no secret; the child
  *   listens on 127.0.0.1 only (two listeners: the Studio and the player);
  * - the page loaded: the server counted a redeemed code and an open event stream (`/v1/info` counters, read with the
- *   token of ui.json — the owner's file); a window screenshot is kept for a person to look at;
+ *   token of the workspace's record in the scratch Retake home — the owner's file; ui.json holds none); a window
+ *   screenshot is kept for a person to look at;
  * - SIGTERM quits through the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`, ui.json removed);
  *   SIGKILL (a crash) leaves no orphan (the child's stdin EOF); a server already running is attached to and survives;
  * - File › Open Workspace… (SIGUSR1 in test mode) on a folder that is no workspace changes nothing: the app, its
@@ -32,7 +33,7 @@
  * - nothing pending: SIGUSR2 quits at once, no question, the server stopped gracefully;
  * - a running job (its worker: this process) holds Quit and Open Workspace… (test mode answers Cancel: the app and its
  *   server stay); once it ended, SIGUSR2 quits;
- * - unsaved text a tab reports (the op, with ui.json's token as a tab would hold it) is named in the question — never a
+ * - unsaved text a tab reports (the op, with the Studio's token as a tab would hold it) is named in the question — never a
  *   name that does not exist, never a field the op refuses; an empty report clears it;
  * - job ends become notifications by the no-storm rule (test mode logs them): window not in front → one at once and one
  *   summary 5 s later; in front → none;
@@ -65,7 +66,7 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { selfIdentity } from '@retake/engine';
+import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -138,12 +139,17 @@ interface Record_ {
   token: string;
 }
 const uiJson = (root = ws) => join(root, '.retake', 'ui.json');
+/** The server of `root`: ui.json (pid, port; no secret) and its token record in the Retake home, once both name it. */
 async function record(root = ws): Promise<Record_ | undefined> {
+  let rec: Record_ & { token?: unknown };
   try {
-    return JSON.parse(await readFile(uiJson(root), 'utf8')) as Record_;
+    rec = JSON.parse(await readFile(uiJson(root), 'utf8')) as Record_;
   } catch {
     return undefined;
   }
+  if (rec.token !== undefined) throw new Error(`${uiJson(root)} holds a token`);
+  const held = await readStudioToken(await studioTokenFile(root, { RETAKE_HOME: home }), root).catch(() => null);
+  return held && held.pid === rec.pid && held.port === rec.port ? { pid: rec.pid, port: rec.port, token: held.token } : undefined;
 }
 
 interface Counters {
@@ -270,7 +276,7 @@ async function writeJob(root: string, state: string, at?: string): Promise<strin
   return id;
 }
 
-/** `unsaved_report` as a tab session would send it (ui.json's token: the test may read it; the shell never does). */
+/** `unsaved_report` as a tab session would send it (the Studio's token: the test may read it; the shell never does). */
 async function report(r: Record_, body: Record<string, unknown>): Promise<number> {
   const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/unsaved_report`, {
     method: 'POST',
@@ -281,7 +287,7 @@ async function report(r: Record_, body: Record<string, unknown>): Promise<number
 }
 const TAB = 'desktopTestTab00000000';
 
-/** `desktop_answer` as the window's page sends it (L5.12d; ui.json's token: the test may read it, the shell never does). */
+/** `desktop_answer` as the window's page sends it (L5.12d; the Studio's token: the test may read it, the shell never does). */
 async function pageSays(r: Record_, body: Record<string, unknown>): Promise<number> {
   const res = await fetch(`http://127.0.0.1:${r.port}/v1/call/desktop_answer`, {
     method: 'POST',

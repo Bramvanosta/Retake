@@ -6,6 +6,7 @@
 import { existsSync } from 'node:fs';
 import { cleanWorkerEnv } from '@retake/engine';
 
-export function studioWorkerEnv(env: NodeJS.ProcessEnv, root: string, node: string = process.execPath, exists: (p: string) => boolean = existsSync): NodeJS.ProcessEnv {
-  return cleanWorkerEnv(env, root, { node, exists });
+/** `folders`: all the folders of the workspace (core workspaceFolders), default its root alone. */
+export function studioWorkerEnv(env: NodeJS.ProcessEnv, root: string, node: string = process.execPath, exists: (p: string) => boolean = existsSync, folders?: readonly string[]): NodeJS.ProcessEnv {
+  return cleanWorkerEnv(env, root, { node, exists, ...(folders ? { folders } : {}) });
 }

@@ -12,15 +12,22 @@
  * (the stable one in the Retake home: token-file.ts), JSON bodies only, at most 4 MiB. 127.0.0.1 only, never another
  * interface.
  *
+ * The port is fixed: when it is taken, the listener is looked up first (port-holder.ts) — this account's own Retake
+ * MCP server keeps the "port busy" answer (use it, or stop it first); any other listener is refused with the advice to
+ * stop it and rotate the token (a client may already have sent the token there); one that cannot be identified is
+ * refused with how to look and the same advice if it is not this account's server.
+ *
  * Whoever holds the token is an MCP client of this workspace — the agent's trust, and the approver of its own forms
  * (as with stdio, where the client that spawns `retake mcp` answers them).
  */
 import { createServer } from 'node:http';
 import type { Server, ServerResponse } from 'node:http';
 import { RETAKE_VERSION } from '@retake/core';
-import { BodyTooLargeError, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
+import { BodyTooLargeError, EngineError, LOOPBACK, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
 import type { Engine, RouteSpec } from '@retake/engine';
 import { INSTRUCTIONS, TOOLS, protocolTool } from './index.js';
+import { portHolder } from './port-holder.js';
+import type { PortListenerLookup } from './port-holder.js';
 import { mcpHttpHandler } from './server.js';
 
 /** The default port of `retake mcp --http` (fixed, so a registration survives restarts). */
@@ -43,6 +50,8 @@ export interface McpHttpOptions {
   /** Sessions at once (default 8) and their idle expiry (ms, default 30 min). */
   maxSessions?: number;
   idleMs?: number;
+  /** Who listens on a port that is taken (a seam for tests; default: lsof + ps). */
+  portListeners?: PortListenerLookup;
 }
 
 export interface McpHttpServer {
@@ -106,10 +115,30 @@ export async function startMcpHttpServer(o: McpHttpOptions): Promise<McpHttpServ
       else res.destroy();
     });
   });
+  const want = o.port ?? DEFAULT_MCP_HTTP_PORT;
   try {
-    port = await listenLoopback(server, o.port ?? DEFAULT_MCP_HTTP_PORT);
+    port = await listenLoopback(server, want);
   } catch (e) {
     await handler.close();
+    if (e instanceof EngineError && e.code === 'busy' && want !== 0) {
+      const holder = await portHolder(want, o.portListeners);
+      if (!holder.ours && holder.unidentified) {
+        throw new EngineError('refused', `${LOOPBACK}:${want} is taken and ${holder.why}`, {
+          fix: `see what listens there (lsof -nP -iTCP:${want} -sTCP:LISTEN): if it is your own retake mcp --http, use it or stop it first; if not, stop that program (or pass another --port and register again), then run retake mcp --http --rotate-token: an MCP client may already have sent the token to it`,
+          details: { port: want },
+        });
+      }
+      if (!holder.ours) {
+        throw new EngineError('refused', `${LOOPBACK}:${want} is taken and not by a Retake MCP server of this account: ${holder.why}`, {
+          fix: `stop that program (or pass another --port and register again), then run retake mcp --http --rotate-token: an MCP client may already have sent the token to it`,
+          details: { port: want },
+        });
+      }
+      throw new EngineError('busy', `${e.message}: a Retake MCP server of this account already serves on it`, {
+        fix: 'use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again',
+        details: { port: want },
+      });
+    }
     throw e;
   }
   let closed: Promise<void> | undefined;

@@ -60,7 +60,7 @@ export async function probeChromium(browser?: BrowserConfig, opts: { launch?: bo
       channel,
       executablePath,
       timeout: opts.timeoutMs ?? 30_000,
-      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...(browser?.args ?? [])] }),
+      ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: browser?.args }),
     });
     out.version = b.version();
     const page = await b.newPage({ viewport: { width: 320, height: 200 } });

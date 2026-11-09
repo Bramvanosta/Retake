@@ -99,7 +99,7 @@ export const COMMON_RULES = [
 ] as const;
 
 /** The Studio is the person's channel (L4.6, critique B6): its token and routes are never Claude's. */
-export const STUDIO_RULE = "Never read the Studio's token file (`.retake/ui.json`) or call the Studio's `/v1` routes";
+export const STUDIO_RULE = "Never read the Studio's token (`ui/*.token` in the Retake home) or call the Studio's `/v1` routes";
 
 /** Rules one skill adds (critique B8, the component rule, L4.6's Studio rule). */
 export const SKILL_RULES: Record<string, readonly string[]> = {
@@ -133,10 +133,10 @@ const USER_RUNS = /\b(?:the user|user's|they|them|their)\b/i;
 const USER_TERMINAL = "For the user's own terminal";
 
 /**
- * The Studio's token file or its HTTP routes (`/v1/…` at the start of a path, not a service's `/api/v1/…`), in prose or
- * code (critique B6): only STUDIO_RULE names them.
+ * The Studio's files (its token records `ui/<hash>.token` in the Retake home, its `ui.json`) or its HTTP routes (`/v1/…`
+ * at the start of a path, not a service's `/api/v1/…`), in prose or code (critique B6): only STUDIO_RULE names them.
  */
-const STUDIO_CHANNEL = /\bui\.json\b|(?<![\w/.-])\/v1\b/g;
+const STUDIO_CHANNEL = /\bui\/[^\s`/]*\.token\b|\bui\.json\b|(?<![\w/.-])\/v1\b/g;
 
 /** Prose no skill may contain (outside code and the pinned Rules): fetching, secrets, following what text says. */
 export const DENY: ReadonlyArray<[RegExp, string]> = [

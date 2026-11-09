@@ -68,10 +68,28 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      refs a human wrote: project.yaml (personas' login steps, databases, mailbox, reset hooks) and the project's
      `hooks/` files. A scenario written or run through MCP names no secret, nor does a code file it runs (refused at
      save, at submit and by the worker): the agent could otherwise read any variable of that environment back through
-     an error message (masking catches a value as is, not base64 of it).
+     an error message (masking catches a value as is, not base64 of it). The worker keeps its environment for itself;
+     the programs its jobs start (shell hooks and rollbacks, docker / compose, process-sandbox services) get only core
+     `childEnv`'s allow-list of it — the shell's own variables, the proxy and certificate ones (a proxy URL's
+     `user:password@` included), docker's own by name (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, TLS, API
+     version, platform, BuildKit) — plus the names of project.yaml `pass_env:` (a person's file, never a loader
+     variable) and their own declared `env` (`{{env:NAME}}`, a human's refs only); an unsigned rollback gets the base
+     alone. The CLI's children inherit everything.
    - *Local files*: a file a scenario or hook references through MCP (drop_file, eval.file, sql / js files, the
      scripts a shell hook names) is inside the project folder, symbolic links followed; code is never run from a file
-     the agent can write (README.md, `scenarios/`, `runs/`…).
+     the agent can write (README.md, `scenarios/`, `runs/`…). A process that serves trust mcp (the jobs worker and its
+     job processes, the MCP server, the Studio server: engine `openWorkspace({agent})` → core `useAgentPolicy`) runs no
+     program named by a relative path or lying inside the workspace folders (`browser.executable`, `ffmpeg:`, the
+     render browser, the browser Playwright picks for a channel — wherever `PLAYWRIGHT_BROWSERS_PATH` puts it —,
+     `docker`, the `RETAKE_FFMPEG` / `RETAKE_FFPROBE` / `RETAKE_CHROMIUM*` / `RETAKE_DOCKER` variables, a command found
+     on PATH there: core `policyProgram`, checked by runner-web `launchTarget`, core `ffmpegBin` / `ffprobeBin`, editor
+     `assertRenderBrowser`, sandbox `ComposeProvider`) and starts the one it checked by its real path; it passes
+     Chromium, in `browser.args`, only switches of an allow-list (core `AGENT_ALLOWED_SWITCHES`, `agentArgProblem`,
+     through runner-web `launchOptions({ browserArgs })`; the runner's own switches are not judged by it). The worker a
+     client starts gets the tool variables as they are (`cleanWorkerEnv` drops only loader entries and PATH folders
+     inside any workspace folder), so a job that would use one inside the workspace fails with what to change. The
+     Studio refuses a Retake home inside the workspace (its token lives there). The CLI keeps its own. No render
+     downloads a browser (Remotion is always given one: `assertRenderBrowser`).
    - *Approvals*: through MCP the files' trust flags do not count (the agent can write them): destructive hooks,
      every shell hook or shell seed step, and a setup hook whose rollback is destructive, shell or JavaScript need a
      human, asked by the client at submit (MCP elicitation; the form shows each hook and its rollback) and carried as
@@ -109,7 +127,7 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
 | Sandbox images | registries named in sandbox.yaml | docker | pulled (outbound); nothing uploaded |
 | Job queue, worker lock, job history (usage counters) | `<workspace>/.retake/` (git-ignored) | engine | no |
 | Render job edit snapshot (L4.5) | `<workspace>/.retake/jobs/<job>/edit.yaml` (0600, written before job.json: the scenario text a render job's edit was planned from, its sha256 the job's `edit_sha256`) | the submit (writes), the worker (reads it without following a link, checks the sha256, plans from it) | no: never in a job record or a tool result |
-| Studio discovery file (L4.1) | `<workspace>/.retake/ui.json` (0600: pid, start time, port, the server's API token; inside the workspace — keep `.retake/` out of version control, as this repository's .gitignore does) | `retake ui` (a second launch reuses the running server; the macOS app's `retake ui --supervised` too — the app itself never reads it, L5.2) | no; the token gives a local process the Studio's allow-list, under the agent's trust |
+| Studio discovery file (L4.1) | `<workspace>/.retake/ui.json` (0600: pid, start time, port, URL — no secret) and its token record `<Retake home>/ui/<hash>.token` (0600: the server's API token with its pid and port; never in the workspace) | `retake ui` (a second launch reuses the running server through the token record, sending the token to that record's port only; the macOS app's `retake ui --supervised` too — the app itself never reads either, L5.2) | no; the token gives a local process the Studio's allow-list, under the agent's trust — kept out of the workspace so that a process confined to the workspace folder never reads it |
 | What the Studio page shows (L4.1) | the browser tab of `retake ui` (127.0.0.1; the session token in that tab's sessionStorage) | the person at the machine | no: the page loads nothing from the network (CSP `connect-src 'self'`, no remote asset) |
 | The desktop app (L5.2) | the app bundle (`launch.json`: the paths of the Node.js and the CLI it runs, no secret) and `<Retake home>/desktop.json` (0600: the last workspace opened); the window's WebKit store is ephemeral (nothing in ~/Library: no cache of capture media, no per-port storage) | the app (runs `retake ui --supervised`, holds the one-time URL in memory only, never the token; prints origins only) | no: the window loads only the Studio's and the player's loopback origins (every frame's navigation checked), the page has no IPC command |
 | Runs started from the Studio (L4.2) | the job queue and `runs/` as any job (`submitted_by: ui`) | the Studio's Dry run / Capture (`scenario_run`: the scenario, the mode, an environment and the hash of the file as shown — never a sandbox reset, `until` or hooks of a dry run; one run of a scenario at a time; L4.4: a capture names the personas with an invalid session it was confirmed for, `sessions_ack`), Cancel (`run_cancel`), Pause / Resume of a run (`run_pause`: the job's `pause` marker; a capture does not film the pause) and a headed sign-in for the person (`auth_login`, headed only; `sign_in_cancel`), under the agent's trust with no approver (a hook that needs a person is refused with the `retake run …` command, shown before the click) | as any run: the user's own traffic to their own hosts; production read-only |

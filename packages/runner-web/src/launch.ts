@@ -5,10 +5,13 @@
  * either off (core sandboxOffArgProblem); then each launch but the doctor's (which reports it) refuses a browser whose
  * own command line says otherwise (refuseUnsandboxed). A source scan (test/launch-options.test.ts) keeps every launch here.
  */
+import { createRequire } from 'node:module';
 import type { Browser } from 'playwright-core';
-import { environmentHttpCredentials, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
-import type { LoadedProject, PageHttpCredentials } from '@retake/core';
+import { agentPolicyFolders, environmentHttpCredentials, policyArgsProblems, policyProgram, programProblem, sandboxOffArgProblem, sandboxOffArgsProblems } from '@retake/core';
+import type { BrowserConfig, LoadedProject, PageHttpCredentials } from '@retake/core';
 import { RunnerError } from './errors.js';
+
+const require = createRequire(import.meta.url);
 
 /** The options every runner launch ends with. */
 export interface LaunchSecurity {
@@ -20,16 +23,61 @@ export interface LaunchSecurity {
 export const SITE_PER_PROCESS = '--site-per-process';
 
 /**
- * The launch options that keep Chromium sandboxed, for the switches `args` (the runner's own, then `browser.args`):
- * the OS sandbox on, and site isolation asked for (SITE_PER_PROCESS) — the headless shell and some builds leave it off
- * by default. Throws a RunnerError when a switch would turn the sandbox or site isolation off, or open the browser to
- * other code — project.yaml and retake.yaml refuse them already; this holds for a config that reached the runner
- * another way.
+ * The launch options that keep Chromium sandboxed, for the runner's own switches `args` then `browserArgs` (the
+ * config's `browser.args`): the OS sandbox on, and site isolation asked for (SITE_PER_PROCESS) — the headless shell and
+ * some builds leave it off by default. Throws a RunnerError when a switch of either would turn the sandbox or site
+ * isolation off, or open the browser to other code — project.yaml and retake.yaml refuse them already; this holds for a
+ * config that reached the runner another way. Under the agent policy (core agent-policy.ts: a job of the worker), also
+ * when an entry of `browserArgs` is not a switch or not one of the switches such a job may pass (core agentArgProblem).
  */
-export function launchOptions(o: { args: readonly string[] }): LaunchSecurity {
-  const problems = sandboxOffArgsProblems(o.args);
+export function launchOptions(o: { args: readonly string[]; browserArgs?: readonly string[] }): LaunchSecurity {
+  const user = o.browserArgs ?? [];
+  const all = [...o.args, ...user];
+  const problems = [...sandboxOffArgsProblems(all), ...policyArgsProblems(user)];
   if (problems.length) throw new RunnerError(`Chromium was not launched: ${problems.map((p) => p.message).join('; ')}`);
-  return { chromiumSandbox: true, args: o.args.includes(SITE_PER_PROCESS) ? [...o.args] : [...o.args, SITE_PER_PROCESS] };
+  return { chromiumSandbox: true, args: all.includes(SITE_PER_PROCESS) ? all : [...all, SITE_PER_PROCESS] };
+}
+
+interface PlaywrightRegistry {
+  registry: { findExecutable(name: string): { executablePath(lang?: string): string | undefined } | undefined };
+}
+
+/**
+ * The executable playwright-core starts for `channel` (its own browsers: PLAYWRIGHT_BROWSERS_PATH, else its cache; a
+ * channel such as `chrome`: the installed one) — the headless shell for a headless launch without a channel, as
+ * playwright-core picks it. Null when playwright-core does not say.
+ */
+export function playwrightExecutable(channel: string | undefined, headless: boolean): string | null {
+  try {
+    const { registry } = require('playwright-core/lib/server/registry/index') as PlaywrightRegistry;
+    return registry.findExecutable(channel ?? (headless ? 'chromium-headless-shell' : 'chromium'))?.executablePath('javascript') || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * playwright-core's launch target for a browser config: `browser.executable`, else `$RETAKE_CHROMIUM`, else a channel
+ * (new headless by default; `headless-shell` lets Playwright pick its headless shell). Under the agent policy (core
+ * policyProgram), the executable is started by the real path that was checked, and a RunnerError is thrown when it is a
+ * relative path or lies inside the workspace — the browser playwright-core would pick for the channel too
+ * (`o.headless`: the launch is headless, the default), wherever PLAYWRIGHT_BROWSERS_PATH puts it.
+ */
+export function launchTarget(b: BrowserConfig = {}, o: { headless?: boolean } = {}): { executablePath?: string; channel?: string } {
+  const given = b.executable ?? process.env.RETAKE_CHROMIUM ?? undefined;
+  if (given) {
+    const checked = policyProgram(given, b.executable ? 'browser.executable' : '$RETAKE_CHROMIUM');
+    if (checked.problem) throw new RunnerError(`Chromium was not launched: ${checked.problem}`);
+    return { executablePath: checked.program, channel: undefined };
+  }
+  const channel = b.channel === 'headless-shell' ? undefined : (b.channel ?? 'chromium');
+  if (agentPolicyFolders()) {
+    const picked = playwrightExecutable(channel, o.headless !== false);
+    const what = process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
+    const problem = picked ? programProblem(picked, what) : null;
+    if (problem) throw new RunnerError(`Chromium was not launched: ${problem}`);
+  }
+  return { executablePath: undefined, channel };
 }
 
 /**

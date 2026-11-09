@@ -172,6 +172,12 @@ const projectShape = {
     .array(nonEmpty())
     .describe('Extra hosts hooks (every kind) and the mailbox may contact; environment hosts and localhost are always allowed.')
     .optional(),
+  pass_env: z
+    .array(nonEmpty())
+    .describe(
+      "Variables of the worker's environment that the programs of a job the Studio, the desktop app or an MCP client starts also get (shell hooks, docker, a process sandbox's services), e.g. [DATABASE_URL]. They get only the shell's own variables otherwise (PATH, HOME, USER, the locale, TZ, proxy and certificate settings; docker's connection settings such as DOCKER_HOST and DOCKER_CONTEXT for docker). Never a loader variable (NODE_OPTIONS, LD_PRELOAD, GIT_*…). A command typed in a terminal passes everything on.",
+    )
+    .optional(),
   databases: DatabasesSchema.optional(),
   pacing: PacingPartialSchema.optional(),
   defaults: RunDefaultsSchema.describe("Step defaults of every scenario (a scenario's `defaults` win), e.g. {timeout_s: 30}.").optional(),

@@ -202,7 +202,7 @@ export async function siteHostConflicts(ws: WorkspaceConfig, host: string): Prom
       }
     }
   }
-  const hit = protectedHostOf(`https://${host}/`, await workspaceProtectedHosts(ws));
+  const hit = await protectedHostOf(`https://${host}/`, await workspaceProtectedHosts(ws));
   if (hit) out.push(`a protected host of ${hit.production ? 'production' : 'read-only'} environment ${hit.env} of project ${hit.project}`);
   return [...new Set(out)];
 }

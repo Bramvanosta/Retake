@@ -271,8 +271,9 @@ How it works (`@retake/editor`, `docs/DESIGN-phase2.md` §2.2):
   server on 127.0.0.1 (random port, random path token, Range requests, CORS) for the duration of the render.
 - **Browser**: `$RETAKE_CHROMIUM_HEADLESS_SHELL`, else Playwright's Chromium headless shell (found through
   playwright-core's browser registry: `playwright-core install chromium-headless-shell`; the app bundle's own when
-  Retake runs from it), else Remotion's own (never from the app bundle: one without its headless shell refuses to
-  render — reinstall it).
+  Retake runs from it), else none: the render refuses to start and says how to install one (Remotion never downloads a
+  browser of its own; an app bundle without its headless shell: reinstall it). A job of the worker (the Studio, the
+  desktop app, an MCP client) refuses a render browser inside the workspace (see [Workspace](workspace.md)).
 - **API**: `renderVideo({project, run, scenario?, template?, overrides?, out?, onProgress?, signal?, concurrency?,
   settings?})` → `RenderRecord` (progress stages `planning`, `bundling`, `rendering`, `retrying` — the GPU path failed
   and the video renders again in software, progress does not go back —, `encoding`, `done`; `settings`: the

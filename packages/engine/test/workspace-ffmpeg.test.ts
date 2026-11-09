@@ -10,7 +10,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { ffmpegBin, loadProject, mediaTools, resolveMediaTools, useWorkspaceFfmpeg } from '@retake/core';
+import { agentProgramProblem, ffmpegBin, loadProject, mediaTools, resolveMediaTools, useWorkspaceFfmpeg } from '@retake/core';
 import { exportCapture } from '@retake/runner-web';
 import { openWorkspace } from '../src/workspace.js';
 import { cleanWorkerEnv } from '../src/jobs/worker-env.js';
@@ -59,7 +59,7 @@ describe("openWorkspace: retake.yaml's ffmpeg is the process's", () => {
 });
 
 describe('the worker a client starts: no relative tool variable', () => {
-  it('RETAKE_FFMPEG / RETAKE_FFPROBE / RETAKE_CHROMIUM* relative are dropped; absolute ones and command names kept; the server refuses a relative one', () => {
+  it('RETAKE_FFMPEG / RETAKE_FFPROBE / RETAKE_CHROMIUM* reach it as they are; a relative one is refused there as by the server, saying what to change', () => {
     const root = join(tmp, 'ws');
     const env = {
       PATH: '/usr/bin:/bin',
@@ -69,13 +69,12 @@ describe('the worker a client starts: no relative tool variable', () => {
       RETAKE_CHROMIUM_HEADLESS_SHELL: '/opt/shell/headless_shell',
     };
     const out = cleanWorkerEnv(env, root, { node: '/usr/local/bin/node', exists: () => false });
-    expect(out.RETAKE_FFMPEG).toBeUndefined();
-    expect(out.RETAKE_FFPROBE).toBeUndefined();
-    expect(out.RETAKE_CHROMIUM).toBeUndefined();
-    expect(out.RETAKE_CHROMIUM_HEADLESS_SHELL).toBe('/opt/shell/headless_shell');
+    expect(out).toMatchObject({ RETAKE_FFMPEG: 'tools/ffmpeg', RETAKE_FFPROBE: './ffprobe', RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_CHROMIUM_HEADLESS_SHELL: '/opt/shell/headless_shell' });
     expect(cleanWorkerEnv({ RETAKE_FFMPEG: '/opt/ff/ffmpeg', RETAKE_FFPROBE: 'ffprobe' }, root, { exists: () => false })).toMatchObject({ RETAKE_FFMPEG: '/opt/ff/ffmpeg', RETAKE_FFPROBE: 'ffprobe' });
-    // The server itself refuses the relative value (core resolveMediaTools), so neither process runs a cwd-relative file.
-    expect(() => resolveMediaTools({ env })).toThrow(/must be an absolute path/);
+    // The worker refuses the relative value as the server does (core resolveMediaTools, and the agent policy for the
+    // browser), so no process runs a cwd-relative file — and the job says what to change instead of running another one.
+    expect(() => resolveMediaTools({ env: out })).toThrow(/^\$RETAKE_FFMPEG \(tools\/ffmpeg\) must be an absolute path/);
+    expect(agentProgramProblem(out.RETAKE_CHROMIUM!, '$RETAKE_CHROMIUM', [root])).toMatch(/^\$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
   });
 });
 

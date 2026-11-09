@@ -319,6 +319,14 @@ the next hooks do not run, the completed ones are rolled back (rollbacks are nev
 runs. A second Ctrl-C quits at once and kills the shell hooks still running; what was not rolled back stays in the
 run's journal for `retake hooks rollback`.
 
+A shell hook runs with `RETAKE_PROJECT_DIR`, `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS` and its own `env:`
+on top of the environment it inherits. From a terminal it inherits the command's whole environment. In a job the
+Studio, the desktop app or an MCP client starts it inherits only the shell's own variables (`PATH`, `HOME`, `USER`,
+the locale, `TZ`, proxy and certificate settings) and the names project.yaml lists in `pass_env:` — so a token
+exported in the terminal that started the Studio never reaches it; give it what it needs in `env:`
+(`TOKEN: "{{env:STAGING_TOKEN}}"`) or in `pass_env:` (see [Workspace](workspace.md)). When it fails there, its error
+names the variables it got and says how to pass another.
+
 A `js` hook runs in a **tab of its own** in the run's browser, opened on its environment page (`page`, default the
 first one): cookies, localStorage and IndexedDB are shared with the capture, sessionStorage and page state are not,
 and the capture never shows that tab — so a scene must `open` its page (a setup hook no longer leaves the capture on

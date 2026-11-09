@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { withOldOutgoingEnv } from '@retake/core';
+import { useAgentPolicy, withOldOutgoingEnv } from '@retake/core';
 import type { LoadedProject, LoadedSandbox, SandboxManifest } from '@retake/core';
 import {
   BREAKER_STALE_MS,
@@ -394,6 +394,33 @@ describe('a service: command and environment', () => {
         ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
       });
     } finally {
+      delete process.env.RETAKE_TEST_SECRET;
+    }
+  });
+
+  it("under the agent policy gets only core childEnv's allow-list of it and project.yaml pass_env, plus sandbox.yaml's env", async () => {
+    const project = { slug: 'p', dir: tmp, file: join(tmp, 'project.yaml'), config: { name: 'p', environments: { sandbox: { console: 'http://localhost:4603' } }, pass_env: ['STRIPE_TEST_KEY'] } } as unknown as LoadedProject;
+    const sandbox = { env: 'sandbox', dir: tmp } as unknown as LoadedSandbox;
+    process.env.RETAKE_TEST_SECRET = 'from-env-1234';
+    useAgentPolicy([tmp]);
+    try {
+      const env = await serviceEnv(
+        { project, sandbox },
+        { env: { API_URL: '{{console}}/api', TOKEN: '{{env:RETAKE_TEST_SECRET}}' } },
+        { PATH: `/usr/bin:${join(tmp, 'bin')}`, HOME: '/home/me', LANG: 'C', AWS_SECRET_ACCESS_KEY: 'exported', STRIPE_TEST_KEY: 'listed', NODE_OPTIONS: '--require ./x.cjs', DOCKER_HOST: 'unix:///x.sock' },
+      );
+      expect(env).toEqual({
+        PATH: '/usr/bin',
+        HOME: '/home/me',
+        LANG: 'C',
+        STRIPE_TEST_KEY: 'listed',
+        API_URL: 'http://localhost:4603/api',
+        // Its own env still reads the worker's environment.
+        TOKEN: 'from-env-1234',
+        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
+      });
+    } finally {
+      useAgentPolicy(null);
       delete process.env.RETAKE_TEST_SECRET;
     }
   });

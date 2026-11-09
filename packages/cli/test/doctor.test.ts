@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BundleInfo } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, memoryIo } from '../src/index.js';
-import { doctorCommand, systemProbes } from '../src/commands/doctor.js';
+import { agentJobsCheck, doctorCommand, systemProbes } from '../src/commands/doctor.js';
 import type { DoctorCheck, DoctorProbes, ExecResult } from '../src/commands/doctor.js';
 import { Ui } from '../src/ui.js';
 
@@ -297,6 +297,28 @@ describe('retake doctor (mocked environment)', () => {
   });
 });
 
+describe('retake doctor: what jobs of the Studio, the desktop app or an MCP client would refuse; the render browser', () => {
+  it('a program inside the workspace or by a relative path, a browser.args entry that is no switch or loads files: one WARN line naming each', () => {
+    const ws = { root: '/w', projectsDir: '/w/projects', templatesDir: '/t', componentsDir: '/w/components', ffmpeg: '/w/tools/ffmpeg' };
+    const c = agentJobsCheck({ RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_FFPROBE: '/usr/bin/ffprobe', RETAKE_DOCKER: '/w/bin/docker', PLAYWRIGHT_BROWSERS_PATH: '/t/browsers' }, ws, { args: ['--lang=fr', '--load-extension=/w/ext', 'https://example.com/'] });
+    expect(c).toMatchObject({ status: 'warn', name: 'Studio and MCP jobs', hint: expect.stringMatching(/a run typed in a terminal .* is not affected/) });
+    expect(c?.detail).toMatch(/^would refuse: \$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path/);
+    expect(c?.detail).toMatch(/ · `ffmpeg:` of retake\.yaml \(\/w\/tools\/ffmpeg\) lies inside the workspace \(\/w\)/);
+    expect(c?.detail).toMatch(/ · \$RETAKE_DOCKER \(\/w\/bin\/docker\) lies inside the workspace \(\/w\)/);
+    expect(c?.detail).toMatch(/ · \$PLAYWRIGHT_BROWSERS_PATH \(\/t\/browsers\) lies inside the workspace \(\/t\)/);
+    expect(c?.detail).toMatch(/ · browser\.args\[1\]: --load-extension is not one of the switches these jobs may pass/);
+    expect(c?.detail).toMatch(/ · browser\.args\[2\]: "https:\/\/example\.com\/" is not a switch/);
+    expect(c?.detail).not.toMatch(/RETAKE_FFPROBE|--lang/);
+    expect(agentJobsCheck({ RETAKE_FFMPEG: 'ffmpeg' }, { ...ws, ffmpeg: '/opt/ff/ffmpeg' }, { executable: '/opt/chromium/chrome', args: ['--lang=fr'] })).toBeNull();
+  });
+
+  it('no headless shell outside an app: the Render browser line FAILs with the install command (Remotion never downloads its own)', async () => {
+    const r = await checks(macProbes({ renderBrowser: () => ({ path: null, source: 'none' }) }));
+    expect(r.code).toBe(EXIT.failure);
+    expect(byName(r.checks, 'Render browser')).toMatchObject({ status: 'fail', detail: 'no headless shell: renders do not start', hint: expect.stringContaining('playwright-core install chromium-headless-shell') });
+  });
+});
+
 describe('retake doctor from an app bundle (L5.16a): every tool line names its source, no pnpm / brew hint', () => {
   const bundle: BundleInfo = {
     root: '/Applications/Retake.app/Contents/Resources',
@@ -345,7 +367,7 @@ describe('retake doctor from an app bundle (L5.16a): every tool line names its s
       bundle,
       exec: async () => null,
       chromium: async () => ({ path: '/R/browsers/chromium-1194/x/Chromium', source: 'bundled', exists: false, launched: false }),
-      renderBrowser: () => ({ path: null, source: 'remotion', note: "the app's headless shell is missing" }),
+      renderBrowser: () => ({ path: null, source: 'none', note: "the app's headless shell is missing" }),
     }));
     expect(r.code).toBe(EXIT.failure);
     for (const name of ['ffmpeg', 'ffprobe', 'Chromium', 'Render browser']) {

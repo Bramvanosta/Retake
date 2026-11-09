@@ -1,15 +1,17 @@
 /**
  * The `docker` CLI for the docker-compose provider (L1.8): where it is (`$RETAKE_DOCKER`, PATH, then the usual
- * install places of Docker Desktop, OrbStack and Homebrew), the environment it runs with (Retake's own minus every
- * `COMPOSE_*` variable: a shell's COMPOSE_PROFILES or COMPOSE_FILE would change which services a sandbox starts), how
- * it is run (output captured, a timeout, an abort signal), and the version checks: Compose v2.17 or later
- * (`--wait-timeout`), a running daemon. No Docker SDK: the CLI is the contract.
+ * install places of Docker Desktop, OrbStack and Homebrew), the environment it runs with (Retake's own — an
+ * allow-list of it under the agent policy — minus every `COMPOSE_*` variable: a shell's COMPOSE_PROFILES or
+ * COMPOSE_FILE would change which services a sandbox starts), how it is run (output captured, a timeout, an abort
+ * signal), and the version checks: Compose v2.17 or later (`--wait-timeout`), a running daemon. No Docker SDK: the CLI
+ * is the contract.
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { accessSync, constants } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, join } from 'node:path';
+import { policyChildEnv } from '@retake/core';
 import { SandboxError } from './errors.js';
 
 /** Oldest Compose this provider runs (`up --wait-timeout`). */
@@ -56,12 +58,15 @@ export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: str
 }
 
 /**
- * The environment docker runs with: this process's, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor
- * the names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
+ * The environment docker runs with: this process's — under the agent policy (a job of the Studio, the desktop app or an
+ * MCP client) only core childEnv's allow-list of it for docker (the shell's own variables, docker's own by name, the
+ * names of `pass`: project.yaml `pass_env:`) —, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor the
+ * names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
  */
-export function dockerEnv(base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = []): NodeJS.ProcessEnv {
+export function dockerEnv(base: NodeJS.ProcessEnv = process.env, unset: readonly string[] = [], pass: readonly string[] = []): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(base)) if (v !== undefined && !/^COMPOSE_/i.test(k) && !unset.includes(k)) out[k] = v;
+  const inherited = policyChildEnv(base, { docker: true, pass }) ?? base;
+  for (const [k, v] of Object.entries(inherited)) if (v !== undefined && !/^COMPOSE_/i.test(k) && !unset.includes(k)) out[k] = v;
   return out;
 }
 
@@ -103,6 +108,8 @@ export interface DockerRunOptions {
   env?: Record<string, string>;
   /** Names left out of this process's environment (the ones the sandbox's env file sets, L5.8). */
   unset?: readonly string[];
+  /** Names passed on under the agent policy besides childEnv's base (project.yaml `pass_env:`). */
+  pass?: readonly string[];
   /** Each line of output as it comes (stdout and stderr). */
   onLine?: (line: string) => void;
   /** The child, once spawned (a second Ctrl-C kills it synchronously). */
@@ -119,7 +126,7 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions = 
     if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', ms: 0, aborted: true });
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(process.env, opts.unset), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
     }

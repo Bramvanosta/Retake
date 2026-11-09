@@ -260,7 +260,21 @@ HookContext = {
   File or inline; a whole file runs as one multi-statement query inside `BEGIN … COMMIT`.
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
-  `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged.
+  `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged. What it inherits (`inheritedEnv`):
+  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes, the MCP
+  server and the Studio server) core
+  `policyChildEnv` — `CHILD_ENV_BASE` (PATH without relative entries or entries inside the workspace folders, HOME,
+  USER, LOGNAME, SHELL, TMPDIR, TERM, LANG, LC_*, TZ, the proxy and certificate variables) plus project.yaml
+  `pass_env:` (core `passEnvProblem` refuses a loader variable at validation, `childEnv` drops one again); an unsigned
+  rollback gets `childEnv`'s base only. Its own `env` (rendered: `{{env:NAME}}` from the worker's environment) and the
+  sandbox `base` go on top, as before; the host check reads the same environment. A failure under the policy ends
+  with `childEnvHint`: the names it inherited (never values) and `PASS_ENV_FIX`; a failed unsigned rollback ends
+  with `bareEnvHint` instead (the names, no `pass_env:` advice: it gets none). The sandbox applies the same list to
+  process services (`serviceEnv`) and to `docker` (`dockerEnv(base, unset, pass)`, `DOCKER_CHILD_ENV` added by name:
+  `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`,
+  `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`, `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`; `ComposeProjectRef.pass`
+  carries `pass_env` to every compose command). The docker binary itself (`$RETAKE_DOCKER`, PATH, the usual places)
+  is checked by core `policyProgram` and started by its real path (`ComposeProvider.program`).
 - **js**: requires `ctx.evalInPage` (else a clear error: "js hooks need a browser: run them through the runner").
   The runner and `retake hooks run` evaluate it with runner-web `evalHookInPage`: a tab of the run's browser context
   per environment page key (shares cookies / localStorage / IndexedDB with the capture tabs; not in `session.pages`,
@@ -2082,12 +2096,22 @@ workers/worker.log      what workers print (stderr), appended
   `<Retake home>/mcp-http.token` (part 3): created once (0600 temporary file, chmod, `link()` into place: two starts
   never write two tokens), replaced by `rotate` (0600 temporary file renamed over it); trusted only as a regular file of
   this user without group / other bits holding one token — anything else `refused`, never repaired silently.
-- Discovery file `<workspace>/.retake/ui.json` `{version: 1, kind: 'ui', pid, started_at, port, url, token, since}`:
-  `claimDiscovery(file, record)` after the bind — a 0600 temporary file (chmod) hard-linked into place; on EEXIST a live
-  holder (pid + start time) is returned for reuse, a stale or broken file replaced once; a state folder this user cannot
-  write (EACCES / EPERM / EROFS) is `refused` with a fix; `readDiscovery` refuses a link, a non-regular file, another
-  user's file or any group / other permission bit; `releaseDiscovery` removes only its own record (pid + token), a
-  regular file of this user whatever its mode by then (a file made 0644 while serving does not outlive the server).
+- Discovery file `<workspace>/.retake/ui.json` `{version: 2, kind: 'ui', pid, started_at, port, url, since}` — no
+  secret: `claimDiscovery(file, record)` after the bind writes those fields only — a 0600 temporary file (chmod)
+  hard-linked into place; on EEXIST a live holder (pid + start time) is returned for reuse, a stale or broken file
+  replaced once; a state folder this user cannot write (EACCES / EPERM / EROFS) is `refused` with a fix;
+  `readDiscovery` refuses a link, a non-regular file, another user's file or any group / other permission bit, and
+  reads a version-1 record (an older Retake's, which held the token) for its holder only, never its token;
+  `releaseDiscovery` removes only its own record (pid, start time, port, since), a regular file of this user whatever
+  its mode by then (a file made 0644 while serving does not outlive the server).
+- Studio token record `studioTokenFile(root)` = `<Retake home>/ui/<sha256 of the workspace's real path, 16 hex>.token`
+  `{version: 1, root, pid, started_at, port, token}`: written by the server that won the claim (`writeStudioToken`:
+  0600 temporary file renamed over it, through `replacePrivateFile` — a link, another user's file or group / other
+  bits are `refused`, as the MCP HTTP token), read by `readStudioToken` (null for another workspace's root), removed on
+  close only while it is still its own (`releaseStudioToken`). What its place protects against: a process confined to
+  the workspace folder (or a synced copy of it) reads no secret in `.retake/`, and a ui.json it rewrites never gets the
+  token (a reuse sends it to the record's port only). A process of this user that reads the Retake home is the person
+  (the MCP HTTP token and the signed-in profiles are there too).
 
 **Engine client `ui`.** `EngineClient` and core `JOB_CLIENTS` gain `ui`; `agentTrust(client)` (= not `cli`, not
 `test`) gives the scenario checks agent trust; comment authorship and `cliOnly` already treat anything but `cli` as the
@@ -2131,9 +2155,13 @@ argument) and the handler, SDK-free; `protocolTool` and the Studio server both u
   0) and the own ops `run_pause`, `scenario_sessions`, `sign_in_cancel` (§4f); L5.10a the own READ op `project_board` (§4l); since L5.2b the own op `unsaved_report`
   (what a tab holds unsaved, kinds and names only: the desktop app's quit question, §4j); `run_dry` / `run_capture` and `scenario_save` stay out (critique B11; one Studio write path);
   `ToolDef`s in `src/server/ops.ts` that never take an MCP tool's name) is 404 `unknown op` and runs nothing.
-- `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of ui.json is reused (a new
-  code minted through `/v1/bootstrap` with its token), else a server is started and ui.json claimed; closing releases
-  it. `retake ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
+- `launchStudio(o) → {reused: false, server, url} | {reused: true, url}` — a live holder of this home's token record
+  is reused (a new code minted through `/v1/bootstrap` on that record's port with its token), else a server is started,
+  ui.json claimed and the token record written; closing releases both. A live holder of ui.json without a token record
+  in this home (after a 2 s wait for one that just claimed it) is `busy` with what to do: another RETAKE_HOME's server
+  ("run retake ui with the RETAKE_HOME that server was started with, or stop it") or an older Retake's (version 1:
+  "stop it") — nothing is sent to its port. A build older than this one reads a version-2 record as broken and replaces
+  it (two servers on one workspace until one stops: the residue of mixing builds). `retake ui --port N` while a server already runs on another port reuses it and warns that `--port` is not used.
   L5.2: each answer has `player` (the player origin; `/v1/bootstrap` answers it too — no secret, the capabilities under
   it are), undefined from an older server; `retake ui --json` prints it with `v: 1`; `retake ui --supervised` (§4j:
   `v: 2` since L5.2b, the pipe lines follow). L5.2b: after each op that succeeded and is not read-only (`unsaved_report`
@@ -3959,7 +3987,7 @@ guard-rail holds: the shell supervises and opens the same UI; its Rust is OS glu
   origins once its pid is gone (`kill(pid, 0)`, `desktop-core` `navigation_decision` → `ServerGone`) is refused, the
   origins are emptied and the same Restart / Quit alert offers a server of the app's own (review A L3).
 - **The shell holds no token and never reads ui.json**: it asks the CLI, whose reuse (`launchStudio`) mints a code
-  through the file's token; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
+  through the token record in the Retake home; the one-time URL (valid 60 s, single use) is in the app's memory only, handed to the
   webview, never printed, never on a command line. The page keeps its token in its own sessionStorage.
 - **Pipe lines (L5.2b, push).** After the `ui` line an owned server writes, one JSON object per line, ≤ 8 KB each,
   each framed by a newline before and after (review A L3: a stray partial write of another module on stdout becomes a
@@ -4344,7 +4372,7 @@ SIGTERM = the graceful path (`quit: SIGTERM`, the child's `stopped: SIGTERM`); S
 terminal's server survives Quit; Open Workspace… (SIGUSR1) on a folder that is no workspace keeps the app, its server
 and its page; L5.2b (SIGUSR2 = `terminate:`): nothing pending → instant; a running job (its worker: the test
 process) holds Quit and Open Workspace… (answered Cancel), then instant once it ended; a tab's unsaved report (the
-op, with ui.json's token) named, a name that does not exist never; notifications logged by the no-storm rule — window
+op, with the token of the workspace's record in the Retake home) named, a name that does not exist never; notifications logged by the no-storm rule — window
 not in front: one at once and one summary 5 s later, in front: none; SIGTERM with a job running quits without a
 question; attached: no guard, SIGUSR2 quits at once and the job stays; the real alert (MODAL_MS): a second window of
 the app while it is up and gone after, a second SIGUSR2 ignored (H2), SIGTERM while it is up quits (M1), Return never
@@ -5360,8 +5388,8 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   fails on a command literal `'ffmpeg'` / `'ffprobe'` anywhere else.
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
-- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) →
-  Remotion's own download — never from a bundle (`assertRenderBrowser`: a bundle without its shell refuses to render).
+- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:
+  no render starts (`assertRenderBrowser` says how to install the headless shell; Remotion never downloads its own).
 - Starter themes: `paths.templates`, else the repository's `templates/` (`STARTER_TEMPLATES_DIR`, so the "shipped
   theme" checks follow); the Claude plugin marketplace: `paths.plugin`, else the folder above the entry point.
 - `retake --version` adds `(app bundle: <path>)`; doctor names each source (`retake.yaml`, `$RETAKE_FFMPEG`,

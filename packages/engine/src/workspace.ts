@@ -1,20 +1,28 @@
 import { resolve } from 'node:path';
-import { findWorkspaceRoot, loadProject, loadWorkspaceConfig, useWorkspaceFfmpeg, useWorkspaceRender } from '@retake/core';
+import { findWorkspaceRoot, loadProject, loadWorkspaceConfig, useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender, workspaceFolders } from '@retake/core';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig } from '@retake/core';
 
 /** Where a workspace is: `root` (the CLI's `--root`), else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. */
 export interface WorkspaceOptions {
   root?: string;
+  /**
+   * This process serves trust `mcp` (core agent-policy.ts): the jobs worker and its job processes, the MCP server, the
+   * Studio server — never a command a person types. Its jobs then run no program from inside the workspace and pass
+   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES.
+   */
+  agent?: boolean;
 }
 
 /**
  * The workspace a command works in: `root`, else $RETAKE_ROOT, else the retake.yaml lookup from the cwd. Its retake.yaml
  * `ffmpeg` becomes this process's ffmpeg (core bundle.ts `mediaTools`) and its `render:` this process's render settings
- * (core render-settings.ts, L5.15): a process serves one workspace.
+ * (core render-settings.ts, L5.15), and `agent` turns the agent policy on for its folders — or off (core useAgentPolicy):
+ * a process serves one workspace.
  */
 export async function openWorkspace(opts: WorkspaceOptions): Promise<WorkspaceConfig> {
   const root = opts.root ? resolve(opts.root) : findWorkspaceRoot();
   const ws = await loadWorkspaceConfig(root);
+  useAgentPolicy(opts.agent ? workspaceFolders(ws) : null);
   useWorkspaceFfmpeg(ws.ffmpeg);
   useWorkspaceRender(ws.render);
   return ws;

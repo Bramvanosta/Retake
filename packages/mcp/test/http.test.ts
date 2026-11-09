@@ -6,10 +6,14 @@
  * neither expires nor is evicted); and the gate WITH the valid token and a valid initialize body:
  * any Origin or Sec-Fetch-* header refused (browsers), a foreign Host 421, no or wrong token 401, other routes 404,
  * OPTIONS 405, a non-JSON body 415, an oversized one 413. The stable token file: created once 0600, reused, rotated,
- * refused when not private.
+ * refused when not private. The fixed port taken: a listener that is not this account's Retake MCP server or none
+ * visible → refused with the rotate-token advice; a lookup failing twice → refused, with how to look first; this
+ * account's own one → the busy answer (use it or stop it).
  */
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
+import type { Server as NetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -20,8 +24,8 @@ import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { mcpHttpTokenFile, readPrivateToken, readWorkerLock, stableToken } from '@retake/engine';
 import { REPO, fixtureWorkspace } from '../../engine/test/helpers.js';
 import { raw } from '../../ui/test/http.js';
-import { MCP_HTTP_BODY_MAX, TOOLS, claudeCodeHttpCommand, mcpHttpConfigJson, mcpHttpTokenExport, startMcpHttpServer } from '../src/index.js';
-import type { McpHttpServer } from '../src/index.js';
+import { MCP_HTTP_BODY_MAX, TOOLS, claudeCodeHttpCommand, listenersAreOurs, lsofPortListeners, mcpHttpConfigJson, mcpHttpTokenExport, startMcpHttpServer } from '../src/index.js';
+import type { McpHttpServer, PortListenerLookup } from '../src/index.js';
 import { testChildEnv } from '../../core/test/child-env.js';
 
 type Result = { content: Array<{ type: string; text: string }>; structuredContent?: Record<string, unknown>; isError?: boolean };
@@ -377,5 +381,111 @@ describe('the stable token (Retake home, 0600)', () => {
     );
     expect(claudeCodeHttpCommand({ url, tokenFile: "/a b/it's.token" })).toContain(`$(cat '/a b/it'\\''s.token')`);
     expect(mcpHttpTokenExport('/home/x/t')).toBe('export RETAKE_MCP_TOKEN="$(cat /home/x/t)"');
+  });
+});
+
+describe("the fixed port taken: only this account's own Retake MCP server keeps the 'port busy' answer", () => {
+  const uid = process.getuid?.() ?? -1;
+  const RETAKE_ARGS = '/usr/local/bin/node /opt/retake/packages/cli/dist/bin.js --root /w mcp --http --port 4971';
+  /** Hold 127.0.0.1:`port` from this process (a listener that is not a Retake MCP server). */
+  const hold = (port: number) =>
+    new Promise<NetServer>((ok, fail) => {
+      const s = createNetServer();
+      s.once('error', fail);
+      s.listen({ port, host: '127.0.0.1', exclusive: true }, () => ok(s));
+    });
+  const start = (port: number, portListeners?: PortListenerLookup) => startMcpHttpServer({ root: ws, port, token, ...(portListeners ? { portListeners } : {}) });
+  const failure = async (p: Promise<unknown>) => {
+    try {
+      const s = (await p) as McpHttpServer;
+      await s.close();
+    } catch (e) {
+      return e as { code: string; message: string; fix?: string };
+    }
+    throw new Error('the server started on a taken port');
+  };
+
+  it('which listeners are ours: some, every one of this account and `… bin.js|retake … mcp … --http`', () => {
+    expect(listenersAreOurs([{ pid: 9, uid, args: RETAKE_ARGS }], uid)).toBe(true);
+    expect(listenersAreOurs([{ pid: 9, uid, args: 'retake mcp --http' }], uid)).toBe(true);
+    expect(listenersAreOurs([], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid, args: RETAKE_ARGS }, { pid: 10, uid: uid + 1, args: RETAKE_ARGS }], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid, args: 'python3 -m http.server 4971' }], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js mcp' }], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid, args: '/opt/retake/bin.js ui --http' }], uid)).toBe(false);
+    expect(listenersAreOurs([{ pid: 9, uid, args: '' }], uid)).toBe(false);
+  });
+
+  it('a listener of another account, one of this account that is not Retake, none visible or a failing lookup: refused, stop it and rotate the token', async () => {
+    const held = await hold(4971);
+    try {
+      const cases: Array<[PortListenerLookup, RegExp]> = [
+        [async () => [{ pid: 4242, uid: uid + 1, args: RETAKE_ARGS }], /a program of another account \(pid 4242\)/],
+        [async () => [{ pid: 4243, uid, args: 'python3 -m http.server 4971' }], /this account that is not a Retake MCP server \(pid 4243\)/],
+        [async () => [], /a program this account cannot see/],
+      ];
+      for (const [lookup, why] of cases) {
+        const seen: number[] = [];
+        const e = await failure(start(4971, async (p) => (seen.push(p), lookup(p))));
+        expect(seen).toEqual([4971]);
+        expect(e.code).toBe('refused');
+        expect(e.message).toContain('127.0.0.1:4971 is taken and not by a Retake MCP server of this account');
+        expect(e.message).toMatch(why);
+        expect(e.fix).toContain('stop that program');
+        expect(e.fix).toContain('retake mcp --http --rotate-token');
+        expect(e.fix).toContain('may already have sent the token');
+      }
+    } finally {
+      await new Promise((r) => held.close(r));
+    }
+  });
+
+  it('a lookup that fails is tried once more: a second failure refuses, saying how to look and what to do if it is not ours; a second success decides', async () => {
+    const held = await hold(4974);
+    try {
+      const seen: number[] = [];
+      const e = await failure(start(4974, (p) => (seen.push(p), Promise.reject(new Error('lsof timed out after 2000 ms')))));
+      expect(seen).toEqual([4974, 4974]);
+      expect(e.code).toBe('refused');
+      expect(e.message).toBe('127.0.0.1:4974 is taken and the program holding it cannot be identified (lsof timed out after 2000 ms)');
+      expect(e.fix).toContain('see what listens there (lsof -nP -iTCP:4974 -sTCP:LISTEN): if it is your own retake mcp --http, use it or stop it first; if not, stop that program');
+      expect(e.fix).toContain('retake mcp --http --rotate-token');
+      let calls = 0;
+      const flaky: PortListenerLookup = async () => (++calls === 1 ? Promise.reject(new Error('lsof exited with 2')) : [{ pid: 4245, uid, args: RETAKE_ARGS }]);
+      const busy = await failure(start(4974, flaky));
+      expect(calls).toBe(2);
+      expect(busy.code).toBe('busy');
+    } finally {
+      await new Promise((r) => held.close(r));
+    }
+  });
+
+  it("this account's own Retake MCP server on the port: the usual port-busy answer, no token advice", async () => {
+    const held = await hold(4972);
+    try {
+      const e = await failure(start(4972, async () => [{ pid: 4244, uid, args: RETAKE_ARGS }]));
+      expect(e.code).toBe('busy');
+      expect(e.message).toBe('cannot listen on 127.0.0.1:4972: EADDRINUSE: a Retake MCP server of this account already serves on it');
+      // The port is fixed: "leave it out for a free one" would name the same port again.
+      expect(e.fix).toBe('use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again');
+      expect(e.fix).not.toContain('rotate-token');
+    } finally {
+      await new Promise((r) => held.close(r));
+    }
+  });
+
+  it.skipIf(process.platform !== 'darwin')('the real lookup (lsof, ps) sees this process listening, with its uid and command line: not a Retake MCP server, refused', async () => {
+    const held = await hold(4973);
+    try {
+      const found = await lsofPortListeners(4973);
+      expect(found).toEqual([{ pid: process.pid, uid, args: expect.stringContaining('node') }]);
+      expect(await lsofPortListeners(4974)).toEqual([]);
+      const e = await failure(start(4973));
+      expect(e.code).toBe('refused');
+      expect(e.message).toContain(`not a Retake MCP server (pid ${process.pid})`);
+    } finally {
+      await new Promise((r) => held.close(r));
+    }
   });
 });

@@ -3,7 +3,9 @@
  * prints the HTTP registration (the URL; the stable token of the Retake home, 0600, only by reference — its file in
  * the `claude mcp add` line, $RETAKE_MCP_TOKEN in the .mcp.json block — never the token itself); `--http --port 0
  * --json` prints one JSON line, nothing on stderr, serves the 45 tools to the SDK's Streamable HTTP client holding that
- * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error.
+ * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error. --print-config --http says
+ * stdio is the safe default; a fixed port held by a listener that is not a Retake MCP server is refused with the
+ * rotate-token advice, one held by this account's own `retake mcp --http` keeps the port-busy answer (use it or stop it).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -69,6 +71,10 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     expect(first.err).toContain(`claude mcp add --transport http retake http://127.0.0.1:47999/mcp --scope user --header "Authorization: Bearer $(cat ${file})"`);
     expect(first.err).toContain(`export RETAKE_MCP_TOKEN="$(cat ${file})"`);
     expect(first.err).toContain(`retake --root ${ws} mcp --http --port 47999`);
+    // stdio is the safe default, and what HTTP leaves open on a shared Mac.
+    expect(first.err).toContain('stdio (retake mcp --print-config, without --http) is the safe default');
+    expect(first.err).toContain("another account's program can listen on port 47999 and receive the token your client sends");
+    expect(first.err).toContain('the client does not check the server it reaches');
     const again = await retake(['--root', ws, 'mcp', '--print-config', '--http', '--port', '47999']).exit;
     expect(`${again.out}${again.err}`).not.toContain(token);
     expect(again.err).not.toContain('register the server again');
@@ -101,6 +107,40 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     expect(end.code).toBe(0);
     expect(end.err).toBe('');
     expect(end.out.trim().split('\n')).toHaveLength(1);
+  });
+
+  it('the port held by a program that is not a Retake MCP server → refused (exit 1), stop it and rotate the token', async () => {
+    const holder = spawn(process.execPath, ['-e', "require('net').createServer().listen({port: 4975, host: '127.0.0.1', exclusive: true}, () => console.log('up'))"], { stdio: ['ignore', 'pipe', 'inherit'] });
+    children.push(holder);
+    await new Promise<void>((r) => holder.stdout!.once('data', () => r()));
+    try {
+      const r = await retake(['--root', ws, 'mcp', '--http', '--port', '4975']).exit;
+      expect(r.code, r.err).toBe(1);
+      expect(r.out).toBe('');
+      expect(r.err).toContain('127.0.0.1:4975 is taken and not by a Retake MCP server of this account');
+      expect(r.err).toContain(process.platform === 'darwin' ? `not a Retake MCP server (pid ${holder.pid})` : 'not by a Retake MCP server');
+      expect(r.err).toContain('fix: stop that program');
+      expect(r.err).toContain('retake mcp --http --rotate-token: an MCP client may already have sent the token to it');
+    } finally {
+      holder.kill('SIGKILL');
+    }
+  });
+
+  it.skipIf(process.platform !== 'darwin')("the port held by this account's own retake mcp --http → the port-busy answer (use it or stop it), no token advice", async () => {
+    const first = retake(['--root', ws, 'mcp', '--http', '--port', '4976', '--json']);
+    expect(JSON.parse(await first.line)).toMatchObject({ port: 4976, pid: first.child.pid });
+    try {
+      const r = await retake(['--root', ws, 'mcp', '--http', '--port', '4976']).exit;
+      expect(r.code, r.err).toBe(1);
+      expect(r.err).toContain('cannot listen on 127.0.0.1:4976: EADDRINUSE');
+      expect(r.err).toContain('a Retake MCP server of this account already serves on it');
+      expect(r.err).toContain('fix: use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again');
+      expect(r.err).not.toContain('leave it out');
+      expect(r.err).not.toContain('rotate-token');
+    } finally {
+      first.child.kill('SIGTERM');
+      expect((await first.exit).code).toBe(0);
+    }
   });
 
   it('the HTTP flags without --http: usage error (exit 2)', async () => {

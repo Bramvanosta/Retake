@@ -161,7 +161,8 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
   const kill = o.jobProcessTest?.kill;
   let ws: Awaited<ReturnType<typeof openWorkspace>>;
   try {
-    ws = await openWorkspace({ root });
+    // The worker runs every job under trust mcp, whoever submitted it (the Studio, the desktop app, an MCP client).
+    ws = await openWorkspace({ root, agent: true });
   } catch (e) {
     log(`no workspace at ${root}: ${(e as Error).message}`);
     return 1;

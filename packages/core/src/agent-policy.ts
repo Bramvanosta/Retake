@@ -16,18 +16,28 @@
  * Agent-written shell commands: a strict grammar — plain words joined by single spaces and ` && ` — read in one pass,
  * then a few rules per word (agentShellProblems, agentShellCwdProblems, agentShellEnvProblems).
  *
- * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems) and the one origin comparison
- * (canonicalOrigin).
+ * Navigation: the URLs a scenario opens (navigationProblem, scenarioNavigationProblems), the one origin comparison
+ * (canonicalOrigin) and, built on it, the server a URL reaches (canonicalAddress, canonicalIp).
  *
  * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
  * SITE_ISOLATION_OFF_FEATURES) or open the browser to other code (BROWSER_OPEN_SWITCHES), refused in `browser.args`
- * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed.
+ * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed. For a job an agent can shape
+ * also positional arguments and every switch outside AGENT_ALLOWED_SWITCHES (agentArgProblem).
+ *
+ * Agent policy: whether this process serves trust `mcp` (useAgentPolicy: the jobs worker, the MCP server, the Studio
+ * server — never a command a person types), and under it the programs a job may run (programProblem: none from inside
+ * the workspace, none by a relative path; policyProgram also gives the real path to start) and the browser switches it
+ * may pass (policyArgsProblems: an allow-list). Also under it, the
+ * environment of the programs a job starts: an allow-list of the worker's (childEnv, project.yaml `pass_env:`).
  */
+import { accessSync, constants as fsConstants, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { AGENT_WRITABLE_PATHS, agentWritable, channelWords, realPathOf } from './agent-trust.js';
 import type { AgentChannel } from './agent-trust.js';
 import { showHiddenChars } from './brand.js';
+import { setBundleProgramCheck } from './bundle.js';
+import { isUnder } from './client-path.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
@@ -630,6 +640,328 @@ export function sandboxOffArgsProblems(args: readonly string[]): Array<{ index: 
   return out;
 }
 
+/**
+ * The Chromium switches (without their leading dashes) `browser.args` of a job an agent can shape (agent policy, below)
+ * may hold, besides the always-refused ones (sandboxOffArgProblem): the window and the screen, the language, colours
+ * and fonts, the GPU, timers and background work, first-run screens, media autoplay and fake capture devices, the
+ * proxy and the host resolver, WebRTC and QUIC, features. Any other switch is refused — a list of what is safe rather
+ * than of what is not, since Chromium has many switches that load code or a profile, write logs, dumps or traces where
+ * they say, trust other certificates or open a page or a debugging channel. A command a person types keeps every
+ * switch but the always-refused ones.
+ */
+export const AGENT_ALLOWED_SWITCHES: readonly string[] = [
+  // window, screen, language
+  'window-size',
+  'window-position',
+  'start-maximized',
+  'hide-scrollbars',
+  'force-device-scale-factor',
+  'lang',
+  'accept-lang',
+  // colours, fonts, motion
+  'force-color-profile',
+  'force-dark-mode',
+  'blink-settings',
+  'force-prefers-reduced-motion',
+  'force-prefers-no-reduced-motion',
+  'font-render-hinting',
+  'disable-font-subpixel-positioning',
+  'disable-lcd-text',
+  'disable-smooth-scrolling',
+  // GPU and frames
+  'use-gl',
+  'use-angle',
+  'disable-gpu',
+  'disable-gpu-compositing',
+  'enable-gpu-rasterization',
+  'ignore-gpu-blocklist',
+  'disable-frame-rate-limit',
+  'disable-gpu-vsync',
+  // timers and background work
+  'disable-background-timer-throttling',
+  'disable-backgrounding-occluded-windows',
+  'disable-renderer-backgrounding',
+  'disable-hang-monitor',
+  'disable-ipc-flooding-protection',
+  'disable-component-update',
+  'disable-domain-reliability',
+  'disable-sync',
+  'disable-dev-shm-usage',
+  // first-run screens, prompts
+  'no-first-run',
+  'no-default-browser-check',
+  'disable-notifications',
+  'disable-popup-blocking',
+  'disable-prompt-on-repost',
+  // media
+  'autoplay-policy',
+  'mute-audio',
+  'use-fake-device-for-media-stream',
+  // network
+  'proxy-server',
+  'proxy-bypass-list',
+  'no-proxy-server',
+  'host-resolver-rules',
+  'webrtc-ip-handling-policy',
+  'force-webrtc-ip-handling-policy',
+  'disable-quic',
+  // features
+  'enable-features',
+  'disable-features',
+  'enable-blink-features',
+  'disable-blink-features',
+];
+
+/**
+ * Chromium features a job an agent can shape may not name in `--enable-features=` (`enable`) or `--disable-features=`
+ * (`disable`) — the ones that move the network service out of its sandbox — besides SITE_ISOLATION_OFF_FEATURES
+ * (always refused). Compared without case, `-` or `_`.
+ */
+export const AGENT_REFUSED_FEATURES: Readonly<{ enable: readonly string[]; disable: readonly string[] }> = {
+  enable: ['NetworkServiceInProcess', 'NetworkServiceInProcess2'],
+  disable: ['NetworkServiceSandbox'],
+};
+
+const AGENT_ARGS_FIX = 'jobs the Studio, the desktop app or an MCP client start pass Chromium only the switches of a short list (see `browser.args` in the workspace guide): remove it from browser.args (a run typed in a terminal keeps it)';
+
+/**
+ * Why `arg` may not be passed to Chromium for a job an agent can shape (null when it may), besides
+ * sandboxOffArgProblem: an argument that is not a switch (`--name` or `--name=value`; Chromium opens anything else as a
+ * page or a file when it starts, and reads everything after `--` so), a switch that is not one of
+ * AGENT_ALLOWED_SWITCHES, or a feature list naming one of AGENT_REFUSED_FEATURES.
+ */
+export function agentArgProblem(arg: string): string | null {
+  const m = typeof arg === 'string' ? SWITCH.exec(arg) : null;
+  const name = m?.[1].toLowerCase();
+  if (!m || !name || name.startsWith('-')) {
+    const shown = typeof arg === 'string' ? showHiddenChars(arg.length > 80 ? `${arg.slice(0, 77)}…` : arg) : String(arg);
+    return `"${shown}" is not a switch (Chromium opens such an argument as a page or a file) — ${AGENT_ARGS_FIX}`;
+  }
+  if (!AGENT_ALLOWED_SWITCHES.includes(name)) {
+    const shown = showHiddenChars(name.length > 60 ? `${name.slice(0, 57)}…` : name);
+    return `--${shown} is not one of the switches these jobs may pass — ${AGENT_ARGS_FIX}`;
+  }
+  const side = name === 'enable-features' ? 'enable' : name === 'disable-features' ? 'disable' : null;
+  if (side && m[2] !== undefined) {
+    const refused = AGENT_REFUSED_FEATURES[side].map(featureKey);
+    for (const entry of m[2].split(',')) {
+      const feature = entry.replace(/[<:].*$/s, '').replace(/^\s*\*?/, '').trim();
+      if (feature && refused.includes(featureKey(feature))) return `--${name}=${showHiddenChars(feature)} takes Chromium's network service out of its sandbox — ${AGENT_ARGS_FIX}`;
+    }
+  }
+  return null;
+}
+
+/** agentArgProblem for each argument of a list, with its index. */
+export function agentArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
+  const out: Array<{ index: number; message: string }> = [];
+  args.forEach((a, index) => {
+    const message = agentArgProblem(a);
+    if (message) out.push({ index, message });
+  });
+  return out;
+}
+
+// ── Agent policy: the process serves trust mcp ────────────────────────────────────────────────────────────────────
+
+/**
+ * The folders of the workspace whose jobs an agent can shape in this process, or null. On in a process that serves
+ * trust `mcp`: the jobs worker and its job processes (they run every job alike, whoever submitted it — the Studio's
+ * and the desktop app's included), the MCP server and the Studio server. Off in a command a person types (the CLI).
+ * engine `openWorkspace` sets or clears it each time it opens a workspace (a process serves one).
+ */
+let agentFolders: string[] | null = null;
+
+/** Turn the agent policy on for these workspace folders (workspaceFolders), or off (null). */
+export function useAgentPolicy(folders: readonly string[] | null): void {
+  agentFolders = folders ? [...new Set(folders.map((f) => resolve(f)))] : null;
+  setBundleProgramCheck(agentFolders ? (program, what) => policyProgram(program, what) : null);
+}
+
+/** The workspace folders of the agent policy, or null when this process does not serve trust `mcp`. */
+export function agentPolicyFolders(): readonly string[] | null {
+  return agentFolders;
+}
+
+/** The folders an agent can write in a workspace: its root and its projects, templates and components folders. */
+export function workspaceFolders(ws: { root: string; projectsDir?: string; templatesDir?: string; componentsDir?: string }): string[] {
+  return [...new Set([ws.root, ws.projectsDir, ws.templatesDir, ws.componentsDir].filter((f): f is string => !!f).map((f) => resolve(f)))];
+}
+
+/** The file a bare command name runs, read from `path` as a spawn does: the first entry holding an executable file. */
+function onPath(name: string, path: string, exists: (p: string) => boolean): { file: string; entry: string } | null {
+  for (const raw of path.split(delimiter)) {
+    // An empty entry is the current folder (POSIX).
+    const entry = raw === '' ? '.' : raw;
+    const file = resolve(entry, name);
+    if (exists(file)) return { file, entry };
+  }
+  return null;
+}
+
+function isExecutableFile(p: string): boolean {
+  try {
+    if (!statSync(p).isFile()) return false;
+    accessSync(p, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface ProgramPolicyOptions {
+  /** The PATH a bare command name is looked up in (default: this process's). */
+  path?: string;
+  /** Whether a file is an executable file (default: the file system's answer). */
+  exists?: (p: string) => boolean;
+}
+
+/**
+ * Why the program `program`, named by `what` (`browser.executable`, `$RETAKE_FFMPEG`, …), may not run for a job of a
+ * workspace whose folders are `folders` (null when it may): a relative path (it names another file in each process's
+ * folder), or a path inside one of the folders, under any spelling or through a link — an agent writes files there.
+ * A bare command name is looked up in the PATH: the folder that holds it may not be relative or inside the workspace
+ * either. An absolute path elsewhere, or a command found elsewhere on the PATH, may.
+ */
+export function agentProgramProblem(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): string | null {
+  return agentProgram(program, what, folders, o).problem;
+}
+
+/**
+ * agentProgramProblem, and the file to start when it says nothing: the real path of the program it checked (for a bare
+ * command name, of the file the PATH finds), links followed — so a link changed after the check starts nothing else.
+ * A bare name the PATH does not find, and a refused program, are given back as they are.
+ */
+export function agentProgram(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
+  const p = program.trim();
+  const refused = (problem: string) => ({ program, problem });
+  if (!p) return { program, problem: null };
+  const shown = showHiddenChars(p);
+  const runs = 'jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it)';
+  if (!isAbsolute(p)) {
+    if (p.includes('/')) return refused(`${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`);
+    const found = onPath(p, o.path ?? process.env.PATH ?? '', o.exists ?? isExecutableFile);
+    if (!found) return { program, problem: null };
+    if (!isAbsolute(found.entry)) return refused(`${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
+    const inside = folders.find((f) => isUnder(found.file, f));
+    if (inside) return refused(`${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
+    return { program: realPathOf(found.file), problem: null };
+  }
+  const inside = folders.find((f) => isUnder(p, f));
+  if (inside) return refused(`${what} (${shown}) lies inside the workspace (${inside}) — ${runs}: move the program out of the workspace and point ${what} at its new place`);
+  return { program: realPathOf(p), problem: null };
+}
+
+/** agentProgramProblem under this process's agent policy: null when the policy is off (a command a person types). */
+export function programProblem(program: string, what: string, o: ProgramPolicyOptions = {}): string | null {
+  return agentFolders ? agentProgramProblem(program, what, agentFolders, o) : null;
+}
+
+/**
+ * agentProgram under this process's agent policy: the real path to start, or the refusal. Policy off (a command a
+ * person types): the program as given, never refused.
+ */
+export function policyProgram(program: string, what: string, o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
+  return agentFolders ? agentProgram(program, what, agentFolders, o) : { program, problem: null };
+}
+
+/** agentArgsProblems under this process's agent policy: none when the policy is off. */
+export function policyArgsProblems(args: readonly string[]): Array<{ index: number; message: string }> {
+  return agentFolders ? agentArgsProblems(args) : [];
+}
+
+// ── Agent policy: the environment of the programs a job starts ──────────────────────────────────────────────────────
+
+/**
+ * What every program a job starts under the agent policy gets of the worker's environment (shell hooks and their
+ * rollbacks, `docker` / `docker compose`, a process sandbox's services): the shell's own variables, the locale, the
+ * time zone, the proxy and certificate settings — never the rest (a token or a password the person exported in the
+ * terminal that started the Studio or the worker). PATH is cleaned (childEnv). HOME is the one loader variable here.
+ */
+export const CHILD_ENV_BASE: readonly RegExp[] = [
+  /^(?:PATH|HOME|USER|LOGNAME|SHELL|TMPDIR|TERM|LANG|TZ)$/,
+  /^LC_[A-Z]+$/,
+  /^(?:http|https|ftp|all|no)_proxy$/i,
+  /^(?:SSL_CERT_FILE|SSL_CERT_DIR|NODE_EXTRA_CA_CERTS|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/,
+];
+
+/**
+ * What `docker` also gets on top of CHILD_ENV_BASE, by name: which daemon and context it talks to and how (TLS), its
+ * config folder, the API version, the default platform, BuildKit and its progress output — never another DOCKER_*
+ * variable (a registry password or token the person exported).
+ */
+export const DOCKER_CHILD_ENV: readonly RegExp[] = [
+  /^DOCKER_(?:HOST|CONTEXT|CONFIG|CERT_PATH|TLS|TLS_VERIFY|API_VERSION|DEFAULT_PLATFORM|BUILDKIT)$/,
+  /^BUILDKIT_PROGRESS$/,
+];
+
+/** How to give a job's programs another variable: the fix line of every refusal and hint about it. */
+export const PASS_ENV_FIX = 'a person lists its name in project.yaml `pass_env:` (e.g. `pass_env: [NAME]`), or sets it in the hook\'s own `env` (`{{env:NAME}}` reads it from the worker\'s environment)';
+
+/**
+ * Why `name` may not be listed in project.yaml `pass_env:` (null when it may): not a plain identifier, or a loader
+ * variable (see the module comment) — a job's programs never get one from the worker's environment.
+ */
+export function passEnvProblem(name: string): string | null {
+  if (!ENV_NAME_PLAIN.test(name)) return `"${showHiddenChars(name)}" is not a variable name (letters, digits and _, not starting with a digit)`;
+  if (isLoaderEnvName(name)) {
+    return `${name} is a loader variable (it makes a program load code or read its settings from elsewhere): a job's programs never get it from the worker's environment — a person-written hook sets it in its own \`env\``;
+  }
+  return null;
+}
+
+export interface ChildEnvOptions {
+  /** project.yaml `pass_env:`: more names passed on as they are (a loader variable never: passEnvProblem). */
+  pass?: readonly string[];
+  /** The programs are `docker` / `docker compose`: DOCKER_CHILD_ENV too. */
+  docker?: boolean;
+  /** The workspace folders no PATH entry may be inside (default: the agent policy's, else none). */
+  folders?: readonly string[];
+}
+
+/**
+ * The environment a program a job starts gets of `source` under the agent policy: CHILD_ENV_BASE (DOCKER_CHILD_ENV
+ * too for docker) and the names of `o.pass`, nothing else. PATH keeps its absolute entries outside the workspace
+ * folders only (a relative one resolves in the child's folder, and an agent writes files in the workspace). What the
+ * caller adds on top — Retake's own RETAKE_* variables, a hook's declared `env`, a sandbox service's `env` — is its own.
+ */
+export function childEnv(source: NodeJS.ProcessEnv, o: ChildEnvOptions = {}): Record<string, string> {
+  const folders = o.folders ?? agentFolders ?? [];
+  const pass = new Set((o.pass ?? []).filter((n) => passEnvProblem(n) === null));
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(source)) {
+    if (v === undefined) continue;
+    if (CHILD_ENV_BASE.some((re) => re.test(k)) || (o.docker && DOCKER_CHILD_ENV.some((re) => re.test(k))) || pass.has(k)) out[k] = v;
+  }
+  if (out.PATH !== undefined) {
+    out.PATH = [...new Set(out.PATH.split(delimiter).filter((p) => p && isAbsolute(p) && !folders.some((f) => isUnder(p, f))))].join(delimiter);
+  }
+  return out;
+}
+
+/** childEnv under this process's agent policy, or null when the policy is off (the child inherits, as a command a person types). */
+export function policyChildEnv(source: NodeJS.ProcessEnv, o: Omit<ChildEnvOptions, 'folders'> = {}): Record<string, string> | null {
+  return agentFolders ? childEnv(source, { ...o, folders: agentFolders }) : null;
+}
+
+/**
+ * The hint added to a hook that failed under the agent policy: the variables it could see (names only) and how to pass
+ * another one.
+ */
+export function childEnvHint(names: readonly string[]): string {
+  const shown = [...new Set(names)].sort();
+  return `a job the Studio, the desktop app or an MCP client starts gives its programs only some variables of the worker's environment — this one saw ${shown.join(', ') || 'none'}; if it needs another, ${PASS_ENV_FIX}`;
+}
+
+/**
+ * The hint added to a rollback Retake did not sign that failed: the variables it could see (names only — it gets
+ * CHILD_ENV_BASE of this process's environment and nothing else, `pass_env:` included) and what to do instead.
+ */
+export function bareEnvHint(names: readonly string[]): string {
+  const shown = [...new Set(names)].sort();
+  return `a rollback Retake did not sign gets only the shell's own variables of this environment, never project.yaml \`pass_env:\` — this one saw ${shown.join(', ') || 'none'}; if it needs another, run it by hand`;
+}
+
 // ── Navigation ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -646,6 +978,50 @@ export function canonicalOrigin(url: string): string | null {
     return null;
   }
   return u.protocol === 'http:' || u.protocol === 'https:' ? u.origin : null;
+}
+
+/** An IPv4-mapped IPv6 address as WHATWG URL writes it (`::ffff:7f00:1`): its two last groups are the IPv4 address. */
+const MAPPED_IPV6 = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/;
+
+/**
+ * An IP literal in the one form addresses are compared in, or null when the host is a name: an IPv4 address dotted
+ * (`127.1`, `0x7f000001` read as WHATWG URL reads them), an IPv6 one compressed in lower case without brackets, and an
+ * IPv4-mapped IPv6 address (`[::ffff:127.0.0.1]`, `[::ffff:7f00:1]`) as its IPv4 form — the same server, which a
+ * browser still counts as another origin. For guards that ask whether two URLs reach one server (another project's
+ * production hosts); origins stay canonicalOrigin's, allow-lists and IP classes their own normalisation.
+ */
+export function canonicalIp(host: string): string | null {
+  let h = host.trim();
+  if (h.startsWith('[') && h.endsWith(']')) h = h.slice(1, -1);
+  if (!h || /[\s/?#@[\]\\]/.test(h)) return null;
+  let parsed: string;
+  try {
+    parsed = new URL(`http://${h.includes(':') ? `[${h}]` : h}/`).hostname;
+  } catch {
+    return null;
+  }
+  if (parsed.startsWith('[')) {
+    const v6 = parsed.slice(1, -1);
+    const m = MAPPED_IPV6.exec(v6);
+    if (!m) return v6;
+    const [hi, lo] = [parseInt(m[1], 16), parseInt(m[2], 16)];
+    return [hi >> 8, hi & 255, lo >> 8, lo & 255].join('.');
+  }
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(parsed) ? parsed : null;
+}
+
+/**
+ * The server an http(s) URL reaches, from its canonicalOrigin: the host lower case without a trailing dot, an IP
+ * literal in canonicalIp form (`ip`), and the port (the scheme's default when the URL leaves it out); null for any other
+ * scheme and for text that is not a URL.
+ */
+export function canonicalAddress(url: string): { host: string; port: string; ip: boolean } | null {
+  const origin = canonicalOrigin(url);
+  if (origin === null) return null;
+  const u = new URL(origin);
+  const ip = canonicalIp(u.hostname);
+  const host = ip ?? (u.hostname.endsWith('.') ? u.hostname.slice(0, -1) : u.hostname);
+  return { host, port: u.port || (u.protocol === 'https:' ? '443' : '80'), ip: ip !== null };
 }
 
 /** A host no URL names: the base a reference without a scheme is resolved against, to tell a path from `//host/…`. */

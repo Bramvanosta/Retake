@@ -197,7 +197,10 @@ server timestamps shows "created in 3 weeks").
   otherwise pick another version), or a string run with `sh -c` (looked up on `PATH`).
 - **Environment**: Retake's own, without the package manager's and test runner's variables (`npm_*`, `PNPM_*`,
   `VITEST*`, `NODE_ENV`, `NODE_OPTIONS`, `INIT_CWD`, `TEST` — set them in `env:` when the service needs them), plus
-  `env:` (templated: `{{env:VAR}}`, `{{keychain:…}}`, page keys, vars) and `RETAKE_SANDBOX=<env>`. A `shell`
+  `env:` (templated: `{{env:VAR}}`, `{{keychain:…}}`, page keys, vars) and `RETAKE_SANDBOX=<env>`. When a job of
+  the Studio, the desktop app or an MCP client starts the sandbox, a service inherits only the shell's own variables
+  of Retake's environment (`PATH`, `HOME`, `USER`, the locale, `TZ`, proxy and certificate settings) and the names of
+  project.yaml `pass_env:` (see [Workspace](workspace.md)): write what it needs in `env:`. A `shell`
   command on the sandbox's environment — its seed steps, and the shell hooks of scenarios run there — gets the same
   `env:` of every process service and `RETAKE_SANDBOX` on top of Retake's own environment (its own `env:`
   wins): a seed's `npm run db:reset` reaches the sandbox's `DATABASE_URL`, never the one your shell or a `.env` file
@@ -250,7 +253,13 @@ worker) counts too, judged by its own healthcheck.
   `logs`, an `exec` step, a restart — reads the project's containers first: containers of that name made from another
   folder (another checkout given the same `compose.project`) refuse it, never read, reset or touched. Every call names
   the project, its folder and its files, and runs without the shell's `COMPOSE_*` variables (a `COMPOSE_PROFILES`
-  would change what starts).
+  would change what starts). In a job of the Studio, the desktop app or an MCP client, `docker` gets only the shell's
+  own variables, docker's connection settings by name (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`,
+  `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`,
+  `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`; never another `DOCKER_*`, such as a registry password) and the names of
+  project.yaml `pass_env:`: a `${VAR}` of the compose file that your shell sets reaches it only through `pass_env:`
+  (or the env file below). There, the `docker` binary itself (`$RETAKE_DOCKER`, or the one found on `PATH`) may not
+  be a relative path or lie inside the workspace: the job fails before it starts, saying to move it.
 - **A renamed `compose.project`**: the name an earlier `up` used stays in the state until nothing of it is left. While
   its containers run, `up` refuses (`compose project … — the name an earlier up of this sandbox used (compose.project
   changed since) — is still running: retake sandbox down …`); `status` says what it left (containers, volumes);

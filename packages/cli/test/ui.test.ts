@@ -14,17 +14,25 @@
  * L5.2b: the supervised line says `v` 2 (`--json` keeps 1); after it, an owned server writes `pending` snapshots (a
  * running job written in its workspace shows in the next one) and nothing else on stdout — stdin is still read and
  * discarded; a reused server writes nothing after its line.
+ * The Studio's token is in the Retake home (`ui/<hash>.token`, 0600), never in ui.json; a `retake ui` of another
+ * RETAKE_HOME is told (exit 1, no link) and the running server is left alone. The browser opener (a spawn stand-in:
+ * no browser ever opens) never puts the URL and its one-time code in a program's arguments on macOS: osascript reads
+ * `open location` from its stdin, then a 0600 .webloc opened by its path, then nothing (the link is printed).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { readFileSync, statSync } from 'node:fs';
+import { Writable } from 'node:stream';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { selfIdentity } from '@retake/engine';
-import { shellLineReader } from '../src/commands/ui.js';
+import { readStudioToken, selfIdentity, studioTokenFile } from '@retake/engine';
+import { openBrowser, openLocationScript, shellLineReader, weblocText } from '../src/commands/ui.js';
+import type { Spawner } from '../src/commands/ui.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 import { BLOCKS_YAML, capture, writeRun } from '../../engine/test/synthetic-runs.js';
 
@@ -80,6 +88,12 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect(info.url).toMatch(new RegExp(`^http://127\\.0\\.0\\.1:${info.port}/#c=[A-Za-z0-9_-]{43}$`));
     const file = join(ws, '.retake', 'ui.json');
     expect((await stat(file)).mode & 0o777).toBe(0o600);
+    // No secret in the workspace: the token is in the Retake home, 0600.
+    const tokenFile = await studioTokenFile(ws, { RETAKE_HOME: join(base, 'home') });
+    expect((await stat(tokenFile)).mode & 0o777).toBe(0o600);
+    const held = (await readStudioToken(tokenFile, ws))!;
+    expect(held).toMatchObject({ pid: first.child.pid, port: info.port });
+    expect(await readFile(file, 'utf8')).not.toContain(held.token);
 
     const origin = `http://127.0.0.1:${info.port}`;
     const page = await fetch(`${origin}/`);
@@ -105,7 +119,22 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     expect(done.err).toBe('');
     expect(done.out.trim().split('\n')).toHaveLength(1);
     expect(existsSync(file)).toBe(false);
+    expect(existsSync(tokenFile)).toBe(false);
     await expect(fetch(`${origin}/`)).rejects.toThrow();
+  });
+
+  it('a retake ui of another RETAKE_HOME: told where the token is not (exit 1, no link, nothing on stdout); the running server is left alone', async () => {
+    const first = retake(['--root', ws, 'ui', '--no-open', '--json']);
+    const info = JSON.parse(await first.line) as { port: number; pid: number };
+    const other = await retake(['--root', ws, 'ui', '--no-open', '--json'], base, { RETAKE_HOME: join(base, 'other-home') }).exit;
+    expect(other.code).toBe(1);
+    expect(other.out).toBe('');
+    expect(other.err).toContain(`a Studio server (pid ${info.pid}) serves this workspace, but its token is not in this Retake home (${join(base, 'other-home', 'ui')})`);
+    expect(other.err).toContain('fix: run retake ui with the RETAKE_HOME that server was started with');
+    expect(other.err).not.toContain('#c=');
+    expect((await fetch(`http://127.0.0.1:${info.port}/`)).status).toBe(200);
+    first.child.kill('SIGTERM');
+    expect((await first.exit).code).toBe(0);
   });
 
   it('--port naming another port than the running server: reused, with a warning on stderr (review B L4)', async () => {
@@ -164,7 +193,7 @@ describe.skipIf(!built)('retake ui (built CLI)', () => {
     }
     const first = retake(['--root', dir, 'ui', '--no-open', '--json'], base, { PATH: [join(dir, 'bin'), join(dir, 'node_modules', '.bin'), process.env.PATH ?? ''].join(delimiter) });
     const info = JSON.parse(await first.line) as { port: number };
-    const { token } = JSON.parse(await readFile(join(dir, '.retake', 'ui.json'), 'utf8')) as { token: string };
+    const { token } = (await readStudioToken(await studioTokenFile(dir, { RETAKE_HOME: join(base, 'home') }), dir))!;
     const r = await fetch(`http://127.0.0.1:${info.port}/v1/call/run_thumbs`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
@@ -323,5 +352,100 @@ setInterval(() => undefined, 1000);`;
       first.child.kill('SIGTERM');
       expect((await first.exit).code).toBe(0);
     });
+  });
+});
+
+describe('the browser opener (a spawn stand-in: no browser opens)', () => {
+  const CODE = 'Abc_def-0123456789'.repeat(3).slice(0, 43);
+  const URL_ = `http://127.0.0.1:4981/#c=${CODE}`;
+  interface Call {
+    command: string;
+    args: readonly string[];
+    input: string;
+    /** For `open <file>`: the file's mode, its folder's and its text when it was opened. */
+    file?: { mode: number; dirMode: number; text: string };
+  }
+  /** A spawner whose children exit with `codes[command]` (absent: the command cannot start). */
+  function stand(codes: Record<string, number>): { spawn: Spawner; calls: Call[] } {
+    const calls: Call[] = [];
+    const fake: Spawner = (command, args) => {
+      const call: Call = { command, args: [...args], input: '' };
+      calls.push(call);
+      const child = new EventEmitter() as ChildProcess;
+      Object.assign(child, {
+        stdin: new Writable({ write: (c: Buffer, _e, cb) => ((call.input += c.toString('utf8')), cb()) }),
+        kill: () => true,
+        unref: () => undefined,
+      });
+      if (command === '/usr/bin/open' && args[0]?.endsWith('.webloc')) {
+        const f = args[0];
+        call.file = { mode: statSync(f).mode & 0o777, dirMode: statSync(dirname(f)).mode & 0o777, text: readFileSync(f, 'utf8') };
+      }
+      setTimeout(() => {
+        if (!(command in codes)) child.emit('error', Object.assign(new Error(`spawn ${command} ENOENT`), { code: 'ENOENT' }));
+        else {
+          child.emit('spawn');
+          child.emit('exit', codes[command], null);
+        }
+      }, 2);
+      return child;
+    };
+    return { spawn: fake, calls };
+  }
+  const noCodeInArgs = (calls: Call[]) => {
+    for (const c of calls) for (const a of [c.command, ...c.args]) expect(a, `${c.command} ${c.args.join(' ')}`).not.toContain(CODE);
+  };
+  let tmp: string;
+  beforeAll(async () => {
+    tmp = await mkdtemp(join(tmpdir(), 'studio-opener-'));
+  });
+  afterAll(async () => {
+    if (tmp) await rm(tmp, { recursive: true, force: true });
+  });
+
+  it('macOS: osascript reads `open location "<url>"` from its stdin; no argument holds the code', async () => {
+    const s = stand({ '/usr/bin/osascript': 0, '/usr/bin/open': 0 });
+    expect(await openBrowser(URL_, { spawn: s.spawn, platform: 'darwin', tmp })).toBe(true);
+    expect(s.calls.map((c) => [c.command, c.args])).toEqual([['/usr/bin/osascript', ['-']]]);
+    expect(s.calls[0].input).toBe(`open location "${URL_}"\n`);
+    noCodeInArgs(s.calls);
+  });
+
+  it('macOS, osascript failing: a 0600 .webloc in a private folder, opened by its path, then removed; osascript and open both failing: false (the link is printed), no other opener, no file left', async () => {
+    const s = stand({ '/usr/bin/osascript': 1, '/usr/bin/open': 0 });
+    expect(await openBrowser(URL_, { spawn: s.spawn, platform: 'darwin', tmp, keepMs: 0 })).toBe(true);
+    expect(s.calls.map((c) => c.command)).toEqual(['/usr/bin/osascript', '/usr/bin/open']);
+    const opened = s.calls[1];
+    expect(opened.args).toHaveLength(1);
+    expect(opened.args[0]).toMatch(/\.webloc$/);
+    expect(opened.args[0].startsWith(tmp)).toBe(true);
+    expect(opened.file).toEqual({ mode: 0o600, dirMode: 0o700, text: weblocText(URL_) });
+    expect(opened.file!.text).toContain(`<string>${URL_}</string>`);
+    noCodeInArgs(s.calls);
+    expect(await readdir(tmp)).toEqual([]);
+    const none = stand({ '/usr/bin/osascript': 1, '/usr/bin/open': 1 });
+    expect(await openBrowser(URL_, { spawn: none.spawn, platform: 'darwin', tmp, keepMs: 0 })).toBe(false);
+    expect(none.calls.map((c) => c.command)).toEqual(['/usr/bin/osascript', '/usr/bin/open']);
+    noCodeInArgs(none.calls);
+    expect(await readdir(tmp)).toEqual([]);
+    const missing = stand({});
+    expect(await openBrowser(URL_, { spawn: missing.spawn, platform: 'darwin', tmp, keepMs: 0 })).toBe(false);
+    noCodeInArgs(missing.calls);
+  });
+
+  it('the AppleScript literal escapes \\ and "; a URL with a control character reaches no program; other platforms keep their opener', async () => {
+    expect(openLocationScript('http://127.0.0.1:4981/a"b\\c')).toBe('open location "http://127.0.0.1:4981/a\\"b\\\\c"\n');
+    expect(openLocationScript(`${URL_}\n`)).toBeNull();
+    expect(openLocationScript(`${URL_}"\rdo shell script "x`)).toBeNull();
+    const s = stand({ '/usr/bin/osascript': 0 });
+    expect(await openBrowser(`${URL_}\n`, { spawn: s.spawn, platform: 'darwin', tmp })).toBe(false);
+    expect(s.calls).toEqual([]);
+    expect(weblocText('http://127.0.0.1:1/?a=1&b=<2>')).toContain('<string>http://127.0.0.1:1/?a=1&amp;b=&lt;2&gt;</string>');
+    const linux = stand({ 'xdg-open': 0 });
+    expect(await openBrowser(URL_, { spawn: linux.spawn, platform: 'linux' })).toBe(true);
+    expect(linux.calls.map((c) => [c.command, c.args])).toEqual([['xdg-open', [URL_]]]);
+    const win = stand({});
+    expect(await openBrowser(URL_, { spawn: win.spawn, platform: 'win32' })).toBe(false);
+    expect(win.calls).toEqual([]);
   });
 });

@@ -1399,7 +1399,7 @@ JPEG bytes (`ff d8 ff`; an SVG or another format is not shown).
   `reopen` need `if_match` unless the client is `cli`; `ui` names the render it showed to create (`render_created_at`).
 - What `studio` means (L4.6): written through the Studio page, which holds the session token `retake ui` handed to the
   browser — a person at the browser, or any program of this user that reads the Studio's token file
-  (`.retake/ui.json`, 0600), Claude Code's shell included, exactly as that shell can run `retake comment add` and
+  (`ui/<hash>.token` in the Retake home, 0600; never in the workspace), Claude Code's shell included, exactly as that shell can run `retake comment add` and
   write as `cli`. The channel says how an entry was written, never who typed it (person presence: BL-106). A tool built
   before L4.6 reads a thread holding `studio` as invalid (strict enum: skipped with a problem, never overwritten) until
   it is restarted on the new build — one tool version per workspace in this phase.
@@ -1745,14 +1745,14 @@ commits its own `comments/`.
   (Q1 as amended, critique B2 / B6): an open thread by `studio` whose change only touches the edit of its own scenario
   file gets a proposal (`scenario_get`, then `comment_reply {proposal}`; not a save) that the person previews, applies
   and re-renders in the Studio; every other thread — by `cli`, a filmed change, a theme or a render override — keeps the
-  direct loop; people create, reopen and apply; never read the Studio's token file (`.retake/ui.json`) or call its
-  `/v1` routes. The scenario skill says the same (its Studio rule pinned by the skill lint, which also refuses that
+  direct loop; people create, reopen and apply; never read the Studio's token (`ui/*.token` in the Retake home) or call
+  its `/v1` routes. The scenario skill says the same (its Studio rule pinned by the skill lint, which also refuses that
   file or a `/v1/…` route named anywhere else in a skill) and, for a server started on a build older than L4.6
   (critique B14: Studio threads skipped as "not a valid thread"), to ask the user to restart it.
 - What this does not stop: Claude Code's own shell (`retake comment add | reopen`) and file tools reach the same
   files as a person and write as `cli` — the channel is how an entry was written, not who wrote it; the INSTRUCTIONS
   narrow what any comment may make Claude do instead of trusting its author (signed entries: BL-76). Likewise the
-  Studio's token file (0600) is readable by that shell and the gate takes a request with no Origin: the rule keeping
+  Studio's token file (0600, in the Retake home) is readable by that shell and the gate takes a request with no Origin: the rule keeping
   Claude off it is an instruction, not a barrier (person presence: BL-106). A listing reads
   every thread file (≤ 2000; the L3.6 review measured about 23 s for 2000 threads): no index (BL-76).
 - Tests: `packages/mcp/test/stdio-comments.test.ts` (a thread made by the CLI in its own process; the anchor and still

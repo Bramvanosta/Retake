@@ -14,7 +14,11 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   preview's below, and nothing may frame it) and a Permissions-Policy asking that the camera, microphone, screen
   capture and location stay off for the page and its frames (L5.2: Chromium browsers enforce it; the desktop app
   denies them itself). No secret is in the app's files; the token comes from the one-time code
-  (see [Studio app](studio.md#studio-app)).
+  (see [Studio app](studio.md#studio-app)). The token is kept in the Retake home (`ui/<hash>.token`, 0600), not in the
+  workspace's `.retake/ui.json`, so a program confined to the workspace folder never reads it — and `retake ui`
+  refuses to start when the Retake home itself lies inside the workspace (`RETAKE_HOME` set there). On macOS the link
+  with its code reaches the browser through the input of `/usr/bin/osascript` (else a 0600 `.webloc` opened by
+  `/usr/bin/open`), never a program's arguments.
 - **The timeline preview** (L4.5) plays in its own origin: a second `127.0.0.1` port of the same `retake ui` process
   that serves only the preview frame, its script and the files of the take being previewed (the capture, the theme's
   fonts and logo, the music, card media) — each registered only when it lies inside the project, the run or the theme,
@@ -42,9 +46,17 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   and `Sec-Fetch-*` from secure contexts; MCP clients send neither — Node's fetch sends `Sec-Fetch-Mode: cors` alone,
   which is served). Then the route (`/mcp`), the bearer token (the stable one in the Retake home, mode 600),
   `application/json` and a 4 MiB body cap. It is a separate process from the Studio: a page of the Studio never holds
-  this token. Known limit: its port is fixed (47820) so the registration survives restarts — on a Mac shared with
-  other accounts, another local user's program could listen there first while `retake mcp --http` is not running and
-  receive the token a client sends (BACKLOG BL-79).
+  this token. Its port is fixed (47820) so the registration survives restarts; when it cannot take that port, the
+  server looks up the listener (`lsof`, `ps`, by their absolute paths) and starts only beside its own kind: this
+  account's own `retake mcp --http` gets the "port busy" answer (use it, or stop it first), and any other listener —
+  another account's (invisible to this account) or one of this account that is not a Retake MCP server — is refused
+  with the advice to stop it and run `retake mcp --http --rotate-token`, since a client may already have sent the
+  token there. A lookup that fails is tried once more; failing again, the start is refused with the command that
+  shows the listener and the same advice if it is not yours. Known limits: on a Mac shared with other accounts,
+  another account's program can still take the port while `retake mcp --http` is not running and receive the token a
+  client sends — the check runs at start only, and the client does not check the server it reaches; and "its own
+  kind" is read from the listener's account and command line, which another program of the same account could copy
+  (BACKLOG BL-162). The stdio registration listens on nothing: it is the safe default on a shared Mac.
 - **Reads stay in the project.** README.md, scenario files and `project.yaml` read through the engine (MCP tools, the
   Studio), and the files a tool names (a hook's SQL or JS file, a dropped file), never follow a symbolic link out of
   the project folder: they are refused, and the refusal does not name where the link leads. A write through a link to
@@ -96,6 +108,19 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   hooks that write are refused there, before anything runs, and the run's browsers stop their writes to the
   environment's hosts (or answer them with a mock); a production environment is written to only where project.yaml
   sets `access: read-write` **and** the command line says `--allow-writes`.
+- **Another project's production hosts.** Work submitted through MCP, the Studio or the desktop app may not point a
+  read-write environment at a host of another project's production or read-only environment: `project_create` refuses
+  such a page, and a run, hooks or a reset on such an environment are refused. Hosts are compared as the server they
+  reach: loopback names and addresses are one address (`localhost`, `*.localhost`, `127.0.0.0/8`, `::1`, and the
+  unspecified `0.0.0.0` / `[::]`), an IPv4-mapped IPv6 address is its IPv4 form (`[::ffff:127.0.0.1]` is
+  `127.0.0.1`), numeric forms are read as a browser reads them (`127.1`), and ports are compared. When one side is an
+  address (loopback included, however it is written) and the other a name, the name is resolved (the system
+  resolver, `/etc/hosts` included) and its addresses are compared; the names of one check are resolved together, so
+  the check waits at most 2 s, however many names it holds. A name that does not resolve in time next to an address
+  counts as the same server, so the work is refused (write the host the way the protected environment does, or a
+  person adds the environment to project.yaml marked production).
+  Not compared: two different names that resolve to the same address, and an IP literal behind a `*.domain` pattern
+  of `read_only.hosts`.
 - **Destructive hooks need `confirm: true`.** SQL `DELETE`/`DROP`/`TRUNCATE`/`ALTER`/`UPDATE` (inline, in files or
   sent to `psql`), HTTP `DELETE`, shell `rm`/`dropdb`, and hooks declared `destructive: true` are flagged by
   validation and refused at run time without it (`retake hooks run --yes` approves explicitly).
@@ -185,6 +210,39 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   switches are validation errors in retake.yaml and project.yaml (see [Workspace](workspace.md)) and refused again at
   launch. Each launch then reads the browser's own command line and refuses a browser that holds one anyway — an
   executable that adds switches itself (`browser.executable`, `RETAKE_CHROMIUM`) — and `retake doctor` fails on it.
+- **Jobs an agent can shape run no program of the workspace.** The jobs worker and its job processes, the MCP server
+  and the Studio server serve work an agent can shape — the worker runs every job alike, so your own Studio and
+  desktop-app jobs too. There, a program a job starts — `browser.executable`, retake.yaml's `ffmpeg:`, the render
+  browser, `$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`, `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `docker`
+  (`$RETAKE_DOCKER`), and the browser Playwright picks for a capture (its cache, or `$PLAYWRIGHT_BROWSERS_PATH`) — may
+  not be a relative path or lie inside the workspace (its root and its projects, templates and components folders,
+  under any spelling, a symbolic link followed either way), and a command name may not be found on `PATH` in such a
+  folder: an agent can write files there. The job fails before the program starts and says what to change (move it
+  out of the workspace); the program that passes is started by the real path that was checked, so a link changed
+  afterwards starts nothing else. A worker the Studio or an MCP client starts gets these variables as they are, so a
+  job that would use one inside the workspace fails with that message rather than running another program.
+  `browser.args` there holds switches only (no page or file to open, nothing after `--`), and only switches of a
+  short list — the window and the screen, the language, colours and fonts, the GPU, timers and background work,
+  first-run screens, media, the proxy and the resolver, WebRTC and QUIC, features (none that takes the network
+  service out of its sandbox); everything else is refused, Chromium's switches that load code or a profile, write
+  logs, dumps or traces, trust other certificates or open a debugging channel among them (the full list in
+  [Workspace](workspace.md)). A command typed in a terminal runs as you wrote it; `retake doctor` warns about each
+  setting such a job would refuse.
+- **Jobs an agent can shape pass on an allow-list of the environment.** The worker keeps the environment it was
+  started with (an automated sign-in's `{{env:…}}` reads it), but the programs its jobs start — shell hooks and their
+  rollbacks, `docker` / `docker compose`, a process sandbox's services — get only the shell's own variables of it:
+  `PATH` (no relative entry, no folder inside the workspace), `HOME`, `USER`, `LOGNAME`, `SHELL`, `TMPDIR`, `TERM`,
+  `LANG`, `LC_*`, `TZ`, the proxy and certificate variables, and for `docker` the ones that say which daemon and how
+  (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`,
+  `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`, `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`). A token or a password
+  exported in the terminal that started the Studio, the app's worker or `retake worker` never reaches a program an
+  agent can make run — except inside a proxy variable: a `user:password@` written in `HTTP_PROXY` / `HTTPS_PROXY`
+  is passed on with it. Anything else is passed on purpose: by name in project.yaml `pass_env:` (a person's
+  file; never a loader variable such as `NODE_OPTIONS` or `LD_PRELOAD`: a validation error), or as a hook's or a
+  service's own `env:` (`{{env:NAME}}`, masked in every log). A hook that fails there names the variables it got
+  (names, never values) and how to pass another. A command typed in a terminal passes its whole environment on.
+- **Renders never download a browser.** Every render uses Playwright's Chromium headless shell (the app's own in the
+  app) or `$RETAKE_CHROMIUM_HEADLESS_SHELL`; without one no render starts and the message says how to install it.
 - **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
   (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
   renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves

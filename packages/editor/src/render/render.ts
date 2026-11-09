@@ -205,9 +205,9 @@ async function openSession(opts: {
     onProgress: (p) => opts.onBundleProgress?.(p, false),
   });
   opts.onBundleProgress?.(1, bundle.cached);
-  // The browser first: a bundle without its headless shell refuses before any server is started.
+  // The browser first: without a headless shell (or with one the agent policy refuses) no server is started.
   const browser = renderBrowser();
-  assertRenderBrowser(browser);
+  const executable = assertRenderBrowser(browser);
   if (browser.note) warnings.push(browser.note);
   const server = await startAssetServer();
   const missing = Object.values(opts.plan.assets).filter((f) => !existsSync(f));
@@ -221,7 +221,7 @@ async function openSession(opts: {
   try {
     opened = await openRenderBrowser({
       policy: opts.policy,
-      launch: (chromium) => openBrowser('chrome', { browserExecutable: browser.path, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
+      launch: (chromium) => openBrowser('chrome', { browserExecutable: executable, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
       ...(opts.seams?.gpuInfo ? { gpuInfo: opts.seams.gpuInfo } : {}),
     });
   } catch (e) {
@@ -263,7 +263,7 @@ async function openSession(opts: {
     gl,
     ...(gpu ? { gpu } : {}),
     chromium: opened.chromium,
-    executable: guard ? GUARDED_NO_OTHER_BROWSER : browser.path,
+    executable: guard ? GUARDED_NO_OTHER_BROWSER : executable,
     // Review A M1 / B M1: a reopen in software renders at the software default (what doctor says), not the GPU's 3.
     policy: gl === opts.policy.gl.resolved ? opts.policy : withGl(opts.policy, gl),
   };
@@ -696,7 +696,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     encoding: { ...RENDER_ENCODING, faststart: true, audio: audioOf(plan) },
     concurrency: plannedConcurrency,
     bundle: { hash: '', cached: false, ms: 0 },
-    browser: { path: null, source: 'remotion' },
+    browser: { path: null, source: 'none' },
     timings: { plan_ms: planMs, bundle_ms: 0, render_ms: 0, total_ms: 0 },
     warnings: [...plan.warnings],
     plan,

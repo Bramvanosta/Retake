@@ -272,6 +272,18 @@ describe('rollback journal entries are signed (L5.14)', () => {
     expect(await order()).toEqual(['bare:unset']);
   });
 
+  it('an unsigned shell rollback that fails says which variables it saw and never advises pass_env (it gets none), with or without the agent policy', async () => {
+    const entry = JSON.stringify({ version: 1, created_at: '2026-11-04T09:00:00.000Z', updated_at: '2026-11-04T09:00:00.000Z', entries: [{ seq: 1, kind: 'shell', phase: 'setup', description: 'x', env: 'local', started_at: '2026-11-04T09:00:00.000Z', finished_at: '2026-11-04T09:00:01.000Z', status: 'ok', rollback: { kind: 'shell', run: 'exit 4', description: 'shell', data: {} } }] });
+    await writeFiles(tmp.dir, { 'runs/20261104-120000-fail/hooks-journal.json': entry });
+    const project = makeProject(tmp.dir, {}, { pass_env: ['T_BARE_PASSED'] });
+    const list = await openPendingJournals(tmp.dir, { keyFile });
+    const out = await rollbackJournals(list, makeContext(project, { replayUnsigned: () => true }).ctx);
+    const error = out[0]!.results[0]!.error ?? '';
+    expect(error).toMatch(/^shell "exit 4" exited with code 4 \(a rollback Retake did not sign gets only the shell's own variables of this environment, never project\.yaml `pass_env:` — this one saw (?:[A-Z_]+, )*HOME, (?:[A-Z_]+, )*PATH(?:, [A-Z_]+)*; if it needs another, run it by hand\)$/);
+    expect(error).not.toContain('e.g. `pass_env:');
+    expect(error).not.toContain('a job the Studio');
+  });
+
   it('rollbackActionLines shows an action in full, templates filled from its data, every hidden character written out', () => {
     const long = `echo ${'x'.repeat(200)} {{vars.id}}`;
     expect(rollbackActionLines({ kind: 'shell', run: long, cwd: 'sub', env: { A: 'b\u001b[2Jc' }, description: 'short', data: { vars: { id: '42' } } })).toEqual([

@@ -1,5 +1,5 @@
 import { isAbsolute } from 'node:path';
-import { sandboxOffArgsProblems } from '../agent-policy.js';
+import { passEnvProblem, sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
 import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
@@ -120,6 +120,16 @@ export function checkBrowserArgs(browser: unknown, ctx: CheckContext): void {
   for (const { index, message } of sandboxOffArgsProblems(browser.args)) ctx.error(['browser', 'args', index], message);
 }
 
+/** `pass_env:` of project.yaml: variable names, never a loader variable (core agent-policy passEnvProblem). */
+export function checkPassEnv(pass: unknown, ctx: CheckContext): void {
+  if (!Array.isArray(pass)) return;
+  pass.forEach((name, i) => {
+    if (typeof name !== 'string' || !name) return;
+    const problem = passEnvProblem(name);
+    if (problem) ctx.error(['pass_env', i], `pass_env: ${problem}`);
+  });
+}
+
 /** Semantic checks of a retake.yaml value. */
 export function checkWorkspace(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
   if (!isObj(value)) return [];
@@ -180,6 +190,7 @@ export function checkProject(
   }
 
   checkBrowserArgs(value.browser, ctx);
+  checkPassEnv(value.pass_env, ctx);
 
   // Sessions & personas (L1.6): a persona's session path is refused even where the schema already failed.
   checkPersonaPaths(value.auth, ctx);

@@ -1570,6 +1570,11 @@ export interface ProjectConfig {
   locale?: string;
   /** Extra hosts hooks may target (environment hosts, localhost and 127.0.0.1 are always allowed). */
   allow_hosts?: string[];
+  /**
+   * Variables of the worker's environment the programs of a job under the agent policy also get (core childEnv): shell
+   * hooks, docker, a process sandbox's services. Never a loader variable (passEnvProblem).
+   */
+  pass_env?: string[];
   databases?: Record<string, DatabaseConfig>;
   pacing?: Partial<Pacing>;
   /** Step defaults of every scenario (L5.6; a scenario's `defaults` win). */

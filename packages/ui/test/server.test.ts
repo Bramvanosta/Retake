@@ -2,14 +2,17 @@
  * L4.1 part 1: the Studio server over HTTP — static app from memory, `/v1/info`, the one-time bootstrap code →
  * session token, `/v1/call/<op>` limited to UI_OPS through the MCP tool layer (README round trip and conflict, error
  * statuses), hostile requests WITH the valid token refused before any op runs (README bytes unchanged, op counter 0),
- * the bundle (no eval, no node built-in, size budget), one server per workspace through the discovery file, and the
- * MCP package's independence from this one (R-UI-01).
+ * the bundle (no eval, no node built-in, size budget), one server per workspace through the discovery file (no secret
+ * in it: the token record lives in the Retake home, and a reuse sends the token only to that record's port; another
+ * home's or an older Retake's server is told), and the MCP package's independence from this one (R-UI-01).
  */
-import { readFile, readdir, rm, stat, mkdtemp } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { readFile, readdir, rm, stat, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { discoveryFile, readDiscovery, sha256Hex, studioCsp } from '@retake/engine';
+import { DISCOVERY_VERSION, discoveryFile, newSecret, readDiscovery, readStudioToken, selfIdentity, sha256Hex, studioCsp, studioTokenFile } from '@retake/engine';
 import { TOOLS } from '@retake/mcp';
 import { CALL_BODY_MAX, INDEX_HTML, INDEX_OPS, OWN_OPS, UI_OPS, buildUi, launchStudio, startStudioServer, uiTools } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
@@ -267,26 +270,118 @@ describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
   });
 });
 
-describe('one server per workspace (discovery file)', () => {
-  it('a second launch reuses the first with a fresh code; close removes ui.json', async () => {
+describe('one server per workspace (discovery file, token in the Retake home)', () => {
+  /** A listener standing for a port a rewritten ui.json names: it counts what reaches it and answers nothing useful. */
+  async function decoy(): Promise<{ port: number; seen: string[]; close: () => Promise<void> }> {
+    const seen: string[] = [];
+    const server = createServer((req, res) => {
+      seen.push(`${req.method} ${req.url} ${req.headers.authorization ?? ''}`);
+      res.writeHead(404).end();
+    });
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', () => r()));
+    return { port: (server.address() as AddressInfo).port, seen, close: () => new Promise((r) => server.close(() => r())) };
+  }
+
+  it('a Retake home inside the workspace is refused before anything starts: the token would lie where an agent reads files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-ui-home-'));
+    const before = process.env.RETAKE_HOME;
+    try {
+      await fixtureWorkspace(dir);
+      for (const home of [join(dir, '.home'), join(dir, 'projects', 'h')]) {
+        process.env.RETAKE_HOME = home;
+        const e = await launchStudio({ root: dir }).then(
+          () => null,
+          (x: unknown) => x as { code: string; message: string; fix?: string },
+        );
+        expect(e?.code, home).toBe('refused');
+        expect(e?.message).toMatch(/^the Retake home \(.*\) lies inside the workspace \(.*\): the Studio keeps its token there, where an agent can read files$/);
+        expect(e?.fix).toBe('set RETAKE_HOME to a folder outside the workspace (or leave it unset: ~/.retake), then run retake ui again');
+        expect(await readDiscovery(discoveryFile(dir))).toBeNull();
+        await expect(stat(join(home, 'ui'))).rejects.toThrow();
+      }
+    } finally {
+      process.env.RETAKE_HOME = before;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a second launch reuses the first with a fresh code; ui.json holds no token, the home\'s 0600 record does; close removes both', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     try {
       await fixtureWorkspace(dir);
       const first = await launchStudio({ root: dir });
       expect(first.reused).toBe(false);
+      if (first.reused) return;
       const file = discoveryFile(dir);
       expect((await stat(file)).mode & 0o777).toBe(0o600);
       const rec = await readDiscovery(file);
-      expect(rec).toMatchObject({ kind: 'ui', port: first.port, pid: process.pid, url: `http://127.0.0.1:${first.port}/` });
-      expect(JSON.stringify(rec)).not.toContain('#c=');
+      expect(rec).toMatchObject({ version: DISCOVERY_VERSION, kind: 'ui', port: first.port, pid: process.pid, url: `http://127.0.0.1:${first.port}/` });
+      const text = await readFile(file, 'utf8');
+      expect(text).not.toContain(first.server.token);
+      expect(text).not.toContain('#c=');
+      const tokenFile = await studioTokenFile(dir);
+      expect(tokenFile.startsWith(join(process.env.RETAKE_HOME!, 'ui'))).toBe(true);
+      expect((await stat(tokenFile)).mode & 0o777).toBe(0o600);
+      expect(await readStudioToken(tokenFile, dir)).toMatchObject({ pid: process.pid, port: first.port, token: first.server.token });
       const second = await launchStudio({ root: dir });
       expect(second).toMatchObject({ reused: true, port: first.port, pid: process.pid });
       expect(second.url).not.toBe(first.url);
       const code = /#c=(.+)$/.exec(second.url)![1];
       expect((await raw(first.port, 'POST', '/v1/session', json, JSON.stringify({ code }))).status).toBe(200);
-      if (!first.reused) await first.server.close();
+      await first.server.close();
       expect(await readDiscovery(file)).toBeNull();
+      expect(await readStudioToken(tokenFile, dir)).toBeNull();
     } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a ui.json rewritten in the workspace to name another port: the reuse goes to the port of the home\'s record, the other port gets nothing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
+    const other = await decoy();
+    try {
+      await fixtureWorkspace(dir);
+      const first = await launchStudio({ root: dir });
+      if (first.reused) throw new Error('expected a new server');
+      const file = discoveryFile(dir);
+      const rec = (await readDiscovery(file))!;
+      await writeFile(file, JSON.stringify({ ...rec, port: other.port, url: `http://127.0.0.1:${other.port}/` }));
+      const second = await launchStudio({ root: dir });
+      expect(second).toMatchObject({ reused: true, port: first.port });
+      expect(second.url.startsWith(`http://127.0.0.1:${first.port}/#c=`)).toBe(true);
+      expect(other.seen).toEqual([]);
+      await first.server.close();
+    } finally {
+      await other.close();
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a live server of another Retake home, or an older record (version 1, with its token): told what to do, nothing sent to its port', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
+    const other = await decoy();
+    const home = process.env.RETAKE_HOME;
+    try {
+      await fixtureWorkspace(dir);
+      const first = await launchStudio({ root: dir });
+      if (first.reused) throw new Error('expected a new server');
+      process.env.RETAKE_HOME = join(dir, '..', `${basename(dir)}-other-home`);
+      const e = await launchStudio({ root: dir }).then(() => undefined, (x: unknown) => x);
+      expect(e).toMatchObject({ code: 'busy', message: expect.stringContaining(`a Studio server (pid ${process.pid}) serves this workspace, but its token is not in this Retake home`) });
+      expect((e as { fix: string }).fix).toContain('run retake ui with the RETAKE_HOME that server was started with');
+      await rm(process.env.RETAKE_HOME, { recursive: true, force: true });
+      process.env.RETAKE_HOME = home;
+      await first.server.close();
+      // An older Retake's record, its holder alive (this process), its port the decoy.
+      const me = await selfIdentity();
+      const secret = newSecret();
+      await writeFile(discoveryFile(dir), JSON.stringify({ version: 1, kind: 'ui', pid: me.pid, ...(me.started_at ? { started_at: me.started_at } : {}), port: other.port, url: `http://127.0.0.1:${other.port}/`, token: secret, since: new Date().toISOString() }), { mode: 0o600 });
+      const old = await launchStudio({ root: dir }).then(() => undefined, (x: unknown) => x);
+      expect(old).toMatchObject({ code: 'busy', message: expect.stringContaining('a Studio server of an older Retake'), fix: expect.stringContaining(`kill ${me.pid}`) });
+      expect(other.seen).toEqual([]);
+    } finally {
+      process.env.RETAKE_HOME = home;
+      await other.close();
       await rm(dir, { recursive: true, force: true });
     }
   });

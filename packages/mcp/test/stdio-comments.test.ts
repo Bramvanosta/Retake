@@ -285,7 +285,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     expect(line).toContain('Every other thread — by cli, or a change to the filmed part, a theme (template:) or a render override — takes the direct loop');
     expect(line).toContain('comments_list {project, comment_id} reads it back with its state');
     expect(line).toContain('Only people create and reopen threads and apply proposals');
-    expect(line).toContain("The Studio is the person's: never read its token file (.retake/ui.json) or call its /v1 routes.");
+    expect(line).toContain("The Studio is the person's: never read its token (ui/*.token in the Retake home) or call its /v1 routes.");
   });
 
   it('comment_reply {proposal}: strict (an extra key, an author inside, a bad hash are argument errors); its description keeps Claude off the Studio\'s token and routes', async () => {
@@ -293,7 +293,7 @@ describe('retake mcp: proposals on a Studio thread (L4.6 part B, T10)', () => {
     const { tools } = await client.listTools();
     const description = tools.find((t) => t.name === 'comment_reply')!.description ?? '';
     expect(description).toContain('the whole file with every unchanged line byte for byte, never re-serialised');
-    expect(description).toContain("Only a person applies it: never through the Studio's token (.retake/ui.json) or its routes.");
+    expect(description).toContain("Only a person applies it: never through the Studio's token (ui/*.token in the Retake home) or its routes.");
     const hash = sha(TOUR);
     for (const [extra, problem] of [
       [{ scenario_yaml: SHORTER, scenario_hash: hash, via: 'studio' }, /proposal: unknown argument via/],

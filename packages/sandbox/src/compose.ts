@@ -29,7 +29,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { join, resolve } from 'node:path';
-import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, prefetchSecrets, resolveEnvironment, sandboxNames } from '@retake/core';
+import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, policyProgram, prefetchSecrets, resolveEnvironment, sandboxNames } from '@retake/core';
 import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
 import type { DockerExec, DockerInfo, DockerResult, DockerRunOptions } from './docker.js';
@@ -75,6 +75,8 @@ export interface ComposeProjectRef {
   envFile?: string;
   /** The names it sets: left out of the environment docker runs with (a shell's value would win over the file's). */
   envKeys?: string[];
+  /** project.yaml `pass_env:`: passed on to docker under the agent policy besides core childEnv's base. */
+  pass?: string[];
 }
 
 function realDir(dir: string): string {
@@ -123,7 +125,7 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 }
 
 /** The compose project a sandbox runs as. */
-export function composeProject(project: Pick<LoadedProject, 'slug'>, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
+export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> }, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
   const dir = realDir(sandbox.dir);
   const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(dir, f));
   const envFile = composeEnvFile({ dir, manifest: sandbox.manifest });
@@ -135,7 +137,14 @@ export function composeProject(project: Pick<LoadedProject, 'slug'>, sandbox: Pi
       /* a missing file: docker compose says so */
     }
   }
-  return { name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir), dir, files, ...(envFile ? { envFile, envKeys } : {}) };
+  const pass = project.config?.pass_env;
+  return {
+    name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir),
+    dir,
+    files,
+    ...(envFile ? { envFile, envKeys } : {}),
+    ...(pass?.length ? { pass: [...pass] } : {}),
+  };
 }
 
 /** `compose --ansi never -p <name> --project-directory <dir> -f <file>… [--env-file <file>]`: the start of every compose call. */
@@ -357,6 +366,8 @@ export interface ComposeProviderOptions {
 export class ComposeProvider implements Provider {
   readonly kind = 'docker-compose' as const;
   private readonly bin: string | null;
+  /** How a refusal names the binary (`$RETAKE_DOCKER` when it came from there). */
+  private readonly binWhat: string;
   private readonly run: DockerExec;
   private readonly listen: (ports: readonly number[]) => Promise<Listener[] | null>;
   private ready: Promise<DockerInfo> | null = null;
@@ -374,9 +385,26 @@ export class ComposeProvider implements Provider {
 
   constructor(opts: ComposeProviderOptions = {}) {
     this.bin = opts.docker ?? (opts.exec ? 'docker' : findDocker());
-    const bin = this.bin;
-    this.run = opts.exec ?? ((args, o) => (bin ? runDocker(bin, args, o) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' })));
+    this.binWhat = opts.docker === undefined && process.env.RETAKE_DOCKER ? '$RETAKE_DOCKER' : 'docker';
+    this.run =
+      opts.exec ??
+      ((args, o) => {
+        const bin = this.program();
+        return bin ? runDocker(bin, args, o) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
+      });
     this.listen = opts.listeners ?? listeners;
+  }
+
+  /**
+   * The docker binary to start: under the agent policy (core policyProgram: a job of the Studio, the desktop app or an
+   * MCP client) by the real path that was checked, and refused (SandboxError) when it is a relative path or lies inside
+   * the workspace — `$RETAKE_DOCKER` and the PATH's docker alike. Null when there is none.
+   */
+  private program(): string | null {
+    if (!this.bin) return null;
+    const checked = policyProgram(this.bin, this.binWhat);
+    if (checked.problem) throw new SandboxError(`docker-compose sandboxes: ${checked.problem}`);
+    return checked.program;
   }
 
   /** The compose project of this sandbox. */
@@ -394,8 +422,8 @@ export class ComposeProvider implements Provider {
     if (!this.bin) {
       throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`);
     }
-    this.ready ??= dockerReady(this.run, this.bin, ctx.signal);
     try {
+      this.ready ??= dockerReady(this.run, this.program() ?? this.bin, ctx.signal);
       return await this.ready;
     } catch (e) {
       this.ready = null;
@@ -409,6 +437,7 @@ export class ComposeProvider implements Provider {
     return this.run([...composeArgs(ref), ...args], {
       ...opts,
       ...(ref.envKeys?.length ? { unset: ref.envKeys } : {}),
+      ...(ref.pass?.length ? { pass: ref.pass } : {}),
       onSpawn: (c) => {
         this.child = c;
         opts.onSpawn?.(c);
@@ -927,14 +956,15 @@ export class ComposeProvider implements Provider {
     // An exec step running in a container: its processes there too (the docker client alone would leave them).
     const exec = this.running;
     this.running = null;
-    if (exec && this.bin) {
-      spawnSync(this.bin, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys), timeout: 10_000, stdio: 'ignore' });
+    const bin = this.bin ? policyProgram(this.bin, this.binWhat) : null;
+    if (exec && bin && !bin.problem) {
+      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
     }
     const names = this.started;
     this.started = [];
-    if (!names.length || !this.bin) return;
+    if (!names.length || !bin || bin.problem) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(this.bin, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */

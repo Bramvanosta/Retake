@@ -127,3 +127,5 @@ Environments* means the section of that name below.
 - [Phase status](development.md#phase-status)
 
 ### [Upgrading from before L5.13](upgrading.md)
+
+- [Two builds on one workspace](upgrading.md#two-builds-on-one-workspace-the-studios-token-in-the-retake-home)

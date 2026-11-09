@@ -88,7 +88,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.14 | Captures first: a take before renders, reviews and exports, on the file queue | L | **done** — L5.14a (the worker's two slots, the markers, background QoS, the CLI wait), L5.14b (surfaces, signed journals, approvals bound to their job, the measured acceptance) (2026-11-04) |
 | L5.15 | Renders on the GPU with a lighter load | S | **done** — ANGLE + VideoToolbox at concurrency 3 on a Mac with a GPU, today's software path otherwise (2026-11-05; the captures-first acceptance on the GPU path not passed: R-CAP-03) |
 | L5.17 | Hardening before the first release: approvals and agent-written hooks, the URLs a scenario opens, sandboxed capture and render browsers, the release workflow | L | **done**, pending the person's review of the pull request (2026-11-05; the first of two lots, L5.18 next) |
-| L5.18 | Hardening before the first release, the rest (before the v0.2.0 tag) | — | todo (next) |
+| L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done**, pending the person's review of the pull request (2026-11-09; next: the first release v0.2.0) |
 | L6 | V2 and later — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1021,8 +1021,22 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
   before anything is signed. Requirements R-SEC-11 – R-SEC-28. Cuts: BL-160, BL-161. Next: L5.18, then the first
   release v0.2.0 (the person tags).
 
-### L5.18 — Hardening before the first release, the rest
-- **Goal:** the rest of the hardening decided on 2026-11-05, before the v0.2.0 tag. Scoped and sized when it starts.
+### L5.18 — Hardening before the first release, the rest (M)
+- **Goal:** the rest of the hardening decided on 2026-11-05, before the v0.2.0 tag: work an agent can shape runs no
+  program of the workspace and gets only what it needs of the environment, and the local servers keep their secrets
+  and their ports to themselves.
+- **Done (2026-11-09, in a worktree; pending the person's review of the pull request):** one flag (core
+  `useAgentPolicy`) on in the jobs worker and its job processes, the MCP server and the Studio server, off in the CLI.
+  Under it a program a job starts — the capture browser (its executable, `$RETAKE_CHROMIUM` or the one Playwright picks
+  for a channel), the render browser, ffmpeg / ffprobe, docker — may not be relative or inside the workspace and is
+  started by the real path that was checked; `browser.args` take switches of an allow-list only; shell hooks, docker
+  and sandbox services get an allow-list of the environment plus project.yaml `pass_env:`. No render downloads a
+  browser. The guard against another project's production hosts compares the server an address reaches (loopback,
+  IPv4-mapped, names resolved under one deadline, failing closed). The Studio's token lives in the Retake home, ui.json
+  holds no secret, a Retake home inside the workspace is refused, and the one-time link reaches the browser outside
+  any program's arguments. `retake mcp --http` refuses a port held by a program that is not this account's own server.
+  `retake doctor` lists what such jobs would refuse. Requirements R-SEC-29 – R-SEC-37. Cut: BL-162 (a check per
+  connection, clients that verify the server). Next: the first release v0.2.0 (the person tags).
 
 ### L5.3 – L5.4, L6
 Scopes are listed per requirement in REQUIREMENTS.md (`--lot`); they will be detailed here when phase 2 is done, with

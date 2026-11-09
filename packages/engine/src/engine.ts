@@ -6,7 +6,7 @@
  * workspace's worker runs in a process of its own.
  */
 import { hostname } from 'node:os';
-import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario } from '@retake/core';
+import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders } from '@retake/core';
 import type { CommentAuthor, LegacyInfo, RunMode, WorkspaceConfig } from '@retake/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
@@ -583,7 +583,8 @@ function legacyField(): { legacy?: LegacyInfo } {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  const ws = await openWorkspace({ root: opts.root });
+  // Every client but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
+  const ws = await openWorkspace({ root: opts.root, agent: opts.client !== 'cli' });
   const project = (slug: string) => openProjectBySlug(ws, slug);
   /** The commands a human runs name this workspace explicitly (they may be typed in any folder). */
   const studio = `retake -C ${shellQuote(ws.root)}`;
@@ -626,7 +627,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
           ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
           // Any client but the CLI hands its worker a clean environment (review A #3: a worker an MCP client starts
           // serves the Studio's later jobs too); the Studio passes its own (the same cleaner).
-          ...(opts.workerEnv ? { env: opts.workerEnv } : opts.client !== 'cli' ? { env: cleanWorkerEnv(process.env, ws.root) } : {}),
+          ...(opts.workerEnv ? { env: opts.workerEnv } : opts.client !== 'cli' ? { env: cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) } : {}),
           ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
           startedBy: opts.client,
         });
@@ -931,7 +932,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
         if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
         // The secrets of the login steps are looked for where the worker this client starts finds them.
-        const workerEnv = opts.workerEnv ?? (opts.client !== 'cli' ? cleanWorkerEnv(process.env, ws.root) : process.env);
+        const workerEnv = opts.workerEnv ?? (opts.client !== 'cli' ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : process.env);
         const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
         return {
           project: p.slug,

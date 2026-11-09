@@ -306,7 +306,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
   },
   async open(o) {
     const browser = renderBrowser();
-    assertRenderBrowser(browser);
+    const browserExe = assertRenderBrowser(browser);
     const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
     const policy = renderPolicy(o.settings);
     guardEncoderPipe();
@@ -314,7 +314,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     try {
       opened = await openRenderBrowser({
         policy,
-        launch: (chromium) => openBrowser('chrome', { browserExecutable: browser.path, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
+        launch: (chromium) => openBrowser('chrome', { browserExecutable: browserExe, chromeMode: 'headless-shell', logLevel: 'error', ...(chromium.gl ? { chromiumOptions: chromium } : {}) }),
         ...(o.gpuInfo ? { gpuInfo: o.gpuInfo } : {}),
       });
     } catch (e) {
@@ -344,7 +344,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
     const common = { chromeMode: 'headless-shell', logLevel: 'error', timeoutInMilliseconds: 60_000 } as const;
     // Guarded: a browser that is no program for every Remotion call — a page that fails ends that preview, never a
     // browser Remotion opens itself (network-guard.ts).
-    const executable = guard ? GUARDED_NO_OTHER_BROWSER : browser.path;
+    const executable = guard ? GUARDED_NO_OTHER_BROWSER : browserExe;
     const plainly = async (run: () => Promise<unknown>): Promise<void> => {
       try {
         await run();

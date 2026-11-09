@@ -91,6 +91,19 @@ goodbye). The token is a secret: whoever holds it drives this workspace's tools 
 the client that spawns `retake mcp` over stdio does; never paste it into a file you commit. See [Security](security.md#security)
 for what the server refuses.
 
+**stdio is the safe default.** Over stdio the client starts the server itself and nothing listens. Over HTTP the port
+is fixed, so on a Mac shared with other accounts another account's program can listen on it while `retake mcp --http`
+is not running, and receive the token your client sends. When `retake mcp --http` cannot take its port, it looks up
+who holds it (`/usr/sbin/lsof` and `/bin/ps`, 2 s at most each): your own `retake mcp --http` already running there
+gets the "cannot listen … EADDRINUSE: a Retake MCP server of this account already serves on it" answer (use that
+server, or stop it first); any other listener — another account's (your account cannot see it) or one of your
+programs that is not a Retake MCP server — is refused, exit 1, with the advice to stop it and then run
+`retake mcp --http --rotate-token` and register again: a client may already have sent the token there. A lookup that
+fails is tried once more; failing again, the start is refused with the `lsof` command that shows the listener, and the
+same advice if it is not yours. This is checked at start only, the client does not check the server it reaches, and
+"your own" is read from the listener's account and command line, which another program of your account could copy
+(BACKLOG BL-162).
+
 **Tools.**
 
 | Tool | Does | Writes |
@@ -436,7 +449,7 @@ hooks: submit it again —, a sandbox that would not start…).
   `env`, or the scenario's own `env:`) reports it too, at the line; a run typed in a terminal does not.
 - **Production of every project.** The hosts of the production and read-only environments of *every* project of the
   workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
-  ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
+  ports compared, addresses canonical, a name next to an IP literal resolved — see [Security](security.md)), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human
   marks that environment production / read-only in project.yaml, or runs it in a terminal).
 - Text the filmed site or a service controls (a step's error message, warnings, a session check's detail and URL,
   health responses) comes back under an `untrusted` key, truncated, never in the summary; the server's instructions

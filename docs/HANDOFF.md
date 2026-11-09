@@ -2,11 +2,11 @@
 
 **Retake was called Demo Studio before L5.13** (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): every name in this file is the current one — entries written before L5.13 were rewritten mechanically by `scripts/rename-l513.mjs`, so commands of earlier runs read `retake …`. <!-- old-name: the history line -->
 
-Last updated: 2026-11-05, end of lot **L5.17 (hardening before the first release; pending the person's review of the
-pull request)** — phases 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j and 13a–13j),
-phase 5 is under way (L5.1, L5.2, L5.2b, L5.5 – L5.17 done: the « Épure » Studio, the name Retake, the standalone app
-and its releases, captures first, renders on the GPU, the first hardening lot). **Next: L5.18 (the rest of the
-hardening), then the first release v0.2.0 — only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
+Last updated: 2026-11-09, end of lot **L5.18 (hardening before the first release, the rest; pending the person's
+review of the pull request)** — phases 1–4 are done (phases 3–4 pending the user's live runs, MACOS-CHECKLIST 12c–12j
+and 13a–13j), phase 5 is under way (L5.1, L5.2, L5.2b, L5.5 – L5.18 done: the « Épure » Studio, the name Retake, the
+standalone app and its releases, captures first, renders on the GPU, the two hardening lots). **Next: the first
+release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`**. The work continues in local Claude Code sessions on the user's Mac (see
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
@@ -33,6 +33,65 @@ automatically with themeable components, and let Claude operate everything throu
    (2026-10-12).
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
+
+## State (after L5.18)
+- **L5.18 done (2026-11-09; pending the person's review of the pull request)** — hardening before the first release,
+  the second of two lots (branch `claude/t-sec-2`, 7 commits on L5.17's `55b0da5`; requirements R-SEC-29 – R-SEC-37).
+  - **One flag for the processes that serve agents.** core `useAgentPolicy(workspaceFolders)`, set or cleared by engine
+    `openWorkspace`: on in the jobs worker and its job processes (they run every job alike, the Studio's and the
+    desktop app's too), the MCP server and the Studio server; off in the CLI, whose behaviour is unchanged. The folders
+    are the workspace's root and its projects, templates and components folders. core `bundle.ts` gets the policy's
+    program check handed in (`setBundleProgramCheck`) and still imports nothing but `node:`. `retake doctor` warns
+    about each workspace or project setting such a job would refuse.
+  - **Programs.** Under the policy `browser.executable`, `$RETAKE_CHROMIUM`, the browser Playwright picks for a
+    channel (its cache or `$PLAYWRIGHT_BROWSERS_PATH`), the render browser, ffmpeg / ffprobe (retake.yaml,
+    `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`) and docker (`$RETAKE_DOCKER`, PATH) are refused when relative or inside the
+    workspace folders (any spelling, links followed; a bare name PATH finds there too), and a program that passes is
+    started by the real path that was checked (core `agentProgramProblem`, `policyProgram`). The worker a client starts
+    keeps the tool variables as they are and fails a job that would use one inside the workspace, saying what to
+    change. No render downloads a browser: without a headless shell no render starts (editor `assertRenderBrowser`),
+    the message and doctor's Render browser line give the install command.
+  - **Browser switches.** Under the policy `browser.args` hold switches only, from an allow-list (core
+    `AGENT_ALLOWED_SWITCHES`; features that take the network service out of its sandbox refused,
+    `AGENT_REFUSED_FEATURES`), checked at launch; the always-refused switches of L5.17 apply to everyone; the CLI
+    keeps every other switch. The allowed list is in docs/guide/workspace.md.
+  - **Environment.** Under the policy shell hooks and their rollbacks, docker / compose and process-sandbox services
+    get core `childEnv`: `CHILD_ENV_BASE` (PATH cleaned of relative and workspace entries, HOME, user, shell, locale,
+    time zone, proxy and certificate variables), project.yaml `pass_env:` (new; a loader variable is a validation
+    error) and, for docker, `DOCKER_CHILD_ENV` by name; an unsigned rollback gets the base only. The worker keeps its
+    own environment for `{{env:}}`. A failed hook names the variables it saw (never values) and how to pass one.
+  - **Another project's production hosts.** The guard of MCP / Studio work compares the server a host reaches (core
+    `canonicalIp`, `canonicalAddress`; engine `protected-hosts.ts`): loopback names and addresses as one, an
+    IPv4-mapped address as its IPv4 form, a name beside an address resolved (one 2 s deadline per check), a name that
+    does not resolve in time counted as a match.
+  - **The Studio's token and link.** `.retake/ui.json` (version 2) holds no secret; the token is in
+    `<RETAKE_HOME>/ui/<hash>.token` (0600, replaced by rename, links and loose modes refused) with its port; a reuse
+    goes through that record only; a server of another Retake home or an older record is told, nothing sent to its
+    port; `retake ui` refuses a Retake home inside the workspace. On macOS the one-time link reaches the browser through
+    `/usr/bin/osascript`'s standard input, else a private 0600 `.webloc` opened by `/usr/bin/open`, never a program's
+    arguments.
+  - **MCP over HTTP.** `retake mcp --http` on a taken port looks up the listener (`lsof`, `ps`, absolute paths, short
+    timeouts, retried once): this account's own server gets the port-busy answer, any other or unidentified listener
+    is refused with the advice to stop it and `--rotate-token`; `--print-config --http` and the guide say stdio is the
+    safe default. The rest (a check per connection, clients that verify the server) is BL-162.
+  - **The person's decisions (2026-11-05):** the defaults proposed for each choice, L5.18 before the v0.2.0 tag.
+  - **After the upgrade:** stop every Studio of the older build (a terminal's `retake ui`, the desktop app) before
+    starting the new one — an older build reads a version-2 ui.json as broken and would start a second server on the
+    workspace (docs/guide/upgrading.md); the new build tells an older server apart and opens nothing until it stops.
+    A Studio or MCP job whose workspace names a program inside it, a `browser.args` switch outside the list, or relies
+    on an exported variable a hook or a compose file reads, now fails with what to change (`pass_env:`, move the
+    program out); `retake doctor` lists them first.
+  - **Tests on the Mac:** `tsc -b` green; the full suite on c6 **4919 — 4810 pass, 104 skipped, 5 failures**: core
+    app-bundle's damaged-manifest import (fixed by c7, 22/22 after), engine brand-files with TMPDIR at a scratch link
+    (75/75 with the default TMPDIR), capture-pause's two frame-timing tests under load, and app-bundle's
+    renderBundleRestriction failing the same before this lot (webpack not resolvable from packages/editor); the files
+    this lot touched 476/476 (22 skipped: Docker, desktop) after c7; `pnpm test:slow` 85/85; `pnpm test:pg` 20/20. The
+    gated bundle acceptance did not run offline (corepack wanted to download pnpm; tauri's crates not all in the cargo
+    cache). Not run: `desktop:test`, the Docker sandboxes, the update end to end. Requirements: 733 tracked — 689 done,
+    30 partial, 8 todo, 6 n/a-here.
+  - **For the person, by hand:** a Studio and an MCP client on the new build after stopping the old one; a docker
+    sandbox from the Studio (DOCKER_* by name, `pass_env:` for what its compose file reads); the bundle acceptance with a
+    network. Cut: BL-162. Next: the first release v0.2.0 (the person tags).
 
 ## State (after L5.17)
 - **L5.17 done (2026-11-05; pending the person's review of the pull request)** — hardening before the first release,
@@ -839,17 +898,20 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**Before tagging v0.2.0: L5.18, the rest of the hardening** (decided 2026-11-05; L5.17 did the first part — ROADMAP
-"L5.17 – L5.18"; what remains of the [action plan](audit/action-plan.md)'s security task is in the person's private
-report, kept out of this public repository until fixed). Then come back to the audit of 2026-11-04 (`docs/audit/`):
+**Before tagging v0.2.0: the person's review of the two hardening lots** (L5.17 and L5.18 done — ROADMAP
+"L5.17 – L5.18"; the person checks the [action plan](audit/action-plan.md)'s security task against their private
+report). Then come back to the audit of 2026-11-04 (`docs/audit/`):
 propose the action plan's architecture tasks and backlog items to the person (the MVP scope stays locked until they
 decide), and rerun `scripts/audit/snapshot.mjs` against `docs/audit/2026-11-04/summary.json`.
 
-**Next: L5.18, then the first release v0.2.0** (asked by the person on 2026-11-04, the two hardening lots decided on
-2026-11-05; L5.16, L5.14, L5.15 and L5.17 are done: the standalone app and its releases, captures first on the file
-queue, renders on the GPU, the first hardening lot). L5.14 signed rollback journals and bound approvals to their job
+**Next: the first release v0.2.0** (asked by the person on 2026-11-04, the two hardening lots decided on
+2026-11-05; L5.16, L5.14, L5.15, L5.17 and L5.18 are done: the standalone app and its releases, captures first on the
+file queue, renders on the GPU, the two hardening lots). L5.14 signed rollback journals and bound approvals to their job
 (DESIGN §4q); L5.17 pinned a job's scenario bytes, showed every hook in full, held agent-written shell hooks to plain
-words, put every capture and render browser in Chromium's sandbox and checked the release workflow's inputs. **Decided
+words, put every capture and render browser in Chromium's sandbox and checked the release workflow's inputs; L5.18
+gave the processes that serve agents one flag under which a job runs no program of the workspace, passes only listed
+browser switches and an allow-list of the environment, moved the Studio's token to the Retake home and kept
+`retake mcp --http` off a port another program holds. **Decided
 2026-10-29: L5.9 – L5.15** — the Studio redesign « Épure » (L5.9 – L5.12, BL-124), the rename to Retake (L5.13),
 then the standalone app (L5.16, BL-36: everything inside, signed, notarised, DMG, updater — after the rename, decided
 2026-10-29), captures first (L5.14, BL-116; on the file queue since 2026-11-04, BL-117 parked), renders on the GPU (L5.15, BL-114) — then L5.3 and

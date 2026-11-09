@@ -102,7 +102,9 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   version and a real new-headless launch), its sandbox (**Chromium sandbox**: read from the launched browser's own
   command line — a failure when it holds a switch that turns the sandbox or site isolation off, which only an
   executable that adds switches itself can do; a Chromium that does not start as root on Linux says to run as a
-  regular user), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
+  regular user), **Render browser** (the headless shell renders use: a failure when there is none, with the command
+  that installs it), **Studio and MCP jobs** (a warning naming each program or `browser.args` entry that jobs of the
+  Studio, the desktop app or an MCP client would refuse — see [Workspace](workspace.md)), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
   browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
   with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications

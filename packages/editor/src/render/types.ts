@@ -144,7 +144,8 @@ export interface RenderRecord {
   probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };
   concurrency: number;
   bundle: { hash: string; cached: boolean; ms: number };
-  browser: { path: string | null; source: 'env' | 'bundled' | 'playwright' | 'remotion' };
+  /** The render browser (`none` while the render has not opened one; `remotion` in records of older versions). */
+  browser: { path: string | null; source: 'env' | 'bundled' | 'playwright' | 'none' | 'remotion' };
   /** `render_ms`: the last attempt's (after a fallback, the software render's; the GPU attempt's time is in `total_ms`). */
   timings: { plan_ms: number; bundle_ms: number; render_ms: number; total_ms: number };
   /** Plan warnings and render warnings. */
