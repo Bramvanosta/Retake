@@ -40,7 +40,8 @@ import type { FocusEvent as ReactFocusEvent, FormEvent, KeyboardEvent, ReactNode
 import type { DraftIssue, DraftSource, RecordAnnotationChange, RecordInsert, RecordInsertAt, StepBlock } from '@retake/core';
 import type { RecordListItem, RecordState } from '@retake/engine';
 import type { RecordEnvironmentOption, RecordOptionsAnswer, RecordStartAnswer, RecordViewAnswer } from '../server/record-ops.js';
-import { CallError, call, errorText, useCall } from './api.js';
+import { CallError, errorText } from './api.js';
+import { recordAnnotate, recordDiscard, recordOptions, recordSave, recordStart, recordStop, recordView, useRecordOptions } from './data/record.js';
 import { Txt, When, plural, shown, visibleControls } from './bits.js';
 import { recordEventAction, useEvents } from './events.js';
 import { useProjectView } from './project-data.js';
@@ -182,7 +183,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
     sendingRef.current = true;
     setSending(true);
     setRefusal(null);
-    call<RecordStartAnswer>('record_start', { project: slug, env: env.name, page, path, persona, name })
+    recordStart({ project: slug, env: env.name, page, path, persona, name })
       .then(onStarted, (e: unknown) => {
         if (e instanceof CallError && e.status === 409 && typeof e.error.details?.rec_id === 'string') {
           setRefusal({ kind: 'open', project: String(e.error.details.project ?? slug), rec_id: e.error.details.rec_id });
@@ -316,7 +317,7 @@ export function StartForm({ slug, o, onStarted, onChanged }: { slug: string; o: 
 }
 
 function StartScreen({ slug }: { slug: string }) {
-  const [o, reload] = useCall<RecordOptionsAnswer>('record_options', { project: slug }, slug);
+  const [o, reload] = useRecordOptions({ project: slug }, slug);
   useEvents((e) => {
     if (recordEventAction(e, slug, undefined)) reload();
   });
@@ -1429,7 +1430,7 @@ function useRecordView(slug: string, rec: string): [RecordViewAnswer | null, str
     const n = ++seq.current;
     // The job (until the folder exists, and once a discard removed it): record_start's in this tab, else the last view's.
     const job = startedJobs.get(rec) ?? viewRef.current?.job?.id;
-    call<RecordViewAnswer>('record_view', { project: slug, rec_id: rec, ...(job ? { job } : {}), ...(version.current && viewRef.current ? { since: version.current } : {}) })
+    recordView({ project: slug, rec_id: rec, ...(job ? { job } : {}), ...(version.current && viewRef.current ? { since: version.current } : {}) })
       .then(
         async (v) => {
           if (n !== seq.current) return;
@@ -1437,7 +1438,7 @@ function useRecordView(slug: string, rec: string): [RecordViewAnswer | null, str
           // No folder and no job known to this tab (a reload before the window opened): the workspace's open recording.
           if (v.state === 'missing' && !job && !looked.current) {
             looked.current = true;
-            const o = await call<RecordOptionsAnswer>('record_options', { project: slug }).catch(() => null);
+            const o = await recordOptions({ project: slug }).catch(() => null);
             if (o?.open && o.open.rec_id === rec) {
               startedJobs.set(rec, o.open.job);
               again.current = true;
@@ -1575,7 +1576,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
     }
   }, [discarding, state]);
   // Shoot's browser: the project's recordings, read again when this one changes state or is saved.
-  const [opts, reloadOpts] = useCall<RecordOptionsAnswer>('record_options', { project: slug }, slug);
+  const [opts, reloadOpts] = useRecordOptions({ project: slug }, slug);
   const savedName = v?.saved?.name;
   const first = useRef(true);
   useEffect(() => {
@@ -1625,7 +1626,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
         if (!cur) return;
         try {
           const where = cursorRow(cur.untrusted, cursor);
-          const r = await call<{ rev: number; insert_id?: string; view: RecordViewAnswer }>('record_annotate', { project: slug, rec_id: rec, rev: cur.rev, change });
+          const r = await recordAnnotate({ project: slug, rec_id: rec, rev: cur.rev, change });
           accept(r.view, true);
           say(annotatedWords(change, change.op === 'insert' ? (where?.label ?? null) : null));
           // A hold or a wait added after a row: the cursor moves onto it (the next one goes right after it).
@@ -1641,7 +1642,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
     stop: () =>
       run('stop', async () => {
         try {
-          const r = await call<{ action: string; view: RecordViewAnswer }>('record_stop', { project: slug, rec_id: rec, ...job() });
+          const r = await recordStop({ project: slug, rec_id: rec, ...job() });
           accept(r.view, true);
           reload();
         } catch (e) {
@@ -1651,7 +1652,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
     discard: () =>
       run('discard', async () => {
         try {
-          const r = await call<{ rec_id: string; state: 'discarded' | 'discarding' }>('record_discard', { project: slug, rec_id: rec, ...job() });
+          const r = await recordDiscard({ project: slug, rec_id: rec, ...job() });
           if (r.state === 'discarding') {
             setDiscarding(true);
             setNote({ tone: 'info', text: 'Being discarded: the job is cancelled, and the recording is removed once it is over.' });
@@ -1666,7 +1667,7 @@ function RecordingScreen({ slug, rec }: { slug: string; rec: string }) {
         const cur = latest();
         if (!cur) return;
         try {
-          const r = await call<{ name: string; file: string }>('record_save', { project: slug, rec_id: rec, name, rev: cur.rev, draft: cur.draft_sha256 ?? '' });
+          const r = await recordSave({ project: slug, rec_id: rec, name, rev: cur.rev, draft: cur.draft_sha256 ?? '' });
           location.hash = hrefTo({ name: 'scenario', slug, scenario: r.name, tab: 'blocks' });
         } catch (e) {
           if (e instanceof CallError && e.status === 409 && /choose another name/.test(`${e.error.message} ${e.error.fix ?? ''}`)) {

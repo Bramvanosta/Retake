@@ -11,7 +11,9 @@
  */
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import type { AuthStatusItem, EnvironmentView } from '@retake/engine';
-import { call, errorText } from './api.js';
+import { errorText } from './api.js';
+import { authLogin, jobList, signInCancel } from './data/shoot.js';
+import type { JobLite } from './data/ops.js';
 import { Txt, When, plural, shown, visibleControls } from './bits.js';
 import { castState, envFlagWords } from './board-words.js';
 import { useEvents } from './events.js';
@@ -27,18 +29,6 @@ const BY_WORDS: Record<string, string> = { preflight: 'a run’s preflight', log
 export function StoredState({ p }: { p: Pick<AuthStatusItem, 'status' | 'sandbox'> & { auto?: boolean } }) {
   const c = castState(p);
   return <StatusMark state={c.state} word={c.word} />;
-}
-
-/** A job of the queue, as job_list shows it (the fields the panel reads). */
-interface JobLite {
-  id: string;
-  kind: string;
-  state: string;
-  started_at?: string;
-  result?: { kind?: string; signed_in?: boolean; status?: string; interrupted?: boolean; profile_kept?: boolean };
-  error?: { message?: string };
-  untrusted?: { error?: string };
-  cancel_requested_at?: string;
 }
 
 const UNFINISHED = new Set(['queued', 'running']);
@@ -62,7 +52,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
   doneRef.current = onDone;
   const refresh = useCallback(
     (id: string) => {
-      call<{ jobs: JobLite[] }>('job_list', { project: slug, limit: 50 }).then(
+      jobList({ project: slug, limit: 50 }).then(
         (d) => {
           const j = d.jobs.find((x) => x.id === id);
           const prev = jobRef.current;
@@ -89,7 +79,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
   const start = () => {
     setSending(true);
     setError(null);
-    call<JobLite>('auth_login', { project: slug, persona, env })
+    authLogin({ project: slug, persona, env })
       .then(
         (j) => setJob(j),
         (e: unknown) => setError(errorText(e)),
@@ -98,7 +88,7 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
   };
   const cancel = () => {
     if (!job) return;
-    call<JobLite>('sign_in_cancel', { job: job.id }).then(
+    signInCancel({ job: job.id }).then(
       (j) => {
         const prev = jobRef.current;
         if (prev?.id !== j.id) return;

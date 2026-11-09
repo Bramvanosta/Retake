@@ -2353,6 +2353,20 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   last run — re-read at any project event, resync or focus —, `ActivityPanel`); `ProjectPage` (`project_get`, `run_list {limit: 5}`, `ActivityPanel {project}`); `ReadmeEditor`
   (below); `drafts.ts` (unsaved README text per project for this tab, `beforeunload` guard); `events.ts` (part 3,
   below); `Activity.tsx` (`ActivityPanel`, `SearchBox`: hits link to their project through `hrefTo`).
+- The data layer (L6.12 – L6.13): `api.ts` `call` / `useCall` are typed by `StudioOps` (`src/app/data/ops.ts`) — every
+  op the Studio serves (UI_OPS), its arguments generated from the Studio's op table (`data/studio-ops.gen.ts`: each
+  op's zod input as `/v1/call/<op>` parses it, the Studio's pinned arguments included — the server's tables erase
+  their types, so the client is generated, held byte for byte to its generator by `test/studio-ops.test.ts`;
+  `RETAKE_WRITE_SNAPSHOTS=1` after an intended change of an input) and its result declared there (the engine's or the
+  server's type where the op answers exactly that, else the app's own; `unknown` for an op the app never reads). An op
+  the Studio does not serve, an argument its input refuses or a result read as another type is a compile error (a
+  check file compiled with the app's options, and its mutations). Only `src/app/data/` imports `call` / `useCall`: one
+  module per feature (`projects`, `scenarios`, `shoot`, `edit`, `renders`, `comments`, `library`, `themes`, `record`,
+  `desktop`) names each op once — `themeEdit = op('theme_edit')`, `useThemeList = readHook('theme_list')` — and the
+  screens import those (same requests on the wire). `test/feature-boundaries.test.ts` walks the app's imports: data/
+  imports nothing of the app but api.ts and itself, the kit nothing but its foundations (bits, route), the kit and the
+  shell are reached through their public modules (`ui-kit/index`; the shell, its slots, command bus, announcer and
+  modes); exceptions listed with a reason, ratchet-style (new and stale both fail).
 - README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
   `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
   the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so

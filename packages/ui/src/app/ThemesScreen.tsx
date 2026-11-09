@@ -14,8 +14,10 @@
  */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
-import { call, errorText, useCall } from './api.js';
+import { errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { brandFiles, siteList, themeCopy, themeCreate, useSiteList, useThemeList } from './data/themes.js';
+import type { BrandFiles, ThemeCreated } from './data/ops.js';
 import { Txt, When, plural } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
@@ -38,7 +40,7 @@ function Swatch({ hex, label }: { hex?: string | null; label: string }) {
 }
 
 export function ThemesScreen({ slug, theme }: { slug: string; theme?: string }) {
-  const [list, reload] = useCall<ThemeListAnswer>('theme_list', { project: slug }, slug);
+  const [list, reload] = useThemeList({ project: slug }, slug);
   const timer = useRef<number | null>(null);
   useEvents((e) => {
     if (!themeEventAction(e, slug) || timer.current !== null) return;
@@ -187,7 +189,7 @@ function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string |
     if (from === null || problem) return setError(problem);
     setBusy(true);
     try {
-      const c = await call<{ name: string }>('theme_copy', { from, name });
+      const c = await themeCopy({ from, name });
       location.hash = hrefTo({ name: 'themes', slug, theme: c.name });
     } catch (e) {
       if (!(e instanceof SessionEnded)) setError(errorText(e));
@@ -220,18 +222,6 @@ function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string |
   );
 }
 
-interface BrandFiles {
-  files: Array<{ ref: string; bytes: number }>;
-  truncated: boolean;
-}
-
-interface Created {
-  name: string;
-  base: string;
-  palette: { adjusted: Array<{ key: string; from: string; to: string; check: string }>; suggestions: { accent?: string } };
-  warnings: string[];
-}
-
 /**
  * One colour of the form: the kit's ColorField — a move or each keystroke sets the form's value (the form owns the text:
  * a value that is not a hex stays as typed and the form's line says why, review B-M2); nothing is written.
@@ -249,15 +239,15 @@ function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: str
   const [f, setF] = useState<NewThemeForm>(initial);
   const [images, setImages] = useState<BrandFiles | null>(null);
   const [fontFiles, setFontFiles] = useState<BrandFiles | null>(null);
-  const [state, setState] = useState<{ busy?: boolean; error?: string; made?: Created }>({});
+  const [state, setState] = useState<{ busy?: boolean; error?: string; made?: ThemeCreated }>({});
   const headId = useId();
   // L5.2b (review B L7): a form changed and not made yet is unsaved text the desktop app's quit question names.
   useUnsavedMark(!state.made && JSON.stringify(f) !== JSON.stringify(initial) ? { kind: 'new_theme', project: slug } : null);
   const set = (k: keyof NewThemeForm) => (v: string) => setF((x) => ({ ...x, [k]: v }));
   useEffect(() => {
     let live = true;
-    call<BrandFiles>('brand_files', { kind: 'image' }).then((d) => live && setImages(d), () => live && setImages({ files: [], truncated: false }));
-    call<BrandFiles>('brand_files', { kind: 'font' }).then((d) => live && setFontFiles(d), () => live && setFontFiles({ files: [], truncated: false }));
+    brandFiles({ kind: 'image' }).then((d) => live && setImages(d), () => live && setImages({ files: [], truncated: false }));
+    brandFiles({ kind: 'font' }).then((d) => live && setFontFiles(d), () => live && setFontFiles({ files: [], truncated: false }));
     return () => {
       live = false;
     };
@@ -272,7 +262,7 @@ function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: str
     if (problem) return setState({ error: problem });
     setState({ busy: true });
     try {
-      const made = await call<Created>('theme_create', createInput(f));
+      const made = await themeCreate(createInput(f));
       setState({ made });
       onMade();
     } catch (e) {
@@ -354,7 +344,7 @@ function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: str
  * command a person runs for a new URL (copied, never run from here), and New theme from an extraction.
  */
 function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: NewThemeForm) => void }) {
-  const [sites, reload] = useCall<SiteListAnswer>('site_list', {}, 'sites');
+  const [sites, reload] = useSiteList({}, 'sites');
   const [url, setUrl] = useState('');
   const [cmd, setCmd] = useState<SiteListAnswer | null>(null);
   const [copied, setCopied] = useState<'no' | 'yes' | 'failed'>('no');
@@ -369,7 +359,7 @@ function SitePanel({ taken, onNewTheme }: { taken: string[]; onNewTheme: (f: New
     setCopied('no');
     setError(null);
     try {
-      setCmd(await call<SiteListAnswer>('site_list', { url }));
+      setCmd(await siteList({ url }));
     } catch (e) {
       if (!(e instanceof SessionEnded)) setError(errorText(e));
     }

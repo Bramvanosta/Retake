@@ -21,8 +21,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import type { AuthStatus, HeldWork, ProjectBoardView, ProjectSummary, ProjectView } from '@retake/engine';
-import { call, useConnection } from '../api.js';
+import { useConnection } from '../api.js';
 import type { Connection, Loaded } from '../api.js';
+import { engineInfo } from '../data/projects.js';
+import type { EngineInfoAnswer, ProjectList } from '../data/ops.js';
 import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
 import { readmeKey, useDirty } from '../drafts.js';
@@ -47,22 +49,6 @@ import { useStatusActions } from './StatusActions.js';
 import { QuitSheet } from './QuitSheet.js';
 import { SetupSheet } from './SetupSheet.js';
 import { UpdateControl } from './UpdateSheet.js';
-
-export interface ProjectList {
-  root: string;
-  projects_dir: string;
-  projects: ProjectSummary[];
-}
-
-interface EngineInfoData {
-  version: string;
-  root: string;
-  worker: { pid: number; started_by?: string } | null;
-  /** L5.14: what a filming take holds of this workspace's jobs (absent from an older server). */
-  held?: HeldWork | null;
-  /** L5.13: the sign-ins of before the rename are left in the old home; old variables are set — neither is read. */
-  legacy?: { old_home?: string; old_home_var?: string; old_vars?: string[] };
-}
 
 const CONNECTION: Record<Connection, { word: string; state: MarkState }> = {
   connecting: { word: 'Connecting…', state: 'running' },
@@ -95,8 +81,8 @@ const PALETTE_GROUPS = ['Commands', 'Go to', 'Scenes', 'Themes', 'Scenarios', 'P
  * reconnection and every 15 s (an idle worker exits quietly). A job rewritten at each step of its run is not a worker
  * change: no re-read (L5.11a fixes, review A: 17 reads in 30 s of a run before).
  */
-function useEngineInfo(): EngineInfoData | null {
-  const [v, set] = useState<EngineInfoData | null>(null);
+function useEngineInfo(): EngineInfoAnswer | null {
+  const [v, set] = useState<EngineInfoAnswer | null>(null);
   const [tick, setTick] = useState(0);
   const seen = useRef(new Set<string>());
   useEvents((e) => {
@@ -109,7 +95,7 @@ function useEngineInfo(): EngineInfoData | null {
   });
   useEffect(() => {
     let live = true;
-    const load = () => call<EngineInfoData>('engine_info').then((d) => live && set(d), () => undefined);
+    const load = () => engineInfo().then((d) => live && set(d), () => undefined);
     load();
     const t = window.setInterval(load, 15_000);
     return () => {
@@ -124,7 +110,7 @@ function useEngineInfo(): EngineInfoData | null {
  * L5.14 (captures first): what a filming take holds of this workspace's jobs — engine_info's `held`, then each jobs
  * event's (the server says it with every change of a job, a hold included: the job stream's signature has it).
  */
-function useHeld(info: EngineInfoData | null): HeldWork | null {
+function useHeld(info: EngineInfoAnswer | null): HeldWork | null {
   const [v, set] = useState<HeldWork | null>(null);
   useEffect(() => {
     if (info && info.held !== undefined) set(info.held ?? null);

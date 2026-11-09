@@ -239,6 +239,19 @@ Create with Claude's form) and an action's `disabled`; TextField `onBlur`; Switc
 (fixes) PosterCard / FrameCard `tabIndex`, `labelledBy`, `describedBy` (a roving grid's stop named by its title);
 LinkButton `id`, `labelledBy`, `tabIndex`; the token `--ui-pressed` (a pressed toggle's bar, not the focus ring's colour).
 
+## The data layer (`packages/ui/src/app/data/`)
+
+The screens never call the API themselves (L6.13): each feature's data module names its ops once and the screens import
+those — `projects` (Welcome, the Project screen, Lately, the search, the README), `scenarios` (the storyboard's reads,
+the YAML check, `scenario_edit`), `shoot` (the status bar's actions, a run's controls, the Cast's sessions), `edit`
+(the timeline, its preview leases), `renders` (a render, the list, the review, the export), `comments` (threads, a
+frame's anchor and pictures, the proposal), `library`, `themes`, `record`, `desktop` (the quit answer, the update, the
+Set-up sheet, the unsaved reports). Each function is typed by `StudioOps` (`data/ops.ts`: the arguments generated
+from the Studio's op table, the results the app's types), so a wrong op, argument or result does not compile. The
+app's parts: `data/` (imports api.ts only), `ui-kit/` (the kit and its foundations bits / route only), `shell/`
+(reached through itself, its slots, command bus, announcer and modes), and the screens at the root —
+`test/feature-boundaries.test.ts` holds the boundaries (DESIGN §4c).
+
 ## The screens (from the canvas)
 
 The Project and Scenario reference is **B32 (« B·3b Épure », round 3, validated)** — `B32-Projet` and `B32-Scenario`,

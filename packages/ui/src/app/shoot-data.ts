@@ -21,8 +21,10 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { ScenarioActions } from '@retake/engine';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { scenarioRender } from './data/renders.js';
+import { runCancel, runPause, runStatus, scenarioActions, scenarioRun } from './data/shoot.js';
 import { scenarioEventAction, useEvents } from './events.js';
 import type { StudioEvent } from './events.js';
 import { SessionEnded } from './session.js';
@@ -108,7 +110,7 @@ function load(e: Entry): void {
   e.inflight = true;
   e.lastAt = Date.now();
   actionReads.count++;
-  call<ScenarioActions>('scenario_actions', { project: e.slug, name: e.name, ...(e.env ? { env: e.env } : {}) }).then(
+  scenarioActions({ project: e.slug, name: e.name, ...(e.env ? { env: e.env } : {}) }).then(
     (data) => {
       e.backoff = 0;
       settlePending(e.slug, e.name, data);
@@ -398,15 +400,6 @@ function setSending(slug: string, name: string, v: Mode | 'render' | null): void
   sendingStore.set(sendingStore.get() + 1);
 }
 
-/** What scenario_run answers (the fields the page reads). */
-interface RunAnswer {
-  run_id: string;
-  job: string;
-  mode: Mode;
-  /** L5.16c fixes (review c B-M2): the other copy of Retake whose worker takes the job (`other_copy`: the lock's text). */
-  untrusted?: Record<string, unknown>;
-}
-
 /**
  * Queue a rehearsal or a capture of a scenario — false (nothing sent) while one of it is being sent by this tab (a held
  * key, a click and a menu command in the same tick: ONE call). `hash`: the file as shown; `env`: only a location that is
@@ -419,7 +412,7 @@ export function startRun(o: { slug: string; name: string; mode: Mode; hash?: str
   setSending(o.slug, o.name, o.mode);
   setLast(o.slug, o.name, null);
   const where = o.env ? ` on ${o.env}` : '';
-  call<RunAnswer>('scenario_run', { project: o.slug, name: o.name, mode: o.mode, ...(o.hash ? { hash: o.hash } : {}), ...(o.env ? { env: o.env } : {}), ...(o.ack ? { sessions_ack: o.ack } : {}) })
+  scenarioRun({ project: o.slug, name: o.name, mode: o.mode, ...(o.hash ? { hash: o.hash } : {}), ...(o.env ? { env: o.env } : {}), ...(o.ack ? { sessions_ack: o.ack } : {}) })
     .then(
       (d) => {
         setLast(o.slug, o.name, { mode: o.mode, run_id: d.run_id, ...(o.env ? { env: o.env } : {}) });
@@ -453,7 +446,7 @@ export function startRender(o: { slug: string; name: string; run: string; hash: 
   const k = key2(o.slug, o.name);
   if (sending.has(k)) return false;
   setSending(o.slug, o.name, 'render');
-  call<{ render_id: string; untrusted?: Record<string, unknown> }>('scenario_render', { project: o.slug, name: o.name, run: o.run, expect_edit_sha256: o.hash })
+  scenarioRender({ project: o.slug, name: o.name, run: o.run, expect_edit_sha256: o.hash })
     .then(
       (d) => o.say(`Render ${d.render_id} of ${o.name} queued${submitNotice(otherCopyOf(d, 'other_copy'))}`),
       (e: unknown) => {
@@ -469,7 +462,7 @@ export function startRender(o: { slug: string; name: string; run: string; hash: 
 
 /** Stop a run of a job (its teardown and rollbacks still run). */
 export function stopRun(o: { slug: string; name: string; run: string; mode: string; say: (s: string) => void; onDone?: () => void }): void {
-  call('run_cancel', { project: o.slug, run_id: o.run }).then(
+  runCancel({ project: o.slug, run_id: o.run }).then(
     () => {
       o.say(`Stopping the ${modeWord(o.mode, true)} of ${o.name}: its teardown and rollbacks still run`);
       o.onDone?.();
@@ -482,7 +475,7 @@ export function stopRun(o: { slug: string; name: string; run: string; mode: stri
 
 /** Pause (before the next step) or resume a run of a job. */
 export function pauseRun(o: { slug: string; name: string; run: string; paused: boolean; say: (s: string) => void; onDone?: () => void }): void {
-  call('run_pause', { project: o.slug, run_id: o.run, paused: o.paused }).then(
+  runPause({ project: o.slug, run_id: o.run, paused: o.paused }).then(
     () => {
       o.say(o.paused ? 'Pausing before the next step' : 'Resuming');
       o.onDone?.();
@@ -559,7 +552,7 @@ export function useRunProgress(slug: string | null, runId: string | null, onEnde
         return;
       }
       busy.current = true;
-      call<RunStatusAnswer>('run_status', { project: slug, run_id: id })
+      runStatus({ project: slug, run_id: id })
         .then(
           (d) => {
             setLive(liveOf(d));

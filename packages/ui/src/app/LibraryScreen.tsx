@@ -29,8 +29,9 @@
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { KeyboardEvent } from 'react';
-import type { LibraryComponentAnswer, LibraryImagesAnswer, LibraryItem, LibraryViewAnswer } from '../server/library-ops.js';
-import { call, errorText, useCall } from './api.js';
+import type { LibraryItem, LibraryViewAnswer } from '../server/library-ops.js';
+import { errorText } from './api.js';
+import { libraryImages, libraryRender, useLibraryComponent, useLibraryView } from './data/library.js';
 import { Txt, plural } from './bits.js';
 import { CreateSheet } from './CreateSheet.js';
 import type { Brief } from './CreateSheet.js';
@@ -169,7 +170,7 @@ function Filters({ items, filter, set }: { items: LibraryItem[]; filter: Library
 
 /** The selected or open component: its manifest read once (library_component) for the inspector and the page. */
 function Focused({ item, view, playing, detail, onCreate }: { item: LibraryItem; view: LibraryViewAnswer; playing: boolean; detail: boolean; onCreate: (kind: string, like: string) => void }) {
-  const [d] = useCall<LibraryComponentAnswer>('library_component', { project: view.project, component: item.component }, `${view.project}/${item.component}/${item.version}/${item.poster.key}`);
+  const [d] = useLibraryComponent({ project: view.project, component: item.component }, `${view.project}/${item.component}/${item.version}/${item.poster.key}`);
   return (
     <>
       {detail && <LibraryDetail item={item} view={view} d={d} playing={playing} />}
@@ -221,7 +222,7 @@ function WantLoop({ pump, component }: { pump: RenderPump; component: string }) 
 
 export function LibraryScreen({ slug, theme, component }: { slug: string; theme?: string; component?: string }) {
   const args = useMemo(() => ({ project: slug, ...(theme ? { theme } : {}) }), [slug, theme]);
-  const [view, reload] = useCall<LibraryViewAnswer>('library_view', args, `${slug}/${theme ?? ''}`);
+  const [view, reload] = useLibraryView(args, `${slug}/${theme ?? ''}`);
   const [filter, setFilter] = useState<LibraryFilter>(NO_FILTER);
   const [playing, setPlayingSet] = useState<ReadonlySet<string>>(new Set());
   const [selected, setSelected] = useState<string | null>(null);
@@ -248,7 +249,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
       new RenderPump({
         send: async (req: RenderRequest) => {
           try {
-            await call('library_render', { project: slug, theme: themeRef.current, ...req });
+            await libraryRender({ project: slug, theme: themeRef.current, ...req });
           } catch (e) {
             if (e instanceof SessionEnded) return;
             throw new Error(errorText(e));
@@ -265,7 +266,7 @@ export function LibraryScreen({ slug, theme, component }: { slug: string; theme?
   );
   const images = useMemo(
     () =>
-      new LibraryImages((keys, committed, signal) => call<LibraryImagesAnswer>('library_images', { project: slug, keys, ...(committed.length ? { committed } : {}) }, { signal })),
+      new LibraryImages((keys, committed, signal) => libraryImages({ project: slug, keys, ...(committed.length ? { committed } : {}) }, { signal })),
     [slug],
   );
   const observer = useObserver();

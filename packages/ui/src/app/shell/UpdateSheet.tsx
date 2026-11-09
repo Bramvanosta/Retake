@@ -11,7 +11,7 @@
  * the shell's `studio:update` event (Help › Check for Updates… found one: the sheet opens).
  */
 import { useCallback, useEffect, useState } from 'react';
-import { call } from '../api.js';
+import { desktopUpdate, desktopUpdateStatus } from '../data/desktop.js';
 import { Txt } from '../bits.js';
 import { APP_NAME } from '../brand.js';
 import { Button, Callout, Sheet } from '../ui-kit/index.js';
@@ -26,7 +26,7 @@ export function UpdateControl() {
   const [open, setOpen] = useState(false);
   const [sent, setSent] = useState<{ busy: 'install' | 'later' | null; failed: string | null }>({ busy: null, failed: null });
   const load = useCallback(() => {
-    call<UpdateStatus>('desktop_update_status').then(
+    desktopUpdateStatus().then(
       (s) => setSt(s),
       () => undefined,
     );
@@ -64,7 +64,7 @@ export function UpdateControl() {
       return;
     }
     setSent({ busy: action, failed: null });
-    call('desktop_update', { action }).then(
+    desktopUpdate({ action }).then(
       () => {
         setSent({ busy: null, failed: null });
         if (action === 'later') setOpen(false);

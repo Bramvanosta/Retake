@@ -19,7 +19,8 @@
  */
 import { useEffect, useRef } from 'react';
 import type { BoardScenario, RunBlocker } from '@retake/engine';
-import { call, useCall } from './api.js';
+import { runThumbs } from './data/scenarios.js';
+import { useScenarioSessions } from './data/shoot.js';
 import { Txt, When, plural, shown } from './bits.js';
 import { envFlagWords, lastTakeWords, lengthWords } from './board-words.js';
 import { useScenarioEvents } from './events.js';
@@ -27,7 +28,6 @@ import { reloadProject, useBoard, useProjectView } from './project-data.js';
 import { hrefTo } from './route.js';
 import { chooseLocation, useRunLocation } from './run-location.js';
 import { SessionRows } from './Sessions.js';
-import type { SessionRowData } from './Sessions.js';
 import { PRIORITY, useShellCommand } from './shell/command-bus.js';
 import { say } from './shell/say.js';
 import { ShellSlot } from './shell/slots.js';
@@ -47,19 +47,10 @@ import {
   useSending,
   useSignInAsk,
 } from './shoot-data.js';
-import type { SessionToConfirm } from './shoot-data.js';
 import { ShootBrowser } from './ShootBrowser.js';
 import { REHEARSE_MAPPING, SHOOT_STATES, blockerShort, modeWord } from './shoot-words.js';
 import { Thumb, ThumbsProvider } from './Thumb.js';
-import type { ThumbAnswer } from './thumbs.js';
 import { Blocker, Button, Callout, Checklist, ChecklistItem, Disclosure, Facts, InspectorSection, LinkButton, Select, StatusMark, Switch, TerminalCommands } from './ui-kit/index.js';
-
-interface ScenarioSessionsView {
-  env: string;
-  personas: SessionRowData[];
-  issues: string[];
-  confirm: SessionToConfirm[];
-}
 
 /** The blockers of one mode, each a kit Blocker: the gate's words, the message, its command to copy. */
 function BlockerList({ list, testId, slug, name }: { list: RunBlocker[]; testId: string; slug: string; name: string }) {
@@ -143,7 +134,7 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
   const data = actions.state === 'ready' ? actions.data : null;
   const boardState = useBoard(slug);
   const s = boardState.state === 'ready' ? boardState.data.scenarios.find((x) => x.name === name) : undefined;
-  const [sessions, reloadSessions] = useCall<ScenarioSessionsView>('scenario_sessions', { project: slug, name, mode: 'capture', ...(loc.sent ? { env: loc.sent } : {}) }, `${slug}\0${name}\0${loc.sent ?? ''}`);
+  const [sessions, reloadSessions] = useScenarioSessions({ project: slug, name, mode: 'capture', ...(loc.sent ? { env: loc.sent } : {}) }, `${slug}\0${name}\0${loc.sent ?? ''}`);
   const last = useLastStart(slug, name);
   const sending = useSending(slug, name);
   const pend = usePendingRun(slug, name, data?.runs);
@@ -151,7 +142,7 @@ export function ShootPrepare({ slug, name }: { slug: string; name: string }) {
   const running = data?.running ?? null;
   const [live, progress] = useRunProgress(running ? slug : null, running?.id ?? null, () => reloadActions(slug, name));
   useScenarioEvents(slug, name, { reread: reloadSessions, progress: (runs) => progress(runs), jobs: () => progress([]) });
-  const fetchThumbs = (run: string, keys: string[], signal: AbortSignal) => call<ThumbAnswer>('run_thumbs', { project: slug, run, keys }, { signal });
+  const fetchThumbs = (run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal });
 
   // "Sign in <persona> first…" from the sheet: that persona's Sign in button takes the focus here.
   const ask = useSignInAsk();

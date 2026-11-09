@@ -10,8 +10,10 @@
  */
 import { memo, useEffect, useId, useRef, useState } from 'react';
 import type { ScenarioRenderView } from '@retake/engine';
-import type { ThreadAnswer, ThreadGetAnswer } from '../server/comment-ops.js';
-import { CallError, call, errorText, useCall } from './api.js';
+import type { ThreadAnswer } from '../server/comment-ops.js';
+import { CallError, errorText } from './api.js';
+import { threadWrite, useThreadGet, useThreadStill } from './data/comments.js';
+import type { ThreadPanelArgs, ThreadPanelWrite } from './data/comments.js';
 import { Txt, When, plural } from './bits.js';
 import { CHANNEL_NOTE, COMMENT_TEXT_MAX, anchorChips, channelWords, entryWords, proposalWords, regionWords, renderWords, statusWords } from './comment-words.js';
 import type { Chip } from './comment-words.js';
@@ -48,7 +50,7 @@ export function ChipList({ chips, label }: { chips: Chip[]; label: string }) {
 
 /** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never the thread (its props are stable). */
 export const ThreadPanel = memo(function ThreadPanel({ slug, name, id, tick, onThread, renders, rs }: { slug: string; name: string; id: string; tick: number; onThread: (t: ThreadAnswer | null) => void; renders: ScenarioRenderView[]; rs: RendersState }) {
-  const [loaded, reload] = useCall<ThreadGetAnswer>('thread_get', { project: slug, comment_id: id }, `${slug}\0${id}`);
+  const [loaded, reload] = useThreadGet({ project: slug, comment_id: id }, `${slug}\0${id}`);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -177,7 +179,7 @@ export const ThreadPanel = memo(function ThreadPanel({ slug, name, id, tick, onT
 
 /** A thread's still (its render is gone): asked once, a checked data: JPEG. */
 function ThreadStill({ slug, id, renderId }: { slug: string; id: string; renderId: string }) {
-  const [loaded] = useCall<{ base64: string; width: number; height: number }>('thread_still', { project: slug, comment_id: id }, `${slug}\0${id}`);
+  const [loaded] = useThreadStill({ project: slug, comment_id: id }, `${slug}\0${id}`);
   return (
     <figure className="cm-still" data-testid="thread-still">
       {loaded.state === 'ready' ? (
@@ -201,9 +203,9 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
   const newer = th.newer_renders.filter((r) => renders.some((x) => x.render_id === r));
   const [answer, setAnswer] = useState<string>(newer[0] ?? '');
   const [write, setWrite] = useState<Write>({ kind: 'idle' });
-  const send = (what: string, op: string, args: Record<string, unknown>, done: string, clear: () => void) => {
+  const send = (what: string, op: ThreadPanelWrite, args: ThreadPanelArgs, done: string, clear: () => void) => {
     setWrite({ kind: 'sending', what });
-    call(op, { project: slug, comment_id: th.id, ...args })
+    threadWrite(op, { project: slug, comment_id: th.id, ...args })
       .then(
         () => {
           clear();

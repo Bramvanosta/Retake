@@ -20,8 +20,9 @@
  */
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { AuthStatus, ProjectBoardView, ProjectView } from '@retake/engine';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { projectRead } from './data/projects.js';
 import type { StudioEvent } from './events.js';
 import { useEvents } from './events.js';
 import { SessionEnded } from './session.js';
@@ -87,7 +88,7 @@ function load(e: Entry): void {
   e.inflight = true;
   e.lastAt = Date.now();
   reads[e.op]++;
-  call<unknown>(e.op, { project: e.slug }).then(
+  projectRead(e.op, { project: e.slug }).then(
     (data) => {
       e.backoff = 0;
       set(e, { state: 'ready', data });

@@ -2,9 +2,11 @@
  * Words of the scenario screen (L4.2): a step's state in the source run, why it has no picture, durations — said in
  * words, never by colour alone.
  */
-import type { ScenarioView, StepBinding } from '@retake/engine';
+import type { StepBinding } from '@retake/engine';
+import type { ScenarioBlocksView } from './data/ops.js';
 
-export type View = ScenarioView & { hints?: Record<string, string> };
+/** The scenario screen's view (scenario_blocks). */
+export type View = ScenarioBlocksView;
 
 export function seconds(ms: number | undefined): string {
   if (ms === undefined || !Number.isFinite(ms)) return '';

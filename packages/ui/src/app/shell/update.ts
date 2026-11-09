@@ -6,27 +6,12 @@
  * opens it too when an update is there (the shell's `studio:update` event: update_flow `update_page_js`, a constant).
  */
 import { APP_NAME } from '../brand.js';
+import type { UpdateFailure, UpdateOffReason, UpdateStatus } from '../data/ops.js';
 import type { MarkState } from '../ui-kit/index.js';
 
+export type { UpdateFailure, UpdateOffReason, UpdateStatus };
+
 export const UPDATE_EVENT = 'studio:update';
-
-export type UpdateFailure = 'check' | 'download' | 'install' | 'not_writable';
-export type UpdateOffReason = 'build' | 'disabled' | 'translocated' | 'read_only';
-
-export interface UpdateStatus {
-  available: boolean;
-  reason?: 'not_supervised' | UpdateOffReason;
-  state?: 'unknown' | 'off' | 'idle' | 'checking' | 'available' | 'downloading' | 'waiting' | 'installing' | 'failed';
-  current?: string;
-  version?: string | null;
-  jobs?: number;
-  failure?: UpdateFailure;
-  checked?: number | null;
-  /** A failure the shell may try again (Install and Restart stays live). */
-  retry?: boolean;
-  installable?: boolean;
-  untrusted?: { notes?: string };
-}
 
 /** Why the app does not update itself (update_flow Off). */
 export const OFF_WORDS: Record<UpdateOffReason, string> = {

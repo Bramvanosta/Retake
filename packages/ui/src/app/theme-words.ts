@@ -12,6 +12,7 @@
  * (library-words.ts); every other string from the server is shown through `Txt`.
  */
 import type { ThemeEditView } from '@retake/engine';
+import type { ThemeCreateInput } from './data/themes.js';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
 import { visibleControls } from './bits.js';
 import type { StudioEvent } from './events.js';
@@ -497,8 +498,8 @@ export function newThemeProblem(f: NewThemeForm, taken: Iterable<string>): strin
 }
 
 /** theme_create's input from the form (empty fields left out: the base theme's or derived). */
-export function createInput(f: NewThemeForm): Record<string, unknown> {
-  const colors: Record<string, string> = { accent: f.accent.toLowerCase() };
+export function createInput(f: NewThemeForm): ThemeCreateInput {
+  const colors: ThemeCreateInput['colors'] = { accent: f.accent.toLowerCase() };
   if (f.text) colors.text = f.text.toLowerCase();
   if (f.paper) colors.paper = f.paper.toLowerCase();
   if (f.muted) colors.muted = f.muted.toLowerCase();

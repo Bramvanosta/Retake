@@ -30,8 +30,12 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import type { ReviewFindingView, ScenarioRenderView } from '@retake/engine';
-import type { RenderReviewAnswer, ReviewExportAnswer } from '../server/ops.js';
-import { CallError, call, errorText, useCall } from './api.js';
+import type { RenderReviewAnswer } from '../server/ops.js';
+import { CallError, errorText } from './api.js';
+import { renderFrame, useThreadsCounts } from './data/comments.js';
+import { activityList } from './data/projects.js';
+import { reviewExport, reviewImage, useRenderReview } from './data/renders.js';
+import type { FrameAnswer, StillAnswer } from './data/ops.js';
 import { Txt, When } from './bits.js';
 import { FrameRequests, newSessionId } from './comment-words.js';
 import type { FrameAsk } from './comment-words.js';
@@ -58,13 +62,9 @@ import type { ContactSheetItem } from './ui-kit/index.js';
 const SESSION = newSessionId();
 const RENDERS_SHOWN = 5;
 
-interface ThreadCounts {
-  scenarios: Record<string, { open: number; resolved: number }>;
-}
-
 /** A scenario's thread counts (Review's View and its status line), read again on its comments' events; null while read. */
 function useThreadCounts(slug: string, name: string): { open: number; resolved: number } | null {
-  const [counts, reload] = useCall<ThreadCounts>('threads_counts', { project: slug, name }, `${slug}\0${name}`);
+  const [counts, reload] = useThreadsCounts({ project: slug, name }, `${slug}\0${name}`);
   useEvents((e) => {
     if (commentsEventAction(e, slug, name).threads) reload();
   });
@@ -263,7 +263,7 @@ export function ReviewScreen({ slug, name, render }: { slug: string; name: strin
 
 /** The report of one render: its head, sheets, checks (with the inspector), renders and export. */
 function Report({ slug, name, x, renders, r, shown, fileHash }: { slug: string; name: string; x: ScenarioRenderView; renders: ScenarioRenderView[]; r: ReturnType<typeof useRenders>; shown: { run?: string; hash?: string }; fileHash: string | undefined }) {
-  const [loaded] = useCall<RenderReviewAnswer>('render_review', { project: slug, render_id: x.render_id }, `${slug}\0${x.render_id}\0${x.review.state}`);
+  const [loaded] = useRenderReview({ project: slug, render_id: x.render_id }, `${slug}\0${x.render_id}\0${x.review.state}`);
   const review = loaded.state === 'ready' ? loaded.data : null;
   const findings = review?.findings ?? [];
   const groups = useMemo(() => groupFindings(findings), [findings]);
@@ -416,12 +416,7 @@ function ReviewPending({ review, reviewing }: { review: RenderReviewAnswer; revi
   );
 }
 
-interface SheetAnswer {
-  base64: string;
-  width: number;
-  height: number;
-}
-type SheetState = { s: 'waiting' } | { s: 'ok'; a: SheetAnswer } | { s: 'error'; message: string };
+type SheetState = { s: 'waiting' } | { s: 'ok'; a: StillAnswer } | { s: 'error'; message: string };
 
 /** The review's sheets, asked one at a time (the next once the one before answered), each a figure of the ContactSheet. */
 function Sheets({ slug, renderId, images, labelledBy }: { slug: string; renderId: string; images: RenderReviewAnswer['images']; labelledBy: string }) {
@@ -431,7 +426,7 @@ function Sheets({ slug, renderId, images, labelledBy }: { slug: string; renderId
     if (next >= images.length) return;
     const img = images[next];
     const ac = new AbortController();
-    call<SheetAnswer>('review_image', { project: slug, render_id: renderId, image: img.image }, { signal: ac.signal }).then(
+    reviewImage({ project: slug, render_id: renderId, image: img.image }, { signal: ac.signal }).then(
       (a) => {
         setStates((s) => ({ ...s, [img.image]: { s: 'ok', a } }));
         setNext((n) => n + 1);
@@ -513,14 +508,6 @@ function Checks({ groups, messages, fps, labelledBy, selected, onSelect }: { gro
   );
 }
 
-interface FrameAnswer {
-  frame: number;
-  base64: string;
-  width: number;
-  height: number;
-  timecode: string;
-}
-
 /** The frame a finding points at (render_frame: one request in flight, the newest wins). */
 function FindingFrame({ slug, x, frame }: { slug: string; x: ScenarioRenderView; frame: number }) {
   const [image, setImage] = useState<FrameAnswer | null>(null);
@@ -528,7 +515,7 @@ function FindingFrame({ slug, x, frame }: { slug: string; x: ScenarioRenderView;
   const requests = useRef<FrameRequests<FrameAnswer> | null>(null);
   useEffect(() => {
     const r = new FrameRequests<FrameAnswer>({
-      fetch: (ask: FrameAsk, signal) => call<FrameAnswer>('render_frame', { project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
+      fetch: (ask: FrameAsk, signal) => renderFrame({ project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
       onResult: (res) => {
         if (res.ok) {
           setImage(res.data);
@@ -616,16 +603,6 @@ function SelectedCheck({ slug, name, x, finding, message, fileHash }: { slug: st
   );
 }
 
-interface ActivityItem {
-  source: 'queue' | 'history';
-  at: string;
-  kind: string;
-  state: string;
-  job?: string;
-  render?: { id: string };
-  progress?: { fraction?: number };
-}
-
 type ExportState = { s: 'idle' } | { s: 'sending' } | { s: 'refused'; message: string } | { s: 'job'; job: string; state: string; fraction?: number; at?: string };
 
 /** The newest export of a render in the activity (path-free: ids, kinds, states, times), or null. */
@@ -633,7 +610,7 @@ function useExport(slug: string, renderId: string): [ExportState, () => void] {
   const [st, setSt] = useState<ExportState>({ s: 'idle' });
   const mine = useRef<string | null>(null);
   const read = useCallback(() => {
-    call<{ items: ActivityItem[] }>('activity_list', { project: slug, limit: 50 }).then(
+    activityList({ project: slug, limit: 50 }).then(
       (d) => {
         const it = d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined && (mine.current === null || i.job === mine.current)) ?? d.items.find((i) => i.kind === 'export' && i.render?.id === renderId && i.job !== undefined);
         if (it?.job) setSt({ s: 'job', job: it.job, state: it.state, ...(it.progress?.fraction !== undefined ? { fraction: it.progress.fraction } : {}), at: it.at });
@@ -648,7 +625,7 @@ function useExport(slug: string, renderId: string): [ExportState, () => void] {
   });
   const start = useCallback(() => {
     setSt({ s: 'sending' });
-    call<ReviewExportAnswer>('review_export', { project: slug, render_id: renderId }).then(
+    reviewExport({ project: slug, render_id: renderId }).then(
       (a) => {
         mine.current = a.job;
         setSt({ s: 'job', job: a.job, state: a.state });

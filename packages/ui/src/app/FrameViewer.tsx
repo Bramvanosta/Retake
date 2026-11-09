@@ -17,7 +17,8 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { call, useCall } from './api.js';
+import { renderFrame, useRenderOutline } from './data/comments.js';
+import type { FrameAnswer, Outline } from './data/ops.js';
 import { Txt } from './bits.js';
 import { FrameRequests, frameTime, newSessionId, parseTimecode, pointIn, regionOfDrag, renderWords, timeExample, viewerKey } from './comment-words.js';
 import type { FrameAsk, Region } from './comment-words.js';
@@ -35,29 +36,6 @@ const STALE_SAY_MS = 600;
 export interface Shown {
   render_id: string;
   created_at: string;
-}
-
-export interface Outline {
-  render_id: string;
-  created_at: string;
-  variant: string;
-  fps: number;
-  frames: number;
-  width: number;
-  height: number;
-  duration_s: number;
-  timecode: string;
-  markers: Array<{ frame: number; done?: number }>;
-  pins: Array<{ id: string; status: 'open' | 'resolved'; frame: number }>;
-  untrusted: { markers: string[] };
-}
-
-interface FrameAnswer {
-  frame: number;
-  base64: string;
-  width: number;
-  height: number;
-  timecode: string;
 }
 
 function keyTarget(t: EventTarget | null): KeyTarget {
@@ -86,7 +64,7 @@ export function FrameViewer(p: {
   onLaidOut?: () => void;
 }) {
   const { slug, shown, frame, setFrame } = p;
-  const [outline, reloadOutline] = useCall<Outline>('render_outline', { project: slug, render_id: shown.render_id, created_at: shown.created_at }, `${slug}\0${shown.render_id}\0${shown.created_at}`);
+  const [outline, reloadOutline] = useRenderOutline({ project: slug, render_id: shown.render_id, created_at: shown.created_at }, `${slug}\0${shown.render_id}\0${shown.created_at}`);
   const first = useRef(true);
   useEffect(() => {
     if (first.current) {
@@ -118,7 +96,7 @@ export function FrameViewer(p: {
   replaced.current = p.onReplaced;
   useEffect(() => {
     const r = new FrameRequests<FrameAnswer>({
-      fetch: (ask: FrameAsk, signal) => call<FrameAnswer>('render_frame', { project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
+      fetch: (ask: FrameAsk, signal) => renderFrame({ project: slug, render_id: ask.render_id, created_at: ask.created_at, frame: ask.frame, session: SESSION }, { signal }),
       onResult: (res) => {
         if (res.ok) {
           setImage(res.data);

@@ -10,8 +10,9 @@
  * folder) beside "Recent projects", one column in a narrow centre (review B-L6); a step of a take re-reads nothing here
  * (review A-L5: `onlyRunProgress`); with the inspector hidden, the workspace and Claude show under Lately.
  */
-import type { RunListItem } from '@retake/engine';
-import { useCall } from './api.js';
+import { useEngineInfo, useProjectsOverview } from './data/projects.js';
+import type { ProjectList } from './data/ops.js';
+import type { ProjectOverview } from '../server/ops.js';
 import type { Loaded } from './api.js';
 import { Lately, SearchBox } from './Activity.js';
 import { Txt, When, plural, shown } from './bits.js';
@@ -21,24 +22,10 @@ import { onlyRunProgress, useEvents } from './events.js';
 import { envFlagWords } from './board-words.js';
 import { hrefTo } from './route.js';
 import { ShellSlot } from './shell/slots.js';
-import type { ProjectList } from './shell/AppShell.js';
 import { AppMark, Blocker, EmptyState, Facts, InspectorSection, StatusMark } from './ui-kit/index.js';
 import type { MarkState } from './ui-kit/index.js';
 
-/** projects_overview's answer: per project, its environment flags and last run (or why it does not open). */
-interface Overview {
-  projects: Array<{ slug: string; environments: Array<{ name: string; production: boolean; access: 'read-only' | 'read-write'; sandbox: boolean }>; last_run: RunListItem | null; error?: string }>;
-}
-type Extras = Overview['projects'][number];
-
-interface EngineInfo {
-  version: string;
-  root: string;
-  projects_dir?: string;
-  worker: { pid: number; started_by?: string; other_copy?: boolean } | null;
-  /** L5.16c fixes (review c A-L4): the other copy of Retake its worker runs (the lock's text). */
-  untrusted?: { worker_other_copy?: unknown };
-}
+type Extras = ProjectOverview;
 
 const RUN_STATE: Record<string, [MarkState, string]> = {
   succeeded: ['ok', 'succeeded'],
@@ -120,8 +107,8 @@ function ProjectRow({ p, extras }: { p: ProjectList['projects'][number]; extras:
 }
 
 export function WelcomeScreen({ list }: { list: Loaded<ProjectList> }) {
-  const [overview, reload] = useCall<Overview>('projects_overview', {}, 'all');
-  const [info] = useCall<EngineInfo>('engine_info', {}, 'info');
+  const [overview, reload] = useProjectsOverview({}, 'all');
+  const [info] = useEngineInfo({}, 'info');
   useEvents((e) => {
     if ((e.type === 'workspace' && e.projects.length > 0 && !onlyRunProgress(e)) || e.type === 'resync') reload();
   });

@@ -17,8 +17,10 @@
 import { useId, useState } from 'react';
 import type { ThemeEditResult, ThemeEditView } from '@retake/engine';
 import type { LibraryComponentAnswer, LibraryItem, LibraryViewAnswer } from '../server/library-ops.js';
-import { CallError, call, errorText } from './api.js';
+import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
+import { themeCopy, themeEdit, themeView } from './data/themes.js';
+import type { ThemeEditInput } from './data/themes.js';
 import { APP_NAME } from './brand.js';
 import { Txt, plural } from './bits.js';
 import { DefaultTag, PictureBox, SourceTag, useLibrary } from './LibraryCards.js';
@@ -52,7 +54,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
   const start = async () => {
     setSt({ s: 'busy', what: 'Reading the theme…' });
     try {
-      const tv = await call<ThemeEditView>('theme_view', { theme });
+      const tv = await themeView({ theme });
       setSt({ s: 'plan', view: tv, plan: setDefaultPlan(tv, kind, item.component), kind });
     } catch (e) {
       fail(e);
@@ -65,7 +67,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
       return;
     }
     setSt({ s: 'busy', what: 'Writing the theme…' });
-    const result = await call<ThemeEditResult>('theme_edit', { theme: target, if_match: tv.sha256, edit: plan.edit });
+    const result = await themeEdit({ theme: target, if_match: tv.sha256, edit: plan.edit as ThemeEditInput });
     setSt({ s: 'done', theme: target, before: tv, result, ...(copied ? { copied } : {}) });
     if (copied) location.hash = hrefTo({ name: 'library', slug: lib.slug, theme: copied, component: item.component });
     else lib.reload();
@@ -75,8 +77,8 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
     if (problem) return setSt({ s: 'error', message: problem });
     setSt({ s: 'busy', what: `Copying ${theme} to ${copyAs}…` });
     try {
-      const c = await call<{ name: string }>('theme_copy', { from: theme, name: copyAs });
-      const tv = await call<ThemeEditView>('theme_view', { theme: c.name });
+      const c = await themeCopy({ from: theme, name: copyAs });
+      const tv = await themeView({ theme: c.name });
       await write(c.name, tv, c.name);
     } catch (e) {
       fail(e);
@@ -86,7 +88,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
     if (d.before.yaml === null) return;
     setSt({ s: 'busy', what: 'Undoing…' });
     try {
-      await call<ThemeEditResult>('theme_edit', { theme: d.theme, if_match: d.result.sha256, edit: { kind: 'restore', text: d.before.yaml, text_hash: d.before.sha256 } });
+      await themeEdit({ theme: d.theme, if_match: d.result.sha256, edit: { kind: 'restore', text: d.before.yaml, text_hash: d.before.sha256 } });
       setSt({ s: 'undone', theme: d.theme });
       lib.reload();
     } catch (e) {

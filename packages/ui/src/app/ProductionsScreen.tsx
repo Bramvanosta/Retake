@@ -14,7 +14,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardScenario, ProjectBoardView, ProjectView, RunListItem, RunStatusWithJob } from '@retake/engine';
-import { call, useCall } from './api.js';
+import { useRunList } from './data/projects.js';
+import { runThumbs } from './data/scenarios.js';
+import { runStatus } from './data/shoot.js';
 import { Lately } from './Activity.js';
 import { Txt, When, plural, shown } from './bits.js';
 import { APP_NAME } from './brand.js';
@@ -28,7 +30,6 @@ import { runShellCommand } from './shell/command-bus.js';
 import { rememberScenario } from './shell/modes.js';
 import { ShellSlot } from './shell/slots.js';
 import { NoThumb, Thumb, ThumbsProvider } from './Thumb.js';
-import type { ThumbAnswer } from './thumbs.js';
 import { Button, Disclosure, EmptyState, Facts, InspectorSection, LinkButton, PosterGrid, Progress, Select, StatusMark, TextField, Toolbar } from './ui-kit/index.js';
 
 const README_PREVIEW_LINES = 40;
@@ -43,7 +44,7 @@ function useRunning(slug: string, board: ProjectBoardView | null): Map<string, P
     const now = Date.now();
     if (now - (asked.current.get(run) ?? 0) < 400) return;
     asked.current.set(run, now);
-    call<RunStatusWithJob>('run_status', { project: slug, run_id: run }).then(
+    runStatus({ project: slug, run_id: run }).then(
       (r) => setLive((m) => new Map(m).set(run, { status: r.status, steps_done: r.steps_done, steps_total: r.steps_total })),
       () => undefined,
     );
@@ -68,7 +69,7 @@ function RunMark({ r }: { r: RunListItem }) {
 }
 
 function RecentRuns({ slug }: { slug: string }) {
-  const [runs, reload] = useCall<{ runs: RunListItem[] }>('run_list', { project: slug, limit: 5 }, slug);
+  const [runs, reload] = useRunList({ project: slug, limit: 5 }, slug);
   useProjectEvents(slug, reload);
   if (runs.state === 'loading') return <p className="sc-quiet">Loading the runs…</p>;
   if (runs.state === 'error') return <Txt className="sc-quiet" text={runs.error} />;
@@ -295,7 +296,7 @@ export function ProductionsScreen({ slug, group, env }: { slug: string; group?: 
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<BoardSort>('activity');
   const [selected, setSelected] = useState<string | null>(null);
-  const fetchThumbs = useMemo(() => (run: string, keys: string[], signal: AbortSignal) => call<ThumbAnswer>('run_thumbs', { project: slug, run, keys }, { signal }), [slug]);
+  const fetchThumbs = useMemo(() => (run: string, keys: string[], signal: AbortSignal) => runThumbs({ project: slug, run, keys }, { signal }), [slug]);
   const all = board?.scenarios ?? [];
   const inGroup = group ? all.filter((s) => productionState(s).group === group) : all;
   const shownList = filterSort(inGroup, query, sort);

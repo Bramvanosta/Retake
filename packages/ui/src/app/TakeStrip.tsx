@@ -12,7 +12,8 @@
  */
 import { useEffect, useState } from 'react';
 import type { ScenarioRunChoice } from '@retake/engine';
-import { call, useCall } from './api.js';
+import { useThreadsCounts } from './data/comments.js';
+import { runStatus } from './data/shoot.js';
 import { Txt, When, shown, visibleControls } from './bits.js';
 import { commentsEventAction, useEvents } from './events.js';
 import { RUN_STATUS_WORDS, partialWords, runErrorWords, stepWords } from './scenario-words.js';
@@ -66,7 +67,7 @@ function SubmittedOutcome({ choice, mode, slug, isSource }: { choice: ScenarioRu
   const [out, setOut] = useState<RunOutcome | null>(null);
   useEffect(() => {
     let live = true;
-    call<RunOutcome>('run_status', { project: slug, run_id: choice.id }).then(
+    runStatus({ project: slug, run_id: choice.id }).then(
       (d) => live && setOut({ id: d.id, status: d.status, ...(d.untrusted ? { untrusted: d.untrusted } : {}) }),
       () => undefined,
     );
@@ -118,12 +119,9 @@ export function Running({ run, live, slug, name }: { run: ScenarioRunChoice | nu
   );
 }
 
-/** threads_counts' answer: each scenario's open and resolved threads. */
-type ThreadCounts = { scenarios: Record<string, { open: number; resolved: number }> };
-
 /** The scenario's open comments (Review mode's threads), as a link (critique M4: the count kept a home). */
 export function CommentsCount({ slug, name }: { slug: string; name: string }) {
-  const [counts, reload] = useCall<ThreadCounts>('threads_counts', { project: slug, name }, `${slug}\0${name}`);
+  const [counts, reload] = useThreadsCounts({ project: slug, name }, `${slug}\0${name}`);
   useEvents((e) => {
     if (commentsEventAction(e, slug, name).threads) reload();
   });
