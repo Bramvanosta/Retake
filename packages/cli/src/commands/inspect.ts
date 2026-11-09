@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 import { InspectTargetSchema, parseYaml, resolveEnvironment } from '@retake/core';
 import type { TargetSpec } from '@retake/core';
-import { INSPECT_KEEP, appendHistory, inspectRoot, newInspectId, pageOfUrl, prepareInspect, pruneInspections, runInspection } from '@retake/engine';
+import { inspectInProcess, inspectRoot, newInspectId, pageOfUrl, prepareInspect } from '@retake/engine';
 import type { InspectSourceDraft } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -68,10 +68,12 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   const runsDir = opts.out !== undefined ? resolve(opts.out) : inspectRoot(project);
   const id = newInspectId();
   if (!opts.json) ui.setStatus(`inspecting ${source.kind === 'page' ? `page ${source.page} ${source.path}` : `scenario ${source.scenario}${source.until ? ` until ${source.until}` : ''}`} on ${prepared.env}…`);
-  const started = Date.now();
   let run;
   try {
-    run = await runInspection({
+    // The inspection, the older ones of the project pruned (not with --out), then its line of the workspace's history.
+    run = await inspectInProcess({
+      root: ws.root,
+      ...(opts.out === undefined ? { prune: workspaceQueue(ws) } : {}),
       prepared,
       runsDir,
       id,
@@ -84,17 +86,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   } finally {
     ui.clearStatus();
   }
-  if (opts.out === undefined) await pruneInspections(project, INSPECT_KEEP, [id], workspaceQueue(ws));
   const r = run.report;
-  await appendHistory(ws.root, {
-    kind: 'inspect',
-    project: project.slug,
-    submitted_by: 'cli',
-    state: run.record.status === 'cancelled' ? 'cancelled' : 'succeeded',
-    ms: Date.now() - started,
-    inspect: { id, source: source.kind, status: r ? r.status : 'failed', reported: r !== null },
-    counted: { captures: 0, dry_runs: 0, renders: 0 },
-  });
   if (opts.json) {
     ui.result(JSON.stringify(r ? { ...r, marked: run.marked } : { reported: false, run_status: run.record.status, dir: run.record.dir, ...(run.signIn ? { sign_in: run.signIn } : {}), error: run.record.error?.message ?? null }, null, 1));
     return r?.status === 'ok' ? EXIT.ok : EXIT.failure;

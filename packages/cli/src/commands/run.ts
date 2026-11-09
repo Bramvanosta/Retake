@@ -1,9 +1,8 @@
 import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary, readJson } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
-import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, appendHistory, callerOf, checkAllowWrites, executeRun, prepareRun, runCounted, selfIdentity, writesSummary } from '@retake/engine';
-import type { PreparedRun } from '@retake/engine';
-import type { FilmingEvent, FilmingReport } from '@retake/runner-web';
+import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, callerOf, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
+import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
 import { heavyGate } from '../heavy-gate.js';
 import { EXIT, UsageError, errorMessage, errorText } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -122,7 +121,8 @@ export async function runCommand(
   let printer: ProgressPrinter | undefined;
   let record: RunRecord;
   try {
-    record = await executeRun(
+    // The run, then its line of the workspace's history — a failed run included (the engine's in-process operation).
+    record = await runInProcess(
       prepared,
       opts,
       {
@@ -159,16 +159,6 @@ export async function runCommand(
     (marker as FilmingMarker | null)?.closeSync();
     (beside as TakeBeside | undefined)?.stop();
   }
-  // The workspace's job history counts CLI runs too (best effort: never fails the run).
-  await appendHistory(ws.root, {
-    kind: 'run',
-    project: project.slug,
-    submitted_by: 'cli',
-    state: record.status === 'cancelled' ? 'cancelled' : 'succeeded',
-    ...(record.finished_at ? { at: record.finished_at, ms: Date.parse(record.finished_at) - Date.parse(record.started_at) } : {}),
-    run: { id: record.id, scenario: record.scenario, mode: record.mode, status: record.status },
-    counted: runCounted(record.mode, record.status),
-  });
   if (!json) await printSummary(ui, record, printer?.elapsedMs ?? 0);
   if (record.status !== 'succeeded') return EXIT.failure;
   if (rawFlags) {

@@ -92,14 +92,10 @@
     "packages/cli/src/commands/doctor.ts → @retake/sandbox",
     "packages/cli/src/commands/export-capture.ts → @retake/editor",
     "packages/cli/src/commands/export-capture.ts → @retake/runner-web",
-    "packages/cli/src/commands/export.ts → @retake/editor",
     "packages/cli/src/commands/hooks.ts → @retake/hooks",
     "packages/cli/src/commands/plan.ts → @retake/components",
     "packages/cli/src/commands/plan.ts → @retake/editor",
-    "packages/cli/src/commands/render.ts → @retake/editor",
-    "packages/cli/src/commands/review.ts → @retake/editor",
     "packages/cli/src/commands/review.ts → @retake/review",
-    "packages/cli/src/commands/run.ts → @retake/runner-web",
     "packages/cli/src/commands/sandbox.ts → @retake/sandbox",
     "packages/cli/src/interrupt.ts → @retake/runner-web"
    ]

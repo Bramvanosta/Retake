@@ -1741,6 +1741,9 @@ Engine {
 loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona(project, env, persona, {mode, page?, url?},
   {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
 appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
+planStep / renderStep / stillStep / exportStep / reviewStep(adapter options) → the adapter's result   // production.ts (L6.7)
+findRunOf / findRenderOf / defaultStillFile / editorErrorOf(e) → 'render_cancelled' | 'render' | 'export' | undefined
+renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: step + history line
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
   runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
@@ -1749,6 +1752,24 @@ takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(ap
 pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
 ```
 
+- **The façade, by sub-API** (L6.7). `createEngine` (engine.ts) is the composition root: it builds the file job queue,
+  one `EngineContext` (`facade/context.ts`: the caller and its decisions, the workspace opened with the caller's agent
+  policy, the store scope, the queue, the worker starter, the run overlays, the admission rules, the caches the screens
+  share), then each sub-API from it with its own builder (`facade/*-api.ts`: `projectsApi`, `scenariosApi`, `runsApi`,
+  `jobsApi` / `hooksApi` / `envApi` / `sandboxApi`, `authApi`, `rendersApi` / `timelineApi` / `reviewsApi` /
+  `exportsApi`, `templatesApi` / `componentsApi`, `inspectApi` / `recordApi`, `commentsApi`; `info.ts`, `sessions.ts`).
+  The types live in `facade/types.ts`, re-exported by engine.ts; `packages/engine/test/engine-facade.test.ts` holds the
+  façade's keys and every sub-API's, in order.
+- **Production steps, one per step** (L6.7, `production.ts`). Plan, render, still, export and review are each one
+  function over the adapter's call (the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, the
+  review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`, the network
+  guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options, results and
+  errors pass through unchanged. The CLI runs them in process — no job, no worker — through `in-process.ts`
+  (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`, `inspectInProcess`
+  over `runInspection` with the pruning of older inspections), each the step then its history line. The CLI's
+  production commands import no adapter (render, export, review, run: the editor's errors through `editorErrorOf`; review
+  keeps the review package's summary lines); `packages/cli/test/production-cli.test.ts` holds their stdout, stderr,
+  exit codes, history and journal lines byte for byte (fixtures/production-cli.json).
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
   `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).
@@ -2040,8 +2061,11 @@ workers/worker.log      what workers print (stderr), appended
 - The worker's dispatch is a `switch` over the job kinds (exhaustive). Each finished job — and each interrupted one
   the next worker records — appends a line to `<workspace>/.retake/history.jsonl` (`{v, at, job, kind, project,
   submitted_by, state, ms, run?, counted: {captures, dry_runs, renders}}`, O_APPEND, best effort); `retake run`,
-  `retake render` and `retake still` append theirs (no job), `retake export` one counting the formats it re-rendered
-  (component previews are not counted). `engine.usage()` sums them; `entitlements()` is the parked licence hook.
+  `retake render`, `retake still` and `retake inspect` get theirs (no job) from the engine's in-process operations
+  (`in-process.ts`), `retake export` one counting the formats it re-rendered (component previews are not counted), and
+  `retake record` from `record.ts`: one writer per kind of line, no shell writes one itself
+  (`packages/engine/test/production-steps.test.ts` lists the writers). `engine.usage()` sums them; `entitlements()` is
+  the parked licence hook.
 - `retake jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
   (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's
   environment and run the jobs an MCP client queued): newest first with progress and outcome, one job's details, a

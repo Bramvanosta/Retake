@@ -16,6 +16,7 @@ import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
 import { editor, review } from '../lazy.js';
+import { reviewStep } from '../production.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 
@@ -123,7 +124,8 @@ export async function executeReviewJob(ctx: ReviewJobContext): Promise<ReviewJob
     previous = found && !problem ? found.id : false;
   }
   let last = '';
-  const result = await rv.reviewRender({
+  // The review step the CLI's `retake review` runs too.
+  const result = await reviewStep({
     project,
     root: ctx.ws.root,
     render: record.id,

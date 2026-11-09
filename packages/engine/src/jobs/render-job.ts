@@ -36,6 +36,7 @@ import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
 import { editor } from '../lazy.js';
+import { planStep, renderStep } from '../production.js';
 
 export interface RenderRequest {
   project: string;
@@ -129,7 +130,7 @@ export async function planRenderRequest(
   const project = await openProjectBySlug(ws, req.project);
   const ed = await editor();
   try {
-    const planned = await ed.planRun({
+    const planned = await planStep({
       project,
       run: req.run_id ?? 'latest',
       scenario: req.scenario,
@@ -371,10 +372,9 @@ export async function reviewInline(
   }
 }
 
-/** Execute a `render` job: the timeline check, then `renderVideo` (trust `mcp`, network guard) with the reserved id. */
+/** Execute a `render` job: the timeline check, then the render step (production.ts: trust `mcp`, network guard) with the reserved id. */
 export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJobResult> {
   const { input } = ctx;
-  const ed = await editor();
   const project = await openProjectBySlug(ctx.ws, input.project);
   const { version, variant } = parseRenderId(input.render_id, input.scenario);
   try {
@@ -394,7 +394,8 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
     throw e;
   }
   let last = '';
-  const record = await ed.renderVideo({
+  // The render step the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
+  const record = await renderStep({
     project,
     run: input.run_id,
     scenario: input.scenario,

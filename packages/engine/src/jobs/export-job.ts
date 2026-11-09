@@ -18,6 +18,7 @@ import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
 import { editor } from '../lazy.js';
+import { exportStep, planStep } from '../production.js';
 import { killRecordedBrowser, removePartials } from './render-job.js';
 import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
@@ -75,7 +76,7 @@ export async function submitExportJob(
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
-      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await planStep({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -122,16 +123,16 @@ export interface ExportJobContext {
   browser(b: BrowserProcessInfo): void;
 }
 
-/** Execute an `export` job: `exportRender` with trust `mcp` and the network guard (re-rendered formats). */
+/** Execute an `export` job: the export step (production.ts) with trust `mcp` and the network guard (re-rendered formats). */
 export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJobResult> {
   const { input } = ctx;
-  const ed = await editor();
   const project = await openProjectBySlug(ctx.ws, input.project);
   await renderForWork(project, input.render_id, { fix: (id) => exportCommandLine(ctx.cli, { project: input.project, render_id: id, formats: input.formats }) });
   const total = input.formats.length;
   let done = 0;
   let last = '';
-  const result = await ed.exportRender({
+  // The export step the CLI's `retake export` runs too, with the trust of work submitted through MCP.
+  const result = await exportStep({
     project,
     root: ctx.ws.root,
     render: input.render_id,

@@ -1,7 +1,8 @@
 /**
  * The job history of a workspace (L3.1 guard-rail): `<workspace>/.retake/history.jsonl`, one line per finished job
- * of the worker and per `retake run` / `retake render` / `retake still` of the CLI (which run no job), and per `retake
- * export` that re-rendered a format. It counts what was produced —
+ * of the worker (historyOf, jobs/run-job-record.ts) and per `retake run` / `render` / `still` / `inspect` of the CLI
+ * (which run no job: the engine's in-process operations, in-process.ts), per `retake export` that re-rendered a format,
+ * and per `retake record` (record.ts) — one writer per kind of line. It counts what was produced —
  * captures, dry runs, renders — for the usage counters a commercial version would need (entitlements.ts) and for the
  * index a later lot builds. Best effort: a line that cannot be written never fails the work it records.
  */

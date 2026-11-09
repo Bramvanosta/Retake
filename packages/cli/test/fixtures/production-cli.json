@@ -1,0 +1,536 @@
+{
+ "render": {
+  "code": 0,
+  "out": "",
+  "err": "planning…\nbundling…\nbundle: cached\nrendering…\nencoding…\n✓ rendered tour-v2 → <ws>/projects/demo/renders/tour-v2.mp4\n  2.00 s · 60 frames @ 30 fps · 1920×1080 · 120.6 KB · h264 crf 16, silent audio · checked: 2.00 s, 1920×1080, 1 audio track\n  theme editorial · run 20260101-120000-tour · bundle cached · render <t> (concurrency 2) in software · total <t>\n  record <ws>/projects/demo/renders/tour-v2.json\n! music: none\n",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"render\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":1700,\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "renderVideo",
+    "options": {
+     "concurrency": 2,
+     "onProgress": "<function>",
+     "out": "<undefined>",
+     "overrides": {
+      "music": false
+     },
+     "project": "<project demo>",
+     "root": "<ws>",
+     "run": "20260101-120000-tour",
+     "scenario": "tour",
+     "signal": "<signal>",
+     "template": "<undefined>"
+    }
+   }
+  ]
+ },
+ "render --json --review": {
+  "code": 0,
+  "out": "{\n  \"version\": 1,\n  \"id\": \"tour-v2\",\n  \"status\": \"succeeded\",\n  \"scenario\": \"tour\",\n  \"run_id\": \"20260101-120000-tour\",\n  \"run_dir\": \"<ws>/projects/demo/runs/20260101-120000-tour\",\n  \"file\": \"<ws>/projects/demo/renders/tour-v2.mp4\",\n  \"record\": \"<ws>/projects/demo/renders/tour-v2.json\",\n  \"template\": \"editorial\",\n  \"variant\": \"landscape\",\n  \"overrides\": {},\n  \"duration_s\": 2,\n  \"frames\": 60,\n  \"fps\": 30,\n  \"width\": 1920,\n  \"height\": 1080,\n  \"size_bytes\": 123456,\n  \"concurrency\": 2,\n  \"encoding\": {\n    \"codec\": \"h264\",\n    \"pixel_format\": \"yuv420p\",\n    \"faststart\": true,\n    \"audio\": \"silent\",\n    \"encoder\": \"libx264\",\n    \"crf\": 16\n  },\n  \"policy\": {\n    \"gl\": {\n      \"asked\": \"auto\",\n      \"source\": \"default\",\n      \"resolved\": \"swangle\",\n      \"used\": \"swangle\"\n    },\n    \"encoder\": {\n      \"asked\": \"auto\",\n      \"source\": \"default\",\n      \"used\": \"libx264\"\n    },\n    \"concurrency_source\": \"default\"\n  },\n  \"probe\": {\n    \"duration_s\": 2,\n    \"width\": 1920,\n    \"height\": 1080,\n    \"audio_streams\": 1\n  },\n  \"bundle\": {\n    \"cached\": true,\n    \"ms\": 0\n  },\n  \"timings\": {\n    \"plan_ms\": 5,\n    \"bundle_ms\": 0,\n    \"render_ms\": 1500,\n    \"total_ms\": 1700\n  },\n  \"created_at\": \"2026-01-01T12:01:00.000Z\",\n  \"warnings\": [\n    \"music: none\"\n  ],\n  \"review\": {\n    \"render\": {\n      \"id\": \"<ws>/projects/demo/renders/tour-v2.json\",\n      \"duration_s\": 2\n    },\n    \"durations\": {\n      \"segments\": [\n        {\n          \"id\": \"intro\"\n        },\n        {\n          \"id\": \"home\"\n        }\n      ]\n    },\n    \"clean\": false,\n    \"counts\": {\n      \"error\": 0,\n      \"warning\": 1,\n      \"info\": 1\n    },\n    \"findings\": [\n      {\n        \"code\": \"video-length\",\n        \"severity\": \"warning\",\n        \"message\": \"the video is short (2.00 s)\"\n      },\n      {\n        \"code\": \"scene-count\",\n        \"severity\": \"info\",\n        \"message\": \"two segments\"\n      }\n    ],\n    \"files\": {\n      \"dir\": \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json\",\n      \"sheets\": [\n        \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json/contact-sheet.png\"\n      ],\n      \"scene_sheets\": {\n        \"home\": [\n          \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json/scene-home.png\"\n        ]\n      },\n      \"keyframes\": {\n        \"home\": \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json/key-home.png\"\n      },\n      \"report_md\": \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json/report.md\",\n      \"report_json\": \"<ws>/projects/demo/review<ws>/projects/demo/renders/tour-v2.json/report.json\"\n    },\n    \"review\": {\n      \"ms\": 900\n    }\n  }\n}\n",
+  "err": "",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"render\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":1700,\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "renderVideo",
+    "options": {
+     "concurrency": "<undefined>",
+     "onProgress": "<function>",
+     "out": "<undefined>",
+     "overrides": {
+      "variant": "vertical"
+     },
+     "project": "<project demo>",
+     "root": "<ws>",
+     "run": "20260101-120000-tour",
+     "scenario": "tour",
+     "signal": "<signal>",
+     "template": "<undefined>"
+    }
+   },
+   {
+    "step": "reviewRender",
+    "options": {
+     "fps": "<undefined>",
+     "onProgress": "<function>",
+     "previous": "<undefined>",
+     "project": "<project demo>",
+     "render": "<ws>/projects/demo/renders/tour-v2.json",
+     "root": "<ws>",
+     "scenario": "<undefined>",
+     "thumbnails": false
+    }
+   }
+  ]
+ },
+ "render --run nope": {
+  "code": 1,
+  "out": "",
+  "err": "✗ run \"nope\" not found in <ws>/projects/demo/runs (use a run id, a run directory or \"latest\")\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "render --frame bad": {
+  "code": 2,
+  "out": "",
+  "err": "✗ --frame \"nowhere\": use card, browser, laptop, phone, tablet, raw, split, pip or a layout component id (namespace/name)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "render cancelled": {
+  "code": 1,
+  "out": "",
+  "err": "✗ render cancelled: nothing was written\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "render failed": {
+  "code": 1,
+  "out": "",
+  "err": "✗ the theme \"ghost\" does not exist\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "still": {
+  "code": 0,
+  "out": "",
+  "err": "✓ frame 25 (0.83 s, scene home) → <ws>/projects/demo/renders/stills/tour-f00025.png <t>\n",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"still\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":\"<ms>\",\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "planRun",
+    "options": {
+     "measureMusic": false,
+     "overrides": {},
+     "project": "<project demo>",
+     "root": "<ws>",
+     "run": "latest",
+     "scenario": "tour"
+    }
+   },
+   {
+    "step": "renderStill",
+    "options": {
+     "frame": 25,
+     "out": "<ws>/projects/demo/renders/stills/tour-f00025.png",
+     "plan": "<plan>",
+     "registry": "<registry>",
+     "root": "<ws>"
+    }
+   }
+  ]
+ },
+ "still --json": {
+  "code": 0,
+  "out": "{\n  \"file\": \"<ws>/frame.png\",\n  \"frame\": 3,\n  \"time_s\": 0.1,\n  \"segment\": \"intro\",\n  \"run_id\": \"20260101-120000-tour\",\n  \"width\": 1920,\n  \"height\": 1080\n}\n",
+  "err": "",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"still\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":\"<ms>\",\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "planRun",
+    "options": {
+     "measureMusic": false,
+     "overrides": {},
+     "project": "<project demo>",
+     "root": "<ws>",
+     "run": "latest",
+     "scenario": "tour"
+    }
+   },
+   {
+    "step": "renderStill",
+    "options": {
+     "frame": 3,
+     "out": "<ws>/frame.png",
+     "plan": "<plan>",
+     "registry": "<registry>",
+     "root": "<ws>"
+    }
+   }
+  ]
+ },
+ "still no frame": {
+  "code": 2,
+  "out": "",
+  "err": "error: required option '--frame <n>' not specified\n(add --help for usage)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "still past the end": {
+  "code": 1,
+  "out": "",
+  "err": "✗ --frame 60 is past the end of the video (60 frames, 0–59)\n",
+  "history": [],
+  "journal": [],
+  "calls": [
+   {
+    "step": "planRun",
+    "options": {
+     "measureMusic": false,
+     "overrides": {},
+     "project": "<project demo>",
+     "root": "<ws>",
+     "run": "latest",
+     "scenario": "tour"
+    }
+   }
+  ]
+ },
+ "export rerender": {
+  "code": 0,
+  "out": "",
+  "err": "export tour-v1 (1920×1080, 2.00 s) → <ws>/projects/demo/exports/tour-v1 <t>\n✓ vertical 9:16 <ws>/projects/demo/exports/tour-v1/tour-v1-vertical_9x16.mp4  1080×1920 h264 + aac, 2.00 s, 2.0 KB render · <t>\n✓ WebM (VP9)    <ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4  1080×1920 h264 (no audio), 2.00 s, 2.0 KB transcode · <t>\n!   no audio track in the master\n  manifest <ws>/projects/demo/exports/tour-v1/manifest.json\n",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"export\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":1}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "exportRender",
+    "options": {
+     "concurrency": "<undefined>",
+     "formats": [
+      "vertical_9x16",
+      "webm"
+     ],
+     "onProgress": "<function>",
+     "out": "<undefined>",
+     "project": "<project demo>",
+     "render": "tour-v1",
+     "root": "<ws>",
+     "scenario": "<undefined>",
+     "signal": "<signal>"
+    }
+   }
+  ]
+ },
+ "export transcode latest": {
+  "code": 0,
+  "out": "{\n  \"render\": \"tour-v1\",\n  \"dir\": \"<ws>/projects/demo/exports/tour-v1\",\n  \"manifest\": \"<ws>/projects/demo/exports/tour-v1/manifest.json\",\n  \"master\": {\n    \"width\": 1920,\n    \"height\": 1080,\n    \"duration_s\": 2\n  },\n  \"outputs\": [\n    {\n      \"format\": \"webm\",\n      \"file\": \"<ws>/projects/demo/exports/tour-v1/tour-v1-webm.mp4\",\n      \"method\": \"transcode\",\n      \"width\": 1080,\n      \"height\": 1920,\n      \"video_codec\": \"h264\",\n      \"duration_s\": 2,\n      \"size_bytes\": 2048,\n      \"ms\": 1200,\n      \"warnings\": [\n        \"no audio track in the master\"\n      ]\n    }\n  ],\n  \"failures\": []\n}\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": [
+   {
+    "step": "exportRender",
+    "options": {
+     "concurrency": "<undefined>",
+     "formats": [
+      "webm"
+     ],
+     "onProgress": "<function>",
+     "out": "<undefined>",
+     "project": "<project demo>",
+     "render": "tour-v1",
+     "root": "<ws>",
+     "scenario": "tour",
+     "signal": "<signal>"
+    }
+   }
+  ]
+ },
+ "export bad format": {
+  "code": 2,
+  "out": "",
+  "err": "✗ --formats: unknown format \"bogus\" (use mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview or all)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "export no render": {
+  "code": 1,
+  "out": "",
+  "err": "✗ no render of scenario \"ghost\" in <ws>/projects/demo/renders: render one with `retake render demo ghost`\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "review": {
+  "code": 0,
+  "out": "",
+  "err": "! review tour-v1 (2.00 s, 2 segments) → <ws>/projects/demo/review/tour-v1\n  not clean: 1 warning, 1 info\n  warning the video is short (2.00 s) (video-length)\n  info    two segments (scene-count)\n  files: <ws>/projects/demo/review/tour-v1/contact-sheet.png · 1 scene sheet · 1 key frame · timeline.json · report.json · report.md\n  report <ws>/projects/demo/review/tour-v1/report.md · <t>\n",
+  "history": [],
+  "journal": [],
+  "calls": [
+   {
+    "step": "reviewRender",
+    "options": {
+     "fps": "<undefined>",
+     "onProgress": "<function>",
+     "previous": "<undefined>",
+     "project": "<project demo>",
+     "render": "tour-v1",
+     "root": "<ws>",
+     "scenario": "<undefined>",
+     "thumbnails": false
+    }
+   }
+  ]
+ },
+ "review --json --strict": {
+  "code": 1,
+  "out": "{\n  \"render\": {\n    \"id\": \"tour-v1\",\n    \"duration_s\": 2\n  },\n  \"durations\": {\n    \"segments\": [\n      {\n        \"id\": \"intro\"\n      },\n      {\n        \"id\": \"home\"\n      }\n    ]\n  },\n  \"clean\": false,\n  \"counts\": {\n    \"error\": 0,\n    \"warning\": 1,\n    \"info\": 1\n  },\n  \"findings\": [\n    {\n      \"code\": \"video-length\",\n      \"severity\": \"warning\",\n      \"message\": \"the video is short (2.00 s)\"\n    },\n    {\n      \"code\": \"scene-count\",\n      \"severity\": \"info\",\n      \"message\": \"two segments\"\n    }\n  ],\n  \"files\": {\n    \"dir\": \"<ws>/projects/demo/review/tour-v1\",\n    \"sheets\": [\n      \"<ws>/projects/demo/review/tour-v1/contact-sheet.png\"\n    ],\n    \"scene_sheets\": {\n      \"home\": [\n        \"<ws>/projects/demo/review/tour-v1/scene-home.png\"\n      ]\n    },\n    \"keyframes\": {\n      \"home\": \"<ws>/projects/demo/review/tour-v1/key-home.png\"\n    },\n    \"report_md\": \"<ws>/projects/demo/review/tour-v1/report.md\",\n    \"report_json\": \"<ws>/projects/demo/review/tour-v1/report.json\"\n  },\n  \"review\": {\n    \"ms\": 900\n  }\n}\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": [
+   {
+    "step": "reviewRender",
+    "options": {
+     "fps": 2,
+     "onProgress": "<function>",
+     "previous": false,
+     "project": "<project demo>",
+     "render": "tour-v1",
+     "root": "<ws>",
+     "scenario": "tour",
+     "thumbnails": false
+    }
+   }
+  ]
+ },
+ "review bad fps": {
+  "code": 2,
+  "out": "",
+  "err": "error: option '--fps <n>' argument '3' is invalid. Allowed choices are 1, 2.\n(add --help for usage)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "review no render": {
+  "code": 1,
+  "out": "",
+  "err": "✗ no render of scenario \"ghost\" in <ws>/projects/demo/renders: render one with `retake render demo ghost`\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "run --dry": {
+  "code": 0,
+  "out": "",
+  "err": "demo/tour  dry run  env staging · hooks skip\nrun 20260101-120500-tour → <ws>/projects/demo/runs/20260101-120500-tour\n  ✓  0 hold         hold 1 s                                                            <t>\n\n✓ dry run succeeded in <t> · 1/1 step\n  run       <ws>/projects/demo/runs/20260101-120500-tour/run.json\n",
+  "history": [
+   "{\"v\":1,\"at\":\"2026-01-01T12:05:03.250Z\",\"kind\":\"run\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":3250,\"run\":{\"id\":\"20260101-120500-tour\",\"scenario\":\"tour\",\"mode\":\"dry\",\"status\":\"succeeded\"},\"counted\":{\"captures\":0,\"dry_runs\":1,\"renders\":0}}"
+  ],
+  "journal": [
+   "{\"v\":1,\"at\":\"<at>\",\"by\":{\"client\":\"cli\",\"channel\":\"cli\",\"trust\":\"author\"},\"project\":\"demo\",\"op\":\"hook\",\"hook\":\"seed\",\"index\":0,\"kind\":\"http\",\"phase\":\"setup\",\"ms\":12,\"outcome\":\"ok\",\"run\":\"20260101-120500-tour\"}"
+  ],
+  "calls": [
+   {
+    "step": "runScenario",
+    "options": {
+     "env": "<undefined>",
+     "ffmpeg": "<undefined>",
+     "headed": "<undefined>",
+     "hooks": "<undefined>",
+     "loginCommand": "<function>",
+     "mode": "dry",
+     "onProgress": "<function>",
+     "project": "<project demo>",
+     "recordHookRun": "<function>",
+     "scenario": "<scenario tour>",
+     "template": "<template>",
+     "until": "<undefined>"
+    }
+   }
+  ]
+ },
+ "run --dry --json": {
+  "code": 0,
+  "out": "{\"type\":\"run_start\",\"run\":{\"version\":1,\"id\":\"20260101-120500-tour\",\"project\":\"demo\",\"scenario\":\"tour\",\"mode\":\"dry\",\"status\":\"running\",\"started_at\":\"2026-01-01T12:05:00.000Z\",\"finished_at\":\"2026-01-01T12:05:03.250Z\",\"dir\":\"<ws>/projects/demo/runs/20260101-120500-tour\",\"env\":\"staging\",\"options\":{\"hooks\":\"skip\",\"headed\":false},\"steps_total\":1,\"steps_done\":0,\"screenshots\":[],\"hooks\":{\"setup\":\"none\",\"teardown\":\"none\"},\"warnings\":[]}}\n{\"type\":\"step_start\",\"scene\":\"home\",\"step\":0,\"action\":\"hold\",\"desc\":\"hold 1 s\"}\n{\"type\":\"step_end\",\"scene\":\"home\",\"step\":0,\"action\":\"hold\",\"status\":\"ok\",\"ms\":1000}\n{\"type\":\"run_end\",\"run\":{\"version\":1,\"id\":\"20260101-120500-tour\",\"project\":\"demo\",\"scenario\":\"tour\",\"mode\":\"dry\",\"status\":\"succeeded\",\"started_at\":\"2026-01-01T12:05:00.000Z\",\"finished_at\":\"2026-01-01T12:05:03.250Z\",\"dir\":\"<ws>/projects/demo/runs/20260101-120500-tour\",\"env\":\"staging\",\"options\":{\"hooks\":\"skip\",\"headed\":false},\"steps_total\":1,\"steps_done\":1,\"screenshots\":[],\"hooks\":{\"setup\":\"none\",\"teardown\":\"none\"},\"warnings\":[]}}\n",
+  "err": "",
+  "history": [
+   "{\"v\":1,\"at\":\"2026-01-01T12:05:03.250Z\",\"kind\":\"run\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":3250,\"run\":{\"id\":\"20260101-120500-tour\",\"scenario\":\"tour\",\"mode\":\"dry\",\"status\":\"succeeded\"},\"counted\":{\"captures\":0,\"dry_runs\":1,\"renders\":0}}"
+  ],
+  "journal": [
+   "{\"v\":1,\"at\":\"<at>\",\"by\":{\"client\":\"cli\",\"channel\":\"cli\",\"trust\":\"author\"},\"project\":\"demo\",\"op\":\"hook\",\"hook\":\"seed\",\"index\":0,\"kind\":\"http\",\"phase\":\"setup\",\"ms\":12,\"outcome\":\"ok\",\"run\":\"20260101-120500-tour\"}"
+  ],
+  "calls": [
+   {
+    "step": "runScenario",
+    "options": {
+     "env": "<undefined>",
+     "ffmpeg": "<undefined>",
+     "headed": "<undefined>",
+     "hooks": "<undefined>",
+     "loginCommand": "<function>",
+     "mode": "dry",
+     "onProgress": "<function>",
+     "project": "<project demo>",
+     "recordHookRun": "<function>",
+     "scenario": "<scenario tour>",
+     "template": "<template>",
+     "until": "<undefined>"
+    }
+   }
+  ]
+ },
+ "run failed": {
+  "code": 1,
+  "out": "",
+  "err": "\n✗ run failed in <t> · 0/1 step\n  error     home.0 hold: target \"Save\" not found\n  run       <ws>/projects/demo/runs/20260101-120500-tour/run.json\n",
+  "history": [
+   "{\"v\":1,\"at\":\"2026-01-01T12:05:03.250Z\",\"kind\":\"run\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":3250,\"run\":{\"id\":\"20260101-120500-tour\",\"scenario\":\"tour\",\"mode\":\"dry\",\"status\":\"failed\"},\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":0}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "runScenario",
+    "options": {
+     "env": "<undefined>",
+     "ffmpeg": "<undefined>",
+     "headed": "<undefined>",
+     "hooks": "<undefined>",
+     "loginCommand": "<function>",
+     "mode": "dry",
+     "onProgress": "<function>",
+     "project": "<project demo>",
+     "recordHookRun": "<function>",
+     "scenario": "<scenario tour>",
+     "template": "<template>",
+     "until": "<undefined>"
+    }
+   }
+  ]
+ },
+ "run unknown": {
+  "code": 1,
+  "out": "",
+  "err": "✗ scenario \"nope\" not found in <ws>/projects/demo/scenarios (available: tour)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "run --raw --dry": {
+  "code": 2,
+  "out": "",
+  "err": "✗ --raw exports a capture: it cannot be combined with --dry\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "inspect": {
+  "code": 0,
+  "out": "",
+  "err": "Northfield console http://app.example.test/\n  1  click     {role: button, name: Save}\n  2  type      (no verified target)  in dialog · fragile: nth · 2 matches · disabled\n! a warning of the page\n\n2 interactive elements (2 listed, 2 in view, 1 with a verified target, 1 by position) ·  · <ws>/projects/demo/.retake/inspect/<id>/inspect.json\n",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"inspect\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":\"<ms>\",\"inspect\":{\"id\":\"<id>\",\"source\":\"page\",\"status\":\"ok\",\"reported\":true},\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":0}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "runScenario",
+    "options": {
+     "env": "staging",
+     "inspect": {
+      "onResult": "<function>"
+     },
+     "loginCommand": "<function>",
+     "mode": "dry",
+     "project": "<project demo>",
+     "runId": "<id>",
+     "runsDir": "<ws>/projects/demo/.retake/inspect",
+     "scenario": "<scenario inspect>"
+    }
+   }
+  ]
+ },
+ "inspect --json": {
+  "code": 0,
+  "out": "{\n \"version\": 1,\n \"status\": \"ok\",\n \"at\": \"end\",\n \"page\": \"app\",\n \"persona\": null,\n \"viewport\": {\n  \"width\": 1280,\n  \"height\": 800\n },\n \"scale\": 1,\n \"screenshot\": null,\n \"file\": \"<ws>/projects/demo/.retake/inspect/<id>/inspect.json\",\n \"replay\": {\n  \"steps_done\": 1,\n  \"steps_total\": 1,\n  \"until\": null,\n  \"skipped_irreversible\": 0,\n  \"hooks\": \"none\",\n  \"failed\": null\n },\n \"counts\": {\n  \"interactive\": 2,\n  \"listed\": 2,\n  \"in_view\": 2,\n  \"suggested\": 1,\n  \"ambiguous\": 1,\n  \"partial\": false,\n  \"within_found\": true,\n  \"dropped\": 0,\n  \"targets_checked\": 0\n },\n \"popups\": [],\n \"scrollers\": [],\n \"elements\": [\n  {\n   \"mark\": 1,\n   \"action\": \"click\",\n   \"in\": \"page\",\n   \"in_view\": true,\n   \"fragile\": [],\n   \"matches\": 1,\n   \"state\": {},\n   \"bbox\": {\n    \"x\": 0,\n    \"y\": 0,\n    \"w\": 10,\n    \"h\": 10\n   },\n   \"untrusted\": {\n    \"target_yaml\": \"{role: button, name: Save}\"\n   }\n  },\n  {\n   \"mark\": 2,\n   \"action\": \"type\",\n   \"in\": \"dialog\",\n   \"in_view\": true,\n   \"fragile\": [\n    \"nth\"\n   ],\n   \"matches\": 2,\n   \"state\": {\n    \"disabled\": true\n   },\n   \"bbox\": {\n    \"x\": 0,\n    \"y\": 20,\n    \"w\": 10,\n    \"h\": 10\n   },\n   \"untrusted\": {}\n  }\n ],\n \"targets_checked\": [],\n \"timings\": {\n  \"inspect_ms\": 10,\n  \"kit_ms\": 5\n },\n \"untrusted\": {\n  \"url\": \"http://app.example.test/\",\n  \"title\": \"Northfield console\",\n  \"headings\": [],\n  \"warnings\": [\n   \"a warning of the page\"\n  ]\n },\n \"marked\": null\n}\n",
+  "err": "",
+  "history": [
+   "{\"v\":1,\"at\":\"<at>\",\"kind\":\"inspect\",\"project\":\"demo\",\"submitted_by\":\"cli\",\"state\":\"succeeded\",\"ms\":\"<ms>\",\"inspect\":{\"id\":\"<id>\",\"source\":\"scenario\",\"status\":\"ok\",\"reported\":true},\"counted\":{\"captures\":0,\"dry_runs\":0,\"renders\":0}}"
+  ],
+  "journal": [],
+  "calls": [
+   {
+    "step": "runScenario",
+    "options": {
+     "env": "staging",
+     "inspect": {
+      "onResult": "<function>"
+     },
+     "loginCommand": "<function>",
+     "mode": "dry",
+     "project": "<project demo>",
+     "runId": "<id>",
+     "runsDir": "<ws>/projects/demo/.retake/inspect",
+     "scenario": "<scenario tour>"
+    }
+   }
+  ]
+ },
+ "inspect unknown": {
+  "code": 2,
+  "out": "",
+  "err": "✗ \"nowhere\" is neither a page of environment staging (app) nor a scenario of demo (tour)\n",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "render --help": {
+  "code": 0,
+  "out": "Usage: retake render [options] <project> <scenario>\n\nrender a capture into a finished video: renders/<scenario>-v<N>.mp4 + .json\n(theme, components, captions)\n\nArguments:\n  project            project slug or directory\n  scenario           scenario name\n\nOptions:\n  --run <id>         run id, run directory or \"latest\" (default: the latest\n                     capture of the scenario)\n  --theme <name>     render with another theme (a theme name or ./path) instead\n                     of the one the run used\n  --frame <frame>    frame of every scene: card, browser, laptop, phone, tablet,\n                     raw, split or pip (multi-page scenes) or a layout component\n                     id\n  --vertical         the vertical 9:16 variant (1080×1920, reframed on the\n                     cursor and the targets), written as\n                     <scenario>-v<N>-vertical.mp4\n  --square           the square 1:1 variant (1080×1080, reframed), written as\n                     <scenario>-v<N>-square.mp4\n  --music <file>     music bed (an audio file: path from here, else relative to\n                     the project) instead of the scenario's\n  --no-music         leave the scenario's music bed out\n  --tutorial         turn every tutorial overlay on (key caps, spotlight, step\n                     badges, loupe, progress bar) over the scenario's switches\n  --no-tutorial      leave the tutorial overlays out\n  --scale <n>        output size multiplier of 1920×1080 (default: the capture\n                     scale)\n  --no-intro         leave the intro out\n  --no-outro         leave the outro out\n  --out <file>       write the video (and its .json record) here instead of\n                     renders/\n  --concurrency <n>  frames rendered in parallel, 1-16 (default: retake.yaml\n                     render.concurrency, $RETAKE_RENDER_CONCURRENCY, else 3 on\n                     the GPU path, 3/4 of the CPUs in software)\n  --json             print the render record (without the plan) as JSON\n  --review           review the render right after it (retake review: sheets,\n                     key frames, report)\n  --no-wait          start at once even while a take films on this Mac (default:\n                     wait for it, then go on at background priority during later\n                     takes)\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "still --help": {
+  "code": 0,
+  "out": "Usage: retake still [options] <project> <scenario>\n\nrender one frame of the planned video as a PNG (renders/stills/)\n\nArguments:\n  project           project slug or directory\n  scenario          scenario name\n\nOptions:\n  --frame <n>       output frame number (0-based)\n  --run <id>        run id, run directory or \"latest\" (default: the latest\n                    capture of the scenario)\n  --layout <frame>  frame of every scene (as `retake render --frame`): card,\n                    browser, laptop, phone, tablet, raw, split or pip\n                    (multi-page scenes) or a layout id\n  --theme <name>    plan with another theme (a theme name or ./path)\n  --vertical        a frame of the vertical 9:16 variant\n  --square          a frame of the square 1:1 variant\n  --out <file>      PNG file to write\n  --json            print the result as JSON\n  --no-wait         start at once even while a take films on this Mac (default:\n                    wait for it, then go on at background priority during later\n                    takes)\n  -h, --help        display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "export --help": {
+  "code": 0,
+  "out": "Usage: retake export [options] <project> <render>\n\nexport a render: mp4_1080p, mp4_4k, webm, vertical_9x16, square_1x1, gif_preview\n→ exports/<render>/ + manifest.json\n\nArguments:\n  project            project slug or directory\n  render             render id (e.g. quote-v6), a renders/<id>.json or .mp4\n                     path, or \"latest\"\n\nOptions:\n  --formats <list>   comma-separated formats, or \"all\" (default:\n                     mp4_1080p,webm,gif_preview)\n  --scenario <name>  with \"latest\": the latest render of this scenario\n  --out <dir>        output folder (default: exports/<render-id>/)\n  --gif-start <s>    start of the GIF preview, seconds (default: around the\n                     first marker, else the start)\n  --concurrency <n>  frames rendered in parallel by re-rendered formats\n  --json             print the export manifest as JSON\n  --no-wait          start at once even while a take films on this Mac (default:\n                     wait for it, then go on at background priority during later\n                     takes)\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "review --help": {
+  "code": 0,
+  "out": "Usage: retake review [options] <project> <render>\n\nreview a render: contact sheets, per-scene sheets, key frames, timeline and\nreport in review/<render>/\n\nArguments:\n  project            project slug or directory\n  render             render id (e.g. catalogue-v3), a renders/<id>.json or .mp4\n                     path, or \"latest\"\n\nOptions:\n  --fps <n>          contact sheet frames per second (choices: \"1\", \"2\")\n  --previous <id>    compare with this render (default: the previous render of\n                     the same scenario)\n  --no-previous      do not compare with a previous render\n  --scenario <name>  with \"latest\": the latest render of this scenario\n  --strict           exit with 1 when the review is not clean (errors or\n                     warnings)\n  --json             print the review result (report.json) as JSON\n  --no-wait          start at once even while a take films on this Mac (default:\n                     wait for it, then go on at background priority during later\n                     takes)\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "run --help": {
+  "code": 0,
+  "out": "Usage: retake run [options] <project> <scenario>\n\nrun a scenario headless: capture.mp4 + timeline.json (or a dry run with\nscreenshots)\n\nArguments:\n  project            project slug or directory\n  scenario           scenario name or YAML file\n\nOptions:\n  --dry              dry run: no video, a screenshot per step, irreversible\n                     steps not executed\n  --until <ref>      stop after this step (<scene>.<step id|index>, a step id,\n                     or a scene id)\n  --hooks <mode>     setup/teardown hooks (default: run for captures, skip for\n                     dry runs) (choices: \"run\", \"skip\")\n  --env <name>       environment (default: scenario env, project default_env,\n                     first one)\n  --headed           show the browser window (needs a display)\n  --allow-writes     let a run on a production environment write (only where\n                     project.yaml sets access: read-write; without it such a run\n                     is read-only)\n  --sandbox          reset the sandbox to its seed before the take: up if\n                     needed, health, reset (environment: --env, the scenario env\n                     or default_env when a sandbox, else the first sandbox); it\n                     stays up after\n  --json             stream progress events as JSON lines on stdout\n  --raw              then export the raw package for editors (as retake\n                     export-capture: clips per scene, cursor data, markers)\n  --cursor <mode>    with --raw: baked (as captured), none (captured without the\n                     cursor; data only) or layer (captured without it + a\n                     transparent cursor layer per clip) (choices: \"baked\",\n                     \"none\", \"layer\")\n  --format <format>  with --raw: mp4 (H.264 high, CRF 14) or prores (ProRes 422\n                     HQ) (choices: \"mp4\", \"prores\")\n  --fps <n>          with --raw: 30 or 60 fps (choices: \"30\", \"60\")\n  --layer <format>   with --raw --cursor layer: prores (ProRes 4444) or webm\n                     (VP9 alpha) (choices: \"prores\", \"webm\")\n  --selects          with --raw: also one continuous selects file of the clips\n  --no-cuts          with --raw: keep the loading inside scenes\n  --out <dir>        with --raw: package folder (default\n                     exports/<run>-raw-<format><fps>-<cursor>/)\n  --no-wait          with --raw: export at once even while another take films\n                     (default: wait for it, then yield to later takes)\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ },
+ "inspect --help": {
+  "code": 0,
+  "out": "Usage: retake inspect [options] <project> <page>\n\nreplay a page or a scenario (dry, hooks skipped) and list the visible\ninteractive elements with a target the runner resolves to each, plus a marked\nscreenshot (what page_inspect gives Claude)\n\nArguments:\n  project            project slug or directory\n  page               an environment page key, a URL of one of its pages, or a\n                     scenario name (with --until)\n\nOptions:\n  --env <name>       environment (default: scenario env, project default_env,\n                     first one)\n  --path <path>      with a page: the path opened under it (default /)\n  --until <ref>      with a scenario: inspect after this step (<scene>.<step\n                     id|index>, a step id, or a scene id)\n  --persona <name>   with a page: sign it in as this persona (\"none\": signed\n                     out)\n  --within <target>  list only the elements inside this target (YAML: \"{role:\n                     dialog}\", or text / CSS)\n  --target <target>  check a target: matches and the one a step would use\n                     (repeatable, ≤ 20)\n  --limit <n>        elements listed (default 80, at most 300)\n  --images <mode>    marked (default): also draw marked.jpg; none: the plain\n                     screenshot only (choices: \"marked\", \"none\")\n  --json             print the report (inspect.json) on stdout\n  --out <dir>        folder for the inspection folder (default\n                     <project>/.retake/inspect/)\n  -h, --help         display help for command\n",
+  "err": "",
+  "history": [],
+  "journal": [],
+  "calls": []
+ }
+}
