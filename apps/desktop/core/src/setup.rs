@@ -24,8 +24,8 @@ pub const MOVE_TO_APPLICATIONS: &str = "Move Retake to Applications, then open i
 
 /// Where `app` (the `.app` folder) runs from — the App Translocation marker first, then a read-only volume
 /// (`read_only`: the caller's statfs MNT_RDONLY), then anything under /Volumes. Pure (the engine's
-/// integrations/app-setup.ts `installLocation` has the same rules: core's app-setup test replays every
-/// `install_location` assert of this file's tests).
+/// integrations/app-setup.ts `installLocation` has the same rules: the engine's app-setup test
+/// (packages/engine/test/app-setup.test.ts) replays every `install_location` assert of this file's tests).
 pub fn install_location(app: &Path, read_only: bool) -> InstallLocation {
     let s = app.to_string_lossy();
     if s.contains("/AppTranslocation/") {

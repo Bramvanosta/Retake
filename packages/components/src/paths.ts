@@ -33,6 +33,17 @@ export function kitEntry(): string | undefined {
   return undefined;
 }
 
+/** The renderer-free entry of the components (geometry-entry.ts): the planner's, the review's and the compositions'. */
+export const GEOMETRY_MODULE = '@retake/components/geometry';
+
+/** Source of the geometry entry (bundled with the compositions, beside the kit); the built one when sources are absent. */
+export function geometryEntry(): string | undefined {
+  for (const p of [join(PACKAGE_DIR, 'src', 'geometry-entry.ts'), join(PACKAGE_DIR, 'dist', 'geometry-entry.js')]) {
+    if (existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 /** The scaffold folder of a kind (a valid component with id `scaffolds/<kind>`). */
 export function scaffoldDir(kind: ComponentKind): string {
   return join(SCAFFOLDS_DIR, kind);

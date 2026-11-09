@@ -5,7 +5,7 @@
  */
 import { TUTORIAL_COMPONENTS } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
-import type { SlotContext } from '@retake/components';
+import type { SlotContext } from '@retake/components/geometry';
 import type { PlanTutorial } from '../plan-types.js';
 import { ComponentResolver } from '../resolve.js';
 import type { Candidate } from '../resolve.js';

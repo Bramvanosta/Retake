@@ -5,8 +5,8 @@
  * square, its URLs.
  */
 import type { TimelineScenePage } from '@retake/core';
-import { GEOMETRY_KEYS, evalLayoutGeometry, isMultiPaneGeometry } from '@retake/components';
-import type { LayoutGeometry } from '@retake/components';
+import { GEOMETRY_KEYS, evalLayoutGeometry, isMultiPaneGeometry } from '@retake/components/geometry';
+import type { LayoutGeometry } from '@retake/components/geometry';
 import { cameraTrack, clampView, reframeTrack } from '../camera.js';
 import { geometryOutside } from '../layout.js';
 import { INSET_GROW, cornerOf, planPaneLayout } from '../panes.js';

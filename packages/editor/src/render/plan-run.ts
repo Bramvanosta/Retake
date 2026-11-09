@@ -35,7 +35,8 @@ import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
-import { musicFile, musicSpecOf, planEdit } from '../plan.js';
+import { planEdit } from '../plan.js';
+import { musicFile, musicSpecOf } from '../planner/music.js';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { probeMedia } from './probe.js';

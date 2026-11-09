@@ -9,7 +9,7 @@ export type { LiveFrame, LivePreviewOptions, LiveSink } from './live-preview.js'
 export { PAUSE_MAX_MS, RESUME_FRAME_MS, RunPauser } from './pause.js';
 export type { PauseGate, PausePoint, PauseTake } from './pause.js';
 export { INSPECT_BUDGET_MS, INSPECT_LIMIT, INSPECT_LIMIT_MAX, INSPECT_PACING, INSPECT_TARGETS_MAX, inspectElement, inspectPage } from './inspect.js';
-export { INSPECT_PAUSE_CAP_S } from './runtime.js';
+export { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 export type { InspectContext, InspectElement, InspectReport, InspectRequest, InspectStepHint, InspectTargetCheck } from './inspect.js';
 export { SERVICE_WORKER_BLOCK, UNROUTED_APIS_BLOCK, SITE_CALL_TIMEOUT_MS, SITE_CANDIDATES_MAX, SITE_DEADLINE_MS, SITE_REPORT_FILE, SITE_REPORT_VERSION, SITE_SCREENSHOT_FILE, extractSite, imageMime, requestUrlProblem, sameSiteHost, siteBrowserArgs } from './site/extract.js';
 export type { BlockedReason, SiteCandidateView, SiteExtractOptions, SiteReport } from './site/extract.js';

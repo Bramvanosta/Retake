@@ -18,7 +18,7 @@ import {
   resolveThemeComponents,
 } from '@retake/core';
 import type { LoadedProject, LoadedTemplate, MediaFileFields, Timeline } from '@retake/core';
-import type { PlanInputFile } from './plan.js';
+import type { PlanInputFile } from './planner/input.js';
 
 const DATA_RE = /\.(csv|tsv)$/i;
 

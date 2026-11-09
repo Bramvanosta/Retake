@@ -1,4 +1,3 @@
-import { basename } from 'node:path';
 import type { LoadedTemplate, Template, TextStyle } from '@retake/core';
 import type { ThemeFontFace, ThemeTextStyle, ThemeTokens } from './types.js';
 
@@ -27,9 +26,15 @@ const WEIGHTS: Array<[RegExp, number]> = [
   [/medium/, 500],
 ];
 
+/** The last part of a `/` path, trailing slashes ignored (POSIX `basename`, without node:path: this module is pure). */
+function lastPart(file: string): string {
+  const s = file.replace(/\/+$/, '');
+  return s.slice(s.lastIndexOf('/') + 1);
+}
+
 /** Font weight and style from a font file name ("Inter-SemiBold.ttf" → 600 normal; default 400). */
 export function fontFileFace(file: string): { weight: number; style: 'normal' | 'italic' } {
-  const name = basename(file).replace(/\.[^.]+$/, '').toLowerCase();
+  const name = lastPart(file).replace(/\.[^.]+$/, '').toLowerCase();
   const style = /italic|oblique/.test(name) ? 'italic' : 'normal';
   for (const [re, weight] of WEIGHTS) if (re.test(name)) return { weight, style };
   return { weight: 400, style };

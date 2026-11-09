@@ -5,7 +5,7 @@
  * of the clip before it as its backdrop.
  */
 import { MEDIA_COMPONENTS } from '@retake/core';
-import type { CaptionCue } from '@retake/components';
+import type { CaptionCue } from '@retake/components/geometry';
 import { clampView, isStatic } from '../camera.js';
 import { drawsUrl, growClearOf, insetCornerRects, mapPaneRect, paneIndexOf, paneSource, planActing, planInsetTrack, stepBoxes } from '../panes.js';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, SpeedSpan, StepSpan, TimeMapEntry, TrimSpan, ZoomSpan } from '../plan-types.js';

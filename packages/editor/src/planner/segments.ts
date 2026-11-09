@@ -5,9 +5,8 @@
  */
 import { READING_PACE, mediaSegmentUse, readingSeconds, wordCount } from '@retake/core';
 import type { FrameSpec, MediaFileFields, TimelineScenePage } from '@retake/core';
-import { GEOMETRY_KEYS, isMultiPaneGeometry } from '@retake/components';
-import type { SlotContext } from '@retake/components';
-import { autoFit } from '@retake/components/kit';
+import { GEOMETRY_KEYS, autoFit, isMultiPaneGeometry } from '@retake/components/geometry';
+import type { SlotContext } from '@retake/components/geometry';
 import { reframeTrack } from '../camera.js';
 import type { CardSegment, ClipSegment, IntroSegment, OutroSegment, ResolvedComponent } from '../plan-types.js';
 import type { Candidate } from '../resolve.js';

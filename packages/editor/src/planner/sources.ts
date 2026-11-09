@@ -2,7 +2,7 @@
 import { dirname, extname, join, relative } from 'node:path';
 import { displayRows, displayUrl as displayedUrl, editDisplayTable, isLocalUrl, resolveEnvironment } from '@retake/core';
 import type { DisplayEntry, TimelineTrack } from '@retake/core';
-import { themeTokens } from '@retake/components';
+import { themeTokens } from '@retake/components/geometry';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';
 import type { PlanSource } from '../plan-types.js';
 import type { PlanAddresses, PlanContext, PlanSources } from './scope.js';

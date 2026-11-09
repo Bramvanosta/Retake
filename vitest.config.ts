@@ -46,8 +46,9 @@ export default defineConfig({
       '@retake/core': pkg('core'),
       '@retake/hooks': pkg('hooks'),
       '@retake/sandbox': pkg('sandbox'),
-      // Before '@retake/components': the first matching alias wins and that one would also match '…/kit'.
+      // Before '@retake/components': the first matching alias wins and that one would also match '…/kit' and '…/geometry'.
       '@retake/components/kit': kit,
+      '@retake/components/geometry': fileURLToPath(new URL('./packages/components/src/geometry-entry.ts', import.meta.url)),
       '@retake/runner-web': pkg('runner-web'),
       '@retake/components': pkg('components'),
       // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).

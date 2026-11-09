@@ -2,9 +2,13 @@
  * `@retake/editor/plan`, the planner without the renderer: every module it reaches (relative imports, value and type,
  * read from the sources) stays out of the renderer and the compositions and imports no renderer, Remotion, React or
  * file-system module; the packages it reaches are the ones listed here (a new one is a decision, not a drift). The
- * package root re-exports all of it. The render record's listing reads through the functions it is given.
+ * package root re-exports all of it. At run time (the built entry imported by a Node process tracing every module it
+ * resolves), it loads none of the renderer's packages and reaches the components only through their geometry entry.
+ * The render record's listing reads through the functions it is given.
  */
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +25,7 @@ const ts = createRequire(import.meta.url)('typescript') as typeof import('typesc
 /** A specifier no module of the planner may import: the renderer's, Remotion's, React's, the file system's, processes'. */
 const FORBIDDEN = /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|os|worker_threads|module|stream|zlib)$|^(react|react-dom|remotion|@remotion\/|playwright|playwright-core|esbuild|sharp)(\/|$)/;
 /** The packages the planner's modules import (each is the planner's own decision). */
-const PACKAGES = ['@retake/components', '@retake/components/kit', '@retake/core', 'node:path'];
+const PACKAGES = ['@retake/components/geometry', '@retake/core', 'node:path'];
 
 /** The editor modules reachable from `start` and the specifiers they import, read with the compiler's pre-processor. */
 function walk(start: string): { files: string[]; specs: Map<string, string[]> } {
@@ -85,6 +89,61 @@ describe('@retake/editor/plan (the planner entry)', () => {
       expect(n in root).toBe(true);
       expect(n in entry).toBe(false);
     }
+  });
+});
+
+/** A resolved module of a renderer package (its own folder under node_modules, pnpm's store included). */
+const RENDERER_URL = /\/node_modules\/(react|react-dom|remotion|@remotion\/[^/]+|esbuild|sharp)\//;
+/** A bare specifier of a renderer package. */
+const RENDERER_SPEC = /^(react|react-dom|remotion|@remotion\/|esbuild|sharp)(\/|$)/;
+
+/**
+ * Every module a fresh Node process resolves while it imports `file`, as [specifier, url] (a resolve hook registered
+ * before the import appends each one to a file).
+ */
+function loadTrace(file: string): Array<[string, string]> {
+  const dir = mkdtempSync(join(tmpdir(), 'retake-plan-trace-'));
+  try {
+    const out = join(dir, 'trace.jsonl');
+    const hooks = [
+      "import { appendFileSync } from 'node:fs';",
+      'let out;',
+      'export function initialize(data) { out = data.out; }',
+      'export async function resolve(spec, context, next) {',
+      '  const r = await next(spec, context);',
+      "  appendFileSync(out, JSON.stringify([spec, r.url]) + '\\n');",
+      '  return r;',
+      '}',
+    ].join('\n');
+    const main = [
+      "import { register } from 'node:module';",
+      "import { pathToFileURL } from 'node:url';",
+      `register(${JSON.stringify(`data:text/javascript,${encodeURIComponent(hooks)}`)}, { data: { out: ${JSON.stringify(out)} } });`,
+      `await import(pathToFileURL(${JSON.stringify(file)}).href);`,
+    ].join('\n');
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', main], { encoding: 'utf8' });
+    expect(r.status, r.stderr).toBe(0);
+    return readFileSync(out, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as [string, string]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe('@retake/editor/plan at run time (the built entry, every module it loads traced)', () => {
+  const built = fileURLToPath(new URL('../dist/plan-entry.js', import.meta.url));
+
+  it('loads no renderer, React, Remotion, esbuild or sharp module, and the components only through their geometry entry', () => {
+    expect(existsSync(built), 'packages/editor/dist/plan-entry.js is missing: run pnpm build first').toBe(true);
+    const trace = loadTrace(built);
+    const urls = trace.map(([, url]) => url);
+    // The trace works: it saw the entry's own modules and the components' geometry entry.
+    expect(urls.some((u) => u.endsWith('/editor/dist/planner/segments.js'))).toBe(true);
+    expect(urls.some((u) => u.endsWith('/components/dist/geometry-entry.js'))).toBe(true);
+    const bad = trace.filter(([spec, url]) => RENDERER_SPEC.test(spec) || RENDERER_URL.test(url)).map(([spec, url]) => `${spec} → ${url}`);
+    expect(bad).toEqual([]);
+    const components = urls.filter((u) => /\/components\/dist\/(index|kit\/index|compile)\.js$/.test(u));
+    expect(components).toEqual([]);
+    expect(urls.some((u) => /\/editor\/dist\/(render\/|remotion\/(?!frames\.js))/.test(u))).toBe(false);
   });
 });
 

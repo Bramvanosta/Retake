@@ -3,8 +3,8 @@
  * the capture) and the reframe track of the vertical and square variants. Pure.
  */
 import type { CameraHint, Timeline } from '@retake/core';
-import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
-import type { Bezier, EasingFn } from '@retake/components';
+import { CAMERA_EASINGS, cubicBezier } from '@retake/components/geometry';
+import type { Bezier, EasingFn } from '@retake/components/geometry';
 import type { CameraFrame } from './plan-types.js';
 import { clamp, cursorAt, round } from './util.js';
 

@@ -3,12 +3,10 @@
  * recording's events (recording.ts): a target choice must name an alternative the recorder offered, an insert a
  * position inside the recording. Pure; the engine applies it under the annotate lock.
  */
-import { RECORD_ANNOTATIONS_MAX_BYTES, RECORD_CHOICES_MAX, RECORD_INSERTS_MAX, RecordAnnotationsSchema } from './record-annotations.js';
+import { RECORD_ANNOTATIONS_MAX_BYTES, RECORD_CHOICES_MAX, RECORD_INSERTS_MAX, RecordAnnotationsSchema, annotationsBytes } from './record-annotations.js';
 import type { RecordAnnotationChange, RecordAnnotations, RecordInsert } from './record-annotations.js';
 import { recordedAlternatives } from './recording.js';
 import type { RecordedEvent } from './recording.js';
-
-const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
 
 export type RecordChangeError = { code: 'not_found' | 'invalid' | 'too_many' | 'taken'; message: string };
 
@@ -70,7 +68,7 @@ export function applyRecordChange(
   }
   const checked = RecordAnnotationsSchema.safeParse(out);
   if (!checked.success) return { error: { code: 'invalid', message: 'the change does not fit the annotations format' } };
-  if (utf8Bytes(JSON.stringify(checked.data)) > RECORD_ANNOTATIONS_MAX_BYTES) {
+  if (annotationsBytes(JSON.stringify(checked.data)) > RECORD_ANNOTATIONS_MAX_BYTES) {
     return { error: { code: 'too_many', message: `the annotations would pass ${RECORD_ANNOTATIONS_MAX_BYTES / 1024} KiB` } };
   }
   return { annotations: checked.data, ...(id !== undefined ? { id } : {}) };

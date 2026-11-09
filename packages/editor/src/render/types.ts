@@ -3,8 +3,6 @@ import type { RenderRecord } from '../render-record.js';
 import { GUIDE } from '@retake/core';
 import type { ErrorKind } from '@retake/core';
 
-export type { RenderRecord } from '../render-record.js';
-
 /** A render that cannot start or failed (message written for the user). */
 export class RenderError extends Error {
   constructor(

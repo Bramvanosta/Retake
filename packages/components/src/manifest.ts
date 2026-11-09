@@ -18,7 +18,7 @@ import {
 } from '@retake/core';
 import type { ComponentKind, LocatedIssue } from '@retake/core';
 import { applyParamDefaults, checkParamsSchema, isPlainObject, paramDefaults, validateParamValue } from './json-schema.js';
-import { ANCHOR_KEYS, GEOMETRY_BUILTINS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
+import { ANCHOR_KEYS, GEOMETRY_BUILTINS, GEOMETRY_KEYS, anchorScope, evalAnchor, evalLayoutGeometry, expressionIdentifiers, geometryIsDynamic, paramEnums } from './geometry.js';
 import type { JsonSchemaNode } from './json-schema.js';
 import type { AnchorSpec, ComponentIssue, ComponentManifest, LayoutGeometry, LayoutGeometrySpec, Rect1920 } from './types.js';
 
@@ -32,9 +32,8 @@ export const DESIGN_SPACE = {
   square: { width: 1080, height: 1080 },
 } as const;
 
-/** Output variants (orientations) and the manifest key of each one's layout geometry. */
+/** Output variants (orientations); the manifest key of each one's layout geometry is `GEOMETRY_KEYS` (geometry.ts). */
 export const VARIANTS = ['landscape', 'vertical', 'square'] as const;
-export const GEOMETRY_KEYS = { landscape: 'geometry', vertical: 'geometry_vertical', square: 'geometry_square' } as const;
 
 /** Semantic version (semver.org 2.0.0). */
 export const SEMVER_RE =

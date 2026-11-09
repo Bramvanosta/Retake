@@ -10,12 +10,12 @@
  * output: notes, warnings and assets are listed in the order the steps add them.
  */
 import type { EditPlan } from './plan-types.js';
+import { planBrand } from './planner/brand.js';
 import { planCameras } from './planner/cameras.js';
 import { planClipDetails } from './planner/clip-details.js';
 import { planComponents, planTutorialSetup } from './planner/components.js';
+import { openPlan } from './planner/context.js';
 import { planEntries, planRuns } from './planner/entries.js';
-import { planBrand, planTapTargets, planTutorialSummary } from './planner/finish.js';
-import { openPlan } from './planner/format.js';
 import type { PlanEditInput } from './planner/input.js';
 import { planLayouts } from './planner/layouts.js';
 import { planSlotMedia } from './planner/media.js';
@@ -24,15 +24,10 @@ import { planStepOverlays } from './planner/overlays.js';
 import type { PlanScope } from './planner/scope.js';
 import { planSegments } from './planner/segments.js';
 import { planAddresses, planSources } from './planner/sources.js';
+import { planTapTargets } from './planner/tap-targets.js';
 import { planTransitions } from './planner/transitions.js';
+import { planTutorialSummary } from './planner/tutorial-summary.js';
 import { secs } from './util.js';
-
-export { PlanError } from './planner/input.js';
-export type { PlanEditInput, PlanInputFile } from './planner/input.js';
-export { ANCHOR_OVERLAY_WINDOW_S, CLEAR_LOOKAHEAD_S, CONTIGUOUS_GAP_S, DEFAULT_ZOOM, LOAD_START_SLACK_S, MUSIC_DEFAULTS, REFRAME_CLICK_WINDOW_S, SCREEN_POSITION_CHOICES } from './planner/rules.js';
-export { defaultOverlayKeep, markDoneAt, overlayStartAt, reframeTargets } from './planner/targets.js';
-export type { OverlayKeep } from './planner/targets.js';
-export { musicFile, musicPlays, musicSpecOf } from './planner/music.js';
 
 /** Plan the edit of a capture. Pure and deterministic. */
 export function planEdit(input: PlanEditInput): EditPlan {

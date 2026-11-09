@@ -43,7 +43,8 @@ import { themeContentHash } from './theme-hash.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
-import type { RenderProgress, RenderRecord } from './types.js';
+import type { RenderRecord } from '../render-record.js';
+import type { RenderProgress } from './types.js';
 
 export { probeMedia } from './probe.js';
 

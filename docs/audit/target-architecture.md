@@ -48,9 +48,10 @@ application   @retake/engine  (. façade + invoke, ./contract, catalogue, pipeli
                  │         SecretStore Clock ProgressSink Approver FileFacts
                  ▼
 adapters      runner-web · editor/render · review (media) · sandbox · hooks · components (compile)
-              file queue (then L5.14's store) · index-db · integrations (Claude registrations, today core/app-setup)
+              file queue (then L5.14's store) · index-db · integrations (Claude registrations: @retake/engine/integrations)
                  │
-domain        @retake/core (pure) · @retake/editor/plan · @retake/review/checks     no I/O, no adapter, no shell
+domain        @retake/core (pure) · @retake/components/geometry · @retake/editor/plan · @retake/review/checks
+                                                                    no I/O, no adapter, no shell
 ```
 
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters

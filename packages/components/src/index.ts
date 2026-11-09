@@ -6,12 +6,12 @@
  * is Node-only).
  */
 export * from './types.js';
+export { COMPONENT_KINDS } from '@retake/core';
 export { ComponentError, formatComponentIssues } from './errors.js';
 export {
   MANIFEST_FILE,
   DEFAULT_ENTRY,
   DESIGN_SPACE,
-  GEOMETRY_KEYS,
   VARIANTS,
   SEMVER_RE,
   KIT_RANGE_RE,
@@ -33,6 +33,7 @@ export {
   DEFAULT_CAPTURE_ASPECT,
   GEOMETRY_BUILTINS,
   GEOMETRY_FUNCTIONS,
+  GEOMETRY_KEYS,
   GeometryExpressionError,
   evalGeometryValue,
   evalLayoutGeometry,
@@ -80,7 +81,7 @@ export { BUILTIN_NAMESPACE, createComponent, componentDisplayName } from './crea
 export type { CreateComponentOptions, CreatedComponent } from './create.js';
 export { themeTokens, themeFontFamilies, fontFileFace } from './theme.js';
 export type { ThemeUrls } from './theme.js';
-export { COMPONENT_SCHEMA_FILE, KIT_API_VERSION, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, kitEntry, scaffoldDir } from './paths.js';
+export { COMPONENT_SCHEMA_FILE, GEOMETRY_MODULE, KIT_API_VERSION, KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, SCAFFOLDS_DIR, geometryEntry, kitEntry, scaffoldDir } from './paths.js';
 export { fillSlots, slotSource } from './slots.js';
 export { parseCsv, parseNumber } from './data.js';
 export type { FilledSlots, SlotContext } from './slots.js';

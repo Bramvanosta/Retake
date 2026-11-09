@@ -3,12 +3,18 @@
  * → EditPlan, pure and deterministic) and the modules it is made of, the EditPlan contract, the frame geometry the
  * compositions and the review share (where a layout, a pane, an overlay or the brand mark sits on a frame), the views
  * of a plan (summary, timeline) and the render record's type. No module reachable from here imports the renderer,
- * Remotion, React or the file system (test/plan-entry.test.ts walks the imports); a review imports the editor only
- * through this entry (scripts/audit/lib.mjs R8).
+ * Remotion, React or the file system, and the components only through their renderer-free entry
+ * (`@retake/components/geometry`): importing it loads no React, Remotion, esbuild or sharp module
+ * (test/plan-entry.test.ts walks the imports and traces a Node process importing the built entry); a review imports
+ * the editor only through this entry (scripts/audit/lib.mjs R8).
  */
 export * from './plan-types.js';
-export { planEdit, PlanError, MUSIC_DEFAULTS, CONTIGUOUS_GAP_S, CLEAR_LOOKAHEAD_S, DEFAULT_ZOOM, REFRAME_CLICK_WINDOW_S, markDoneAt, musicFile, musicPlays, musicSpecOf, reframeTargets } from './plan.js';
-export type { PlanEditInput, PlanInputFile } from './plan.js';
+export { planEdit } from './plan.js';
+export { PlanError } from './planner/input.js';
+export type { PlanEditInput, PlanInputFile } from './planner/input.js';
+export { CLEAR_LOOKAHEAD_S, CONTIGUOUS_GAP_S, DEFAULT_ZOOM, MUSIC_DEFAULTS, REFRAME_CLICK_WINDOW_S } from './planner/rules.js';
+export { markDoneAt, reframeTargets } from './planner/targets.js';
+export { musicFile, musicPlays, musicSpecOf } from './planner/music.js';
 export { TRACK_GLIDE_S, TUTORIAL_TIMING, eventClicks, loupeRegion, planBadgeNumbers, planClipTutorial, planProgress, stepNavigates, tutorialReframeTargets, tutorialRequested, tutorialStateOf } from './tutorial.js';
 export {
   DEFAULT_IDLE_THRESHOLD_S,

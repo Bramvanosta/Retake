@@ -24,7 +24,6 @@ export interface CaptionCue {
  * Component kinds and references are part of the shared data model (templates and scenarios refer to components):
  * their single source of truth is @retake/core.
  */
-export { COMPONENT_KINDS } from '@retake/core';
 export type { ComponentId, ComponentKind, ComponentRef } from '@retake/core';
 
 /** Output orientations: landscape 16:9 (1920×1080 design space), vertical 9:16 (1080×1920), square 1:1 (1080×1080). */

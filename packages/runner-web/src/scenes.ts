@@ -41,7 +41,7 @@ import { assertMayOpen, navigate } from './actions/pages.js';
 import { RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
 import { Jitter } from './motion.js';
 import { resolveTarget } from './resolve.js';
-import { INSPECT_PAUSE_CAP_S } from './runtime.js';
+import { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 import type { Runtime, StepContext } from './runtime.js';
 import { ACTING_ACTIONS, parkCursor, parkPlan } from './park.js';
 import type { ParkRecord } from './park.js';

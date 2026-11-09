@@ -19,6 +19,7 @@ export * from './video.js';
 export * from './tutorial.js';
 export * from './pages.js';
 export * from './media.js';
+export * from './ffprobe-summary.js';
 export * from './bundle.js';
 export * from './h264.js';
 export * from './gpu.js';

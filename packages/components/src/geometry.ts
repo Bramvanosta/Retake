@@ -20,6 +20,9 @@ import type { AnchorSpec, LayoutGeometry, LayoutGeometrySpec, Rect1920 } from '.
 
 export type GeometryValue = number | string;
 
+/** The manifest key of each output variant's layout geometry. */
+export const GEOMETRY_KEYS = { landscape: 'geometry', vertical: 'geometry_vertical', square: 'geometry_square' } as const;
+
 /**
  * Built-in identifiers of geometry expressions: `aspect` (the capture's width / height — the first page's in a
  * multi-page scene) and `aspect2` (the second page's, L2.11; equal to `aspect` for a single page).

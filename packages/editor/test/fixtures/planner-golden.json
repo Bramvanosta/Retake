@@ -222,5 +222,29 @@
  "quote/editorial/theme-mismatch": {
   "sha256": "ac73927bd3a938d5f68b3391753148eef73a62cba8a78bc6b9260af29d6b47c0",
   "bytes": 21215
+ },
+ "quote/editorial/own-files": {
+  "sha256": "8b9d030c825dcfbc23b9becc8a06a99a5bdb62e344f0b70457026224d3587734",
+  "bytes": 21959
+ },
+ "quote/editorial/own-files-missing": {
+  "sha256": "0dfd4a341e1e15fdc536b03e3f2fbb1811bedd89d3cae66424857dc0d3027b01",
+  "bytes": 21268
+ },
+ "quote/editorial/old-timeline": {
+  "sha256": "3008bb490b677c147d7ef631661b89957675661192664877531a87ce11f1de0a",
+  "bytes": 21175
+ },
+ "quote/motion/old-timeline-scenario": {
+  "sha256": "2316fe379e1e9719c77fcfd79962e5bc840fcc6c2aba72afdeac0ade90439bbd",
+  "bytes": 29622
+ },
+ "quote/editorial/env": {
+  "sha256": "ec855461d1772ea127f22736a5c2539c1a318c0bdeabc95f0d25ef2d8854a6e1",
+  "bytes": 21268
+ },
+ "quote-artefacts/editorial/run-dir": {
+  "sha256": "3d3341c055dfe190dae4bd7259cad09eea16314fc6f849c205cf34971c51b1e2",
+  "bytes": 24172
  }
 }

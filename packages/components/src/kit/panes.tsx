@@ -9,6 +9,7 @@ import { SYSTEM_COLORS, addressParts, cardShadow, deviceTones } from './devices.
 import type { ShadowKind } from './devices.js';
 import { capTextLayout } from './metrics.js';
 import { CapText } from './elements.js';
+import { insetPhoneEdge } from './frame-geometry.js';
 import { roundTo } from './motion.js';
 import { cssFontFamily, darkLight, isDarkBackground, liftToContrast, mixColors, nightTone, backgroundSample, readableOn, withAlpha } from './style.js';
 
@@ -131,11 +132,6 @@ export function InsetCard({ theme, rect, radius, unit, children }: { theme: Them
       <div style={{ position: 'absolute', left: edge, top: edge, width: rect.w, height: rect.h, borderRadius: radius, overflow: 'hidden', isolation: 'isolate', background: nightTone(theme) }}>{children}</div>
     </div>
   );
-}
-
-/** Band + bezel width of a phone drawn around a display `h` tall (as the kit's phone cards: 1.7 % + 0.6 %). */
-export function insetPhoneEdge(displayH: number): number {
-  return Math.round(displayH * 0.017) + Math.round(displayH * 0.006);
 }
 
 /**

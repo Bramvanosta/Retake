@@ -18,7 +18,7 @@ import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryPopup, KitActionHint, KitInventory, ResolveResult } from './kit/types.js';
-import { INSPECT_PAUSE_CAP_S } from './runtime.js';
+import { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 import type { Runtime } from './runtime.js';
 
 /** Elements listed by default, and at most. */

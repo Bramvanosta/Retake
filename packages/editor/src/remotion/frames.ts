@@ -3,11 +3,10 @@
  * music volume. Shared by the Remotion composition and the tests (and later by the Studio preview).
  */
 import type { ComponentKind } from '@retake/core';
-import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/kit';
-import type { LoupePlacement } from '@retake/components/kit';
+import { captionBandBox, insetPhoneEdge, loupeLens, safeAreaRect, shortcutPlateBox, shortcutPlateLayout, shortcutPlateMetrics, stepBadgeBox } from '@retake/components/geometry';
+import type { LayoutRects, LoupePlacement } from '@retake/components/geometry';
 import { mapSourceRect } from '../layout.js';
 import { insetRectAt, layoutPaneRectsAt, mapPaneRect, paneCaptureAt, paneSource } from '../panes.js';
-import type { LayoutRects } from '@retake/components';
 import type { ClipSegment, EditPlan, OverlayUse, PlanLayout, PlanSegment, Rect, ResolvedComponent } from '../plan-types.js';
 import { clamp } from '../util.js';
 

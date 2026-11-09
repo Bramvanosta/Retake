@@ -7,7 +7,7 @@ import { readFileSync, readdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { useAgentPolicy } from '@retake/core';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
@@ -26,6 +26,7 @@ import {
   defaultConcurrency,
   entrySource,
   findRun,
+  geometryFiles,
   listRenders,
   musicVolumeAt,
   nextVersion,
@@ -126,6 +127,14 @@ describe('generated bundle sources', () => {
     const rootSrc = readFileSync(root, 'utf8');
     expect(rootSrc).toContain(`landscape: '${COMPOSITION_IDS.landscape}'`);
     expect(rootSrc).toContain(`vertical: '${COMPOSITION_IDS.vertical}'`);
+  });
+
+  it('the geometry entry the composition imports its frame helpers from is hashed with the modules beside it that it loads', () => {
+    const { entry, files } = geometryFiles();
+    expect(entry).toBe(join(dirname(EDITOR_DIR), 'components', 'src', 'geometry-entry.ts'));
+    // Its kit modules are hashed with the kit; type-only re-exports (the registry's) load nothing.
+    expect(files.map((f) => basename(f))).toEqual(['data.ts', 'geometry-entry.ts', 'geometry.ts', 'slots.ts', 'theme.ts', 'types.ts']);
+    expect(readFileSync(join(EDITOR_DIR, 'src', 'remotion', 'frames.ts'), 'utf8')).toMatch(/^import \{[^}]+\} from '@retake\/components\/geometry';$/m);
   });
 
   it('the bundle hash follows the content of the bundled components (cache key)', async () => {

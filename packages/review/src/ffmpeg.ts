@@ -6,7 +6,7 @@
 import { execFile, spawn } from 'node:child_process';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
-import { ffmpegBin, ffprobeBin } from '@retake/core';
+import { ffmpegBin, ffprobeBin, ffprobeSummaryArgs, parseFfprobeSummary } from '@retake/core';
 
 export interface VideoInfo {
   width: number;
@@ -17,29 +17,18 @@ export interface VideoInfo {
 }
 
 /**
- * What ffprobe says of a video's first video stream and its length (the question the render's own probe asks);
- * undefined when ffprobe fails or does not answer in JSON.
+ * What ffprobe says of a video's first video stream and its length (core's ffprobe summary, as the render's own probe
+ * reads it); undefined when ffprobe fails or does not answer in JSON.
  */
 function ffprobeVideo(file: string): Promise<VideoInfo | undefined> {
-  const args = ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames:format=duration', '-of', 'json', file];
   return new Promise((ok) => {
-    execFile(ffprobeBin(), args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+    execFile(ffprobeBin(), ffprobeSummaryArgs(file), { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
       if (err) return ok(undefined);
-      try {
-        const j = JSON.parse(String(stdout)) as { streams: Array<Record<string, string | number>>; format: { duration?: string } };
-        const v = j.streams.find((s) => s.codec_type === 'video');
-        const [num, den] = String(v?.r_frame_rate ?? '0/1').split('/').map(Number);
-        const out: VideoInfo = {
-          duration_s: Number(j.format.duration ?? 0),
-          width: Number(v?.width ?? 0),
-          height: Number(v?.height ?? 0),
-          fps: den ? Math.round((num / den) * 1000) / 1000 : 0,
-        };
-        if (v?.nb_frames !== undefined) out.frames = Number(v.nb_frames);
-        ok(out);
-      } catch {
-        ok(undefined);
-      }
+      const p = parseFfprobeSummary(String(stdout));
+      if (!p) return ok(undefined);
+      const out: VideoInfo = { duration_s: p.duration_s, width: p.width, height: p.height, fps: p.fps };
+      if (p.frames !== undefined) out.frames = p.frames;
+      ok(out);
     });
   });
 }

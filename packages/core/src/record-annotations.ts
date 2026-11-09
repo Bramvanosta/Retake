@@ -42,7 +42,8 @@ export function recordZoomOptions(maxZoom: number): { options: number[]; default
   return { options, default: Math.min(RECORD_ZOOM_DEFAULT, max) };
 }
 
-const utf8Bytes = (s: string): number => new TextEncoder().encode(s).length;
+/** The size `RECORD_ANNOTATIONS_MAX_BYTES` limits: a text's length in UTF-8 bytes (the file's, or a change's data as JSON). */
+export const annotationsBytes = (s: string): number => new TextEncoder().encode(s).length;
 
 /** An insert id: "i" and the revision that added it. */
 const INSERT_ID_RE = /^i[1-9]\d{0,6}$/;
@@ -165,7 +166,7 @@ export function isEmptyRecordAnnotations(a: RecordAnnotations | null | undefined
  * or not the schema: refused.
  */
 export function parseRecordAnnotations(text: string): { annotations: RecordAnnotations } | { error: string } {
-  if (utf8Bytes(text) > RECORD_ANNOTATIONS_MAX_BYTES) return { error: `the annotations file is larger than ${RECORD_ANNOTATIONS_MAX_BYTES / 1024} KiB` };
+  if (annotationsBytes(text) > RECORD_ANNOTATIONS_MAX_BYTES) return { error: `the annotations file is larger than ${RECORD_ANNOTATIONS_MAX_BYTES / 1024} KiB` };
   let raw: unknown;
   try {
     raw = JSON.parse(text);

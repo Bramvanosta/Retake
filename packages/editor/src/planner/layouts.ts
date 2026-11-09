@@ -3,8 +3,8 @@
  * frames, the theme, the built-in), a layout use's geometry in this variant, and the video's main layout.
  */
 import type { FrameSpec } from '@retake/core';
-import { GEOMETRY_KEYS, evalLayoutGeometry } from '@retake/components';
-import type { LayoutGeometry } from '@retake/components';
+import { GEOMETRY_KEYS, evalLayoutGeometry } from '@retake/components/geometry';
+import type { LayoutGeometry } from '@retake/components/geometry';
 import { FALLBACK_GEOMETRY, RAW_GEOMETRY, geometryOutside, planLayout } from '../layout.js';
 import type { PlanLayout, ResolvedComponent } from '../plan-types.js';
 import type { Candidate } from '../resolve.js';

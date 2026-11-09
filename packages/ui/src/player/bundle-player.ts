@@ -14,7 +14,8 @@
  *   node_modules). Each of its files is then loaded by this plugin: real path inside the component's real folder (a
  *   link out of it is refused), opened without following a link, a regular file of at most 1 MB, a code or JSON
  *   extension (no text, file or data-URL loader): an outside file cannot be inlined into the bundle the frame gets.
- *   The composition, the kit and the frame import their own sources and a short list of packages.
+ *   The composition, the kit and the frame import their own sources and a short list of packages; the composition's
+ *   frame helpers come from the components' geometry entry (`@retake/components/geometry`, pure), resolved to its source.
  * - A component that breaks a rule or does not compile is excluded (one retry without it): its uses draw with their
  *   kind's scaffold, and `excluded` says why (worded with its id, never its folder).
  * - A WORKSPACE component is bundled only once the person allowed it in this Studio session (review A H1 c; the
@@ -50,6 +51,8 @@ export const BOOT_ENTRY = join(PLAYER_DIR, 'boot.ts');
 const FRAME_SOURCES = ['boot.ts', 'frame-main.tsx', 'frame-store.ts', 'protocol.ts'];
 
 const KIT_MODULE = '@retake/components/kit';
+/** The components' renderer-free entry the composition imports its frame helpers from (never a component: importProblem). */
+const GEOMETRY_MODULE = '@retake/components/geometry';
 /** Bare modules a component may import (compile.ts ALLOWED_IMPORTS). */
 const COMPONENT_BARE = new Set(['react', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'remotion', KIT_MODULE]);
 /** Bare modules the frame, the composition and the kit may import. */
@@ -200,16 +203,18 @@ interface Owner {
 export async function buildPlayerBundle(components: readonly BundleComponent[], o: { hash?: string; held?: readonly string[] } = {}): Promise<PlayerBundle> {
   const t0 = performance.now();
   const ed = await editor();
-  const { kitEntry } = await import('@retake/components');
+  const { geometryEntry, kitEntry } = await import('@retake/components');
   const kit = kitEntry();
   if (!kit) throw new Error('the components kit is missing');
+  const geometry = geometryEntry();
+  if (!geometry) throw new Error('the components geometry entry is missing');
   const held = [...(o.held ?? [])];
   const hash = o.hash ?? (await playerBundleHash(components, held));
   const composition = compositionSource(ed.compositionFiles().root);
   const excluded: Array<{ id: string; why: string }> = [];
   let set = [...components];
   for (let attempt = 0; ; attempt++) {
-    const r = await buildOnce(set, hash, composition, kit, held);
+    const r = await buildOnce(set, hash, composition, { kit, geometry }, held);
     if (r.ok) {
       return { hash, js: r.js, boot: r.boot, components: set.filter((c) => !c.scaffold).map((c) => c.id).sort(), excluded, held, ms: Math.round(performance.now() - t0) };
     }
@@ -225,7 +230,8 @@ export async function buildPlayerBundle(components: readonly BundleComponent[], 
 
 type BuildOnce = { ok: true; js: Buffer; boot: Buffer } | { ok: false; byOwner: Map<string, string>; unowned?: string };
 
-async function buildOnce(components: readonly BundleComponent[], hash: string, composition: string, kit: string, held: readonly string[]): Promise<BuildOnce> {
+async function buildOnce(components: readonly BundleComponent[], hash: string, composition: string, entries: { kit: string; geometry: string }, held: readonly string[]): Promise<BuildOnce> {
+  const { kit, geometry } = entries;
   const { build } = await import('esbuild');
   const { unhashedFileProblem, unhashedImportMessage } = await import('@retake/components');
   const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realPath(c.dir) })).sort((a, b) => b.realDir.length - a.realDir.length);
@@ -258,6 +264,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
         if (!owner) {
           // The frame, the composition, the kit, or a package's own files.
           if (spec === KIT_MODULE) return { path: kit };
+          if (spec === GEOMETRY_MODULE) return { path: geometry };
           const inPackage = args.importer.split(sep).includes('node_modules');
           if (!inPackage && !spec.startsWith('.') && !isAbsolute(spec) && !TRUSTED_BARE.has(spec)) {
             return { errors: [{ text: `the preview does not bundle "${spec}" (imported by ${basename(args.importer)})` }] };

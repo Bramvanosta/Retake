@@ -82,6 +82,7 @@ export {
   compositionHash,
   ensureBundle,
   entrySource,
+  geometryFiles,
   listCachedBundles,
   planComponentIds,
   registryBundleComponents,

@@ -4,7 +4,7 @@
  * order — and the working records of the later steps (entries in scenario order, segments being built).
  */
 import type { ComponentKind, DisplayEntry, LoadedProject, LoadedTemplate, ResolvedTutorial, Timeline, TimelineArtefact, TimelineEvent, TimelineScene, TimelineScenePage, TimelineTrack, TimelineVideo } from '@retake/core';
-import type { ArtefactSlotType, ComponentManifest, ComponentRegistry, MediaValue, SlotContext, ThemeTokens } from '@retake/components';
+import type { ArtefactSlotType, ComponentManifest, ComponentRegistry, MediaValue, SlotContext, ThemeTokens } from '@retake/components/geometry';
 import type { ZoomMove } from '../camera.js';
 import type { CameraFrame, EditOverrides, PlanSegment, PlanSource, PlanTutorial, PlanVariant } from '../plan-types.js';
 import type { Candidate, ComponentResolver } from '../resolve.js';
@@ -13,7 +13,7 @@ import type { TutorialResolve } from '../tutorial.js';
 import type { MessageList } from '../util.js';
 import type { PlanEditInput } from './input.js';
 
-/** The input checked, the output format and the edit info (format.ts). */
+/** The input checked, the output format and the edit info (context.ts). */
 export interface PlanContext {
   input: PlanEditInput;
   timeline: Timeline;

@@ -7,8 +7,8 @@ import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
 import type { LoadedProject, Scenario } from '@retake/core';
-import type { RenderRecord } from './types.js';
 import { readRenderRecords } from '../render-record.js';
+import type { RenderRecord } from '../render-record.js';
 import { RenderError } from './types.js';
 
 export interface RunRef {

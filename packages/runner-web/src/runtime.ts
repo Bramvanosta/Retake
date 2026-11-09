@@ -19,6 +19,7 @@ import type { TemplateContext } from '@retake/core';
 import type { BrowserSession, KitClient } from './session.js';
 import type { CursorEffectPayload } from './kit/types.js';
 import { HOLD_MAX_MS } from './hold.js';
+import { INSPECT_PAUSE_CAP_S } from './inspect-limits.js';
 import { ScreencastRecorder } from './recorder.js';
 import type { StreamEncoder } from './stream.js';
 import { TrackBuilder } from './timeline.js';
@@ -33,9 +34,6 @@ import { fileSlug, throwIfAborted } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
 import type { NavigationRule } from './opens.js';
-
-/** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
-export const INSPECT_PAUSE_CAP_S = 0.2;
 
 /** A plain click whose popup may still be opening, and its timeline event (Runtime.pendingPopup). */
 export interface PendingPopup {

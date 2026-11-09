@@ -20,7 +20,7 @@ import { probeMedia, renderVideo } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { listRenders, rendersDir } from './runs.js';
 import { RenderError } from './types.js';
-import type { RenderRecord } from './types.js';
+import type { RenderRecord } from '../render-record.js';
 
 /** Delivery formats (one list with core's job input). */
 export const EXPORT_FORMATS = EXPORT_FORMAT_NAMES;
