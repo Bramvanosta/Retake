@@ -36,6 +36,7 @@ import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'no
 import { AGENT_WRITABLE_PATHS, agentWritable, channelWords, realPathOf } from './agent-trust.js';
 import type { AgentChannel } from './agent-trust.js';
 import { showHiddenChars } from './brand.js';
+import { setBundleProgramCheck } from './bundle.js';
 import { isUnder } from './client-path.js';
 import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
@@ -774,6 +775,7 @@ let agentFolders: string[] | null = null;
 /** Turn the agent policy on for these workspace folders (workspaceFolders), or off (null). */
 export function useAgentPolicy(folders: readonly string[] | null): void {
   agentFolders = folders ? [...new Set(folders.map((f) => resolve(f)))] : null;
+  setBundleProgramCheck(agentFolders ? (program, what) => policyProgram(program, what) : null);
 }
 
 /** The workspace folders of the agent policy, or null when this process does not serve trust `mcp`. */

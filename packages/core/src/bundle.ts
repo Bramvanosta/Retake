@@ -23,7 +23,6 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { policyProgram } from './agent-policy.js';
 
 /** The manifest file of a bundle (in `Contents/Resources`, or the stage folder). */
 export const BUNDLE_FILE = 'bundle.json';
@@ -349,9 +348,20 @@ const SOURCE_NAMES: Record<MediaToolSource, string> = { 'retake.yaml': '`ffmpeg:
 
 /**
  * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else this process's — under the agent policy (core
- * agent-policy.ts policyProgram) by the real path that was checked, and refused (BundleError) when it lies inside the
+ * agent-policy.ts policyProgram, through setBundleProgramCheck) by the real path that was checked, and refused (BundleError) when it lies inside the
  * workspace or is a relative path.
  */
+let programCheck: ((program: string, what: string) => { program: string; problem: string | null }) | null = null;
+
+/**
+ * The agent policy's program check for mediaBin (core agent-policy.ts useAgentPolicy sets it, null when the policy is
+ * off): handed in rather than imported, so this module keeps importing nothing but node: (it is read before the rest of
+ * core, from a stage whose manifest may be broken).
+ */
+export function setBundleProgramCheck(check: typeof programCheck): void {
+  programCheck = check;
+}
+
 function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
   const given = explicit?.trim();
   let bin: string;
@@ -365,7 +375,7 @@ function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
     const source = tool === 'ffmpeg' ? t.ffmpegSource : t.ffprobeSource;
     what = source === 'PATH' || source === 'bundled' ? tool : SOURCE_NAMES[source];
   }
-  const checked = policyProgram(bin, what);
+  const checked = programCheck ? programCheck(bin, what) : { program: bin, problem: null };
   if (checked.problem) throw new BundleError(checked.problem);
   return checked.program;
 }
