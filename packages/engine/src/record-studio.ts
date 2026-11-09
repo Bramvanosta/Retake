@@ -36,7 +36,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readdir, realpath, rename, rm, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
+import { join } from 'node:path';
 import {
   DEFAULT_TEMPLATE,
   JOB_ID_RE,
@@ -59,6 +59,7 @@ import {
   recordedAlternatives,
   scenarioBlocks,
   shownStep,
+  pathInside,
 } from '@retake/core';
 import type {
   DraftIssue,
@@ -242,11 +243,6 @@ export interface RecordStudioContext {
 
 // ── Reading the folder ─────────────────────────────────────────────────────
 
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
-
 type EventsRead = { ok: true; events: RecordedEvent[]; bytes: Buffer; dropped: number } | { ok: false; problem: string };
 
 /**
@@ -342,7 +338,7 @@ async function folderState(project: LoadedProject, id: string): Promise<'folder'
   if (!dirSt.isDirectory() || dirSt.isSymbolicLink()) return 'link';
   try {
     const [rootSt, realProject, realRoot, realDir] = await Promise.all([lstat(root), realpath(project.dir), realpath(root), realpath(dir)]);
-    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.retake', 'records') || realDir !== join(realRoot, id) || !isInside(realProject, realDir)) return 'link';
+    if (!rootSt.isDirectory() || rootSt.isSymbolicLink() || realRoot !== join(realProject, '.retake', 'records') || realDir !== join(realRoot, id) || !pathInside(realDir, realProject, { dotDotPrefix: true })) return 'link';
   } catch {
     return 'link';
   }

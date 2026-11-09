@@ -29,8 +29,9 @@ import {
   scenarioSinceRun,
   templateRefProblem,
   timelineVideo,
+  GUIDE,
 } from '@retake/core';
-import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline } from '@retake/core';
+import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline, ErrorKind } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
@@ -50,6 +51,15 @@ export class PlanTrustError extends RenderError {
   constructor(readonly problems: string[]) {
     super(`refused through MCP:\n${problems.map((p) => `- ${p}`).join('\n')}`);
     this.name = 'PlanTrustError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  override get errorDocs(): string {
+    return GUIDE.security;
   }
 }
 

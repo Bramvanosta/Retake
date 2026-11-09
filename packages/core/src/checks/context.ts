@@ -4,6 +4,7 @@ import type { IssuePath } from '../issues.js';
 import { brokenUnder } from '../validation/document.js';
 import type { LocatedIssue } from '../validation/located.js';
 import { issue } from '../validation/located.js';
+import { pathInside } from '../path-inside.js';
 
 /** Shared state of the semantic checks of one document. */
 export class CheckContext {
@@ -58,7 +59,7 @@ export class CheckContext {
     }
     const abs = resolve(dir, rel);
     const where = dir === this.projectDir ? this.dirLabel : dir;
-    if (this.confined && (isAbsolute(rel) || !isInside(dir, abs))) {
+    if (this.confined && (isAbsolute(rel) || !pathInside(abs, dir, { dotDotPrefix: true }))) {
       // agent-trust projectFileProblem's words (that check needs a scenario that parses: this one runs first).
       this.out.push(issue('error', path, `${what} "${rel}" resolves outside ${where} folder: ${this.confined === 'studio' ? 'from the Studio' : 'through MCP'} only files of the project folder are read`));
       return;
@@ -66,7 +67,7 @@ export class CheckContext {
     this.filesRead?.add(abs);
     let isFile = false;
     try {
-      isFile = existsSync(abs) && statSync(abs).isFile() && (!this.confined || isInside(realpathSync(dir), realpathSync(abs)));
+      isFile = existsSync(abs) && statSync(abs).isFile() && (!this.confined || pathInside(realpathSync(abs), realpathSync(dir), { dotDotPrefix: true }));
     } catch {
       isFile = false;
     }
@@ -75,11 +76,6 @@ export class CheckContext {
       this.out.push(issue(severity, path, `${what} "${rel}" not found in ${where}${consequence}`));
     }
   }
-}
-
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 export function isObj(v: unknown): v is Record<string, unknown> {

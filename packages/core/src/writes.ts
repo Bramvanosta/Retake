@@ -7,6 +7,8 @@ import { protectedBy } from './access.js';
 import type { ProtectedHost, RunAccess } from './access.js';
 import { hostMatches, normalizeAllowEntry, normalizeHost, networkHost } from './hosts.js';
 import type { ResolvedEnvironment, TimelineWrite, WriteMockSpec, WriteRuleSpec } from './types.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 /** Methods that never write (never stopped). */
 export const READ_METHODS: readonly string[] = ['GET', 'HEAD', 'OPTIONS'];
@@ -503,6 +505,15 @@ export class WriteRefusedError extends Error {
     this.env = env;
     if (options?.detail) this.detail = options.detail;
     if (options?.protectedBy) this.protectedBy = options.protectedBy;
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'refused';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
   }
 }
 

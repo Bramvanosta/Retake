@@ -26,7 +26,7 @@
 import { randomBytes } from 'node:crypto';
 import { lstat, open, readFile, readdir, rename, rm } from 'node:fs/promises';
 import { userInfo } from 'node:os';
-import { basename, dirname, isAbsolute, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from 'node:path';
 import {
   COMMENTS_DIR,
   COMMENT_AUTHOR_MAX,
@@ -162,11 +162,6 @@ function cleanText(raw: unknown, what: string, argument: string, required = true
   const problem = commentTextProblem(text, { what, required });
   if (problem) throw argError(argument, problem);
   return text;
-}
-
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 /** lstat, or null when it does not exist. */

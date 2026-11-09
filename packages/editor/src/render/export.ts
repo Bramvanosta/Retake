@@ -10,8 +10,8 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject } from '@retake/core';
-import type { H264Encoder, LoadedProject } from '@retake/core';
+import { EXPORT_FORMAT_NAMES, ffmpegBin, h264CodecArgs, h264Encoder, insideFolder, loadProject, GUIDE, missingOrInvalid } from '@retake/core';
+import type { H264Encoder, LoadedProject, ErrorKind } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
@@ -116,6 +116,15 @@ export class ExportError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ExportError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.editing;
   }
 }
 

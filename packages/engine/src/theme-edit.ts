@@ -42,6 +42,7 @@ import {
   readPlainFile,
   realPathOf,
   verifyEditText,
+  pathInside,
 } from '@retake/core';
 import type { ComponentKind, Template, TemplateEntry, ThemeEdit, ThemeField, WorkspaceConfig } from '@retake/core';
 import type { PaletteCheck } from '@retake/components';
@@ -93,11 +94,6 @@ export function knownThemeVersion(realFile: string, hash: string): boolean {
   return versions.get(realFile)?.includes(hash) ?? false;
 }
 
-const isInside = (parent: string, child: string) => {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-};
-
 /** The theme `name` of the workspace (a listed name, never a path) and whether the Studio may edit it. */
 async function locateTheme(ws: WorkspaceConfig, name: string): Promise<ThemeLocation> {
   checkTemplateName(name);
@@ -111,10 +107,10 @@ async function locateTheme(ws: WorkspaceConfig, name: string): Promise<ThemeLoca
 /** Why the Studio may not write this theme (critique B15), or true. */
 async function editability(ws: WorkspaceConfig, entry: TemplateEntry, realDir: string): Promise<ThemeEditable> {
   if (entry.source === 'starter') return { why: `${entry.name} is a starter theme shipped with Retake: copy it to edit it` };
-  if (isInside(realPathOf(PACKAGE_DIR), realDir)) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
+  if (pathInside(realDir, realPathOf(PACKAGE_DIR), { dotDotPrefix: true })) return { why: `${entry.name} is a theme shipped with Retake (its folder lies in the Retake package): copy it to edit it` };
   const realRoot = realPathOf(resolve(ws.root));
   const realTemplates = realPathOf(resolve(ws.templatesDir));
-  if (!isInside(realRoot, realTemplates)) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
+  if (!pathInside(realTemplates, realRoot, { dotDotPrefix: true })) return { why: `templates_dir lies outside the workspace: the Studio edits themes of the workspace only — edit ${entry.name} by hand` };
   try {
     const st = await lstat(entry.dir);
     if (st.isSymbolicLink() || !st.isDirectory()) return { why: `${entry.name} is a link to another folder: the Studio edits only real theme folders — edit it by hand` };

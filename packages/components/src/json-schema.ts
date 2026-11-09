@@ -249,14 +249,15 @@ function matchesType(t: string, v: unknown): boolean {
   }
 }
 
-function canonical(v: unknown): string {
+/** JSON with plain objects' keys in locale order (`localeCompare`): what const / enum / uniqueItems compare, and the text a message quotes. */
+function localeSortedJson(v: unknown): string {
   return JSON.stringify(v, (_k, x: unknown) =>
     isPlainObject(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x,
   );
 }
 
 function fmt(v: unknown): string {
-  return typeof v === 'string' ? JSON.stringify(v) : canonical(v);
+  return typeof v === 'string' ? JSON.stringify(v) : localeSortedJson(v);
 }
 
 /**
@@ -275,11 +276,11 @@ function validateInto(node: JsonSchemaNode, v: unknown, path: Path, out: Located
     out.push(err(path, `expected ${types.map(typeLabel).join(' or ')}, got ${describeValue(v)}`));
     return;
   }
-  if (node.const !== undefined && canonical(node.const) !== canonical(v)) {
+  if (node.const !== undefined && localeSortedJson(node.const) !== localeSortedJson(v)) {
     out.push(err(path, `expected ${fmt(node.const)}, got ${describeValue(v)}`));
     return;
   }
-  if (Array.isArray(node.enum) && !node.enum.some((e) => canonical(e) === canonical(v))) {
+  if (Array.isArray(node.enum) && !node.enum.some((e) => localeSortedJson(e) === localeSortedJson(v))) {
     const strings = node.enum.filter((e): e is string => typeof e === 'string');
     const s = typeof v === 'string' ? didYouMean(v, strings) : undefined;
     const expected = node.enum.length === 1 ? fmt(node.enum[0]) : `one of ${node.enum.map(fmt).join(', ')}`;
@@ -319,7 +320,7 @@ function validateInto(node: JsonSchemaNode, v: unknown, path: Path, out: Located
     if (typeof node.maxItems === 'number' && v.length > node.maxItems) {
       out.push(err(path, `must contain at most ${node.maxItems} item${node.maxItems === 1 ? '' : 's'}`));
     }
-    if (node.uniqueItems === true && new Set(v.map(canonical)).size !== v.length) out.push(err(path, 'items must be unique'));
+    if (node.uniqueItems === true && new Set(v.map(localeSortedJson)).size !== v.length) out.push(err(path, 'items must be unique'));
     if (isPlainObject(node.items)) v.forEach((item, i) => validateInto(node.items as JsonSchemaNode, item, [...path, i], out));
   }
   if (isPlainObject(v) && (types?.includes('object') || node.properties !== undefined)) {

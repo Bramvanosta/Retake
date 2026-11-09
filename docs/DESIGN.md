@@ -1747,11 +1747,14 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health
   responses, a check's detail and URL) under `untrusted`.
-- **Errors.** `EngineError {code, message, fix?, details?}`, codes `not_found | invalid | conflict | refused |
-  needs_approval | busy | unavailable | cancelled | internal`; `toEngineError(e)` maps the other packages' errors by
-  name in one place (ScenarioError / ConfigError → not_found or invalid, AccessError / HookSecurityError /
-  WriteRefusedError / HostRefusedError → refused, SandboxError busy / down / interrupted → busy / unavailable /
-  cancelled, CancelledError → cancelled, anything else → internal).
+- **Errors.** `EngineError {code, message, fix?, details?, docs?}`, codes `not_found | invalid | conflict | refused |
+  needs_approval | busy | unavailable | cancelled | internal` (core's error kinds, `error-kind.ts`). Every error class
+  raised on purpose states its kind (`errorKind`, a getter where it depends on the message or a field) and may name its
+  guide page (`errorDocs`, carried as `docs`); `toEngineError(e)` reads them in one place (ScenarioError / ConfigError →
+  not_found or invalid, AccessError / HookSecurityError / WriteRefusedError / HostRefusedError → refused, SandboxError
+  busy / down / interrupted → busy / unavailable / cancelled, CancelledError → cancelled; the table:
+  `packages/engine/test/error-kinds.test.ts`), anything without a kind → internal. The CLI prints an error with a kind
+  as one line, without a stack.
 
 **Runs: one executor** (`execute-run.ts`, moved from `cli/commands/run.ts`). `prepareRun(ws, project, scenario,
 {dry, until, hooks, env, headed, sandbox})` (the sandbox pick from the scenario's raw `env:`, the scenario validated

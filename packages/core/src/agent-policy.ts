@@ -42,6 +42,7 @@ import type { IssuePath } from './issues.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
 import { suggestion } from './validation/suggest.js';
+import { relativeInside } from './path-inside.js';
 
 /** Names of the loader variables (see the module comment). */
 export const LOADER_ENV_NAMES: readonly RegExp[] = [
@@ -154,10 +155,7 @@ function projectPlace(path: string, o: AgentShellOptions & { tilde?: boolean }):
   let p = path.replace(/^file:\/\//i, '');
   if (o.tilde !== false && (p === '~' || p.startsWith('~/'))) p = join(o.home ?? homedir(), p.slice(1));
   const real = realPathOf(resolve(o.cwd ?? o.projectDir, p));
-  const below = (base: string): string | undefined => {
-    const rel = relative(base, real);
-    return rel === '' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) ? undefined : rel;
-  };
+  const below = (base: string): string | undefined => relativeInside(real, base, { self: false });
   const root = realPathOf(resolve(o.projectDir));
   const own = below(root);
   if (own !== undefined) return { own };

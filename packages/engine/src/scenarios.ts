@@ -1,7 +1,7 @@
 /** Scenarios of a project for clients outside the CLI: read with a hash, validate text, save with `if_match`. */
 import { existsSync, readdirSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
-import { basename, isAbsolute, join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import {
   SCENARIO_EDIT_MAX_CHARS,
   ScenarioError,
@@ -24,6 +24,7 @@ import {
   resolveEnvironment,
   textEol,
   verifyEditText,
+  pathInside,
 } from '@retake/core';
 import type { AgentChannel, AgentTrustEnvironment, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
@@ -48,11 +49,6 @@ export interface ScenarioText {
    * Studio never writes through it (review A L1: a scenario linked to a hook script would be written into the script).
    */
   linked_to?: string;
-}
-
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
 /**
@@ -121,7 +117,7 @@ export async function getScenario(project: LoadedProject, name: string): Promise
     yaml: read.text,
     hash: read.sha256,
     utf8: read.utf8,
-    ...(isInside(realScenarios, real) ? {} : { linked_to: relative(realProject, real).split('\\').join('/') }),
+    ...(pathInside(real, realScenarios, { dotDotPrefix: true }) ? {} : { linked_to: relative(realProject, real).split('\\').join('/') }),
   };
 }
 
@@ -219,7 +215,7 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   const path = storage.resolve(ref);
   if (opts.agent) {
     const linked = await realpath(path).then(
-      async (real) => (isInside(await realpath(join(project.dir, 'scenarios')), real) ? null : real),
+      async (real) => (pathInside(real, await realpath(join(project.dir, 'scenarios')), { dotDotPrefix: true }) ? null : real),
       () => null,
     );
     if (linked) throw new EngineError('refused', `${ref} is a symbolic link to a file outside scenarios/: an agent writes scenarios only inside scenarios/ — edit it in your editor`);

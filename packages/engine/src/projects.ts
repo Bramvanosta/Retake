@@ -1,7 +1,7 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
-import { join, relative, isAbsolute } from 'node:path';
-import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { join, relative } from 'node:path';
+import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas, pathInside } from '@retake/core';
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
@@ -46,8 +46,7 @@ async function checkProjectFile(dir: string): Promise<void> {
   } catch {
     return; // no project.yaml (or no folder): core says so in its own words
   }
-  const rel = relative(realDir, real);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) {
+  if (!pathInside(real, realDir, { self: false, dotDotPrefix: true })) {
     throw new EngineError('refused', `${join(dir, PROJECT_FILE)} leads out of the project folder (a symbolic link): not read`, { fix: `replace the link with a regular file inside ${dir}` });
   }
 }

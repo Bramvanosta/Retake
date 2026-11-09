@@ -35,6 +35,8 @@ import type {
   ValidationIssue,
 } from './types.js';
 import { checkYamlDocument } from './validation/document.js';
+import { canonicalJson } from './canonical-json.js';
+import { GUIDE } from './error-kind.js';
 
 /** The usual file name of a sandbox manifest. */
 export const SANDBOX_FILE = 'sandbox.yaml';
@@ -54,6 +56,10 @@ export class SandboxConfigError extends ConfigError {
   ) {
     super(message, issues, file);
     this.name = 'ConfigError';
+  }
+
+  override get errorDocs(): string {
+    return GUIDE.sandbox;
   }
 }
 
@@ -247,20 +253,6 @@ export async function seedFileRefs(sandbox: Pick<LoadedSandbox, 'dir' | 'manifes
   };
   await walk(join(sandbox.dir, SANDBOX_SEED_DIR));
   return [...files].sort();
-}
-
-/** JSON with sorted keys (a hash input that does not depend on the order keys are written in). */
-function canonicalJson(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
-  if (v && typeof v === 'object') {
-    const o = v as Record<string, unknown>;
-    return `{${Object.keys(o)
-      .filter((k) => o[k] !== undefined)
-      .sort()
-      .map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(v);
 }
 
 /**

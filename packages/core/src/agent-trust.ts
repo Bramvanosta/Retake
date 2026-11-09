@@ -25,7 +25,7 @@
  * A `retake` command typed by a human (trust `author`) is not concerned.
  */
 import { realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
 import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
@@ -33,6 +33,7 @@ import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
 import { canonicalOrigin, scenarioNavigationProblems } from './agent-policy.js';
 import { formatPath } from './issues.js';
+import { pathInside, relativeInside } from './path-inside.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
@@ -78,10 +79,12 @@ export function realPathOf(p: string): string {
 }
 const realPath = realPathOf;
 
-/** Whether `p` is `dir` or inside it, once symbolic links are followed on both. */
+/** `p` resolved against the current folder, then its real path (realPathOf). */
+const resolvedRealPath = (p: string): string => realPathOf(resolve(p));
+
+/** Whether `p` is `dir` or inside it, once symbolic links are followed on both (pathInside with `real`). */
 export function insideFolder(dir: string, p: string): boolean {
-  const rel = relative(realPathOf(resolve(dir)), realPathOf(resolve(p)));
-  return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+  return pathInside(p, dir, { real: resolvedRealPath });
 }
 
 /**
@@ -96,8 +99,8 @@ export function projectFileProblem(projectDir: string, ref: string, o: { baseDir
   }
   const root = realPath(resolve(projectDir));
   const target = realPath(resolve(o.baseDir ?? projectDir, ref));
-  const rel = relative(root, target);
-  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+  const rel = relativeInside(target, root);
+  if (rel === undefined) {
     // Never the target itself: a path outside the project is not the agent's to learn (L4.1 review A).
     return `${ref} resolves outside the project folder: ${through} only files of the project folder are read`;
   }

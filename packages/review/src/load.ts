@@ -5,8 +5,8 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { loadProject } from '@retake/core';
-import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
+import { loadProject, GUIDE, missingOrInvalid } from '@retake/core';
+import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
 import { listRenders, rendersDir } from '@retake/editor';
 import type { RenderRecord } from '@retake/editor';
 
@@ -15,6 +15,15 @@ export class ReviewError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ReviewError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.review;
   }
 }
 

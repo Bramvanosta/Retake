@@ -1,4 +1,6 @@
 import type { ValidationIssue } from './types.js';
+import { GUIDE, missingOrInvalid } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export type IssuePath = Array<string | number>;
 
@@ -52,6 +54,15 @@ export class ConfigError extends Error {
   ) {
     super(message);
     this.name = 'ConfigError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message, this.issues);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.workspace;
   }
 }
 

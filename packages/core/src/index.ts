@@ -73,6 +73,8 @@ export * from './perf.js';
 export * from './edit-replan.js';
 export * from './blocks.js';
 export { clientPath, isUnder } from './client-path.js';
+export * from './path-inside.js';
+export * from './error-kind.js';
 export * from './scenario-edit.js';
 export * from './step-edits.js';
 export * from './field-edits.js';

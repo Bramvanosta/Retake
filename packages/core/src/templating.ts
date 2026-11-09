@@ -2,6 +2,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 const execFileP = promisify(execFile);
 
@@ -9,6 +11,15 @@ export class TemplateError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'TemplateError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 

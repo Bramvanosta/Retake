@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, statSync } from 'node:fs';
 import { isAbsolute, resolve } from 'node:path';
-import { hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
+import { canonicalJson, hookFileRefs, nestedShellScript, projectFileProblem, shellCommands, shellWords } from '@retake/core';
 import type { HookStep, ShellHookSpec } from '@retake/core';
 import type { HookPhase } from './types.js';
 
@@ -19,18 +19,6 @@ export interface HookPlace {
   files?: Record<string, string>;
 }
 
-/** JSON with object keys sorted at every depth: one text per value, whatever the order a YAML file wrote. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
-
 /**
  * The fingerprint a human approval is bound to (L3.1, R-MCP-35): sha256 of the raw hook as its file declares it — its
  * templates unresolved, so a dry preflight and the real run agree whatever `{{run.id}}` or a saved response holds —
@@ -41,7 +29,7 @@ function canonical(value: unknown): string {
 export function hookFingerprint(hook: HookStep, place: HookPlace): string {
   const files = place.files && Object.keys(place.files).length ? place.files : undefined;
   return createHash('sha256')
-    .update(canonical({ v: 1, phase: place.phase, index: place.index, env: place.env, hook, ...(files ? { files } : {}) }))
+    .update(canonicalJson({ v: 1, phase: place.phase, index: place.index, env: place.env, hook, ...(files ? { files } : {}) }))
     .digest('hex');
 }
 

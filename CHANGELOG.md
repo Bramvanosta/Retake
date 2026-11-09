@@ -6,6 +6,12 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+### Changed
+- The CLI prints these errors as one line instead of a stack trace: a scenario changed since it was submitted, a
+  write or host refused on a read-only environment or by the allow-list, an agent's render refused, an export error,
+  an unusable hooks source, a cancelled review, a full disk during a render.
+- `retake new --theme` names the starter theme (`--template` still works).
+
 ## [0.2.0] — 2026-11-03
 
 The first installable version: Retake as a macOS app with everything inside — its own Node.js, browsers, ffmpeg and

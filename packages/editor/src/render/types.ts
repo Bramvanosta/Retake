@@ -1,5 +1,7 @@
 /** Types of the render API (DESIGN-phase2 §2: renderVideo, renderStill, listRenders). */
 import type { EditOverrides, EditPlan, PlanVariant } from '../plan-types.js';
+import { GUIDE } from '@retake/core';
+import type { ErrorKind } from '@retake/core';
 
 /** A render that cannot start or failed (message written for the user). */
 export class RenderError extends Error {
@@ -10,6 +12,15 @@ export class RenderError extends Error {
   ) {
     super(message);
     this.name = 'RenderError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.editing;
   }
   /** A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`). */
   path?: RenderRecord['policy'];
@@ -23,6 +34,11 @@ export class RenderCancelledError extends RenderError {
     super('render cancelled: no output written', record);
     this.name = 'CancelledError';
   }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'cancelled';
+  }
 }
 
 /**
@@ -33,6 +49,11 @@ export class RenderDiskFullError extends RenderError {
   constructor(detail: string) {
     super(`the disk is full (${detail})`);
     this.name = 'DiskFullError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'internal';
   }
 }
 

@@ -4,7 +4,8 @@
  * runs and without anything inside the workspace, plus the Homebrew / system folders GUI clients lack.
  */
 import { existsSync, realpathSync } from 'node:fs';
-import { delimiter, dirname, isAbsolute, resolve, sep } from 'node:path';
+import { delimiter, dirname, isAbsolute, resolve } from 'node:path';
+import { pathInside } from './path-inside.js';
 
 /** Folders a GUI client's PATH lacks where Homebrew and the system keep the tools the engine runs. */
 const EXTRA_PATH = ['/opt/homebrew/bin', '/opt/homebrew/sbin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
@@ -32,9 +33,8 @@ const FOLD_CASE = process.platform === 'darwin' || process.platform === 'win32';
 
 /** Whether `p` is `folder` or inside it, under any spelling of either (and any case where the system ignores it). */
 export function isUnder(p: string, folder: string): boolean {
-  const fold = (x: string) => (FOLD_CASE ? x.toLowerCase() : x);
-  const roots = spellings(folder).map(fold);
-  return spellings(p).map(fold).some((x) => roots.some((r) => x === r || x.startsWith(r.endsWith(sep) ? r : r + sep)));
+  const roots = spellings(folder);
+  return spellings(p).some((x) => roots.some((r) => pathInside(x, r, { compare: 'spelling', fold: FOLD_CASE })));
 }
 
 /**

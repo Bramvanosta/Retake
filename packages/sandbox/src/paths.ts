@@ -1,4 +1,5 @@
-import { join, relative } from 'node:path';
+import { join } from 'node:path';
+import { relativeInside } from '@retake/core';
 
 /** Where a project keeps its sandboxes' state, lock, seed journal and service logs (git-ignored: `.retake/`). */
 export const SANDBOX_STATE_DIR = join('.retake', 'sandbox');
@@ -24,6 +25,5 @@ export function serviceLog(paths: SandboxPaths, service: string): string {
 
 /** A path as messages show it: relative to the working directory when inside it, else absolute. */
 export function shownPath(file: string, cwd: string = process.cwd()): string {
-  const rel = relative(cwd, file);
-  return rel && !rel.startsWith('..') ? rel : file;
+  return relativeInside(file, cwd, { self: false, dotDotPrefix: true }) ?? file;
 }

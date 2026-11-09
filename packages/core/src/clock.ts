@@ -4,11 +4,22 @@
  * validation and the instant a clock names (the runner installs it in the browser).
  */
 import type { ClockSpec, ResolvedClock } from './types.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export class ClockError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'ClockError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
   }
 }
 

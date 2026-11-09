@@ -6,8 +6,8 @@
  * pass their `if_match` check and rename one after the other (the last rename silently won).
  */
 import { lstat, mkdir, realpath } from 'node:fs/promises';
-import { isAbsolute, join, relative } from 'node:path';
-import { isIsoUtcDate, printableText } from '@retake/core';
+import { join, relative } from 'node:path';
+import { isIsoUtcDate, printableText, pathInside } from '@retake/core';
 import { TakeLock, readLock } from '@retake/sandbox';
 import type { LockRecord } from '@retake/sandbox';
 import { EngineError } from './errors.js';
@@ -16,11 +16,6 @@ import { EngineError } from './errors.js';
 const LOCK_RETRY_MS = 20;
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-function isInside(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
-}
 
 /** lstat, or null when it does not exist. */
 async function lstatOrNull(path: string) {
@@ -59,7 +54,7 @@ export async function toolDir(projectDir: string, sub: string): Promise<string> 
     if (state !== 'ok') throw new EngineError('refused', `${relative(projectDir, dir)}/ is ${state}: remove it (the tool makes it again)`);
   }
   const [realProject, realSub] = await Promise.all([realpath(projectDir), realpath(dir)]);
-  if (!isInside(realProject, realSub)) throw new EngineError('refused', `${relative(projectDir, dir)}/ leads out of the project folder`);
+  if (!pathInside(realSub, realProject, { dotDotPrefix: true })) throw new EngineError('refused', `${relative(projectDir, dir)}/ leads out of the project folder`);
   return dir;
 }
 

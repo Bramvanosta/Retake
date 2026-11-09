@@ -9,9 +9,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { COMPONENT_KINDS, bundleInfoOrNull } from '@retake/core';
+import { COMPONENT_KINDS, bundleInfoOrNull, relativeInside } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
 import {
   HASHED_FILE,
@@ -364,9 +364,9 @@ function realPathOf(p: string): string {
   }
 }
 
+/** `file` relative to `dir` (with `/`) when inside it and not `dir` itself, else undefined. */
 function within(dir: string, file: string): string | undefined {
-  const rel = relative(dir, file);
-  return rel !== '' && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : undefined;
+  return relativeInside(file, dir, { self: false, dotDotPrefix: true })?.split(sep).join('/');
 }
 
 /**

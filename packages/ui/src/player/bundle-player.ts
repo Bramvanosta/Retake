@@ -30,7 +30,7 @@ import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Message, Plugin } from 'esbuild';
-import { readPlainFile } from '@retake/core';
+import { readPlainFile, pathInside } from '@retake/core';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { BundleComponent } from '@retake/editor';
 import { UI_TARGETS } from '../bundle.js';
@@ -90,11 +90,6 @@ function realPath(p: string): string {
   } catch {
     return resolve(p);
   }
-}
-
-function isInside(file: string, dir: string): boolean {
-  const r = relative(dir, file);
-  return r === '' || (!r.startsWith('..') && !isAbsolute(r));
 }
 
 const editor = () => import('@retake/editor');
@@ -236,7 +231,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
   const owners: Owner[] = components.map((c) => ({ id: c.id, realDir: realPath(c.dir) })).sort((a, b) => b.realDir.length - a.realDir.length);
   const byId = new Map(owners.map((x) => [x.id, x]));
   const entryOwner = new Map(components.map((c) => [c.entry.split(sep).join('/'), c.id]));
-  const ownerOf = (file: string): Owner | undefined => owners.find((x) => isInside(file, x.realDir));
+  const ownerOf = (file: string): Owner | undefined => owners.find((x) => pathInside(file, x.realDir, { dotDotPrefix: true }));
   /** A component's words for one of its files: its id and the path inside its folder, never the folder. */
   const named = (owner: Owner, file: string) => `${owner.id}/${relative(owner.realDir, file).split(sep).join('/')}`;
   const fail = (owner: Owner, text: string) => ({ errors: [{ text, detail: owner.id }] });
@@ -294,7 +289,7 @@ async function buildOnce(components: readonly BundleComponent[], hash: string, c
         }
         const owner = byId.get(id)!;
         const real = realPath(args.path);
-        if (!isInside(real, owner.realDir)) return fail(owner, `${id}: an import leads out of the component folder (a link)`);
+        if (!pathInside(real, owner.realDir, { dotDotPrefix: true })) return fail(owner, `${id}: an import leads out of the component folder (a link)`);
         // Only files the component's content hash reads (the allow-list and every cache are keyed by it): never a dot
         // folder, node_modules, previews or dist, whatever the import's words (a folder's package.json may point there).
         const rel = relative(owner.realDir, real).split(sep).join('/');

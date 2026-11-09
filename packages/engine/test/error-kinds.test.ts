@@ -1,0 +1,148 @@
+/**
+ * toEngineError, the one mapping of an error to what a client outside the CLI is told (code, message, details): a table
+ * of every error class the packages raise on purpose, message cases included, so moving the mapping onto the classes
+ * (each states its error kind) changed nothing. An error the tool did not raise on purpose is `internal`.
+ */
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+  AccessError,
+  BundleError,
+  ClockError,
+  ConfigError,
+  EnvironmentError,
+  H264EncoderError,
+  HostRefusedError,
+  SandboxConfigError,
+  ScenarioChangedError,
+  ScenarioError,
+  StepError as ScenarioStepError,
+  TemplateError,
+  WriteRefusedError,
+} from '@retake/core';
+import type { ValidationIssue } from '@retake/core';
+import { ComponentError } from '@retake/components';
+import { ExportError, PlanError, PlanTrustError, RenderCancelledError, RenderDiskFullError, RenderError } from '@retake/editor';
+import { HookError, HookSecurityError, JournalError } from '@retake/hooks';
+import { ReviewCancelledError, ReviewError } from '@retake/review';
+import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, StepError } from '@retake/runner-web';
+import { SandboxError } from '@retake/sandbox';
+import { ENGINE_ERROR_CODES, EngineError, HooksSourceError, RunOptionError, SandboxTakeError, toEngineError } from '../src/index.js';
+import { ERROR_KINDS, errorKindOf } from '@retake/core';
+
+const ISSUE: ValidationIssue = { severity: 'error', path: ['scenes', 0], message: 'm', line: 1, col: 1 } as ValidationIssue;
+const PROJECT = { config: { name: 'shop', allow_hosts: ['staging.example.com'] } } as never;
+
+/** [what, error, code, message (default: the error's own), details] */
+const TABLE: [string, unknown, string, string?, Record<string, unknown>?][] = [
+  ['ScenarioError, not found', new ScenarioError('scenario "x" not found in /p (available: none)'), 'not_found'],
+  ['ScenarioError, does not exist', new ScenarioError('scenarios/x.yaml does not exist'), 'not_found'],
+  ['ScenarioError, no such (any case)', new ScenarioError('No such scenario'), 'not_found'],
+  ['ScenarioError, not found but issues', new ScenarioError('step not found: invalid', [ISSUE]), 'invalid', undefined, { issues: [ISSUE] }],
+  ['ScenarioError, invalid', new ScenarioError('scenario x is invalid', [ISSUE]), 'invalid', undefined, { issues: [ISSUE] }],
+  ['ScenarioError, invalid without issues', new ScenarioError('bad yaml'), 'invalid'],
+  ['ScenarioChangedError', new ScenarioChangedError('/p/scenarios/q.yaml', 'a'.repeat(64), 'b'.repeat(64), 'scenarios/q.yaml'), 'conflict', `scenarios/q.yaml changed: its bytes have sha256 ${'b'.repeat(64)}, expected ${'a'.repeat(64)}: submit it again`],
+  ['ConfigError, not found', new ConfigError('project "x" not found in /p/projects (available: none)'), 'not_found'],
+  ['ConfigError, invalid', new ConfigError('project.yaml is invalid', [ISSUE]), 'invalid', undefined, { issues: [ISSUE] }],
+  ['SandboxConfigError, invalid', new SandboxConfigError('sandbox.yaml is invalid', [ISSUE], '/p/sandbox.yaml', 'local'), 'invalid', undefined, { issues: [ISSUE] }],
+  ['SandboxConfigError, not found', new SandboxConfigError('seed file not found', [], '/p/sandbox.yaml', 'local'), 'not_found'],
+  ['EnvironmentError, not found', new EnvironmentError('environment "x" not found (available: staging)'), 'not_found'],
+  ['EnvironmentError, invalid', new EnvironmentError('environment staging has no pages'), 'invalid'],
+  ['TemplateError (a message with "not found" stays invalid)', new TemplateError('variable x not found'), 'invalid'],
+  ['ClockError', new ClockError('clock: bad date'), 'invalid'],
+  ['core StepError', new ScenarioStepError('unknown step', 3), 'invalid'],
+  ['runner StepError', new StepError('target not found'), 'invalid'],
+  ['RenderError', new RenderError('render failed: not found'), 'invalid'],
+  ['RenderCancelledError', new RenderCancelledError(), 'cancelled'],
+  ['RenderDiskFullError', new RenderDiskFullError('ENOSPC'), 'internal'],
+  ['PlanError', new PlanError('no scene'), 'invalid'],
+  ['PlanTrustError', new PlanTrustError(['music.mp3 lies outside']), 'refused'],
+  ['ComponentError, exists', new ComponentError('component "x" already exists'), 'conflict'],
+  ['ComponentError, exists with issues', new ComponentError('component "x" already exists', [{ severity: 'error', message: 'm' } as never]), 'conflict', undefined, { issues: [{ severity: 'error', message: 'm' }] }],
+  ['ComponentError, not found', new ComponentError('component "x" not found'), 'not_found'],
+  ['ComponentError, not found with issues', new ComponentError('import not found', [{ severity: 'error', message: 'm' } as never]), 'invalid', undefined, { issues: [{ severity: 'error', message: 'm' }] }],
+  ['ComponentError, invalid', new ComponentError('bad manifest'), 'invalid'],
+  ['AccessError', new AccessError('production is read-only'), 'refused'],
+  ['HookSecurityError', new HookSecurityError('host refused', 'host'), 'refused'],
+  ['WriteRefusedError', new WriteRefusedError(['POST /x'], 'staging'), 'refused'],
+  ['HostRefusedError', new HostRefusedError(['evil.example'], PROJECT), 'refused'],
+  ['runner CancelledError', new CancelledError(), 'cancelled'],
+  ['ReviewCancelledError', new ReviewCancelledError(), 'cancelled'],
+  ['ReviewError, not found', new ReviewError('render "x" not found'), 'not_found'],
+  ['ReviewError, invalid', new ReviewError('bad record'), 'invalid'],
+  ['ExportError, not found', new ExportError('no such render'), 'not_found'],
+  ['ExportError, invalid', new ExportError('cannot read the render record'), 'invalid'],
+  ['RunOptionError', new RunOptionError('--until x: not found'), 'invalid'],
+  ['HookError', new HookError('hook failed'), 'invalid'],
+  ['JournalError', new JournalError('journal unreadable', '/j.json'), 'invalid'],
+  ['HooksSourceError, usage', new HooksSourceError('"x" is not a hooks source', true), 'invalid'],
+  ['HooksSourceError, nothing to run', new HooksSourceError('no reset hooks', false), 'not_found'],
+  ['SandboxError busy', new SandboxError('the sandbox is busy', 'busy'), 'busy'],
+  ['SandboxError busy (code first)', new SandboxError('unknown sandbox', 'busy'), 'busy'],
+  ['SandboxError down', new SandboxError('the sandbox is down', 'down'), 'unavailable'],
+  ['SandboxError interrupted', new SandboxError('seed: interrupted', 'interrupted'), 'cancelled'],
+  ['SandboxError unknown', new SandboxError('unknown sandbox "x"'), 'not_found'],
+  ['SandboxError, "unknown" not first', new SandboxError('a step of unknown kind'), 'internal'],
+  ['SandboxError has no sandbox', new SandboxError('environment local has no sandbox', 'failed'), 'not_found'],
+  ['SandboxError not a sandbox', new SandboxError('x is not a sandbox', 'port'), 'not_found'],
+  ['SandboxError port', new SandboxError('port 5544 is used', 'port'), 'internal'],
+  ['SandboxError failed', new SandboxError('seed failed', 'seed'), 'internal'],
+  ['SandboxTakeError busy', new SandboxTakeError('busy', false, 'busy'), 'busy'],
+  ['SandboxTakeError down', new SandboxTakeError('down', false, 'down'), 'unavailable'],
+  ['SandboxTakeError interrupted', new SandboxTakeError('stopped', true, 'interrupted'), 'cancelled'],
+  ['SandboxTakeError unknown', new SandboxTakeError('unknown sandbox', false, 'failed'), 'not_found'],
+  ['SandboxTakeError other', new SandboxTakeError('seed failed', false, 'seed'), 'unavailable'],
+  ['SandboxTakeError without code', new SandboxTakeError('take failed', false), 'unavailable'],
+  ['RunnerError', new RunnerError('browser crashed'), 'internal'],
+  ['PreflightError', new PreflightError('session expired'), 'internal'],
+  ['LoginPageError', new LoginPageError('landed on a sign-in page'), 'internal'],
+  ['EncodeError', new EncodeError('ffmpeg failed'), 'internal'],
+  ['BundleError', new BundleError('bundle.json: not found'), 'internal'],
+  ['H264EncoderError', new H264EncoderError('no encoder'), 'internal'],
+  ['a plain Error', new Error('boom: not found'), 'internal'],
+  ['a plain Error with issues', Object.assign(new Error('x is invalid'), { issues: [ISSUE] }), 'internal'],
+  ['a TypeError', new TypeError('x is not a function'), 'internal'],
+  ['not an Error', 'just text', 'internal', 'just text'],
+  ['an EngineError', new EngineError('busy', 'held', { fix: 'wait', details: { a: 1 } }), 'busy', 'held', { a: 1 }],
+];
+
+describe('toEngineError: the mapping, class by class', () => {
+  it.each(TABLE)('%s', (_what, e, code, message, details) => {
+    const got = toEngineError(e);
+    expect(got).toBeInstanceOf(EngineError);
+    expect(got.code).toBe(code);
+    expect(got.message).toBe(message ?? (e as Error).message);
+    expect(got.details).toEqual(details);
+    if (e instanceof EngineError) expect(got).toBe(e);
+    else expect(got.fix).toBeUndefined();
+  });
+});
+
+describe('error kinds: stated by the classes', () => {
+  it('each class of the table states the kind toEngineError gives (an EngineError: its code; a bug: none)', () => {
+    for (const [what, e, code] of TABLE) {
+      const plain = !(e instanceof Error) || ['a plain Error', 'a plain Error with issues', 'a TypeError'].includes(what);
+      expect(errorKindOf(e), what).toBe(plain ? undefined : code);
+    }
+    expect(errorKindOf(Object.assign(new Error('x'), { errorKind: 'nonsense' }))).toBeUndefined();
+    expect(ENGINE_ERROR_CODES).toBe(ERROR_KINDS);
+  });
+
+  it('the guide page a class names reaches the EngineError, and exists', () => {
+    const repo = resolve(__dirname, '../../..');
+    let named = 0;
+    for (const [what, e] of TABLE) {
+      const docs = (e as { errorDocs?: string }).errorDocs;
+      expect(toEngineError(e).docs, what).toBe(e instanceof EngineError ? undefined : docs);
+      if (docs === undefined) continue;
+      named++;
+      expect(docs, what).toMatch(/^docs\/guide\/[a-z-]+\.md$/);
+      expect(existsSync(resolve(repo, docs)), `${what}: ${docs}`).toBe(true);
+    }
+    expect(named).toBeGreaterThan(40);
+    expect(toEngineError(new SandboxError('busy', 'busy')).docs).toBe('docs/guide/sandbox.md');
+    expect(toEngineError(new SandboxConfigError('x', [], '/s.yaml', 'local')).docs).toBe('docs/guide/sandbox.md');
+    expect(toEngineError(new RunnerError('x')).docs).toBeUndefined();
+  });
+});

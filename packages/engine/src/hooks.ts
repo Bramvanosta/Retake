@@ -7,7 +7,7 @@
  */
 import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
-import { isAbsolute, resolve, sep } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import {
   ScenarioError,
   compileWritePolicy,
@@ -24,8 +24,10 @@ import {
   resolveRunAccess,
   runAccess,
   urlOriginPath,
+  pathInside,
+  GUIDE,
 } from '@retake/core';
-import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario } from '@retake/core';
+import type { AgentChannel, HookStep, HookTrust, LoadedProject, ResolvedPersona, RunAccess, Scenario, ErrorKind } from '@retake/core';
 import type { HookContext, HookPhase } from '@retake/hooks';
 import type { LoginCommandOf } from './auth.js';
 
@@ -40,6 +42,15 @@ export class HooksSourceError extends Error {
   ) {
     super(message);
     this.name = 'HooksSourceError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return this.usage ? 'invalid' : 'not_found';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 
@@ -61,10 +72,6 @@ const SCENARIO_HOOKS_RE = /^([^:/\\]+):(setup|teardown)$/;
 /** The scenario name of a `<scenario>:setup|teardown` hooks source (undefined for any other source). */
 export function scenarioOfHooksSource(spec: string): string | undefined {
   return SCENARIO_HOOKS_RE.exec(spec)?.[1];
-}
-
-function inside(dir: string, file: string): boolean {
-  return file === dir || file.startsWith(dir.endsWith(sep) ? dir : dir + sep);
 }
 
 /**
@@ -103,7 +110,8 @@ export async function selectHooks(project: LoadedProject, spec: string, envOpt?:
       }
       const candidate = resolve(project.dir, spec);
       if (existsSync(candidate)) {
-        if (!inside(await realpath(project.dir), await realpath(candidate))) throw new HooksSourceError(`hooks file "${spec}" leads outside the project`, true);
+        const realProject = await realpath(project.dir);
+        if (!pathInside(await realpath(candidate), realProject, { compare: 'spelling' })) throw new HooksSourceError(`hooks file "${spec}" leads outside the project`, true);
         file = candidate;
       }
       if (!file) throw new HooksSourceError(`hooks file "${spec}" not found (looked in ${candidate})`, false);

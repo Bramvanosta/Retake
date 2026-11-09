@@ -4,8 +4,8 @@
  * warnings) is kept apart under `untrusted`, never mixed into what the engine itself says.
  */
 import { lstat, readFile, readdir } from 'node:fs/promises';
-import { isAbsolute, join, relative, sep } from 'node:path';
-import { newerFormatMessage, FORMAT_VERSIONS } from '@retake/core';
+import { isAbsolute, join, sep } from 'node:path';
+import { newerFormatMessage, FORMAT_VERSIONS, relativeInside } from '@retake/core';
 import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RUN_ID_RE, checkRunId } from './refs.js';
@@ -143,8 +143,8 @@ export async function runStatus(project: LoadedProject, runId: string): Promise<
   /** A path run.json recorded → a ref, wherever the project folder is now. */
   const refOf = (p: string | undefined): { ref: string; path: string } | undefined => {
     if (!p) return undefined;
-    const rel = isAbsolute(p) ? relative(record.dir, p) : p;
-    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return undefined;
+    const rel = isAbsolute(p) ? relativeInside(p, record.dir, { self: false, dotDotPrefix: true }) : p === '' || p.startsWith('..') ? undefined : p;
+    if (rel === undefined) return undefined;
     const ref = `${runRef}/${rel.split(sep).join('/')}`;
     try {
       return { ref, path: storage.resolve(ref) };

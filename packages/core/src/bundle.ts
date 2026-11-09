@@ -59,6 +59,11 @@ export class BundleError extends Error {
     super(message);
     this.name = 'BundleError';
   }
+
+  /** What a client outside the CLI is told (core error-kind.ts; a literal: this module imports nothing but node:). */
+  get errorKind(): 'internal' {
+    return 'internal';
+  }
 }
 
 function real(p: string): string {
@@ -70,6 +75,11 @@ function real(p: string): string {
   }
 }
 
+/**
+ * Whether `p` is `dir` or inside it — pathInside's lexical check (path-inside.ts, its options `{}`), kept here as a copy:
+ * this module imports nothing but node: builtins (it is the first module of the app bundle; test/app-bundle.test.ts loads
+ * it alone), and test/path-inside.test.ts pins this copy against pathInside.
+ */
 function within(dir: string, p: string): boolean {
   const rel = relative(dir, p);
   return rel === '' || (rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));

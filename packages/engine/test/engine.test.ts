@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AccessError, ConfigError, ScenarioError } from '@retake/core';
+import { HookSecurityError } from '@retake/hooks';
+import { CancelledError } from '@retake/runner-web';
+import { SandboxError } from '@retake/sandbox';
 import { EngineError, LocalStorage, checkRef, createEngine, firstErrorLine, maskUrlCredentials, sha256Hex, toEngineError } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -75,12 +78,14 @@ describe('toEngineError', () => {
     expect(toEngineError(new ScenarioError('not saved: …', [{ severity: 'error', path: [], message: 'm', line: 1, col: 1 }])).code).toBe('invalid');
     expect(toEngineError(new ConfigError('project "x" not found in /p/projects (available: none)')).code).toBe('not_found');
     expect(toEngineError(new AccessError('production is read-only')).code).toBe('refused');
-    expect(toEngineError(Object.assign(new Error('busy'), { name: 'SandboxError', code: 'busy' })).code).toBe('busy');
-    expect(toEngineError(Object.assign(new Error('down'), { name: 'SandboxError', code: 'down' })).code).toBe('unavailable');
-    expect(toEngineError(Object.assign(new Error('stop'), { name: 'CancelledError' })).code).toBe('cancelled');
-    expect(toEngineError(Object.assign(new Error('x'), { name: 'HookSecurityError' })).code).toBe('refused');
+    expect(toEngineError(new SandboxError('busy', 'busy')).code).toBe('busy');
+    expect(toEngineError(new SandboxError('down', 'down')).code).toBe('unavailable');
+    expect(toEngineError(new CancelledError('stop')).code).toBe('cancelled');
+    expect(toEngineError(new HookSecurityError('x', 'host')).code).toBe('refused');
     expect(toEngineError(new TypeError('boom')).code).toBe('internal');
     expect(toEngineError('text').message).toBe('text');
+    // The kind is the class's (core error-kind.ts), not the name: an error only named like one is a bug.
+    expect(toEngineError(Object.assign(new Error('busy'), { name: 'SandboxError', code: 'busy' })).code).toBe('internal');
   });
 
   it('masks a password written in a URL', () => {

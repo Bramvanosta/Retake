@@ -18,7 +18,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, re
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { readPlainFile } from '@retake/core';
+import { readPlainFile, pathInside } from '@retake/core';
 import type { PlainFileProblem, PlainFileRead } from '@retake/core';
 import { RUN_ID_RE } from './refs.js';
 
@@ -44,8 +44,12 @@ export async function lsig(path: string): Promise<string> {
   }
 }
 
+/**
+ * Whether the real path `real` is `root` or inside it (pathInside, as spelt: both are real paths). A root spelt with a
+ * trailing separator — only the filesystem root, for a real path — holds nothing but itself, as this check always had it.
+ */
 function inside(real: string, root: string): boolean {
-  return real === root || real.startsWith(root + sep);
+  return root.endsWith(sep) ? real === root : pathInside(real, root, { compare: 'spelling' });
 }
 
 /** A folder as resolved: its real path and inode. */

@@ -1,3 +1,5 @@
+import { errorKindOf } from '@retake/core';
+
 /** Process exit codes of `retake`. */
 export const EXIT = {
   ok: 0,
@@ -30,37 +32,6 @@ export class UsageError extends CliError {
   }
 }
 
-/** Error types whose message is already written for the user (no stack trace needed). */
-const KNOWN = new Set([
-  'CliError',
-  'UsageError',
-  'ConfigError',
-  'ScenarioError',
-  'EnvironmentError',
-  'TemplateError',
-  'StepError',
-  'RunnerError',
-  'PreflightError',
-  'LoginPageError',
-  'EncodeError',
-  'CancelledError',
-  'HookError',
-  'HookSecurityError',
-  'AccessError',
-  'ClockError',
-  'JournalError',
-  'ComponentError',
-  'RenderError',
-  'PlanError',
-  'ReviewError',
-  'SandboxError',
-  'EngineError',
-  'RunOptionError',
-  'SandboxTakeError',
-  'BundleError',
-  'H264EncoderError',
-]);
-
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -74,9 +45,12 @@ export function errorText(e: unknown): string {
   return `${errorMessage(e)}${typeof fix === 'string' && fix ? `\nfix: ${fix}` : ''}`;
 }
 
-/** True for errors raised on purpose by Retake packages (as opposed to bugs). */
+/**
+ * True for errors raised on purpose by Retake (as opposed to bugs): the CLI's own, and every error that states its kind
+ * (core error-kind.ts: its message is written for the person). Printed as one line, without a stack.
+ */
 export function isKnownError(e: unknown): boolean {
-  return e instanceof Error && KNOWN.has(e.name);
+  return e instanceof CliError || errorKindOf(e) !== undefined;
 }
 
 export function exitCodeOf(e: unknown): ExitCode {

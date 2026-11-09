@@ -3,7 +3,7 @@
  * no I/O, no clock, no randomness — the same input gives the same JSON.
  */
 import { dirname, extname, isAbsolute, join, relative } from 'node:path';
-import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, READING_PACE, readingSeconds, resolveEnvironment, timelineVideo, tutorialOff, wordCount } from '@retake/core';
+import { COMPONENT_KINDS, MEDIA_COMPONENTS, MULTI_PAGE_LAYOUTS, TUTORIAL_COMPONENTS, TUTORIAL_FEATURES, VIDEO_FILE_EXTENSIONS, applyTutorial, displayRows, displayUrl as displayedUrl, editDisplayTable, fileExtension, hasTokens, isLocalHost, isLocalUrl, mediaSegmentUse, parseFrameRef, READING_PACE, readingSeconds, resolveEnvironment, timelineVideo, tutorialOff, wordCount, GUIDE } from '@retake/core';
 import type {
   ComponentKind,
   DisplayEntry,
@@ -23,6 +23,7 @@ import type {
   TimelineTrack,
   TimelineVideo,
   TransitionKind,
+  ErrorKind,
 } from '@retake/core';
 import { ANCHOR_KEYS, ARTEFACT_SLOT_TYPES, GEOMETRY_KEYS, evalAnchor, evalLayoutGeometry, fontFileFace, isMultiPaneGeometry, paramEnums, parseCsv, themeTokens } from '@retake/components';
 import type { AnchorSpec, ArtefactSlotType, CaptionCue, ComponentManifest, ComponentRegistry, LayoutGeometry, MediaValue, PictureMedia, SlotContext } from '@retake/components';
@@ -122,6 +123,15 @@ export class PlanError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'PlanError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.editing;
   }
 }
 

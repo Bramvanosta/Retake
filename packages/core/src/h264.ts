@@ -5,6 +5,7 @@
  * MP4 clips, the 1080p export) ask here once per ffmpeg path.
  */
 import { execFile } from 'node:child_process';
+import type { ErrorKind } from './error-kind.js';
 
 export type H264Encoder = 'libx264' | 'h264_videotoolbox';
 
@@ -15,6 +16,11 @@ export class H264EncoderError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'H264EncoderError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'internal';
   }
 }
 

@@ -1,8 +1,16 @@
+import type { ErrorKind } from '@retake/core';
+import { GUIDE } from '@retake/core';
+
 /** Base class of every error raised by the web runner. */
 export class RunnerError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
     super(message, options);
     this.name = 'RunnerError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'internal';
   }
 }
 
@@ -30,6 +38,15 @@ export class StepError extends RunnerError {
     super(message);
     this.name = 'StepError';
   }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
+  }
 }
 
 /** The run was cancelled (AbortSignal, SIGINT/SIGTERM). */
@@ -37,6 +54,11 @@ export class CancelledError extends RunnerError {
   constructor(message = 'run cancelled') {
     super(message);
     this.name = 'CancelledError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'cancelled';
   }
 }
 
@@ -49,6 +71,10 @@ export class PreflightError extends RunnerError {
     super(message);
     this.name = 'PreflightError';
   }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
+  }
 }
 
 /**
@@ -59,6 +85,10 @@ export class LoginPageError extends RunnerError {
   constructor(message: string) {
     super(message);
     this.name = 'LoginPageError';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.environments;
   }
 }
 

@@ -2,7 +2,7 @@
  * Review contract (docs/DESIGN-phase2.md §3): what `reviewRender` writes and returns, the findings and the rules
  * (thresholds) of the checks.
  */
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject, ErrorKind } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { PlanSegment, RenderRecord } from '@retake/editor';
 
@@ -166,6 +166,11 @@ export class ReviewCancelledError extends Error {
   constructor(message = 'review cancelled') {
     super(message);
     this.name = 'ReviewCancelledError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'cancelled';
   }
 }
 

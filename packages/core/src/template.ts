@@ -60,7 +60,8 @@ const LEGACY_FIELDS: Partial<Record<ComponentKind, { section: string; keys: stri
   transition: { section: 'transitions', keys: ['between_scenes', 'duration'] },
 };
 
-function sortedJson(v: unknown): string {
+/** JSON with object keys in locale order (`localeCompare`): a choice's params as a theme description shows and compares them. */
+function localeSortedJson(v: unknown): string {
   return JSON.stringify(v, (_k, x: unknown) =>
     x && typeof x === 'object' && !Array.isArray(x)
       ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => a.localeCompare(b)))
@@ -70,7 +71,7 @@ function sortedJson(v: unknown): string {
 
 function describeChoice(c: ThemeComponent | null): string {
   if (!c) return 'none';
-  return Object.keys(c.params).length > 0 ? `${c.id} ${sortedJson(c.params)}` : c.id;
+  return Object.keys(c.params).length > 0 ? `${c.id} ${localeSortedJson(c.params)}` : c.id;
 }
 
 /** A `components` entry contradicting the legacy fields written next to it (checkTemplateFile, theme edits). */
@@ -101,7 +102,7 @@ export function legacyContradictions(value: unknown): LegacyContradiction[] {
     if (written.length === 0) continue;
     const a = chosen[kind];
     const b = legacy[kind];
-    const same = a === null || b === null ? a === b : a.id === b.id && sortedJson(a.params) === sortedJson(b.params);
+    const same = a === null || b === null ? a === b : a.id === b.id && localeSortedJson(a.params) === localeSortedJson(b.params);
     if (same) continue;
     out.push({
       kind,

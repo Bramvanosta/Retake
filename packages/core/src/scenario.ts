@@ -16,6 +16,10 @@ import { checkYamlDocument } from './validation/document.js';
 import { finalizeIssues } from './validation/located.js';
 import { suggestion } from './validation/suggest.js';
 import { zodIssues } from './validation/zod-issues.js';
+import { relativeInside } from './path-inside.js';
+import { canonicalJson } from './canonical-json.js';
+import { GUIDE, missingOrInvalid } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export type { ScenarioCheckOptions } from './checks/scenario.js';
 export { ARTEFACT_SLOTS, DOCUMENT_FILE_EXTENSIONS, isDocumentPath } from './checks/scenario.js';
@@ -29,6 +33,15 @@ export class ScenarioError extends Error {
   ) {
     super(message);
     this.name = 'ScenarioError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return missingOrInvalid(this.message, this.issues);
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 
@@ -45,6 +58,16 @@ export class ScenarioChangedError extends ScenarioError {
   ) {
     super(`${shown} changed: its bytes have sha256 ${actual}, expected ${expected}`, [], file);
     this.name = 'ScenarioChangedError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  override get errorKind(): ErrorKind {
+    return 'conflict';
+  }
+
+  /** The message a client gets: it may submit the work again. */
+  get clientMessage(): string {
+    return `${this.message}: submit it again`;
   }
 }
 
@@ -93,17 +116,7 @@ async function resolveScenarioFile(project: LoadedProject, nameOrPath: string): 
   );
 }
 
-/** JSON with object keys sorted (arrays keep their order): two YAML texts with the same data give the same string. */
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
-
-/** The data of a YAML text as canonical JSON; undefined when it does not parse cleanly. */
+/** The data of a YAML text as canonical JSON (keys sorted, arrays in order); undefined when it does not parse cleanly. */
 function yamlData(text: string): string | undefined {
   try {
     const doc = parseDocument(text);
@@ -158,8 +171,7 @@ export async function readScenarioSource(project: LoadedProject, nameOrPath: str
   const bytes = await (o.readFile ?? readFile)(file);
   const sha256 = sha256Of(bytes);
   if (o.expectSha256 !== undefined && o.expectSha256 !== sha256) {
-    const rel = relative(project.dir, file);
-    const shown = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : basename(file);
+    const shown = relativeInside(file, project.dir, { self: false, dotDotPrefix: true })?.split(sep).join('/') ?? basename(file);
     throw new ScenarioChangedError(file, o.expectSha256, sha256, shown);
   }
   const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8');

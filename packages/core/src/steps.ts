@@ -11,6 +11,8 @@ import type {
   TargetSpec,
 } from './types.js';
 import { isPoint, normalizeTarget } from './targets.js';
+import { GUIDE } from './error-kind.js';
+import type { ErrorKind } from './error-kind.js';
 
 export class StepError extends Error {
   constructor(
@@ -19,6 +21,15 @@ export class StepError extends Error {
   ) {
     super(message);
     this.name = 'StepError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
+  }
+
+  get errorDocs(): string {
+    return GUIDE.scenarios;
   }
 }
 

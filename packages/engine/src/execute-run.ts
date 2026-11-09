@@ -4,8 +4,8 @@
  * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv } from '@retake/core';
-import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@retake/core';
+import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv, GUIDE, sandboxErrorKind } from '@retake/core';
+import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig, ErrorKind } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
 import { formatMs, sandboxUpText } from './format.js';
@@ -17,6 +17,11 @@ export class RunOptionError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'RunOptionError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return 'invalid';
   }
 }
 
@@ -30,6 +35,15 @@ export class SandboxTakeError extends Error {
   ) {
     super(message);
     this.name = 'SandboxTakeError';
+  }
+
+  /** What a client outside the CLI is told (core error-kind.ts). */
+  get errorKind(): ErrorKind {
+    return sandboxErrorKind(this.code, this.message, 'unavailable');
+  }
+
+  get errorDocs(): string {
+    return GUIDE.sandbox;
   }
 }
 
