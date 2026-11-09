@@ -72,14 +72,15 @@ export {
   editsThemes,
   guardsStudioRecordings,
   needsIfMatch,
-  personChannel,
   proposes,
   refusalChannel,
+  speaksAsPerson,
   submittedInStudio,
+  submitterChannel,
 } from './caller.js';
 export type { Caller, CallerChannel, CallerTrust } from './caller.js';
-export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, keyChain, sessionsToConfirm } from './admission.js';
-export type { Admission, AdmissionDeps, KeyChain, SessionToConfirm, SessionsView } from './admission.js';
+export { EXPORTS_OPEN_MAX, SUBMIT_RULES, admission, confirmWhy, opChain, sessionsToConfirm } from './admission.js';
+export type { Admission, AdmissionDeps, OpChain, PreparedTake, RunAdmit, SessionToConfirm, SessionsView } from './admission.js';
 export type { AuthStatus, AuthStatusItem, Engine, EngineClient, EngineInfo, EngineOptions, InspectSubmitted, PreviewSubmitted, RecordSubmitted, RunJobView, RunListItem, RunStatusWithJob, ScenarioCheck, ScenarioSessions, WaitOptions } from './engine.js';
 export { formatMs, sandboxUpText } from './format.js';
 export { signalInterrupts } from './interrupts.js';
@@ -98,7 +99,7 @@ export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';
 export { isAlive, processStart, selfIdentity } from './jobs/proc.js';
 export type { ProcessIdentity } from './jobs/proc.js';
-export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine, submitRunJob } from './jobs/run-job.js';
+export { PAUSE_MAX_ENV, executeRunJob, finaliseReservedRun, pauseMaxMs, preflightJournal, runBlockers, runCommandLine } from './jobs/run-job.js';
 export { LIVE_FILE_VERSION, LIVE_FRAME_MAX_BYTES, LIVE_IDLE_MS, LIVE_PATH, LIVE_SOCKETS_MAX, LIVE_STREAMS_MAX, encodeRecord, openLiveChannel, openLiveFeed, readLiveChannel } from './jobs/live-channel.js';
 export type { LiveChannel, LiveChannelInfo, LiveFeedFrame, LiveFrameHeader } from './jobs/live-channel.js';
 export {
@@ -182,13 +183,12 @@ export {
   renderCommandLine,
   renderJobEditText,
   reviewInline,
-  submitRenderJob,
 } from './jobs/render-job.js';
 export type { InlineReview, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
 export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';
-export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine, submitExportJob } from './jobs/export-job.js';
+export { DEFAULT_JOB_EXPORT_FORMATS, cleanupInterruptedExport, executeExportJob, exportCommandLine } from './jobs/export-job.js';
 export type { ExportRequest } from './jobs/export-job.js';
 export { REVIEW_IMAGE_BASE64_MAX, REVIEW_IMAGE_MAX_PX, REVIEW_IMAGE_RE, REVIEW_IMAGE_SOURCE_MAX, reviewGet, reviewImage, thumbnail } from './reviews.js';
 export { THEME_PREVIEW_KINDS, executePreviewJob, libraryStatesOf, previewCommandLine, previewDir, submitPreviewJob } from './jobs/preview-job.js';

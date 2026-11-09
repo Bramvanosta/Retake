@@ -2182,13 +2182,18 @@ browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): 
 tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
 `destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
 commands, `workspace`: components and themes rendered), `serves` for the commands that serve others (`mcp`, `ui`,
-`worker`) — the engine's admission rules it meets (§4d), and, for each shell (CLI commands, MCP tool, Studio op), the
+`worker`) — the engine's admission rules it meets (§4d; held to the engine's `SUBMIT_RULES` by a test), and, for each shell (CLI commands, MCP tool, Studio op), the
 service or the one-line reason it has none; the Studio's entry holds its pinned arguments (`run_status` `wait_s` 0;
 `auth_login` `mode` headed, `wait_s` 0) and its ops' own statuses (`render_frame` busy → 429, read with
 `studioStatus`). The Studio's allow-list `UI_OPS` is `servedNames('studio')`, in catalogue order. Tests hold MCP
 `TOOLS` (in order), the Studio's own ops, and the CLI's commander tree (`commandPaths()`) to it, and every tool's
 read-only and destructive hints to its effect (`hintsOf`: read-only exactly for `read`, destructive exactly for
-`destructive`; a table test); snapshots hold the published tool list and the Studio's operation table byte for byte
+`destructive`; a table test — the hints are written by hand in each tool and held to the facets, not generated).
+`destructive` is narrow: an operation that removes or replaces data as its purpose, or in one of its cases, without an
+`if_match` on the version read, and its entry says what (`removes`; `facetProblem` refuses a destructive entry without
+one, a `removes` on any other, and a destructive operation held to admission rules) — `job_cancel` is one (it discards
+a recording whose window is open), `scenario_save` and the README are writes (if_match), and a run's hooks or sandbox
+reset are its `code: 'project'`, not its effect. Snapshots hold the published tool list and the Studio's operation table byte for byte
 (packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
 
 **Admission rules and the caller (L6.5).** The engine's submits of a run, a render and an export hold the Studio and
@@ -2196,13 +2201,24 @@ MCP (caller.ts `admits`) to four rules, each checked and followed by its submit 
 process (admission.ts): `one_run_per_scenario` (a run of the scenario queued or running → 409 `conflict` naming it),
 `sessions_ack` (a capture of a scenario whose persona's session is not valid and that no run signs in by itself needs
 `sessions_ack` naming it: `details.sessions`), `one_render_per_scenario`, `export_cap` (one export of a render, at most
-`EXPORTS_OPEN_MAX` = 2 of the workspace; a `latest` is held to it once resolved). The words are the ones the Studio
-gave when the rules were its own; the CLI's own commands (in their process) and the engine's tests are not held. Who
-calls is one `Caller` (`callerOf(client)`: client, channel `cli` / `studio` / `mcp`, trust `author` / `mcp`), and every
-decision the engine takes from it is a function of caller.ts (agent checks, refusal wording, person channel,
-`if_match`, proposals, the Record screen, the worker's clean environment, theme edits, admission); `EngineClient` is
-core's `JobClient`; `HookTrust`, `PlanTrust` and `BrandTrust` are the caller's trust (a compile-time check), and the
-engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`).
+`EXPORTS_OPEN_MAX` = 2 of the workspace; a `latest` is held to it once resolved). The run submit (jobs/run-job.ts
+`submitRunJob`) makes two checks from inside (`RunAdmit`): `sessions_ack` once it opened the request and parsed the
+scenario, on the environment the take uses (the sandbox picked for `sandbox: true`) — so a refused request or a
+scenario that does not parse gets the submit's own answer —, and `one_run_per_scenario` again after the gates, just
+before the run id is reserved (a human's approval of hooks may take minutes, while another process queues a run). The
+rules hold within one process (each has its key in that engine; two processes check apart). A rule applies where
+`SUBMIT_RULES` lists it for that submit. The refusals are worded per channel: the Studio's words are those it gave when
+the rules were its own; MCP's use the glossary's words and name the tools that follow up (`run_status`, `run_cancel`,
+`auth_login`, `sessions_ack`, `render_status`, `job_cancel`, `job_status`; packages/cli/test/glossary.test.ts). The
+CLI's own commands (in their process) and the engine's tests are not held, and the engine's index exports no submit
+that skips the rules. Who calls is one `Caller` (`callerOf(client)`: client, channel `cli` / `studio` / `mcp`, trust
+`author` / `mcp`), and every decision the engine and the Studio's server take from it, or from who submitted a job, is
+a function of caller.ts (agent checks, refusal wording — `refusalChannel` of a caller, `submitterChannel` of a job's
+submitter —, person channel `speaksAsPerson`, `if_match`, proposals, the Record screen, a Studio recording
+`submittedInStudio`, the worker's clean environment, theme edits, admission); `EngineClient` is core's `JobClient`;
+`CallerTrust` is defined there and core's `HookTrust`, the editor's `PlanTrust` and `BrandTrust` are held to it (a
+compile-time check), and the engine holds every job and a theme made from a brand to `mcp` (`ENGINE_TRUST`, which every
+job module uses instead of a literal — a test reads them).
 
 **`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it; from the MCP
 package it takes only the tools it serves as they are and the Set-up sheet's registration helpers).

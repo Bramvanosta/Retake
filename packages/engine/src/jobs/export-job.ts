@@ -12,6 +12,7 @@
 import { EXPORT_FORMAT_NAMES, JOB_INPUT_VERSION, projectPath } from '@retake/core';
 import type { ExportFormatName, ExportJobInput, WorkspaceConfig } from '@retake/core';
 import type { BrowserProcessInfo, ExportProgress } from '@retake/editor';
+import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
@@ -73,7 +74,7 @@ export async function submitExportJob(
   if (rerendered.length) {
     // A re-render plans the master's run with its theme and overrides: through the same gates as a render job.
     try {
-      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: 'mcp', measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
+      await ed.planRun({ project, run: record.run_dir, scenario: record.scenario, template: record.template, overrides: record.overrides, root: ctx.ws.root, trust: ENGINE_TRUST, measureMusic: false, ...(record.edit?.from === 'scenario' ? {} : { edit: 'run' as const }) });
     } catch (e) {
       if (e instanceof ed.PlanTrustError) throw new EngineError('refused', e.message, { fix: fix(record.id), details: { problems: e.problems } });
       throw toEngineError(e);
@@ -135,7 +136,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
     render: input.render_id,
     formats: input.formats,
     ...(input.gif ? { gif: input.gif } : {}),
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     network: 'guard',
     signal: ctx.signal,
     onBrowser: (b) => ctx.browser(b),

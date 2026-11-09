@@ -11,7 +11,7 @@ import type { ResetResult, Sandbox, SandboxLog } from '@retake/sandbox';
 import { approvalChecker, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
 import { toEngineError } from '../errors.js';
-import { callerOf } from '../caller.js';
+import { ENGINE_TRUST, callerOf } from '../caller.js';
 import { hookRunRecorder } from '../store/journal.js';
 import type { InterruptPort } from '../interrupts.js';
 import { openProjectBySlug } from '../projects.js';
@@ -110,7 +110,7 @@ export async function executeSandboxJob(ctx: SandboxJobContext): Promise<Sandbox
   const log: SandboxLog = (level, message) => {
     if (level !== 'debug') ctx.event({ type: 'log', level, message });
   };
-  const seedTrust = { trust: 'mcp' as const, confirm: approvalChecker(input.approvals) };
+  const seedTrust = { trust: ENGINE_TRUST, confirm: approvalChecker(input.approvals) };
   const recordSeedRun = hookRunRecorder(project.root, callerOf(input.submitted_by), { project: project.slug });
   const stop = await ctx.interrupts.open({ message: 'interrupted: stopping what this command started…', onQuitSync: () => sb.killStartedSync() });
   const pages = resolveEnvironment(project, sb.env).pages;

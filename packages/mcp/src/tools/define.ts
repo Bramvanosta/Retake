@@ -20,6 +20,8 @@ export const THEME_WRITE: ToolAnnotations = { readOnlyHint: false, destructiveHi
 export const RUN_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true };
 /** Asks for a job's cancel (its teardown and rollbacks still run). */
 export const CANCEL: ToolAnnotations = { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false };
+/** A job's cancel, which discards a recording whose window is open (the catalogue: job_cancel is destructive). */
+export const JOB_CANCEL: ToolAnnotations = { ...CANCEL, destructiveHint: true };
 /** Starts a job that runs hooks against an environment (a real run may write or delete: approvals guard it). */
 export const HOOK_JOB: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true };
 /** Opens a browser on the user's machine for a human to sign in (or plays a persona's login steps): saves a session. */

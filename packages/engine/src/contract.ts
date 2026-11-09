@@ -30,7 +30,7 @@ export {
   studioPins,
   studioStatus,
 } from './catalogue.js';
-export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, NotServed, Operation, Shell, StudioServe } from './catalogue.js';
+export type { AdmissionRule, ArgumentPin, CodeRun, Effect, Facets, FacetHints, NotServed, Operation, OperationName, Shell, StudioServe } from './catalogue.js';
 
 /** The hints a client reads about an operation (the MCP tool annotations). */
 export interface ToolAnnotations {

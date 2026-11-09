@@ -27,8 +27,9 @@ import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, R
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
+import type { RunAdmit } from '../admission.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
-import { callerOf } from '../caller.js';
+import { ENGINE_TRUST, callerOf } from '../caller.js';
 import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
@@ -284,10 +285,15 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
   return { kind: err.code === 'invalid' ? 'invalid' : 'prepare' };
 }
 
-/** Check, reserve the run id and queue a `run` job. */
-export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
+/**
+ * Check, reserve the run id and queue a `run` job. `admit` (the engine's admission rules, admission.ts, for the callers
+ * it admits): `prepared` once the request is opened and its scenario parsed — on the environment the take uses —,
+ * `reserve` after the gates (and any human approval they waited for), just before the run id is reserved.
+ */
+export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, approver?: Approver, admit?: RunAdmit): Promise<{ job: JobRecord; run_id: string; dir: string; warnings: string[] }> {
   const s = await prepareSubmit(ctx, req);
   const { project, prepared } = s;
+  await admit?.prepared({ project, scenario: prepared.scenario, env: prepared.sandboxEnv ?? req.env });
   const sc = prepared.scenario.scenario;
   const env = resolveEnvironment(project, prepared.sandboxEnv ?? req.env ?? sc.env);
   const hooksMode = req.hooks ?? (req.mode === 'capture' ? 'run' : 'skip');
@@ -304,6 +310,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
       details: { shown: req.expect_sha256, current: sha },
     });
   }
+  await admit?.reserve();
   const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
   const queued: RunRecord = {
     version: FORMAT_VERSIONS.run,
@@ -444,7 +451,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
         signal: ctx.signal,
         loginCommand: (p) => coreLoginCommand(p).replace(/^retake /, `${ctx.cli} `),
         // A queued job came through MCP: the hook files' trust flags do not count; only the approvals taken at submit.
-        hookTrust: 'mcp',
+        hookTrust: ENGINE_TRUST,
         hookVia: agentChannel(input.submitted_by),
         confirmHook: approvalChecker(input.approvals),
         recordAs: callerOf(input.submitted_by),

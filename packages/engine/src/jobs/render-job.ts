@@ -22,6 +22,7 @@ import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, T
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
+import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
@@ -136,7 +137,7 @@ export async function planRenderRequest(
       ...(req.template !== undefined ? { template: req.template } : {}),
       overrides: overrides as EditOverrides,
       root: ws.root,
-      trust: 'mcp',
+      trust: ENGINE_TRUST,
       ...(o.registry ? { registry: o.registry } : {}),
       ...(o.musicLength ? { musicLength: o.musicLength } : {}),
       // L4.6 (critique B9): a proposal previewed in the timeline is planned from its text in memory, never written.
@@ -401,7 +402,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
     ...(input.template !== undefined ? { template: input.template } : {}),
     overrides: input.overrides as EditOverrides,
     root: ctx.ws.root,
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     network: 'guard',
     signal: ctx.signal,
     reserved: { scenario: input.scenario, version, variant },

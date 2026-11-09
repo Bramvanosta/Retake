@@ -23,7 +23,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_INPUT_VERSION, SLUG_RE, resolveRunAccess } from '@retake/core';
 import type { RecordJobInput, RecordedEvent, WorkspaceConfig } from '@retake/core';
-import { submittedInStudio } from '../caller.js';
+import { ENGINE_TRUST, submittedInStudio } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { checkSandboxEnv } from '../execute-run.js';
 import { openProjectBySlug } from '../projects.js';
@@ -241,7 +241,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         stop: ctx.finish ? AbortSignal.any([ctx.stop, ctx.finish]) : ctx.stop,
         skipCheck: () => ctx.stop.aborted,
         signal: AbortSignal.any([ctx.signal, early.signal]),
-        hookTrust: 'mcp',
+        hookTrust: ENGINE_TRUST,
         loginCommand,
         history: false,
         ...(ctx.test ?? {}),

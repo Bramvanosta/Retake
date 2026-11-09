@@ -12,18 +12,18 @@ import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigat
 import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
-import { refusalChannel } from './caller.js';
+import { ENGINE_TRUST, submitterChannel } from './caller.js';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
 import { formatBytes } from './prune.js';
 import type { PruneItem, PruneResult } from './prune.js';
 
 /**
- * The wording channel of a client's refusals (caller.ts refusalChannel): the Studio (`ui`) is told "from the Studio"
+ * The wording channel of a client's refusals (caller.ts submitterChannel): the Studio (`ui`) is told "from the Studio"
  * and to run the command in a terminal, never that "this MCP client" cannot ask; every other client gets the MCP wording.
  */
 export function agentChannel(client: JobClient | undefined): AgentChannel {
-  return refusalChannel(client);
+  return submitterChannel(client);
 }
 
 /** Why the client cannot ask its human, for a `needs_approval` refusal. */
@@ -185,7 +185,7 @@ export async function preflightHooks(
   const { ctx, access } = await createHookContext(project, {
     env: o.env,
     dry: true,
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     ...(o.via ? { via: o.via } : {}),
     ...(o.vars ? { vars: o.vars } : {}),
     ...(o.scenario ? { scenario: o.scenario } : {}),

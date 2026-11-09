@@ -5,7 +5,7 @@ import type { JobRecord } from '@retake/engine';
 import type { ToolImage } from '../result.js';
 import { projectSlug } from '../schema.js';
 import { plural } from '../result.js';
-import { CANCEL, READ, defineTool } from './define.js';
+import { JOB_CANCEL, READ, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import { JOB_WAIT_MAX_S, waitJob, waitS } from './run.js';
 import { detail } from '../compact.js';
@@ -209,7 +209,7 @@ export const jobCancel = defineTool({
   title: 'Cancel a job',
   description: 'Cancel a job: a queued one never starts; a running run stops at its next step, then its teardown and pending rollbacks still run; a recording whose window is open is discarded (after it, only its check replay stops). Finished jobs are left as they are.',
   input: z.strictObject({ job_id: jobId }),
-  annotations: CANCEL,
+  annotations: JOB_CANCEL,
   async run({ job_id }, { engine }) {
     const job = await engine.jobs.cancel(job_id);
     const what = job.state === 'cancelled' ? 'cancelled' : job.state === 'running' || job.state === 'queued' ? 'cancel requested (teardown and rollbacks run first)' : `already ${job.state}`;

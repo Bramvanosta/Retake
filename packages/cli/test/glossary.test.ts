@@ -1,7 +1,8 @@
 /**
  * The glossary (docs/GLOSSARY.md) in the interfaces: `retake new --theme` (with `--template`, its old name, still
- * accepted and no longer shown), and the retired words of the glossary's table absent from the CLI help and from the
- * MCP tools' titles, descriptions and argument descriptions (the tool and argument names themselves stay).
+ * accepted and no longer shown), and the retired words of the glossary's table absent from the CLI help, from the
+ * MCP tools' titles, descriptions and argument descriptions (the tool and argument names themselves stay) and from the
+ * engine's admission refusals as MCP words them (the Studio's keep its own labels).
  */
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -10,6 +11,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOOLS, protocolTool } from '@retake/mcp';
+import { admission } from '@retake/engine';
+import type { JobRecord, PreparedTake } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 import { helpTexts } from '../src/main.js';
 
@@ -100,6 +103,33 @@ function toolTexts(): Array<{ tool: string; text: string }> {
 
 const WORDS = retiredWords(readFileSync(join(ROOT, 'docs/GLOSSARY.md'), 'utf8'));
 
+/**
+ * Every refusal of the engine's admission rules (admission.ts) worded for a channel: a dry run and a capture of the
+ * scenario queued, personas to confirm (one checked first, one not), a render queued, an export of the render queued,
+ * the workspace's exports at the cap.
+ */
+async function admissionRefusals(channel: 'mcp' | 'studio'): Promise<string[]> {
+  const job = (id: string, input: Record<string, unknown>) => ({ id, state: 'queued', input: { version: 1, submitted_by: 'test', ...input } }) as unknown as JobRecord;
+  const take = { project: {}, scenario: { name: 's', scenario: {} }, env: undefined } as unknown as PreparedTake;
+  const out: string[] = [];
+  const refusal = async (p: Promise<unknown>) => {
+    const e = await p.then(() => undefined, (x: unknown) => x as Error);
+    expect(e, 'an admission refusal').toBeInstanceOf(Error);
+    out.push(e!.message);
+  };
+  const of = (jobs: JobRecord[], personas: Array<{ persona: string; status: string; auto: boolean; has_check: boolean }> = []) =>
+    admission({ channel, queue: { list: async (f) => jobs.filter((j) => !f?.kinds || f.kinds.includes(j.input.kind)) }, sessions: async () => ({ personas }) });
+  for (const mode of ['dry', 'capture'] as const) {
+    await refusal(of([job('j1', { kind: 'run', project: 'p', scenario: 's', mode, run_id: '20261109-120000-s' })]).run({ project: 'p', scenario: 's', mode: 'dry' }, async () => undefined));
+  }
+  const personas = [{ persona: 'a', status: 'never', auto: false, has_check: true }, { persona: 'b', status: 'expired', auto: false, has_check: false }];
+  for (const list of [personas, personas.slice(0, 1)]) await refusal(of([], list).run({ project: 'p', scenario: 's', mode: 'capture' }, (admit) => admit.prepared(take)));
+  await refusal(of([job('j2', { kind: 'render', project: 'p', scenario: 's', render_id: 's-v2' })]).render({ project: 'p', scenario: 's' }, async () => undefined));
+  await refusal(of([job('j3', { kind: 'export', project: 'p', render_id: 's-v2' })]).export({ project: 'p', render_id: 's-v2' }, async () => undefined));
+  await refusal(of([job('j4', { kind: 'export', project: 'p', render_id: 's-v3' }), job('j5', { kind: 'export', project: 'p', render_id: 's-v4' })]).export({ project: 'p', render_id: 's-v2' }, async () => undefined));
+  return out;
+}
+
 describe('the glossary in the CLI and the MCP tools', () => {
   // The words come from the glossary's table (a new row needs no change here); this checks the table is read whole.
   it("reads the retired words from every row of the glossary's table: lower-case words or phrases", () => {
@@ -141,6 +171,20 @@ describe('the glossary in the CLI and the MCP tools', () => {
     expect(texts.length).toBeGreaterThan(100);
     const hits = texts.flatMap((t) => findRetired(t, WORDS));
     expect(hits, hits.join('\n')).toEqual([]);
+  });
+
+  it("the engine's admission refusals use none of them as MCP words them; the Studio's keep its labels", async () => {
+    const mcp = await admissionRefusals('mcp');
+    expect(mcp).toHaveLength(7);
+    const hits = mcp.flatMap((m) => findRetired(m, WORDS));
+    expect(hits, hits.join('\n')).toEqual([]);
+    // MCP is told the tools that follow up; the Studio's words are its screens' (its Rehearse button).
+    expect(mcp[0]).toMatch(/^a dry run of s is queued .*\(run_status\).*\(run_cancel\)$/);
+    expect(mcp[2]).toMatch(/sign in first \(auth_login\), or confirm the capture \(sessions_ack naming them\)$/);
+    expect(mcp[3]).toMatch(/\(sessions_ack naming it\)$/);
+    const studio = await admissionRefusals('studio');
+    expect(studio[0]).toBe('a rehearsal of s is queued (20261109-120000-s): wait for it to end, or stop it');
+    expect(studio[2]).toMatch(/: sign in first, or confirm the capture$/);
   });
 
   it("the MCP tools' titles, descriptions, argument descriptions and validation messages use none of them", () => {

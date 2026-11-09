@@ -17,8 +17,11 @@ import type { EngineErrorCode } from './errors.js';
 /**
  * What an operation does to the workspace, the strongest that applies: `read` reads only; `write` writes authored
  * files, a job's state (a cancel, a pause), what a job produces (a run, a render, an export) or the machine's set-up;
- * `destructive` may remove or replace data a person made (pruned runs, a replaced theme, a discarded recording, a reset
- * sandbox, a hook that deletes).
+ * `destructive` removes or replaces data as its purpose — or as what one of its cases does — without an `if_match` on
+ * the version the caller read (pruned runs, a replaced theme, a discarded recording, a reset sandbox, hooks run on
+ * their own: a teardown or a reset), and says what (`removes`). A write with an `if_match` (scenario_save, the README)
+ * stays a write: it replaces only the version the caller read. What an operation risks by running code (a capture's
+ * hooks, a sandbox reset before a take) is its `code` facet, not its effect: a run adds a run, it is a write.
  */
 export const EFFECTS = ['read', 'write', 'destructive'] as const;
 export type Effect = (typeof EFFECTS)[number];
@@ -44,6 +47,8 @@ export type AdmissionRule = (typeof ADMISSION_RULES)[number];
 /** What an operation does: the facets the shells' annotations and the engine's rules are held to. */
 export interface Facets {
   readonly effect: Effect;
+  /** What a destructive operation removes or replaces (one line): set exactly when its effect is `destructive`. */
+  readonly removes?: string;
   /** Queued as a job for the workspace's worker by the MCP server and the Studio (the CLI runs it in its process). */
   readonly job: boolean;
   readonly code: CodeRun;
@@ -94,14 +99,16 @@ const STUDIO: StudioServe = {};
 // The facets most operations share.
 const R: Facets = { effect: 'read', job: false, code: 'none' };
 const W: Facets = { effect: 'write', job: false, code: 'none' };
-const D: Facets = { effect: 'destructive', job: false, code: 'none' };
 const JOB: Facets = { effect: 'write', job: true, code: 'none' };
 const JOB_PROJECT: Facets = { effect: 'write', job: true, code: 'project' };
 const JOB_WORKSPACE: Facets = { effect: 'write', job: true, code: 'workspace' };
-const JOB_PROJECT_DESTRUCTIVE: Facets = { effect: 'destructive', job: true, code: 'project' };
 const WORKSPACE: Facets = { effect: 'write', job: false, code: 'workspace' };
-const PROJECT_DESTRUCTIVE: Facets = { effect: 'destructive', job: false, code: 'project' };
 const SERVES: Facets = { effect: 'write', job: false, code: 'none', serves: true };
+// A destructive operation says what it removes or replaces.
+const D = (removes: string): Facets => ({ effect: 'destructive', job: false, code: 'none', removes });
+const JOB_PROJECT_DESTRUCTIVE = (removes: string): Facets => ({ effect: 'destructive', job: true, code: 'project', removes });
+const PROJECT_DESTRUCTIVE = (removes: string): Facets => ({ effect: 'destructive', job: false, code: 'project', removes });
+const HOOK_DATA = "the product's data its hooks remove or replace (a teardown's or a reset's purpose)";
 
 // The admission rules of the operations that queue a run, a render or an export.
 const DRY_RUN_RULES: readonly AdmissionRule[] = ['one_run_per_scenario'];
@@ -126,15 +133,15 @@ const AGENT_ONLY = no('an aid for Claude, who writes the scenario: no Studio scr
 const TERMINAL_ONLY_MCP = no('a command a person runs in a terminal');
 const TERMINAL_ONLY_STUDIO = no('a command a person runs in a terminal: no Studio screen');
 
-/** Every operation, MCP tools first (in the order tools/list gives them), then the Studio's own ops, then the CLI's own. */
-export const CATALOGUE: readonly Operation[] = [
+// Every operation, MCP tools first (in the order tools/list gives them), then the Studio's own ops, then the CLI's own.
+const ENTRIES = [
   // The MCP tools.
   { name: 'engine_info', ...R, cli: no('`retake --version` and `retake doctor` tell a person the same'), mcp: true, studio: STUDIO },
   { name: 'project_list', ...R, cli: ['list'], mcp: true, studio: STUDIO },
   { name: 'project_get', ...R, cli: no('a person reads README.md and project.yaml'), mcp: true, studio: STUDIO },
   { name: 'project_create', ...W, cli: ['new'], mcp: true, studio: no('no Studio screen creates a project: `retake new` in a terminal') },
   { name: 'project_update_readme', ...W, cli: no('a person edits README.md'), mcp: true, studio: STUDIO },
-  { name: 'project_prune', ...D, cli: ['prune'], mcp: true, studio: no('no Studio screen frees disk space: `retake prune` in a terminal') },
+  { name: 'project_prune', ...D('the runs, renders and reviews nothing needs any more'), cli: ['prune'], mcp: true, studio: no('no Studio screen frees disk space: `retake prune` in a terminal') },
   { name: 'scenario_get', ...R, cli: no('a person opens scenarios/<name>.yaml'), mcp: true, studio: no('the scenario screen reads the file through scenario_blocks') },
   { name: 'scenario_validate', ...R, cli: ['validate'], mcp: true, studio: STUDIO },
   { name: 'scenario_save', ...W, cli: no('a person edits scenarios/<name>.yaml'), mcp: true, studio: no('one Studio write path for a scenario: scenario_edit') },
@@ -165,7 +172,7 @@ export const CATALOGUE: readonly Operation[] = [
   { name: 'template_list', ...R, cli: ['list'], mcp: true, studio: no('the theme screens list themes through theme_list') },
   { name: 'template_preview', ...JOB_WORKSPACE, cli: no('`retake still --theme` renders a frame of a video with a theme'), mcp: true, studio: no("the theme editor's live preview is theme_preview, in the sandboxed frame") },
   { name: 'template_from_site', ...JOB, cli: ['theme from-site'], mcp: true, studio: no("a site extraction needs a person's approval of the URL: the Studio shows the command (site_list)") },
-  { name: 'template_create_from_brand', ...D, cli: ['theme create'], mcp: true, studio: no('the theme editor makes a new theme through theme_create, never replacing one') },
+  { name: 'template_create_from_brand', ...D('a theme it made through MCP that nobody edited (replace: true)'), cli: ['theme create'], mcp: true, studio: no('the theme editor makes a new theme through theme_create, never replacing one') },
   { name: 'component_list', ...R, cli: ['components list'], mcp: true, studio: no('the library screen lists components through library_view') },
   { name: 'component_get', ...R, cli: no("`retake components list` lists them; a component's folder holds its manifest and README"), mcp: true, studio: no("the library screen shows a component's detail through library_component") },
   { name: 'component_validate', ...R, cli: ['components validate'], mcp: true, studio: no('no Studio screen checks a component: `retake components validate` in a terminal') },
@@ -173,9 +180,10 @@ export const CATALOGUE: readonly Operation[] = [
   { name: 'component_create', ...W, cli: ['components create'], mcp: true, studio: no('component code is the person\'s: `retake components create` scaffolds one') },
   { name: 'job_list', ...R, cli: ['jobs list'], mcp: true, studio: STUDIO },
   { name: 'job_status', ...R, cli: ['jobs status'], mcp: true, studio: no('the Studio follows jobs through its event stream, run_status and scenario_renders') },
-  { name: 'job_cancel', ...W, cli: ['jobs cancel'], mcp: true, studio: no('the Studio cancels a job of its own kind only: run_cancel, render_cancel, sign_in_cancel and the record ops') },
-  { name: 'hooks_run', ...JOB_PROJECT_DESTRUCTIVE, cli: ['hooks run'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
-  { name: 'env_reset', ...JOB_PROJECT_DESTRUCTIVE, cli: ['env reset'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
+  // A cancel stops a job; one case discards: a recording whose window is open (what the person performed in it).
+  { name: 'job_cancel', ...D('a recording whose window is open (its draft is never made)'), cli: ['jobs cancel'], mcp: true, studio: no('the Studio cancels a job of its own kind only: run_cancel, render_cancel, sign_in_cancel and the record ops') },
+  { name: 'hooks_run', ...JOB_PROJECT_DESTRUCTIVE(HOOK_DATA), cli: ['hooks run'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
+  { name: 'env_reset', ...JOB_PROJECT_DESTRUCTIVE('what the hooks did to an environment: its pending rollbacks and its reset hooks'), cli: ['env reset'], mcp: true, studio: NO_HOOKS_IN_STUDIO },
   { name: 'auth_status', ...R, cli: ['auth status'], mcp: true, studio: STUDIO },
   {
     name: 'auth_login',
@@ -192,8 +200,8 @@ export const CATALOGUE: readonly Operation[] = [
     },
   },
   { name: 'sandbox_status', ...R, cli: ['sandbox status'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
-  { name: 'sandbox_up', ...JOB_PROJECT_DESTRUCTIVE, cli: ['sandbox up'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
-  { name: 'sandbox_reset', ...JOB_PROJECT_DESTRUCTIVE, cli: ['sandbox reset'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
+  { name: 'sandbox_up', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, seeded again when its seed changed"), cli: ['sandbox up'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
+  { name: 'sandbox_reset', ...JOB_PROJECT_DESTRUCTIVE("a sandbox's data, put back to its seed"), cli: ['sandbox reset'], mcp: true, studio: NO_SANDBOX_IN_STUDIO },
 
   // The Studio's own ops.
   { name: 'activity_list', ...R, cli: no('the workspace index is the Studio\'s cache: `retake jobs list` lists jobs'), mcp: no('the workspace index is the Studio\'s cache for its activity feed: Claude lists with job_list and run_list'), studio: STUDIO },
@@ -247,14 +255,14 @@ export const CATALOGUE: readonly Operation[] = [
   { name: 'record_view', ...R, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'record_annotate', ...W, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'record_stop', ...W, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
-  { name: 'record_discard', ...D, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
+  { name: 'record_discard', ...D('a recording the Studio started, and its draft'), cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'record_save', ...W, cli: RECORD_CLI, mcp: RECORD_PANEL, studio: STUDIO },
   { name: 'unsaved_report', ...W, cli: DESKTOP_ONLY, mcp: DESKTOP_ONLY, studio: STUDIO },
   { name: 'desktop_answer', ...W, cli: DESKTOP_ONLY, mcp: DESKTOP_ONLY, studio: STUDIO },
   { name: 'setup_status', ...R, cli: no('`retake doctor` checks this machine'), mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_cli_install', ...W, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_cli_choose', ...W, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
-  { name: 'setup_cli_remove', ...D, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
+  { name: 'setup_cli_remove', ...D('the `retake` command the app installed'), cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_claude_code_run', ...W, cli: no('`retake mcp --print-config` prints the registration a person runs'), mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_claude_desktop_add', ...W, cli: no('`retake mcp --print-config` prints the entry a person adds'), mcp: SETUP_ONLY, studio: STUDIO },
   { name: 'setup_notifications', ...W, cli: SETUP_ONLY, mcp: SETUP_ONLY, studio: STUDIO },
@@ -266,9 +274,9 @@ export const CATALOGUE: readonly Operation[] = [
   { name: 'workspace_init', ...W, cli: ['init'], mcp: TERMINAL_ONLY_MCP, studio: TERMINAL_ONLY_STUDIO },
   { name: 'raw_export', ...W, cli: ['export-capture'], mcp: no('a raw package is for another editing tool: a person exports it in a terminal'), studio: TERMINAL_ONLY_STUDIO },
   { name: 'still', ...WORKSPACE, cli: ['still'], mcp: no('Claude sees frames through review_get and template_preview'), studio: no('the comment screen shows frames of a render (render_frame)') },
-  { name: 'hooks_rollback', ...PROJECT_DESTRUCTIVE, cli: ['hooks rollback'], mcp: no('env_reset replays pending rollbacks first'), studio: NO_HOOKS_IN_STUDIO },
+  { name: 'hooks_rollback', ...PROJECT_DESTRUCTIVE("what a capture's or a hook run's hooks did (their pending rollbacks)"), cli: ['hooks rollback'], mcp: no('env_reset replays pending rollbacks first'), studio: NO_HOOKS_IN_STUDIO },
   { name: 'sandbox_init', ...W, cli: ['sandbox init'], mcp: no("sandbox.yaml is the person's file, never written through MCP"), studio: NO_SANDBOX_IN_STUDIO },
-  { name: 'sandbox_down', ...PROJECT_DESTRUCTIVE, cli: ['sandbox down'], mcp: no('Claude starts and resets a sandbox; a person stops it'), studio: NO_SANDBOX_IN_STUDIO },
+  { name: 'sandbox_down', ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"), cli: ['sandbox down'], mcp: no('Claude starts and resets a sandbox; a person stops it'), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_logs', ...R, cli: ['sandbox logs'], mcp: no("sandbox_status says a sandbox's state; its logs are read in a terminal"), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'doctor', ...R, cli: ['doctor'], mcp: no("engine_info says what Claude needs; the machine's checks are the person's"), studio: no("the Set-up sheet shows the installed app's state (setup_status)") },
   { name: 'history', ...R, cli: ['history'], mcp: no("the journal is the person's record of who changed what: Claude reads the files themselves"), studio: no('no Studio screen shows the journal: `retake history` in a terminal') },
@@ -276,7 +284,13 @@ export const CATALOGUE: readonly Operation[] = [
   { name: 'mcp_serve', ...SERVES, cli: ['mcp'], mcp: no('the MCP server itself'), studio: no('the Set-up sheet registers it with Claude (setup_claude_code_run, setup_claude_desktop_add)') },
   { name: 'studio_serve', ...SERVES, cli: ['ui'], mcp: no('the Studio is the person\'s: Claude never opens it or calls its routes'), studio: no('the Studio\'s server itself') },
   { name: 'worker_run', ...SERVES, cli: ['worker'], mcp: no('the MCP server starts the worker in the background'), studio: no('the Studio starts the worker in the background') },
-];
+] as const satisfies readonly Operation[];
+
+/** The name of an operation of the catalogue. */
+export type OperationName = (typeof ENTRIES)[number]['name'];
+
+/** Every operation, MCP tools first (in the order tools/list gives them), then the Studio's own ops, then the CLI's own. */
+export const CATALOGUE: readonly (Operation & { readonly name: OperationName })[] = ENTRIES;
 
 /** Whether a shell serves an operation. */
 export function servedBy(op: Operation, shell: Shell): boolean {
@@ -286,7 +300,7 @@ export function servedBy(op: Operation, shell: Shell): boolean {
 }
 
 /** The names of the operations a shell serves, in catalogue order. */
-export function servedNames(shell: Shell): string[] {
+export function servedNames(shell: Shell): OperationName[] {
   return CATALOGUE.filter((o) => servedBy(o, shell)).map((o) => o.name);
 }
 
@@ -340,12 +354,16 @@ export function annotationProblem(facets: Pick<Facets, 'effect'>, a: { readOnlyH
 
 /**
  * Why an operation's facets do not hold together, or undefined: a read queues nothing and runs no code; a job is
- * queued by MCP or the Studio; a serving command is the CLI's, writes and is no job; admission rules belong to jobs.
+ * queued by MCP or the Studio; a serving command is the CLI's, writes and is no job; admission rules belong to jobs;
+ * a destructive operation says what it removes or replaces, and only it does; an operation held to admission rules
+ * queues a run, a render or an export — it adds, it is never destructive (its hooks or sandbox are its `code`).
  */
 export function facetProblem(op: Operation): string | undefined {
   if (op.effect === 'read' && (op.job || op.code !== 'none')) return 'a read queues no job and runs no code';
   if (op.job && !servedBy(op, 'mcp') && !servedBy(op, 'studio')) return 'a job is queued by MCP or the Studio, which serve none of it';
   if (op.serves && (servedBy(op, 'mcp') || servedBy(op, 'studio') || op.job || op.effect !== 'write' || op.code !== 'none')) return 'a serving command is a CLI command that writes its own state only';
   if (op.admission?.length && !op.job) return 'admission rules belong to an operation that queues a job';
+  if ((op.effect === 'destructive') !== (op.removes !== undefined && op.removes.trim() !== '')) return 'a destructive operation says what it removes or replaces (removes), and only it does';
+  if (op.admission?.length && op.effect === 'destructive') return 'an operation held to admission rules adds a run, a render or an export: never destructive (its hooks and sandbox are its code)';
   return undefined;
 }

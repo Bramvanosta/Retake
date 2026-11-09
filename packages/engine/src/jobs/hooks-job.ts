@@ -13,7 +13,7 @@ import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceC
 import type { HookResult } from '@retake/hooks';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
 import type { Approver } from '../approvals.js';
-import { callerOf } from '../caller.js';
+import { ENGINE_TRUST, callerOf } from '../caller.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { createHookContext, scenarioOfHooksSource, selectHooks } from '../hooks.js';
 import { openProjectBySlug } from '../projects.js';
@@ -196,7 +196,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     ...(sel.vars ? { vars: sel.vars } : {}),
     runId: input.journal_id,
     ...(sel.scenario ? { scenario: sel.scenario } : {}),
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     confirm: approvalChecker(input.approvals),
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
@@ -233,7 +233,7 @@ export async function executeEnvResetJob(ctx: HooksJobContext<EnvResetJobInput>)
     env: input.env,
     dry: input.dry,
     runId: input.journal_id,
-    trust: 'mcp',
+    trust: ENGINE_TRUST,
     confirm: approvalChecker(input.approvals),
     log: (level, message) => ctx.event({ type: 'log', level: levelOf(level), message }),
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,

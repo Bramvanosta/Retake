@@ -7,7 +7,7 @@
  */
 import { hostname } from 'node:os';
 import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders } from '@retake/core';
-import type { CommentAuthor, LegacyInfo, RunMode, WorkspaceConfig } from '@retake/core';
+import type { CommentAuthor, LegacyInfo, LoadedProject, RunMode, Scenario, WorkspaceConfig } from '@retake/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -100,7 +100,7 @@ import { usageCounts } from './history.js';
 import type { UsageCounts } from './history.js';
 import { pruneApprovalRequest, takePruneApproval } from './approvals.js';
 import { admission } from './admission.js';
-import { ENGINE_TRUST, admits, agentChecks, agentWorkspace, anchorsOnShownRender, callerOf, chainsRecordings, cleansWorkerEnv, drivesRecordScreen, needsIfMatch, personChannel as speaksAsPerson, proposes, refusalChannel } from './caller.js';
+import { ENGINE_TRUST, admits, agentChecks, agentWorkspace, anchorsOnShownRender, callerOf, chainsRecordings, cleansWorkerEnv, drivesRecordScreen, needsIfMatch, proposes, refusalChannel, speaksAsPerson } from './caller.js';
 import type { EngineClient } from './caller.js';
 import type { StoreScope } from './store/project-store.js';
 import type { Approver } from './approvals.js';
@@ -614,7 +614,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
   // (fail-safe). The name of a person channel is this process's (the page never names an author).
   const commentAuthor = (): CommentAuthor => (caller.channel === 'mcp' ? { via: 'mcp', name: MCP_AUTHOR_NAME } : { via: caller.channel, name: defaultAuthorName() });
   // What only a person channel does (a terminal, the Studio): create and reopen threads.
-  const personChannel = (what: string, where = `retake comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
+  const personOnly = (what: string, where = `retake comment ${what.split(' ')[0]} in a terminal, or the Studio`) => {
     if (!speaksAsPerson(caller)) {
       throw new EngineError('refused', `${what} is for a person (${where}): an agent replies to and resolves comments`);
     }
@@ -725,11 +725,9 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     return view;
   };
 
-  const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
-    const p = await project(slug);
-    const text = await getScenario(p, name);
-    const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
-    if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
+  // The sessions of a parsed scenario on an environment: the Run screen's panel (forScenario) and the capture's
+  // sessions_ack rule (on the scenario and environment the run submit settled).
+  const sessionsOf = async (p: LoadedProject, name: string, scenario: Scenario, o: { env?: string; mode?: RunMode }): Promise<ScenarioSessions> => {
     // The secrets of the login steps are looked for where the worker this client starts finds them.
     const workerEnv = opts.workerEnv ?? (cleansWorkerEnv(caller) ? cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) : process.env);
     const r = await scenarioPersonaStates(p, scenario, loginCommand, { ...(o.env !== undefined ? { env: o.env } : {}), hooks: (o.mode ?? 'capture') === 'capture', workerEnv });
@@ -747,8 +745,18 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       issues: r.issues,
     };
   };
-  // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's.
-  const admitted = admits(caller) ? admission({ queue, sessions: (slug, name, env) => forScenario(slug, name, { ...(env !== undefined ? { env } : {}), mode: 'capture' }) }) : undefined;
+  const forScenario = async (slug: string, name: string, o: { env?: string; mode?: RunMode } = {}): Promise<ScenarioSessions> => {
+    const p = await project(slug);
+    const text = await getScenario(p, name);
+    const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
+    if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
+    return sessionsOf(p, name, scenario, o);
+  };
+  // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's,
+  // worded for its channel.
+  const admitted = admits(caller)
+    ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
+    : undefined;
   return {
     root: ws.root,
     queue,
@@ -878,8 +886,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       },
       status: runStatusWithJob,
       submit: async (req, o = {}) => {
-        const submit = () => submitRunJob(submitCtx, req, o.approver);
-        const r = await (admitted ? admitted.run(req, submit) : submit());
+        const r = await (admitted ? admitted.run(req, (admit) => submitRunJob(submitCtx, req, o.approver, admit)) : submitRunJob(submitCtx, req, o.approver));
         const worker = await startWorker();
         return { job: r.job, run_id: r.run_id, warnings: [...r.warnings, ...(worker?.other ? [otherCopyWarning(worker.other)] : [])], ...(worker ? { worker } : {}) };
       },
@@ -1123,7 +1130,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
       list: async (slug, req) => listComments(await project(slug), req),
       get: async (slug, id) => getComment(await project(slug), id),
       add: async (slug, req) => {
-        personChannel('add (creating a thread)');
+        personOnly('add (creating a thread)');
         // The Studio comments the render it showed: a reused id is a conflict, never another render's frame.
         if (anchorsOnShownRender(caller) && (req.render_created_at === undefined || req.render_created_at === null)) {
           throw new EngineError('invalid', 'render_created_at is required to comment from the Studio: the created_at of the render shown', { details: { argument: 'render_created_at' } });
@@ -1152,13 +1159,13 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         );
       },
       reopen: async (slug, id, note, o = {}) => {
-        personChannel('reopen (reopening a thread)');
+        personOnly('reopen (reopening a thread)');
         needIfMatch(o.if_match, 'reopen');
         return reopenComment(await project(slug), id, note, commentAuthor(), { ...(o.if_match !== undefined && o.if_match !== null ? { ifMatch: o.if_match } : {}), scope });
       },
       anchorAt: async (slug, req) => anchorAt(await project(slug), req),
       apply: async (slug, id, req) => {
-        personChannel('apply (applying a proposal)', 'in the Studio: an agent proposes, a person applies');
+        personOnly('apply (applying a proposal)', 'in the Studio: an agent proposes, a person applies');
         needIfMatch(req.if_match, 'apply');
         return applyProposal(
           await project(slug),

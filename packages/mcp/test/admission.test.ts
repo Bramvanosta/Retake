@@ -1,6 +1,7 @@
 /**
  * The engine's admission rules through the MCP tools (callTool, the path the protocol layer runs every call through,
- * with an engine of client `mcp`): the same refusals, codes and messages the Studio gives — one run of a scenario at a
+ * with an engine of client `mcp`): the refusals and codes the Studio gives, worded for MCP (the glossary's words, the
+ * tools that follow up) — one run of a scenario at a
  * time (run_dry, run_capture), the sessions acknowledgement of a capture (run_capture `sessions_ack`), one render of a
  * scenario at a time (render), one export of a render and two of the workspace at once (export). Each refused call
  * queues nothing.
@@ -76,7 +77,7 @@ describe('the admission rules through MCP', () => {
     for (const tool of ['run_dry', 'run_capture']) {
       const e = await refusal(tool, { project: P, scenario: 'twice' });
       expect(e.code).toBe('conflict');
-      expect(e.message).toBe(`a rehearsal of twice is queued (${runId}): wait for it to end, or stop it`);
+      expect(e.message).toBe(`a dry run of twice is queued (${runId}): wait for it to end (run_status), or stop it (run_cancel)`);
       expect(e.details).toMatchObject({ run_id: runId });
     }
     expect(await open()).toEqual(before);
@@ -89,7 +90,7 @@ describe('the admission rules through MCP', () => {
       expect(e.code).toBe('conflict');
       expect(e.details).toEqual({ sessions: [{ persona: 'supplier', status: 'never', checked_first: true }] });
       expect(e.message).toBe(
-        'supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid: sign in first, or confirm the capture',
+        'supplier (never signed in): its session is not valid and no run signs it in by itself. The run checks it first and stops before filming if still not valid: sign in first (auth_login), or confirm the capture (sessions_ack naming it)',
       );
     }
     expect((await refusal('run_capture', { project: P, scenario: 'signed', sessions_ack: ['../x'] })).code).toBe('invalid');
@@ -101,18 +102,23 @@ describe('the admission rules through MCP', () => {
     expect(ok.ok, JSON.stringify(ok)).toBe(true);
   });
 
+  it('run_capture {sandbox: true}: the sessions are those of the sandbox the take uses (its accounts sign in by themselves) — queued', async () => {
+    const r = await call('run_capture', { project: P, scenario: 'signed', sandbox: true });
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+  });
+
   it('render: one render of a scenario at a time — a conflict naming the render queued', async () => {
     const busy = await queue.enqueue({
       version: JOB_INPUT_VERSION, kind: 'render', project: P, scenario: 'quote', run_id: '20261017-130000-quote', timeline_sha256: 'a'.repeat(64), render_id: 'quote-v3', overrides: {}, submitted_by: 'test',
     });
     const e = await refusal('render', { project: P, scenario: 'quote' });
-    expect(e).toMatchObject({ code: 'conflict', message: 'render quote-v3 of quote is queued: wait for it to end, or cancel it', details: { render_id: 'quote-v3', job: busy.id } });
+    expect(e).toMatchObject({ code: 'conflict', message: 'render quote-v3 of quote is queued: wait for it to end (render_status), or cancel it (job_cancel)', details: { render_id: 'quote-v3', job: busy.id } });
   });
 
   it('export: one export of a render at a time, at most two of the workspace', async () => {
     const plant = (render_id: string) => queue.enqueue({ version: JOB_INPUT_VERSION, kind: 'export', project: P, render_id, formats: ['mp4_1080p'], submitted_by: 'test' });
     const busy = await plant('quote-v1');
-    expect(await refusal('export', { project: P, render_id: 'quote-v1' })).toMatchObject({ code: 'conflict', message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end` });
+    expect(await refusal('export', { project: P, render_id: 'quote-v1' })).toMatchObject({ code: 'conflict', message: `an export of quote-v1 is queued (job ${busy.id}): wait for it to end (job_status)` });
     await plant('quote-v2');
     expect(await refusal('export', { project: P, render_id: 'quote-v7' })).toMatchObject({ code: 'conflict', message: '2 exports are already queued or running: wait for one to end', details: { open: 2 } });
   });

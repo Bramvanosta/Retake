@@ -32,7 +32,7 @@ import {
   studioStatus,
 } from '@retake/engine/contract';
 import type { Facets, NotServed, Operation, StudioServe, ToolDef } from '@retake/engine/contract';
-import { ENGINE_ERROR_CODES, EngineError } from '../src/index.js';
+import { ENGINE_ERROR_CODES, EngineError, SUBMIT_RULES } from '../src/index.js';
 
 const why = (v: unknown): string | undefined => (v && typeof v === 'object' && 'why' in v ? (v as NotServed).why : undefined);
 
@@ -61,6 +61,31 @@ describe('the operation catalogue', () => {
     expect(facetProblem({ ...op, effect: 'destructive', serves: true, mcp: { why: 'none' }, studio: { why: 'none' } })).toMatch(/a serving command/);
     expect(facetProblem({ ...op, effect: 'write', admission: ['export_cap'] })).toMatch(/admission rules belong/);
     expect(facetProblem({ ...op, effect: 'write', job: true, admission: ['export_cap'] })).toBeUndefined();
+    // A destructive operation says what it removes or replaces, and only it does.
+    expect(facetProblem({ ...op, effect: 'destructive' })).toMatch(/says what it removes/);
+    expect(facetProblem({ ...op, effect: 'destructive', removes: ' ' })).toMatch(/says what it removes/);
+    expect(facetProblem({ ...op, effect: 'destructive', removes: 'the runs it prunes' })).toBeUndefined();
+    expect(facetProblem({ ...op, effect: 'write', removes: 'the runs it prunes' })).toMatch(/and only it does/);
+    // An operation held to admission rules adds a run, a render or an export: never destructive.
+    expect(facetProblem({ ...op, effect: 'destructive', removes: 'x', job: true, code: 'project', admission: ['one_run_per_scenario'] })).toMatch(/never destructive/);
+    expect(facetProblem({ ...op, effect: 'write', job: true, code: 'project', admission: ['one_run_per_scenario'] })).toBeUndefined();
+  });
+
+  it('destructive is narrow: what removes or replaces data as its purpose (or in one of its cases), without if_match, and says what', () => {
+    const removes = Object.fromEntries(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => [o.name, o.removes]));
+    for (const [name, what] of Object.entries(removes)) {
+      expect(what, name).toBeTypeOf('string');
+      expect(what!.length, name).toBeGreaterThan(10);
+      expect(what, name).not.toMatch(/\n/);
+    }
+    // job_cancel discards a recording whose window is open; run_cancel stops a run (its teardown still runs).
+    expect(catalogueOperation('job_cancel')?.effect).toBe('destructive');
+    expect(catalogueOperation('run_cancel')?.effect).toBe('write');
+    // A run, a render or an export adds; its hooks or sandbox reset are its `code`, not its effect.
+    for (const name of ['run_dry', 'run_capture', 'scenario_run']) expect(catalogueOperation(name), name).toMatchObject({ effect: 'write', code: 'project' });
+    // A replace bound to the version read (if_match) is a write.
+    for (const name of ['scenario_save', 'project_update_readme', 'scenario_edit', 'theme_edit', 'thread_apply']) expect(catalogueOperation(name)?.effect, name).toBe('write');
+    expect(CATALOGUE.filter((o) => o.removes !== undefined).map((o) => o.name)).toEqual(Object.keys(removes));
   });
 
   it('the facets decide two hints, as this table says: read-only exactly for a read, destructive exactly for destructive', () => {
@@ -85,6 +110,28 @@ describe('the operation catalogue', () => {
     expect(annotationProblem({ effect: 'write' }, {})).toBeUndefined();
     expect(annotationProblem({ effect: 'read' }, {})).toMatch(/readOnlyHint/);
     expect(annotationProblem({ effect: 'destructive' }, { readOnlyHint: false })).toMatch(/destructiveHint/);
+  });
+
+  it("each operation's admission rules are the rules the engine's submit it goes through holds (SUBMIT_RULES)", () => {
+    // The submit of each admitted operation (engine runs.submit, renders.submit, exports.submit), and its mode.
+    const SUBMIT: Record<string, { submit: keyof typeof SUBMIT_RULES; dry?: boolean }> = {
+      run_dry: { submit: 'run', dry: true },
+      run_capture: { submit: 'run' },
+      scenario_run: { submit: 'run' },
+      render: { submit: 'render' },
+      scenario_render: { submit: 'render' },
+      export: { submit: 'export' },
+      review_export: { submit: 'export' },
+    };
+    expect(CATALOGUE.filter((o) => o.admission).map((o) => o.name).sort()).toEqual(Object.keys(SUBMIT).sort());
+    for (const o of CATALOGUE.filter((x) => x.admission)) {
+      const { submit, dry } = SUBMIT[o.name]!;
+      // A dry run meets every rule of the run submit but the capture's sessions acknowledgement.
+      const want = (SUBMIT_RULES[submit] as readonly string[]).filter((r) => !(dry && r === 'sessions_ack'));
+      expect(o.admission, o.name).toEqual(want);
+    }
+    // Every rule is held by some submit.
+    expect([...new Set(Object.values(SUBMIT_RULES).flat())].sort()).toEqual([...ADMISSION_RULES].sort());
   });
 
   it('the operations that queue a run, a render or an export name the admission rules the engine holds them to', () => {
@@ -168,14 +215,14 @@ describe('the operation catalogue', () => {
     expect(CATALOGUE.filter((o) => servedBy(o, 'studio') && ((o.studio as StudioServe).pins?.length || (o.studio as StudioServe).status)).map((o) => o.name)).toEqual(['run_status', 'auth_login', 'render_frame']);
   });
 
-  it('counts 123 operations: 45 MCP tools, 76 Studio ops, 55 served by 45 CLI commands; 56 read, 57 write, 10 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
+  it('counts 123 operations: 45 MCP tools, 76 Studio ops, 55 served by 45 CLI commands; 56 read, 56 write, 11 destructive; 20 jobs; 9 run project code, 8 workspace code; 3 serve', () => {
     expect(CATALOGUE).toHaveLength(123);
     expect(servedNames('mcp')).toHaveLength(45);
     expect(servedNames('studio')).toHaveLength(76);
     expect(servedNames('cli')).toHaveLength(55);
     expect(cliCommandsOf()).toHaveLength(45);
     const count = (f: (o: Operation) => boolean) => CATALOGUE.filter(f).length;
-    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 57, destructive: 10 });
+    expect(Object.fromEntries(EFFECTS.map((e) => [e, count((o) => o.effect === e)]))).toEqual({ read: 56, write: 56, destructive: 11 });
     expect(Object.fromEntries(CODE_RUNS.map((c) => [c, count((o) => o.code === c)]))).toEqual({ none: 106, project: 9, workspace: 8 });
     expect(CATALOGUE.filter((o) => o.job).map((o) => o.name)).toEqual([
       'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'render', 'review', 'export', 'template_preview', 'template_from_site', 'component_preview',
@@ -183,7 +230,7 @@ describe('the operation catalogue', () => {
     ]);
     expect(CATALOGUE.filter((o) => o.code === 'project').map((o) => o.name)).toEqual(['run_dry', 'run_capture', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'scenario_run', 'hooks_rollback', 'sandbox_down']);
     expect(CATALOGUE.filter((o) => o.effect === 'destructive').map((o) => o.name)).toEqual([
-      'project_prune', 'template_create_from_brand', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'record_discard', 'setup_cli_remove', 'hooks_rollback', 'sandbox_down',
+      'project_prune', 'template_create_from_brand', 'job_cancel', 'hooks_run', 'env_reset', 'sandbox_up', 'sandbox_reset', 'record_discard', 'setup_cli_remove', 'hooks_rollback', 'sandbox_down',
     ]);
     expect(CATALOGUE.filter((o) => o.serves).map((o) => o.name)).toEqual(['mcp_serve', 'studio_serve', 'worker_run']);
     // Served by all three, by two, by one.

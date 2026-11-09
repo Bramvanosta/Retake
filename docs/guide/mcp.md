@@ -223,22 +223,6 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
 `failed` means it could not run (a scenario changed since it was submitted — a run, an inspection or a scenario's
 hooks: submit it again —, a sandbox that would not start…).
 
-**Admission rules.** Before it queues a run, a render or an export, the engine checks the same rules for Claude as for
-the Studio (each check and the submit after it run one at a time in the server, so two calls at once queue one job);
-a refusal is `conflict`, names what it waits for in `details`, and queues nothing:
-- **One run of a scenario at a time**: `run_dry` and `run_capture` are refused while a run of the scenario is queued or
-  running (`details.run_id`, `details.job`) — wait for it to end (`run_status`), or stop it (`run_cancel`).
-- **Sessions to confirm**: `run_capture` of a scenario whose persona's saved session is not valid (expired, error,
-  never signed in) and that no run signs in by itself (no usable `login:` steps, not a sandbox account) is refused
-  with `details.sessions` (each persona, its state, and whether the run checks it before filming) until
-  `sessions_ack` names each one. Claude tells the user, who signs in (`auth_login`) or confirms the capture; the
-  run's own preflight still stops before filming a persona it can check. A dry run needs none.
-- **One render of a scenario at a time**: `render` is refused while a render of the scenario is queued or running
-  (`details.render_id`) — follow it with `render_status`, or stop it with `job_cancel`.
-- **Exports**: `export` is refused while an export of that render is queued or running, and while two exports of the
-  workspace are (`details.open`).
-`retake run`, `retake render` and `retake export` in a terminal run in their own process and are not held to these
-rules.
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
@@ -307,6 +291,28 @@ rules.
 - `retake doctor` has an **MCP** line: the Node.js a registration names (a path that survives patch upgrades where
   there is one), whether the PATH it registers finds ffmpeg, the worker (running or idle), and whether the workspace's
   `.retake/` is git-ignored when the workspace is a git work tree.
+
+**Admission rules.** Before it queues a run, a render or an export, the engine checks the same rules for Claude as for
+the Studio; a refusal is `conflict`, names what it waits for in `details`, and queues nothing:
+- **One run of a scenario at a time**: `run_dry` and `run_capture` are refused while a run of the scenario is queued or
+  running (`details.run_id`, `details.job`) — wait for it to end (`run_status`), or stop it (`run_cancel`). A capture
+  whose hooks wait for the user's approval is checked again once approved, just before its run id is reserved.
+- **Sessions to confirm**: `run_capture` of a scenario whose persona's saved session is not valid (expired, error,
+  never signed in) and that no run signs in by itself (no usable `login:` steps, not a sandbox account) is refused
+  with `details.sessions` (each persona, its state, and whether the run checks it before filming) until
+  `sessions_ack` names each one. Claude tells the user, who signs in (`auth_login`) or confirms the capture; the
+  run's own preflight still stops before filming a persona it can check. It is checked on the environment the take
+  uses (with `sandbox: true`, the sandbox's: its accounts sign in by themselves), after the call's own refusals (an
+  unknown environment, a scenario that does not validate). A dry run needs none.
+- **One render of a scenario at a time**: `render` is refused while a render of the scenario is queued or running
+  (`details.render_id`) — follow it with `render_status`, or stop it with `job_cancel`.
+- **Exports**: `export` is refused while an export of that render is queued or running (follow it with `job_status`),
+  and while two exports of the workspace are (`details.open`).
+
+Each check and the submit after it run one at a time within one server process, so two calls at once to one server
+queue one job. The rules hold per process: another process (the Studio, a second MCP server) checks its own calls,
+and two calls to two processes at the same moment may both pass. `retake run`, `retake render` and `retake export` in
+a terminal run in their own process and are not held to these rules.
 
 **Safety.**
 - **Hooks need a human.** The agent driving the server can write the scenarios it runs (`scenario_save`), so the trust

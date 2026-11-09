@@ -29,11 +29,12 @@
  */
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JobsWatch, liveWorker } from '@retake/engine';
+import { JobsWatch, liveWorker, submittedInStudio } from '@retake/engine';
 import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
 import { projectPath } from '@retake/core';
+import type { JobClient } from '@retake/core';
 
 /** The kinds on the pipe: the shell's words are keyed by them. */
 export const PIPE_KINDS = ['capture', 'dry_run', 'render', 'review', 'export', 'recording', 'studio_recording', 'hooks', 'env_reset', 'sandbox_start', 'sandbox_reset'] as const;
@@ -99,7 +100,7 @@ export function pipeKind(job: Pick<JobRecord, 'kind' | 'input'>): PipeKind | und
     case 'export':
       return 'export';
     case 'record':
-      return i.submitted_by === 'ui' ? 'studio_recording' : 'recording';
+      return submittedInStudio({ submitted_by: i.submitted_by as JobClient | undefined }) ? 'studio_recording' : 'recording';
     case 'hooks':
       return i.dry === false ? 'hooks' : undefined;
     case 'env_reset':

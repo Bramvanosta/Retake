@@ -5,11 +5,12 @@
  * the trust its work gets (`author`: a person at a terminal, whose files' trust flags count; `mcp`: an agent or a page,
  * whose they do not). The vocabularies of the layers below are this one caller seen from there:
  *
- * - `EngineClient` (here) is core's `JobClient`: the `submitted_by` of a job.
+ * - `EngineClient` (here) is core's `JobClient`: the `submitted_by` of a job; what is decided from a job's submitter
+ *   (its refusals' wording `submitterChannel`, a Studio recording `submittedInStudio`) is decided here too.
  * - core's `AgentChannel` is the channel of a caller that is not the CLI's (the CLI's refusals are worded as MCP's).
- * - core's `HookTrust`, the editor's `PlanTrust` and the brand files' `BrandTrust` are the trust; the engine holds every
- *   job and a theme made from a brand to `mcp` whoever calls it (ENGINE_TRUST): a queued job is never a person at a
- *   terminal.
+ * - `CallerTrust` is defined here; core's `HookTrust`, the editor's `PlanTrust` and the brand files' `BrandTrust` are
+ *   held to it. The engine holds every job and a theme made from a brand to `mcp` whoever calls it (ENGINE_TRUST, used
+ *   by every job module): a queued job is never a person at a terminal.
  * - the `agent?: boolean` options of the engine's reads and writes are `agentChecks(caller)`.
  *
  * `test` is the engine's tests: the agent's channel and trust, but neither the agent's checks of a scenario nor the
@@ -22,8 +23,11 @@ import type { PlanTrust } from '@retake/editor';
 export type EngineClient = JobClient;
 /** The channel a caller speaks through: a comment's `author.via`. */
 export type CallerChannel = CommentVia;
-/** The trust a caller's work gets: `author` (a person at a terminal) or `mcp` (an agent or a page). */
-export type CallerTrust = HookTrust;
+/**
+ * The trust a caller's work gets: `author` (a person at a terminal) or `mcp` (an agent or a page). Defined here; core's
+ * `HookTrust`, the editor's `PlanTrust` and the brand files' `BrandTrust` are held to it.
+ */
+export type CallerTrust = 'author' | 'mcp';
 
 export interface Caller {
   readonly client: EngineClient;
@@ -33,7 +37,7 @@ export interface Caller {
 
 // The vocabularies below agree with the caller's (checked when this file compiles).
 type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
-const VOCABULARIES_AGREE: Same<PlanTrust, CallerTrust> & Same<AgentChannel, Exclude<CallerChannel, 'cli'>> = true;
+const VOCABULARIES_AGREE: Same<HookTrust, CallerTrust> & Same<PlanTrust, CallerTrust> & Same<AgentChannel, Exclude<CallerChannel, 'cli'>> = true;
 void VOCABULARIES_AGREE;
 
 /** The caller of a client: the CLI is a person at a terminal (`author`), the Studio a page (`studio`), every other an agent. */
@@ -46,7 +50,7 @@ export function callerOf(client: EngineClient): Caller {
  * exports in the worker) and a theme made from a brand (engine templates.create). A person's own `retake` commands,
  * which do not go through the engine, run as `author`.
  */
-export const ENGINE_TRUST: CallerTrust = 'mcp';
+export const ENGINE_TRUST = 'mcp' as const satisfies CallerTrust;
 
 /**
  * The agent's checks (core agent-trust) of what a caller validates, saves, edits, views and submits: every caller whose
@@ -62,12 +66,17 @@ export function agentWorkspace(c: Caller): boolean {
 }
 
 /** The wording channel of a caller's refusals: "from the Studio", else "through MCP" (the CLI's included). */
-export function refusalChannel(c: Caller | EngineClient | undefined): AgentChannel {
-  return (typeof c === 'string' ? callerOf(c) : c)?.channel === 'studio' ? 'studio' : 'mcp';
+export function refusalChannel(c: Caller): AgentChannel {
+  return c.channel === 'studio' ? 'studio' : 'mcp';
+}
+
+/** The wording channel of a job's refusals, by who submitted it (refusalChannel of its caller; unknown: MCP's). */
+export function submitterChannel(by: EngineClient | undefined): AgentChannel {
+  return by === undefined ? 'mcp' : refusalChannel(callerOf(by));
 }
 
 /** A person channel (a terminal, the Studio) creates and reopens threads and applies proposals; an agent replies. */
-export function personChannel(c: Caller): boolean {
+export function speaksAsPerson(c: Caller): boolean {
   return c.channel !== 'mcp';
 }
 

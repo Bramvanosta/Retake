@@ -38,9 +38,9 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | job · worker | — | work queued for the workspace's jobs worker (dry runs, captures, renders, reviews, exports, hooks, sign-ins) · the background process that runs them | — |
 | operation | — | one thing Retake does for a client, served by the `retake` command, the MCP server and / or the Studio (a dry run, a render, reading a project…); named by the MCP tool or Studio op that serves it, else by its command | `op` (the Studio server's ops, `UI_OPS`); `ToolDef` / `callTool` (an operation's definition and call, in `@retake/engine/contract`) |
 | operation catalogue | — | every operation once, with its facets and which shells serve it, and why not (`packages/engine/src/catalogue.ts`, `@retake/engine/catalogue`) | — |
-| facet · effect | — | what the catalogue says an operation does: its **effect** (`read`, `write` or `destructive`: may remove or replace what a person made), whether it is queued as a job, whose code it runs (`project`: hooks, sandbox commands; `workspace`: components and themes rendered), whether it serves other operations (a server, the worker); the MCP tools' read-only and destructive hints are its effect | `kind` (the catalogue's single field before the facets) |
-| admission rule | — | a check the engine makes before it queues a job for the Studio or MCP: one run of a scenario at a time, one render of a scenario at a time, the acknowledgement of personas whose session is not valid, at most one export of a render and two of the workspace at once | — |
-| caller | — | who drives the engine — its client (`cli`, `mcp`, `ui` for the Studio, `test`), the channel it speaks through (`cli`, `studio`, `mcp`) and the trust its work gets (`author`: a person at a terminal; `mcp`: an agent or a page); every decision the engine takes from who calls it is in one policy module (`packages/engine/src/caller.ts`) | `EngineClient`, `JobClient` (`submitted_by`), `AgentChannel`, `HookTrust`, `PlanTrust`, `BrandTrust` |
+| facet · effect | — | what the catalogue says an operation does: its **effect** (`read`, `write` or `destructive`: removes or replaces data as its purpose, or in one of its cases, without an `if_match` on the version read — and says what, `removes`; a run's hooks or sandbox reset are its code, not its effect), whether it is queued as a job, whose code it runs (`project`: hooks, sandbox commands; `workspace`: components and themes rendered), whether it serves other operations (a server, the worker); the MCP tools' read-only and destructive hints are its effect | `kind` (the catalogue's single field before the facets) |
+| admission rule | — | a check the engine makes before it queues a job for the Studio or MCP: one run of a scenario at a time, one render of a scenario at a time, the acknowledgement of personas whose session is not valid, at most one export of a render and two of the workspace at once; each holds within one process, and its refusal is worded for the channel (the Studio's words, else the glossary's) | — |
+| caller | — | who drives the engine — its client (`cli`, `mcp`, `ui` for the Studio, `test`), the channel it speaks through (`cli`, `studio`, `mcp`) and the trust its work gets (`author`: a person at a terminal; `mcp`: an agent or a page); every decision the engine and the Studio's server take from who calls or who submitted a job is in one policy module (`packages/engine/src/caller.ts`) | `EngineClient`, `JobClient` (`submitted_by`), `AgentChannel`, `HookTrust`, `PlanTrust`, `BrandTrust` |
 | workspace journal | — | `<workspace>/.retake/journal.jsonl`: every authored write Retake made and every hook run, who made it, when, the outcome (`retake history`) | — |
 | the Studio | — | the web app of a workspace (`retake ui`) and the desktop app around it | — |
 
@@ -75,8 +75,9 @@ Each of these words has several meanings: say which one (the qualified form on t
 ## Retired words
 
 The help of the `retake` command, the MCP tools (titles, descriptions, argument descriptions, validation messages) and
-the descriptions of the YAML schemas (`packages/core/schema`) never use these words; `packages/cli/test/glossary.test.ts`
-reads this table. Other texts (error messages, the Studio, the docs) are not checked. Keep it short and exact: a row is
+the descriptions of the YAML schemas (`packages/core/schema`) and the engine's admission refusals through MCP never use
+these words; `packages/cli/test/glossary.test.ts` reads this table. Other texts (other error messages, the Studio, the
+docs) are not checked. Keep it short and exact: a row is
 a word (its inflections too: -s, -es, -ed, -ing) or a phrase (its plural too).
 
 <!-- retired-words:start -->

@@ -5,7 +5,7 @@
  * (inspect.json, screenshot.png and, drawn here through the review package, marked.jpg). The newest 20 are kept.
  *
  * Trust: run_dry's semantics — the environment's own access (production read-only), hooks never run, agent trust of
- * the replayed scenario (`hookTrust: 'mcp'`), the workspace's protected hosts — checked at submit and again by the
+ * the replayed scenario (`hookTrust` ENGINE_TRUST: `mcp`), the workspace's protected hosts — checked at submit and again by the
  * worker (project.yaml or the scenario may change in between: the scenario's bytes are pinned by their sha256). A URL is
  * accepted only on the exact origin of one of the environment's pages and becomes a page key + path; the runner checks
  * the final URL again before anything of the page is taken. No `{{…}}` template in anything given. Inspections never
@@ -29,6 +29,7 @@ import {
 } from '@retake/core';
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
+import { ENGINE_TRUST } from '../caller.js';
 import { agentChannel, checkAgentTrust } from '../approvals.js';
 import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import { checkSandboxEnv, prepareRun } from '../execute-run.js';
@@ -418,7 +419,7 @@ export async function executeInspectJob(ctx: InspectJobContext): Promise<Inspect
     ...(input.targets ? { targets: input.targets } : {}),
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
     images: input.images,
-    hookTrust: 'mcp',
+    hookTrust: ENGINE_TRUST,
     signal: ctx.signal,
     loginCommand: (p) => `${ctx.cli} login ${p.project} --env ${p.env}${p.persona ? ` --persona ${p.persona}` : ''}`,
     onProgress: (e) => {

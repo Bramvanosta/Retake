@@ -44,6 +44,7 @@ import {
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
 import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
+import type { OperationName } from '@retake/engine/catalogue';
 import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
 import type { ToolDef } from '@retake/engine/contract';
 import { TOOLS } from '@retake/mcp';
@@ -75,8 +76,9 @@ import type { SetupContext } from './setup-ops.js';
  * *-ops.ts modules). The catalogue also says why the Studio serves none of the other MCP tools; an op that is not
  * listed answers 404 `unknown op`.
  */
-export const UI_OPS: readonly string[] = Object.freeze(servedNames('studio'));
-export type UiOp = string;
+export const UI_OPS: readonly UiOp[] = Object.freeze(servedNames('studio'));
+/** An op's name: an operation of the catalogue (which of them the Studio serves is UI_OPS). */
+export type UiOp = OperationName;
 
 /**
  * Each op's own HTTP status for an engine error code (the catalogue's `studio.status`, read with studioStatus): a frame

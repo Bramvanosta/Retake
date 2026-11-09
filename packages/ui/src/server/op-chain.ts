@@ -1,9 +1,9 @@
 /** The Studio server's op chains: writes of one key run one at a time in this server. */
-import { keyChain } from '@retake/engine';
-import type { KeyChain } from '@retake/engine';
+import { opChain as engineOpChain } from '@retake/engine';
+import type { OpChain } from '@retake/engine';
 
 /** Runs `fn` after every earlier call of the same key has settled (its outcome ignored): one at a time per key. */
-export type OpChain = KeyChain;
+export type { OpChain } from '@retake/engine';
 
 /**
  * A chain of calls per key (a double click, two tabs): each call of a key waits for the previous one, so the second
@@ -12,7 +12,7 @@ export type OpChain = KeyChain;
  * server (the engine's own admission rules chain a submit and its check apart from this one).
  */
 export function opChain(): OpChain {
-  return keyChain();
+  return engineOpChain();
 }
 
 /** The key of a scenario in the shared chain (scenario_edit, scenario_render, thread_apply). */

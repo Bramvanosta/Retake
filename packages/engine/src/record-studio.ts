@@ -422,15 +422,15 @@ async function situation(ctx: RecordStudioContext, project: LoadedProject, id: s
   let studio: boolean;
   let startedBy: JobClient | null;
   let unverified = false;
-  if (meta && meta.submitted_by === 'ui') {
-    studio = !!job && meta.job_id === job.id && byJob === 'ui';
+  if (meta && submittedInStudio(meta)) {
+    studio = !!job && meta.job_id === job.id && submittedInStudio({ submitted_by: byJob });
     unverified = !studio;
     startedBy = studio ? 'ui' : (byJob ?? null);
   } else if (meta) {
     studio = false;
     startedBy = meta.submitted_by;
   } else {
-    studio = byJob === 'ui';
+    studio = submittedInStudio({ submitted_by: byJob });
     startedBy = byJob ?? null;
   }
   let state: RecordState;
