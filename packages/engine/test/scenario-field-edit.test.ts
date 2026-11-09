@@ -11,9 +11,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseYaml, stepGuard } from '@retake/core';
-import type { FieldAt, ScenarioEdit } from '@retake/core';
+import type { FieldAt } from '@retake/core';
 import { EngineError, createEngine, fieldFitProblem, fieldOptions, memoRegistry, videoPages } from '../src/index.js';
-import type { Engine } from '../src/index.js';
+import type { Engine, ScenarioEdit } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');

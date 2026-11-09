@@ -40,11 +40,12 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { COMMAND_EVENT, MENU_COMMANDS } from '../../ui/src/app/ui-kit/commands.js';
 import { QUIT_CLOSE_EVENT, QUIT_DETAIL_KEYS, QUIT_EVENT, QUIT_ID_RE as PAGE_QUIT_ID_RE, QUIT_LABEL_MAX, QUIT_TEXT_MAX } from '../../ui/src/app/shell/quit.js';
-import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS, SHELL_LINE_MAX } from '../../ui/src/server/desktop.js';
+import { QUIT_ID_RE as SERVER_QUIT_ID_RE, SETUP_ACTIONS } from '../../ui/src/server/desktop.js';
+import { SHELL_LINE_MAX } from '../../ui/src/server/shell-line.js';
 import { SETUP_EVENT, SETUP_SECTIONS } from '../../ui/src/app/shell/setup.js';
 import { UPDATE_EVENT } from '../../ui/src/app/shell/update.js';
 import { UPDATE_ACTIONS, UPDATE_FAILURES, UPDATE_OFF_REASONS, UPDATE_STATES } from '../../ui/src/server/update-ops.js';
-import { UPDATES_FILE, UPDATE_DISABLE_ENV } from '../../core/src/app-setup.js';
+import { UPDATES_FILE, UPDATE_DISABLE_ENV } from '../../engine/src/integrations/app-setup.js';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 const APP = join(REPO, 'apps', 'desktop');

@@ -2,7 +2,7 @@ import type { Engine, JobRecord, PreviewSubmitted } from '@retake/engine';
 import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';
 import type { ToolContext } from './define.js';
-import { jobLine, previewImages } from './jobs.js';
+import { jobLine, previewImages } from './job-lines.js';
 import { WAIT_MAX_S, waitJob } from './run.js';
 
 /** The summary of a preview job: state, the images written, what to do next (the guard's warnings stay under untrusted). */

@@ -25,7 +25,7 @@ import type { Server, ServerResponse } from 'node:http';
 import { RETAKE_VERSION } from '@retake/core';
 import { BodyTooLargeError, EngineError, LOOPBACK, checkRequest, createEngine, drainBody, listenLoopback, readBody, securityHeaders } from '@retake/engine';
 import type { Engine, RouteSpec } from '@retake/engine';
-import { INSTRUCTIONS, TOOLS, protocolTool } from './index.js';
+import { INSTRUCTIONS, TOOLS, protocolTool } from './tool-set.js';
 import { portHolder } from './port-holder.js';
 import type { PortListenerLookup } from './port-holder.js';
 import { mcpHttpHandler } from './server.js';

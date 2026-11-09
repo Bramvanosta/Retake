@@ -14,10 +14,10 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promis
 import { homedir, tmpdir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { RETAKE_VERSION } from '@retake/core';
+import { RETAKE_VERSION, clientPath } from '@retake/core';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { REPO as REPO_URL, fixtureWorkspace } from '../../engine/test/helpers.js';
-import { PLUGIN_ID, claudeCodeCommand, clientPath, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '../src/index.js';
+import { PLUGIN_ID, claudeCodeCommand, mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { testChildEnv } from '../../core/test/child-env.js';
 
 const REPO = resolve(REPO_URL);

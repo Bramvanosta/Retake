@@ -2045,8 +2045,9 @@ workers/worker.log      what workers print (stderr), appended
   + `fix`, `structuredContent.error`.
 - `startMcpServer({root})`: console.log / info / debug go to stderr; one engine (`client: 'mcp'`). Nothing in this
   process opens a browser or starts a capture (auth status reads files; sandbox status asks the provider).
-- `config-snippet.ts`: `--print-config` — `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`),
-  `clientPath` (core `client-path.ts` since L4.2, re-exported: PATH with the node's folder first + Homebrew / system
+- `config-snippet.ts` (since the architecture series in the engine, `@retake/engine/integrations`): `--print-config` —
+  `stableNodePath` (mise / nvm `node/[v]<major>`, Homebrew `opt/node@<major>`), `clientPath` (core `client-path.ts`
+  since L4.2, imported from core: PATH with the node's folder first + Homebrew / system
   folders, absolute entries only, without the folders a package manager adds for its script: `node_modules/.bin`,
   corepack, node-gyp-bin, and none inside the workspace, under any spelling of it — `realpathSync.native`, and any case
   where the system ignores case), `RETAKE_HOME` when set (absolute, through `retakeHome`); the `mcpServers` JSON (stdout) and the `claude mcp add` line (stderr). L3.7: `pluginMarketplaceRoot` (the first

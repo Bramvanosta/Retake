@@ -15,7 +15,7 @@ import { BUNDLE_GUARD, BundleError, RETAKE_VERSION, bundleNodeArgs, overrideBund
 import type { BundleInfo } from '@retake/core';
 import { assertRenderBrowser, renderBrowser, renderBundleRestriction, renderComponentPreviews } from '@retake/editor';
 import type { RenderPreviewsOptions } from '@retake/editor';
-import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/mcp';
+import { mcpServerEntry, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { main, memoryIo } from '../src/index.js';
 import { componentsPreviewCommand } from '../src/commands/components.js';
 import { initWorkspace } from '../src/commands/init.js';

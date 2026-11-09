@@ -35,9 +35,7 @@ import type { JobFileRead } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-// The lazy @retake/editor (lazy.ts), re-exported for the modules that import it from here.
 import { editor } from '../lazy.js';
-export { editor };
 
 export interface RenderRequest {
   project: string;

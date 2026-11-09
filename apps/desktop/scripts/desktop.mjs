@@ -182,7 +182,7 @@ async function build() {
   if (id !== BUNDLE_ID && !(id.startsWith(`${BUNDLE_ID}.`) && /^[a-z0-9-]{1,32}$/.test(id.slice(BUNDLE_ID.length + 1)))) fail(`--id must be ${BUNDLE_ID}.<suffix> (tests)`, 2);
   if (/^\/Applications(\/|$)/.test(out)) fail('the app is built in the repository (or --out), never into /Applications', 2);
   cargo(['build', '--release', '--features', 'custom-protocol']);
-  const { stableNodePath } = await import(pathToFileURL(join(REPO, 'packages', 'mcp', 'dist', 'index.js')).href);
+  const { stableNodePath } = await import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')).href);
   const app = join(out, `${PRODUCT}.app`);
   rmSync(app, { recursive: true, force: true });
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true });

@@ -35,7 +35,7 @@ export { SLOW_SCRUB_KEYFRAME_S, captureInfo, clearTimelineViewMemo, memoRegistry
 export type { FieldChoice, TimelineCaptureInfo, TimelineView, TimelineViewRequest, TimelineViewResult } from './timeline-view.js';
 export { FRAME_STYLE_OPTIONS, MULTI_PAGE_OPTIONS, TRANSITION_KIND_OPTIONS, componentUseOf, fieldFitProblem, fieldOptions, videoPages } from './field-options.js';
 export type { FieldOption } from './field-options.js';
-export type { PreparedScenarioEdit, SaveResult, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
+export type { PreparedScenarioEdit, SaveResult, ScenarioEdit, ScenarioEditRequest, ScenarioEditResult, ScenarioText, ValidateResult } from './scenarios.js';
 export { draftFromScript } from './authoring.js';
 export { RECORD_KEEP, RECORD_MAX_ENV, activeRecords, defaultRecordName, newRecordId, pruneRecords, recordDir, recordMaxMs, recordScenario, recordStart, recordsRoot } from './record.js';
 export type { RecordCheck, RecordOutcome, RecordPorts, RecordRequest, RecordStart } from './record.js';

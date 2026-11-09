@@ -49,7 +49,7 @@ import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
 import { newJobId } from './ids.js';
-import { editor } from './render-job.js';
+import { editor } from '../lazy.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 

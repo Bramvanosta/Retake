@@ -10,8 +10,9 @@
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findWorkspaceRoot, oldWorkspaceFileAt } from '@retake/core';
+import { clientPath, findWorkspaceRoot, oldWorkspaceFileAt } from '@retake/core';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
+import { MCP_HTTP_TOKEN_ENV, SERVER_NAME, claudeCodeCommand, claudeCodeHttpCommand, mcpConfigJson, mcpHttpConfigJson, mcpHttpTokenExport, pluginInstallCommands, pluginMarketplaceRoot } from '@retake/engine/integrations';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -61,12 +62,12 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     if (port === 0) throw new UsageError('--print-config --http needs a fixed port: leave --port out (47820) or name one');
     const url = `http://127.0.0.1:${port}${mcp.MCP_HTTP_PATH}`;
     // Never the token itself (review A M1): the JSON names an environment variable, the command reads the token file.
-    ui.result(JSON.stringify(mcp.mcpHttpConfigJson({ url }), null, 2));
+    ui.result(JSON.stringify(mcpHttpConfigJson({ url }), null, 2));
     ui.line('');
     ui.line('Claude Code, for every project of this user — instead of the stdio registration, not beside it (the shell reads the token from its file as the line runs; your history keeps $(cat …), not the token):');
-    ui.line(`  ${mcp.claudeCodeHttpCommand({ url, tokenFile: file })}`);
-    ui.line(`Or the JSON above in .mcp.json at the workspace root: it holds no token (safe to commit), Claude Code reads it from $${mcp.MCP_HTTP_TOKEN_ENV} — set in the shell that starts claude (your shell profile):`);
-    ui.line(`  ${mcp.mcpHttpTokenExport(file)}`);
+    ui.line(`  ${claudeCodeHttpCommand({ url, tokenFile: file })}`);
+    ui.line(`Or the JSON above in .mcp.json at the workspace root: it holds no token (safe to commit), Claude Code reads it from $${MCP_HTTP_TOKEN_ENV} — set in the shell that starts claude (your shell profile):`);
+    ui.line(`  ${mcpHttpTokenExport(file)}`);
     ui.line(`Then keep the server running: retake --root ${root} mcp --http${opts.port !== undefined ? ` --port ${port}` : ''}`);
     ui.line(`The token (${file}, 0600) is a secret: whoever holds it drives this workspace's tools and answers their approval forms. Never paste it into a file you commit. retake mcp --http --rotate-token replaces it.`);
     ui.line(
@@ -75,7 +76,7 @@ async function mcpHttp(ui: Ui, root: string, opts: McpCommandOptions): Promise<E
     if (token.rotated || token.created) ui.line(token.rotated ? 'A new token was written: register the server again.' : 'A token was created.');
     return EXIT.ok;
   }
-  process.env.PATH = mcp.clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
+  process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   let server;
   try {
     server = await mcp.startMcpHttpServer({ root, port, token: token.token, log: (m) => ui.line(m) });
@@ -137,15 +138,15 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
   const mcp = await import('@retake/mcp');
   if (opts.printConfig) {
     const input = { root, bin: studioBin() };
-    ui.result(JSON.stringify(mcp.mcpConfigJson(input), null, 2));
+    ui.result(JSON.stringify(mcpConfigJson(input), null, 2));
     ui.line('');
-    const repo = mcp.pluginMarketplaceRoot(input.bin);
+    const repo = pluginMarketplaceRoot(input.bin);
     const either = repo ? 'Either Claude Code with the server alone' : 'Claude Code';
     ui.line(`${either}, for every project of this user (or put the JSON above in .mcp.json at the workspace root):`);
-    ui.line(`  ${mcp.claudeCodeCommand(input)}`);
+    ui.line(`  ${claudeCodeCommand(input)}`);
     if (repo) {
-      ui.line(`Or the Claude Code plugin (the Retake skills and this server), enabled in this workspace folder only — not both, or Claude Code gets two ${mcp.SERVER_NAME} servers:`);
-      for (const l of mcp.pluginInstallCommands({ ...input, repo })) ui.line(`  ${l}`);
+      ui.line(`Or the Claude Code plugin (the Retake skills and this server), enabled in this workspace folder only — not both, or Claude Code gets two ${SERVER_NAME} servers:`);
+      for (const l of pluginInstallCommands({ ...input, repo })) ui.line(`  ${l}`);
       ui.line(`  (run the install line again to change a value; skills edited in ${join(repo, 'skills')} load at the next session. claude --plugin-dir is for editing the skills: it loads them without this server's values.)`);
     }
     ui.line("Claude desktop: the JSON above in ~/Library/Application Support/Claude/claude_desktop_config.json, then restart it.");
@@ -155,7 +156,7 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
   // A client may start the server with a bare PATH (Claude desktop, a plugin): complete it like a registration's, absolute
   // entries only and none inside the workspace (the cwd is the client's project folder, the agent writes files in the
   // workspace), so the server and the jobs worker it starts find ffmpeg & co., never a program the agent wrote.
-  process.env.PATH = mcp.clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
+  process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   await mcp.startMcpServer({ root, log: (m) => ui.line(m) });
   return EXIT.ok;
 }

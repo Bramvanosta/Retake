@@ -30,7 +30,7 @@ import {
   scenarioFile,
   scenarioRef,
 } from '@retake/core';
-import type { AgentChannel, AgentTrustEnvironment, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
+import type { AgentChannel, AgentTrustEnvironment, FieldEdit, LoadedProject, PositionedTrustProblem, Scenario, StepEdit, Template, ValidationIssue } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
@@ -242,6 +242,17 @@ export async function saveScenarioText(project: LoadedProject, name: string, yam
   if (!project.scenarios.includes(name)) project.scenarios = [...project.scenarios, name].sort();
   return { name, file: res.ref, path: res.path, hash: res.sha256, created: !current, warnings: issues };
 }
+
+/** One edit of a saved scenario: one of core SCENARIO_EDIT_KINDS (scenario-edit.ts holds the rules every kind obeys). */
+export type ScenarioEdit =
+  /** The YAML view's text: written as given, with a final line break added when it has none (as scenario_save). */
+  | { kind: 'replace_text'; text: string }
+  /** Undo / redo: the exact bytes of an earlier version (`text_hash`: their sha256, checked), no line break added. */
+  | { kind: 'restore'; text: string; text_hash: string }
+  /** The Blocks tab: move, delete, duplicate, change or add a step (core step-edits.ts: text splices, verified). */
+  | StepEdit
+  /** The timeline (L4.5): one edit value of the video, a scene, a card or an interstitial (core field-edits.ts, verified). */
+  | FieldEdit;
 
 /** engine.scenarios.edit: one edit of a saved scenario, applied to the version the client showed (`hash`). */
 export interface ScenarioEditRequest {

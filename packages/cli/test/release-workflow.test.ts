@@ -356,8 +356,9 @@ describe('release.yml: the keys never share a runner with dependency code (revie
       const g = importGraph(join(REPO, entry));
       expect(g.bare, entry).toEqual([]);
       // One dynamic import in the graph: desktop.mjs build() (`pnpm desktop:build`, the developer app — its own command,
-      // started by its own main guard only) loads packages/mcp; bundle.mjs takes words and the icon maker from desktop.mjs.
-      expect(g.dynamic, entry).toEqual(g.files.includes('apps/desktop/scripts/desktop.mjs') ? ["apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'mcp', 'dist', 'index.js')"] : []);
+      // started by its own main guard only) loads the engine's integrations entry; bundle.mjs takes words and the icon
+      // maker from desktop.mjs.
+      expect(g.dynamic, entry).toEqual(g.files.includes('apps/desktop/scripts/desktop.mjs') ? ["apps/desktop/scripts/desktop.mjs: import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')"] : []);
       for (const f of g.files) expect(f.startsWith('..') || f.includes('node_modules'), f).toBe(false);
       if (entry === 'apps/desktop/scripts/release.mjs') expect(g.files).toEqual(['apps/desktop/scripts/bundle.mjs', 'apps/desktop/scripts/desktop.mjs', 'apps/desktop/scripts/release.mjs', 'apps/desktop/scripts/sign.mjs', 'scripts/publish-update.mjs']);
     }
@@ -370,7 +371,7 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     expect(g.dynamic.length).toBe(1);
     const desktop = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'desktop.mjs'), 'utf8');
     const fn = desktop.slice(desktop.indexOf('async function build() {'), desktop.indexOf('\nfunction dev() {'));
-    expect(fn).toContain("await import(pathToFileURL(join(REPO, 'packages', 'mcp', 'dist', 'index.js')).href)");
+    expect(fn).toContain("await import(pathToFileURL(join(REPO, 'packages', 'engine', 'dist', 'integrations.js')).href)");
     expect(desktop.match(/\bbuild\(\)/g)?.length).toBe(2);
     expect(desktop).toMatch(/if \(resolve\(process\.argv\[1\] \?\? ''\) === fileURLToPath\(import\.meta\.url\)\) \{[^]*\bbuild\(\)/);
   });

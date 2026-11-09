@@ -15,12 +15,11 @@ import { EngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
-import { editor } from './render-job.js';
+import { editor, review } from '../lazy.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 
 // The lazy @retake/review (lazy.ts), re-exported for the modules that import it from here.
-import { review } from '../lazy.js';
 export { review };
 
 export interface ReviewRequest {

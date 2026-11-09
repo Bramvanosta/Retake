@@ -2,7 +2,7 @@
  * The installed app's first run and integrations (L5.16c, DESIGN §4p (c)): where the app runs from, the `retake`
  * command's link, the Claude Code plugin run and the Claude Desktop entry. Pure rules and small file operations, each
  * with its paths injected — the Studio's setup ops (ui setup-ops.ts: Studio-only, supervised + bundled only, never MCP
- * tools) and doctor call them; tests run them on scratch folders only.
+ * tools) and doctor call them, through @retake/engine/integrations; tests run them on scratch folders only.
  *
  * - **Where the app runs from** (critique H1): a quarantined app opened from Downloads or a disk image runs from a
  *   random read-only copy (`…/AppTranslocation/<uuid>/d/Retake.app`, gone after a restart) or from the mounted image
@@ -12,9 +12,9 @@
  *   (`Contents/Resources/bin/retake`). Never replaces a file that is not a link into an app's launcher; a link into
  *   another copy of the app is replaced only when asked; removal touches such links only. The shell profile is never
  *   edited and the person's login shell is never run: the PATH said is the one the app sees, with the zsh line to copy.
- * - **Claude Code:** the plugin route's two lines (mcp pluginInstallSteps) run as argv — no shell, the `cd` as the
- *   working folder — with a `claude` found in a fixed list, a small environment, a time limit; its output is the
- *   caller's to show as untrusted text.
+ * - **Claude Code:** the plugin route's two lines (config-snippet.ts pluginInstallSteps) run as argv — no shell, the
+ *   `cd` as the working folder — with a `claude` found in a fixed list, a small environment, a time limit; its output
+ *   is the caller's to show as untrusted text.
  * - **Claude Desktop:** `mcpServers.retake` merged into its config after the person saw the change — a symlinked
  *   config written at its real path, its mode kept, every other key kept, a backup first (a capped number), an atomic
  *   rename, the file read back; unparsable JSON or a non-object `mcpServers` refused; a different `retake` entry
@@ -25,7 +25,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { constants, accessSync, chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, unlinkSync, writeSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
-import { isUnder } from './client-path.js';
+import { isUnder } from '@retake/core';
 
 /** A refusal of a setup step: `reason` is a stable word the Studio keys its words by. */
 export class SetupError extends Error {

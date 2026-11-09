@@ -1,8 +1,8 @@
 /**
  * The installed app's Set-up sheet (L5.16c, DESIGN §4p (c), docs/reference/studio-ui.md): the Studio's own ops that
  * read and make the integrations — the `retake` command's link, the Claude Code plugin route, the Claude Desktop
- * entry, the notification permission — each on the person's click. The rules are core app-setup.ts; here, who may call
- * them and with what:
+ * entry, the notification permission — each on the person's click. The rules are @retake/engine/integrations
+ * (app-setup.ts, config-snippet.ts); here, who may call them and with what:
  *
  * - **Studio only, never MCP tools** (OWN_OPS, the `ui` client's allow-list; a static test checks the MCP list has none):
  *   no MCP tool can install a command or register Retake with Claude (an agent with a shell of its own still can).
@@ -30,15 +30,16 @@ import { dirname, join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { UpdateState } from './update-ops.js';
+import { RETAKE_VERSION, bundleInfoOrNull, bundleNodeArgs, retakeHome } from '@retake/core';
+import type { BundleInfo } from '@retake/core';
+import { readFileSync, existsSync } from 'node:fs';
+import { EngineError } from '@retake/engine';
 import {
   CLI_NAME,
   LAUNCHER_REL,
   MOVE_TO_APPLICATIONS,
-  RETAKE_VERSION,
   SetupError,
   ZSH_PROFILE,
-  bundleInfoOrNull,
-  bundleNodeArgs,
   checkCliFolder,
   claudeCandidates,
   claudeDesktopConfigFile,
@@ -52,23 +53,23 @@ import {
   installCliLink,
   installLocation,
   installLocationWords,
+  mcpConfigJson,
   onReadOnlyVolume,
   planDesktopEntry,
+  pluginInstallCommands,
+  pluginInstallSteps,
+  pluginMarketplaceRoot,
   readAppSettings,
   removeCliLink,
-  retakeHome,
   runClaudeSteps,
   setupSeen,
   writeAppSettings,
   writeDesktopEntry,
   zshPathLine,
-} from '@retake/core';
-import type { BundleInfo, ClaudeStep, InstallLocation } from '@retake/core';
-import { readFileSync, existsSync } from 'node:fs';
-import { EngineError } from '@retake/engine';
-import { mcpConfigJson, pluginInstallCommands, pluginInstallSteps, pluginMarketplaceRoot } from '@retake/mcp';
+} from '@retake/engine/integrations';
+import type { ClaudeStep, InstallLocation } from '@retake/engine/integrations';
 import type { ToolDef } from '@retake/engine/contract';
-import { parseShellLine } from './desktop.js';
+import { parseShellLine } from './shell-line.js';
 import type { DesktopPipe } from './desktop.js';
 
 /** Setup writes a minute at most (every op but setup_status). */

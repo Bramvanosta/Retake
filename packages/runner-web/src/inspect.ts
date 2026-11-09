@@ -18,6 +18,7 @@ import type { Route } from 'playwright-core';
 import { errorMessage, isCancelled } from './errors.js';
 import { DocumentChangedError } from './session.js';
 import type { FragileFlag, InventoryContext, InventoryElement, InventoryPopup, KitActionHint, KitInventory, ResolveResult } from './kit/types.js';
+import { INSPECT_PAUSE_CAP_S } from './runtime.js';
 import type { Runtime } from './runtime.js';
 
 /** Elements listed by default, and at most. */
@@ -34,8 +35,6 @@ export const INSPECT_BUDGET_MS = 2500;
  */
 export const INSPECT_DEADLINES = { guard_ms: 5_000, call_ms: 15_000 } as const;
 export type InspectDeadlines = { guard_ms: number; call_ms: number };
-/** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
-export const INSPECT_PAUSE_CAP_S = 0.2;
 /**
  * The replay's pacing: the cursor travels and hovers fast and types fast; navigation, popup and settle waits are the
  * project's (the page must reach the state the scenario describes).

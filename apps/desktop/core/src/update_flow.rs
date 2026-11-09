@@ -274,7 +274,7 @@ fn opt_num(v: Option<u64>) -> String {
     v.map_or_else(|| "null".into(), |n| n.to_string())
 }
 
-/// The line for the server's stdin (ui desktop.ts parseShellLine takes exactly these keys per state); None when a
+/// The line for the server's stdin (ui shell-line.ts parseShellLine takes exactly these keys per state); None when a
 /// version fails `version_ok` (nothing is sent: the server keeps its last state). `current`: this app's version. The
 /// notes are shortened (then "…") until the line fits SHELL_LINE_MAX bytes (review d B-L4).
 pub fn state_line(current: &str, s: &State) -> Option<String> {

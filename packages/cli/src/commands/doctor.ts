@@ -2,7 +2,8 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, RETAKE_VERSION, cliLinkState, cliOnPath, defaultCliDir, engineLocation, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote, defaultRetakeHome, statePath } from '@retake/core';
+import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, findWorkspaceRoot, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, listProjects, listTemplates, loadTemplate, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, retakeHome, unsafeTestResolve, bundleInfoOrNull, bundleProblems, resolveMediaTools, RETAKE_VERSION, clientPath, engineLocation, defaultRetakeHome, statePath } from '@retake/core';
+import { CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, cliLinkState, cliOnPath, defaultCliDir, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, stableNodePath, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/engine/integrations';
 import type { BrowserConfig, BundleInfo, LoadedProject, MediaToolSource, MediaTools, WorkspaceConfig } from '@retake/core';
 import type { ChromiumProbe } from '@retake/runner-web';
 import { EXIT, errorMessage } from '../errors.js';
@@ -903,7 +904,6 @@ function appCommandChecks(p: DoctorProbes): DoctorCheck[] {
 
 async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorCheck> {
   const name = 'MCP';
-  const { stableNodePath, clientPath } = await import('@retake/mcp');
   const exec = p.execPath ?? process.execPath;
   const node = stableNodePath(exec, p.exists);
   const parts = [`node ${tildePath(node)}`];
@@ -913,8 +913,8 @@ async function mcpCheck(p: DoctorProbes, ws: WorkspaceConfig): Promise<DoctorChe
   } else if (node === exec && /\/v?\d+\.\d+\.\d+\//.test(node)) {
     warns.push({ detail: `${tildePath(node)} names a patch version: an upgrade of Node.js removes it`, hint: 'register again after an upgrade (retake mcp --print-config), or point it at a version manager alias' });
   }
-  // What the MCP client's server gets: the registration's PATH and RETAKE_HOME only (mcp config-snippet) — never the
-  // shell's $RETAKE_FFMPEG / $RETAKE_FFPROBE.
+  // What the MCP client's server gets: the registration's PATH and RETAKE_HOME only (the integrations' config snippet)
+  // — never the shell's $RETAKE_FFMPEG / $RETAKE_FFPROBE.
   const path = clientPath(node, p.env.PATH ?? '', p.exists);
   const served = doctorMediaTools(p, ws.ffmpeg, { PATH: path });
   if (!('error' in served) && served.ffmpegSource === 'PATH') {

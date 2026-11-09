@@ -12,7 +12,7 @@ import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import { listComments } from './comments/views.js';
-import { editor } from './jobs/render-job.js';
+import { editor } from './lazy.js';
 import { projectPath } from '@retake/core';
 
 /** Renders kept per scenario and variant (and their reviews). */

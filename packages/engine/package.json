@@ -20,6 +20,11 @@
       "source": "./src/contract.ts",
       "types": "./dist/contract.d.ts",
       "default": "./dist/contract.js"
+    },
+    "./integrations": {
+      "source": "./src/integrations.ts",
+      "types": "./dist/integrations.d.ts",
+      "default": "./dist/integrations.js"
     }
   },
   "files": [

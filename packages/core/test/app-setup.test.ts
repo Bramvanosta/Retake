@@ -1,12 +1,12 @@
 /**
- * L5.16c — the installed app's first run and integrations (core app-setup.ts), on scratch folders only (a scratch HOME,
- * fake apps, a fake `claude`, scratch Claude Desktop configs — never the person's): where the app runs from (critique
- * H1), the `retake` command's link (plan §4, critique L1), `<home>/app.json`, the Claude Desktop merge (critique M7) and
- * the Claude Code runner (argv, no shell, a small environment, the time limit), and which copy of Retake an engine is
- * (critique M6). L5.16c fixes: the runner answers on its process's exit (a helper holding the pipes never keeps it
- * waiting), another copy's launcher is told by its app's identifier (look-alikes are the person's files), the zsh line
- * single-quotes odd names (evaluated by zsh), the Claude Desktop backups go to Retake's own folder, and every
- * `install_location` case of desktop_core is replayed here.
+ * L5.16c — the installed app's first run and integrations (@retake/engine/integrations, app-setup.ts), on scratch
+ * folders only (a scratch HOME, fake apps, a fake `claude`, scratch Claude Desktop configs — never the person's): where
+ * the app runs from (critique H1), the `retake` command's link (plan §4, critique L1), `<home>/app.json`, the Claude
+ * Desktop merge (critique M7) and the Claude Code runner (argv, no shell, a small environment, the time limit), and
+ * which copy of Retake an engine is (critique M6). L5.16c fixes: the runner answers on its process's exit (a helper
+ * holding the pipes never keeps it waiting), another copy's launcher is told by its app's identifier (look-alikes are
+ * the person's files), the zsh line single-quotes odd names (evaluated by zsh), the Claude Desktop backups go to
+ * Retake's own folder, and every `install_location` case of desktop_core is replayed here.
  */
 import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -29,7 +29,6 @@ import {
   cliOnPath,
   defaultCliDir,
   desktopBackupDir,
-  engineLocation,
   findClaude,
   installCliLink,
   installLocation,
@@ -44,8 +43,9 @@ import {
   writeAppSettings,
   writeDesktopEntry,
   zshPathLine,
-} from '../src/index.js';
-import type { BundleInfo } from '../src/index.js';
+} from '@retake/engine/integrations';
+import { engineLocation } from '@retake/core';
+import type { BundleInfo } from '@retake/core';
 
 const base = realpathSync(mkdtempSync(join(tmpdir(), 'app-setup-')));
 afterAll(() => rmSync(base, { recursive: true, force: true }));

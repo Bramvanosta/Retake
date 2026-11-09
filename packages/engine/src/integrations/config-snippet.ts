@@ -10,8 +10,6 @@ import { dirname, join, resolve } from 'node:path';
 import { bundleInfo, bundleInfoOrNull, bundleNodeArgs, clientPath, retakeHome } from '@retake/core';
 import type { BundleInfo } from '@retake/core';
 
-export { clientPath };
-
 export const SERVER_NAME = 'retake';
 /** The plugin and its marketplace (`.claude-plugin/marketplace.json` at the repository root, the plugin in `skills/`). */
 export const PLUGIN_NAME = 'retake';

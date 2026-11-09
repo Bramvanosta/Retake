@@ -26,7 +26,7 @@ import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { BundleInfo } from '@retake/core';
-import { readAppSettings } from '@retake/core';
+import { readAppSettings } from '@retake/engine/integrations';
 import { applyShellLine, startStudioServer } from '../src/index.js';
 import type { SetupContext, StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';

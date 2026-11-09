@@ -13,7 +13,7 @@
 import { createHash } from 'node:crypto';
 import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
-import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './brand.js';
+import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
 import { canonicalJson } from './canonical-json.js';
 import { ulid } from './ids.js';
 import { hunkOrderProblem, hunkStats } from './line-diff.js';

@@ -19,7 +19,7 @@ import { plural } from '../result.js';
 import type { ToolOutput } from '../result.js';
 import { READ, RUN_JOB, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
-import { jobErrorLine, jobLine } from './jobs.js';
+import { jobErrorLine, jobLine } from './job-lines.js';
 import { WAIT_MAX_S } from './run.js';
 
 const scriptLine = (i: ScriptIssue) => `script ${i.line}${i.col !== undefined ? `:${i.col}` : ''} ${i.severity}: ${i.message}`;

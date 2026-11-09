@@ -13,6 +13,7 @@ import type {
   PointSpec,
   ResolvedEnvironment,
   RunMode,
+  TimelineEvent,
 } from '@retake/core';
 import type { TemplateContext } from '@retake/core';
 import type { BrowserSession, KitClient } from './session.js';
@@ -28,13 +29,31 @@ import type { Jitter } from './motion.js';
 import { RunnerError, StepError } from './errors.js';
 import type { LoginPageError } from './errors.js';
 import type { LoginGuard } from './auth.js';
-import { INSPECT_PAUSE_CAP_S } from './inspect.js';
 import { fileSlug, throwIfAborted } from './util.js';
 import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
-import type { PendingPopup } from './actions/click.js';
-import type { Acted } from './park.js';
 import type { NavigationRule } from './opens.js';
+
+/** `hold`, `wait`, a step's `hold:` and a scene's still last at most this long during an inspection's replay (s). */
+export const INSPECT_PAUSE_CAP_S = 0.2;
+
+/** A plain click whose popup may still be opening, and its timeline event (Runtime.pendingPopup). */
+export interface PendingPopup {
+  before: number[];
+  wall: number;
+  ev: TimelineEvent;
+  page: Page;
+}
+
+/** The element the last acting step used (its box, its kit ref) and whether it opened a popup. */
+export interface Acted {
+  bbox?: BBox;
+  ref?: string;
+  popup_opened: boolean;
+  /** The popups open when the step started (a popup not among them opened during the step: a hover's menu). */
+  popups_before?: number[];
+  page: Page;
+}
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

@@ -39,7 +39,7 @@ import type { ToolDef } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';
-import type { PreviewLeases, PreviewHeld } from './ops.js';
+import type { PreviewLeases, PreviewHeld } from './preview-leases.js';
 import type { PlayerServer } from './player.js';
 import type { PreviewAllowList } from './preview-allow.js';
 

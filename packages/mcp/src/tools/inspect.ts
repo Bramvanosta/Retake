@@ -17,7 +17,7 @@ import { plural } from '../result.js';
 import type { ToolImage, ToolOutput } from '../result.js';
 import { RUN_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
-import { jobErrorLine, jobLine } from './jobs.js';
+import { jobErrorLine, jobLine } from './job-lines.js';
 import { compactElements, detail } from '../compact.js';
 import type { Detail } from '../compact.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';

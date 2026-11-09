@@ -36,7 +36,7 @@ import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { PreviewSamples } from '@retake/editor';
 import { components } from './components.js';
 import { EngineError } from './errors.js';
-import { editor } from './jobs/render-job.js';
+import { editor } from './lazy.js';
 
 /** Bump when the cache layout or what a key covers changes (every key changes). */
 export const LIBRARY_PREVIEW_FORMAT = 1;

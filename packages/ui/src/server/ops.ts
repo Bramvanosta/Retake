@@ -50,7 +50,7 @@
  *   admission rules (renderOps).
  * - L4.7: the library ops live in library-ops.ts (library_view, library_images, library_render) and the theme ops in
  *   theme-ops.ts (theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview); the
- *   preview pages' leases (PreviewLeases) are shared by timeline_view and theme_preview.
+ *   preview pages' leases (preview-leases.ts PreviewLeases) are shared by timeline_view and theme_preview.
  * - L4.8: the Record screen's ops live in record-ops.ts (record_options, record_start, record_view, record_annotate,
  *   record_stop, record_discard, record_save).
  * - L4.6: `timeline_view {proposal}` (the preview of Claude's proposal, through the same workspace-component hold); the
@@ -64,6 +64,8 @@ import type { ActionName } from '@retake/core';
 import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
 import type { Engine, EnvironmentView, RenderEditSource, SessionToConfirm, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
 import type { ToolDef } from '@retake/engine/contract';
+import { PreviewLeases } from './preview-leases.js';
+import type { PreviewHeld } from './preview-leases.js';
 import type { Live } from './live.js';
 import { COMMENT_OPS } from './comment-ops.js';
 import { LIBRARY_OPS } from './library-ops.js';
@@ -533,53 +535,6 @@ const PreviewAllowInput = z.strictObject({
   hash: z.string().regex(COMPONENT_HASH_RE, 'the folder hash timeline_view preview_held gave (16 hex characters)'),
 });
 
-/** A page's lease is forgotten after this long without a timeline_view (a tab closed without leaving). */
-export const TIMELINE_LEASE_TTL_MS = 2 * 60 * 60 * 1000;
-
-/**
- * The preview pages' leases by project (lease → last seen): a project's scope on the player origin lives while one is
- * held — timeline pages (L4.5) and, L4.7, theme preview pages (theme_preview) share the set; `timeline_leave` ends a
- * lease of either; a lease unseen for TIMELINE_LEASE_TTL_MS is forgotten. The last one gone releases the scope.
- */
-export class PreviewLeases {
-  private readonly byProject = new Map<string, Map<string, number>>();
-
-  constructor(
-    private readonly release: (project: string) => void,
-    private readonly ttl = TIMELINE_LEASE_TTL_MS,
-  ) {}
-
-  /** A page of `project` holds `lease` (seen now). */
-  hold(project: string, lease: string, now = Date.now()): void {
-    const m = this.byProject.get(project) ?? new Map<string, number>();
-    m.set(lease, now);
-    this.byProject.set(project, m);
-  }
-
-  /** A page left: its lease ends. The leases still held for the project (0: its scope was released). */
-  leave(project: string, lease: string): number {
-    const m = this.byProject.get(project);
-    m?.delete(lease);
-    if (!m || m.size === 0) {
-      this.byProject.delete(project);
-      this.release(project);
-      return 0;
-    }
-    return m.size;
-  }
-
-  /** Forget leases unseen for the TTL; release the projects left with none. */
-  prune(now = Date.now()): void {
-    for (const [p, m] of this.byProject) {
-      for (const [l, at] of m) if (now - at > this.ttl) m.delete(l);
-      if (m.size === 0) {
-        this.byProject.delete(p);
-        this.release(p);
-      }
-    }
-  }
-}
-
 /** The file's text while switches can be written (the engine gives it beside the view): what undo restores (L4.5 part D). */
 interface TimelineText {
   text?: string;
@@ -594,14 +549,6 @@ export type TimelineViewAnswer =
   | (TimelineView & TimelineText & PreviewHeld & { frame_url: string; plan_url: string })
   | (TimelineView & TimelineText & PreviewHeld & { preview_error: string })
   | { blocked: { problems: string[]; command?: string }; run_id?: string };
-
-/**
- * The workspace components this take uses that the preview does not run until the person allows them in this Studio
- * session (review A H1 c): id, kind and folder content hash — what the Allow button names and sends (preview_allow).
- */
-export interface PreviewHeld {
-  preview_held?: Array<{ id: string; kind: string; hash: string }>;
-}
 
 /**
  * timeline_view (L4.5 part C): the timeline screen's one read — engine timeline.view (memoised per file, run,

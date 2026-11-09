@@ -1,7 +1,6 @@
 import type { BBox, NormalizedStep, Pacing, PointSpec, ScrollArgs } from '@retake/core';
-import type { Page } from 'playwright-core';
 import { distance } from './motion.js';
-import type { StepContext } from './runtime.js';
+import type { Acted, StepContext } from './runtime.js';
 import { KEEP_NEAR_PX, cursorCovers } from './scene-cursor.js';
 
 /**
@@ -36,16 +35,6 @@ export function parkPlan(step: NormalizedStep, pacing: Pacing): ParkPlan | null 
   const kind = to !== undefined && typeof to !== 'number' && to !== 'top' && to !== 'bottom' ? 'scroll' : 'result';
   const hold_s = typeof p === 'number' ? p : (step.hold ?? (kind === 'scroll' ? pacing.park_scroll_hold : pacing.park_hold));
   return { kind, when: 'after', hold_s };
-}
-
-/** The element the last acting step used (its box, its kit ref) and whether it opened a popup. */
-export interface Acted {
-  bbox?: BBox;
-  ref?: string;
-  popup_opened: boolean;
-  /** The popups open when the step started (a popup not among them opened during the step: a hover's menu). */
-  popups_before?: number[];
-  page: Page;
 }
 
 /** What a park did (recorded as `data.park` of the step). */

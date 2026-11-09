@@ -23,9 +23,8 @@
   },
   {
    "rule": "R1",
-   "reason": "Rules that probe the disk inline (checks, destructive steps, filmed files, agent trust, the client PATH, the app bundle); they move behind a file-facts port.",
+   "reason": "Rules that probe the disk inline (checks, destructive steps, filmed files, the client PATH, the app bundle); they move behind a file-facts port.",
    "entries": [
-    "packages/core/src/agent-trust.ts → node:fs",
     "packages/core/src/bundle.ts → node:fs",
     "packages/core/src/checks/context.ts → node:fs",
     "packages/core/src/checks/media.ts → node:fs",
@@ -48,15 +47,7 @@
   },
   {
    "rule": "R1",
-   "reason": "The installer of the agent registrations; it moves to an integrations entry of the engine.",
-   "entries": [
-    "packages/core/src/app-setup.ts → node:child_process",
-    "packages/core/src/app-setup.ts → node:fs"
-   ]
-  },
-  {
-   "rule": "R1",
-   "reason": "State read from the home folder (agent policy, signing key, personas, names from before the rename); it moves to an I/O entry of core.",
+   "reason": "State read from the home folder (agent policy, signing key, personas, names from before the rename) and the real paths the agent rules compare; it moves to an I/O entry of core.",
    "entries": [
     "packages/core/src/agent-policy.ts → node:fs",
     "packages/core/src/agent-policy.ts → node:os",
@@ -87,13 +78,6 @@
    "reason": "The Studio server serves some MCP tools as they are (TOOLS) until those tools are operations of the engine; the operation contract itself comes from @retake/engine/contract.",
    "entries": [
     "packages/ui/src/server/studio.ts → @retake/mcp"
-   ]
-  },
-  {
-   "rule": "R3",
-   "reason": "The Set-up sheet's ops build Claude's registration of Retake (the MCP config snippet) with the MCP package's helpers until they move to an integrations entry of the engine.",
-   "entries": [
-    "packages/ui/src/server/setup-ops.ts → @retake/mcp"
    ]
   },
   {
@@ -186,114 +170,10 @@
    ]
   },
   {
-   "rule": "cycle",
-   "reason": "Core's model modules import one another (one cycle); it is broken when core is split into domain and I/O.",
-   "entries": [
-    "packages/core/src/agent-policy.ts → 45 imports inside its cycle",
-    "packages/core/src/agent-policy.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/agent-trust.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/brand.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/checks/project.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/checks/sandbox.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/checks/scenario.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/comments.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/field-edits.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/hook-writes.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/inspect.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/jobs.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/map-edits.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/project.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/record-annotations.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/recording.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/sandbox.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/scenario-edit.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/scenario.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/step-edits.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/step-forms.ts → cycle of packages/core/src/agent-policy.ts",
-    "packages/core/src/workspace.ts → cycle of packages/core/src/agent-policy.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "Approvals, pruning and the job runners import one another.",
-   "entries": [
-    "packages/engine/src/approvals.ts → 4 imports inside its cycle",
-    "packages/engine/src/approvals.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/jobs/render-job.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/jobs/run-job.ts → cycle of packages/engine/src/approvals.ts",
-    "packages/engine/src/prune.ts → cycle of packages/engine/src/approvals.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "The MCP HTTP transport and the server entry use each other.",
-   "entries": [
-    "packages/mcp/src/http.ts → 2 imports inside its cycle",
-    "packages/mcp/src/http.ts → cycle of packages/mcp/src/http.ts",
-    "packages/mcp/src/index.ts → cycle of packages/mcp/src/http.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "The MCP authoring tools share helpers both ways with the other tool modules.",
-   "entries": [
-    "packages/mcp/src/tools/authoring.ts → 8 imports inside its cycle",
-    "packages/mcp/src/tools/authoring.ts → cycle of packages/mcp/src/tools/authoring.ts",
-    "packages/mcp/src/tools/inspect.ts → cycle of packages/mcp/src/tools/authoring.ts",
-    "packages/mcp/src/tools/jobs.ts → cycle of packages/mcp/src/tools/authoring.ts",
-    "packages/mcp/src/tools/preview.ts → cycle of packages/mcp/src/tools/authoring.ts",
-    "packages/mcp/src/tools/theme.ts → cycle of packages/mcp/src/tools/authoring.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "The step actions, their table and the runtime that resolves targets import one another.",
-   "entries": [
-    "packages/runner-web/src/actions/artefacts.ts → 61 imports inside its cycle",
-    "packages/runner-web/src/actions/artefacts.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/calendar.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/click.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/drag.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/effects.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/index.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/keyboard.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/misc.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/pages.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/scroll.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/types.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/waits.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/actions/widgets.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/inspect.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/park.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/resolve.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/runtime.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
-    "packages/runner-web/src/scene-cursor.ts → cycle of packages/runner-web/src/actions/artefacts.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "The desktop bridge and the update operations of the Studio server use each other.",
-   "entries": [
-    "packages/ui/src/server/desktop.ts → 2 imports inside its cycle",
-    "packages/ui/src/server/desktop.ts → cycle of packages/ui/src/server/desktop.ts",
-    "packages/ui/src/server/update-ops.ts → cycle of packages/ui/src/server/desktop.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
-   "reason": "The Studio operation table and the theme operations use each other.",
-   "entries": [
-    "packages/ui/src/server/ops.ts → 2 imports inside its cycle",
-    "packages/ui/src/server/ops.ts → cycle of packages/ui/src/server/ops.ts",
-    "packages/ui/src/server/theme-ops.ts → cycle of packages/ui/src/server/ops.ts"
-   ]
-  },
-  {
    "rule": "layout",
    "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), the old names, a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
    "entries": [
-    "packages/core/src/agent-policy.ts → 3 hand-written layout paths",
-    "packages/core/src/agent-trust.ts → 7 hand-written layout paths",
+    "packages/core/src/agent-policy.ts → 10 hand-written layout paths",
     "packages/core/src/legacy.ts → 1 hand-written layout path",
     "packages/core/src/project.ts → 10 hand-written layout paths",
     "packages/core/src/schemas/timeline.ts → 2 hand-written layout paths",

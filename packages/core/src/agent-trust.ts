@@ -24,59 +24,19 @@
  *
  * A `retake` command typed by a human (trust `author`) is not concerned.
  */
-import { realpathSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { isAbsolute, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
-import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
-import { canonicalOrigin, scenarioNavigationProblems } from './agent-policy.js';
+import { agentWritable, canonicalOrigin, channelWords, realPathOf, scenarioNavigationProblems } from './agent-policy.js';
+import type { AgentChannel } from './agent-policy.js';
 import { formatPath } from './issues.js';
 import { pathInside, relativeInside } from './path-inside.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
 
-/**
- * The channel agent work comes through, for the wording of a refusal: `mcp` (the MCP server: "through MCP"), `studio`
- * (the Studio web app, L4.2: "from the Studio"). The rules are the same.
- */
-export type AgentChannel = 'mcp' | 'studio';
-
-/** "through MCP" / "from the Studio". */
-export function channelWords(via: AgentChannel | undefined): string {
-  return via === 'studio' ? 'from the Studio' : 'through MCP';
-}
-
-/**
- * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`) — with the
- * tool folder's name from before L5.13: its files (page dumps, drafts) are never run as code either (critique H1).
- */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/', ...OLD_AGENT_WRITABLE_PATHS];
-
-/**
- * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared
- * without case: the default macOS and Windows file systems ignore it, so `RUNS/…` is `runs/…` there (refusing it on a
- * case-sensitive file system too only errs on the safe side).
- */
-export function agentWritable(rel: string): boolean {
-  const p = rel.split(sep).join('/').replace(/^(?:\.\/)+/, '').toLowerCase();
-  return AGENT_WRITABLE_PATHS.some((w) => (w.endsWith('/') ? p === w.slice(0, -1) || p.startsWith(w) : p === w.toLowerCase()));
-}
-
-/**
- * The real path of `p`: its existing part resolved (symbolic links followed, and the case of each name as it is on
- * disk — `realpathSync.native`), the rest appended.
- */
-export function realPathOf(p: string): string {
-  try {
-    return realpathSync.native(p);
-  } catch {
-    const parent = dirname(p);
-    return parent === p ? p : join(realPathOf(parent), basename(p));
-  }
-}
 const realPath = realPathOf;
 
 /** `p` resolved against the current folder, then its real path (realPathOf). */

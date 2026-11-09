@@ -10,7 +10,7 @@
  * `--supervised` (L5.2, the desktop shell): `--json --no-open`, and the server also stops when its stdin closes — the
  * parent that holds the pipe died or quit, so no orphan server keeps `ui.json`. The stdin watcher is installed before
  * the server starts (an EOF during the start closes it right after). L5.16c: stdin carries the shell's lines for the
- * Set-up sheet (ui desktop.ts parseShellLine: the folder picked in its native panel for the command, the notification
+ * Set-up sheet (ui shell-line.ts parseShellLine: the folder picked in its native panel for the command, the notification
  * state), at most SHELL_LINE_MAX bytes each; anything else read there is dropped (L5.12d: the window page's answer to the
  * quit question comes through the op `desktop_answer` and goes out on stdout). Its line says `"v":2` (L5.2b): after it, a server this process serves
  * writes the `pending` and `job_end` lines of the shell's quit question and notifications (ui supervise.ts: enums and
@@ -27,6 +27,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { clientPath } from '@retake/core';
 import { EngineError, refuseBesideOldHolder } from '@retake/engine';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -230,7 +231,6 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   // Like `retake mcp` (critique B5): the Studio's PATH keeps absolute entries only, none a package manager added for the
   // script (`pnpm retake ui`: node_modules/.bin), none inside the workspace — the ffmpeg of the thumbnails and the
   // worker it starts (with a clean environment: studioWorkerEnv) never run a program an agent wrote.
-  const { clientPath } = await import('@retake/mcp');
   process.env.PATH = clientPath(process.execPath, process.env.PATH ?? '', undefined, root);
   // Loaded only now: a broken app source breaks `retake ui`, never the other commands.
   const { applyShellLine, launchStudio, startSupervisor } = await import('@retake/ui');
