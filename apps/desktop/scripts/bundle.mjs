@@ -66,8 +66,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, closeSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { MinisignError, decodePublicKey, verifyMinisign } from '../../../scripts/publish-update.mjs';
@@ -99,6 +99,19 @@ export const BUILD_MARK = '.retake-bundle';
 export const GUARD = 'node/guard.cjs';
 /** What the stage removes from the payload: installer scripts nothing of Retake runs (one can run as root). */
 export const PRUNED = ['engine/node_modules/playwright-core/bin', 'browsers/*/chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/*/Resources/install.sh'];
+/**
+ * What patches/@remotion__renderer@<version>.patch (root package.json `pnpm.patchedDependencies`) leaves in each file
+ * of @remotion/renderer it changes, and how many times: on macOS the render browser keeps Chromium's OS sandbox and
+ * isolates sites (`render-sandbox`); the bundle server listens on loopback only and refuses a foreign Host or a
+ * cross-origin request (`loopback-server`). The stage refuses an engine whose renderer lacks one (`rendererPatchProblems`):
+ * the deploy must carry the patch. docs/RELEASING.md says how to port it to another Remotion version.
+ */
+export const RENDERER_PATCH_MARKS = {
+  'dist/open-browser.js': { 'retake-patch: render-sandbox': 1 },
+  'dist/port-config.js': { 'retake-patch: loopback-server': 1 },
+  'dist/serve-static.js': { 'retake-patch: loopback-server': 1 },
+  'dist/esm/index.mjs': { 'retake-patch: render-sandbox': 1, 'retake-patch: loopback-server': 2 },
+};
 /** Text files the machine-path check reads (bounded: a bigger file is skipped — none of ours is). */
 const TEXT_FILE = /\.(?:js|mjs|cjs|json|md|markdown|txt|ya?ml|html?|css|tsx?|jsx|svg|sh|plist|xml)$/i;
 const TEXT_MAX_BYTES = 8 * 1024 * 1024;
@@ -277,8 +290,8 @@ function sizeOf(p) {
  * The layout check (also the tests'): bundle.json's paths inside the stage and present; every symbolic link relative
  * and resolving inside the stage; no regular file with more than one hard link (a link shared with the checkout or a
  * store: a write to either changes the other); no `machinePaths` (the build machine's home and checkout) in any text
- * file of the stage (TEXT_FILE, up to TEXT_MAX_BYTES each); the browser markers empty; one playwright-core; every
- * Mach-O listed. Returns `{ problems, machO }`.
+ * file of the stage (TEXT_FILE, up to TEXT_MAX_BYTES each); the browser markers empty; one playwright-core; the
+ * engine's @remotion/renderer patched (RENDERER_PATCH_MARKS); every Mach-O listed. Returns `{ problems, machO }`.
  */
 export function checkStage(dir, opts = {}) {
   const root = realpathSync(resolve(dir));
@@ -304,6 +317,7 @@ export function checkStage(dir, opts = {}) {
       else if (!existsSync(abs)) problems.push(`bundle.json: paths.${key} (${rel}) is missing`);
     }
     if (manifest.paths?.engine && !existsSync(join(root, manifest.paths.engine, 'dist', 'bin.js'))) problems.push('engine/dist/bin.js is missing');
+    if (typeof manifest.paths?.engine === 'string' && existsSync(join(root, manifest.paths.engine))) problems.push(...rendererPatchProblems(join(root, manifest.paths.engine, 'node_modules', '@remotion', 'renderer')));
     for (const rev of [manifest.playwright?.chromium && `chromium-${manifest.playwright.chromium}`, manifest.playwright?.headless_shell && `chromium_headless_shell-${manifest.playwright.headless_shell}`].filter(Boolean)) {
       for (const m of BROWSER_MARKERS) {
         const f = join(root, manifest.paths?.browsers ?? 'browsers', rev, m);
@@ -341,6 +355,24 @@ export function checkStage(dir, opts = {}) {
   if (manifest && playwrights !== 1) problems.push(`the engine holds ${playwrights} copies of playwright-core (one is pinned to the bundled browsers)`);
   for (const p of prunedIn(root)) problems.push(`${relative(root, p)}: an installer script the payload must not carry (PRUNED)`);
   return { problems, machO };
+}
+
+/** The problems of a @remotion/renderer folder (`dir`) against RENDERER_PATCH_MARKS: a file missing, a mark missing or repeated. */
+export function rendererPatchProblems(dir, marks = RENDERER_PATCH_MARKS) {
+  const problems = [];
+  for (const [rel, want] of Object.entries(marks)) {
+    const file = join(dir, rel);
+    if (!existsSync(file)) {
+      problems.push(`@remotion/renderer/${rel} is missing`);
+      continue;
+    }
+    const text = readFileSync(file, 'utf8');
+    for (const [mark, n] of Object.entries(want)) {
+      const found = text.split(mark).length - 1;
+      if (found !== n) problems.push(`@remotion/renderer/${rel} carries "${mark}" ${found} times, not ${n}: the engine lacks patches/@remotion__renderer@*.patch (pnpm deploy must apply it)`);
+    }
+  }
+  return problems;
 }
 
 /** The PRUNED paths present under `root` (their `*` stand for one path segment). */
@@ -466,6 +498,17 @@ export function breakHardLinks(dir) {
 export function deployEngine(repo, engine, filter = '@retake/cli') {
   run('pnpm', ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', '--filter', filter, '--prod', '--offline', 'deploy', engine], { cwd: repo, stdio: ['ignore', 'pipe', 'pipe'] });
   const unlinked = breakHardLinks(engine);
+  scrubDeployedEngine(engine);
+  return { unlinked };
+}
+
+/**
+ * What `pnpm deploy` leaves in an engine folder that names the build machine, removed: pnpm's own records (store, file:
+ * links), the workspace's pnpm settings written into the engine's package.json (patchedDependencies names each patch
+ * file by its absolute path; the patches are already applied to the copies deployed), and file: / workspace: specs,
+ * replaced by the deployed package's version.
+ */
+export function scrubDeployedEngine(engine) {
   // pnpm's own records name the build machine (store, file: links): the engine runs without them.
   for (const f of ['pnpm-lock.yaml', 'node_modules/.modules.yaml', 'node_modules/.pnpm', 'node_modules/.pnpm-workspace-state-v1.json', 'node_modules/.package-lock.json']) rmSync(join(engine, f), { recursive: true, force: true });
   const scopes = readdirSync(join(engine, 'node_modules')).filter((e) => e.startsWith('@'));
@@ -475,6 +518,10 @@ export function deployEngine(repo, engine, filter = '@retake/cli') {
     const text = readFileSync(pkgFile, 'utf8');
     const pkg = JSON.parse(text);
     let changed = false;
+    if (pkgFile === join(engine, 'package.json') && pkg.pnpm !== undefined) {
+      delete pkg.pnpm;
+      changed = true;
+    }
     for (const group of ['dependencies', 'devDependencies', 'optionalDependencies']) {
       for (const [name, spec] of Object.entries(pkg[group] ?? {})) {
         if (typeof spec === 'string' && (spec.includes('file:') || spec.startsWith('workspace:'))) {
@@ -483,9 +530,11 @@ export function deployEngine(repo, engine, filter = '@retake/cli') {
         }
       }
     }
-    if (changed) writeFileSync(pkgFile, `${JSON.stringify(pkg, null, 2)}\n`);
+    if (!changed) continue;
+    // A new file renamed over the old one: never written through a hard link to the workspace or the store.
+    writeFileSync(`${pkgFile}.retake-new`, `${JSON.stringify(pkg, null, 2)}\n`);
+    renameSync(`${pkgFile}.retake-new`, pkgFile);
   }
-  return { unlinked };
 }
 
 /** Folders of the checkout a build writes although git ignores them: tauri-build's generated schemas (review A L2). */
@@ -878,6 +927,55 @@ export function checkTauriCliDir(dir, pins = TAURI_CLI_PINS) {
 }
 
 /**
+ * The Tauri CLI the release's sign step runs: a fresh copy of the checked bytes of `dir` (a folder `tauriCli` laid out
+ * — a real folder, no link), in a new temporary folder of its own under `base`. `dir` is checked first
+ * (`checkTauriCliDir`); then each pinned file is read once (its last component never followed as a link: a link put
+ * there after the check is refused), those very bytes checked against their sha512 and written to the copy, and the
+ * copy checked again. Nothing beside or above `dir` (another `node_modules` next to it) is on the copy's module lookup
+ * path. Returns `{ root, cliJs }`: the caller runs `cliJs` and removes `root`. StageError otherwise (the copy removed).
+ * `check`: the folder check (`checkTauriCliDir`; tests' stand-ins only).
+ */
+export function freshTauriCli(dir, pins = TAURI_CLI_PINS, base = tmpdir(), { check = checkTauriCliDir } = {}) {
+  const src = resolve(dir);
+  const st = lstatSync(src, { throwIfNoEntry: false });
+  if (!st?.isDirectory()) throw new StageError(`${src}: not the Tauri CLI's folder (${st?.isSymbolicLink() ? 'a link' : st ? 'not a folder' : 'missing'})`);
+  check(src, pins);
+  const root = mkdtempSync(join(base, 'retake-tauri-cli-'));
+  try {
+    for (const [pkg, files] of Object.entries(pins.packages ?? {})) {
+      for (const [file, integrity] of Object.entries(files)) {
+        const rel = ['node_modules', ...pkg.split('/'), ...file.split('/')];
+        if (rel.some((p) => !p || p === '.' || p === '..')) throw new StageError(`apps/desktop/bundle/tauri-cli.json: a file outside its package (${pkg}/${file})`);
+        let fd;
+        try {
+          fd = openSync(join(src, ...rel), fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+        } catch (e) {
+          throw new StageError(`${src}: ${rel.join('/')} ${e.code === 'ELOOP' ? 'is a link, not a file' : `cannot be read (${e.code ?? e.message})`}`);
+        }
+        let bytes;
+        let mode;
+        try {
+          const f = fstatSync(fd);
+          if (!f.isFile()) throw new StageError(`${src}: ${rel.join('/')} is not a file`);
+          mode = f.mode & 0o755;
+          bytes = readFileSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+        const [algo, b64] = String(integrity).split('-');
+        if (algo !== 'sha512' || createHash('sha512').update(bytes).digest('base64') !== b64) throw new StageError(`${src}: ${rel.join('/')} is not its pinned sha512`);
+        mkdirSync(join(root, ...rel.slice(0, -1)), { recursive: true });
+        writeFileSync(join(root, ...rel), bytes, { mode, flag: 'wx' });
+      }
+    }
+    return { root, cliJs: check(root, pins) };
+  } catch (e) {
+    rmSync(root, { recursive: true, force: true });
+    throw e;
+  }
+}
+
+/**
  * `tauri build`'s arguments: the app bundle only, unsigned (we sign), the overlay, the cargo features (L5.16d: `updater`
  * when the build has a feed and a key), cargo --locked (and --offline).
  */
@@ -1016,16 +1114,36 @@ export function makeUpdateArchive(app, dir, { env = childEnv } = {}) {
 }
 
 /**
+ * Every folder Node.js looks in for a package `cliJs` requires by name, when run by `node` with HOME at `home`: a
+ * `node_modules` in the folder of `cliJs`'s real path and in each folder above it (none inside another
+ * `node_modules`), then the global folders — `home`/.node_modules, `home`/.node_libraries and the Node.js prefix's
+ * lib/node (NODE_PATH: buildEnv passes none).
+ */
+export function cliLookupPaths(cliJs, home, node = process.execPath) {
+  const paths = [];
+  for (let d = dirname(realpathSync(cliJs)); ; d = dirname(d)) {
+    if (basename(d) !== 'node_modules') paths.push(join(d, 'node_modules'));
+    if (dirname(d) === d) break;
+  }
+  return [...paths, join(home, '.node_modules'), join(home, '.node_libraries'), resolve(node, '..', '..', 'lib', 'node')];
+}
+
+/**
  * Sign the archive (`<archive>.sig`) with the Tauri CLI, bound to `version` (`--app-version`: the apps require it),
  * the private key from TAURI_SIGNING_PRIVATE_KEY (its text, or the path of its file) and _PASSWORD — passed to this
- * one command only (every other child gets buildEnv) — then check the signature with `pubkey`. Returns the .sig path;
- * null without a private key (the archive stays unsigned).
+ * one command only (every other child gets buildEnv) — then check the signature with `pubkey`. `cliRoot`: the CLI's
+ * own folder (a fresh copy: `freshTauriCli`) — the CLI runs with HOME there, and is refused before it starts when any
+ * folder of its module lookup path outside `cliRoot` exists (`cliLookupPaths`). Returns the .sig path; null without a
+ * private key (the archive stays unsigned).
  */
-export function signUpdateArchive({ cliJs, archive, version, pubkey, env = process.env, node = process.execPath }) {
+export function signUpdateArchive({ cliJs, cliRoot = dirname(cliJs), archive, version, pubkey, env = process.env, node = process.execPath }) {
   let key = env.TAURI_SIGNING_PRIVATE_KEY?.trim();
   if (!key) return null;
   if (!key.includes('\n') && existsSync(key) && statSync(key).isFile()) key = readFileSync(key, 'utf8').trim();
-  const signEnv = buildEnv(env, { TAURI_SIGNING_PRIVATE_KEY: key, ...(env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD !== undefined ? { TAURI_SIGNING_PRIVATE_KEY_PASSWORD: env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD } : {}) });
+  const home = realpathSync(cliRoot);
+  const outside = cliLookupPaths(cliJs, home, node).filter((p) => !within(home, p) && lstatSync(p, { throwIfNoEntry: false }));
+  if (outside.length) throw new StageError(`the Tauri CLI would look for packages in ${outside.join(', ')} (outside its own folder ${home}): remove ${outside.length > 1 ? 'them' : 'it'} — nothing was signed`);
+  const signEnv = buildEnv(env, { HOME: home, TAURI_SIGNING_PRIVATE_KEY: key, ...(env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD !== undefined ? { TAURI_SIGNING_PRIVATE_KEY_PASSWORD: env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD } : {}) });
   const r = spawnSync(node, [cliJs, 'signer', 'sign', '--app-version', version, archive], { encoding: 'utf8', env: signEnv, cwd: dirname(archive) });
   if (r.error) throw new StageError(`tauri signer could not start: ${r.error.message}`);
   // The CLI's output names neither the key nor the password; only its exit status and last line are reported.
@@ -1155,6 +1273,26 @@ export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT, 
 }
 
 /**
+ * bundle.json's `paths[key]` (`m`: the manifest) as a path of `dir`: a relative path with no empty, `.` or `..` part
+ * whose real path stays inside `dir` (no link out). StageError otherwise.
+ */
+export function manifestPath(dir, m, key) {
+  const rel = m?.paths?.[key];
+  const parts = typeof rel === 'string' ? rel.split('/') : [];
+  if (!parts.length || isAbsolute(rel) || parts.some((p) => !p || p === '.' || p === '..')) throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} is not a relative path inside the folder (${JSON.stringify(rel)?.slice(0, 80)})`);
+  const abs = join(dir, ...parts);
+  let real;
+  try {
+    // The system's realpath (realpathSync.native): Node.js's own resolves a link's `..` against the link's name.
+    real = realpathSync.native(abs);
+  } catch {
+    throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} (${rel}) is missing`);
+  }
+  if (!within(realpathSync.native(dir), real)) throw new StageError(`${join(dir, 'bundle.json')}: paths.${key} (${rel}) leads out of the folder`);
+  return abs;
+}
+
+/**
  * bundle.json's sha256 values (Node.js, ffmpeg and ffprobe) recomputed from the files of `dir` — after the payload is
  * signed, which rewrites them (review B M3); bundle.json itself is no Mach-O: the outer signature seals it as written
  * here. Returns the manifest.
@@ -1162,8 +1300,8 @@ export function verifyDmg(dmg, mountpoint, { env = childEnv, product = PRODUCT, 
 export function refreshManifestHashes(dir) {
   const file = join(dir, 'bundle.json');
   const m = JSON.parse(readFileSync(file, 'utf8'));
-  m.sha256 = { ...(m.sha256 ?? {}), node: sha256(join(dir, m.paths.node)) };
-  if (m.ffmpeg && m.paths.ffmpeg) m.ffmpeg.sha256 = Object.fromEntries(['ffmpeg', 'ffprobe'].map((t) => [t, sha256(join(dir, m.paths.ffmpeg, t))]));
+  m.sha256 = { ...(m.sha256 ?? {}), node: sha256(manifestPath(dir, m, 'node')) };
+  if (m.ffmpeg && m.paths.ffmpeg) m.ffmpeg.sha256 = Object.fromEntries(['ffmpeg', 'ffprobe'].map((t) => [t, sha256(join(manifestPath(dir, m, 'ffmpeg'), t))]));
   writeFileSync(file, `${JSON.stringify(m, null, 1)}\n`);
   return m;
 }
@@ -1185,11 +1323,12 @@ function claimOut(dir) {
  * (ad hoc, the default) or 'release' (`--release`: `signer` refuses first, before anything is staged or signed,
  * without the whole APPLE_* set). `appOnly` (`--app-only`, the workflow's `build` job): the ad hoc app and the pinned
  * Tauri CLI only, for `release.mjs sign`. `stage`: a stage to reuse (signed in place) instead of a new one in
- * `<out>/stage`; `entries`: the signing table (sign-table.json; another one in tests); `tauriPins`: the pins the Tauri
+ * `<out>/stage` — of the app's version (`appVersion`, tauri.conf.json's; another one in tests) when an app or a DMG
+ * is made; `entries`: the signing table (sign-table.json; another one in tests); `tauriPins`: the pins the Tauri
  * CLI is checked against (tauri-cli.json; a fake store's in tests — the command line never passes it). Returns the
  * report.
  */
-export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true, appOnly = false }) {
+export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.env, offline = env.CARGO_NET_OFFLINE === 'true', entries, tauriPins = TAURI_CLI_PINS, updater: testUpdater, dmg: makeDmg = true, appOnly = false, appVersion = CONF.version }) {
   const child = buildEnv(env);
   // A release is refused here, before anything is staged, without the whole APPLE_* set (finishApp asks again).
   signer(mode, env, child);
@@ -1225,6 +1364,9 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
   if (!reuse) stage({ out: stageDir, ffmpeg, env });
   const manifest = JSON.parse(readFileSync(join(stageDir, 'bundle.json'), 'utf8'));
   if (!existsSync(join(stageDir, GUARD))) throw new StageError(`${join(stageDir, GUARD)} is missing: a stage from before the module lookup guard — stage again`);
+  // A reused stage of another version would make an app whose bundle.json and Info.plist disagree: the DMG and the
+  // sign job refuse that only after Tauri's build — refused here, before it (`appVersion`: tests' only).
+  if (reuse && (makeDmg || appOnly) && manifest.app !== appVersion) throw new StageError(`--stage ${stageDir} was made for version ${manifest.app}, the app is ${appVersion} (tauri.conf.json): stage again (bundle.mjs stage)`);
   writeFileSync(join(stageDir, 'launch.json'), `${JSON.stringify(launchJson(manifest, { updates: !!updates }), null, 1)}\n`);
   mkdirSync(join(stageDir, dirname(LAUNCHER)), { recursive: true });
   copyFileSync(join(APP_DIR, 'bundle', 'retake.sh'), join(stageDir, LAUNCHER));
@@ -1269,7 +1411,7 @@ export function build({ out, mode = 'dry', stage: reuse, ffmpeg, env = process.e
 
   // 4. The rest (release.mjs finishApp): a release's Developer ID signature, notarisation and stapling; the update
   //    archive; the DMG. `--app-only` stops here.
-  const done = appOnly ? { dmg: null, update: null } : finishApp({ app, out: dir, mode, env, cliJs, pubkey: updates?.pubkey, entries: table, dmg: makeDmg, verified: true, say });
+  const done = appOnly ? { dmg: null, update: null } : finishApp({ app, out: dir, mode, env, tauriCli: join(dir, 'tauri-cli'), tauriPins, pubkey: updates?.pubkey, entries: table, dmg: makeDmg, verified: true, say });
 
   if (repoSnapshot(REPO) !== before) throw new StageError(`the build changed the checkout (${REPO}): restore it`);
   const report = {

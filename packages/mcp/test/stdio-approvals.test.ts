@@ -4,7 +4,7 @@
  * env_reset are jobs the workspace's worker (a separate process) runs, with the approvals taken at submit; the fixture
  * product runs on free ports (no browser is needed).
  */
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -120,7 +120,9 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(asked).toHaveLength(1);
     const msg = asked[0].message;
     expect(msg).toContain('the agent asks to run hooks catalogue:setup in project northfield-fixture, environment local, read-write');
-    expect(msg).toContain(`1. setup hook 2 "free-registry-ref": free-registry-ref: http DELETE ${fixture.urls.console}/api/products/finca-quenaro/refs; rollback: http POST ${fixture.urls.console}/api/products/finca-quenaro/refs — HTTP DELETE`);
+    expect(msg).toContain(
+      `1. setup hook 2 "free-registry-ref" (http) — HTTP DELETE\n   method: DELETE\n   url: ${fixture.urls.console}/api/products/finca-quenaro/refs\n   rollback method: POST\n   rollback url: ${fixture.urls.console}/api/products/finca-quenaro/refs\n`,
+    );
     expect(msg).toContain('"confirm: true" in a file written through MCP does not count');
     expect(msg).toContain(`retake -C ${ws} hooks run northfield-fixture catalogue:setup`);
     expect(asked[0].requestedSchema).toMatchObject({ type: 'object', properties: { approve: { type: 'boolean' } }, required: ['approve'] });
@@ -178,6 +180,32 @@ describe('retake mcp: hooks need a human, asked through elicitation', () => {
     expect(res.result.rollbacks.flatMap((j) => j.results.map((x) => x.status))).toEqual(['ok']);
     expect(res.result.reset.map((x) => [x.name, x.status])).toEqual([['reset-fixture', 'ok']]);
     expect(r.content[0].text).toContain('reset hooks:');
+    expect(protocolErrors).toEqual([]);
+  });
+
+  it('project_prune {dry_run: false}: the user is asked (count, size, each item); no form or a decline deletes nothing', async () => {
+    const runs = join(ws, 'projects', 'northfield-fixture', 'runs');
+    const take = join(runs, '20261018-080000-quote');
+    await mkdir(take, { recursive: true });
+    await writeFile(join(take, 'run.json'), JSON.stringify({ version: 1, id: '20261018-080000-quote', project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'failed', started_at: '2026-10-18T08:00:00.000Z', dir: take, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    const left = async () => (await readdir(runs)).filter((n) => n.startsWith('2026')).sort();
+    const before = await left();
+    expect(before).toContain('20261018-080000-quote');
+    const none = errorOf(await call((await connect()).client, 'project_prune', { project: 'northfield-fixture', dry_run: false }));
+    expect(none.code).toBe('needs_approval');
+    expect(none.fix).toBe(`retake -C ${ws} prune northfield-fixture --yes`);
+    const no = await connect('decline');
+    expect(errorOf(await call(no.client, 'project_prune', { project: 'northfield-fixture', dry_run: false })).code).toBe('refused');
+    expect(await left()).toEqual(before);
+    expect(no.asked).toHaveLength(1);
+    expect(no.asked[0]!.message).toMatch(/the agent asks to delete 2 items from project northfield-fixture's runs\/, renders\/ and review\/, freeing \d+ kB: 2 takes/);
+    expect(no.asked[0]!.message).toContain('\n- take 20261018-080000-quote — failed take, ');
+    expect(no.asked[0]!.message).toContain(`run it yourself in a terminal: retake -C ${ws} prune northfield-fixture --yes`);
+    const yes = await connect('accept');
+    const r = await call(yes.client, 'project_prune', { project: 'northfield-fixture', dry_run: false });
+    expect(r.isError, JSON.stringify(r)).toBeFalsy();
+    expect(r.content[0].text).toMatch(/^2 items of northfield-fixture deleted \(\d+ kB freed\), as the user approved/);
+    expect(await left()).toEqual(before.filter((n) => n !== '20261018-080000-quote' && n !== '20261017-120000-quote'));
     expect(protocolErrors).toEqual([]);
   });
 });

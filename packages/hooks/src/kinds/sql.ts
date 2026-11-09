@@ -189,10 +189,13 @@ export async function prepareSql(spec: string | SqlHookSpec, k: KindEnv): Promis
     rollbackInfo = {
       description: redactText(ctx, describeSql(rbSource.file ? { file: rbSource.file } : { query: rbSql }, db.label)),
       reason: rbKw ? (rbSource.file ? `${rbSource.file} contains ${rbKw}` : `SQL ${rbKw}`) : null,
+      shown: { kind: 'sql', db: db.label, ...(rbSource.file ? { file: rbSource.file } : { query: rbSql }) },
     };
   }
   return {
     description: redactText(ctx, describeSql(source, db.label)),
+    // The statement as it runs (a file: its name — its bytes are bound to an approval through MCP).
+    shown: { kind: 'sql', db: db.label, ...(source.file ? { file: source.file } : { query: sql }) },
     destructive: kw ? (source.file ? `${source.file} contains ${kw}` : `SQL ${kw}`) : null,
     writes: sqlWriteStatement(sql) ?? (rollbackWrites ? `its rollback: ${rollbackWrites}` : null),
     hosts: db.target.socket ? [] : [db.target.host],

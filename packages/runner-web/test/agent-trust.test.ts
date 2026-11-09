@@ -3,6 +3,7 @@
  * refused before anything runs, and a step reading a file whose path only templating reveals (drop_file.path, eval.file)
  * checks it when it runs — inside the project folder, an eval file not agent-writable and naming no secret.
  */
+import { existsSync } from 'node:fs';
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -11,7 +12,7 @@ import { runScenario } from '../src/index.js';
 import { dropFile } from '../src/actions/drag.js';
 import { evalStep } from '../src/actions/misc.js';
 import type { StepContext } from '../src/runtime.js';
-import { FAST, makeProject, makeScenario, tempDir } from './helpers.js';
+import { FAST, makeProject, makeScenario, startServer, tempDir } from './helpers.js';
 
 let dir: string;
 let outside: string;
@@ -54,6 +55,21 @@ describe('runner, trust mcp', () => {
     expect(author.error?.message).not.toContain('work submitted through MCP');
   });
 
+  it("a scenario opening another origin than the environment's pages fails before the browser, saying what to change", async () => {
+    const sc: Omit<Scenario, 'video'> = {
+      pacing: FAST,
+      scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ new_tab: { href: 'http://127.0.0.1:10/admin', as: 'other' } }, { open: 'http://127.0.0.1:9/ok' }] }],
+    };
+    const base = { project: makeProject(dir, { app: 'http://127.0.0.1:9' }), scenario: makeScenario('elsewhere', sc), mode: 'dry' as const, env: 'test', browser: { executable: '/nonexistent/chromium' } };
+    const rec = await runScenario({ ...base, runId: `elsewhere-${Date.now()}`, hookTrust: 'mcp', hookVia: 'studio' });
+    expect(rec.status).toBe('failed');
+    expect(rec.error?.message).toMatch(/^refused \(work submitted from the Studio\): scenes\[0\]\.steps\[0\]\.new_tab\.href: http:\/\/127\.0\.0\.1:10\/admin is on http:\/\/127\.0\.0\.1:10, not an origin of environment test's pages \(http:\/\/127\.0\.0\.1:9\)/);
+    expect(rec.error?.message).toContain('add its origin as a page of environment test in project.yaml');
+    expect(rec.error?.message).not.toContain('steps[1]');
+    const author = await runScenario({ ...base, runId: `elsewhere-author-${Date.now()}` });
+    expect(author.error?.message).not.toContain('work submitted');
+  });
+
   it('drop_file.path and eval.file, as templated when the step runs: inside the project; eval code not agent-writable, without a secret', async () => {
     const zone = { css: 'body' };
     expect(await stepError(dropFile(ctx(true), { zone, path: join(outside, 'secret.txt') }))).toContain('is an absolute path');
@@ -64,5 +80,40 @@ describe('runner, trust mcp', () => {
     // Trust author: read as before (the fake runtime then fails further on, not on the file).
     expect(await stepError(dropFile(ctx(false), { zone, path: 'assets/link.txt' }))).not.toContain('outside the project');
     expect(await stepError(evalStep(ctx(false), { file: 'scenarios/x.js' }))).not.toContain('agent can write');
+  });
+
+  it("the scenario's own hooks are the agent's — a shell one setting a loader variable is refused, in its setup, named hooks and teardown — and so is a project.yaml hook rendered with the scenario's vars", async () => {
+    const server = await startServer({ '/': '<html><body><h1>Home</h1></body></html>' });
+    try {
+      const steps = [{ hook: 'warm' }, { hold: 0.1 }];
+      const run = (name: string, sc: Omit<Scenario, 'video'>, project = makeProject(dir, { app: server.url })) =>
+        runScenario({ project, scenario: makeScenario(name, { pacing: FAST, ...sc }), mode: 'dry', hooks: 'run', env: 'test', runId: `${name}-${Date.now()}`, hookTrust: 'mcp', confirmHook: () => true });
+      const shared = (vars?: Record<string, string>) => {
+        const p = makeProject(dir, { app: server.url });
+        p.config.hooks = { warm: { shell: { run: '{{vars.prefix}} true' } } };
+        if (vars) p.config.vars = vars;
+        return p;
+      };
+      const setup = await run('own-setup', { setup: [{ name: 'tooling', shell: { run: 'PATH=/usr/bin:/bin true' } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
+      expect(setup.status).toBe('failed');
+      expect(setup.error?.message).toContain('setup hooks failed (tooling: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
+      const own = await run('own-named', { hooks: { warm: { shell: { run: 'true', env: { NODE_OPTIONS: '-r ./x.cjs' } } } }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'LANG=C' }));
+      expect(own.status).toBe('failed');
+      expect(own.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses its env `NODE_OPTIONS` (a loader variable)');
+      const agentVars = await run('agent-vars', { vars: { prefix: 'PATH=/usr/bin:/bin' }, scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared());
+      expect(agentVars.status).toBe('failed');
+      expect(agentVars.error?.message).toContain('hook "warm" failed (warm: refusing shell hook: it uses `PATH=` (it sets PATH, a loader variable)');
+      // Its teardown is the agent's too: refused, nothing runs (a person's hook there would run, approved).
+      const marker = join(dir, 'teardown-ran');
+      const teardown = await run('own-teardown', { teardown: [{ name: 'tidy', shell: { run: `PATH=/usr/bin:/bin touch ${marker}` } }], scenes: [{ id: 'home', page: 'app', open: '/', steps: [{ hold: 0.1 }] }] });
+      expect(teardown.hooks?.teardown).toBe('failed');
+      expect(existsSync(marker)).toBe(false);
+      // project.yaml's hook with project.yaml's own vars: a person's — it runs.
+      const person = await run('person-vars', { scenes: [{ id: 'home', page: 'app', open: '/', steps }] }, shared({ prefix: 'PATH=/usr/bin:/bin' }));
+      expect(person.error?.message).toBeUndefined();
+      expect(person.status).toBe('succeeded');
+    } finally {
+      await server.close();
+    }
   });
 });

@@ -2200,6 +2200,11 @@ and `job_end` lines); what remains:
     and companies of up to 3 people, a Company licence from 4) binds everyone who renders with Retake, from the app or
     from source; a permissive licence on Retake does not relicense it. The README says so, and a sold or hosted Retake
     needs the parked Remotion decision (Open decisions) first.
+  - **Retake patches Remotion's renderer** (`patches/@remotion__renderer@<version>.patch`: the render browser's
+    sandbox and site isolation on macOS, its bundle server on loopback only). The free licence allows modifying
+    Remotion for one's own use case, not copying or modifying it to sell or license a derivative. Before a sale: check
+    the patched copy the app ships against the Company licence's terms with Remotion, or offer the changes upstream
+    (as options of `openBrowser` and of the bundle server) so the app ships Remotion unmodified.
   - **The DMG carries GPL programs**: our ffmpeg / ffprobe (GPL v2+ with x264, `scripts/build-ffmpeg.mjs`) and
     Remotion's compositor with its own GPL FFmpeg. They ship as separate programs beside Retake's code (an aggregate),
     which a permissive or a copyleft licence for Retake both allow, as long as each keeps its notice and written
@@ -2297,10 +2302,9 @@ and `job_end` lines); what remains:
   runner: the fast suite, `pnpm desktop:test`; the gated Chromium / Docker / Postgres tests opt-in) would let the
   release job wait for main's green run on the tagged commit, as `gh run list --commit` can tell.
 - Release extras cut from L5.16e: an Intel or universal build (BL-139), the release's DMG styled (BL-140), a
-  Homebrew cask, a cache of cargo's registry and target and of Playwright's browsers between tags (GitHub scopes a
-  tag's caches to that tag: only the pnpm store and ffmpeg caches serve re-runs), `actionlint` in that CI.
-- That CI keeps caches of its own name: the release workflow's are `release-…` with no fallback key (review e A-L3),
-  so a store a pull request's run filled is never restored into a release build — keep it so.
+  Homebrew cask, `actionlint` in that CI.
+- The release workflow keeps no cache (every run starts from the checkout, the lockfile and the pinned sources), so
+  nothing a pull request's run filled can reach a release build: a CI workflow's caches stay its own — keep it so.
 
 ### BL-145 — Build provenance for the release
 *S · noted in L5.16e's review · builds on: L5.16e*
@@ -2412,6 +2416,24 @@ A cancel now ends the wait for the VideoToolbox probe at once, and a render can 
 encoding session that stops taking frames mid-render (libx264 cannot) has no time limit of its own — the render waits
 until it is cancelled. Watch the encoded-frame count on the VideoToolbox path: no progress for N seconds → cancel the
 attempt and count it as a GPU-path failure (one software retry, as for the other encoder failures).
+
+### BL-160 — The bundled Chromium, bumped in one command
+*S · noted in a review of the release workflow · builds on: L5.16e*
+
+The app ships Playwright's Chromium, so each release starts by bumping Playwright (`playwright-core` and every
+package that names it, one exact version), installing its browsers and re-recording `apps/desktop/bundle/browsers.json`
+(docs/RELEASING.md, step 1) — by hand today. A script doing the three (the digests printed for review, nothing
+recorded unchecked) would make it one step; the release job could then warn when the tagged commit's Chromium is older
+than the newest Playwright release.
+
+### BL-161 — Sandboxed browsers on Linux, as root and in containers
+*S · noted in a review of the browser sandbox · builds on: the hardening of the capture and render browsers*
+
+Every capture browser runs in Chromium's OS sandbox, which on Linux needs unprivileged user namespaces and a user that
+is not root: as root (the default user of many containers) Chromium does not start, and `retake doctor` says to run
+as a regular user. Renders on Linux still run as Remotion starts them (without the sandbox). What remains: a documented
+container recipe (a non-root user, the namespaces it needs), a check of the setuid sandbox helper where user namespaces
+are off, and the render browser sandboxed on Linux like on macOS.
 
 ## Guard-rails for planned lots (no new scope)
 

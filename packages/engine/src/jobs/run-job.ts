@@ -25,7 +25,7 @@ import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, R
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
-import { EngineError, toEngineError } from '../errors.js';
+import { EngineError, scenarioChangedConflict, toEngineError } from '../errors.js';
 import type { EngineErrorCode } from '../errors.js';
 import { executeRun, prepareRun } from '../execute-run.js';
 import type { PreparedRun, RunPorts } from '../execute-run.js';
@@ -151,9 +151,10 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
       ? preflightHooks(
           project,
           [
-            { phase: 'setup', hooks: sc.setup ?? [] },
-            { phase: 'teardown', hooks: sc.teardown ?? [] },
-            ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks })),
+            // The scenario's own hooks are the agent's (trust `mcp`); a project.yaml one is a person's.
+            { phase: 'setup', hooks: sc.setup ?? [], agentWritten: true },
+            { phase: 'teardown', hooks: sc.teardown ?? [], agentWritten: true },
+            ...named.map((h) => ({ phase: 'step' as const, hooks: h.hooks, agentWritten: h.source === 'scenario' })),
           ],
           { env: env.name, ...(sc.vars ? { vars: sc.vars } : {}), scenario: sc, journalFile: preflightJournal(project), via: agentChannel(ctx.client) },
         ).catch((e: unknown) => {
@@ -161,7 +162,7 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
         })
       : Promise.resolve(undefined));
   return [
-    async () => checkAgentTrust(project, sc, fix, ctx.client),
+    async () => checkAgentTrust(project, sc, fix, ctx.client, env),
     async () => checkWorkspaceProtection(ctx.ws, project, env.name, fix, agentChannel(ctx.client)),
     async () => {
       const p = await preflight();
@@ -181,12 +182,14 @@ function runGates(ctx: SubmitContext, s: PreparedSubmit, req: RunSubmitRequest, 
 /**
  * Which gate refused (L5.11a, critique H3): the generic `code` cannot tell agent trust from a protected host or a refused
  * hook (all `refused`), so the Studio's short words key on this. `agent_trust` — the scenario names a secret or a file
- * outside the project; `protected_host` — the location reaches another project's production / read-only host;
+ * outside the project; `opens_other_site` — every reason agent trust gave is a URL the scenario opens outside the
+ * environment's origins; `protected_host` — the location reaches another project's production / read-only host;
  * `hook_refused` — a hook a safety rule refuses; `read_only` — the same on a read-only location (its writing hooks);
- * `needs_approval` — hooks a person approves first (`count`); `invalid` — the file or the request does not check;
+ * `needs_approval` — hooks a person approves first (`count`); `too_long` — hooks too long to approve in a form (`count`):
+ * a terminal runs them; `invalid` — the file or the request does not check;
  * `prepare` — anything else that stops the run being prepared.
  */
-export type RunBlockerKind = 'agent_trust' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'invalid' | 'prepare';
+export type RunBlockerKind = 'agent_trust' | 'opens_other_site' | 'protected_host' | 'hook_refused' | 'read_only' | 'needs_approval' | 'too_long' | 'invalid' | 'prepare';
 
 /** Why a run would be refused at submit, before anything is clicked (L4.2, critique B2): a refusal and its command. */
 export interface RunBlocker {
@@ -251,7 +254,10 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
     return Array.isArray(v) ? v.length : undefined;
   };
   if (gate === null) return { kind: err.code === 'invalid' || err.code === 'not_found' ? 'invalid' : 'prepare' };
-  if (gate === 0 && err.code === 'refused' && Array.isArray(err.details?.problems)) return { kind: 'agent_trust' };
+  if (gate === 0 && err.code === 'refused' && Array.isArray(err.details?.problems)) {
+    const all = err.details.problems.length;
+    return { kind: all > 0 && err.details?.navigation === all ? 'opens_other_site' : 'agent_trust' };
+  }
   if (gate === 1 && err.code === 'refused') return { kind: 'protected_host' };
   if (gate === 2 && err.code === 'refused' && Array.isArray(err.details?.refused)) {
     const env = err.details?.env as { access?: string } | undefined;
@@ -261,6 +267,11 @@ export function blockerKind(err: EngineError, gate: number | null): { kind: RunB
   if (gate === 3 && err.code === 'needs_approval') {
     const count = list('hooks');
     return { kind: 'needs_approval', ...(count !== undefined ? { count } : {}) };
+  }
+  // takeApprovals refused before asking: the form would be too long to read (a terminal runs it).
+  if (gate === 3 && err.code === 'refused' && err.details?.too_long === true) {
+    const count = list('hooks');
+    return { kind: 'too_long', ...(count !== undefined ? { count } : {}) };
   }
   return { kind: err.code === 'invalid' ? 'invalid' : 'prepare' };
 }
@@ -277,9 +288,9 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     const r = await gate();
     if (r) approvals = r;
   }
-  // The bytes the gates checked (the text prepareRun parsed), never a later read of the file (review A #6); the
-  // worker checks the file against this hash before it runs.
-  const sha = sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
+  // The bytes the gates checked (those prepareRun read once and parsed), never a later read of the file (review A #6);
+  // the worker parses only bytes with this hash.
+  const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
   if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
     throw new EngineError('conflict', `scenarios/${prepared.scenario.name} changed since it was shown: look at it again, then start the run`, {
       details: { shown: req.expect_sha256, current: sha },
@@ -369,14 +380,11 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   const project = await openProjectBySlug(ctx.ws, input.project);
   const runDir = join(project.dir, 'runs', input.run_id);
   try {
-    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox });
+    // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
+    const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
+      throw scenarioChangedConflict(e, `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`);
+    });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
-    const sha = sha256Hex(await readFile(prepared.scenario.file));
-    if (sha !== input.scenario_sha256) {
-      throw new EngineError('conflict', `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`, {
-        details: { submitted: input.scenario_sha256, current: sha },
-      });
-    }
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };
     const update = (patch: Partial<JobProgress>) => {
       Object.assign(progress, patch, { updated_at: new Date().toISOString() });

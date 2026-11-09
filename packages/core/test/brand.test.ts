@@ -4,7 +4,7 @@
  * drive letter, a backslash, `..`, an empty / `.` segment or a hidden one; `site:` references well formed.
  */
 import { describe, expect, it } from 'vitest';
-import { AuthorBrandInputSchema, BrandInputSchema, brandRefSyntaxProblem, normalizeHex, printableText, siteRef } from '../src/index.js';
+import { AuthorBrandInputSchema, BrandInputSchema, brandRefSyntaxProblem, normalizeHex, printableText, showHiddenChars, showHiddenCharsLine, siteRef } from '../src/index.js';
 
 const ok = { name: 'acme', colors: { accent: '#0e7c66' }, logo: 'brand/logo.svg' };
 
@@ -100,5 +100,13 @@ describe('BrandInputSchema', () => {
   it('normalizeHex: #rgb to lower-case #rrggbb', () => {
     expect(normalizeHex('#FD0')).toBe('#ffdd00');
     expect(normalizeHex(' #0E7C66 ')).toBe('#0e7c66');
+  });
+});
+
+describe('text a person reads before saying yes (showHiddenChars)', () => {
+  it('writes out controls, invisible characters and the look-alikes of a space or of nothing; newlines kept, or written out on one line', () => {
+    expect(showHiddenChars('a\u00a0b\u2003c\u3000d\u200de\u200cf\ufe0fg\u3164h\u{e0100}i')).toBe('a\\u{a0}b\\u{2003}c\\u{3000}d\\u{200d}e\\u{200c}f\\u{fe0f}g\\u{3164}h\\u{e0100}i');
+    expect(showHiddenChars('a\u202eb\u001bc\td\ne é')).toBe('a\\u{202e}b\\u{1b}c\\u{9}d\ne é');
+    expect(showHiddenCharsLine('seed\n   run: x')).toBe('seed\\u{a}   run: x');
   });
 });

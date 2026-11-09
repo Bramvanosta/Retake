@@ -2530,6 +2530,8 @@ export interface LoadedScenario {
   /** Absolute path of the YAML file. */
   file: string;
   text: string;
+  /** sha256 (hex) of the file's bytes `text` was decoded from (core loadScenario: one read); absent for a scenario built in memory. */
+  sha256?: string;
   scenario: Scenario;
   /** Non-blocking issues (warnings). */
   issues: ValidationIssue[];

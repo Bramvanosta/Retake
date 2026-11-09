@@ -196,7 +196,8 @@ running: the MCP server keeps working without it.
   with the file as shown), with **Pause** and **Stop** while a run of it is queued or running. *Rehearse* is the
   Studio's word for a **dry run** (`retake run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
   run". What would stop each is said before any click: one line in the status bar names the gate in a few words — *1
-  hook to approve*, *protected location*, *uses a secret or an outside file*, *read-only location refuses its hooks*,
+  hook to approve*, *protected location*, *uses a secret or an outside file*, *opens another site · add it to
+  project.yaml* (a URL the scenario opens is on none of the location's origins), *read-only location refuses its hooks*,
   *the file has errors* (Open the YAML) — with **Command…**, a small popover that shows the exact `retake run …`
   command to type in a terminal, in full, beside its **Copy command** ("Copied" shows; Prepare also shows it as
   `node <repository>/packages/cli/dist/bin.js …` where `retake` is not on your `PATH`); the full reason is each button's

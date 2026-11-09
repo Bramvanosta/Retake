@@ -39,7 +39,7 @@ scenes:
       - click: {aria: Increase, in: dialog}
       - type: {into: {label: Message}, text: "Light roast", cps: 18}
         caption: {kicker: Note, text: "Leave a note"}
-      - open: "https://u:pw@shop.example.test/x"
+      - wait_for: {url: "https://u:pw@shop.example.test/x"}
       - hold: 1
 `;
 
@@ -78,7 +78,8 @@ describe('the form and the palette through scenarios.edit', () => {
     expect(forms[0]).toEqual({ action: 'click', values: { 'click.aria': 'Increase', 'click.in': 'dialog' }, locked: {}, yaml_only: [] });
     expect(forms[1]!.values).toEqual({ 'type.into.label': 'Message', 'type.text': 'Light roast', 'type.cps': 18, 'caption.text': 'Leave a note', 'caption.kicker': 'Note' });
     expect(forms[2]!.values).toEqual({});
-    expect(forms[2]!.locked['open.url']).toMatch(/sign-in details/);
+    // A URL the scenario opens never holds them (a validation error): a URL a step waits for still may.
+    expect(forms[2]!.locked['wait_for.url']).toMatch(/sign-in details/);
     expect(JSON.stringify(v.blocks)).not.toContain('pw@');
     expect(forms[3]!.values).toEqual({ hold: 1 });
   });
@@ -180,7 +181,7 @@ describe('the form and the palette through scenarios.edit', () => {
     expect(issue.line).toBe(8);
     expect(await snapshot('forms')).toEqual(before);
     // A locked field (a URL with sign-in details) and a field the Studio does not edit: refused.
-    const url = (await failure(ui.scenarios.edit(P, 'forms', { hash: sha(t0), edit: { kind: 'set_step', at: at(t0, 'a', 2), changes: [{ path: ['open', 'url'], to: '/y' }] } }))) as EngineError;
+    const url = (await failure(ui.scenarios.edit(P, 'forms', { hash: sha(t0), edit: { kind: 'set_step', at: at(t0, 'a', 2), changes: [{ path: ['wait_for', 'url'], to: '/y' }] } }))) as EngineError;
     expect(url.code).toBe('refused');
     expect(url.message).toMatch(/sign-in details/);
     const other = (await failure(ui.scenarios.edit(P, 'forms', { hash: sha(t0), edit: { kind: 'set_step', at: at(t0, 'a', 0), changes: [{ path: ['click', 'outside'], to: true }, { path: ['overlay', 'duration'], to: 2 }] } }))) as EngineError;

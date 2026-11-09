@@ -3,7 +3,8 @@
  * scratch tab of the browser that films it (its persona's), never recorded — so its code, fonts, images and data are
  * cached and the first visit is not filmed cold. The URLs are the scenes' `open`s (and their pages' in multi-page
  * scenes) and the `open` steps', templated as the take will template them; one that cannot be resolved yet (a value a
- * later step produces) is skipped. A page that changes data when it loads (marks something read) does it here too.
+ * later step produces) is skipped, and so is one the take may not open (opens.ts). A page that changes data when it
+ * loads (marks something read) does it here too.
  */
 import { isCaptureScene, resolvePageUrl, resolveScenePages } from '@retake/core';
 import type { Scenario, SceneEntry } from '@retake/core';
@@ -33,12 +34,15 @@ export function prewarmTargets(
     template: (entry: SceneEntry, index: number) => SceneEntry | null;
     /** Scenes after this index are not run (`--until`). */
     lastScene?: number;
+    /** Whether the take may open an absolute URL (opens.ts); one it may not is left out. Absent: http(s) URLs. */
+    mayOpen?: (url: string) => boolean;
   },
 ): PrewarmTarget[] {
   const out: PrewarmTarget[] = [];
   const seen = new Set<string>();
   const add = (page: string, url: string | null) => {
     if (!url || !/^https?:/i.test(url)) return;
+    if (opts.mayOpen && !opts.mayOpen(url)) return;
     const key = `${page} ${url}`;
     if (seen.has(key)) return;
     seen.add(key);

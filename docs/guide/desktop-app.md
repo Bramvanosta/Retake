@@ -103,7 +103,8 @@ previous build's), never in the checkout, /Applications, ~/Library, your home fo
 / Downloads folder itself (a folder inside them is fine) — `app/Retake.app`, `Retake_<version>_aarch64.dmg` and
 `bundle-report.json` (≈ 1 GB app, ≈ 420 MB DMG, ≈ 3 min with a cold cargo cache; the folder needs ≈ 4 GB free while
 it builds: stage, app, DMG and cargo's target). `--ffmpeg` takes a relocatable build (`node scripts/build-ffmpeg.mjs`);
-without it the app uses the system's ffmpeg. `--stage <dir>` reuses a stage (`bundle.mjs stage`). Cargo runs with
+without it the app uses the system's ffmpeg. `--stage <dir>` reuses a stage (`bundle.mjs stage`) of the app's own
+version: one staged before a version bump is refused before Tauri builds anything (stage again). Cargo runs with
 `--locked` (`--offline` when `CARGO_NET_OFFLINE=true`). The end-to-end check of a built app is opt-in:
 `RETAKE_TEST_BUNDLE=1 RETAKE_TEST_BUNDLE_FFMPEG=<ffmpeg folder> npx vitest run
 packages/cli/test/app-bundle-acceptance.test.ts` (≈ 7 min: builds, then doctor, a capture and a render of the fixture
@@ -119,7 +120,8 @@ GitHub release, signed and notarised when the Apple secrets are set, the update 
 pre-release). The workflow builds the ad hoc app on one runner (`pnpm desktop:bundle --app-only`) and signs it on
 another that runs only this repository's scripts (`node apps/desktop/scripts/release.mjs sign --app <…/Retake.app>
 --out <folder> [--release] [--app-version <v>] [--tauri-cli <folder>]`): the signing keys never share a runner with a
-dependency's code. The stage refuses a Node.js or a browser build other than the ones `apps/desktop/bundle/node.json`
+dependency's code; the update archive is signed by a fresh copy of the pinned Tauri CLI, made right before and
+removed right after. The stage refuses a Node.js or a browser build other than the ones `apps/desktop/bundle/node.json`
 and `browsers.json` pin (`node apps/desktop/scripts/bundle.mjs check-pins`). The same release run by hand — your
 Developer ID, notarisation, stapling — is `pnpm desktop:release --out <folder> --ffmpeg <folder>` (the ad hoc build,
 then the same signing step; MACOS-CHECKLIST 15b). It refuses before anything runs unless `APPLE_SIGNING_IDENTITY` ("Developer ID

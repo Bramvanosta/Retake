@@ -9,6 +9,7 @@ import type { HookContext, RollbackAction } from '../types.js';
 import { oneLine } from '../util.js';
 import { ignoreRollback, readHookFile } from './common.js';
 import type { KindEnv, PreparedHook, RollbackEnv } from './common.js';
+import type { ShownAction } from '../shown.js';
 
 export const JS_NEEDS_PAGE = 'js hooks need a browser page: run them through the runner (retake run / run_capture)';
 
@@ -58,6 +59,7 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
 
   ignoreRollback(k, s.rollback !== undefined);
   let rollback: RollbackAction | undefined;
+  let rollbackShown: ShownAction | undefined;
   if (s.rollback !== undefined && journalsRollback(k.phase)) {
     const tpl = await hookTemplateContext(ctx, s.rollback);
     const rbCode = render(s.rollback, tpl);
@@ -68,13 +70,15 @@ export async function prepareJs(spec: string | JsHookSpec, k: KindEnv): Promise<
       data: snapshotFor(ctx, s.rollback, tpl),
       description: redactText(ctx, describeJs({ code: rbCode }, s.page)),
     };
+    rollbackShown = { kind: 'js', ...(s.page !== undefined ? { page: s.page } : {}), code: rbCode };
   }
   return {
     description: redactText(ctx, describeJs(s.file ? { file: s.file } : { code }, s.page)),
+    shown: { kind: 'js', ...(s.page !== undefined ? { page: s.page } : {}), ...(s.file ? { file: s.file } : { code }) },
     destructive: null,
     // Its requests are guarded in its tab on a read-only run; a rollback is a write the guard cannot judge.
     writes: rollback ? 'its rollback: JavaScript run in the page' : null,
-    ...(rollback ? { rollback: { description: rollback.description, reason: 'JavaScript run in the page' } } : {}),
+    ...(rollback && rollbackShown ? { rollback: { description: rollback.description, reason: 'JavaScript run in the page', shown: rollbackShown } } : {}),
     async execute() {
       return { message: await evaluate(ctx, s.page, code), rollback };
     },

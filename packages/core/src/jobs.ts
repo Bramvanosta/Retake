@@ -150,6 +150,11 @@ export const HooksJobInputSchema = z.strictObject({
   kind: z.literal('hooks'),
   project: projectSlug,
   source: z.string().max(120).regex(HOOKS_SOURCE_RE, 'reset, <scenario>:setup, <scenario>:teardown or hooks/<name>.yaml, never another path'),
+  /**
+   * `<scenario>:setup|teardown`: sha256 of the scenario file's bytes at submit (signed with the approvals). The worker
+   * refuses such a job without it, and runs no other bytes.
+   */
+  scenario_sha256: sha256.optional(),
   env: envName.optional(),
   /** Template and security-check only: nothing is executed, nothing journaled, no approval needed. */
   dry: z.boolean(),

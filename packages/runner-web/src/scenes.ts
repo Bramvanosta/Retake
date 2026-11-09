@@ -37,7 +37,7 @@ import { approach, settleLatePopup } from './actions/click.js';
 import { settleEffectChecks } from './actions/effects.js';
 import { formatMissing, isNotFound, missingTargets } from './missing.js';
 import { menuTriggerFor } from './actions/widgets.js';
-import { navigate } from './actions/pages.js';
+import { assertMayOpen, navigate } from './actions/pages.js';
 import { RunnerError, StepError, errorMessage, isCancelled } from './errors.js';
 import { INSPECT_PAUSE_CAP_S } from './inspect.js';
 import { Jitter } from './motion.js';
@@ -667,6 +667,14 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
   if (scene.offscreen === true) ts.offscreen = true;
   rt.timeline.addScene(ts);
   try {
+    // What each page opens, checked before any page of the scene is laid out (opens.ts).
+    const urls = new Map<string, string>();
+    for (const pg of pages) {
+      if (!pg.open) continue;
+      const url = pg.open.absolute || pg.page === undefined ? pg.open.url : resolvePageUrl(rt.env.pages[pg.page], pg.open.url);
+      assertMayOpen(rt, url, undefined, `page "${pg.id}" open`);
+      urls.set(pg.id, url);
+    }
     await rt.enterPages(pages);
     const panes = new Map(rt.scenePanes.map((p) => [p.id, p]));
     // Open every page (the loads are cut by the editor: the clip starts at the still).
@@ -676,7 +684,7 @@ async function runPagesScene(rt: Runtime, opts: SceneLoopOptions, scene: Scene, 
       if (pg.open) {
         const ev: TimelineEvent = { scene: id, scene_index: si, step: -1, action: 'scene_open', t_start: rt.now(), t_end: rt.now(), page: pg.id, status: 'ok' };
         rt.timeline.addEvent(ev);
-        const url = pg.open.absolute || pg.page === undefined ? pg.open.url : resolvePageUrl(rt.env.pages[pg.page], pg.open.url);
+        const url = urls.get(pg.id)!;
         ev.target = { desc: url };
         await navigate(rt, pane.page, url);
         await pane.pointer.syncPage();

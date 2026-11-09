@@ -9,6 +9,7 @@ import { dirname, extname, join, normalize, sep } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext } from 'playwright-core';
 import type { BrowserConfig } from '@retake/core';
+import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { launchTarget } from '../session.js';
 
 /** Layout width of a rendered email (CSS px). */
@@ -61,7 +62,9 @@ export class ArtefactRenderer {
   private async open(): Promise<Browser> {
     if (!this.browser) {
       const { executablePath, channel } = launchTarget(this.config);
-      this.browser = await chromium.launch({ headless: true, executablePath, channel, args: ['--hide-scrollbars', '--force-color-profile=srgb'] });
+      const browser = await chromium.launch({ headless: true, executablePath, channel, ...launchOptions({ args: ['--hide-scrollbars', '--force-color-profile=srgb'] }) });
+      await refuseUnsandboxed(browser, () => browser.close(), 'The artefact browser');
+      this.browser = browser;
     }
     return this.browser;
   }

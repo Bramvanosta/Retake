@@ -19,6 +19,9 @@
  * templateRefProblem; the editor's planRun applies them before any file is read, then checks every file the plan
  * serves).
  *
+ * Navigation: with the environment a run opens, every absolute URL the scenario opens has the exact origin of one of
+ * the environment's pages (core navigationProblem; a person adds another origin as a page in project.yaml).
+ *
  * A `retake` command typed by a human (trust `author`) is not concerned.
  */
 import { realpathSync } from 'node:fs';
@@ -28,6 +31,8 @@ import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
+import { canonicalOrigin, scenarioNavigationProblems } from './agent-policy.js';
+import { formatPath } from './issues.js';
 import type { IssuePath } from './issues.js';
 import { locateOffset, parseYaml } from './validation/yaml-source.js';
 import type { HookStep, JsHookSpec, Scenario, SqlHookSpec } from './types.js';
@@ -208,12 +213,44 @@ export function renderFileProblems(projectDir: string, refs: readonly RenderFile
   return out;
 }
 
+/** The environment a run of agent work opens (core ResolvedEnvironment): its name and its pages. */
+export interface AgentTrustEnvironment {
+  name: string;
+  pages: Readonly<Record<string, string>>;
+}
+
+/** What agentTrustProblems(At) is given besides the scenario. */
+export interface AgentTrustOptions {
+  /** The wording's channel (the rules are the same). */
+  via?: AgentChannel;
+  /**
+   * The environment the run opens, when it is known (a submit, the worker): every absolute URL the scenario opens must
+   * have the exact origin of one of its pages (core navigationProblem with `origins`). Without it (a save), the URLs
+   * get the scheme rule of the validation only.
+   */
+  env?: AgentTrustEnvironment;
+}
+
+/**
+ * The navigation problems of agent work on a known environment (AgentTrustOptions.env), each with where it is: the part
+ * of agentTrustProblems about the URLs it opens (the Studio words them apart: "opens another site").
+ */
+export function navigationTrustProblems(sc: Scenario, o: AgentTrustOptions): Array<{ path: IssuePath; message: string }> {
+  if (!o.env) return [];
+  const origins = [...new Set(Object.values(o.env.pages).map(canonicalOrigin).filter((x): x is string => x !== null))];
+  return scenarioNavigationProblems(sc, { origins, pageKeys: Object.keys(o.env.pages), envName: o.env.name, ...(o.via ? { via: o.via } : {}) }).map((p) => ({
+    path: p.path,
+    message: `${formatPath(p.path)}: ${p.message}`,
+  }));
+}
+
 /**
  * Why a scenario cannot run as work submitted through MCP (trust `mcp`): its secret references, and the files it
  * references outside the project folder or, run as code, in files an agent can write; with the project's config, a
- * theme it names by folder (`template:`). Empty: nothing found. `via`: the wording's channel (the rules are the same).
+ * theme it names by folder (`template:`); with the environment it runs on (`o.env`), a URL it opens on another origin
+ * than the environment's pages. Empty: nothing found.
  */
-export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: { via?: AgentChannel } = {}): string[] {
+export function agentTrustProblems(project: { dir: string; config?: { template?: string } }, sc: Scenario, o: AgentTrustOptions = {}): string[] {
   const problems: string[] = [];
   if (project.config && typeof sc.template === 'string') {
     const t = templateRefProblem(sc.template, project.config.template, 'the scenario\'s template', o.via);
@@ -225,6 +262,7 @@ export function agentTrustProblems(project: { dir: string; config?: { template?:
     const p = projectFileProblem(project.dir, f.ref, { code: f.code, ...(o.via ? { via: o.via } : {}) });
     if (p) problems.push(`${f.where}: ${p}`);
   }
+  for (const p of navigationTrustProblems(sc, o)) problems.push(p.message);
   return problems;
 }
 
@@ -249,7 +287,7 @@ function stringLeaves(v: unknown, path: IssuePath, out: Array<{ path: IssuePath;
  * reference at the string that names it, a template folder at `template`. The same rules; a problem that cannot be
  * placed keeps an empty path and no line.
  */
-export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: { via?: AgentChannel } = {}): PositionedTrustProblem[] {
+export function agentTrustProblemsAt(project: { dir: string; config?: { template?: string } }, sc: Scenario, text: string, o: AgentTrustOptions = {}): PositionedTrustProblem[] {
   const parsed = parseYaml(text);
   const at = (message: string, path: IssuePath): PositionedTrustProblem => {
     const off = path.length && parsed.value !== undefined ? locateOffset(parsed.source, path) : undefined;
@@ -283,5 +321,6 @@ export function agentTrustProblemsAt(project: { dir: string; config?: { template
     const leaf = named.find((l) => ['path', 'file', 'drop_file', 'eval', 'sql', 'js'].includes(String(l.path[l.path.length - 1]))) ?? named[0];
     out.push(at(`${f.where}: ${p}`, leaf?.path ?? []));
   }
+  for (const p of navigationTrustProblems(sc, o)) out.push(at(p.message, p.path));
   return out;
 }

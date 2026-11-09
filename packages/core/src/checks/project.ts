@@ -1,6 +1,7 @@
 import { isAbsolute } from 'node:path';
+import { sandboxOffArgsProblems } from '../agent-policy.js';
 import { AUTH_KEYS } from '../auth.js';
-import { environmentAccess, rawEnvironmentPages, rawEnvironments } from '../env.js';
+import { environmentAccess, environmentHttpCredentials, rawEnvironmentPages, rawEnvironments } from '../env.js';
 import { allowedHosts, isHostAllowed } from '../hosts.js';
 import type { IssuePath } from '../issues.js';
 import { parseRequestPattern } from '../writes.js';
@@ -113,6 +114,20 @@ function checkSandboxEntries(sandboxes: unknown, envs: Record<string, unknown>, 
   return Object.keys(sandboxes);
 }
 
+/** `browser.args` of project.yaml or retake.yaml: no switch that turns Chromium's sandbox or site isolation off. */
+export function checkBrowserArgs(browser: unknown, ctx: CheckContext): void {
+  if (!isObj(browser) || !Array.isArray(browser.args)) return;
+  for (const { index, message } of sandboxOffArgsProblems(browser.args)) ctx.error(['browser', 'args', index], message);
+}
+
+/** Semantic checks of a retake.yaml value. */
+export function checkWorkspace(value: unknown, structural: readonly LocatedIssue[]): LocatedIssue[] {
+  if (!isObj(value)) return [];
+  const ctx = new CheckContext(structural);
+  checkBrowserArgs(value.browser, ctx);
+  return ctx.out;
+}
+
 /** Semantic checks of a project.yaml value; `projectDir` resolves hook files. */
 export function checkProject(
   value: unknown,
@@ -151,6 +166,9 @@ export function checkProject(
       }
     }
     if (isObj(written[envName]) && raw[envName].long) checkReadOnly(written[envName], envName, Object.keys(pages), ctx);
+    const urls = Object.fromEntries(Object.entries(pages).filter((e): e is [string, string] => typeof e[1] === 'string'));
+    const credentials = environmentHttpCredentials({ config: { environments: { [envName]: urls } } as never }, envName);
+    if (credentials.problem) ctx.error(at, credentials.problem);
   }
 
   if (typeof value.default_env === 'string' && !Object.hasOwn(envs, value.default_env) && !sandboxNames.includes(value.default_env)) {
@@ -160,6 +178,8 @@ export function checkProject(
       `unknown environment "${value.default_env}"${suggestion(value.default_env, all)} (available: ${all.join(', ') || 'none'})`,
     );
   }
+
+  checkBrowserArgs(value.browser, ctx);
 
   // Sessions & personas (L1.6): a persona's session path is refused even where the schema already failed.
   checkPersonaPaths(value.auth, ctx);

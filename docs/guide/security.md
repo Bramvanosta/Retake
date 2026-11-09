@@ -108,9 +108,94 @@ What Retake protects and how: hooks, secrets, the local servers, agents. To repo
   said: a person can review it in a terminal), and each signed rollback once (`~/.retake/rollbacks-done/`). A terminal
   lists what it replays first and asks about an unsigned entry, shown in full, only with `--replay-unsigned` — never a
   sql or js one, one with secrets or a shell one on a sandbox.
+- **What you approve is shown in full.** The approval form of work submitted through MCP or the Studio shows each
+  hook as it will run, every field on its own line (a shell hook's command, working folder and each environment
+  variable; a sql hook's statement or file and database; a js hook's code or file and page; an http hook's method, URL,
+  headers and body; its rollback the same way), templated, secrets as `***`, hidden characters and unusual spaces
+  written out, names and keys kept on their line, never cut. A hook over 4,000 characters or a form over 16,000
+  (counted as the whole form reads) is refused before anyone is asked (run it in a terminal). A hook's name and its
+  `env` names hold no control character (validation).
+- **Shell hooks the agent wrote are plain commands.** Through MCP or the Studio, a shell hook written in the scenario
+  (or a project.yaml hook rendered with the scenario's `vars`) is read, templated, before anyone is asked and again by
+  the worker. Its command, rollback and working folder are plain words — letters, digits and `. / : = @ % + , - _` —
+  separated by single spaces, commands joined by ` && `: no quotes, `$`, backticks, pipes, redirections, `;`, globs,
+  `#`, `\`, control or non-ASCII characters, so the shell expands, substitutes and hides nothing — and at most 4,000
+  characters, checked first. On those words it is refused for `cd` / `eval` / `exec` / `command` / `trap` / `alias` /
+  `source` (as the program, after a wrapper or after a shell's prefix word such as `coproc`), a loader variable it sets
+  (`PATH`, `HOME`, `NODE_OPTIONS`, `BASH_ENV`, `IFS`, `LD_*`, `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`, `PSQLRC`,
+  `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`, `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`, `npm_config_*`, `PNPM_*`, `COREPACK_*`,
+  `PIP_*`, `UV_*` and the like — before the program, as an `env` argument, or by `export` / `read`…), inline interpreter
+  code (`node -e`, `python -c`, `awk` without `-f`…), `xargs`, `find -exec`, `env -S`, a package runner or its
+  subcommand (`npx`,
+  `pnpm dlx`, `npm exec`…), `git -c`, any path through README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
+  `review/`, `exports/` or `.retake/` of a project of the workspace (existing or not; a bare `README.md` too), a path to
+  project.yaml or into `hooks/` other than the script a command runs, and a saved response (`{{hooks.…}}`), whose value
+  is not known when it is asked about. It names no secret (`{{env:…}}`, `{{keychain:…}}`), as a scenario never does.
+  Its `env` names are letters, digits and `_`, and no loader variable. Its rollback is checked again, on the text it
+  runs, when it is replayed. The full list: [MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*.
+  These rules decide how a command is written, not what a program does with its arguments: the form still shows the
+  command in full, and approving it is approving what it does. A hook that needs more belongs in `hooks/<name>.yaml`
+  (or project.yaml's `hooks:` without the scenario's vars), shown in full and asked about, or in a terminal.
 - **Approvals are bound to their job.** A human approval taken at submit is signed for that job's id in that workspace
   and used once, when the worker takes the job: a job file copied under another id or into another workspace, or made
   again under the id of a job that already ran, runs no approved hook.
+- **A job runs the scenario it was submitted with.** A capture, a rehearsal, an inspection and a scenario's own hooks
+  (`<scenario>:setup` / `:teardown`) carry the sha256 of the scenario bytes checked and approved at submit (signed
+  with the approvals). The worker reads the file once and runs those bytes only: a scenario changed in between — its
+  hooks, or only the `vars` they are rendered with — fails the job as `conflict` ("submit it again"), before any hook
+  runs.
+- **What a scenario opens.** Every scenario opens only `http:` and `https:` pages or exactly `about:blank`, never a
+  URL holding sign-in details: `file:`, `data:`, `javascript:`, `blob:`, `view-source:`, `chrome:` and the like are
+  validation errors at the field. The URL is read as a browser parses it (WHATWG URL: any case, leading spaces and
+  tabs ignored), never by matching its text. Work submitted through MCP or the Studio — every job the worker runs —
+  opens a full URL only on the exact origin of one of the pages of the environment it runs on (scheme, host and port;
+  `//host/…` refused); a path of an environment page is always fine. Checked at submit and again by the worker before
+  anything opens; a refusal names the field, the origins allowed and the fix (a person adds the origin as a page of the
+  environment in project.yaml). A templated URL is checked once rendered and resolved, when its step runs, and fails
+  the step before its page loads; prewarm skips it. A link the page itself provides (a `new_tab` click that opened no
+  tab, followed by the runner) is held to the scheme rule only, plus `blob:` documents of the page's own origin. The
+  rule covers what the runner opens: a redirect, a link the page follows itself or a click that opens a tab may still
+  take the browser to another http(s) site.
+- **Sign-in details of an environment page.** A page URL of project.yaml may carry HTTP sign-in details
+  (`https://user:password@staging.example.com`, for a staging site behind basic authentication): Retake takes them out
+  of the URL — the runner, the logs, the timeline, the video, the Studio and the hooks' `{{pages.…}}` see it without
+  them — and gives them to the capture, sign-in and recording browsers as HTTP credentials for that page's origin
+  only: another origin that asks for a sign-in is never answered with them (its request waits). The password is
+  masked like a secret wherever a run writes. One origin per environment can carry them (with one set of details);
+  more is a validation error of the environment.
+- **The capture browser reads no local file.** Every browser a capture, a rehearsal or an inspection opens fails any
+  `file:` request itself — of any page, tab, popup or frame, whatever started it —, set before anything loads; a run
+  whose browser cannot be set this way does not start. An http redirect to a `file:` URL fails too.
+- **What a page reports to the runner is bounded.** The calls the in-page kit makes to the runner (a web notification,
+  what its cursor shows) are taken from a page's own document only: a frame inside it — an embed, an ad — is ignored.
+  A notification's fields must have the expected types (else it is ignored); its title, body and tag are cut at 2,048
+  characters. A run records at most 50 notifications and reads at most 20 icons, then says so once. An icon is read
+  only from a `data:` URL of at most 1 MiB decoded, or from an http(s) URL on the notifying page's own origin or one of
+  the environment's origins (another port of localhost is another origin), fetched with that page's cookies, without
+  following a redirect and stopped beyond 1 MiB; any other icon is not requested — a warning, and the artefact keeps
+  its URL. An icon served from a CDN or behind a redirect is therefore not read: to have it read, add its origin as a
+  page of the environment in project.yaml. What the cursor reports needs a finite time (and point), and a page's cursor
+  effects beyond 60 in a second are not recorded (one warning per run).
+- **Every browser runs sandboxed.** Each Chromium the runner launches — captures, rehearsals and inspections, the
+  sign-in and recording windows, a site extraction, the artefact renderer, the cursor layer, `retake doctor`'s probe —
+  runs with its OS sandbox on (renderers, GPU and utility processes confined by the system) and site isolation on
+  (asked for at every launch: `browser.channel: headless-shell` included, which leaves it off by default).
+  `browser.args` cannot turn either off, nor open the browser to other code (`--disable-web-security`, a launcher such
+  as `--renderer-cmd-prefix` or `--gpu-launcher`, `--browser-subprocess-path`, a `--remote-debugging-port`): those
+  switches are validation errors in retake.yaml and project.yaml (see [Workspace](workspace.md)) and refused again at
+  launch. Each launch then reads the browser's own command line and refuses a browser that holds one anyway — an
+  executable that adds switches itself (`browser.executable`, `RETAKE_CHROMIUM`) — and `retake doctor` fails on it.
+- **The render browser is sandboxed too, and its page server is local.** On macOS the Chromium a render opens
+  (videos, stills, component previews, `retake doctor`'s GPU check) runs with its OS sandbox on and every site in a
+  renderer process of its own: Retake ships Remotion's renderer with a patch (`patches/`, applied by pnpm) that leaves
+  out the switches Remotion would add to turn them off, and a render browser whose own command line turns either off
+  anyway (a `RETAKE_CHROMIUM_HEADLESS_SHELL` that adds switches itself) is refused. The server that hands the render page its bundle listens on
+  `127.0.0.1` and `::1` only, at the same port (the page loads `http://localhost:<port>`, which reaches either) — never
+  on another address of the machine — and serves the render page's own origin only: a `Host` other than `localhost`,
+  `127.0.0.1` or `[::1]` with its port gets 421, a request from another origin (an `Origin` other than its own, a
+  `Sec-Fetch-Site` other than `same-origin` or `none`) 403. A port another program already holds on `::1` is never
+  used: a render that picks its port takes another one, a render given its port (every render the worker runs) fails.
+  Like every loopback server, it can be reached by another account of the same Mac while the render runs.
 - **Sandboxes are local.** Every URL of a sandbox.yaml is loopback (`localhost`, `*.localhost`, `127.0.0.0/8`,
   `[::1]`; a database URL without `?host=` / `?port=`), a sandbox is never production, and a sandbox scenario's sql
   hooks reach only the sandbox's databases. What a reset rewrites — the mailbox, a seed's database — must be served by

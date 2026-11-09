@@ -4,7 +4,7 @@
  * scenario's warnings and notes, the sandbox take or check, runScenario). Native options and native errors: the CLI keeps
  * its messages, output and exit codes; what it prints goes through `RunPorts`, in the same order as before.
  */
-import { loadProjectTemplate, loadScenario, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioEnvOf } from '@retake/core';
+import { loadProjectTemplate, parseScenarioSource, readScenarioSource, resolveEnvironment, resolveRunAccess, sandboxNames, sandboxOf, scenarioSourceEnv } from '@retake/core';
 import type { AgentChannel, HookTrust, LoadedProject, LoadedScenario, LoadedTemplate, RunProgress, RunRecord, Timeline, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import type { ConfirmHook, FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import type { SandboxLog, Take } from '@retake/sandbox';
@@ -45,6 +45,10 @@ export interface RunRequest {
   headed?: boolean;
   /** Reset the sandbox environment to its seed before the take (L1.8): up if needed, health, reset. */
   sandbox?: boolean;
+  /** sha256 the scenario file's bytes must have (a job's): core ScenarioChangedError otherwise, before they are parsed. */
+  expectSha256?: string;
+  /** Reads the scenario file's bytes (default node:fs; a test seam): called once per prepareRun. */
+  readFile?: (file: string) => Promise<Uint8Array>;
 }
 
 export interface PreparedRun {
@@ -90,11 +94,14 @@ export function checkAllowWrites(project: Parameters<typeof resolveEnvironment>[
  * Load what a run needs. `sandbox`: no sandbox, or an `env` that is not one, is a RunOptionError before anything is
  * read. The sandbox is picked from the scenario's raw `env:` first, then the scenario is validated once, against the
  * environment it runs on (its pages, its mailbox): a scenario without `env:` that waits for an email only the sandbox's
- * mailbox receives.
+ * mailbox receives. The file is read once (its sha256 is `scenario.sha256`, checked against `expectSha256` when given):
+ * the sandbox's pick and the validation work on the same bytes.
  */
 export async function prepareRun(ws: WorkspaceConfig, project: LoadedProject, scenarioRef: string, req: RunRequest): Promise<PreparedRun> {
-  const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, await scenarioEnvOf(project, scenarioRef)) : undefined;
-  const scenario = await loadScenario(project, scenarioRef, { env: sandboxEnv ?? req.env, until: req.until });
+  if (req.sandbox) pickSandboxEnv(project, req.env, undefined); // no sandbox, or `env` not one: refused before the read
+  const src = await readScenarioSource(project, scenarioRef, { ...(req.expectSha256 !== undefined ? { expectSha256: req.expectSha256 } : {}), ...(req.readFile ? { readFile: req.readFile } : {}) });
+  const sandboxEnv = req.sandbox ? pickSandboxEnv(project, req.env, scenarioSourceEnv(src.text)) : undefined;
+  const scenario = parseScenarioSource(project, src, { env: sandboxEnv ?? req.env, until: req.until });
   let template: LoadedTemplate | undefined;
   let templateWarning: string | undefined;
   try {

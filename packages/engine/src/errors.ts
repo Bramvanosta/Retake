@@ -44,12 +44,22 @@ export class EngineError extends Error {
   }
 }
 
+/**
+ * A scenario read with other bytes than a job pinned (core ScenarioChangedError, matched by name) → `conflict` with
+ * `message`, the submitted and current sha256 in its details; any other error unchanged.
+ */
+export function scenarioChangedConflict(e: unknown, message: string): unknown {
+  if (!(e instanceof Error) || e.name !== 'ScenarioChangedError') return e;
+  const { expected, actual } = e as Error & { expected?: string; actual?: string };
+  return new EngineError('conflict', message, { details: { submitted: expected, current: actual } });
+}
+
 /** A ConfigError / ScenarioError that says something is missing. */
 const NOT_FOUND = /\bnot found\b|\bno such\b|\bdoes not exist\b/i;
 
 /**
  * Any error → an EngineError, in one place. Matched by name (the classes live in packages the engine does not load
- * eagerly): ScenarioError / ConfigError → not_found or invalid; AccessError, HookSecurityError, WriteRefusedError,
+ * eagerly): ScenarioError / ConfigError → not_found or invalid; ScenarioChangedError → conflict; AccessError, HookSecurityError, WriteRefusedError,
  * HostRefusedError → refused; HooksSourceError → invalid (not a source) or not_found (nothing to run); SandboxError busy → busy, down → unavailable, interrupted → cancelled; CancelledError →
  * cancelled; ReviewError / ExportError → not_found or invalid; ComponentError → not_found, conflict (exists) or invalid; anything unknown → internal (its message kept, no stack).
  */
@@ -59,6 +69,8 @@ export function toEngineError(e: unknown): EngineError {
   const issues = (e as { issues?: unknown }).issues;
   const details = Array.isArray(issues) && issues.length ? { issues } : undefined;
   switch (e.name) {
+    case 'ScenarioChangedError':
+      return new EngineError('conflict', `${e.message}: submit it again`);
     case 'ScenarioError':
     case 'ConfigError':
     case 'SandboxConfigError':

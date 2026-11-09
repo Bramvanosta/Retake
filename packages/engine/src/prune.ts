@@ -5,7 +5,8 @@
  * every render a thread was made or resolved on), their reviews, and whatever a queued or running job names. Deleted:
  * failed, cancelled and interrupted takes, dry runs, older captures nothing uses, older and failed renders, reviews of
  * renders that are gone. A dry run (the default) deletes nothing and says what would go and how much it frees.
- * `exports/` is never touched.
+ * `exports/` is never touched. `only` limits a deletion to the items a person approved (an agent's prune: engine
+ * `projects.prune` asks first, approvals.ts `takePruneApproval`).
  */
 import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -23,6 +24,17 @@ export interface PruneRequest {
   dry_run?: boolean;
   /** Ids a queued or running job names (never deleted). */
   busy?: (id: string) => boolean;
+  /**
+   * Delete only these (`pruneKey`: `<kind>:<id>` → the paths it had then), among what can go now: what a person
+   * approved. One of them that something uses by now stays (`skipped`), and so does whatever became prunable since
+   * (`not_asked`); of an approved item, only the paths it had then go (a file added since stays).
+   */
+  only?: ReadonlyMap<string, readonly string[]>;
+}
+
+/** An item's key in `PruneRequest.only`. */
+export function pruneKey(i: Pick<PruneItem, 'kind' | 'id'>): string {
+  return `${i.kind}:${i.id}`;
 }
 
 export interface PruneItem {
@@ -46,6 +58,10 @@ export interface PruneResult {
   kept: { runs: number; renders: number; reviews: number };
   /** Paths that could not be removed. */
   problems: string[];
+  /** With `only`: the approved items that could not go any more (something uses them now, or they are gone) — kept. */
+  skipped?: Array<{ kind: PruneItem['kind']; id: string }>;
+  /** With `only`: how many items can go now that were not approved — kept. */
+  not_asked?: number;
 }
 
 async function sizeOf(path: string): Promise<number> {
@@ -158,6 +174,35 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await sizeOf(path), paths: [path] });
   }
 
+  // Only what a person approved, of what can still go now.
+  let skipped: PruneResult['skipped'];
+  let notAsked: number | undefined;
+  if (req.only) {
+    const only = req.only;
+    const now = new Set(items.map(pruneKey));
+    skipped = [...only.keys()].filter((k) => !now.has(k)).sort().map((k) => {
+      const at = k.indexOf(':');
+      return { kind: k.slice(0, at) as PruneItem['kind'], id: k.slice(at + 1) };
+    });
+    const unasked = items.filter((i) => !only.has(pruneKey(i)));
+    notAsked = unasked.length;
+    for (const i of unasked) {
+      if (i.kind === 'run') runsKept++;
+      else if (i.kind === 'render') keptRenders.add(i.id);
+      else reviewsKept++;
+    }
+    const approved: PruneItem[] = [];
+    for (const i of items) {
+      const then = only.get(pruneKey(i));
+      if (!then) continue;
+      const paths = i.paths.filter((p) => then.includes(p));
+      let bytes = 0;
+      for (const p of paths) bytes += await sizeOf(p);
+      approved.push({ ...i, paths, bytes });
+    }
+    items.splice(0, items.length, ...approved);
+  }
+
   const problems: string[] = [];
   if (!dry) {
     for (const it of items) {
@@ -176,6 +221,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     bytes: items.reduce((n, i) => n + i.bytes, 0),
     kept: { runs: runsKept, renders: keptRenders.size, reviews: reviewsKept },
     problems,
+    ...(skipped ? { skipped, not_asked: notAsked ?? 0 } : {}),
   };
 }
 

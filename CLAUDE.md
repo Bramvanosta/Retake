@@ -40,12 +40,12 @@ Commit messages end with the attribution lines the harness gives.
 ```sh
 pnpm install                         # once, and after a dependency change
 pnpm build                           # = tsc -b (typecheck + dist/)
-pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; 102 skip by default: slow, captures first, installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed)
+pnpm test                            # = vitest run, full suite (~20 min on the Mac; run `pnpm build` first; 104 skip by default: slow, captures first, installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed)
                                      # export RETAKE_HOME to a scratch folder for every command (vitest gives a test run a temp one)
                                      # never export RETAKE_CAPTURES_DIR for a suite: vitest gives each test file its own markers folder
                                      # the suite pins renders to the software path (RETAKE_RENDER_*; children: packages/core/test/child-env.ts)
 pnpm test:pg                         # the 7 Postgres tests on a throwaway retake-pg-test-* container (~5 s; --all: whole suite with Postgres, Docker and slow tests)
-pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances (~13 min)
+pnpm test:slow                       # catalogue capture, MCP loops, theme, plugin, phase-3 and Studio acceptances, every browser launch site sandboxed (launch-options.test.ts) (~13 min)
 RETAKE_TEST_CAPTURES_FIRST=1 npx vitest run packages/ui/test/captures-first-acceptance.test.ts   # a take beside a render, measured from the Studio (~10 min, a quiet Mac only)
 RETAKE_TEST_DOCKER=1 npx vitest run packages/sandbox/test/compose.test.ts packages/cli/test/sandbox-docker.test.ts   # Docker sandboxes (~65 s)
 npx vitest run packages/editor/test/planner-real.test.ts    # one file

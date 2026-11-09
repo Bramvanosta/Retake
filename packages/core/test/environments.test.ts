@@ -20,6 +20,7 @@ import {
   displayUrl,
   editDisplayTable,
   environmentAccess,
+  environmentHttpCredentials,
   findLocalUrls,
   formatIssues,
   graphqlOf,
@@ -49,6 +50,7 @@ import {
   shownUrl,
   sqlWriteStatement,
   WriteRefusedError,
+  withoutCredentials,
   writingHooks,
   zodIssues,
 } from '@retake/core';
@@ -188,6 +190,39 @@ auth:
   it('readmeSkeleton lists the display URL a page is shown as', () => {
     const p = project();
     expect(readmeSkeleton('N', p.config.environments, p.config.environment_settings)).toContain('- local · shop: http://localhost:4402 (shown as https://shop.northfield.example)');
+  });
+});
+
+describe('sign-in details in an environment page URL: HTTP credentials for that origin, never in the URL', () => {
+  const yaml = (pages: string) => `name: Northfield\nenvironments:\n  staging:\n${pages}`;
+  it('resolveEnvironment gives the pages without them; environmentHttpCredentials gives them, decoded, with the origin', () => {
+    const { config, issues } = parseProjectYaml(yaml('    app: "https://demo:s%40cret@app.staging.example.test/base"\n    api: "https://app.staging.example.test/api"\n    shop: "http://localhost:4402"\n'));
+    expect(errors(issues)).toEqual([]);
+    const p = { config: config! };
+    const env = resolveEnvironment(p, 'staging');
+    expect(env.pages).toEqual({ app: 'https://app.staging.example.test/base', api: 'https://app.staging.example.test/api', shop: 'http://localhost:4402' });
+    expect(JSON.stringify(env)).not.toMatch(/demo|s%40cret|s@cret/);
+    expect(environmentHttpCredentials(p, 'staging')).toEqual({ credentials: { origin: 'https://app.staging.example.test', username: 'demo', password: 's@cret' } });
+    expect(environmentHttpCredentials(p, 'nowhere')).toEqual({});
+  });
+
+  it('withoutCredentials keeps the rest of the URL as written; other URLs as they are', () => {
+    expect(withoutCredentials('http://u:p@localhost:4402')).toEqual({ url: 'http://localhost:4402', credentials: { origin: 'http://localhost:4402', username: 'u', password: 'p' } });
+    expect(withoutCredentials('https://only-user@x.example.test/a?b#c').url).toBe('https://x.example.test/a?b#c');
+    expect(withoutCredentials('https://a:b@c@x.example.test/').credentials).toEqual({ origin: 'https://x.example.test', username: 'a', password: 'b@c' });
+    expect(withoutCredentials('https://x.example.test/a@b')).toEqual({ url: 'https://x.example.test/a@b' });
+    expect(withoutCredentials('not a url')).toEqual({ url: 'not a url' });
+  });
+
+  it('one origin at most, with one set of details: anything else is an error at the environment, and refused at run', () => {
+    const two = parseProjectYaml(yaml('    app: "https://a:1@app.example.test"\n    shop: "https://b:2@shop.example.test"\n'));
+    expect(msgs(two.issues).filter((m) => m.startsWith('error'))).toEqual([expect.stringMatching(/environments\.staging: environment staging has sign-in details .* page URLs of 2 origins \(https:\/\/app\.example\.test, https:\/\/shop\.example\.test\)/)]);
+    expect(msgs(two.issues).join('\n')).not.toMatch(/a:1|b:2/);
+    const differ = parseProjectYaml(yaml('    app: "https://a:1@app.example.test/x"\n    admin: "https://a:2@app.example.test/admin"\n'));
+    expect(msgs(differ.issues).filter((m) => m.startsWith('error'))).toEqual([expect.stringMatching(/gives https:\/\/app\.example\.test two different sign-in details/)]);
+    const same = parseProjectYaml(yaml('    app: "https://a:1@app.example.test/x"\n    admin: "https://a:1@app.example.test/admin"\n'));
+    expect(errors(same.issues)).toEqual([]);
+    expect(environmentHttpCredentials({ config: same.config! }, 'staging').credentials?.origin).toBe('https://app.example.test');
   });
 });
 

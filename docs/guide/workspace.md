@@ -27,6 +27,15 @@ browser: {locale: en-GB, timezone: Europe/Stockholm}   # defaults for every proj
 render: {gl: auto, encoder: auto}                     # how this machine renders (below); every key optional
 ```
 
+`browser.args` (here or in project.yaml) adds Chromium switches to every browser a run launches. Chromium always
+runs with its OS sandbox and site isolation on: a switch that turns either off — `--no-sandbox`,
+`--disable-setuid-sandbox`, `--disable-gpu-sandbox`, `--disable-namespace-sandbox`, `--disable-seccomp-filter-sandbox`,
+`--no-zygote`, `--no-zygote-sandbox`, `--single-process`, `--in-process-gpu`, `--disable-site-isolation-trials`, or
+`--disable-features=` naming `IsolateOrigins` or `SitePerProcess` — is a validation error at its line, however it is
+spelled (`-name`, any case, a value after `=`). So is a switch that opens the browser to other code:
+`--disable-web-security`, `--renderer-cmd-prefix`, `--gpu-launcher`, `--utility-cmd-prefix`,
+`--browser-subprocess-path`, `--remote-debugging-port` and `--remote-debugging-address`.
+
 ### Render settings
 
 `render:` says how this machine renders (a GPU is a property of the machine, not of the product: it is not in
@@ -184,7 +193,10 @@ failed, cancelled and interrupted takes, dry runs, older captures nothing uses, 
 scenario and variant (`--keep-renders N`), failed renders, the reviews of renders that go — with how much deleting it
 frees; `--yes` deletes it. Always kept: the last good take of each scenario, every take a kept render or a comment
 thread uses, every render a thread was made or resolved on, whatever a queued or running job names; `exports/` is
-never touched. Claude has the same as the MCP tool `project_prune` (a dry run unless `dry_run: false`).
+never touched. Claude has the same as the MCP tool `project_prune`: a dry run unless `dry_run: false`, and then it
+asks you first in an approval form (how many items, how much, the first 20 and how many more) and deletes the items of
+that approval — all of them — that can still go at that moment — nothing when you decline or the client cannot ask
+([MCP: Safety](mcp.md)).
 
 Composite steps (`select`, `pick`, `menu`, `date`, `drop_file`) keep every click in `data.clicks`:
 `{role, strategy, popup_opened, point, bbox, t_click, desc, popup_ms?}` with `role` one of `trigger`, `option`,

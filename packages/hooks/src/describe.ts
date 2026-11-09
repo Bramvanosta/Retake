@@ -1,6 +1,8 @@
 import { sqlSource } from '@retake/core';
 import type { HookKind, HookStep, HttpHookSpec, JsHookSpec, ShellHookSpec, SqlHookSpec } from '@retake/core';
 import { HookError } from './errors.js';
+import { actionLines } from './shown.js';
+import type { ShownAction } from './shown.js';
 import { oneLine } from './util.js';
 
 const KINDS: readonly HookKind[] = ['http', 'sql', 'shell', 'js'];
@@ -108,4 +110,66 @@ export function describeRollback(hook: HookStep): string | undefined {
       return typeof spec === 'object' && spec.rollback !== undefined ? describeJs({ code: spec.rollback }, spec.page) : undefined;
     }
   }
+}
+
+/**
+ * A hook as its file declares it (template form, no secret resolved), field by field, then its rollback's when
+ * `rollback` (a setup or step hook's: the ones that journal one): what an approval shows of a hook it could not template
+ * — and of a sandbox's seed step (shown.ts). Empty for a malformed entry.
+ */
+export function declaredHookLines(hook: HookStep, o: { rollback?: boolean } = {}): string[] {
+  let kind: HookKind;
+  try {
+    kind = hookKindOf(hook);
+  } catch {
+    return [];
+  }
+  const out: string[] = [];
+  const rb = (a: ShownAction | undefined) => {
+    if (a && o.rollback) out.push(...actionLines(a, 'rollback '));
+  };
+  switch (kind) {
+    case 'http': {
+      const { rollback, save_as: _s, ...req } = (hook as { http: HttpHookSpec }).http;
+      out.push(...actionLines(shownHttp(req)));
+      rb(rollback ? shownHttp(rollback) : undefined);
+      break;
+    }
+    case 'sql': {
+      const spec = (hook as { sql: string | SqlHookSpec }).sql;
+      const db = typeof spec === 'object' ? spec.db : undefined;
+      out.push(...actionLines({ kind: 'sql', ...(db !== undefined ? { db } : {}), ...sqlSource(spec) }));
+      const r = typeof spec === 'object' ? spec.rollback : undefined;
+      rb(r === undefined ? undefined : { kind: 'sql', ...(db !== undefined ? { db } : {}), ...(typeof r === 'string' ? sqlSource(r) : r) });
+      break;
+    }
+    case 'shell': {
+      const spec = (hook as { shell: string | ShellHookSpec }).shell;
+      const s: ShellHookSpec = typeof spec === 'string' ? { run: spec } : spec;
+      const where = { ...(s.cwd !== undefined ? { cwd: s.cwd } : {}), ...(s.env ? { env: s.env } : {}) };
+      out.push(...actionLines({ kind: 'shell', run: s.run, ...where, ...(s.timeout !== undefined ? { timeout: s.timeout } : {}) }));
+      rb(s.rollback !== undefined ? { kind: 'shell', run: s.rollback, ...where } : undefined);
+      break;
+    }
+    case 'js': {
+      const spec = (hook as { js: string | JsHookSpec }).js;
+      const s: JsHookSpec = typeof spec === 'string' ? { code: spec } : spec;
+      const page = s.page !== undefined ? { page: s.page } : {};
+      out.push(...actionLines({ kind: 'js', ...page, ...(s.file !== undefined ? { file: s.file } : { code: s.code ?? '' }) }));
+      rb(s.rollback !== undefined ? { kind: 'js', ...page, code: s.rollback } : undefined);
+      break;
+    }
+  }
+  return out;
+}
+
+function shownHttp(r: { method?: string; url: string; headers?: Record<string, string>; json?: unknown; body?: string }): ShownAction {
+  return {
+    kind: 'http',
+    method: r.method ?? 'GET',
+    url: r.url,
+    ...(r.headers && Object.keys(r.headers).length ? { headers: r.headers } : {}),
+    ...(r.json !== undefined ? { json: r.json } : {}),
+    ...(r.body !== undefined ? { body: r.body } : {}),
+  };
 }

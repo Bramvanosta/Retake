@@ -100,7 +100,7 @@ for what the server refuses.
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists, `dry_run: false` deletes (annotated destructive) — only when the user asked to free space | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -206,7 +206,8 @@ exits after a minute without work. So no call outlives an agent's timeout: `run_
 `job_status {job_id, wait_s: 600}` follows it with progress notifications. Results carry their JSON on one line, and
 `run_status`, `review` / `review_get` and `page_inspect` answer compactly unless `detail: "full"` (L5.8, measured on the
 fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2,700 → 900, a review ≈ 2,200 → 400). A job `succeeded` when it ran to the end — its run may still have failed (`result.status`);
-`failed` means it could not run (a scenario changed since it was submitted, a sandbox that would not start…).
+`failed` means it could not run (a scenario changed since it was submitted — a run, an inspection or a scenario's
+hooks: submit it again —, a sandbox that would not start…).
 - The worker outlives the session that started it: a capture under way when Claude Code closes still finishes, with its
   teardown, and its result waits for the next session (`job_list`). It keeps the environment (`env` block) of the
   server that started it: after changing that block, wait until it exits (`engine_info` shows it) or stop it.
@@ -284,15 +285,72 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   `run_dry {hooks: "run"}`, `hooks_run {dry: false}` or `env_reset {dry: false}` needs such hooks, the server first
   checks them without running anything (templated, secrets as `***`; what a safety rule refuses fails the call at
   once), then asks the user once, through the client's approval form (MCP elicitation, form mode): the project, the
-  environment (production or not, read-only or not), each hook with its kind, target (request and host, command,
-  SQL and database) and why it needs approval, and the `retake` command to run it in a terminal instead.
+  environment (production or not, read-only or not), each hook in full and why it needs approval, and the `retake`
+  command to run it in a terminal instead.
+  - **In full.** Each hook is shown as it will run, its name once in its heading, then every field on a line of its
+    own, templated and never cut: a shell hook's `run`, `cwd` and each `env` entry; a sql hook's statement (or its
+    file) and database; a js hook's code (or its file) and page; an http hook's method, URL, headers and body. Secrets
+    are `***`; control, bidirectional and invisible characters, and spaces other than a plain space, are written out
+    (`\u{202e}`, `\u{a0}`); a value of several lines continues on lines starting with `|`, and a name or an `env` /
+    header key stays on its line (a line break as `\u{a}`), so nothing reads as another field or hook. A hook longer
+    than 4,000 characters, or a form longer than 16,000 (counted as the whole form reads), is refused before anyone is
+    asked: run it in a terminal (the fix).
+  - **Shell hooks the agent writes are plain commands.** A shell hook the agent wrote — the scenario's `setup`,
+    `teardown` and own `hooks:`, and a project.yaml hook whose templates use the scenario's `vars` — is read, as
+    templated with the scenario's values, before anyone is asked and again when the job runs. Its `run` and `rollback`
+    are plain words — letters, digits and `. / : = @ % + , - _` — separated by single spaces, commands joined by
+    ` && `; its `cwd` is one plain word. The length is checked first (at most 4,000 characters), then every character
+    once: no quotes, `$`, backticks, `;`, `|`, `&` alone, `<` / `>`, `( )`, `{ }`, globs, `~`, `#`, `\`, tabs,
+    newlines, other control characters, non-ASCII characters or unusual spaces — so the shell expands, redirects,
+    substitutes and hides nothing. On those words:
+    - no `cd`, `pushd`, `popd`, `eval`, `exec`, `command`, `builtin`, `trap`, `alias`, `unalias`, `hash`, `enable`,
+      `fc`, `source` or `.` — as the program (`/usr/bin/command` too) or after a wrapper (`nice`, `env`, `timeout`,
+      `time`, `nohup`…) or a shell's prefix word (`coproc`, `noglob`, `nocorrect`, `-`); set the hook's `cwd` instead
+      of `cd`;
+    - no loader variable (`PATH`, `HOME`, `NODE_OPTIONS`, `LD_*` / `DYLD_*`, `BASH_FUNC_*`, `GIT_*`, `PYTHON*`,
+      `PERL*`, `PSQLRC`, `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`, `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`,
+      `npm_config_*`, `PIP_*`, `UV_*` and the like: they change what a program loads or the shell it starts) set
+      before the program, as an `env` argument, or by `export` / `declare` / `read` / `printf -v`…; the hook's `env`
+      names are letters, digits and `_` and no loader variable either;
+    - no code written in the command: a shell's `-c` (`sh`, `bash`, `zsh`, `dash`…), `node` / `bun` / `tsx` `-e`,
+      `-p`, `--eval`, `-r`, `--require`, `--import`, `deno eval`, `python -c`, `perl -e`, `ruby -e`, `php -r`,
+      `osascript -e`, `awk` without `-f`; no `xargs`, `parallel`, `find -exec` / `-execdir` / `-ok`, `env -S`; no
+      package runner (`npx`, `pnpx`, `bunx`, `uvx`) nor its subcommand wherever it stands (`npm exec` / `x` /
+      `create` / `init`, `pnpm dlx` / `create`, `yarn dlx`, `bun x`, `pipx run`, `uv tool`, `deno npm:…`); no `git -c`
+      / `--config-env`;
+    - no path through a folder an agent can write — README.md, `scenarios/`, `comments/`, `runs/`, `renders/`,
+      `review/`, `exports/`, `.retake/`, of the project or of another project of the workspace — whether the file
+      exists or not, however it is written (relative to `cwd`, absolute, `RUNS/…`, through a symbolic link,
+      `--file=…`, `-f…`, `@…`, a `:` or `,` list, `python -m runs.x`, `{{run.dir}}/…`); a bare `README.md` always
+      counts (any program may read it as its script); a bare folder name counts as a path for an interpreter
+      (`node runs`) or after `-C`, `-f`, `--file`, `--prefix`, `--cwd`…, not as a script or target name
+      (`npm run review`, `make renders`); no path to project.yaml, nor into `hooks/` other than the script
+      a command runs (`sh hooks/seed.sh`, `node hooks/seed.mjs`, `psql -f hooks/reset.sql`); no `/dev/stdin`,
+      `/dev/fd/…`;
+    - no saved response (`{{hooks.<name>…}}`, a rollback's `{{response.…}}`): its value is not known when the hook is
+      asked about; no secret (`{{env:…}}`, `{{keychain:…}}`) in its `run`, `rollback` or `cwd`, as a scenario never
+      names one.
+
+    Its rollback is held to these rules again when it is replayed (`env_reset`, `retake env reset`), on the command
+    it then runs.
+
+    Each refusal names what to change. A hook that needs more belongs in your own files — `hooks/<name>.yaml`
+    (`retake hooks run <project> hooks/<name>.yaml`, or `hooks_run`) or project.yaml's `hooks:` without the scenario's
+    vars — where it is shown in full and asked about, or in a terminal. Plain commands pass: `pnpm run seed --small`,
+    `sleep 1.5`, `sh hooks/seed.sh`, `npm run db:reset && npm run db:seed`,
+    `curl -s -X POST http://localhost:4401/api/reset`. A hook of your own files (project.yaml with its own `vars`,
+    `hooks/<name>.yaml`, a sandbox's seed) keeps the shell's full syntax: it is shown in full and asked about.
   - **Rollbacks.** A setup hook whose rollback is destructive (HTTP DELETE, destructive SQL) or is a shell command or
     JavaScript needs the approval too — even when the hook itself only reads: its rollback runs later (a failure, a
-    cancel, `env_reset`) without asking again. The form shows each hook's rollback (`…; rollback: http DELETE …`).
+    cancel, `env_reset`) without asking again. The form shows each rollback in full the same way, after its hook
+    (`rollback run: …`, `rollback method: DELETE`, `rollback url: …`).
   - Approved: the job is queued with the approvals — fingerprints of the hooks *as their file declares them* (with
     their phase, position and environment) and of the project files they reference (sql / js files, the scripts a
     shell hook names: `./seed.sh`, `psql -f reset.sql`); the worker runs a hook that needs approval only when its
-    fingerprint is listed, so a hook or a script changed between the question and the run is refused. Each approval
+    fingerprint is listed, so a hook or a script changed between the question and the run is refused. A scenario's
+    hooks (`<scenario>:setup` / `:teardown`, and a capture's) run from the scenario bytes the form was built from:
+    the job carries their sha256, and a scenario changed since — its `vars` included — fails it as `conflict`
+    (submit it again). Each approval
     is signed with a key kept in `~/.retake/approvals.key` (`RETAKE_HOME`; 0600): the worker ignores an
     approval a submit did not sign (a job file written by hand into `.retake/jobs/`). Replaying the rollbacks of
     hooks a human or an approval let run is never asked about again.
@@ -305,9 +363,21 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
     `--yes` / the prompt approve destructive hooks, and a shell hook's `writes: false` counts.
   - A dry run (`run_dry` without `hooks: "run"`, `hooks_run` / `env_reset` by default) asks nobody.
   - **Sandbox seeds.** `sandbox_up`, `sandbox_reset` and `run_capture {sandbox: true}` may run a sandbox's seed: its
-    **shell** steps are approved the same way (a local command is local code, whatever the sandbox is). Its http and
+    **shell** steps are approved the same way, each shown in full as sandbox.yaml declares it (a local command is local
+    code, whatever the sandbox is). Its http and
     sql steps rebuild the sandbox's own data (checked before the reset changes anything) and an `exec` step runs inside
     a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
+- **Deleting takes and renders needs a human.** `project_prune {dry_run: false}` first lists what would go, then asks
+  the user through the same approval form: how many items of which project, how much they free, the count and size of
+  each kind (takes, renders, reviews), the first 20 items (kind, name, why it goes, its size — every hidden character
+  written out) and how many more — approving deletes them all, listed or counted — and the terminal command
+  `retake prune <project> --yes` instead. When the user approves, it deletes the items of that approval that can still
+  go at that moment, each with the files it had when listed (a file added to it since stays): one a job, a comment
+  thread or a kept render has started to use while the question was open stays (the result lists it under
+  `skipped`), and so does one that became prunable meanwhile (`not_asked`). Declined, dismissed, not answered in time or a failed question:
+  `refused`; a client that cannot show the form: `needs_approval` with the command — nothing is deleted either way, and
+  a form too long to read (over 16,000 characters, counted as the whole form reads) is refused before anyone is asked. A dry run (the default)
+  asks nobody. From a terminal, `retake prune <project> --yes` deletes without a form, as before.
 - **Renders read the project, and nothing else.** Through MCP a render (and `plan_preview`) is checked before any
   file is read: every file the capture's timeline names — card and overlay images, `data:` CSV / TSV slots, your own
   video / image / Lottie files, the music bed (the scenario's or `overrides.music`) — is a file of the project folder
@@ -348,6 +418,22 @@ fixture: a page inspection ≈ 13,300 → 2,200 tokens, a dry run's status ≈ 2
   links followed (no absolute path, `~` or `..` out of it; a templated path is checked when the step runs), and code is
   never run from a file Claude can write (README.md, `scenarios/`, `runs/`, `renders/`, `review/`, `exports/`,
   `.retake/`): keep scripts in `hooks/` or `assets/`. From a terminal nothing changes.
+- **What a scenario opens stays on the environment's origins.** Every scenario opens only `http:` / `https:` URLs or `about:blank`,
+  without sign-in details (a validation error, also at `scenario_save`; see
+  [What a scenario opens](scenarios.md#scenario-language)). Through MCP and the Studio, a full URL a scenario opens (a scene's
+  or a page's `open`, an `open` step, a `new_tab` `href`) must also have the exact origin of one of the pages of the
+  environment the job runs on — scheme, host and port: another port of localhost is another app — and `//host/…` is
+  refused. A path is always fine: it is resolved against the environment page of the tab it opens in — on a tab
+  opened from another one (`new_tab`) and on no environment page, against that tab's current URL, and checked like a
+  full URL once resolved. Refused at submit (`run_dry`, `run_capture`, `page_inspect
+  {scenario}`, a scenario's hooks), again by the worker and — for a templated URL (`{{vars.…}}`) — once rendered, when
+  its step runs (the step fails before the page loads; prewarm skips it); the refusal names the field and the origins
+  allowed. A link the page provides, followed by a `new_tab` whose click opened no tab, may go to any http(s) site;
+  the rule covers what the runner opens, not where the page goes on its own: a redirect, a link the page follows or a
+  click that opens a tab may still leave the environment's origins. To film another site, a person adds its origin as
+  a page of the environment in project.yaml. Every job the worker runs comes under this rule, the Studio's included
+  (its status bar says *opens another site · add it to project.yaml*); `scenario_validate` given the environment (its
+  `env`, or the scenario's own `env:`) reports it too, at the line; a run typed in a terminal does not.
 - **Production of every project.** The hosts of the production and read-only environments of *every* project of the
   workspace are protected through MCP: `project_create` refuses a page on another project's (loopback names alike,
   ports compared), and a run, hooks or a reset on a read-write environment with a page on one is refused (a human

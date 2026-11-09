@@ -3,6 +3,7 @@
  * origin check of an inspected page, and the serialisation of a suggested target as a scenario writes it.
  */
 import { parse, stringify } from 'yaml';
+import { canonicalOrigin } from './agent-policy.js';
 import { hasErrors } from './issues.js';
 import { parseScenario } from './scenario.js';
 import type { ScenarioCheckOptions } from './scenario.js';
@@ -53,15 +54,12 @@ export function inspectScenario(page: string, path = '/', opts: { persona?: stri
   return { name: 'inspect', file: '<inspect>', text, scenario, issues };
 }
 
-/** The origins (scheme://host:port) of an environment's pages. */
+/** The origins (scheme://host:port, core canonicalOrigin) of an environment's http(s) pages. */
 export function pageOrigins(pages: Record<string, string>): string[] {
   const out = new Set<string>();
   for (const url of Object.values(pages)) {
-    try {
-      out.add(new URL(url).origin);
-    } catch {
-      /* not a URL: no origin */
-    }
+    const o = canonicalOrigin(url);
+    if (o !== null) out.add(o);
   }
   return [...out];
 }
@@ -71,14 +69,8 @@ export function pageOrigins(pages: Record<string, string>): string[] {
  * hosts: another port of localhost (another local app) is another origin.
  */
 export function isPageOrigin(url: string, pages: Record<string, string>): boolean {
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return false;
-  }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-  return pageOrigins(pages).includes(u.origin);
+  const o = canonicalOrigin(url);
+  return o !== null && pageOrigins(pages).includes(o);
 }
 
 /** Two targets are the same object (keys in any order). */

@@ -354,8 +354,52 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   Without personas (§3.6): one context on a fresh temp profile. With personas: one context per persona the run films
   ("realms", each its own Chromium process and cookie jar) on a per-run copy of its session, plus the default context
   when some page has no persona. Executable: config → `$RETAKE_CHROMIUM` → Playwright default.
+- Every runner launch (capture realms, sign-in and recording windows, site extraction, artefact renderer, cursor
+  atlas, doctor probe) ends its options with `...launchOptions({ args })` (launch.ts): `chromiumSandbox: true` (the OS
+  sandbox; Playwright's default is off), `--site-per-process` appended (the headless shell leaves site isolation off
+  unless asked) and the switches, refused when one turns the sandbox or site isolation off or opens the browser to
+  other code (core `sandboxOffArgProblem`, lists `SANDBOX_OFF_SWITCHES` / `SITE_ISOLATION_OFF_FEATURES` /
+  `BROWSER_OPEN_SWITCHES` — `--disable-web-security`, the `*-cmd-prefix` / `--gpu-launcher` /
+  `--browser-subprocess-path` launchers, `--remote-debugging-port` / `-address` — in agent-policy.ts; also a validation
+  error of `browser.args` in retake.yaml and project.yaml). Right after it, every launch but the doctor's probe calls
+  `refuseUnsandboxed`: one CDP `Browser.getBrowserCommandLine` (`browserSandbox`), and a browser whose own command line
+  holds such a switch — what an executable that adds switches itself passes — is closed and refused (RunnerError). A
+  source scan (test/launch-options.test.ts) keeps every `launch` / `launchPersistentContext` on both. `retake doctor`
+  reports its probe's `browserSandbox` instead.
+- HTTP credentials: `resolveEnvironment` gives every consumer the page URLs without `user:password@`
+  (core `withoutCredentials`); `environmentHttpCredentials` returns those details, decoded, with the page's origin —
+  one origin at most, one set of details (else a validation error of the environment, and the run refused). The capture
+  realms, the sign-in window and the recording window are launched with Playwright `httpCredentials` limited to that
+  `origin` (`launchCredentials`, launch.ts), and the run registers the password as a secret value (masked wherever it
+  writes). A challenge from another origin is never answered (Playwright leaves it to the browser: it stays pending).
+- Every realm refuses local files itself before anything loads (`armFileGuard`, session.ts): a browser-level CDP
+  session enables `Fetch` for `file:*` only and fails each paused request (`BlockedByClient`), in every page, popup and
+  frame; no Playwright route (the HTTP cache stays on). A realm that cannot be armed is closed and the run fails.
+- What the runner opens (`opens.ts`, core `navigationProblem`): a scene's `open`, `pages[].open`, an `open` step, a
+  `new_tab` href and the prewarm visits are checked on their final URL — templated, then resolved against the
+  environment page — before a page is created or loaded for them: http(s) or exactly about:blank, no sign-in details;
+  under trust `mcp` (`RuntimeInit.navigation`: core `pageOrigins` of the environment) an absolute URL the scenario wrote
+  is on one of the environment's origins. A clicked link's href (the `new_tab` fallback) gets the scheme rule only,
+  plus `blob:` of the opener's origin. Text that does not parse as an absolute URL is refused whoever wrote it; at
+  validation a scheme whose rest does not parse is refused, and in `pages[].open` a `<page>:` prefix that names no page
+  of a known environment (`admin_consol:/x`), or `file:` / `data:` / `javascript:` / `blob:` / `view-source:` /
+  `chrome:` without one. A refusal is a step error; prewarm leaves the URL out. Redirects and the links a page follows
+  itself stay Chromium's (an http redirect to `file:` fails; one to another origin is followed).
 - The in-page kit is installed with `context.addInitScript` (every navigation, every new tab) and
   re-evaluated on the current page when the runner starts.
+- The kit's two bindings (session.ts: `__retakeNotification`, `__retakeCursor`) answer a page's main frame only
+  (`src.frame === src.page.mainFrame()`); `Runtime.cursorEffect` takes a finite `time` (and a finite point for a
+  ripple's `x` / `y`) and at most `CURSOR_EFFECTS_PER_SECOND` (60) effects per page in a wall-clock second, one warning
+  per run beyond; the kit itself reports notifications from the top window only and sends each
+  text at most one character past the limit. `readNotificationPayload` checks the payload's types (else ignored), cuts
+  title, body and tag at `NOTIFICATION_TEXT_MAX` (2,048), drops an icon URL beyond `NOTIFICATION_ICON_URL_MAX` (data:
+  1.5 M characters, other 2,048), and takes `url` / `origin` from the main frame. notifications.ts: per run at most
+  `NOTIFICATION_RUN_MAX` (50) notifications and `NOTIFICATION_ICON_RUN_MAX` (20) icons read, one warning each beyond;
+  `iconRefusal` allows a `data:` URL or an http(s) URL whose `canonicalOrigin` is the notifying frame's origin or one
+  of `pageOrigins(env.pages)`; `fetchIcon` decodes a data: URL (≤ 1 MiB, `NOTIFICATION_ICON_MAX_BYTES`) or fetches with
+  Node's fetch, the context's cookies for the URL, `redirect: 'manual'` (a 3xx fails), a 10 s timeout, a declared
+  `content-length` over the cap refused and the body stream cancelled past it. A refused or failed icon is a warning;
+  the artefact keeps `icon_url`.
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
   The ACTIVE page is the one being recorded and acted on.
 
@@ -542,7 +586,8 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
   `settle()` and `open` keep the load state, bounded by
   `settle_ms`), `assert` (fails with screenshot), `screenshot` (runs/<id>/screenshots/<name>.png).
 - `new_tab`: real click on target (if given) and wait ≤ 1.5 s for `context.on('page')`; if no page
-  appeared, open `href` (target's `href`, or the arg) in a new page; set it active and keep recording.
+  appeared, open `href` (the arg, else the target's `href`: §3.1 what the runner opens) in a new page; set it active
+  and keep recording.
 - `switch_page`, `open` (navigate; `wait_until` default `load` + settle network idle ≤ settle_ms),
   `eval` (function body with `arg`), `notify` (macOS `osascript`, Linux `notify-send` if present, else log),
   `emit` (timeline event with data), `cursor` (show/hide/move/set).
@@ -1667,6 +1712,7 @@ selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(projec
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
 preflightHooks(project, [{phase, hooks}], {env?, vars?, scenario?, journalFile}) → {env, items, refused}
 takeApprovals(ApprovalRequest, approver?) → JobApproval[]   approvalChecker(approvals) → confirmDestructive
+pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(PruneApprovalRequest, approver?, client?)
 ```
 
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
@@ -1728,14 +1774,19 @@ workers/worker.log      what workers print (stderr), appended
   `cancelled`. The next worker persists those (it holds the lock). run.json is never rewritten for `interrupted`: the
   run status overlays it.
 - `succeeded` = ran to the end (the run's own status is `result.status`); `failed` = could not run (EngineError code
-  and message: the scenario's bytes changed since submit → `conflict`, a sandbox take failed…).
+  and message: the scenario's bytes changed since submit → `conflict`, a sandbox take failed…). The worker reads a
+  pinned scenario once (core `loadScenario` / `readScenarioSource` with `expectSha256`): those bytes are hashed and
+  compared before they are parsed (`ScenarioChangedError` → `conflict`, "submit it again"), and the run, the
+  inspection or the hooks use them, never a second read of the file.
 - Submit (`submitRunJob`): names checked, `prepareRun`, the hooks the run executes checked and approved (below), the
   scenario hashed, `reserveRunId` (core; the runner uses it too) and a `queued` run.json written, the input queued; the
   MCP engine then calls `ensureWorker`. Early exits never leave run.json `queued`: the worker closes a reserved run as
   `cancelled` (cancelled before it started) or `failed` (it could not start).
 - `hooks` / `env_reset` jobs (`jobs/hooks-job.ts`): `{version, kind: 'hooks', project, source (core HOOKS_SOURCE_RE:
-  reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project), env?, dry,
-  journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
+  reset | <scenario>:setup|teardown | hooks/<name>.yaml — a file's real path must be inside the project),
+  scenario_sha256? (for `<scenario>:setup|teardown`: the scenario file's bytes at submit, set before the approvals are
+  signed and covered by their signature; the worker refuses such a job without it or with another hash — `conflict`,
+  submit again), env?, dry, journal_id (reserved: `<stamp>-hooks-<label>`), submitted_by, approvals?}` and `{…, kind: 'env_reset', env?, dry,
   journal_id (`<stamp>-env-reset`)}`. The executors are `retake hooks run` / `retake env reset` on the engine's
   `createHookContext` with trust `mcp` and the job's approvals; results (`HooksJobResult`, `EnvResetJobResult`) list
   each hook with its trusted fields (index, name, kind, status, the hook as declared, the approval reason) and keep
@@ -1749,18 +1800,62 @@ workers/worker.log      what workers print (stderr), appended
   `mcp`: nothing executes, secrets are `***`, no browser opens; a refusal fails the submit (`refused`, fix = the
   `retake` command); the hooks that need a human (from the dry run, else from the file alone) go to the client's
   `Approver` once (`ApprovalRequest {what, project, env {name, production, access}, items [{fingerprint, phase, index,
-  name, kind, description (templated), reason}], fix}`). No approver → `needs_approval`; declined / cancelled /
+  name, kind, description (templated), reason, lines}], fix}`). `lines`: the hook in full, one line per field, then
+  its rollback's prefixed `rollback ` (hooks `shown.ts`: `actionLines` of `PreparedHook.shown` /
+  `PreparedHook.rollback.shown`, carried as `HookResult.shown` under trust `mcp`, redacted; `declaredHookLines` of the
+  raw hook when the dry run could not template it, and for a sandbox's seed steps) — every character visible (core
+  `showHiddenChars`: controls, bidirectional, invisible and look-alike characters — spaces other than U+0020, joiners,
+  fillers, variation selectors), a further line of a value after `  | `, a field name (an `env` or header key) on its
+  line (`showHiddenCharsLine`: a line break as `\u{a}`); the form's text is engine `approvalFormText` (mcp
+  `approvalMessage` is it): a numbered heading per hook (`approvalItemTitle`: phase, position, name once — on its line —,
+  kind) with its reason, then these lines indented. `takeApprovals` refuses (`refused`, `details.too_long`, the fix)
+  before asking anyone, approver or not, a hook whose text in the form exceeds `APPROVAL_HOOK_MAX_CHARS` (4,000) or a
+  form (`approvalFormText`, whole) over `APPROVAL_FORM_MAX_CHARS` (16,000); the Studio's run blockers name it
+  `too_long` ("hooks too long to approve here", the terminal command). Core validation refuses a control character in a
+  hook's `name` and in a shell hook's `env` names. *Agent-written hooks*: `RunHooksOptions.agentWritten` marks the
+  hooks the agent wrote — a scenario's setup, teardown and own named hooks (runner `run.ts`, engine `preflightHooks`
+  lists, `executeHooksJob` for `<scenario>:setup|teardown`); `HookContext.agentVars` (the scenario's own `vars`, set
+  by engine `createHookContext` and the runner with trust `mcp`) makes a hook whose templates use one of them count as
+  agent-written wherever it is declared. Under trust `mcp` an agent-written shell hook goes through hooks
+  `kinds/shell.ts` `checkAgentShell` before anything of it is rendered (in the preflight and in the worker; a refusal is
+  `HookSecurityError` `mcp`, ending with the grammar and "have a person put it in hooks/<name>.yaml … or run it in a
+  terminal"): its `env` names (core `agentShellEnvProblems`: `ENV_NAME_PLAIN`, no loader variable — core
+  `LOADER_ENV_NAMES`, the start files and programs other tools read included: `LESSOPEN`, `MANPAGER`, `SSH_ASKPASS`,
+  `RUSTC_WRAPPER`, `MAVEN_OPTS`, `FPATH`, `PIP_*`, `UV_*`…); no `{{hooks.…}}` / `{{response.…}}` token and no secret
+  token (`{{env:…}}`, `{{keychain:…}}`, `{{secret:…}}`) in `run` / `rollback` / `cwd` (`agentShellTokenProblems`; root
+  as core's lookup reads it — as an agent's scenario never names a secret, a secret's value is never what the checks
+  read); then `agentShellView` — the text rendered with vars, pages and `run` (`{{run.dir}}` defaulting to `runs/<id>`
+  in a preflight) — is read by core agent-policy
+  `agentShellCwdProblems` (one plain word, not agent-writable) and `agentShellProblems`: length first
+  (`AGENT_SHELL_MAX_CHARS`, 4,000), then one pass over the characters (`plainCommands`: plain words of
+  `[A-Za-z0-9./:=@%+,_-]`, single spaces, `&&` as a word between two commands — `AGENT_SHELL_GRAMMAR`), then per
+  command: `REFUSED_BUILTINS` by the last path part, as the program or after a `WRAPPERS` program (the wrappers, and
+  the shells' prefix words bash `coproc`, zsh `noglob` / `nocorrect` / `-`); loader variables set
+  (leading assignments, `env` arguments, `VARIABLE_SETTERS` names, `printf -v`); `INTERPRETERS` code options, `awk`
+  without `-f`, `xargs` / `parallel` / `find -exec` / `env -S`; `PACKAGE_RUNNERS` (a runner, or its subcommand anywhere
+  after it), `deno npm:` / `jsr:`; `git -c`; paths (`pathCandidates`: the word, after `=`, `-X`, `@`, each `,` and
+  `:` part) — through an agent-writable folder (`agentWritablePath`, for a word with a `/`, any word of an interpreter's
+  command, the value of a `PATH_OPTIONS` option), to an agent-writable file (README.md: any word, bare or not, whatever
+  program reads it), to project.yaml (any word), into `hooks/` unless it is the script the command runs (`runsFileAt`:
+  the program, an interpreter's first non-option word, a `-f` / `--file` / `-m` value). A rollback of such a hook is
+  recorded with `agent: true` (under the entry's signature) and `rollbackShell` holds it
+  to the same rules again on the text it replays (env names, tokens, then the rendered `cwd` and command), whoever
+  replays it; a refusal is `HookSecurityError` `mcp` (status `refused`).
+  `hookFiles({agentWritten})` still binds the existing files such a hook names but leaves judging them to these rules.
+  A person's hook keeps the shell's full syntax and is only shown in full. No approver → `needs_approval`; declined / cancelled /
   timeout / error → `refused`; accepted → `input.approvals = [{fingerprint, by: 'human-elicitation', at}]`, written once
   with the job. `fingerprint` = hooks `hookFingerprint(hook, {phase, index, env})`: sha256 of canonical JSON (sorted
   keys) of the **raw** hook as its file declares it, its phase, position and environment — templates unresolved, so
   `{{run.id}}` and saved responses do not differ between preflight and run. The worker's `confirmDestructive` is
   `approvalChecker(input.approvals)`: a hook that needs a human runs only when its fingerprint is listed (a changed or
-  moved hook is refused). With trust `mcp` a dry run never calls the approver: its results carry `approval {reason,
+  moved hook is refused). What the raw hook is rendered with comes from the same bytes: a run job, and a hooks job of
+  `<scenario>:setup|teardown`, carry the sha256 of the scenario bytes the preflight read, and the worker runs no other
+  (the scenario's `vars` included). With trust `mcp` a dry run never calls the approver: its results carry `approval {reason,
   fingerprint}`. The CLI (trust `author`) is unchanged: `confirm: true`, `--yes` / the prompt, `writes: false`.
   *Rollbacks* (L3.1 review): a setup hook whose rollback is destructive (HTTP DELETE, destructive SQL inline or in its
   file) or is a shell command or JavaScript needs the approval too (its rollback runs later — a failure, a cancel, an
   environment reset — without asking again); the item's `description` ends with `; rollback: <templated rollback>`
-  (also `rollback`), and its reason with `its rollback: …` (core `rollbackApprovalReason`, hooks `PreparedHook.rollback`).
+  (also `rollback`), its `lines` end with the rollback's fields, and its reason with `its rollback: …` (core `rollbackApprovalReason`, hooks `PreparedHook.rollback`).
   *Files*: the fingerprint also folds `files` — ref → sha256 of each project file the hook references (hooks
   `hookFiles`: its sql / js file and its rollback's, and every relative word of its shell command that names an
   existing file under its working directory: `./seed.sh`, `node scripts/x.mjs`, `psql -f reset.sql`): a script changed
@@ -1945,6 +2040,20 @@ workers/worker.log      what workers print (stderr), appended
   (required, default false). Only `accept` with `approve: true` approves. The timeout is explicit — 10 min
   (`RETAKE_MCP_APPROVAL_TIMEOUT_MS`), since the SDK's default request timeout is 60 s; a timeout
   (`isTimeoutError`) or any failure refuses. A client without form elicitation gets no approver: `needs_approval`.
+- **Prune approval** (`approvals.ts`, `engine.projects.prune(slug, req, {approver})`). Under agent trust (every client
+  but the CLI and tests) a prune with `dry_run: false` lists first (`pruneProject`, dry, with the jobs queued or
+  running then), builds `PruneApprovalRequest {what: 'prune', project, keep_renders, count, bytes, by_kind [{kind,
+  count, bytes}], lines (the first PRUNE_FORM_MAX_LINES = 20 items: kind word, id with every hidden character written
+  out, reason, size), more, fix: 'retake -C <ws> prune <p> [--keep-renders N] --yes'}` and calls
+  `takePruneApproval`: a form (engine `pruneApprovalFormText`, whole; mcp `pruneApprovalMessage` is it) over
+  APPROVAL_FORM_MAX_CHARS → `refused` before anyone is asked; no
+  `Approver.approvePrune` → `needs_approval`; declined / cancelled / timeout / error → `refused`; nothing is deleted
+  before an accept. The form says approving deletes every item, the listed and the counted ones. Accepted: a second
+  `pruneProject` pass (the jobs read again) with `only` = the listed items' `pruneKey` (`<kind>:<id>`) → the paths each
+  had then deletes those still prunable then, each with only those paths (a file added since stays); `skipped` names the approved ones that are not
+  (something uses them now, or they are gone), `not_asked` counts the prunable ones not in the approval — both
+  kept. mcp `pruneApprovalMessage` / `pruneApprovalForm` (schema `{approve: boolean}`, default false) put it to the
+  person; `project_prune` passes the call's approver. The CLI's `retake prune --yes` deletes in one pass, unasked.
 
 ## 4c. Engine HTTP server and Studio app (L4.1)
 
@@ -4703,9 +4812,10 @@ desktop shell write; `mode: 'dry'`, the CLI's `--dry`, MCP `run_dry`, job kinds 
 (Prepare shows one mapping line). A source lint (app-source.test.ts) fails on "dry run" in a string the page shows
 (comments, test ids, the mapping line and the ops' descriptions excepted).
 
-**The engine.** `RunBlocker.kind` (`agent_trust`, `protected_host`, `hook_refused`, `read_only`, `needs_approval` with
-`count`, `invalid`, `prepare`) — set by `runBlockers` from the gate that threw (`blockerKind`; a preflight that failed is
-`prepare`, never a safety reason); `ScenarioRunChoice.job` on an unfinished run (null: a terminal's run); `running` is
+**The engine.** `RunBlocker.kind` (`agent_trust`, `opens_other_site`, `protected_host`, `hook_refused`, `read_only`,
+`needs_approval` with `count`, `invalid`, `prepare`) — set by `runBlockers` from the gate that threw (`blockerKind`; a
+preflight that failed is `prepare`, never a safety reason; `opens_other_site` when every agent-trust problem is a URL
+outside the environment's origins: `checkAgentTrust` puts their count in `details.navigation`); `ScenarioRunChoice.job` on an unfinished run (null: a terminal's run); `running` is
 the newest unfinished run WITH a job, else the terminal's (`runningOf`: a terminal's run and a Studio job can be
 unfinished together — the one-run check sees jobs only — and Stop must reach the one it can).
 `engine.scenarios.actions` (op `scenario_actions`, a Studio read in the `ui` allow-list, strict input: project, name,
@@ -5314,7 +5424,8 @@ workflow's `build` job). Every output lands in `<out>`, a dedicated folder (`che
 links followed through the deepest existing ancestor: never inside the checkout, /Applications (nor
 /System/Volumes/Data/Applications), ~/Applications or ~/Library, never the home folder or a folder holding it, never
 the Desktop / Documents / Downloads folder itself; empty, or marked `.retake-bundle` by an earlier build — a folder
-with anything else in it is refused untouched; `--stage` gets the same rule): `stage/`, `target/` (cargo;
+with anything else in it is refused untouched; `--stage` gets the same rule, and a reused stage of another version
+than tauri.conf.json's is refused before Tauri builds anything when an app or a DMG is made — stage again): `stage/`, `target/` (cargo;
 `CARGO_TARGET_DIR` when it is outside the checkout), `app/Retake.app` + an `Applications` link (the DMG's folder),
 `Retake_<version>_aarch64.dmg`, `tauri.bundle.json`, `Info.plist`, `icon.icns`, `entitlements/`, `tauri-cli/`,
 `bundle-report.json` (sizes, timings). About 4 GB at the peak (stage 0.93 + app 0.94 + DMG 0.40 + cargo target 1.6). The
@@ -5769,15 +5880,26 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   version (`set-version.mjs --check`, `release.mjs tag`; a pre-release version makes a pre-release), the tagged commit
   is an ancestor of `origin/main`, **what is configured** (below), then a **draft** release (CHANGELOG paragraph + how
   to install), created or edited. `build` (macos-15, contents: read, no environment, no secret, no variable — the feed
-  and public key come as the release job's outputs): Node 22.16.0, corepack's pnpm, `pnpm install --frozen-lockfile`,
+  and public key come as the release job's outputs): Node.js (below), corepack's pnpm (package.json's `packageManager`
+  carries its sha512, checked on download), `pnpm install --frozen-lockfile`,
   Rust 1.99.1 through the image's rustup (`rustup toolchain install … --profile minimal --target aarch64-apple-darwin`,
   `RUSTUP_TOOLCHAIN`; no third-party toolchain action), `pnpm build`, the Tauri CLI into the pnpm store, Playwright's
   browsers then `bundle.mjs check-pins`, our ffmpeg (pinned sources; `HOMEBREW_NO_AUTO_UPDATE=1`, pkg-config's version
-  printed), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
-  `/usr/bin/tar` (links kept, no extended attribute) with `tauri-cli/` and the report, its sha256 a job output,
-  uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, setup-node,
-  the signing material, the artifact checked against the build job's sha256 then unpacked, then
-  `node apps/desktop/scripts/release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
+  printed; built at every run), then `pnpm desktop:bundle --app-only` — exactly the ad hoc app of `desktop:bundle` — packed with
+  `/usr/bin/tar` (links kept, no extended attribute, no Mac metadata) with `tauri-cli/`, its sha256 a job output,
+  uploaded as an artifact. `sign` (a **fresh** macos-15, `environment: release`, contents: read): checkout, Node.js,
+  the artifact checked against the build job's sha256 and unpacked **before the signing material is written** —
+  `node apps/desktop/scripts/release.mjs unpack` (`unpackBuild`: the archive decompressed in Node.js and its members
+  read by our own reader, `tarMembers` — ustar and pax headers, every checksum and the ustar magic, octal fields, no
+  data for anything but a file, zeros only after the end marker; GNU long names, global or sparse pax headers and
+  another character set refused, so tar walks the bytes as it does —; only `app`, `app/Retake.app/…` and
+  `tauri-cli/…`, those three themselves folders, files and folders under `tauri-cli`, files, folders and links whose
+  relative target stays inside the app under the app; a hard link, a device, a fifo, an AppleDouble `._` name, a name
+  given twice, `..`, an absolute name or a missing part refuses it before anything is written —, then tar extracts
+  the two parts from those very bytes (its standard input; `--no-mac-metadata --no-xattrs --no-acls --no-fflags`),
+  then checked: exactly them in the folder, real folders, every link of the app resolving inside it by the system's
+  realpath — Node.js's own resolves a link's `..` lexically; a refusal leaves nothing behind) —, then the signing
+  material and `release.mjs sign` only — no pnpm install, no package script, no Homebrew, no cargo; the
   outputs (DMG, archive, .sig, SHA256SUMS-macos.txt) uploaded as an artifact; the temporary keychain and key files
   removed in a last `always()` step. `attach` (ubuntu, contents: write): the files checked against the sign job's sum,
   then **refused unless the release is still a draft** (review e A-M4 / B-M2: a public release's files are never
@@ -5795,11 +5917,23 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   as a zip and staples it; then the update archive of the stapled app (an app built with the updater: launch.json
   `updates: on`), signed by the Tauri CLI the build job laid out — **re-checked file by file against tauri-cli.json's
   sha512 pins before it runs** (`checkTauriCliDir`: exactly the pinned files, no link, no other file or package; chosen
-  over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and verified
+  over a minisign signer of our own, which would need the key format's scrypt and BLAKE2b-256 code) and **run from a
+  fresh copy** (bundle.mjs `freshTauriCli`: the handed folder no link, each pinned file read once without following a
+  link — one swapped in after the folder's check is refused —, those bytes checked and written into a new temporary
+  folder, the copy checked again: nothing beside the handed folder is on the CLI's module lookup path), made by
+  finishApp right before the update archive is signed and removed right after, whatever happens (the `--tauri-cli`
+  folder itself is checked before `--out` is claimed and again before anything is signed); the CLI runs with HOME in
+  the copy and is refused before it starts when a folder of its module lookup path outside the copy exists
+  (`cliLookupPaths`: a `node_modules` in each folder above it, HOME's `.node_modules` / `.node_libraries`, the Node.js
+  prefix's `lib/node` — the list a test compares with what Node.js itself reports) — the signature then verified
   against RETAKE_UPDATE_PUBKEY; then the DMG (hdiutil create / attach / detach tried again on "Resource busy" only —
   3 tries, 2 s then 4 s; review e B-M4), signed, notarised, stapled, then the team, Gatekeeper and both tickets checked.
   Without `--release`: the ad hoc app checked as it is, an ad hoc DMG, said. `--app-version`: Info.plist's
-  CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7).
+  CFBundleShortVersionString must be it (the workflow passes the tag's) — the archive is signed for it (review e B-L7);
+  bundle.json's `app`, which names the DMG, must be a version and, with `--app-version` or a DMG to make, Info.plist's;
+  bundle.json's `paths.node` / `paths.ffmpeg` (its hashes are refreshed from them) relative, with no `.` or `..` part,
+  inside Resources by the system's realpath; bundle.json and launch.json not JSON: refused without their words — all
+  before anything is signed.
   `--out` is empty or an earlier run's (emptied first: no stale archive). `pnpm desktop:release` = the ad hoc layout +
   the same `finishApp` in the same process.
 - **What is configured: two sets, each all or nothing** (review e B-M1; `release.mjs preflight`, `CONFIG_SETS`).
@@ -5820,16 +5954,26 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   the person.
 - **Pins** (review e A-M2 / A-M3 / B-L9): every action pinned to the commit of an exact upstream tag, resolved
   read-only (`gh api repos/<o>/<r>/git/ref/tags/<tag>`, all lightweight tags) and written beside it: checkout v5.1.0,
-  setup-node v5.0.0, cache v5.0.0, upload-artifact v6.0.0, download-artifact v6.0.0. Node.js is exactly 22.16.0 and the
-  stage refuses any binary but the one `apps/desktop/bundle/node.json` pins (sha256 of the official darwin-arm64 build,
-  `checkNode`, also `bundle.mjs check-node` before the build job's long steps). Playwright's installer checks no hash:
+  upload-artifact v6.0.0, download-artifact v6.0.0 — no setup action. **Node.js** is the version
+  `apps/desktop/bundle/node.json` pins (22.16.0), installed by every job's first step after its checkout,
+  `bash apps/desktop/scripts/ci-node.sh` (it runs no node): the official `node-v<version>-<platform>.tar.gz` fetched
+  over https from the Node.js project, its sha256 checked in the shell against node.json's `tarballs` (the lines of
+  the project's SHASUMS256.txt, its signature checked against a listed releaser's key) before anything of it is
+  unpacked or run — npm, corepack and the rest of the install with it —, unpacked into `$RUNNER_TEMP/node`, its
+  bin/node checked against node.json's `sha256` for darwin-arm64 (the macOS jobs) or linux-x64 (the ubuntu ones),
+  its bin first on PATH (`$GITHUB_PATH`); the stage refuses any other binary again (`checkNode`) before it copies it.
+  Playwright's installer checks no hash:
   each browser revision folder's tree digest (every path, link target, size, executable bit and sha256, markers left
-  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from this Mac's playwright-core
-  1.56.1 install, and the stage refuses another tree (`checkBrowser`; `check-pins` right after the install). **The
-  first tagged run may need these digests (and the Node.js sha256) refreshed** if GitHub's setup-node archive or the
-  CDN's browser archive lays files out differently from the local installs — the build job then fails with the digest
-  it found, and `bundle.mjs browser-digest <folder>` records a checked one. Caches are this workflow's own
-  (`release-pnpm-…`, `release-ffmpeg-…`, no fallback key: never another workflow's store; review e A-L3).
+  out: `browserDigest`) is pinned in `apps/desktop/bundle/browsers.json`, recorded from a checked local install of the
+  lockfile's playwright-core (re-recorded at each bump), and the stage refuses another tree (`checkBrowser`;
+  `check-pins` right after the install). **The first tagged run may need these digests refreshed** if the CDN's
+  browser archive lays files out differently from the local install — the build job then fails with the digest it
+  found, and `bundle.mjs browser-digest <folder>` records a checked one (the darwin-arm64 binary pin was recorded from
+  a local install of that tarball: the first run confirms it too). **No cache**: no `actions/cache` step and no setup
+  action — nothing is restored from an earlier run or another workflow; the pnpm store, ffmpeg and cargo are filled
+  at every run from the lockfile and the pinned sources (a re-run downloads ffmpeg's sources again: two are archives a
+  forge generates, re-pinned after a re-verification if their bytes change). RELEASING.md has Playwright (the app's
+  Chromium) bumped and browsers.json re-recorded at every release (automating it: BACKLOG BL-160).
 - **The temporary keychain** (`apps/desktop/scripts/ci-keychain.sh import|delete <dir>`, GitHub Actions only): the user
   search list saved first, a keychain with a random password locked after 6 h, the identity re-wrapped by LibreSSL's
   `/usr/bin/openssl` (the certificate's password from the environment) with a random one-time password and imported
@@ -5856,11 +6000,13 @@ repository's `update-feed` release (L5.16f; §4p (d)). docs/RELEASING.md is the 
   accepted on 2026-11-04 for the person's own releases, though a public release is distribution to anyone who
   downloads it; to resolve before any sale (the licence note of docs/guide/desktop-app.md and the README's Licence section say so).
 - **Not run here**: the workflow itself (no GitHub write from this repository's tooling, actionlint not installed) —
-  `security -i`, the setup-node binary's sha256 and the CDN browsers' digests meet the real runner on the first tagged
+  `security -i`, the Node.js download (ci-node.sh against the project's host) and the CDN browsers' digests meet the real runner on the first tagged
   run, and the GitHub REST calls of publish-update.mjs (tested against a local stand-in of the API only) meet GitHub on
   the first publication; the notarised DMG on a clean account and an update through the feed are the person's
   (MACOS-CHECKLIST 15b, 15d).
-  Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, and the gated bundle acceptance.
+  Here: `release.mjs sign` (ad hoc) on the app `desktop:bundle --app-only` built, the gated bundle acceptance, and the
+  pinned Tauri CLI laid out from the pnpm store, copied fresh, its `signer generate` and `signUpdateArchive` run from
+  the copy (a throwaway key, HOME in the copy) with the signature verified.
 
 ## 4q. Captures first (L5.14)
 

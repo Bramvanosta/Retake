@@ -81,6 +81,8 @@ export { StepFailure, describeStep, trimSnippet, DEFAULT_STEP_TIMEOUT_S, ERROR_D
 export { RunSecrets, TIMELINE_POLICY, RECORD_POLICY, PROGRESS_POLICY } from './secrets.js';
 export type { RedactPolicy } from './secrets.js';
 export { probeChromium, chromiumExecutable } from './probe.js';
+export { browserSandbox, launchOptions } from './launch.js';
+export type { BrowserSandbox, LaunchSecurity } from './launch.js';
 export type { ChromiumProbe } from './probe.js';
 export { ArtefactStore, artefactSlug, previewText, htmlText, sniffMime, extensionFor, imageSize, projectDocuments, EMAIL_PREVIEW_CHARS } from './artefacts/store.js';
 export { ArtefactRenderer, sandboxedEmail, EMAIL_WIDTH, EMAIL_SCALE, PDF_SCALE, ICON_SIZE } from './artefacts/render.js';

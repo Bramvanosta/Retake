@@ -1422,6 +1422,7 @@
             "name": {
               "type": "string",
               "minLength": 1,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
               "description": "Name shown in logs and journals."
             },
             "confirm": {
@@ -1507,6 +1508,7 @@
             "name": {
               "type": "string",
               "minLength": 1,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
               "description": "Name shown in logs and journals."
             },
             "confirm": {
@@ -1557,7 +1559,8 @@
                     "env": {
                       "type": "object",
                       "propertyNames": {
-                        "type": "string"
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$"
                       },
                       "additionalProperties": {
                         "type": "string"
@@ -1583,6 +1586,7 @@
             "name": {
               "type": "string",
               "minLength": 1,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
               "description": "Name shown in logs and journals."
             },
             "confirm": {
@@ -1649,6 +1653,7 @@
             "name": {
               "type": "string",
               "minLength": 1,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]*$",
               "description": "Name shown in logs and journals."
             },
             "confirm": {

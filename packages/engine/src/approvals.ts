@@ -8,11 +8,14 @@
  * elicitation) is asked once for the whole list; an accept becomes the job's `approvals`: fingerprints of the raw
  * hooks, written once with the job. The worker runs a hook that needs approval only when its fingerprint is listed.
  */
-import { agentTrustProblems, channelWords, hookApprovalReason, hookKind } from '@retake/core';
+import { agentTrustProblems, channelWords, hookApprovalReason, hookKind, navigationTrustProblems, showHiddenCharsLine } from '@retake/core';
+import type { AgentTrustEnvironment } from '@retake/core';
 import type { AgentChannel, HookStep, JobApproval, JobClient, LoadedProject, Scenario } from '@retake/core';
 import type { HookPhase, HookResult } from '@retake/hooks';
 import { EngineError } from './errors.js';
 import { createHookContext } from './hooks.js';
+import { formatBytes } from './prune.js';
+import type { PruneItem, PruneResult } from './prune.js';
 
 /**
  * The wording channel of a client's refusals (L4.2, critique B2): the Studio (`ui`) is told "from the Studio" and to
@@ -40,6 +43,57 @@ export interface ApprovalItem {
   rollback?: string;
   /** Why it needs a human: destructive (and why), a shell command, its rollback (destructive, shell or js). */
   reason: string;
+  /**
+   * What runs, in full: one line per field, templated (secrets as `***`, every hidden character written out), then its
+   * rollback's (`rollback …`) — hooks shown.ts. The form shows these lines; the hook's name is in its heading only.
+   */
+  lines: string[];
+}
+
+/** The longest hook a form shows (its lines, in characters): a longer one is refused before anyone is asked. */
+export const APPROVAL_HOOK_MAX_CHARS = 4_000;
+/** The longest form (every hook's lines, the work and the command): a longer one is refused before anyone is asked. */
+export const APPROVAL_FORM_MAX_CHARS = 16_000;
+
+/** The heading of a hook in an approval: where it stands, its name, its kind. */
+export function approvalItemTitle(i: Pick<ApprovalItem, 'phase' | 'index' | 'name' | 'kind'>): string {
+  return `${i.phase} hook ${i.index + 1}${i.name ? ` "${showHiddenCharsLine(i.name)}"` : ''}${i.kind ? ` (${i.kind})` : ''}`;
+}
+
+/** A hook's text in a form (approvalFormText): its numbered heading with why it needs a human, then its lines. */
+function itemText(i: ApprovalItem, n: number): string {
+  return [`${n + 1}. ${approvalItemTitle(i)} — ${i.reason}`, ...i.lines.map((l) => `   ${l}`)].join('\n');
+}
+
+/**
+ * The question a person reads before hooks run (the MCP form's message): what runs, where, and each hook in full — its
+ * heading (where it stands, its name, its kind, why it needs them), then every field on a line of its own as it will run
+ * (ApprovalItem.lines: templated, secrets as `***`, hidden characters written out), its rollback's too — and the
+ * terminal path. Its length is what APPROVAL_FORM_MAX_CHARS limits.
+ */
+export function approvalFormText(req: ApprovalRequest): string {
+  const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
+  return [
+    `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
+    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count). Each is shown in full, as it will run:`,
+    ...req.items.map((i, n) => itemText(i, n)),
+    'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+/**
+ * Why `req` cannot be put to a person in a form, or null: a hook's text over APPROVAL_HOOK_MAX_CHARS, or the whole form
+ * (approvalFormText) over APPROVAL_FORM_MAX_CHARS — nobody reads that much before saying yes.
+ */
+function tooLongForAForm(req: ApprovalRequest): string | null {
+  const n = (x: number) => x.toLocaleString('en-US');
+  const long = req.items.flatMap((i, k) => (itemText(i, k).length > APPROVAL_HOOK_MAX_CHARS ? [{ i, length: itemText(i, k).length }] : []));
+  if (long.length) {
+    return long.map(({ i, length }) => `${approvalItemTitle(i)} is ${n(length)} characters long (a form shows at most ${n(APPROVAL_HOOK_MAX_CHARS)} per hook)`).join('; ');
+  }
+  const total = approvalFormText(req).length;
+  return total > APPROVAL_FORM_MAX_CHARS ? `its ${req.items.length} hooks make a form of ${n(total)} characters (at most ${n(APPROVAL_FORM_MAX_CHARS)})` : null;
 }
 
 /** What a human is asked: the hooks, where they run, and the command a human can run in a terminal instead. */
@@ -73,11 +127,36 @@ export interface SiteApprovalRequest {
   fix: string;
 }
 
+/** The lines of a prune form: the first items, one line each; the rest are counted in the totals. */
+export const PRUNE_FORM_MAX_LINES = 20;
+
+/**
+ * What a human is asked before an agent's prune deletes anything: how many items, how much they weigh, by kind, the
+ * first PRUNE_FORM_MAX_LINES items (`lines`) and how many more there are, and the `retake prune` command a human runs
+ * instead.
+ */
+export interface PruneApprovalRequest {
+  what: 'prune';
+  project: string;
+  keep_renders: number;
+  count: number;
+  bytes: number;
+  by_kind: Array<{ kind: PruneItem['kind']; count: number; bytes: number }>;
+  /** "take 20261020-110000-quote — failed take, 12 MB": every character visible. */
+  lines: string[];
+  /** Items the lines leave out (in the totals). */
+  more: number;
+  /** The `retake prune … --yes` command a human runs for the same deletion. */
+  fix: string;
+}
+
 /** How a client asks its human (MCP: elicitation). Absent: the client cannot ask anyone. */
 export interface Approver {
   approve(req: ApprovalRequest): Promise<ApprovalOutcome>;
   /** A site extraction's URL (absent: this client cannot ask about one — refused like no approver). */
   approveSite?(req: SiteApprovalRequest): Promise<ApprovalOutcome>;
+  /** An agent's prune (absent: this client cannot ask about one — refused like no approver). */
+  approvePrune?(req: PruneApprovalRequest): Promise<ApprovalOutcome>;
 }
 
 export interface Preflight {
@@ -98,10 +177,10 @@ function staticReason(hook: HookStep, project: LoadedProject, phase: HookPhase):
  */
 export async function preflightHooks(
   project: LoadedProject,
-  lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[] }>,
+  lists: ReadonlyArray<{ phase: HookPhase; hooks: readonly HookStep[]; agentWritten?: boolean }>,
   o: { env?: string; vars?: Record<string, string>; scenario?: Scenario; journalFile: string; via?: AgentChannel },
 ): Promise<Preflight> {
-  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback } = await import('@retake/hooks');
+  const { runHooks, Journal, hookFingerprint, hookFiles, describeHook, describeRollback, declaredHookLines } = await import('@retake/hooks');
   const { ctx, access } = await createHookContext(project, {
     env: o.env,
     dry: true,
@@ -116,9 +195,9 @@ export async function preflightHooks(
   const journal = await Journal.open(o.journalFile);
   const items: ApprovalItem[] = [];
   const refused: Preflight['refused'] = [];
-  for (const { phase, hooks } of lists) {
+  for (const { phase, hooks, agentWritten } of lists) {
     if (!hooks.length) continue;
-    const { results } = await runHooks([...hooks], ctx, { phase, journal });
+    const { results } = await runHooks([...hooks], ctx, { phase, journal, ...(agentWritten ? { agentWritten } : {}) });
     const byIndex = new Map<number, HookResult>(results.map((r) => [r.index, r]));
     hooks.forEach((hook, index) => {
       const r = byIndex.get(index);
@@ -140,6 +219,7 @@ export async function preflightHooks(
         description: rollback ? `${description}; rollback: ${rollback}` : description,
         ...(rollback ? { rollback } : {}),
         reason,
+        lines: r?.status === 'dry' && r.shown ? r.shown : declaredHookLines(hook, { rollback: phase === 'setup' || phase === 'step' }),
       });
     });
   }
@@ -156,7 +236,7 @@ export const SHELL_SEED_REASON = 'a shell command (runs local code)';
  * none of them is asked about.
  */
 export async function seedApprovalItems(project: LoadedProject, env: string): Promise<ApprovalItem[]> {
-  const { hookFingerprint, hookFiles, describeHook } = await import('@retake/hooks');
+  const { hookFingerprint, hookFiles, describeHook, declaredHookLines } = await import('@retake/hooks');
   const sandbox = project.sandboxes?.[env];
   const steps = sandbox?.manifest.seed ?? [];
   const items: ApprovalItem[] = [];
@@ -177,20 +257,26 @@ export async function seedApprovalItems(project: LoadedProject, env: string): Pr
       kind,
       description: describeHook(step),
       reason: SHELL_SEED_REASON,
+      // As sandbox.yaml declares it (a seed step journals no rollback).
+      lines: declaredHookLines(step),
     });
   });
   return items;
 }
 
 /**
- * Work submitted through MCP (core agent-trust): a scenario that names a secret or references a file outside the
- * project (or, run as code, one an agent can write) is refused before anything is queued — the worker checks it again.
+ * Work submitted through MCP or from the Studio (core agent-trust): a scenario that names a secret or references a file
+ * outside the project (or, run as code, one an agent can write) is refused before anything is queued — the worker
+ * checks it again. With the environment the job opens (`env`), a URL the scenario opens on another origin than the
+ * environment's pages is refused too.
  */
-export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient): void {
+export function checkAgentTrust(project: LoadedProject, sc: Scenario, fix: string, client?: JobClient, env?: AgentTrustEnvironment): void {
   const via = agentChannel(client);
-  const problems = agentTrustProblems(project, sc, { via });
+  const problems = agentTrustProblems(project, sc, { via, ...(env ? { env } : {}) });
   if (problems.length) {
-    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems } });
+    // How many are about the URLs it opens (the Studio's own words when they are all of them: "opens another site").
+    const navigation = env ? navigationTrustProblems(sc, { via, env }).length : 0;
+    throw new EngineError('refused', `refused ${channelWords(via)}: ${problems.join('; ')}`, { fix, details: { problems, navigation } });
   }
 }
 
@@ -216,6 +302,10 @@ function listItems(items: readonly ApprovalItem[]): string {
 export async function takeApprovals(req: ApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<JobApproval[]> {
   if (!req.items.length) return [];
   const details = { hooks: req.items.map(({ fingerprint: _f, ...rest }) => rest), env: req.env };
+  const long = tooLongForAForm(req);
+  if (long) {
+    throw new EngineError('refused', `${req.what} was not started: ${long} — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+  }
   if (!approver) {
     throw new EngineError(
       'needs_approval',
@@ -290,4 +380,78 @@ export async function takeSiteApproval(req: SiteApprovalRequest, approver: Appro
 export function approvalChecker(approvals: readonly JobApproval[] | undefined): (description: string, reason: string, request: { fingerprint: string }) => boolean {
   const approved = new Set((approvals ?? []).map((a) => a.fingerprint));
   return (_description, _reason, request) => approved.has(request.fingerprint);
+}
+
+const PRUNE_KIND_WORDS: Record<PruneItem['kind'], [string, string]> = { run: ['take', 'takes'], render: ['render', 'renders'], review: ['review', 'reviews'] };
+
+/** A name as a person reads it in a form: every hidden character written out, a line break too. */
+const visibleName = showHiddenCharsLine;
+
+/** The question of an agent's prune, from the dry run it would delete (`listed`) and the command a human runs. */
+export function pruneApprovalRequest(listed: PruneResult, fix: string): PruneApprovalRequest {
+  const by_kind = (['run', 'render', 'review'] as const)
+    .map((kind) => {
+      const of = listed.items.filter((i) => i.kind === kind);
+      return { kind, count: of.length, bytes: of.reduce((n, i) => n + i.bytes, 0) };
+    })
+    .filter((k) => k.count > 0);
+  const lines = listed.items.slice(0, PRUNE_FORM_MAX_LINES).map((i) => `${PRUNE_KIND_WORDS[i.kind][0]} ${visibleName(i.id)} — ${i.reason}, ${formatBytes(i.bytes)}`);
+  return { what: 'prune', project: listed.project, keep_renders: listed.keep_renders, count: listed.items.length, bytes: listed.bytes, by_kind, lines, more: Math.max(0, listed.items.length - PRUNE_FORM_MAX_LINES), fix };
+}
+
+/**
+ * The question a person reads before an agent's prune (the MCP form's message): how many items of which project, how
+ * much they free, by kind, the first items (PRUNE_FORM_MAX_LINES, every character visible) and how many more — all of
+ * them go when approved — and the terminal command. Its length is what APPROVAL_FORM_MAX_CHARS limits.
+ */
+export function pruneApprovalFormText(req: PruneApprovalRequest): string {
+  const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
+  return [
+    `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
+    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
+    req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
+    ...req.lines.map((l) => `- ${l}`),
+    ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),
+    `Approve to delete ${req.count === 1 ? 'it' : `all ${items}`} now${req.more ? ` — the ${req.lines.length} listed and the ${req.more} more` : ''}: only ${req.count === 1 ? 'this item' : 'these'}, as they are now, and only if nothing uses ${req.count === 1 ? 'it' : 'them'} by then. Decline to refuse: nothing is deleted.`,
+    `Instead, you can run it yourself in a terminal: ${req.fix}`,
+  ].join('\n');
+}
+
+/** "3 takes (40 MB), 2 renders (12 MB)". */
+export function pruneKindsText(req: Pick<PruneApprovalRequest, 'by_kind'>): string {
+  return req.by_kind.map((k) => `${k.count} ${PRUNE_KIND_WORDS[k.kind][k.count === 1 ? 0 : 1]} (${formatBytes(k.bytes)})`).join(', ');
+}
+
+/**
+ * Ask the client's human to approve an agent's prune. Returns when they approved; throws `needs_approval` when the
+ * client cannot ask anyone, `refused` when the human declined, did not answer in time or the question failed (or the
+ * form would be too long to read) — each with the `retake prune … --yes` command a human runs in a terminal instead.
+ * Nothing is deleted before it returns.
+ */
+export async function takePruneApproval(req: PruneApprovalRequest, approver: Approver | undefined, client?: JobClient): Promise<void> {
+  const what = `deleting ${req.count} item${req.count === 1 ? '' : 's'} of ${req.project} (${formatBytes(req.bytes)}: ${pruneKindsText(req)})`;
+  const details = { count: req.count, bytes: req.bytes, by_kind: req.by_kind };
+  const size = pruneApprovalFormText(req).length;
+  if (size > APPROVAL_FORM_MAX_CHARS) {
+    throw new EngineError('refused', `nothing was deleted: the list of ${what} makes a form of ${size.toLocaleString('en-US')} characters (at most ${APPROVAL_FORM_MAX_CHARS.toLocaleString('en-US')}) — too long to approve in a form: run it in a terminal`, { fix: req.fix, details: { ...details, too_long: true } });
+  }
+  if (!approver?.approvePrune) {
+    throw new EngineError(
+      'needs_approval',
+      `${what} needs the user's approval, and ${agentChannel(client) === 'studio' ? 'the Studio cannot approve it yet: run it in a terminal' : 'this MCP client cannot ask its user (no elicitation support): a human runs it in a terminal'}. Nothing was deleted`,
+      { fix: req.fix, details },
+    );
+  }
+  let outcome: ApprovalOutcome;
+  try {
+    outcome = await approver.approvePrune(req);
+  } catch (e) {
+    outcome = { approved: false, reason: 'error', message: e instanceof Error ? e.message : String(e) };
+  }
+  if (!outcome.approved) {
+    throw new EngineError('refused', `nothing was deleted: ${outcomeText(outcome)} — ${what}. Do not retry on your own: ask the user, or let them run it in a terminal`, {
+      fix: req.fix,
+      details: { ...details, outcome: outcome.reason },
+    });
+  }
 }

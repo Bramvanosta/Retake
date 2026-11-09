@@ -30,6 +30,7 @@ import { projectBrowser } from './config.js';
 import { RunnerError, errorMessage, isCancelled } from './errors.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { kitConfigFor } from './kit/source.js';
+import { launchCredentials, launchOptions, refuseUnsandboxed } from './launch.js';
 import { RunSecrets } from './secrets.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
@@ -250,9 +251,11 @@ async function saveUnlessSignedOut(
 }
 
 /** The browser of an automated login or of a check: a session (kit, bindings) of one realm, headless. */
-function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser'>, log: Log) {
+function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser' | 'env'>, log: Log) {
   const capture = o.project.config.capture;
+  const httpCredentials = launchCredentials(o.project, o.env.name);
   return {
+    ...(httpCredentials ? { httpCredentials } : {}),
     width: capture.width,
     height: capture.height,
     scale: capture.scale,
@@ -327,6 +330,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
   // L5.16c: never an older Chromium than the one that opened this profile last (profile-browser.ts).
   const major = launchMajor({ executablePath, channel });
   checkProfileBrowser(userDataDir, major);
+  const httpCredentials = launchCredentials(o.project, o.env.name);
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: o.headless === true,
     channel,
@@ -334,11 +338,13 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     viewport: null,
     locale: b.locale,
     timezoneId: b.timezone,
-    args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(b.args ?? [])],
     // Ctrl-C is the caller's (the CLI aborts `signal`, which closes the window): Playwright would quit the process.
     handleSIGINT: false,
     handleSIGTERM: false,
+    ...(httpCredentials ? { httpCredentials: { ...httpCredentials } } : {}),
+    ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(b.args ?? [])] }),
   });
+  await refuseUnsandboxed(context.browser(), () => context.close(), 'The sign-in browser');
   recordProfileBrowser(userDataDir, major);
   const pid = (await profileLock(userDataDir)).pid;
   try {

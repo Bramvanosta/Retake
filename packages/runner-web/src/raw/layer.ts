@@ -14,6 +14,7 @@ import type { BrowserConfig, CursorIcon, RawLayerFormat } from '@retake/core';
 import { EncodeError } from '../errors.js';
 import { kitSource } from '../kit/source.js';
 import type { KitConfig } from '../kit/types.js';
+import { launchOptions, refuseUnsandboxed } from '../launch.js';
 import { DEFAULT_BROWSER_ARGS, launchTarget } from '../session.js';
 import { CURSOR_LOOK, type CursorFrame } from './cursor.js';
 import { ffmpegBin } from '@retake/core';
@@ -96,7 +97,8 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
   for (let k = 0; k < rippleCount; k++) specs.push({ age_ms: k * ATLAS.ripple_step_s * 1000 });
   const rows = Math.ceil(specs.length / columns);
   const target = launchTarget(opts.browser);
-  const browser = await chromium.launch({ headless: true, ...target, args: [...DEFAULT_BROWSER_ARGS, ...(opts.browser?.args ?? [])] });
+  const browser = await chromium.launch({ headless: true, ...target, ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...(opts.browser?.args ?? [])] }) });
+  await refuseUnsandboxed(browser, () => browser.close(), 'The cursor layer browser');
   let png: Buffer;
   try {
     const page = await browser.newPage({ viewport: { width: columns * cell, height: rows * cell }, deviceScaleFactor: opts.scale });

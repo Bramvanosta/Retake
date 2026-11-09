@@ -333,15 +333,39 @@ function chromiumCheck(c: ChromiumProbe, browser: BrowserConfig | undefined, bun
       status: 'fail',
       name: 'Chromium',
       detail: `${c.path} (${src}) did not launch headless: ${c.error ?? 'no page rendered'}`,
-      hint: fromApp
-        ? 'reinstall Retake (its Chromium did not start)'
-        : bundle
-          ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
-          : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
+      hint: /as root|crbug\.com\/638180/i.test(c.error ?? '')
+        ? 'Chromium does not run sandboxed as root, and Retake never turns its sandbox off: run Retake as a regular user (in a container, a USER that is not root)'
+        : /sandbox/i.test(c.error ?? '')
+        ? "Chromium's sandbox could not start (Retake always runs it sandboxed): on Linux it needs unprivileged user namespaces (kernel.unprivileged_userns_clone=1, or AppArmor's restriction lifted for that binary)"
+        : fromApp
+          ? 'reinstall Retake (its Chromium did not start)'
+          : bundle
+            ? "check that binary, or remove $RETAKE_CHROMIUM / browser.executable to use the app's own"
+            : 'reinstall it (playwright-core install chromium); on Linux install its system libraries (playwright-core install-deps chromium)',
     };
   }
   const mode = browser?.channel === 'headless-shell' ? 'headless shell' : 'new headless';
   return { status: 'ok', name: 'Chromium', detail: `${c.version ?? '?'} · ${c.path} · ${src} · ${mode} launch ${formatMs(c.ms ?? 0)}` };
+}
+
+/**
+ * Does the capture browser run sandboxed? Read from the command line of the browser `retake doctor` just launched, as
+ * captures launch it (Chromium's own report: the switches a wrapper executable adds included).
+ */
+export function chromiumSandboxCheck(c: ChromiumProbe): DoctorCheck | null {
+  if (!c.launched) return null;
+  const name = 'Chromium sandbox';
+  if (!c.sandbox) return { status: 'warn', name, detail: 'the capture browser did not report its command line', hint: 'open chrome://version in that Chromium: its command line must not hold --no-sandbox' };
+  if (c.sandbox.on) return { status: 'ok', name, detail: "on · read from the capture browser's command line" };
+  const own = c.source === 'browser.executable' || c.source === 'RETAKE_CHROMIUM';
+  return {
+    status: 'fail',
+    name,
+    detail: `off: the capture browser runs with ${c.sandbox.off.join(' ')}`,
+    hint: own
+      ? `the executable of ${c.source === 'RETAKE_CHROMIUM' ? '$RETAKE_CHROMIUM' : 'browser.executable'} adds them itself: point it at a Chromium or Chrome binary (not a wrapper that adds switches), or remove it`
+      : 'reinstall Retake (its Chromium starts without its sandbox)',
+  };
 }
 
 /** The browser renders use (L5.16): its source; an app without its headless shell is broken (FAIL). */
@@ -1014,6 +1038,8 @@ export async function doctorChecks(probes: DoctorProbes, ws: WorkspaceConfig, op
   out.push(...appChecks(probes));
   const chromium = await probes.chromium(ws.browser);
   out.push(chromiumCheck(chromium, ws.browser, probes.bundle));
+  const sandbox = chromiumSandboxCheck(chromium);
+  if (sandbox) out.push(sandbox);
   if (probes.renderBrowser === systemRenderBrowser) renderBrowserFn = (await import('@retake/editor')).renderBrowser;
   const render = renderBrowserCheck(probes);
   if (render) out.push(render);

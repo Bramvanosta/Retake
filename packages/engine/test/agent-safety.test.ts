@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ulid } from '@retake/core';
 import type { HooksJobInput, RunJobInput } from '@retake/core';
-import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, openWorkspace, pruneUsedApprovals, restoreApprovals, signApprovals, verifiedApprovals } from '../src/index.js';
+import { APPROVALS_USED_DIR, EngineError, buildDirs, consumeApprovals, createEngine, executeHooksJob, executeRunJob, openWorkspace, pruneUsedApprovals, restoreApprovals, sha256Hex, signApprovals, signalInterrupts, verifiedApprovals } from '../src/index.js';
 import type { Engine } from '../src/index.js';
 
 let ws: string;
@@ -87,13 +87,99 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
 
   it('the worker checks again: hooks of a scenario changed after the submit are refused', async () => {
     const sub = await mcp.hooks.submit({ project: 'w', source: 'plain:setup', dry: true });
-    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), LEAK_HOOK.replace('video: leakhook', 'video: plain'));
+    const leak = LEAK_HOOK.replace('video: leakhook', 'video: plain');
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const e = await refusal(executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: 'retake', input, signal: new AbortController().signal, event: () => undefined }));
+      const wsc = await openWorkspace({ root: ws });
+      const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
+      // Other bytes than submitted: a conflict before they are parsed.
+      expect((await exec(input)).code).toBe('conflict');
+      // A job pinned to the changed bytes (queued without a submit): their agent trust is checked again here.
+      const e = await exec({ ...input, scenario_sha256: sha256Hex(leak) });
       expect(e.message).toContain('{{env:HOME}}');
     } finally {
       await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), PLAIN_HOOK);
+      await mcp.jobs.cancel(sub.job.id);
+    }
+  });
+});
+
+describe("navigation: what a scenario opens (its scheme everywhere; agent work: the environment's origins)", () => {
+  const FOREIGN = PLAIN_HOOK.replace('video: plain', 'video: foreign').replace('      - hold: 0.2', '      - open: "http://127.0.0.1:4998/admin"');
+  const FILE = SHORT.replace('video: short', 'video: file').replace('    open: /', '    open: " file:///etc/hosts"');
+
+  it('save and validate: a file: URL is an error for every client; another origin is saved (save checks the scheme only)', async () => {
+    for (const engine of [mcp, cli]) {
+      const e = await engine.scenarios.save('w', 'file', FILE).then(() => undefined, (x: unknown) => x as Error);
+      expect(e?.message).toContain('opens a file: URL: a scenario opens only http: and https: pages (or about:blank)');
+      const v = await engine.scenarios.validate('w', FILE);
+      expect(v.ok).toBe(false);
+      expect(v.issues.filter((i) => i.severity === 'error')).toEqual([expect.objectContaining({ path: ['scenes', 0, 'open'], line: 5 })]);
+    }
+    expect((await mcp.scenarios.save('w', 'foreign', FOREIGN)).created).toBe(true);
+    expect((await mcp.scenarios.validate('w', FOREIGN)).ok).toBe(true);
+  });
+
+  it('validate on a known environment (its `env`, or the scenario\'s own) says what the run would refuse, at the line', async () => {
+    for (const v of [await mcp.scenarios.validate('w', FOREIGN, { env: 'local' }), await mcp.scenarios.validate('w', FOREIGN.replace('video: foreign', 'video: foreign\nenv: local'))]) {
+      expect(v.ok).toBe(false);
+      expect(v.issues.filter((i) => i.severity === 'error')).toEqual([
+        expect.objectContaining({ path: ['scenes', 0, 'steps', 0, 'open'], message: expect.stringContaining('not an origin of environment local') }),
+      ]);
+    }
+    expect((await mcp.scenarios.validate('w', FOREIGN, { env: 'nowhere' })).issues.some((i) => /not an origin/.test(i.message))).toBe(false);
+    expect((await cli.scenarios.validate('w', FOREIGN, { env: 'local' })).ok).toBe(true);
+  });
+
+  it('a run, an inspection or hooks of a scenario opening another origin are refused at submit, saying what to change', async () => {
+    const before = (await mcp.jobs.list({ project: 'w' })).length;
+    const run = await refusal(mcp.runs.submit({ project: 'w', scenario: 'foreign', mode: 'dry' }));
+    expect(run.code).toBe('refused');
+    expect(run.message).toContain('scenes[0].steps[0].open: http://127.0.0.1:4998/admin is on http://127.0.0.1:4998, not an origin of environment local');
+    expect(run.message).toContain('add its origin as a page of environment local in project.yaml');
+    expect(run.details?.problems).toHaveLength(1);
+    expect(run.fix).toBe(`retake -C ${ws} run w foreign --dry --hooks skip`);
+    const inspect = await refusal(mcp.inspect.submit({ project: 'w', scenario: 'foreign' }));
+    expect(inspect.message).toContain('not an origin of environment local');
+    const hooks = await refusal(mcp.hooks.submit({ project: 'w', source: 'foreign:setup', dry: true }));
+    expect(hooks.message).toContain('not an origin of environment local');
+    expect((await mcp.jobs.list({ project: 'w' })).length).toBe(before);
+  });
+
+  it('the Studio runs under the same trust: its run blockers say the same, from the Studio', async () => {
+    const ui = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
+    const check = await ui.scenarios.check('w', 'foreign');
+    expect(check.ok).toBe(true);
+    expect(check.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'opens_other_site', message: expect.stringContaining('from the Studio a scenario opens only its environment') })]);
+    expect(check.run_blockers.dry[0].message).toContain('add its origin as a page of environment local in project.yaml');
+    // Another reason beside it: the gate's general words, never "opens another site" alone.
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'foreign-secret.yaml'), FOREIGN.replace('video: foreign', 'video: foreign-secret').replace('url: "{{console}}/x"}', 'url: "{{console}}/x", headers: {authorization: "Bearer {{env:HOME}}"}}'));
+    const mixed = await ui.scenarios.check('w', 'foreign-secret');
+    expect(mixed.run_blockers.dry).toEqual([expect.objectContaining({ kind: 'agent_trust' })]);
+  });
+
+  it('the worker checks again: a run job pinned to bytes opening another origin is refused before anything opens', async () => {
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'nav.yaml'), SHORT.replace('video: short', 'video: nav'));
+    const sub = await mcp.runs.submit({ project: 'w', scenario: 'nav', mode: 'dry' });
+    const swapped = FOREIGN.replace('video: foreign', 'video: nav');
+    await writeFile(join(ws, 'projects', 'w', 'scenarios', 'nav.yaml'), swapped);
+    try {
+      const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
+      const out = await executeRunJob({
+        ws: await openWorkspace({ root: ws }),
+        cli: 'retake',
+        input,
+        signal: new AbortController().signal,
+        interrupts: signalInterrupts(),
+        event: () => undefined,
+        progress: () => undefined,
+      }).then(
+        (r) => JSON.stringify(r),
+        (x: unknown) => String((x as Error).message),
+      );
+      expect(out).toContain('not an origin of environment local');
+    } finally {
       await mcp.jobs.cancel(sub.job.id);
     }
   });
@@ -166,6 +252,20 @@ describe('approvals are signed with the Retake home key, for their job', () => {
       expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
     }
     expect((await verifiedApprovals(signed, { jobId, root: ws, keyFile: join(ws, 'other-home', 'approvals.key') })).rejected).toBe(1);
+  });
+
+  it('a hooks job: the sha256 of its scenario bytes is signed with its approvals', async () => {
+    const keyFile = join(ws, 'sign-home', 'approvals.key');
+    const hooks: HooksJobInput = {
+      version: 1, kind: 'hooks', project: 'w', source: 'short:setup', scenario_sha256: 'a'.repeat(64), dry: false, journal_id: '20261017-120000-hooks-short-setup', submitted_by: 'mcp',
+      approvals: [{ fingerprint: 'b'.repeat(64), by: 'human-elicitation', at: '2026-10-17T12:00:00.000Z' }],
+    };
+    const signed = await signApprovals(hooks, { jobId, root: ws, keyFile });
+    expect((await verifiedApprovals(signed, { jobId, root: ws, keyFile })).rejected).toBe(0);
+    const { scenario_sha256: _, ...unpinned } = signed;
+    for (const forged of [{ ...signed, scenario_sha256: 'c'.repeat(64) }, unpinned]) {
+      expect((await verifiedApprovals(forged, { jobId, root: ws, keyFile })).rejected).toBe(1);
+    }
   });
 });
 

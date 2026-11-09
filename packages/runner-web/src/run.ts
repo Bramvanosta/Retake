@@ -16,6 +16,7 @@ import {
   loginMatchers,
   mailboxFor,
   networkHost,
+  pageOrigins,
   scenePageEntries,
   planPersonas,
   reserveRunId,
@@ -87,6 +88,8 @@ import type { FrameIndexEntry } from './recorder.js';
 import { probePages, preflightRefusal } from './page-preflight.js';
 import { PerfSampler, UNFILMED_WARN_CORES, listeningPids, localPorts } from './perf.js';
 import { prewarmPages, prewarmTargets } from './prewarm.js';
+import { openProblem } from './opens.js';
+import { launchCredentials } from './launch.js';
 import { RunFiles } from './runfiles.js';
 import { Runtime } from './runtime.js';
 import type { HookStepOutcome } from './runtime.js';
@@ -536,10 +539,11 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
 
   try {
     throwIfAborted(signal);
-    // Work submitted through MCP (L3.1, core agent-trust): the scenario names no secret, and its files stay in the
-    // project (code never from a file an agent can write) — refused before anything runs.
+    // Work submitted through MCP or from the Studio (L3.1, core agent-trust): the scenario names no secret, its files
+    // stay in the project (code never from a file an agent can write) and the URLs it opens are on the environment's
+    // origins — refused before anything runs.
     if (opts.hookTrust === 'mcp') {
-      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp' });
+      const problems = agentTrustProblems(project, sc, { via: opts.hookVia ?? 'mcp', env });
       if (problems.length) throw new RunnerError(`refused (work submitted ${channelWords(opts.hookVia)}): ${problems.join('; ')}`);
     }
     // A read-only run (L1.7) refuses hooks that write before anything runs: no browser, no session copy, no hook.
@@ -547,6 +551,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       const writing = writingHooks({ setup: sc.setup, teardown: sc.teardown, step: stepHookList(sc, project) }, { projectDir: project.dir, ...(opts.hookTrust ? { trust: opts.hookTrust } : {}), ...(opts.hookVia ? { via: opts.hookVia } : {}) });
       if (writing.length) throw new RunnerError(readOnlyRunRefusal(writing, access));
     }
+    // Sign-in details written in the environment's page URLs: the browser's HTTP credentials for that origin, masked
+    // like a secret wherever the run writes (resolveEnvironment already took them out of the URLs).
+    const httpCredentials = launchCredentials(project, env.name);
+    if (httpCredentials?.password) secrets.addValue(httpCredentials.password);
     // L5.8 (R-FLD-33): every page of the environment answers before anything opens (a port that moved, a stopped server).
     const probes = await probePages(env.pages, { signal });
     const down = probes.filter((p) => !p.ok);
@@ -600,6 +608,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       headed: opts.headed,
       log,
       ...(writeGuard ? { writes: writeGuard } : {}),
+      ...(httpCredentials ? { httpCredentials } : {}),
       ...(prepared.length
         ? {
             realms: [...prepared.map((p) => p.realm), ...(plan.needsDefault ? [{ name: '' }] : [])],
@@ -675,6 +684,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       recorder: null,
       cursorHidden: opts.hideCursor === true,
       ...(opts.hookTrust === 'mcp' ? { agentTrust: true } : {}),
+      // What its navigations open (opens.ts): http(s) or about:blank; work an agent wrote, the environment's origins only.
+      navigation: opts.hookTrust === 'mcp' ? { origins: pageOrigins(env.pages), envName: env.name, via: opts.hookVia ?? 'mcp' } : {},
       ...(opts.inspect ? { inspecting: true } : {}),
       // Step defaults (L5.6): the scenario's win over the project's.
       ...((sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s) !== undefined ? { defaultTimeoutS: sc.defaults?.timeout_s ?? project.config.defaults?.timeout_s } : {}),
@@ -719,6 +730,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
         running: hookGroups,
         ...(opts.hookTrust ? { trust: opts.hookTrust } : {}),
         ...(opts.hookVia ? { via: opts.hookVia } : {}),
+        ...(opts.hookTrust === 'mcp' && sc.vars && Object.keys(sc.vars).length ? { agentVars: Object.keys(sc.vars) } : {}),
         ...(opts.confirmHook ? { confirmHook: opts.confirmHook } : {}),
       };
       hooks = await openHooks(deps);
@@ -748,6 +760,8 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
           }
         },
         ...(until ? { lastScene: until.sceneIndex } : {}),
+        // A page the take may not open is not visited either (its step fails when it runs).
+        mayOpen: (url) => openProblem(url, r.navigation) === null,
       });
       const done = await prewarmPages(r, targets);
       log('info', `prewarm: ${done.visited} of ${targets.length} page${targets.length === 1 ? '' : 's'} visited off camera in ${(done.ms / 1000).toFixed(1)} s`);
@@ -1442,6 +1456,8 @@ interface SetupDeps {
   running: Set<number>;
   trust?: HookTrust;
   via?: AgentChannel;
+  /** Trust `mcp`: the scenario's own vars, the agent's (HookContextLike.agentVars). */
+  agentVars?: readonly string[];
   confirmHook?: ConfirmHook;
 }
 
@@ -1658,6 +1674,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     running: d.running,
     ...(d.trust ? { trust: d.trust } : {}),
     ...(d.via ? { via: d.via } : {}),
+    ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
   };
   return { mod, journal, ctx };
@@ -1679,7 +1696,8 @@ async function setupHooks(h: HooksState, setup: HookStep[], d: SetupDeps): Promi
   h.ctx.signal = d.signal;
   let res: Awaited<ReturnType<HooksModule['runHooks']>>;
   try {
-    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal });
+    // The scenario's own hooks: the agent's with trust `mcp` (a shell one is plain words, core agentShellProblems).
+    res = await h.mod.runHooks(setup, h.ctx, { phase: 'setup', journal: h.journal, agentWritten: true });
   } finally {
     delete h.ctx.signal;
   }
@@ -1708,7 +1726,8 @@ function stepHookRunner(h: HooksState, sc: Scenario, d: SetupDeps): (name: strin
     h.ctx.signal = d.signal;
     let res: Awaited<ReturnType<HooksModule['runHooks']>>;
     try {
-      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal });
+      // A scenario's named hook is the agent's with trust `mcp`; project.yaml's is a person's (unless it uses the scenario's vars).
+      res = await h.mod.runHooks(named.hooks, h.ctx, { phase: 'step', journal: h.journal, agentWritten: named.source === 'scenario' });
     } finally {
       delete h.ctx.signal;
     }
@@ -1739,7 +1758,7 @@ async function teardownHooks(
   if (teardown.length) {
     ran = true;
     emit({ type: 'hook', phase: 'teardown', name: 'teardown', status: 'start', message: `${teardown.length} hook(s)` });
-    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal });
+    const res = await h.mod.runHooks(teardown, h.ctx, { phase: 'teardown', journal: h.journal, agentWritten: true });
     res.results.forEach((r, i) =>
       emit({ type: 'hook', phase: 'teardown', name: hookResultName(r, i), status: hookResultFailed(r) ? 'failed' : 'ok', message: r.error ?? r.message }),
     );

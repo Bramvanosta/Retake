@@ -2,6 +2,8 @@ import { existsSync } from 'node:fs';
 import { chromium } from 'playwright-core';
 import { bundleInfo, insideBundle } from '@retake/core';
 import type { BrowserConfig, BundleInfo } from '@retake/core';
+import { browserSandbox, launchOptions } from './launch.js';
+import type { BrowserSandbox } from './launch.js';
 import { DEFAULT_BROWSER_ARGS, gpuInfoOf } from './session.js';
 import type { GpuInfo, SystemInfoReply } from './session.js';
 import { wallNow } from './util.js';
@@ -23,6 +25,8 @@ export interface ChromiumProbe {
   error?: string;
   /** The launched browser's GPU status (L5.7, R-FLD-24: Chromium's own report, the one chrome://gpu shows). */
   gpu?: GpuInfo;
+  /** Whether the launched browser runs sandboxed, read from its own command line (absent: it did not report it). */
+  sandbox?: BrowserSandbox;
 }
 
 /**
@@ -55,14 +59,16 @@ export async function probeChromium(browser?: BrowserConfig, opts: { launch?: bo
       headless: true,
       channel,
       executablePath,
-      args: [...DEFAULT_BROWSER_ARGS, ...(browser?.args ?? [])],
       timeout: opts.timeoutMs ?? 30_000,
+      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...(browser?.args ?? [])] }),
     });
     out.version = b.version();
     const page = await b.newPage({ viewport: { width: 320, height: 200 } });
     await page.setContent('<p id="ok">ok</p>');
     out.launched = (await page.textContent('#ok')) === 'ok';
     out.ms = Math.round(wallNow() - t0);
+    const sandbox = await browserSandbox(b);
+    if (sandbox) out.sandbox = sandbox;
     try {
       const cdp = await b.newBrowserCDPSession();
       out.gpu = gpuInfoOf((await cdp.send('SystemInfo.getInfo')) as SystemInfoReply);

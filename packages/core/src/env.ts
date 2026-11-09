@@ -94,7 +94,9 @@ export function resolveEnvironment(project: Pick<LoadedProject, 'config'>, env?:
   const s = settings && Object.hasOwn(settings, name) ? settings[name] : undefined;
   return {
     name,
-    pages: { ...pages },
+    // Sign-in details written in a page URL are given to the browser as HTTP credentials (environmentHttpCredentials),
+    // never kept in the URL every other consumer sees (logs, the timeline, the video, the hooks' {{pages.…}}).
+    pages: Object.fromEntries(Object.entries(pages).map(([k, url]) => [k, withoutCredentials(url).url])),
     ...(s?.display ? { display: { ...s.display } } : {}),
     ...(s?.production !== undefined ? { production: s.production } : {}),
     ...(s?.access ? { access: s.access } : {}),
@@ -116,4 +118,75 @@ export function environmentHosts(project: Pick<LoadedProject, 'config'>): string
     }
   }
   return [...hosts];
+}
+
+/** HTTP authentication details an environment page URL carries (`https://user:password@host/`), decoded. */
+export interface PageHttpCredentials {
+  /** The page's origin (canonical: `scheme://host[:port]`): the only one they are given to. */
+  origin: string;
+  username: string;
+  password: string;
+}
+
+/**
+ * A URL without its sign-in details (`user:password@`) and those details, decoded, when it has any (http(s) only).
+ * The rest of the URL is kept as written. Any other URL is returned as it is.
+ */
+export function withoutCredentials(url: string): { url: string; credentials?: PageHttpCredentials } {
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return { url };
+  }
+  if ((u.protocol !== 'http:' && u.protocol !== 'https:') || (!u.username && !u.password)) return { url };
+  const decode = (v: string) => {
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return v;
+    }
+  };
+  const credentials = { origin: u.origin, username: decode(u.username), password: decode(u.password) };
+  // The authority's last `@` ends the details; what follows it is kept as written (a base path, no trailing slash added).
+  let clean = url.replace(/^([\u0000-\u0020]*[a-z][a-z0-9+.-]*:[\\/]{2})[^/\\?#]*@/i, '$1');
+  try {
+    const c = new URL(clean);
+    if (c.username || c.password || c.origin !== u.origin) throw new Error('not cleaned');
+  } catch {
+    u.username = '';
+    u.password = '';
+    clean = u.href;
+  }
+  return { url: clean, credentials };
+}
+
+/**
+ * The HTTP credentials the browser of a run on environment `envName` answers an authentication challenge with: those
+ * written in its page URLs (`https://user:password@host/`), for that page's origin only — never sent to another origin.
+ * One origin at most (a browser has one set of credentials): pages on several origins with details, or two different
+ * details for one origin, are a `problem` (the run is refused). None: `{}`.
+ */
+export function environmentHttpCredentials(project: Pick<LoadedProject, 'config'>, envName: string): { credentials?: PageHttpCredentials; problem?: string } {
+  const envs = project.config.environments ?? {};
+  const pages = Object.hasOwn(envs, envName) ? envs[envName] : {};
+  const found = new Map<string, PageHttpCredentials>();
+  for (const url of Object.values(pages ?? {})) {
+    const c = withoutCredentials(url).credentials;
+    if (!c) continue;
+    const seen = found.get(c.origin);
+    if (seen && (seen.username !== c.username || seen.password !== c.password)) {
+      return { problem: `environment ${envName} gives ${c.origin} two different sign-in details in its page URLs: write the same \`user:password@\` in each, or only once` };
+    }
+    found.set(c.origin, c);
+  }
+  if (found.size > 1) {
+    return {
+      problem:
+        `environment ${envName} has sign-in details (\`user:password@\`) in page URLs of ${found.size} origins (${[...found.keys()].join(', ')}): ` +
+        'the browser answers one origin with them — keep them in the pages of one origin, and sign in to the others with a persona',
+    };
+  }
+  const [only] = found.values();
+  return only ? { credentials: only } : {};
 }

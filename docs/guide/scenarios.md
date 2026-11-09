@@ -53,6 +53,22 @@ scenes, cards and interstitials. A card or an interstitial without a `duration` 
 within its min / max (`studio/card-title` 2.5 s, 1–10 s); the review warns (`card-too-short`) when a card is shorter
 than its text needs.
 
+**What a scenario opens.** A scene's `open`, each `open` of a multi-page scene's `pages`, an `open` step and a
+`new_tab` step's `href` take a path of an environment page (`/quotes`, `quotes/1`, `?tab=2`; in `pages`, also
+`<page>:/path`) or a full URL that is `http:` or `https:` — or exactly `about:blank`. Any other scheme (`file:`,
+`data:`, `javascript:`, `blob:`, `view-source:`, `chrome:`, `about:srcdoc`…) and a URL holding sign-in details
+(`user@`, `user:…@`) are validation errors at the field, in any case and with leading spaces or tabs (the URL is read
+as the browser reads it), and so is a scheme whose rest a browser cannot read (`http://exa mple/`): write the page's
+http(s) URL or a path, and let a persona sign in (see [Signing in](environments.md#signing-in-personas-and-sessions))
+— a staging site behind HTTP authentication takes them in its environment page URL instead (see
+[Security](security.md)). In `pages`, a `<page>:` prefix must name a page of the environment. A templated value (`open: "{{vars.start}}"`) is
+checked once rendered and resolved against its page, when the step runs: a refused URL fails the step before the page
+loads (and `capture.prewarm` does not visit it). When a `new_tab` click opens no tab and the runner follows the clicked
+link's own `href`, that link may go to any `http:` / `https:` site (or a `blob:` document of the page's own origin);
+any other scheme fails the step. A scenario run through MCP or the Studio also opens only its environment's own
+origins (see [MCP](mcp.md)). These rules cover what the runner opens: a redirect, or a link the page follows itself,
+may lead elsewhere. Whatever starts it, the capture browser itself never loads a `file:` URL.
+
 **Scene-start cursor** (`cursor:` on a scene):
 
 | Value | Where the cursor rests during the still |
@@ -311,6 +327,18 @@ hooks on the same page key reuse it: an app left running there keeps working in 
 `quote` scenario keeps its console open that way, polling for the web notification the capture records). Every hook
 kind is held to the project's allow-list (see [Security](security.md#security)).
 
+A scenario run through MCP or the Studio is the agent's work, so its shell hooks (`setup`, `teardown`, its own
+`hooks:`) — and a project.yaml hook templated with the scenario's `vars` — are held to stricter rules there: they are
+shown in full and asked about, and their command, rollback and `cwd` are plain words — letters, digits and
+`. / : = @ % + , - _` — separated by single spaces, commands joined by ` && `. No quotes, `$`, pipes, redirections,
+`;`, globs, `{{hooks.…}}` values or secrets (`{{env:…}}`); no loader variable (`PATH=`, `NODE_OPTIONS`…), `cd` / `eval`
+/ `exec`, a shell's `-c` or inline interpreter code (`node -e`, `python -c`…), `npx`, `git -c`, or a path through
+`scenarios/`, `runs/` and the other folders an agent can write, to project.yaml or into `hooks/` (the full list:
+[MCP: Claude drives Retake](mcp.md#mcp-claude-drives-retake), *Safety*). Keep such hooks to plain commands with their
+values written out — `pnpm run seed --small`, `sh hooks/seed.sh`, `npm run db:reset && npm run db:seed`,
+`sleep 1.5`, the hook's `cwd` instead of `cd` — and put anything else in `hooks/<name>.yaml` or project.yaml's
+`hooks:`. From a terminal (`retake run`) a scenario's hooks run as written.
+
 #### Hooks during the take
 
 What the product must do at a precise moment of the take without being filmed — a payment marked through its API, a
@@ -530,7 +558,11 @@ rasterised after the capture with **pdf.js inside Chromium** (no system tool), p
 unchanged): title, body, tag, icon (fetched with the session and rendered to a 192 px PNG) and time become
 `artefacts/notifications/<name>.json` — `<name>` is the notification's `tag` (else `notification-<n>`) — and a timeline
 event `{action: notification, step: -1, data: {name, index, title, body, …}}` in the scene running at that moment.
-Notifications a service worker shows on its own (push events) are not seen.
+Notifications a service worker shows on its own (push events) are not seen, nor those of a frame inside the page.
+Limits: title, body and tag are cut at 2,048 characters; a run records the first 50 notifications and reads the first
+20 icons (a warning says when more came). An icon is a `data:` URL of at most 1 MiB, or an http(s) URL on the notifying
+page's origin or one of the environment's, fetched without following a redirect, at most 1 MiB; another icon (another
+host or port, a redirect, too large) is not read — a warning, and the artefact keeps its `icon_url`, without `icon`.
 
 **Artefacts in the timeline.** `timeline.json` lists them under `artefacts` (`kind`, `name`, capture time `t`, scene,
 step, file, and per kind: email `from`, `to`, `subject`, `date`, `preview`, `image`; document `mime`, `file_name`, `via`

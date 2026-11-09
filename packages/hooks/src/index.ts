@@ -25,7 +25,9 @@ export {
 export type { JournalLocations, JournalOptions, JournalRollback, PendingJournal } from './journal.js';
 export { LOCAL_HOSTS, allowedHosts, checkHostAllowed, checkShellHosts, isHostAllowed, normalizeAllowEntry } from './allow-list.js';
 export { destructiveReason, isDestructive, psqlDestructiveStatement, shellDestructiveReason, shellWords } from './destructive.js';
-export { describeHook, describeRollback, hookKindOf } from './describe.js';
+export { declaredHookLines, describeHook, describeRollback, hookKindOf } from './describe.js';
+export { actionLines, fieldLines, visible } from './shown.js';
+export type { ShownAction } from './shown.js';
 export { databaseTarget, describeTarget, sandboxDatabaseProblem } from './db-url.js';
 export type { DatabaseTarget } from './db-url.js';
 export { maskSql, transactionControl } from './sql-text.js';

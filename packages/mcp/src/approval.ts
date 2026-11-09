@@ -1,11 +1,12 @@
 /**
  * Human approval of hooks through MCP elicitation (L3.1, R-MCP-35). The engine's preflight lists the hooks of the work
  * submitted that need a human (destructive ones whatever `confirm: true` says, every shell hook); this asks the client's
- * user once, in form mode, with an explicit timeout. Only `accept` with `approve: true` approves. A decline, a dismissed
+ * user once, in form mode, with an explicit timeout — and so are a site extraction's URL and an agent's prune. Only `accept` with `approve: true` approves. A decline, a dismissed
  * form, no answer in time or a failed question refuse the submit; a client without form elicitation cannot ask anyone
  * (the engine then refuses with the `retake` command a human runs in a terminal).
  */
-import type { ApprovalOutcome, ApprovalRequest, Approver, SiteApprovalRequest } from '@retake/engine';
+import { approvalFormText, pruneApprovalFormText } from '@retake/engine';
+import type { ApprovalOutcome, ApprovalRequest, Approver, PruneApprovalRequest, SiteApprovalRequest } from '@retake/engine';
 import { isTimeoutError } from './server.js';
 import type { CallContext, ElicitForm } from './server.js';
 
@@ -17,17 +18,8 @@ export function approvalTimeoutMs(env: NodeJS.ProcessEnv = process.env): number 
   return Number.isFinite(v) && v > 0 ? v : APPROVAL_TIMEOUT_MS;
 }
 
-/** The question the user reads: what runs, where, each hook (kind, target, why it needs them), and the terminal path. */
-export function approvalMessage(req: ApprovalRequest): string {
-  const env = `${req.env.name}${req.env.production ? ' (production)' : ''}, ${req.env.access}`;
-  return [
-    `Retake: the agent asks to run ${req.what} in project ${req.project}, environment ${env}.`,
-    `${req.items.length === 1 ? 'This hook needs' : `These ${req.items.length} hooks need`} your approval before ${req.items.length === 1 ? 'it runs' : 'they run'} ("confirm: true" in a file written through MCP does not count):`,
-    ...req.items.map((i, n) => `${n + 1}. ${i.phase} hook ${i.index + 1}${i.name ? ` "${i.name}"` : ''}: ${i.description} — ${i.reason}`),
-    'Approve to run them now (once, exactly as listed). Decline to refuse: nothing runs.',
-    `Instead, you can run it yourself in a terminal: ${req.fix}`,
-  ].join('\n');
-}
+/** The question the user reads (engine approvalFormText: the text whose length the engine limits). */
+export const approvalMessage = approvalFormText;
 
 export function approvalForm(req: ApprovalRequest): ElicitForm {
   return {
@@ -75,6 +67,22 @@ export function siteApprovalForm(req: SiteApprovalRequest): ElicitForm {
   };
 }
 
+/** The question of an agent's prune (engine pruneApprovalFormText: the text whose length the engine limits). */
+export const pruneApprovalMessage = pruneApprovalFormText;
+
+export function pruneApprovalForm(req: PruneApprovalRequest): ElicitForm {
+  return {
+    message: pruneApprovalMessage(req),
+    requestedSchema: {
+      type: 'object',
+      properties: {
+        approve: { type: 'boolean', title: `Delete ${req.count === 1 ? 'this item' : `these ${req.count} items`}`, description: 'Check to delete what is listed above, once.', default: false },
+      },
+      required: ['approve'],
+    },
+  };
+}
+
 async function ask(elicit: NonNullable<CallContext['elicit']>, form: ElicitForm, timeoutMs: number): Promise<ApprovalOutcome> {
   try {
     const answer = await elicit(form, { timeoutMs });
@@ -92,5 +100,6 @@ export function elicitationApprover(elicit: CallContext['elicit'], timeoutMs = a
   return {
     approve: (req: ApprovalRequest) => ask(elicit, approvalForm(req), timeoutMs),
     approveSite: (req: SiteApprovalRequest) => ask(elicit, siteApprovalForm(req), timeoutMs),
+    approvePrune: (req: PruneApprovalRequest) => ask(elicit, pruneApprovalForm(req), timeoutMs),
   };
 }

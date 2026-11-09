@@ -5,14 +5,26 @@ import { resolveTarget } from '../resolve.js';
 import type { Runtime, StepContext } from '../runtime.js';
 import { sleep } from '../util.js';
 import { closePage } from '../write-guard.js';
+import { openProblem } from '../opens.js';
+import type { NavigationSource } from '../opens.js';
 import { clickResolved } from './click.js';
 import type { ActionResult } from './types.js';
 
 /** How long a click may take to open a new page before the runner follows the href itself. */
 export const NEW_TAB_WAIT_MS = 1500;
 
-/** Navigate, wait for `waitUntil`, settle (network idle ≤ settle_ms) and re-draw the cursor. */
-export async function navigate(rt: Runtime, page: Page, url: string, waitUntil: OpenArgs['wait_until'] = 'load'): Promise<void> {
+/**
+ * A step error when the run may not open `url` (opens.ts: its final URL, templated and resolved), before any page is
+ * created or loaded for it. `rt.navigation` is absent on a runtime built by hand (tests): the scheme rule only.
+ */
+export function assertMayOpen(rt: Pick<Runtime, 'navigation'>, url: string, source?: NavigationSource, what = 'open'): void {
+  const problem = openProblem(url, rt.navigation ?? {}, source);
+  if (problem) throw new StepError(`${what}: refused: ${problem}`);
+}
+
+/** Navigate (once assertMayOpen allows `url`), wait for `waitUntil`, settle (network idle ≤ settle_ms) and re-draw the cursor. */
+export async function navigate(rt: Runtime, page: Page, url: string, waitUntil: OpenArgs['wait_until'] = 'load', source?: NavigationSource): Promise<void> {
+  assertMayOpen(rt, url, source);
   let status: number | undefined;
   try {
     const res = await page.goto(url, { waitUntil, timeout: 60_000 });
@@ -70,14 +82,19 @@ export async function newTab(ctx: StepContext, args: NewTabArgs): Promise<Action
       // Synthetic clicks and prevented defaults never open tabs: follow the link ourselves.
       const href = args.href ?? r.href;
       if (!href) throw new StepError(`new_tab: clicking ${r.desc} opened no page and it has no href (pass \`href\`)`);
+      // The step's `href` is the scenario's; the clicked link's is the page's (the scheme rule only).
+      const source: NavigationSource = args.href !== undefined ? { from: 'scenario' } : { from: 'page', opener: opener.url() };
+      const url = new URL(href, opener.url()).toString();
+      assertMayOpen(rt, url, source, 'new_tab');
       page = await rt.session.newPage(id, { like: opener });
       await rt.activate(id, page);
-      await navigate(rt, page, new URL(href, opener.url()).toString());
+      await navigate(rt, page, url, 'load', source);
       how = 'href';
     }
   } else if (args.href !== undefined) {
     const href = args.href;
     const url = /^[a-z][a-z0-9+.-]*:/i.test(href) ? href : new URL(href, opener.url()).toString();
+    assertMayOpen(rt, url, undefined, 'new_tab');
     page = await rt.session.newPage(id, { like: opener });
     await rt.activate(id, page);
     await navigate(rt, page, url);

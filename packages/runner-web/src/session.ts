@@ -4,11 +4,12 @@ import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { BrowserContext, CDPSession, Page } from 'playwright-core';
 import { gpuInfoOf } from '@retake/core';
-import type { BrowserConfig, GpuInfo, ResolvedClock, SystemInfoReply } from '@retake/core';
+import type { BrowserConfig, GpuInfo, PageHttpCredentials, ResolvedClock, SystemInfoReply } from '@retake/core';
 import { registerSessionCopy } from './copies.js';
 import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profile-browser.js';
 import { RunnerError, StepError } from './errors.js';
 import { kitSource } from './kit/source.js';
+import { launchOptions, refuseUnsandboxed } from './launch.js';
 import { trackRequests } from './network.js';
 import { armWriteGuard, bypassServiceWorkers, enableServiceWorkerRequests, unloadPages } from './write-guard.js';
 import { isRealTimePage, productClockScript } from './product-clock.js';
@@ -67,6 +68,11 @@ export interface SessionOptions {
    * too; its pages are closed through about:blank.
    */
   writes?: WriteGuardOptions;
+  /**
+   * The environment's HTTP credentials (core environmentHttpCredentials: the sign-in details of its page URLs), given to
+   * every realm's browser for their origin only.
+   */
+  httpCredentials?: PageHttpCredentials;
 }
 
 /** Playwright storage state: cookies + localStorage per origin. */
@@ -95,6 +101,8 @@ interface Realm {
   /** Temporary profile created for the realm (removed on close). */
   temp: string | null;
   cleanup: string[];
+  /** The browser-level session that fails file: requests (armFileGuard), alive as long as the realm. */
+  fileGuard?: CDPSession;
 }
 
 /** Chromium flags for clean, uninterrupted captures (background tabs keep rendering). */
@@ -146,10 +154,60 @@ export interface NotificationPayload {
   tag?: string;
   /** Absolute icon URL (resolved against the page), when given. */
   icon?: string;
+  /** The icon the page gave is not kept: its URL is longer than the limit (NOTIFICATION_ICON_URL_MAX). */
+  iconTooLong?: true;
   /** Page wall clock (epoch ms). */
   time: number;
+  /** The notifying page's URL and origin, as the browser reports its main frame (not as the page says). */
   url: string;
   origin: string;
+}
+
+/** The longest title, body or tag a notification keeps (characters; a longer one is cut, with `…`). */
+export const NOTIFICATION_TEXT_MAX = 2048;
+/** The longest icon URL a notification keeps: a data: URL (about 1 MiB of base64), any other URL. */
+export const NOTIFICATION_ICON_URL_MAX = { data: 1_500_000, other: 2048 } as const;
+const NOTIFICATION_VIA = new Set(['Notification', 'ServiceWorkerRegistration.showNotification']);
+
+function capText(v: string, max = NOTIFICATION_TEXT_MAX): string {
+  return v.length > max ? `${v.slice(0, max - 1)}…` : v;
+}
+
+/**
+ * What the kit reported, checked: an object whose `via` is one of the two APIs, `title` and `body` strings, `tag` and
+ * `icon` strings when given, `time` a valid epoch; anything else is null (ignored). Texts are cut at
+ * NOTIFICATION_TEXT_MAX; an icon URL beyond NOTIFICATION_ICON_URL_MAX is dropped (`iconTooLong`). The URL and origin
+ * are the main frame's (`frameUrl`), never the payload's.
+ */
+export function readNotificationPayload(raw: unknown, frameUrl: string): NotificationPayload | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const p = raw as Record<string, unknown>;
+  if (typeof p.via !== 'string' || !NOTIFICATION_VIA.has(p.via)) return null;
+  if (typeof p.title !== 'string' || typeof p.body !== 'string') return null;
+  if (p.tag !== undefined && typeof p.tag !== 'string') return null;
+  if (p.icon !== undefined && typeof p.icon !== 'string') return null;
+  if (typeof p.time !== 'number' || !Number.isFinite(p.time) || Math.abs(p.time) > 8.64e15) return null;
+  let origin = 'null';
+  try {
+    origin = new URL(frameUrl).origin;
+  } catch {
+    /* not a URL: an opaque origin */
+  }
+  const n: NotificationPayload = {
+    via: p.via as NotificationPayload['via'],
+    title: capText(p.title),
+    body: capText(p.body),
+    time: p.time,
+    url: capText(frameUrl),
+    origin,
+  };
+  if (p.tag) n.tag = capText(p.tag);
+  if (p.icon) {
+    const max = /^data:/i.test(p.icon) ? NOTIFICATION_ICON_URL_MAX.data : NOTIFICATION_ICON_URL_MAX.other;
+    if (p.icon.length > max) n.iconTooLong = true;
+    else n.icon = p.icon;
+  }
+  return n;
 }
 
 /** Name of the binding the kit calls for each web notification the page shows. */
@@ -877,11 +935,12 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       locale: b.locale,
       timezoneId: b.timezone,
       colorScheme: b.color_scheme,
-      args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])],
       acceptDownloads: true,
       handleSIGINT: false,
       handleSIGTERM: false,
       handleSIGHUP: false,
+      ...(opts.httpCredentials ? { httpCredentials: { ...opts.httpCredentials } } : {}),
+      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])] }),
     });
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
@@ -891,21 +950,32 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       : '';
     throw new RunnerError(`could not launch Chromium${spec.name ? ` (persona ${spec.name})` : ''}${hint}: ${m.split('\n')[0]}`, { cause: e });
   }
+  try {
+    await refuseUnsandboxed(context.browser(), () => context.close(), `The capture browser${spec.name ? ` of persona ${spec.name}` : ''}`);
+  } catch (e) {
+    if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);
+    throw e;
+  }
   if (spec.userDataDir) recordProfileBrowser(spec.userDataDir, major);
   const realm: Realm = { name: spec.name, context, spare: [...context.pages()], temp, cleanup: spec.cleanup ?? [] };
   try {
+    // Before anything loads: the browser itself refuses file: pages (no run continues without it).
+    realm.fileGuard = await armFileGuard(context, spec.name);
     // Web notifications (R-NTF-03): the product may show them (permission granted), the kit reports each one here.
     await context.grantPermissions(['notifications']).catch(() => undefined);
-    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: NotificationPayload) => {
+    // Both bindings answer the page's own document only: a call from a frame inside it (an embed, an ad) is ignored.
+    await context.exposeBinding(NOTIFICATION_BINDING, (src, payload: unknown) => {
       try {
-        if (session.onNotification && src.page) session.onNotification(src.page, payload);
+        if (!session.onNotification || !src.page || src.frame !== src.page.mainFrame()) return;
+        const n = readNotificationPayload(payload, src.frame.url());
+        if (n) session.onNotification(src.page, n);
       } catch {
         /* a listener error must not reach the page */
       }
     });
     await context.exposeBinding(CURSOR_BINDING, (src, payload: CursorEffectPayload) => {
       try {
-        if (session.onCursorEffect && src.page) session.onCursorEffect(src.page, payload);
+        if (session.onCursorEffect && src.page && src.frame === src.page.mainFrame()) session.onCursorEffect(src.page, payload);
       } catch {
         /* a listener error must not reach the page */
       }
@@ -919,6 +989,44 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
     throw e;
   }
   return realm;
+}
+
+/**
+ * The browser's own last resort against local files, in every realm of a run (capture, dry run, inspection): a
+ * browser-level CDP session pauses every `file:` request of every page, popup and frame — those that exist and those to
+ * come — and fails it (`net::ERR_BLOCKED_BY_CLIENT`), whatever started it. Other requests are never paused, so the HTTP
+ * cache and the write guard's route are untouched. Throws when the browser cannot be guarded (no browser-level session,
+ * Fetch refused): the realm is not used.
+ */
+export async function armFileGuard(context: BrowserContext, persona = ''): Promise<CDPSession> {
+  const fail = (why: string, cause?: unknown) =>
+    new RunnerError(`could not set the browser${persona ? ` of persona ${persona}` : ''} to refuse file: pages: ${why}`, cause === undefined ? undefined : { cause });
+  const browser = context.browser();
+  if (!browser) throw fail('no browser-level session');
+  let cdp: CDPSession;
+  try {
+    cdp = await browser.newBrowserCDPSession();
+  } catch (e) {
+    throw fail(errorText(e), e);
+  }
+  cdp.on('Fetch.requestPaused', (e: { requestId: string; request: { url: string } }) => {
+    // Only file: requests are paused (the pattern); anything else goes on untouched.
+    const call = /^file:/i.test(e.request.url)
+      ? cdp.send('Fetch.failRequest', { requestId: e.requestId, errorReason: 'BlockedByClient' })
+      : cdp.send('Fetch.continueRequest', { requestId: e.requestId });
+    call.catch(() => undefined);
+  });
+  try {
+    await cdp.send('Fetch.enable', { patterns: [{ urlPattern: 'file:*' }] });
+  } catch (e) {
+    await cdp.detach().catch(() => undefined);
+    throw fail(errorText(e), e);
+  }
+  return cdp;
+}
+
+function errorText(e: unknown): string {
+  return (e instanceof Error ? e.message : String(e)).split('\n')[0];
 }
 
 async function closeRealm(r: Realm): Promise<void> {

@@ -1,6 +1,7 @@
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { parse as parseYamlText, parseDocument } from 'yaml';
 import { checkScenario } from './checks/scenario.js';
 import { FORMAT_VERSIONS, newerFormatMessage } from './formats.js';
@@ -28,6 +29,22 @@ export class ScenarioError extends Error {
   ) {
     super(message);
     this.name = 'ScenarioError';
+  }
+}
+
+/**
+ * Thrown when a scenario file's bytes are not the ones expected (`expectSha256`): nothing of them was parsed. Its message
+ * names the file as `shown` (project-relative: `scenarios/quote.yaml`); `file` keeps the absolute path.
+ */
+export class ScenarioChangedError extends ScenarioError {
+  constructor(
+    file: string,
+    public readonly expected: string,
+    public readonly actual: string,
+    shown: string = file,
+  ) {
+    super(`${shown} changed: its bytes have sha256 ${actual}, expected ${expected}`, [], file);
+    this.name = 'ScenarioChangedError';
   }
 }
 
@@ -109,32 +126,88 @@ export function scenarioTextChanged(now: string, then: string | undefined): bool
   return a !== undefined && b !== undefined ? a !== b : true;
 }
 
-/** Load and validate a scenario of a project. Throws ScenarioError on any error-level issue. */
-export async function loadScenario(
-  project: LoadedProject,
-  nameOrPath: string,
-  opts: Omit<ScenarioCheckOptions, 'project' | 'file'> = {},
-): Promise<LoadedScenario> {
-  const file = await resolveScenarioFile(project, nameOrPath);
-  const text = await readFile(file, 'utf8');
-  const { scenario, issues } = parseScenario(text, { ...opts, file, project });
-  if (!scenario) throw new ScenarioError(issuesMessage('scenario', issues, file), issues, file);
-  return { name: basename(file).replace(/\.ya?ml$/i, ''), file, text, scenario, issues };
+/** How a scenario file is read: once, hashed, and compared with an expected sha256 before it is parsed. */
+export interface ScenarioReadOptions {
+  /** sha256 (lower-case hex) the file's bytes must have; other bytes throw ScenarioChangedError, unparsed. */
+  expectSha256?: string;
+  /** Reads the file's bytes (default node:fs readFile; a test seam). Called once per load. */
+  readFile?: (file: string) => Promise<Uint8Array>;
+}
+
+/** A scenario file as read: its bytes' sha256 and their text, from one read. */
+export interface ScenarioSource {
+  name: string;
+  /** Absolute path of the YAML file. */
+  file: string;
+  text: string;
+  /** sha256 (hex) of the bytes `text` was decoded from. */
+  sha256: string;
+}
+
+/** sha256 (hex) of some bytes. */
+function sha256Of(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 /**
- * The `env:` a scenario file names, read without validating it (undefined when it names none or cannot be read):
- * `run --sandbox` picks its sandbox from it, then validates the scenario once, against that environment.
+ * Read a scenario file once: its bytes are hashed, compared with `expectSha256` when given (ScenarioChangedError on a
+ * difference) and decoded as UTF-8. Whatever uses the result works on those bytes, never on a later read of the file.
  */
-export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string): Promise<string | undefined> {
+export async function readScenarioSource(project: LoadedProject, nameOrPath: string, o: ScenarioReadOptions = {}): Promise<ScenarioSource> {
+  const file = await resolveScenarioFile(project, nameOrPath);
+  const bytes = await (o.readFile ?? readFile)(file);
+  const sha256 = sha256Of(bytes);
+  if (o.expectSha256 !== undefined && o.expectSha256 !== sha256) {
+    const rel = relative(project.dir, file);
+    const shown = rel && !rel.startsWith('..') && !isAbsolute(rel) ? rel.split(sep).join('/') : basename(file);
+    throw new ScenarioChangedError(file, o.expectSha256, sha256, shown);
+  }
+  const text = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString('utf8');
+  return { name: basename(file).replace(/\.ya?ml$/i, ''), file, text, sha256 };
+}
+
+/** The `env:` a scenario text names, read without validating it (undefined when it names none or does not parse). */
+export function scenarioSourceEnv(text: string): string | undefined {
   let value: unknown;
   try {
-    value = parseYamlText(await readFile(await resolveScenarioFile(project, nameOrPath), 'utf8'));
+    value = parseYamlText(text);
   } catch {
-    return undefined; // loadScenario reports it
+    return undefined; // the validation reports it
   }
   const env = value && typeof value === 'object' ? (value as { env?: unknown }).env : undefined;
   return typeof env === 'string' ? env : undefined;
+}
+
+/** Validate a scenario source of a project. Throws ScenarioError on any error-level issue. */
+export function parseScenarioSource(project: LoadedProject, src: ScenarioSource, opts: Omit<ScenarioCheckOptions, 'project' | 'file'> = {}): LoadedScenario {
+  const { scenario, issues } = parseScenario(src.text, { ...opts, file: src.file, project });
+  if (!scenario) throw new ScenarioError(issuesMessage('scenario', issues, src.file), issues, src.file);
+  return { name: src.name, file: src.file, text: src.text, sha256: src.sha256, scenario, issues };
+}
+
+/**
+ * Load and validate a scenario of a project, from one read of its file (readScenarioSource: `expectSha256` pins its
+ * bytes). Throws ScenarioError on any error-level issue, ScenarioChangedError on other bytes than expected.
+ */
+export async function loadScenario(
+  project: LoadedProject,
+  nameOrPath: string,
+  opts: Omit<ScenarioCheckOptions, 'project' | 'file'> & ScenarioReadOptions = {},
+): Promise<LoadedScenario> {
+  const { expectSha256, readFile: read, ...check } = opts;
+  const src = await readScenarioSource(project, nameOrPath, { ...(expectSha256 !== undefined ? { expectSha256 } : {}), ...(read ? { readFile: read } : {}) });
+  return parseScenarioSource(project, src, check);
+}
+
+/**
+ * The `env:` a scenario file names, read without validating it (undefined when it names none or cannot be read).
+ */
+export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string): Promise<string | undefined> {
+  try {
+    return scenarioSourceEnv((await readScenarioSource(project, nameOrPath)).text);
+  } catch {
+    return undefined; // loadScenario reports it
+  }
 }
 
 /**

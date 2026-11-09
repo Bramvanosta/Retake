@@ -17,7 +17,7 @@
  *   video once more in software with libx264, from scratch.
  */
 import { availableParallelism, cpus as osCpus } from 'node:os';
-import { RENDER_CONCURRENCY_MAX, RenderSettingsError, gpuInfoOf, renderSettingsFromEnv, workspaceRenderSettings } from '@retake/core';
+import { RENDER_CONCURRENCY_MAX, RenderSettingsError, gpuInfoOf, renderSettingsFromEnv, sandboxSwitchOff, workspaceRenderSettings } from '@retake/core';
 import type { GpuInfo, RenderEncoderSetting, RenderGlSetting, RenderSettings, SystemInfoReply } from '@retake/core';
 import { RenderCancelledError, RenderError, isDiskFullError } from './types.js';
 
@@ -281,6 +281,33 @@ export async function renderGpuInfo(browser: { connection: unknown }): Promise<G
   }
 }
 
+/**
+ * On macOS, the switches of the render browser's own command line (CDP Browser.getBrowserCommandLine: what it was
+ * really started with, those a wrapper executable adds included) that turn its sandbox or site isolation off — core
+ * sandboxSwitchOff, the Linux-only ones aside (Remotion passes `--no-zygote`; macOS has no zygote); Remotion's other
+ * switches (its debugging port) are its own. Empty elsewhere (Linux renders run as Remotion starts them) and when the
+ * browser does not report its command line.
+ */
+export async function renderSandboxOff(browser: { connection: unknown }, platform: NodeJS.Platform = process.platform): Promise<string[]> {
+  if (platform !== 'darwin') return [];
+  const conn = browser.connection as { send(method: string, params?: unknown): Promise<unknown> };
+  try {
+    const r = (await conn.send('Browser.getBrowserCommandLine')) as { value?: { arguments?: unknown }; arguments?: unknown };
+    const argv = (r?.value?.arguments ?? r?.arguments) as unknown;
+    return Array.isArray(argv) ? argv.filter((a): a is string => typeof a === 'string' && sandboxSwitchOff(a, { platform }) !== null) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** The refusal of a render browser that runs without its sandbox or site isolation (renderSandboxOff). */
+export function renderSandboxRefusal(off: readonly string[]): string {
+  return (
+    `the render browser runs with ${off.map((a) => (a.length > 80 ? `${a.slice(0, 77)}…` : a)).join(' ')} on its command line, which turns its sandbox or site isolation off — ` +
+    'its executable adds switches itself (RETAKE_CHROMIUM_HEADLESS_SHELL): use one that starts Chromium as it is given'
+  );
+}
+
 /** A Remotion browser opened by the policy (`openRenderBrowser`). */
 export interface PolicyBrowser<B> {
   puppeteer: B;
@@ -304,10 +331,22 @@ export async function openRenderBrowser<B extends { connection: unknown; close(o
   policy: RenderPolicy;
   launch: (chromium: { gl?: 'angle' }) => Promise<B>;
   gpuInfo?: (browser: B) => Promise<GpuInfo | undefined>;
+  /** The platform the sandbox check reads for (renderSandboxOff; default this process's). */
+  platform?: NodeJS.Platform;
 }): Promise<PolicyBrowser<B>> {
   const warnings: string[] = [];
   let gl = o.policy.gl.resolved;
-  let puppeteer = await o.launch(gl === 'angle' ? { gl: 'angle' } : {});
+  // Every browser opened here is refused when its own command line turns its sandbox or site isolation off.
+  const launch = async (chromium: { gl?: 'angle' }): Promise<B> => {
+    const b = await o.launch(chromium);
+    const off = await renderSandboxOff(b, o.platform);
+    if (off.length) {
+      await b.close({ silent: true }).catch(() => undefined);
+      throw new RenderError(renderSandboxRefusal(off));
+    }
+    return b;
+  };
+  let puppeteer = await launch(gl === 'angle' ? { gl: 'angle' } : {});
   let gpu: GpuInfo | undefined;
   if (gl === 'angle') {
     gpu = await (o.gpuInfo ?? renderGpuInfo)(puppeteer);
@@ -319,7 +358,7 @@ export async function openRenderBrowser<B extends { connection: unknown; close(o
         await puppeteer.close({ silent: true }).catch(() => undefined);
         gl = 'software';
         gpu = undefined;
-        puppeteer = await o.launch({});
+        puppeteer = await launch({});
       }
     }
   }
@@ -413,6 +452,8 @@ export async function probeRenderPath(o: { gpuInfo?: (b: { connection: unknown }
       else {
         const browser = await openBrowser('chrome', { browserExecutable: b.path, chromeMode: 'headless-shell', logLevel: 'error', chromiumOptions: { gl: 'angle' } });
         try {
+          const off = await renderSandboxOff(browser);
+          if (off.length) throw new Error(renderSandboxRefusal(off));
           out.gpu = (await (o.gpuInfo ?? renderGpuInfo)(browser)) ?? undefined;
         } finally {
           await browser.close({ silent: true }).catch(() => undefined);

@@ -4,7 +4,7 @@
  * fake stage), `retake init`, the plugin marketplace and the preview writes of an app bundle.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir, userInfo } from 'node:os';
 import { dirname, join, relative } from 'node:path';
@@ -112,6 +112,9 @@ interface StageModule {
   trackedFiles(repo: string, rel: string, o?: { untracked?: boolean }): string[];
   buildEnv(env?: NodeJS.ProcessEnv, extra?: Record<string, string>): Record<string, string>;
   useBuildEnv(env: Record<string, string>): void;
+  RENDERER_PATCH_MARKS: Record<string, Record<string, number>>;
+  rendererPatchProblems(dir: string): string[];
+  scrubDeployedEngine(engine: string): void;
 }
 const stageModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as StageModule;
 
@@ -119,6 +122,7 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
   let n = 0;
   const THIN = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0, 0, 1]);
   const FAT = Buffer.from([0xca, 0xfe, 0xba, 0xbe, 0, 0, 0, 2]);
+  let marks: Record<string, Record<string, number>> = {};
   function fakeStage(): string {
     const root = join(tmp, `stage${n++}`);
     const file = (rel: string, data: string | Buffer = '', mode = 0o644) => {
@@ -130,6 +134,7 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
     file('engine/dist/bin.js', '#!/usr/bin/env node\n');
     file('engine/package.json', JSON.stringify({ name: '@retake/cli', version: '0.2.0', dependencies: { '@retake/core': '0.2.0' } }));
     file('engine/node_modules/playwright-core/package.json', '{"name":"playwright-core"}');
+    for (const [rel, want] of Object.entries(marks)) file(`engine/node_modules/@remotion/renderer/${rel}`, Object.entries(want).map(([m, k]) => `// ${m}\n`.repeat(k)).join(''));
     file('engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', THIN);
     file('engine/templates/default/template.yaml', 'name: default\n');
     file('plugin/.claude-plugin/marketplace.json', '{}');
@@ -141,15 +146,17 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
   const machinePaths = ['/Users/someone/projects/retake'];
 
   it('a sound stage passes; its Mach-O files (thin and FAT) are listed', async () => {
-    const { checkStage } = await stageModule();
+    const { checkStage, RENDERER_PATCH_MARKS } = await stageModule();
+    marks = RENDERER_PATCH_MARKS;
     const r = checkStage(fakeStage(), { machinePaths });
     expect(r.problems).toEqual([]);
     expect(r.machO).toEqual(expect.arrayContaining([{ path: 'node/bin/node', kind: 'fat' }, { path: 'engine/node_modules/@remotion/compositor-darwin-arm64/libavutil.dylib', kind: 'thin' }]));
     expect(readBundleManifest(fakeStage()).paths.ffmpeg).toBeNull();
   });
 
-  it('each rule: links absolute or leaving, a machine path, a marker with content, two playwright-cores, a path out', async () => {
-    const { checkStage } = await stageModule();
+  it('each rule: links absolute or leaving, a machine path, a marker with content, two playwright-cores, a path out, the renderer unpatched', async () => {
+    const { checkStage, RENDERER_PATCH_MARKS } = await stageModule();
+    marks = RENDERER_PATCH_MARKS;
     const cases: Array<[string, (root: string) => void, RegExp]> = [
       ['absolute link', (r) => symlinkSync('/usr/lib', join(r, 'engine', 'abs')), /engine\/abs: link to an absolute path/],
       ['link out', (r) => symlinkSync('../../..', join(r, 'engine', 'up')), /engine\/up: link leaves the stage/],
@@ -169,6 +176,9 @@ describe('the stage layout check (bundle.mjs checkStage, a small fake stage)', (
         mkdirSync(join(r, 'plugin', 'skills', 'x'), { recursive: true });
         writeFileSync(join(r, 'plugin', 'skills', 'x', 'SKILL.md'), `see ${machinePaths[0]}/docs\n`);
       }, /plugin\/skills\/x\/SKILL\.md names a path of the build machine/],
+      ['renderer unpatched', (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// as published\n'), /@remotion\/renderer\/dist\/esm\/index\.mjs carries "retake-patch: render-sandbox" 0 times, not 1: the engine lacks/],
+      ['renderer half patched', (r) => writeFileSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'esm', 'index.mjs'), '// retake-patch: render-sandbox\n// retake-patch: loopback-server\n'), /dist\/esm\/index\.mjs carries "retake-patch: loopback-server" 1 times, not 2/],
+      ['renderer file gone', (r) => rmSync(join(r, 'engine', 'node_modules', '@remotion', 'renderer', 'dist', 'serve-static.js')), /@remotion\/renderer\/dist\/serve-static\.js is missing/],
     ];
     for (const [what, spoil, problem] of cases) {
       const root = fakeStage();
@@ -254,6 +264,40 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     expect(checkStage(engine, { machinePaths: [repo] }).problems.filter((p) => /hard links/.test(p))).toEqual([]);
     expect(repoSnapshot(repo)).toBe(before);
   });
+
+  /** The store this checkout was installed from (pnpm records it in node_modules/.modules.yaml). */
+  const storeDir = /^storeDir: (.+)$/m.exec((() => {
+    try {
+      return readFileSync(join(REPO, 'node_modules', '.modules.yaml'), 'utf8');
+    } catch {
+      return '';
+    }
+  })())?.[1];
+
+  it.runIf(hasPnpm && !!storeDir)("the engine's pnpm deploy carries the @remotion/renderer patch (offline, from the checkout's store); the installed copy has it too", async () => {
+    const { rendererPatchProblems, buildEnv, scrubDeployedEngine } = await stageModule();
+    const pkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8')) as { pnpm: { patchedDependencies: Record<string, string> } };
+    const editor = JSON.parse(readFileSync(join(REPO, 'packages', 'editor', 'package.json'), 'utf8')) as { dependencies: Record<string, string> };
+    // A Remotion upgrade without the patch ported to it fails here (and pnpm refuses an unused patch).
+    expect(Object.keys(pkg.pnpm.patchedDependencies)).toEqual([`@remotion/renderer@${editor.dependencies['@remotion/renderer']}`]);
+    expect(rendererPatchProblems(join(REPO, 'packages', 'editor', 'node_modules', '@remotion', 'renderer'))).toEqual([]);
+    const engine = join(tmp, `engine-${Date.now()}`);
+    const workspaceManifests = readdirSync(join(REPO, 'packages')).map((p) => join(REPO, 'packages', p, 'package.json')).filter((f) => existsSync(f)).map((f) => [f, readFileSync(f, 'utf8')] as const);
+    const r = spawnSync('pnpm', ['--config.inject-workspace-packages=true', '--config.node-linker=hoisted', `--config.store-dir=${storeDir}`, '--filter', '@retake/cli', '--prod', '--offline', 'deploy', engine], { cwd: REPO, encoding: 'utf8', env: buildEnv({ ...process.env, ...PNPM_ENV }) });
+    try {
+      expect(r.status, r.stderr || r.stdout).toBe(0);
+      expect(rendererPatchProblems(join(engine, 'node_modules', '@remotion', 'renderer'))).toEqual([]);
+      // The deployed manifest names no file of the build machine once scrubbed (the patches are applied already).
+      scrubDeployedEngine(engine);
+      const manifest = readFileSync(join(engine, 'package.json'), 'utf8');
+      expect(JSON.parse(manifest).pnpm).toBeUndefined();
+      expect(manifest).not.toContain(REPO);
+      // The deploy's injected workspace packages are hard links to the checkout's files: the scrub never writes through them.
+      for (const [file, text] of workspaceManifests) expect(readFileSync(file, 'utf8'), file).toBe(text);
+    } finally {
+      rmSync(engine, { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it('repoSnapshot tells a modified file written again (same status line, other bytes) and an untracked one', async () => {
     const { repoSnapshot } = await stageModule();

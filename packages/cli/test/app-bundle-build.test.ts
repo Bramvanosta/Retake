@@ -166,8 +166,10 @@ function fakeTauriStore(version: string, script: string): { store: string; pins:
 }
 
 /** A stage `build({ stage })` accepts (its layout check passes), its one Mach-O named by `entries`. */
-function fakeStage(): string {
+/** A stage that passes the layout check: its engine's @remotion/renderer carries each patch mark once (bundle.mjs RENDERER_PATCH_MARKS). */
+function fakeStage(marks: Record<string, Record<string, number>>): string {
   const stage = dir('stage');
+  for (const [rel, want] of Object.entries(marks)) put(stage, `engine/node_modules/@remotion/renderer/${rel}`, Object.entries(want).map(([m, k]) => `// ${m}\n`.repeat(k)).join(''));
   put(stage, '.retake-stage');
   put(stage, 'node/bin/node', THIN, 0o755);
   put(stage, 'node/guard.cjs', readFileSync(join(APP, 'bundle', 'guard.cjs')));
@@ -233,7 +235,7 @@ describe('one allow-listed environment for every child of the build (critique M1
     const { RETAKE_UPDATE_FEED: _feed, RETAKE_UPDATE_PUBKEY: _key, ...secrets } = SECRETS;
     const env = { ...secrets, PATH: `${tools.bin}:/usr/bin:/bin`, HOME: join(tmp, 'home'), KEEP_ME: '1' };
     // The stand-ins sign nothing: the build stops at the app's checks — after every child kind before it has run.
-    const stage = fakeStage();
+    const stage = fakeStage((await bundleModule()).RENDERER_PATCH_MARKS);
     try {
       // The app's checks run in full: the signatures (verifyApp) and the rest (appProblems: Resources vs the signed payload, Info.plist).
       expect(() => build({ out: dir('env-out'), stage, env, entries: NODE_ENTRY, tauriPins: pins })).toThrow(/the app fails its checks:[^]*sign-table entry node[^]*Contents\/Resources: missing from the app[^]*Info\.plist: no local network words/);
@@ -256,7 +258,7 @@ describe('one allow-listed environment for every child of the build (critique M1
     expect(js).toMatch(/const saved = saveGenerated\(REPO, dir\);\s*let built;\s*try \{\s*built = tauriBuild\([^)]*\);\s*\} finally \{\s*restoreGenerated\(REPO, saved\);\s*\}/);
     // L5.16e fixes: the DMG is release.mjs finishApp's (made after the app's checks; hdiutil tried again on "Resource busy").
     const rel = readFileSync(join(APP, 'scripts', 'release.mjs'), 'utf8');
-    expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, cliJs,/);
+    expect(js).toMatch(/const done = appOnly \? \{ dmg: null, update: null \} : finishApp\(\{ app, out: dir, mode, env, tauriCli: join\(dir, 'tauri-cli'\), tauriPins,/);
     expect(rel).toMatch(/hdiutil\(dmgCreateArgs\(\{ src: appDir, dmg \}\), \{ env: child, \.\.\.retry \}\);[^]*const problems = verifyDmg\(dmg, join\(out, 'mnt'\), \{ env: child, retry \}\);/);
   });
 
@@ -564,7 +566,7 @@ describe('the release path: refusals first, a zip notarised then the app stapled
     }
     // A reusable stage that passes the layout check, and a table naming its one Mach-O: a release run that went past
     // the check would reach codesign next.
-    const stage = fakeStage();
+    const stage = fakeStage((await bundleModule()).RENDERER_PATCH_MARKS);
     const env = { PATH: `${shims}:/usr/bin:/bin`, HOME: tmp, APPLE_SIGNING_IDENTITY: ID, APPLE_ID: 'maker@example.com', APPLE_PASSWORD: 'apple-pw-canary' };
     expect(() => build({ out: dir('release-out'), mode: 'release', stage, env, entries: NODE_ENTRY })).toThrow(/set APPLE_TEAM_ID, APPLE_KEYCHAIN_PROFILE .* nothing was signed/);
     expect(existsSync(log)).toBe(false);
@@ -621,6 +623,33 @@ describe('the folders a build writes (review A M3, review B L5)', () => {
     expect(existsSync(inRepo)).toBe(false);
     expect(() => build({ out: '/Applications/Retake' })).toThrow(/never into \/Applications/);
     expect(() => build({ out: undefined })).toThrow(/--out <dir> or RETAKE_BUNDLE_OUT/);
+  });
+});
+
+describe('a reused stage (--stage)', () => {
+  it.runIf(process.platform === 'darwin' && process.arch === 'arm64')('of another version than the app\'s is refused before Tauri builds anything when an app or a DMG is made: stage again', async () => {
+    const { build, GUARD } = await bundleModule();
+    const conf = JSON.parse(readFileSync(join(APP, 'tauri.conf.json'), 'utf8'));
+    const staged = (version: string) => {
+      const st = dir('old-stage');
+      put(st, '.retake-stage');
+      put(st, GUARD, '');
+      put(st, 'bundle.json', JSON.stringify({ v: 1, app: version, paths: { node: 'node/bin/node' } }));
+      return st;
+    };
+    const env = { PATH: '/usr/bin:/bin', HOME: tmp };
+    expect(() => build({ out: dir('reuse-out'), stage: staged('0.0.1'), env })).toThrow(new RegExp(`--stage \\S+ was made for version 0\\.0\\.1, the app is ${conf.version.replace(/\./g, '\\.')} \\(tauri\\.conf\\.json\\): stage again \\(bundle\\.mjs stage\\)`));
+    expect(() => build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, appVersion: '0.2.0', appOnly: true })).toThrow(/was made for version 0\.1\.0, the app is 0\.2\.0/);
+    // The same version passes this check (and stops further on, at the stage's own check); no app, no DMG: not asked.
+    for (const opts of [{ appVersion: '0.1.0' }, { appVersion: '0.2.0', dmg: false }]) {
+      let message = '';
+      try {
+        build({ out: dir('reuse-out'), stage: staged('0.1.0'), env, ...opts });
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message, JSON.stringify(opts)).toMatch(/the stage fails its check/);
+    }
   });
 });
 

@@ -11,7 +11,26 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema, reserveRunId } from '@retake/core';
 import type { RunJobInput } from '@retake/core';
-import { EngineError, FileJobQueue, RunOptionError, SandboxTakeError, WorkerLock, createEngine, liveWorker, newJobId, readWorkerLock, runCommandLine, toEngineError } from '../src/index.js';
+import {
+  EngineError,
+  FileJobQueue,
+  RunOptionError,
+  SandboxTakeError,
+  WorkerLock,
+  createEngine,
+  executeRunJob,
+  liveWorker,
+  newJobId,
+  openProjectBySlug,
+  openWorkspace,
+  prepareInspect,
+  prepareRun,
+  readWorkerLock,
+  runCommandLine,
+  sha256Hex,
+  signalInterrupts,
+  toEngineError,
+} from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
 
@@ -330,6 +349,76 @@ describe('engine.runs.submit (no worker started)', () => {
   it('runCommandLine: the retake command of the same run', () => {
     expect(runCommandLine('retake', { project: 'p', scenario: 's', mode: 'capture', env: 'my env', sandbox: true })).toBe("retake run p s --env 'my env' --sandbox");
     expect(runCommandLine('retake', { project: 'p', scenario: 's', mode: 'dry', until: 'a.1', hooks: 'run' })).toBe('retake run p s --dry --until a.1 --hooks run');
+  });
+});
+
+describe('a job runs the scenario bytes it was submitted with', () => {
+  const file = () => join(ws, 'projects', 'northfield-fixture', 'scenarios', 'quote.yaml');
+
+  it('a run job whose scenario changed after the submit: conflict with both hashes before anything runs, the reserved run failed', async () => {
+    const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'quote', mode: 'dry', until: 'discover.1' });
+    const text = await readFile(file(), 'utf8');
+    expect((sub.job.input as RunJobInput).scenario_sha256).toBe(sha256Hex(text));
+    await writeFile(file(), `${text}\n# changed\n`);
+    try {
+      const events: unknown[] = [];
+      const e = await executeRunJob({
+        ws: await openWorkspace({ root: ws }),
+        cli: 'retake',
+        input: sub.job.input as RunJobInput,
+        signal: new AbortController().signal,
+        interrupts: signalInterrupts(),
+        event: (x) => events.push(x),
+        progress: () => undefined,
+      }).catch((x: unknown) => x as EngineError);
+      expect(e).toBeInstanceOf(EngineError);
+      expect((e as EngineError).code).toBe('conflict');
+      expect((e as EngineError).message).toBe('scenarios/quote changed since the run was submitted: submit it again (what was checked is what runs)');
+      expect((e as EngineError).details).toEqual({ submitted: sha256Hex(text), current: sha256Hex(`${text}\n# changed\n`) });
+      expect(events).toEqual([]);
+      const record = JSON.parse(await readFile(join(ws, 'projects', 'northfield-fixture', 'runs', sub.run_id, 'run.json'), 'utf8')) as { status: string };
+      expect(record.status).toBe('failed');
+    } finally {
+      await writeFile(file(), text);
+      await engine.runs.cancel('northfield-fixture', sub.run_id).catch(() => undefined);
+    }
+  });
+
+  it('prepareRun reads the file once: the sandbox it picks, the scenario it parses and their hash come from that one read', async () => {
+    const w = await openWorkspace({ root: ws });
+    const project = await openProjectBySlug(w, 'northfield-fixture');
+    const disk = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'sandbox-quote.yaml');
+    const onDisk = await readFile(disk, 'utf8');
+    // The bytes the one read returns name the other sandbox and hold longer: the file on disk is never read again.
+    const first = onDisk.replace('env: sandbox\n', 'env: sandbox-docker\n').replace('      - hold: 0.8\n', '      - hold: 2.5\n');
+    expect(first).not.toBe(onDisk);
+    const reads: string[] = [];
+    const prepared = await prepareRun(w, project, 'sandbox-quote', {
+      dry: true,
+      sandbox: true,
+      readFile: async (file) => {
+        reads.push(file);
+        return Buffer.from(first, 'utf8');
+      },
+    });
+    expect(reads).toEqual([disk]);
+    expect(prepared.sandboxEnv).toBe('sandbox-docker');
+    expect(prepared.scenario.text).toBe(first);
+    expect(prepared.scenario.sha256).toBe(sha256Hex(first));
+    expect(prepared.scenario.scenario.scenes[0].steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
+  });
+
+  it('an inspection of a scenario: the hash of the bytes it parsed, a pinned one checked on those bytes', async () => {
+    const w = await openWorkspace({ root: ws });
+    const project = await openProjectBySlug(w, 'northfield-fixture');
+    const text = await readFile(file());
+    const pinned = await prepareInspect(w, project, { kind: 'scenario', scenario: 'quote' }, undefined);
+    expect(pinned.source).toMatchObject({ scenario_sha256: sha256Hex(text) });
+    expect(pinned.scenario.sha256).toBe(sha256Hex(text));
+    const e = await prepareInspect(w, project, { kind: 'scenario', scenario: 'quote', scenario_sha256: 'b'.repeat(64) }, undefined).catch((x: unknown) => x as EngineError);
+    expect((e as EngineError).code).toBe('conflict');
+    expect((e as EngineError).message).toBe('scenarios/quote changed since the inspection was submitted: submit it again (what was checked is what runs)');
+    expect((e as EngineError).details).toEqual({ submitted: 'b'.repeat(64), current: sha256Hex(text) });
   });
 });
 

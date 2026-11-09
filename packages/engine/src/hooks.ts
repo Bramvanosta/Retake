@@ -52,6 +52,15 @@ export interface HookSelection {
   env?: string;
   /** The scenario of `<scenario>:setup|teardown` (its js hook tabs are bound as in its run). */
   scenario?: Scenario;
+  /** `<scenario>:setup|teardown`: sha256 of the scenario file's bytes these hooks were read from (one read). */
+  sha256?: string;
+}
+
+const SCENARIO_HOOKS_RE = /^([^:/\\]+):(setup|teardown)$/;
+
+/** The scenario name of a `<scenario>:setup|teardown` hooks source (undefined for any other source). */
+export function scenarioOfHooksSource(spec: string): string | undefined {
+  return SCENARIO_HOOKS_RE.exec(spec)?.[1];
 }
 
 function inside(dir: string, file: string): boolean {
@@ -61,21 +70,30 @@ function inside(dir: string, file: string): boolean {
 /**
  * The hooks of `spec`: `reset` (project.yaml), `<scenario>:setup` / `<scenario>:teardown`, or a YAML file of hooks.
  * `projectFilesOnly` (a client outside the CLI): a file must be `hooks/<name>.yaml` of the project, its real path
- * inside the project — never an absolute path or one relative to the current folder.
+ * inside the project — never an absolute path or one relative to the current folder. `expectSha256`: the scenario of
+ * `<scenario>:setup|teardown` is read once and parsed only when its bytes have that sha256 (core ScenarioChangedError).
  */
-export async function selectHooks(project: LoadedProject, spec: string, envOpt?: string, o: { projectFilesOnly?: boolean } = {}): Promise<HookSelection> {
+export async function selectHooks(project: LoadedProject, spec: string, envOpt?: string, o: { projectFilesOnly?: boolean; expectSha256?: string } = {}): Promise<HookSelection> {
   if (spec === 'reset') {
     const hooks = project.config.reset ?? [];
     if (!hooks.length) throw new HooksSourceError(`project "${project.slug}" declares no reset hooks (add \`reset:\` to project.yaml)`, false);
     return { label: 'reset', hooks, phase: 'reset' };
   }
-  const m = /^([^:/\\]+):(setup|teardown)$/.exec(spec);
+  const m = SCENARIO_HOOKS_RE.exec(spec);
   if (m) {
     const [, name, which] = m;
-    const loaded = await loadScenario(project, name, { env: envOpt });
+    const loaded = await loadScenario(project, name, { env: envOpt, ...(o.expectSha256 !== undefined ? { expectSha256: o.expectSha256 } : {}) });
     const hooks = (which === 'setup' ? loaded.scenario.setup : loaded.scenario.teardown) ?? [];
     if (!hooks.length) throw new HooksSourceError(`scenario "${loaded.name}" has no ${which} hooks`, false);
-    return { label: `${loaded.name}-${which}`, hooks, phase: which as HookPhase, vars: loaded.scenario.vars, env: loaded.scenario.env, scenario: loaded.scenario };
+    return {
+      label: `${loaded.name}-${which}`,
+      hooks,
+      phase: which as HookPhase,
+      vars: loaded.scenario.vars,
+      env: loaded.scenario.env,
+      scenario: loaded.scenario,
+      ...(loaded.sha256 !== undefined ? { sha256: loaded.sha256 } : {}),
+    };
   }
   if (/\.ya?ml$/i.test(spec)) {
     let file: string | undefined;
@@ -125,6 +143,7 @@ export interface HookContextOptions {
   allowWrites?: boolean;
   /** Describe and security-check without executing. */
   dry?: boolean;
+  /** A scenario's own vars (over project.yaml's): with trust `mcp`, the variables the agent wrote (HookContext.agentVars). */
   vars?: Record<string, string>;
   runId?: string;
   scenario?: Scenario;
@@ -203,6 +222,8 @@ export async function createHookContext(project: LoadedProject, o: HookContextOp
     log: o.log,
     ...(o.confirm ? { confirmDestructive: o.confirm } : {}),
     ...(o.trust ? { trust: o.trust } : {}),
+    // Trust `mcp`: a scenario's vars are the agent's — a project hook rendered with them counts as the agent's too.
+    ...(o.trust === 'mcp' && o.vars && Object.keys(o.vars).length ? { agentVars: Object.keys(o.vars) } : {}),
     ...(o.via ? { via: o.via } : {}),
     ...(o.signal ? { signal: o.signal } : {}),
     ...(o.replayUnsigned !== undefined && o.trust !== 'mcp' ? { replayUnsigned: o.replayUnsigned } : {}),

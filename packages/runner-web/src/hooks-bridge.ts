@@ -35,6 +35,8 @@ export interface HookContextLike {
   trust?: HookTrust;
   /** The channel trust-`mcp` work came through, for the wording of refusals (`studio`: the Studio). */
   via?: AgentChannel;
+  /** Trust `mcp`: the scenario's own vars (the agent's): a project hook rendered with them counts as the agent's. */
+  agentVars?: readonly string[];
   /** Approves the hooks that need a human (RunOptions.confirmHook). */
   confirmDestructive?: ConfirmHook;
 }
@@ -59,7 +61,7 @@ export interface HooksModule {
   runHooks(
     hooks: HookStep[],
     ctx: HookContextLike,
-    opts: { phase: 'setup' | 'teardown' | 'reset' | 'step'; journal: JournalLike },
+    opts: { phase: 'setup' | 'teardown' | 'reset' | 'step'; journal: JournalLike; agentWritten?: boolean },
   ): Promise<{ ok: boolean; results: HookResultLike[] }>;
   Journal: { open(file: string): Promise<JournalLike> };
 }

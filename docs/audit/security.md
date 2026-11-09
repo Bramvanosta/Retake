@@ -37,9 +37,12 @@ repository.
 - Secret files 0600, written atomically; no secret or machine path in the tree or its history.
 
 ## Hygiene (public, low risk)
-- No `SECURITY.md` at the root; GitHub's private vulnerability reporting, secret scanning and push protection are off.
+- `SECURITY.md` at the root asks for private reports through GitHub's private vulnerability reporting; that setting,
+  secret scanning and push protection are the repository's (checked by hand at each audit).
 - No CI on pull requests (BL-144); no `rust-toolchain.toml` (CI pins the toolchain itself).
-- `packageManager` pins pnpm without its `+sha512` hash; `onlyBuiltDependencies` is declared twice with different lists
-  (`package.json`, `pnpm-workspace.yaml`); no pnpm 10 supply-chain settings (minimum release age, trust policy).
+- `packageManager` pins pnpm with its `+sha512` hash (corepack checks the download); `onlyBuiltDependencies` is
+  declared twice with different lists (`package.json`, `pnpm-workspace.yaml`); no pnpm 10 supply-chain settings
+  (minimum release age, trust policy).
 - `.gitignore` has no patterns for signing material (`*.p12`, `*.p8`, `*.key`).
-- The bundled Chromium should move with each release (its pins make that a deliberate step).
+- The bundled Chromium moves with each release: docs/RELEASING.md's first step bumps Playwright and re-records
+  `apps/desktop/bundle/browsers.json` by hand (automating it: BACKLOG BL-160).

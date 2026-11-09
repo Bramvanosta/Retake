@@ -34,6 +34,7 @@ import { sleep } from './util.js';
 import { ArtefactStore } from './artefacts/store.js';
 import type { PendingPopup } from './actions/click.js';
 import type { Acted } from './park.js';
+import type { NavigationRule } from './opens.js';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -64,6 +65,11 @@ export interface RuntimeInit {
    * the project folder, an eval file is not one an agent can write and names no secret (core agent-trust).
    */
   agentTrust?: boolean;
+  /**
+   * What the run's navigations may open (opens.ts): the scheme rule always; for work submitted through MCP or the Studio,
+   * the environment's origins too. Absent: the scheme rule only.
+   */
+  navigation?: NavigationRule;
   /**
    * The run replays a scenario for an inspection (L3.3, RunOptions.inspect): no per-step dry-run screenshots, and the
    * pauses (`hold`, `wait`, a step's `hold:`, a scene's still) last at most INSPECT_PAUSE_CAP_S.
@@ -120,6 +126,9 @@ export interface ScenePane {
   pointer: Pointer;
 }
 
+/** The most cursor effects (icon changes, presses, releases, ripples) a run records from one page in a second. */
+export const CURSOR_EFFECTS_PER_SECOND = 60;
+
 /** Long-lived state of one run, shared by every action. */
 export class Runtime {
   /** The cursor of single-page scenes (it follows the active page, as the main capture does). */
@@ -145,6 +154,8 @@ export class Runtime {
   readonly cursorHidden: boolean;
   /** Work submitted through MCP: see RuntimeInit.agentTrust. */
   readonly agentTrust: boolean;
+  /** See RuntimeInit.navigation. */
+  readonly navigation: NavigationRule;
   /** An inspection's replay: see RuntimeInit.inspecting. */
   readonly inspecting: boolean;
   /** See RuntimeInit.defaultTimeoutS. */
@@ -204,6 +215,7 @@ export class Runtime {
     this.recorder = init.recorder;
     this.cursorHidden = init.cursorHidden === true;
     this.agentTrust = init.agentTrust === true;
+    this.navigation = init.navigation ?? {};
     this.inspecting = init.inspecting === true;
     this.defaultTimeoutS = init.defaultTimeoutS;
     this.encoderFor = init.encoderFor;
@@ -225,19 +237,36 @@ export class Runtime {
     });
   }
 
+  /** The cursor effects each page reported in the current second (CURSOR_EFFECTS_PER_SECOND), by page id. */
+  private readonly cursorBudget = new Map<string, { second: number; n: number }>();
+  private cursorCapWarned = false;
+
   /**
    * A cursor effect reported by a page's kit (L2.13): on that page's track while it records (multi-page scenes), on
-   * the main capture's timeline when that page is the one recorded there.
+   * the main capture's timeline when that page is the one recorded there. A payload of the wrong types (a time or a
+   * point that is not a finite number) is ignored; beyond CURSOR_EFFECTS_PER_SECOND from one page in a second, the
+   * others of that second are ignored (one warning per run).
    */
   private cursorEffect(page: Page, p: CursorEffectPayload): void {
     const id = this.session.idOf(page);
-    if (!id || typeof p?.time !== 'number' || !['icon', 'press', 'release', 'ripple'].includes(p.type)) return;
+    if (!id || !p || typeof p !== 'object' || !Number.isFinite(p.time) || !['icon', 'press', 'release', 'ripple'].includes(p.type)) return;
+    const second = Math.floor(Date.now() / 1000);
+    const used = this.cursorBudget.get(id);
+    const n = used?.second === second ? used.n + 1 : 1;
+    this.cursorBudget.set(id, { second, n });
+    if (n > CURSOR_EFFECTS_PER_SECOND) {
+      if (!this.cursorCapWarned) {
+        this.cursorCapWarned = true;
+        this.warn(`page "${id}" reported more than ${CURSOR_EFFECTS_PER_SECOND} cursor effects in a second: the others of that second are not recorded`);
+      }
+      return;
+    }
     const e: CursorEffect = { t: this.timeline.clock.at(p.time), type: p.type };
     if (p.type === 'icon') {
       if (p.icon !== 'arrow' && p.icon !== 'hand' && p.icon !== 'ibeam') return;
       e.icon = p.icon;
     }
-    if (p.type === 'ripple' && typeof p.x === 'number' && typeof p.y === 'number') {
+    if (p.type === 'ripple' && Number.isFinite(p.x) && Number.isFinite(p.y)) {
       e.x = p.x;
       e.y = p.y;
     }
