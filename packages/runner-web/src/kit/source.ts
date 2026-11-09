@@ -1,5 +1,6 @@
+import { fileURLToPath } from 'node:url';
+import { buildSync } from 'esbuild';
 import type { LoadedTemplate } from '@retake/core';
-import { demoKit } from './kit.js';
 import type { CursorStyle, KitConfig } from './types.js';
 
 export const DEFAULT_CURSOR_SIZE = 26;
@@ -22,9 +23,46 @@ export function kitConfigFor(template?: LoadedTemplate, override?: Partial<KitCo
 }
 
 /**
- * The in-page script: evaluates `demoKit(config)` once per document.
- * `__name` is shimmed because some TS transpilers (esbuild keepNames) wrap inner functions with it.
+ * The kit's modules, src/kit/page (the package ships its sources): the same folder seen from src/kit (tests, tsx) and
+ * from dist/kit (the built package).
  */
+export const KIT_PAGE_DIR = fileURLToPath(new URL('../../src/kit/page/', import.meta.url));
+/** Chromium only: the syntax of the package's own TypeScript build (ES2023), nothing lowered further. */
+export const KIT_TARGET = 'es2023';
+
+/**
+ * Build the kit's page script from its modules: one immediately-invoked function (esbuild, in memory), not minified,
+ * nothing but the modules of `dir` in it (a module that imported anything else would bring it into the page: refused).
+ * Type-only imports are erased. The script reads its configuration from `__retakeKitConfig`, which `kitSource` defines.
+ */
+export function buildKitBundle(dir = KIT_PAGE_DIR): string {
+  const out = buildSync({
+    absWorkingDir: dir,
+    entryPoints: ['main.ts'],
+    bundle: true,
+    write: false,
+    format: 'iife',
+    platform: 'browser',
+    target: KIT_TARGET,
+    charset: 'utf8',
+    legalComments: 'none',
+    metafile: true,
+    logLevel: 'silent',
+    tsconfigRaw: {},
+  });
+  const outside = Object.keys(out.metafile.inputs).filter((f) => !/^[\w.-]+\.ts$/.test(f));
+  if (outside.length) throw new Error(`the in-page kit was not built: it imports ${outside.join(', ')} (its modules import only each other and types)`);
+  return out.outputFiles[0].text;
+}
+
+let bundle: string | undefined;
+
+/** The kit's page script, built once per process (on first use). */
+export function kitBundle(): string {
+  return (bundle ??= buildKitBundle());
+}
+
+/** The in-page script: the kit's bundle, evaluated once per document with `config`. */
 export function kitSource(config: KitConfig): string {
-  return `(() => { var __name = (f) => f; (${demoKit.toString()})(${JSON.stringify(config)}); })();`;
+  return `(() => { const __retakeKitConfig = ${JSON.stringify(config)};\n${kitBundle()}})();`;
 }

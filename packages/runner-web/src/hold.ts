@@ -17,7 +17,7 @@
 export const PAINT_SLACK_MS = 8;
 /**
  * After the paint signal, frames are still held this long — the first one written then shows the cursor too, which the
- * kit draws on a new document only once the page painted (kit.ts `revealed`): no cursor blink.
+ * kit draws on a new document only once the page painted (kit/page/cursor.ts `revealed`): no cursor blink.
  */
 export const HOLD_AFTER_PAINT_MS = 40;
 /**

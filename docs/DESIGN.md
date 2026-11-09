@@ -419,7 +419,25 @@ checkSavedSession({project, env, persona, signal?}): Promise<PersonaCheckResult>
 - One tab per environment page key (`admin`, `app`…), created lazily; `new_tab` adds more (`tab2`, or `as`).
   The ACTIVE page is the one being recorded and acted on.
 
-### 3.2 In-page kit (`window.__retake`, written as a self-contained function, injected via `addInitScript`)
+### 3.2 In-page kit (`window.__retake`, built from modules into one page script, injected via `addInitScript`)
+- **How it is built**: the kit is a folder of modules, `packages/runner-web/src/kit/page/` — one per concern (`refs`,
+  `memo`, `trees` (shadow roots and frames), `text`, `visibility`, `roles`, `scopes`, `resolver`, `points`, `scrolling`,
+  `placement`, `changes`, `triggers`, `fields`, `calendar`, `clicks`, `file-drag`, `host`, `cursor-look`, `overlay`,
+  `cursor`, `ripple`, `frame-pointer`, `notifications`, `inventory`, `recorder`, `checks`, `effects`, `clock`,
+  `lifecycle`, `config`, `api`) and the entry `main.ts`. `kitBundle()` (runner `kit/source.ts`) builds them with esbuild
+  on first use, in memory, once per process: one immediately-invoked function, browser platform, ES2023 syntax, not
+  minified, from the package's sources (they ship with it: `files: src`; the same folder from `src/` and `dist/`). The
+  modules import only each other and types (erased): a build whose inputs leave the folder is refused, and a test walks
+  the graph (no package, no Node module). `kitSource(config)` wraps the bundle in a function that defines its
+  configuration (`__retakeKitConfig`, read by `config.ts`): one script per configuration, evaluated once per document
+  (also re-evaluated by `KitClient.install` when a document lost its kit). Every module only declares (functions,
+  constants, state); what touches the page happens in `main.ts`, in this order: the notification relay, the
+  replacement of a previous kit (a healthy one of the same version stays: the script stops there), the health ping,
+  the change watcher's cleanup, the overlay's host, the page's popover methods kept, the cursor (overlay, listeners,
+  patches — or nothing for the passive copy, or pointer forwarding in a sub-frame), the frame pointer relay, the click
+  effects' cleanup, then `window.__retake`. What the page receives — globals, the API's members and arities, the look,
+  the patched natives, the listeners, the answers on a fixed page — is held by a golden
+  (`packages/runner-web/test/kit-page.test.ts`, `test/golden/kit-page.json`).
 - **Cursor overlay**: a `<retake-cursor>` host (shadow DOM, `pointer-events:none`) attached to
   `document.documentElement`, re-attached by a MutationObserver if removed. It uses `popover="manual"` and
   re-raises itself (hide+show popover) whenever another top-layer element opens (`toggle` events, dialog

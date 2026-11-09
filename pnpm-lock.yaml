@@ -265,6 +265,9 @@ importers:
       '@retake/hooks':
         specifier: workspace:*
         version: link:../hooks
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       pdfjs-dist:
         specifier: 5.4.296
         version: 5.4.296
