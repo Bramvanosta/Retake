@@ -9,7 +9,7 @@
 import { api } from './api.js';
 import { stopWatchingOnDispose } from './changes.js';
 import { installCursor } from './cursor.js';
-import { stopEffectsOnDispose } from './effects.js';
+import { stopEffectsOnDispose } from './click-effects.js';
 import { relayFramePointer } from './frame-pointer.js';
 import { createHost } from './host.js';
 import { listenForPing, replacePrevious } from './lifecycle.js';

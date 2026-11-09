@@ -8,7 +8,7 @@ import { config } from './config.js';
 import { drag, fileDrag } from './file-drag.js';
 import { host } from './host.js';
 import { carried, cleanups, disposed, isTop, on } from './lifecycle.js';
-import { attach, buildOverlay, cursorEl, effect, ghostEl, queueRaise, scaleEl } from './overlay.js';
+import { attach, buildOverlay, cursorEl, ghostEl, queueRaise, reportCursorEffect, scaleEl } from './overlay.js';
 import { ripple } from './ripple.js';
 import { deepClosest, deepHit, isA, styleOf } from './trees.js';
 
@@ -126,7 +126,7 @@ function updateKind(force: boolean): void {
   }
   if (kd !== reportedKind) {
     reportedKind = kd;
-    effect('icon', { icon: kd });
+    reportCursorEffect('icon', { icon: kd });
   }
 }
 export function moveTo(x: number, y: number): void {
@@ -142,7 +142,7 @@ export function press(down: boolean): void {
   const changed = state.pressed !== down;
   state.pressed = down;
   scaleEl?.classList.toggle('p', down);
-  if (changed) effect(down ? 'press' : 'release');
+  if (changed) reportCursorEffect(down ? 'press' : 'release');
 }
 export const cursorApi = {
   set(x: number, y: number, show?: boolean): void {

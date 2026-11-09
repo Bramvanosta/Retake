@@ -49,15 +49,18 @@ export const isTop = (() => {
     return false;
   }
 })();
-/** The kit answers its own ping and, in a top document that draws, its overlay is still attached (`api.healthy`). */
-export function healthy(): boolean {
+/**
+ * The kit answers its own ping and, in a top document that draws, its overlay is still attached (`api.healthy`). An
+ * arrow, as the API's member always was: not constructible, no prototype (the golden holds it).
+ */
+export const healthy = (): boolean => {
   if (disposed) return false;
   pinged = false;
   window.dispatchEvent(new Event('__retake_ping'));
   return pinged && (!isTop || config.passive === true || host.isConnected);
-}
-/** Remove every listener, observer and timer the kit holds (`api.dispose`). */
-export function dispose(): void {
+};
+/** Remove every listener, observer and timer the kit holds (`api.dispose`; an arrow, as `healthy`). */
+export const dispose = (): void => {
   disposed = true;
   for (const c of cleanups.splice(0)) {
     try {
@@ -66,4 +69,4 @@ export function dispose(): void {
       /* ignore */
     }
   }
-}
+};

@@ -1,10 +1,11 @@
 /**
  * What the page receives from the in-page kit (a characterization): the globals it adds, the shape of `window.__retake`
- * (every member, its type and arity), the look it draws, the natives it patches, the listeners it holds on the window
- * and the document, and the kit's answers on a fixed page — in a top document, in a same-origin frame and for the
- * recorder's passive copy, installed the way a capture installs it (an init script) and the way a re-install does
- * (evaluated in a loaded page). The golden (test/golden/kit-page.json) holds what the kit gave before it was built from
- * modules; it is written only on request (RETAKE_UPDATE_GOLDEN=1) and looked at when it is.
+ * (every member, its type, arity and prototype), the look it draws, the natives it patches, the listeners it holds on
+ * the window and the document, and the kit's answers on a fixed page — in a top document, in a same-origin frame and
+ * for the recorder's passive copy, installed the way a capture installs it (an init script) and the way a re-install
+ * does (evaluated in a loaded page). The golden (test/golden/kit-page.json) holds what the kit gave before it was built
+ * from modules (recorded from the kit of 6e25104, `kit/kit.ts`); it is written only on request (RETAKE_UPDATE_GOLDEN=1)
+ * and looked at when it is.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -36,9 +37,19 @@ body{margin:0;font:16px/20px sans-serif} .a{position:absolute;box-sizing:border-
 <div class="a" role="row" style="left:24px;top:200px;width:400px;height:32px"><span class="a" role="cell" style="left:0;top:0;width:200px;height:32px">Borealis</span><span class="a" role="cell" style="left:200px;top:0;width:200px;height:32px"><button class="a" style="left:120px;top:2px;width:72px;height:28px">Edit</button></span></div>
 <a class="a" href="/orders/42" style="left:24px;top:240px;width:120px;height:24px">Order 42</a>
 <div class="a" role="tablist" style="left:24px;top:280px;width:300px;height:32px"><button class="a" role="tab" aria-selected="true" style="left:0;top:0;width:100px;height:32px">General</button><button class="a" role="tab" style="left:110px;top:0;width:100px;height:32px">Billing</button></div>
-<dialog id="dlg"><p>Sure?</p><button>Cancel</button><button>Delete</button></dialog>
+<dialog id="dlg" style="position:fixed;inset:auto;left:300px;top:200px;width:300px;height:120px;margin:0;padding:0;border:0;box-sizing:border-box"><p class="a" style="left:16px;top:16px;width:200px;height:24px">Sure?</p><button class="a" style="left:16px;top:72px;width:100px;height:28px">Cancel</button><button class="a" style="left:180px;top:72px;width:100px;height:28px">Delete</button></dialog>
 <div popover id="pop">Pop</div>
 <iframe class="a" id="fr" srcdoc="<body style='margin:0'><button style='position:absolute;left:10px;top:10px;width:80px;height:28px'>Inner</button></body>" style="left:24px;top:330px;width:200px;height:80px;border:0"></iframe>
+<div class="a" id="scroller" style="left:820px;top:16px;width:160px;height:120px;overflow:auto"><div style="position:relative;width:160px;height:600px"><button class="a" style="left:10px;top:480px;width:120px;height:28px">Far away</button></div></div>
+<div class="a" id="sh" style="left:820px;top:150px;width:160px;height:40px"></div>
+<script>document.getElementById('sh').attachShadow({ mode: 'open' }).innerHTML = '<button style="position:absolute;left:0;top:0;width:120px;height:28px;margin:0;padding:0;font:16px/20px sans-serif;overflow:hidden;white-space:nowrap">Shadow go</button>';</script>
+<div class="a" id="cal" style="left:420px;top:330px;width:260px;height:90px"><button class="a" aria-label="Previous month" style="left:0;top:0;width:28px;height:24px">&lsaquo;</button><span class="a" style="left:40px;top:0;width:180px;height:24px">November 2026</span><button class="a" aria-label="Next month" style="left:232px;top:0;width:28px;height:24px">&rsaquo;</button><div class="a" role="grid" style="left:0;top:40px;width:260px;height:32px"><button class="a" data-date="2026-11-02" style="left:0;top:0;width:36px;height:28px">2</button><button class="a" data-date="2026-11-03" style="left:40px;top:0;width:36px;height:28px">3</button><button class="a" data-date="2026-11-04" aria-disabled="true" style="left:80px;top:0;width:36px;height:28px">4</button><button class="a" data-date="2026-12-01" data-outside style="left:120px;top:0;width:36px;height:28px">1</button></div></div>
+<label class="a" for="att" style="left:24px;top:430px;width:100px;height:24px">Attachment</label>
+<input class="a" id="att" type="file" style="left:130px;top:430px;width:200px;height:24px">
+<label class="a" for="when" style="left:360px;top:430px;width:50px;height:24px">When</label>
+<input class="a" id="when" type="date" min="2026-01-01" max="2026-12-31" style="left:420px;top:430px;width:150px;height:24px">
+<div class="a" id="zone" style="left:24px;top:470px;width:300px;height:60px" ondragover="event.preventDefault()" ondrop="event.preventDefault(); this.dataset.got = event.dataTransfer.files[0].name + ':' + event.dataTransfer.files[0].size">Drop files here<input type="file" id="zf" style="display:none"></div>
+<div class="a" id="opens" style="left:24px;top:550px;width:400px;height:32px"><button class="a" data-testid="open-a" style="left:0;top:0;width:100px;height:28px">Open</button><button class="a" data-testid="open-b" style="left:120px;top:0;width:100px;height:28px">Open</button><button class="a" data-testid="open-c" style="left:240px;top:0;width:100px;height:28px">Open</button></div>
 </main></body></html>`;
 
 let browser: Browser;
@@ -73,13 +84,15 @@ async function globals(page: Page, of = 'window'): Promise<string[]> {
   return page.evaluate(`Object.getOwnPropertyNames(${of}).sort()`);
 }
 
-/** Every member of the kit's API: its type, a function's arity, an object's members (one level down). */
+/** Every member of the kit's API: its type, a function's arity and prototype, an object's members (one level down). */
 async function shape(page: Page, of = 'window'): Promise<unknown> {
   return page.evaluate(`(() => {
     const k = (${of}).__retake;
     if (!k) return null;
     const one = (v, deep) => {
-      if (typeof v === 'function') return 'function/' + v.length;
+      // A function's arity, and whether it is constructible (a declaration or a function expression has a prototype;
+      // an arrow or a method does not).
+      if (typeof v === 'function') return 'function/' + v.length + (Object.prototype.hasOwnProperty.call(v, 'prototype') ? '/prototype' : '');
       if (v && typeof v === 'object' && deep) return Object.fromEntries(Object.keys(v).sort().map((n) => [n, one(v[n], false)]));
       return typeof v;
     };
@@ -199,6 +212,119 @@ async function answers(page: Page): Promise<unknown> {
   });
 }
 
+/**
+ * More answers, after `answers` (its refs come first): an off-screen target in a scrolled container (an awaited
+ * scrollAnimate), an open shadow root, resolver options, a file input and a dropzone that accepts, a native date input,
+ * the popups with a modal dialog open, and the web notifications the kit queues (no runner binding here).
+ */
+async function more(page: Page): Promise<unknown> {
+  return page.evaluate(async () => {
+    type Any = (...a: unknown[]) => unknown;
+    const k = (window as unknown as { __retake: Record<string, Any> & { cursor: Record<string, Any>; fileDrag: Record<string, Any> } }).__retake;
+    const out: Record<string, unknown> = {};
+    // An off-screen target in a tall overflow:auto container, scrolled into view.
+    const far = k.find({ text: 'Far away' }) as { ref: string };
+    const container = k.scrollContainerFor(far.ref) as string;
+    const plan = k.scrollPlan(far.ref, 24, false) as { container: string; top: number; left: number } | null;
+    out.scroll_before = { far, container, info: k.scrollInfo(container, far.ref), plan, point: k.point(far.ref, null), visible: k.visible(far.ref) };
+    const animated = plan ? await (k.scrollAnimate(plan.container, plan.top, plan.left, 120) as Promise<unknown>) : null;
+    out.scroll_after = { animated, info: k.scrollInfo(container, far.ref), again: k.find({ text: 'Far away' }), point: k.point(far.ref, null), plan: k.scrollPlan(far.ref, 24, false) };
+    // An open shadow root.
+    const shadow = k.find({ text: 'Shadow go' }) as { ref: string };
+    out.shadow = { find: shadow, info: k.info(shadow.ref), point: k.point(shadow.ref, null), visible: k.visible(shadow.ref), role: k.find({ role: 'button', name: 'Shadow go' }) };
+    // Resolver options: an ambiguous match, nth, last_visible, testid, placeholder, a near miss, exact.
+    out.resolver = {
+      ambiguous: k.find({ text: 'Open' }),
+      nth: k.find({ text: 'Open', nth: 1 }),
+      nth_last: k.find({ text: 'Open', nth: -1 }),
+      nth_out: k.find({ text: 'Open', nth: 5 }),
+      last_visible: k.find({ text: 'Open', last_visible: true }),
+      testid: k.find({ testid: 'open-b' }),
+      placeholder: k.find({ placeholder: 'you@example.com' }),
+      placeholder_part: k.find({ placeholder: 'you@' }),
+      near: k.find({ text: 'Opne' }),
+      exact_miss: k.find({ text: 'Ope', exact: true }),
+      in_row: k.find({ role: 'button', in: { row: 'Atlantis' } }),
+      hidden_file: k.find({ css: '#zf' }, { include_hidden: true }),
+      hidden_default: k.find({ css: '#zf' }),
+      checks: k.checkTargets([{ text: 'Open' }, { testid: 'open-c' }, { text: 'Shadow go' }, { text: 'Far away' }]),
+      closest: k.closest([{ text: 'Opn' }, { placeholder: 'you@' }]),
+    };
+    // A file input and a dropzone that accepts (holding a hidden file input).
+    const zone = k.find({ text: 'Drop files here' }) as { ref: string; bbox: { x: number; y: number; w: number; h: number } };
+    const att = k.find({ label: 'Attachment' }) as { ref: string };
+    k.fileDrag.begin({ name: 'b.csv', mime: 'text/csv', size: 5 });
+    const drop = k.fileDrag.drop(zone.bbox.x + zone.bbox.w / 2, zone.bbox.y + zone.bbox.h / 2);
+    out.files = {
+      zone,
+      zone_input: k.fileInputFor(zone.ref),
+      att,
+      att_info: k.info(att.ref),
+      att_input: k.fileInputFor(att.ref),
+      drop,
+      got: (document.getElementById('zone') as HTMLElement).dataset.got ?? null,
+    };
+    // A native date input with a range.
+    const when = k.find({ label: 'When' }) as { ref: string };
+    out.date = { out_of_range: k.setNativeValue(when.ref, '2027-01-01'), bad: k.setNativeValue(when.ref, 'soon'), ok: k.setNativeValue(when.ref, '2026-05-05'), value: k.fieldValue(when.ref), state: k.fieldState(when.ref) };
+    // A modal dialog opened with showModal(): the popups, its confirm button, the overlay kept in the top layer.
+    const dlg = document.getElementById('dlg') as HTMLDialogElement;
+    dlg.showModal();
+    await Promise.resolve();
+    await new Promise((r) => setTimeout(r, 0));
+    const host = document.querySelector('retake-cursor');
+    out.modal = {
+      popups: k.popupState(),
+      confirm: k.confirmButton(null),
+      confirm_named: k.confirmButton('Delete'),
+      in_dialog: k.find({ text: 'Delete', in: 'dialog' }),
+      behind: k.find({ text: 'Save changes' }),
+      blank: k.blankPoint({ x: 500, y: 400 }),
+      outside: k.outsidePlan({ x: 500, y: 400 }, []),
+      rest_near: k.restNear({ x: 480, y: 272, width: 100, height: 28 }, {}),
+      calendar: k.calendar(),
+      overlay_open: host ? host.matches(':popover-open') : null,
+      overlay_last: host ? host.parentElement?.lastElementChild === host : null,
+    };
+    dlg.close();
+    out.after_modal = { popups: k.popupState(), confirm: k.confirmButton(null) };
+    // Web notifications: queued for the runner (no binding here), the page's call unchanged.
+    const N = (window as unknown as { Notification?: (new (title: string, options?: unknown) => Notification) & { permission?: string } }).Notification;
+    if (N) {
+      const n1 = new N('x');
+      const n2 = new N('Build done', { body: 'All green', tag: 'b1', icon: '/icon.png' });
+      const queued = (window as unknown as { __retakeNotifications?: Array<Record<string, unknown>> }).__retakeNotifications ?? [];
+      out.notifications = {
+        name: N.name,
+        length: N.length,
+        permission: N.permission,
+        instance: n1 instanceof N && n2 instanceof N,
+        titles: [n1.title, n2.title, n2.body, n2.tag],
+        queued: queued.map((p) => ({ ...p, time: typeof p.time })),
+      };
+    } else out.notifications = 'absent';
+    return out;
+  });
+}
+
+/** Pointer input a sub-frame posts to the top document (the frame pointer relay): the cursor after each message. */
+async function framePointer(page: Page): Promise<unknown> {
+  const frame = page.mainFrame().childFrames()[0];
+  const out: unknown[] = [];
+  for (const m of [{ hello: 1 }, { __retakePtr: 1, type: 'move', x: 5, y: 6 }, { __retakePtr: 1, type: 'down', x: 7, y: 8 }, { __retakePtr: 1, type: 'up', x: 7, y: 8 }, { __retakePtr: 1, type: 'move', x: 'a', y: 1 }]) {
+    // The kit's listener was added when it installed: it runs before this one.
+    const got = page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          addEventListener('message', () => resolve((window as unknown as { __retake: { cursor: { state(): unknown } } }).__retake.cursor.state()), { once: true });
+        }),
+    );
+    await frame.evaluate((msg) => parent.postMessage(msg, '*'), m);
+    out.push({ message: m, cursor: await got });
+  }
+  return out;
+}
+
 async function snapshotOf(): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = {};
   const config = kitConfigFor(undefined, { style: 'arrow-light', size: 30, ripple_color: 'rgba(1,2,3,.4)' });
@@ -234,6 +360,8 @@ async function snapshotOf(): Promise<Record<string, unknown>> {
     listeners_before: baseFrameListeners,
   };
   out.answers = await answers(page);
+  out.more = await more(page);
+  out.frame_pointer = await framePointer(page);
   // Evaluated again in the same document: the healthy kit of the same version stays (same object).
   out.reinstall_same = await page.evaluate(`(() => { const a = window.__retake; ${kitSource(config)}; return { same: window.__retake === a, healthy: a.healthy() }; })()`);
   // Disposed, then evaluated again: a new kit carries the cursor over.

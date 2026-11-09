@@ -9,8 +9,11 @@ import { host } from './host.js';
 import { disposed } from './lifecycle.js';
 import { isPopoverOpen } from './scopes.js';
 
-/** Report what the cursor shows (icon, press, ripple) to the runner (binding `__retakeCursor`), never failing. */
-export function effect(type: 'icon' | 'press' | 'release' | 'ripple', extra: { icon?: CursorKind; x?: number; y?: number } = {}): void {
+/**
+ * Report a cursor effect (what the cursor shows: its icon, a press, a release, a ripple) to the runner (binding
+ * `__retakeCursor`, types.ts `CursorEffectPayload`), never failing.
+ */
+export function reportCursorEffect(type: 'icon' | 'press' | 'release' | 'ripple', extra: { icon?: CursorKind; x?: number; y?: number } = {}): void {
   try {
     const b = (window as unknown as Record<string, unknown>).__retakeCursor;
     if (typeof b !== 'function') return;

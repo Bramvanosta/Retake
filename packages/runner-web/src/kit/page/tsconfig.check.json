@@ -1,0 +1,6 @@
+{
+  "//": "The bridge that lets runner-web's build check the kit's modules: a project that emits must not reference one that does not (TS6310), and only a composite project may be referenced (TS6306); this one is composite, holds no file and references ./tsconfig.json (not composite, noEmit: its files, listed as this folder alone, stay its own, and src/kit/types.ts, which it reads, stays runner-web's).",
+  "compilerOptions": { "composite": true, "tsBuildInfoFile": "../../../dist/kit-page-check.tsbuildinfo" },
+  "files": [],
+  "references": [{ "path": "./tsconfig.json" }]
+}

@@ -2,13 +2,13 @@
 import type { KitApi } from '../types.js';
 import { calendar, setNativeValue } from './calendar.js';
 import { changedBoxes, watchChanges } from './changes.js';
-import { checkTargets, closest, fieldValue, focusCheck } from './checks.js';
+import { checkTargets, closest, fieldValue, focusCheck } from './target-checks.js';
 import { domClick, pointerSequence } from './clicks.js';
 import { RT } from './clock.js';
 import { config } from './config.js';
 import { cursorApi, ghost } from './cursor.js';
 import { lookCss, lookHtml } from './cursor-look.js';
-import { effectSeen, effectStop, effectWatch } from './effects.js';
+import { effectSeen, effectStop, effectWatch } from './click-effects.js';
 import { clearField, editableBody, fieldState, isTextInput, selectNative } from './fields.js';
 import { fileDrag } from './file-drag.js';
 import { inventory } from './inventory.js';
