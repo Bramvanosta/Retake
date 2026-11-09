@@ -5,7 +5,7 @@
  */
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
-import { newerFormatMessage, FORMAT_VERSIONS, relativeInside, projectPath } from '@retake/core';
+import { newerFormatMessage, FORMAT_VERSIONS, relativeInside, projectPath, projectRef } from '@retake/core';
 import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@retake/core';
 import { EngineError } from './errors.js';
 import { RUN_ID_RE, checkRunId } from './refs.js';
@@ -133,7 +133,7 @@ export interface RunStatusView extends RunSummary {
 export async function runStatus(project: LoadedProject, runId: string): Promise<RunStatusView> {
   checkRunId(runId);
   const storage = new LocalStorage(project.dir);
-  const runRef = `runs/${runId}`;
+  const runRef = projectRef('runs', runId);
   const runDir = storage.resolve(runRef);
   const { record, newer } = await readRecord(join(runDir, 'run.json'));
   if (newer) throw new EngineError('invalid', `run ${runId}: ${newer}`);

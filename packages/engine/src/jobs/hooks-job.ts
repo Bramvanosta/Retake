@@ -8,7 +8,7 @@
  * (`<scenario>:setup|teardown`) carry the sha256 of the scenario bytes submit read (`scenario_sha256`, covered by the
  * approvals' signatures): the worker reads the file once and runs those bytes only, else the job fails as `conflict`.
  */
-import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment } from '@retake/core';
+import { ENV_NAME_RE, HOOKS_SOURCE_RE, JOB_INPUT_VERSION, newRunId, resolveEnvironment, projectRef } from '@retake/core';
 import type { EnvResetJobInput, HookStep, HooksJobInput, JobApproval, WorkspaceConfig } from '@retake/core';
 import type { HookResult } from '@retake/hooks';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, takeApprovals } from '../approvals.js';
@@ -182,7 +182,7 @@ export async function executeHooksJob(ctx: HooksJobContext<HooksJobInput>): Prom
     throw new EngineError('conflict', `this hooks job does not say which version of scenarios/${scenario} was submitted: submit it again (what was approved is what runs)`);
   }
   const sel = await selectHooks(project, input.source, input.env, { projectFilesOnly: true, ...(scenario !== undefined ? { expectSha256: input.scenario_sha256 } : {}) }).catch((e: unknown) => {
-    throw scenarioChangedConflict(e, `scenarios/${scenario} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
+    throw scenarioChangedConflict(e, `${projectRef('scenarios', String(scenario))} changed since the hooks were submitted: submit them again (what was approved is what runs)`);
   });
   // Checked again on those bytes (agent trust is a rule of this process, not of the submit).
   if (sel.scenario) {

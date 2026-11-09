@@ -50,6 +50,8 @@ export default defineConfig({
       '@retake/components/kit': kit,
       '@retake/runner-web': pkg('runner-web'),
       '@retake/components': pkg('components'),
+      // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).
+      '@retake/editor/plan': fileURLToPath(new URL('./packages/editor/src/plan-entry.ts', import.meta.url)),
       '@retake/editor': pkg('editor'),
       // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),

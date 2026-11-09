@@ -103,7 +103,7 @@ export async function copyTheme(ws: WorkspaceConfig, req: { from: string; name: 
   const hashes: Record<string, string> = {};
   for (const f of files) hashes[f] = f === TEMPLATE_FILE ? sha256Hex(text) : sha256Hex(await readFile(join(source.dir, ...f.split('/'))));
   try {
-    await new ProjectStore(templatesDir, o.scope).createFolder(templatesDir, name, {
+    await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).

@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin, projectPath } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, listTemplates, locateAnchorStep, parseScenario, parseYaml, readPlainFile, scenarioBlocks, stepGuard, ffprobeBin, projectPath, scenarioRef } from '@retake/core';
 import type { FieldAt, FieldValue, LoadedProject, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { EditPlan, PlacedPin, TimelineModel } from '@retake/editor';
@@ -485,7 +485,7 @@ async function buildView(
   const pins = ed.placePins(model, pinThreads, { run_id: planned.run.id, edit: planned.edit.from });
   let editable: true | { why: string } = true;
   if (proposal) editable = { why: 'Previewing a proposal: apply it to edit' };
-  else if (file.hash === undefined) editable = { why: `scenarios/${req.scenario}.yaml is not there: nothing to switch` };
+  else if (file.hash === undefined) editable = { why: `${scenarioRef(req.scenario)} is not there: nothing to switch` };
   else if (file.blocked) editable = { why: file.blocked };
   else if (planned.edit.scenario_changed) {
     editable = {

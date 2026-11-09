@@ -6,11 +6,11 @@
  * no delete path) and never holds a value (a hook's description, message or error); the engine's writes are journaled
  * as its caller's; and no module of the repository writes an authored file around the store.
  */
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { appendFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   JOURNAL_VERSION,
   ProjectStore,
@@ -21,6 +21,7 @@ import {
   hookEntry,
   hookRunRecorder,
   journalFile,
+  journalPath,
   personScope,
   readJournal,
   sha256Hex,
@@ -75,6 +76,11 @@ describe('the project store', () => {
       outcome: 'ok',
     });
     expect(res.sha256).toBe(sha256Hex('# Acme\n'));
+    // Its surface: no storage handed out (every write goes through the store); refs of its own folder only.
+    expect('storage' in store).toBe(false);
+    expect(Object.keys(store)).not.toContain('storage');
+    expect(store.refOf(join(root, 'projects', 'acme', 'scenarios', 'q.yaml'))).toBe('scenarios/q.yaml');
+    expect(() => store.refOf(join(root, 'elsewhere.yaml'))).toThrow();
     const e = await failure(store.writeText('README.md', '# Other\n', { ifMatch: sha256Hex('stale'), what: 'readme' }));
     expect(e.code).toBe('conflict');
     expect(last()).toMatchObject({ op: 'write', what: 'readme', path: 'projects/acme/README.md', if_match: sha256Hex('stale'), outcome: 'conflict' });
@@ -144,10 +150,14 @@ describe('the workspace journal', () => {
     expect(Object.keys(journalModule).sort()).toEqual(['JOURNAL_FILES_MAX', 'JOURNAL_VERSION', 'appendJournal', 'hookEntry', 'hookRunRecorder', 'journalFile', 'journalPath', 'readJournal']);
     const src = readFileSync(join(REPO, 'packages/engine/src/store/journal.ts'), 'utf8');
     expect(src).not.toMatch(/\b(unlink|rm|truncate|ftruncate|writeFile|rename|copyFile)\b\s*\(/);
-    expect([...src.matchAll(/\bopen\(/g)]).toHaveLength(1);
-    expect(src).toContain("open(journalFile(root), 'a', 0o600)");
+    // Two opens: the writer's (append, created owner-only, never through a link, never truncating) and the reader's.
+    expect([...src.matchAll(/\bopen\(/g)]).toHaveLength(2);
+    expect(src).toContain('open(journalFile(root), APPEND_FLAGS, 0o600)');
+    expect(src).toContain("open(file, 'r')");
+    expect(src).toMatch(/APPEND_FLAGS = constants\.O_RDWR \| constants\.O_APPEND \| constants\.O_CREAT \| constants\.O_NOFOLLOW;/);
+    expect(src).not.toMatch(/O_TRUNC|'w\+?'|'r\+'/);
     // Synced before appendJournal returns (the operation replies after it).
-    expect(src).toMatch(/await fh\.write\(line\);\s*await fh\.sync\(\);/);
+    expect(src).toMatch(/await fh\.write\(head \+ line\);\s*await fh\.sync\(\);/);
     // The only module naming the journal's file (core's layout names it once).
     const naming = sourceFiles().filter((f) => /WORKSPACE_JOURNAL_FILE|['"]journal\.jsonl['"]/.test(readFileSync(f, 'utf8'))).map((f) => relative(REPO, f));
     expect(naming.sort()).toEqual(['packages/core/src/layout.ts', 'packages/engine/src/store/journal.ts']);
@@ -161,6 +171,137 @@ describe('the workspace journal', () => {
     expect((await readJournal(root, { op: 'write', limit: 2 })).map((e) => e.op)).toEqual(['folder', 'write']);
     expect((await readJournal(root, { project: 'acme' })).every((e) => e.project === 'acme')).toBe(true);
     expect(await readJournal(join(root, 'nowhere'))).toEqual([]);
+  });
+
+  it('a torn last line (no line break) is closed before the next append: only the torn line is lost', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'retake-journal-torn-'));
+    try {
+      const by = { client: 'cli', channel: 'cli', trust: 'author' } as const;
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'a', outcome: 'ok' });
+      await appendFile(journalFile(ws), '{"v":1,"op":"write","at":"2026-01-01T00:00:00.000Z","by":{},"pa');
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'b', outcome: 'ok' });
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'c', outcome: 'ok' });
+      expect((await readJournal(ws)).map((e) => (e.op === 'hook' ? '' : e.path))).toEqual(['a', 'b', 'c']);
+      expect((await readJournal(ws, { limit: 2 })).map((e) => (e.op === 'hook' ? '' : e.path))).toEqual(['b', 'c']);
+      expect(readFileSync(journalFile(ws), 'utf8').endsWith('\n')).toBe(true);
+    } finally {
+      await rm(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('never appends through a symbolic link; a failure is said at most once a minute, with the count lost', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'retake-journal-link-'));
+    const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const now = vi.spyOn(Date, 'now');
+    try {
+      await mkdir(join(ws, '.retake'), { recursive: true });
+      await writeFile(join(ws, 'elsewhere.txt'), 'kept\n');
+      await symlink(join(ws, 'elsewhere.txt'), journalFile(ws));
+      const by = { client: 'cli', channel: 'cli', trust: 'author' } as const;
+      const said = () => err.mock.calls.map((c) => String(c[0])).filter((t) => t.includes('workspace journal'));
+      const t0 = 4_000_000_000_000;
+      now.mockReturnValue(t0);
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'x', outcome: 'ok' });
+      expect(readFileSync(join(ws, 'elsewhere.txt'), 'utf8')).toBe('kept\n');
+      expect(said()).toHaveLength(1);
+      now.mockReturnValue(t0 + 30_000);
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'y', outcome: 'ok' });
+      expect(said()).toHaveLength(1);
+      now.mockReturnValue(t0 + 61_000);
+      await appendJournal(ws, { by, op: 'write', what: 'scenario', path: 'z', outcome: 'ok' });
+      expect(said()).toHaveLength(2);
+      expect(said()[1]).toContain('(2 lines lost since the last warning)');
+      expect(readFileSync(join(ws, 'elsewhere.txt'), 'utf8')).toBe('kept\n');
+    } finally {
+      err.mockRestore();
+      now.mockRestore();
+      await rm(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('a limit reads the end of the file only, and returns what a whole read would end with', async () => {
+    const ws = await mkdtemp(join(tmpdir(), 'retake-journal-tail-'));
+    try {
+      const by = { client: 'cli', channel: 'cli', trust: 'author' } as const;
+      // Over two read chunks (64 KiB): lines of two projects, a multibyte name, a foreign line among them.
+      for (let i = 0; i < 900; i++) {
+        await appendJournal(ws, { by, project: i % 3 === 0 ? 'beta' : 'acme', op: 'write', what: 'scenario', path: `scenarios/é-${i}-${'x'.repeat(60)}.yaml`, outcome: 'ok' });
+        if (i === 500) await appendFile(journalFile(ws), '{"v":99,"op":"write","at":"x"}\n');
+      }
+      expect(readFileSync(journalFile(ws)).length).toBeGreaterThan(2 * 64 * 1024);
+      const all = await readJournal(ws, { project: 'beta' });
+      for (const n of [1, 7, 150, 300, 1000]) expect(await readJournal(ws, { project: 'beta', limit: n })).toEqual(all.slice(Math.max(0, all.length - n)));
+      expect(await readJournal(ws, { limit: 0 })).toEqual([]);
+      expect(await readJournal(join(ws, 'nowhere'), { limit: 5 })).toEqual([]);
+    } finally {
+      await rm(ws, { recursive: true, force: true });
+    }
+  });
+
+  it('names a path workspace-relative however the workspace is spelt (its real path, a link), else by its store\'s label — never absolute', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'retake-journal-path-'));
+    try {
+      const ws = join(base, 'ws');
+      await mkdir(join(ws, 'projects', 'acme'), { recursive: true });
+      await symlink(ws, join(base, 'link'));
+      const real = realpathSync(ws);
+      expect(journalPath(ws, join(real, 'projects', 'acme', 'README.md'))).toBe('projects/acme/README.md');
+      expect(journalPath(real, join(ws, 'projects', 'acme', 'README.md'))).toBe('projects/acme/README.md');
+      expect(journalPath(ws, join(base, 'link', 'projects', 'new', 'x.yaml'))).toBe('projects/new/x.yaml');
+      expect(journalPath(join(base, 'link'), join(ws, 'retake.yaml'))).toBe('retake.yaml');
+      expect(journalPath(ws, ws)).toBe('.');
+      const outside = join(base, 'themes');
+      expect(journalPath(ws, join(outside, 'mine'), { label: '<templates_dir>', base: outside })).toBe('<templates_dir>/mine');
+      expect(journalPath(ws, outside, { label: '<templates_dir>', base: outside })).toBe('<templates_dir>');
+      expect(journalPath(ws, join(base, 'other', 'file.yaml'))).toBe('<outside workspace>/file.yaml');
+      expect(journalPath(ws, join(ws, '..', 'ws2', 'f'))).toBe('<outside workspace>/f');
+
+      // A store rooted at the workspace's real path (a theme edit), journaled with the workspace as it was given.
+      await new ProjectStore(real, personScope(ws)).writeText('notes.md', 'x\n', { ifMatch: null, what: 'theme' });
+      expect((await readJournal(ws)).at(-1)).toMatchObject({ path: 'notes.md', outcome: 'ok' });
+      await new ProjectStore(join(base, 'link'), personScope(ws)).writeText('notes2.md', 'x\n', { ifMatch: null, what: 'theme' });
+      expect((await readJournal(ws)).at(-1)).toMatchObject({ path: 'notes2.md', outcome: 'ok' });
+      // A project and a templates folder configured outside the workspace: their labels.
+      await mkdir(join(base, 'elsewhere', 'gamma'), { recursive: true });
+      await ProjectStore.of({ dir: join(base, 'elsewhere', 'gamma'), slug: 'gamma' }, personScope(ws)).writeText('README.md', '# G\n', { ifMatch: null, what: 'readme' });
+      expect((await readJournal(ws)).at(-1)).toMatchObject({ project: 'gamma', path: '<project>/README.md' });
+      await mkdir(outside, { recursive: true });
+      await new ProjectStore(outside, personScope(ws), undefined, '<templates_dir>').createFolder(outside, 'mine', { what: 'theme', build: async (st) => st.write('template.yaml', 'name: mine\n'), recheck: async () => ({ existing: false }) });
+      expect((await readJournal(ws)).at(-1)).toMatchObject({ op: 'folder', path: '<templates_dir>/mine', outcome: 'ok' });
+      for (const e of await readJournal(ws)) if (e.op !== 'hook') expect(e.path.startsWith('/') || /^[A-Za-z]:/.test(e.path), e.path).toBe(false);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it('a folder\'s creation lock is the same however its parent is spelt (a link, its real path)', async () => {
+    const base = await mkdtemp(join(tmpdir(), 'retake-journal-lock-'));
+    try {
+      const ws = join(base, 'ws');
+      await mkdir(join(ws, 'templates'), { recursive: true });
+      await symlink(ws, join(base, 'link'));
+      const name = 'same';
+      const seenOf = async (parent: string) => {
+        let seen: string[] = [];
+        await new ProjectStore(parent, personScope(ws)).createFolder(parent, name, {
+          what: 'theme',
+          build: async () => undefined,
+          recheck: async () => {
+            seen = (await readdir(join(ws, '.retake', 'locks'))).filter((f) => f.startsWith('create-'));
+            throw Object.assign(new Error('stop here'), { errorKind: 'conflict' });
+          },
+        }).catch(() => undefined);
+        return seen;
+      };
+      const a = await seenOf(join(ws, 'templates'));
+      const b = await seenOf(join(base, 'link', 'templates'));
+      const c = await seenOf(realpathSync(join(ws, 'templates')));
+      expect(a).toHaveLength(1);
+      expect(b).toEqual(a);
+      expect(c).toEqual(a);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
   });
 
   it('a hook line never holds a value: no description, message or error of the hook', () => {

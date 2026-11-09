@@ -67,8 +67,10 @@ export interface HookContext {
    * Called once per hook or rollback this context executed or refused — never for a dry run, nor for a hook a
    * preflight stopped before anything ran (record.ts recordHookRun): the engine journals it in the workspace journal
    * (who, which hook, its outcome; never a value). Awaited before the next hook; a failure never fails the hook.
+   * `run`: the run (or hooks journal) id of a rollback's journal, given when it is not this context's run (`retake env
+   * reset` and `retake hooks rollback` replay the journals of earlier runs).
    */
-  recordRun?: (result: HookResult) => Promise<void>;
+  recordRun?: (result: HookResult, run?: string) => Promise<void>;
   /**
    * Trust `mcp`: the names of the variables the agent wrote (a scenario's own `vars`, over project.yaml's). A hook
    * whose templates use one counts as written by the agent (RunHooksOptions.agentWritten), wherever it is declared.

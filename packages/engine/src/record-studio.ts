@@ -61,6 +61,7 @@ import {
   shownStep,
   pathInside,
   statePath,
+  PROJECT_DIRS,
 } from '@retake/core';
 import type {
   DraftIssue,
@@ -697,7 +698,7 @@ export async function recordView(ctx: RecordStudioContext, project: LoadedProjec
     stats: null,
     issues: { error: 0, warning: 0, info: 0 },
     check: null,
-    saved: ann?.saved ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash } : s.record?.saved ? { name: s.record.saved.slice('scenarios/'.length, -'.yaml'.length), file: s.record.saved } : null,
+    saved: ann?.saved ? { name: ann.saved.name, file: ann.saved.file, hash: ann.saved.hash } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null,
     warnings: s.record?.warnings ?? [],
     writes: { total: 0, by_steps: 0, ambient: 0 },
     untrusted: null,
@@ -1075,7 +1076,7 @@ export async function recordList(ctx: RecordStudioContext, project: LoadedProjec
     if (await settleDiscard(s).catch(() => false)) continue;
     if (s.state === 'missing') continue;
     const ann = 'annotations' in s.ann ? s.ann.annotations : null;
-    const saved = ann?.saved ? { name: ann.saved.name, file: ann.saved.file } : s.record?.saved ? { name: s.record.saved.slice('scenarios/'.length, -'.yaml'.length), file: s.record.saved } : null;
+    const saved = ann?.saved ? { name: ann.saved.name, file: ann.saved.file } : s.record?.saved ? { name: s.record.saved.slice(PROJECT_DIRS.scenarios.length + 1, -'.yaml'.length), file: s.record.saved } : null;
     const input = s.job?.input.kind === 'record' ? s.job.input : null;
     out.push({
       rec_id: w.id,

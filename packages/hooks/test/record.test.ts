@@ -62,6 +62,30 @@ describe('HookContext.recordRun', () => {
     expect(dry.seen).toEqual([]);
   });
 
+  it('a rollback is reported under the run whose journal it replays, not the context run (an env reset mints its own)', async () => {
+    const first = recorded();
+    const runs: Array<string | undefined> = [];
+    first.ctx.recordRun = async (_r, run) => {
+      runs.push(run);
+    };
+    const journal = await Journal.open(join(tmp.dir, 'runs/20261011-142233-catalogue/hooks-journal.json'));
+    await runHooks([step('a')], first.ctx, { phase: 'setup', journal });
+    expect(runs).toEqual([undefined]);
+    // A later command (its own id) replays that run's journal.
+    const later = makeContext(makeProject(tmp.dir, {}), { runId: '20261012-090000-env-reset' }).ctx;
+    const seen: Array<string | undefined> = [];
+    later.recordRun = async (r, run) => {
+      seen.push(`${r.phase} ${r.name} ${run}`);
+    };
+    const reopened = await Journal.open(join(tmp.dir, 'runs/20261011-142233-catalogue/hooks-journal.json'));
+    await reopened.rollbackAll(later);
+    expect(seen).toEqual(['rollback a 20261011-142233-catalogue']);
+    const standalone = await Journal.open(join(tmp.dir, '.retake/journals/20261010-080000-hooks-setup.json'));
+    await runHooks([step('s')], first.ctx, { phase: 'setup', journal: standalone });
+    await standalone.rollbackAll(later);
+    expect(seen.at(-1)).toBe('rollback s 20261010-080000-hooks-setup');
+  });
+
   it('a recorder that throws never fails the hooks', async () => {
     const { ctx } = recorded();
     ctx.recordRun = async () => {

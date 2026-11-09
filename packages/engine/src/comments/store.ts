@@ -26,10 +26,8 @@ import type { StoreScope } from '../store/project-store.js';
 import { lockHolder, takeProjectLock, toolDir } from '../project-lock.js';
 import { sha256Hex } from '../storage.js';
 
-/** Lazy: @retake/review pulls in sharp. */
-export const review = () => import('@retake/review');
-/** Lazy: @retake/editor (its planner and render records). */
-export const editor = () => import('@retake/editor');
+// The lazy @retake/review and @retake/editor (lazy.ts), for the comment modules.
+export { editor, review } from '../lazy.js';
 
 /**
  * A thread file larger than this is not read, and an entry that would make it larger is refused (500 entries of 2000

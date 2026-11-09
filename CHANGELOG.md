@@ -9,11 +9,16 @@ release — for the person about to click Install and Restart.
 ### Added
 - The workspace journal, `.retake/journal.jsonl`: every file Retake writes for you (a scenario, the README, a comment
   thread, a theme, a component, a new project, a sandbox scaffold) and every hook it runs, with who did it (you in a
-  terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake history` lists it.
+  terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
 - A sandbox scaffold (`retake sandbox init --force`) and the line it adds to project.yaml are written on the version
-  just read: a file changed in between is reported as a conflict instead of being overwritten.
+  just read: a file changed in between is reported as a conflict instead of being overwritten. `--force` over a
+  sandbox that project.yaml declares in a folder outside the project is refused (its files are not written there).
+- Two theme creations or copies of the same name at once: the second waits a moment, then is told the name is being
+  created and to try again.
+- A component scaffold (`retake components create`) and a new project (`retake new`, `project_create`) are refused
+  when one of their files appears while they are being written, instead of replacing it.
 - Claude (the MCP tools) is held to the same rules as the Studio before a job is queued: one run of a scenario at a
   time (`run_dry`, `run_capture`), one render of a scenario at a time (`render`), at most one export of a render and
   two of the workspace at once (`export`), and a capture whose persona's session is not valid and that no run signs

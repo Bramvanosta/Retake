@@ -37,8 +37,10 @@ import { editScenario, getScenario } from '../scenarios.js';
 import type { ScenarioText } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
 import { appendedThread, applyEntryOf, argError, checkIfMatch, locateThread, lockThread, readThread, threadStore } from './store.js';
-import { CommentView, renderIndex, threadView } from './views.js';
-import { CommentWritten, writeAppended } from './threads.js';
+import { renderIndex, threadView } from './views.js';
+import type { CommentView } from './views.js';
+import { writeAppended } from './threads.js';
+import type { CommentWritten } from './threads.js';
 
 // ── Proposals: apply, the diff shown, the preview (L4.6, R-UI-28) ─────────────
 

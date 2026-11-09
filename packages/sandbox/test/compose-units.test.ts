@@ -629,6 +629,39 @@ describe('the compose provider on a fake docker', () => {
     expect(killed.length).toBe(3);
   });
 
+  it('seed reports: every step at its position among all the seed steps, an exec step too (kind exec, never its command)', async () => {
+    const project = await composeProjectDir('seedreport', [
+      'services:',
+      '  app: {url: "http://localhost:47407", pages: {app: "http://localhost:47407"}}',
+      'seed:',
+      '  - {name: first, shell: "true"}',
+      '  - {name: load, exec: {service: db, command: "echo loaded"}}',
+      '  - {name: second, shell: "true"}',
+      '  - {name: third, shell: "true"}',
+      '  - {name: broken, exec: {service: db, command: "exit 4"}}',
+    ]);
+    const { exec } = fakeDocker([
+      ...READY,
+      [/ config --format json$/, ok(configJson({ app: [47407], db: [] }))],
+      [/ ps --all --format json$/, ok('')],
+      [/ exec -T .*exit 4/, { code: 4, stdout: '' }],
+      [/ exec -T /, ok('loaded\n')],
+    ]);
+    const provider = new ComposeProvider({ exec });
+    const seen: unknown[] = [];
+    const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ index: r.index, name: r.name, kind: r.kind, phase: r.phase, status: r.status, ...r }) };
+    await expect(runSeed(ctx, provider, { by: 'test', log: () => undefined })).rejects.toMatchObject({ code: 'seed', message: expect.stringContaining('seed step 5/5') });
+    expect(seen.map((r) => { const x = r as Record<string, unknown>; return `${x.index} ${x.name} ${x.kind} ${x.phase} ${x.status}`; })).toEqual([
+      '0 first shell seed ok',
+      '1 load exec seed ok',
+      '2 second shell seed ok',
+      '3 third shell seed ok',
+      '4 broken exec seed failed',
+    ]);
+    // An exec step's report carries no command text.
+    for (const r of seen.slice(1, 2).concat(seen.slice(4))) expect(JSON.stringify(r)).not.toMatch(/echo loaded|exit 4/);
+  });
+
   it('status: every compose service (the manifest\'s first), its container and docker\'s health; logs through docker compose logs', async () => {
     // health: false still probes the pages (served here).
     const { server, port } = await httpServer();

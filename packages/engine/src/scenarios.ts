@@ -26,6 +26,9 @@ import {
   verifyEditText,
   pathInside,
   projectPath,
+  projectRef,
+  scenarioFile,
+  scenarioRef,
 } from '@retake/core';
 import type { AgentChannel, AgentTrustEnvironment, LoadedProject, PositionedTrustProblem, Scenario, ScenarioEdit, Template, ValidationIssue } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
@@ -94,16 +97,16 @@ export function knownScenarioVersion(path: string, hash: string): boolean {
 }
 
 /** The file of a scenario name: scenarios/<name>.yaml, else an existing scenarios/<name>.yml. */
-function scenarioRef(project: LoadedProject, name: string): string {
-  const yml = `scenarios/${name}.yml`;
-  if (!existsSync(projectPath(project.dir, 'scenarios', `${name}.yaml`)) && existsSync(join(project.dir, yml))) return yml;
-  return `scenarios/${name}.yaml`;
+function existingScenarioRef(project: LoadedProject, name: string): string {
+  const yml = scenarioRef(name, '.yml');
+  if (!existsSync(scenarioFile(project.dir, name)) && existsSync(scenarioFile(project.dir, name, '.yml'))) return yml;
+  return scenarioRef(name);
 }
 
 export async function getScenario(project: LoadedProject, name: string): Promise<ScenarioText> {
   checkScenarioName(name);
   const storage = new LocalStorage(project.dir);
-  const ref = scenarioRef(project, name);
+  const ref = existingScenarioRef(project, name);
   const twin = caseTwin(project, ref);
   if (twin) throw new EngineError('not_found', `scenario "${name}" not found in ${project.slug}: the file is scenarios/${twin} (scenario names are case-sensitive)`);
   const read = await storage.readText(ref);
@@ -174,7 +177,7 @@ export async function validateScenarioText(
   opts: { env?: string; until?: string; name?: string; agent?: boolean; via?: AgentChannel; filesRead?: Set<string> } = {},
 ): Promise<ValidateResult> {
   if (opts.name !== undefined) checkScenarioName(opts.name);
-  const file = projectPath(project.dir, 'scenarios', `${opts.name ?? 'untitled'}.yaml`);
+  const file = scenarioFile(project.dir, opts.name ?? 'untitled');
   const { scenario, issues: parsed } = parseScenario(yaml, {
     file,
     project,
@@ -206,13 +209,13 @@ export interface SaveResult {
  */
 export async function saveScenarioText(project: LoadedProject, name: string, yaml: string, opts: { ifMatch?: string | null; agent?: boolean; via?: AgentChannel; scope: StoreScope }): Promise<SaveResult> {
   checkScenarioName(name);
-  const ref = `scenarios/${name}.yaml`;
-  if (existsSync(projectPath(project.dir, 'scenarios', `${name}.yml`))) {
-    throw new EngineError('conflict', `scenarios/${name}.yml exists: a scenarios/${name}.yaml would shadow it — rename or remove the .yml file first (by hand)`);
+  const ref = scenarioRef(name);
+  if (existsSync(scenarioFile(project.dir, name, '.yml'))) {
+    throw new EngineError('conflict', `${scenarioRef(name, '.yml')} exists: a ${ref} would shadow it — rename or remove the .yml file first (by hand)`);
   }
   const twin = caseTwin(project, ref);
   if (twin) {
-    throw new EngineError('conflict', `scenarios/${twin} exists: on this disk scenarios/${name}.yaml is the same file under another spelling — save it as "${twin.replace(/\.ya?ml$/, '')}"`);
+    throw new EngineError('conflict', `${projectRef('scenarios', twin)} exists: on this disk ${ref} is the same file under another spelling — save it as "${twin.replace(/\.ya?ml$/, '')}"`);
   }
   const store = ProjectStore.of(project, opts.scope);
   const path = store.resolve(ref);

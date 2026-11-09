@@ -6,7 +6,7 @@
  * as something it started exists.
  */
 import type { ExecStepSpec, HookTrust, LoadedProject, LoadedSandbox, SandboxProvider } from '@retake/core';
-import type { HookApprovalRequest, HookContext } from '@retake/hooks';
+import type { HookApprovalRequest } from '@retake/hooks';
 import type { SandboxPaths } from './paths.js';
 import type { SandboxState } from './state.js';
 
@@ -23,8 +23,22 @@ export interface SeedTrust {
   confirm?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
 }
 
-/** What reports each seed step run (hooks HookContext.recordRun). */
-export type SeedRecorder = NonNullable<HookContext['recordRun']>;
+/**
+ * One seed step run as it is reported: a hook step's result (hooks HookResult), or an `exec` step's (kind `exec`; its
+ * command is never part of it). `index`: the step's position among all the seed's steps (a rollback: its journal seq).
+ */
+export interface SeedRunResult {
+  index: number;
+  name?: string;
+  kind?: string;
+  phase: string;
+  status: string;
+  optional?: boolean;
+  ms?: number;
+}
+
+/** What reports each seed step run (hooks HookContext.recordRun, and each exec step). */
+export type SeedRecorder = (result: SeedRunResult, run?: string) => Promise<void>;
 
 export interface ProviderContext {
   project: LoadedProject;

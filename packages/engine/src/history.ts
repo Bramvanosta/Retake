@@ -5,6 +5,7 @@
  * captures, dry runs, renders — for the usage counters a commercial version would need (entitlements.ts) and for the
  * index a later lot builds. Best effort: a line that cannot be written never fails the work it records.
  */
+import { HISTORY_FILE } from '@retake/core';
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobClient } from '@retake/core';
@@ -56,7 +57,7 @@ export interface UsageCounts {
 }
 
 export function historyFile(root: string): string {
-  return join(stateDir(root), 'history.jsonl');
+  return join(stateDir(root), HISTORY_FILE);
 }
 
 /** Append one line (O_APPEND: lines of concurrent writers never interleave). Never throws. */

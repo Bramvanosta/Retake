@@ -22,6 +22,7 @@ import {
   writeJson,
   projectPath,
   statePath,
+  projectRef,
 } from '@retake/core';
 import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus, WorkspaceConfig } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
@@ -306,7 +307,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   // the worker parses only bytes with this hash.
   const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));
   if (req.expect_sha256 !== undefined && req.expect_sha256 !== sha) {
-    throw new EngineError('conflict', `scenarios/${prepared.scenario.name} changed since it was shown: look at it again, then start the run`, {
+    throw new EngineError('conflict', `${projectRef('scenarios', prepared.scenario.name)} changed since it was shown: look at it again, then start the run`, {
       details: { shown: req.expect_sha256, current: sha },
     });
   }
@@ -397,7 +398,7 @@ export async function executeRunJob(ctx: RunJobContext): Promise<RunJobResult> {
   try {
     // One read of the file: only bytes with the submitted hash are parsed and run (core loadScenario's expectSha256).
     const prepared = await prepareRun(ctx.ws, project, input.scenario, { dry: input.mode === 'dry', until: input.until, hooks: input.hooks, env: input.env, sandbox: input.sandbox, expectSha256: input.scenario_sha256 }).catch((e: unknown) => {
-      throw scenarioChangedConflict(e, `scenarios/${input.scenario} changed since the run was submitted: submit it again (what was checked is what runs)`);
+      throw scenarioChangedConflict(e, `${projectRef('scenarios', input.scenario)} changed since the run was submitted: submit it again (what was checked is what runs)`);
     });
     await checkWorkspaceProtection(ctx.ws, project, resolveEnvironment(project, prepared.sandboxEnv ?? input.env ?? prepared.scenario.scenario.env).name, undefined, agentChannel(input.submitted_by));
     const progress: JobProgress = { steps_done: 0, steps_total: 0, updated_at: new Date().toISOString() };

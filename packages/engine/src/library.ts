@@ -30,7 +30,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { lstat, lutimes, mkdir, readdir, rename, rm, statfs, unlink, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf, statePath } from '@retake/core';
+import { LIBRARY_PREVIEW_KEY_RE, STARTER_TEMPLATES_DIR, insideFolder, readPlainFile, realPathOf, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
 import type { LoadedTemplate, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry, JsonSchemaNode } from '@retake/components';
 import type { PreviewSamples } from '@retake/editor';
@@ -201,7 +201,7 @@ export async function libraryPreviewKey(ctx: LibraryKeyContext, id: string, kind
  */
 export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string> {
   let parent = resolve(ws.root);
-  for (const seg of ['.retake', 'cache', 'previews']) {
+  for (const seg of [STATE_DIR, STATE_DIRS.cache, 'previews']) {
     parent = join(parent, seg);
     await mkdir(parent).catch((e: NodeJS.ErrnoException) => {
       if (e.code !== 'EEXIST') throw e;
@@ -216,7 +216,7 @@ export async function ensureLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): 
 /** The cache folder when each segment is a real folder already (reads never make or follow anything), else null. */
 export async function plainLibraryCacheDir(ws: Pick<WorkspaceConfig, 'root'>): Promise<string | null> {
   let parent = resolve(ws.root);
-  for (const seg of ['.retake', 'cache', 'previews']) {
+  for (const seg of [STATE_DIR, STATE_DIRS.cache, 'previews']) {
     parent = join(parent, seg);
     const st = await lstat(parent).catch(() => null);
     if (!st?.isDirectory()) return null;

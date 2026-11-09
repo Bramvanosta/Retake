@@ -1,9 +1,10 @@
 /**
  * The bytes every authored writer puts on disk, pinned (written before the writers moved into the project store, and
  * held since): a new project, the README, a scenario saved and edited, a theme copied, a theme made from brand inputs,
- * a component scaffold, a sandbox scaffold and `retake init`'s workspace. Each folder is listed with the sha256 of each
- * file (a line naming a machine path — a component's `$schema`, the tool version of a provenance file — normalised
- * first), and the permissions of a replaced file are checked kept.
+ * a component scaffold and a sandbox scaffold (`retake init`'s workspace files are pinned beside its command, in
+ * packages/cli/test/app-bundle.test.ts). Each folder is listed with the sha256 of each file (a line naming a machine
+ * path — a component's `$schema`, the tool version of a provenance file — normalised first), and the permissions of a
+ * replaced file are checked kept.
  */
 import { createHash } from 'node:crypto';
 import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';

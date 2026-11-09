@@ -89,6 +89,11 @@ export function scenarioFile(projectDir: string, name: string, ext: '.yaml' | '.
   return projectPath(projectDir, 'scenarios', `${name}${ext}`);
 }
 
+/** The project-relative POSIX ref of a scenario (`scenarios/<name>.yaml`, or `.yml`): what storage refs hold. */
+export function scenarioRef(name: string, ext: '.yaml' | '.yml' = '.yaml'): string {
+  return projectRef('scenarios', `${name}${ext}`);
+}
+
 /** runs/<id>[/<file>…] of a project. */
 export function runPath(projectDir: string, runId: string, ...rest: string[]): string {
   return projectPath(projectDir, 'runs', runId, ...rest);

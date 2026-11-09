@@ -3,6 +3,7 @@
  * starting with the queue's `cli`). Derived by the queue for a dead worker (queue-core.ts), written by the worker that
  * saw its job process die (worker.ts) and by a job process whose worker stopped (run-job-record.ts).
  */
+import { stateRef } from '@retake/core';
 import { submittedInStudio } from '../caller.js';
 import type { JobRecord } from './types.js';
 
@@ -79,7 +80,7 @@ export function interrupted(rec: JobRecord, cli: string, why: string): JobRecord
   if (i.kind === 'record') {
     // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
     const phase = rec.progress?.phase ?? '';
-    const folder = `.retake/records/${i.rec_id}`;
+    const folder = stateRef('records', i.rec_id);
     // A recording the Studio started is never saved by its job: the person saves it from the Record screen.
     const studio = submittedInStudio(i);
     const message = studio

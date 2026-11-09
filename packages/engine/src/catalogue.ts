@@ -279,7 +279,7 @@ const ENTRIES = [
   { name: 'sandbox_down', ...PROJECT_DESTRUCTIVE("a sandbox's services, and with --volumes its data"), cli: ['sandbox down'], mcp: no('Claude starts and resets a sandbox; a person stops it'), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'sandbox_logs', ...R, cli: ['sandbox logs'], mcp: no("sandbox_status says a sandbox's state; its logs are read in a terminal"), studio: NO_SANDBOX_IN_STUDIO },
   { name: 'doctor', ...R, cli: ['doctor'], mcp: no("engine_info says what Claude needs; the machine's checks are the person's"), studio: no("the Set-up sheet shows the installed app's state (setup_status)") },
-  { name: 'history', ...R, cli: ['history'], mcp: no("the journal is the person's record of who changed what: Claude reads the files themselves"), studio: no('no Studio screen shows the journal: `retake history` in a terminal') },
+  { name: 'journal', ...R, cli: ['journal'], mcp: no("the journal is the person's record of who changed what: Claude reads the files themselves"), studio: no('no Studio screen shows the journal: `retake journal` in a terminal') },
   { name: 'schema_print', ...R, cli: ['schema'], mcp: no('each tool publishes its input schema; scenario_validate checks a scenario'), studio: no('the scenario screen\'s forms come from the same schemas (scenario_forms)') },
   { name: 'mcp_serve', ...SERVES, cli: ['mcp'], mcp: no('the MCP server itself'), studio: no('the Set-up sheet registers it with Claude (setup_claude_code_run, setup_claude_desktop_add)') },
   { name: 'studio_serve', ...SERVES, cli: ['ui'], mcp: no('the Studio is the person\'s: Claude never opens it or calls its routes'), studio: no('the Studio\'s server itself') },

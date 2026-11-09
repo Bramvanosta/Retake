@@ -11,10 +11,12 @@
  * it, under a lock of its name, once its files are written and checked (`createFolder`).
  *
  * A store is rooted at a folder (a project's, the workspace's, its templates or components folder): its refs are
- * relative to it, and nothing is written outside it. The journal is the workspace's (`scope.workspace`).
+ * relative to it, and nothing is written outside it. The journal is the workspace's (`scope.workspace`); a store whose
+ * folder is configured outside the workspace (`projects_dir`, `templates_dir`, `components_dir` elsewhere) journals its
+ * paths under its label (`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`), never an absolute path.
  */
 import { randomBytes } from 'node:crypto';
-import { copyFile, mkdir, rename, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { errorKindOf } from '@retake/core';
 import type { TakeLock } from '@retake/sandbox';
@@ -25,7 +27,7 @@ import { lockHolder, takeProjectLock } from '../project-lock.js';
 import { LocalStorage, sha256Hex, WRITE_LOCK_WAIT_MS } from '../storage.js';
 import type { WriteResult } from '../storage.js';
 import { JOURNAL_FILES_MAX, appendJournal, journalPath } from './journal.js';
-import type { JournalWhat, JournalWrite } from './journal.js';
+import type { JournalPlace, JournalWhat, JournalWrite } from './journal.js';
 
 /** Who writes, and the workspace whose journal records it. */
 export interface StoreScope {
@@ -34,8 +36,8 @@ export interface StoreScope {
 }
 
 export interface StoreWriteOptions {
-  /** A hash: the version read must still be there; null: the file must not exist; absent: no check (no lock). */
-  ifMatch?: string | null;
+  /** A hash: the version read must still be there; null: the file must not exist. Every authored write states one. */
+  ifMatch: string | null;
   /** The caller holds a lock that serialises every write of this file (a comment thread's). */
   locked?: boolean;
   what: JournalWhat;
@@ -54,15 +56,20 @@ export interface FolderStage {
 const outcomeOf = (e: unknown): string => errorKindOf(e) ?? (e instanceof EngineError ? e.code : 'internal');
 
 export class ProjectStore {
-  readonly storage: LocalStorage;
+  readonly #storage: LocalStorage;
+  /** How the journal names this store's folder when it is outside the workspace. */
+  readonly #place: JournalPlace;
 
   constructor(
     readonly root: string,
     readonly scope: StoreScope,
     /** The project's slug, journaled with each write (absent for the workspace's files). */
     readonly project?: string,
+    /** The journal's name of the folder when it is outside the workspace (default `<project>`, else `<store>`). */
+    label?: string,
   ) {
-    this.storage = new LocalStorage(root);
+    this.#storage = new LocalStorage(root);
+    this.#place = { label: label ?? (project !== undefined ? '<project>' : '<store>'), base: root };
   }
 
   /** The store of a project's folder. */
@@ -70,27 +77,32 @@ export class ProjectStore {
     return new ProjectStore(project.dir, scope, project.slug);
   }
 
-  /** The store of another folder of the workspace (the workspace itself, its templates or components folder). */
-  at(root: string): ProjectStore {
-    return new ProjectStore(root, this.scope, this.project);
+  resolve(ref: string): string {
+    return this.#storage.resolve(ref);
   }
 
-  resolve(ref: string): string {
-    return this.storage.resolve(ref);
+  /** The store-relative ref of an absolute path inside its folder (LocalStorage.refOf: refused outside it). */
+  refOf(path: string): string {
+    return this.#storage.refOf(path);
   }
 
   readText(ref: string): ReturnType<LocalStorage['readText']> {
-    return this.storage.readText(ref);
+    return this.#storage.readText(ref);
   }
 
-  /** Write one file (LocalStorage.writeText) and journal it, whatever the outcome; the journal line is synced first. */
+  /** How the journal names a path of this store (journal.ts journalPath). */
+  private journalPathOf(path: string): string {
+    return journalPath(this.scope.workspace, path, this.#place);
+  }
+
+  /** Write one file (LocalStorage.writeText), then journal it whatever the outcome: the line is on disk before this returns. */
   async writeText(ref: string, text: string, opts: StoreWriteOptions): Promise<WriteResult> {
     const { what, ...write } = opts;
-    const path = journalPath(this.scope.workspace, this.storage.resolve(ref));
-    const ifMatch = opts.ifMatch !== undefined ? { if_match: opts.ifMatch } : {};
+    const path = this.journalPathOf(this.#storage.resolve(ref));
+    const ifMatch = { if_match: opts.ifMatch };
     let res: WriteResult;
     try {
-      res = await this.storage.writeText(ref, text, write);
+      res = await this.#storage.writeText(ref, text, write);
     } catch (e) {
       await this.journal({ op: 'write', what, path, ...ifMatch, outcome: outcomeOf(e) });
       throw e;
@@ -101,7 +113,7 @@ export class ProjectStore {
 
   /** writeText of a file given by its absolute path inside the store's folder (the writer an adapter is handed). */
   writeFileAt(path: string, text: string, opts: StoreWriteOptions): Promise<WriteResult> {
-    return this.writeText(this.storage.refOf(path), text, opts);
+    return this.writeText(this.#storage.refOf(path), text, opts);
   }
 
   /**
@@ -139,7 +151,7 @@ export class ProjectStore {
         written.push(rel);
       },
     };
-    const path = journalPath(this.scope.workspace, final);
+    const path = this.journalPathOf(final);
     let old: string | undefined;
     let result: T;
     try {
@@ -175,12 +187,14 @@ export class ProjectStore {
   }
 
   /**
-   * The lock of a folder's creation: `<workspace>/.retake/locks/create-<hash of the folder>.lock`, held from the last
-   * check of the name to the rename (two creations of one name: the second finds the first's folder).
+   * The lock of a folder's creation: `<workspace>/.retake/locks/create-<hash of the folder's real path>.lock`, held from
+   * the last check of the name to the rename (two creations of one name, however their folder is spelt: the second
+   * finds the first's folder).
    */
-  private lockName(parent: string, name: string): Promise<TakeLock> {
-    const key = journalPath(this.scope.workspace, join(parent, name));
-    return takeProjectLock(this.scope.workspace, `create-${sha256Hex(key).slice(0, 24)}.lock`, {
+  private async lockName(parent: string, name: string): Promise<TakeLock> {
+    const key = this.journalPathOf(join(parent, name));
+    const real = join(await realpath(parent).catch(() => parent), name);
+    return takeProjectLock(this.scope.workspace, `create-${sha256Hex(real).slice(0, 24)}.lock`, {
       command: `create ${key}`.slice(0, 200),
       what: key,
       waitMs: WRITE_LOCK_WAIT_MS,
@@ -211,7 +225,7 @@ export function personScope(workspace: string): StoreScope {
  */
 export function fileWriter(store: ProjectStore, what: JournalWhat): (file: string, text: string, previous?: string) => Promise<void> {
   return async (file, text, previous) => {
-    const ref = store.storage.refOf(file);
+    const ref = store.refOf(file);
     const ifMatch = previous !== undefined ? sha256Hex(Buffer.from(previous, 'utf8')) : ((await store.readText(ref))?.sha256 ?? null);
     await store.writeText(ref, text, { ifMatch, what });
   };

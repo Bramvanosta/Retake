@@ -50,7 +50,7 @@ retake auth status [--project P [--env E]] [--check] [--json]   # every persona:
 retake init [dir]                                     # make a folder a workspace (retake.yaml, projects/)
 retake doctor [--project P] [--json]                  # check this machine, the workspace and a project
 retake prune <project> [--keep-renders N] [--yes] [--json]   # what runs/, renders/, review/ hold that nothing needs (--yes deletes it)
-retake history [--project P] [--writes | --hooks] [--limit N] [--json]   # the workspace journal: what Retake wrote and which hooks ran, who, when, the outcome
+retake journal [--project P] [--writes | --hooks] [--limit N] [--json]   # the workspace journal: what Retake wrote and which hooks ran, who, when, the outcome
 retake mcp [--print-config]                           # MCP server over stdio for Claude (or print its registration)
 retake mcp --http [--port N] [--rotate-token] [--json] # the same MCP server over HTTP on 127.0.0.1 (--print-config --http: its registration)
 retake ui [--port N] [--no-open] [--json]             # the Studio web app on 127.0.0.1 until Ctrl-C (Studio app)

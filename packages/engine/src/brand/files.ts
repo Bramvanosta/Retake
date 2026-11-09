@@ -26,7 +26,7 @@
  */
 import { lstat, readFile, stat } from 'node:fs/promises';
 import { extname, join, relative, resolve, sep } from 'node:path';
-import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef } from '@retake/core';
+import { BRAND_IMAGE_MAX_BYTES, BRAND_IMAGE_MIN_HEIGHT, agentWritable, brandRefSyntaxProblem, expandHome, insideFolder, printableText, realPathOf, siteRef, STATE_DIR, STATE_DIRS } from '@retake/core';
 import type { WorkspaceConfig } from '@retake/core';
 import type { CallerTrust } from '../caller.js';
 import { EngineError } from '../errors.js';
@@ -132,7 +132,7 @@ async function readSiteCandidate(ws: WorkspaceConfig, ref: string, kind: BrandFi
   if (kind === 'font') throw refused(`${what}: ${ref} is a logo candidate of a site extraction: fonts come from font files (brand/), never from a site`);
   // No link on the way either: .retake/, site/ and the extraction's folder are real folders.
   let folder = ws.root;
-  for (const seg of ['.retake', 'site', site.site_id]) {
+  for (const seg of [STATE_DIR, STATE_DIRS.site, site.site_id]) {
     folder = join(folder, seg);
     const f = await lstat(folder).catch(() => null);
     if (f && !f.isDirectory()) throw refused(`${what}: ${ref}: ${folder} is not a plain folder (a link or a file): it is never followed`);

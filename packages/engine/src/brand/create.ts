@@ -538,7 +538,7 @@ export async function createThemeFromBrand(ws: WorkspaceConfig, raw: unknown, o:
 
   let made: { dir: string; replaced: boolean };
   try {
-    made = await new ProjectStore(templatesDir, o.scope).createFolder(templatesDir, name, {
+    made = await new ProjectStore(templatesDir, o.scope, undefined, '<templates_dir>').createFolder(templatesDir, name, {
       what: 'theme',
       build: async (stage) => {
         // The provenance file first: a crash leaves a folder the next create recognises as this tool's (removeStale).

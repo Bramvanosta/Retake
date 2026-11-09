@@ -7,7 +7,7 @@
  */
 import { lstat, mkdir, realpath } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { isIsoUtcDate, printableText, pathInside } from '@retake/core';
+import { isIsoUtcDate, printableText, pathInside, STATE_DIR } from '@retake/core';
 import { TakeLock, readLock } from '@retake/sandbox';
 import type { LockRecord } from '@retake/sandbox';
 import { EngineError } from './errors.js';
@@ -42,7 +42,7 @@ async function realDir(path: string): Promise<'ok' | 'missing' | 'a symbolic lin
  */
 export async function toolDir(projectDir: string, sub: string): Promise<string> {
   let dir = projectDir;
-  for (const part of ['.retake', sub]) {
+  for (const part of [STATE_DIR, sub]) {
     dir = join(dir, part);
     let state = await realDir(dir);
     if (state === 'missing') {

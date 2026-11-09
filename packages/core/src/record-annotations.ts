@@ -9,6 +9,7 @@
  * environment variable), no control or hidden character, bounded sizes. Error messages never quote the text.
  */
 import { z } from 'zod';
+import { scenarioRef } from './layout.js';
 import { SLUG_RE } from './schemas/primitives.js';
 import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
 import { recordedAlternatives } from './recording.js';
@@ -132,7 +133,7 @@ export const RecordAnnotationsSchema = z
     /** Set by the engine's Save (the scenario it created): nothing changes after it. */
     saved: z
       .strictObject({ name: z.string().min(1).max(100).regex(SLUG_RE), file: z.string().max(140), hash: z.string().regex(/^[0-9a-f]{64}$/), at: z.string().max(40) })
-      .refine((v) => v.file === `scenarios/${v.name}.yaml`, { error: 'a saved file is scenarios/<name>.yaml' })
+      .refine((v) => v.file === scenarioRef(v.name), { error: 'a saved file is scenarios/<name>.yaml' })
       .optional(),
     /** Set by the engine's Discard while the job still ran (a draft or check phase): the folder goes once the job is over. */
     discard: z.strictObject({ at: z.string().max(40) }).optional(),

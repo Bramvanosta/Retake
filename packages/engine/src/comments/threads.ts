@@ -17,6 +17,7 @@ import {
   regionProblem,
   trustedAnchor,
   projectPath,
+  projectRef,
 } from '@retake/core';
 import type {
   CommentAuthor,
@@ -37,8 +38,10 @@ import { buildProposal } from '../comment-proposals.js';
 import type { ProposalInput } from '../comment-proposals.js';
 import { renderForWork } from '../renders.js';
 import type { StoreScope } from '../store/project-store.js';
-import { RUN_FILE_MAX_BYTES, ThreadFile, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread, review, threadStore } from './store.js';
-import { CommentView, recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
+import { RUN_FILE_MAX_BYTES, appendedThread, argError, caseVariantFolder, checkIfMatch, cleanText, commentRef, commentStillFile, locateThread, lockThread, readPlainFile, readThread, review, threadStore } from './store.js';
+import type { ThreadFile } from './store.js';
+import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
+import type { CommentView } from './views.js';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -112,7 +115,7 @@ export async function runInputs(projectDir: string, record: RenderRecord, warnin
   const out: { scenarioText?: string; timeline?: Pick<Timeline, 'markers' | 'events'> } = {};
   const yaml = await readPlainFile(join(runDir, 'scenario.yaml'), RUN_FILE_MAX_BYTES);
   if (yaml) out.scenarioText = yaml.toString('utf8');
-  else warnings.push(`runs/${record.run_id}/scenario.yaml is missing: the anchor has no step fingerprint`);
+  else warnings.push(`${projectRef('runs', record.run_id, 'scenario.yaml')} is missing: the anchor has no step fingerprint`);
   if (record.plan.markers.some((m) => m.step === undefined)) {
     const tl = await readPlainFile(join(runDir, 'timeline.json'), RUN_FILE_MAX_BYTES);
     try {
@@ -170,7 +173,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   if (!RENDER_ID_RE.test(record.id) || !SLUG_RE.test(record.scenario) || !record.id.startsWith(`${record.scenario}-v`)) {
     throw new EngineError('invalid', `render ${record.id} has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments`);
   }
-  if (!recordShapeOk(record)) throw new EngineError('refused', `renders/${record.id}.json has a scenario, created_at or variant the tool never writes: not used`);
+  if (!recordShapeOk(record)) throw new EngineError('refused', `${projectRef('renders', `${record.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
   if (req.render_created_at !== undefined && req.render_created_at !== record.created_at) {
     throw new EngineError('conflict', `render ${record.id} was replaced since it was read (another render now has its id): read the renders again`, {
       details: { current: record.created_at },
@@ -398,7 +401,7 @@ export async function resolveComment(project: LoadedProject, id: string, req: Co
       renderId = last.id;
     }
     answer = await renderForWork(project, renderId, { scenario: f.scenario });
-    if (!recordShapeOk(answer)) throw new EngineError('refused', `renders/${answer.id}.json has a scenario, created_at or variant the tool never writes: not used`);
+    if (!recordShapeOk(answer)) throw new EngineError('refused', `${projectRef('renders', `${answer.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);
   }
   return appendEntry(
     project,

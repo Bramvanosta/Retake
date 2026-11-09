@@ -222,19 +222,3 @@ export async function scenarioEnvOf(project: LoadedProject, nameOrPath: string):
   }
 }
 
-/**
- * Check a scenario before it is saved as <project>/scenarios/<name>.yaml: refused (ScenarioError carrying the issues)
- * on a bad name or an error-level issue; otherwise its file, the text to write (a final line break added) and the
- * warnings. Nothing is written: the engine's project store saves it (engine scenarios.ts saveScenarioText).
- */
-export function checkScenarioSave(project: LoadedProject, name: string, text: string): { file: string; text: string; issues: ValidationIssue[] } {
-  if (!SLUG_RE.test(name)) {
-    throw new ScenarioError(`invalid scenario name "${name}": use letters, digits, "-" or "_" (it becomes scenarios/<name>.yaml)`);
-  }
-  const file = join(scenariosDir(project), `${name}.yaml`);
-  const { issues } = parseScenario(text, { file, project });
-  if (hasErrors(issues)) {
-    throw new ScenarioError(`not saved: ${issuesMessage('scenario', issues, file)}`, issues, file);
-  }
-  return { file, text: text.endsWith('\n') ? text : `${text}\n`, issues };
-}

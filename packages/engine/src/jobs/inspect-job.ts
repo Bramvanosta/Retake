@@ -26,6 +26,7 @@ import {
   pageOrigins,
   resolveEnvironment,
   statePath,
+  projectRef,
 } from '@retake/core';
 import type { InspectJobInput, LoadedProject, LoadedScenario, RunProgress, RunRecord, TargetSpec, WorkspaceConfig } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
@@ -228,7 +229,7 @@ export async function prepareInspect(ws: WorkspaceConfig, project: LoadedProject
       ...(envArg !== undefined ? { env: envArg } : {}),
       ...(source.scenario_sha256 !== undefined ? { expectSha256: source.scenario_sha256 } : {}),
     }).catch((e: unknown) => {
-      throw scenarioChangedConflict(e, `scenarios/${source.scenario} changed since the inspection was submitted: submit it again (what was checked is what runs)`);
+      throw scenarioChangedConflict(e, `${projectRef('scenarios', source.scenario)} changed since the inspection was submitted: submit it again (what was checked is what runs)`);
     });
     const env = resolveEnvironment(project, envArg ?? prepared.scenario.scenario.env);
     const sha = prepared.scenario.sha256 ?? sha256Hex(Buffer.from(prepared.scenario.text, 'utf8'));

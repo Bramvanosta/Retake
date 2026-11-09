@@ -12,6 +12,7 @@ import {
   proposalStates,
   trustedAnchor,
   statePath,
+  scenarioRef,
 } from '@retake/core';
 import type {
   CommentAuthor,
@@ -27,7 +28,8 @@ import type { RenderRecord } from '@retake/editor';
 import { EngineError } from '../errors.js';
 import { checkScenarioName } from '../refs.js';
 import { LocalStorage } from '../storage.js';
-import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, ThreadFile, VARIANTS, argError, commentRef, commentStillFile, editor, locateThread, lstatOrNull, readThread, realDir } from './store.js';
+import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, VARIANTS, argError, commentRef, commentStillFile, editor, locateThread, lstatOrNull, readThread, realDir } from './store.js';
+import type { ThreadFile } from './store.js';
 
 // ── Views ───────────────────────────────────────────────────────────────────
 
@@ -153,7 +155,7 @@ export async function todayText(projectDir: string, scenario: string, cache: Map
   if (!p) {
     const storage = new LocalStorage(projectDir);
     p = (async () => {
-      for (const ref of [`scenarios/${scenario}.yaml`, `scenarios/${scenario}.yml`]) {
+      for (const ref of [scenarioRef(scenario), scenarioRef(scenario, '.yml')]) {
         try {
           const r = await storage.readText(ref);
           if (r) return { text: r.text, sha256: r.sha256 };

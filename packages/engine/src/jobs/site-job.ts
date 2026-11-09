@@ -43,6 +43,8 @@ import {
   siteThemeName,
   unsafeTestResolve,
   statePath,
+  STATE_DIR,
+  STATE_DIRS,
 } from '@retake/core';
 import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile, WorkspaceConfig } from '@retake/core';
 import type { SiteReport } from '@retake/runner-web';
@@ -89,7 +91,7 @@ export function newSiteId(): string {
 export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<string> {
   const dir = siteDir(ws, id);
   let parent = ws.root;
-  for (const seg of ['.retake', 'site']) {
+  for (const seg of [STATE_DIR, STATE_DIRS.site]) {
     parent = join(parent, seg);
     await mkdir(parent).catch((e: NodeJS.ErrnoException) => {
       if (e.code !== 'EEXIST') throw e;
@@ -110,7 +112,7 @@ export async function makeSiteDir(ws: WorkspaceConfig, id: string): Promise<stri
 /** Whether `.retake/`, `site/` and <id>/ are real folders (no link on the way to the extraction's files). */
 function plainSiteFolders(ws: WorkspaceConfig, id: string): boolean {
   let p = ws.root;
-  for (const seg of ['.retake', 'site', id]) {
+  for (const seg of [STATE_DIR, STATE_DIRS.site, id]) {
     p = join(p, seg);
     try {
       if (!lstatSync(p).isDirectory()) return false;

@@ -7,8 +7,8 @@ import type { CommentAddOptions, CommentListOptions, CommentWriteOptions } from 
 import { componentsCreateCommand, componentsListCommand, componentsPreviewCommand, componentsValidateCommand } from './commands/components.js';
 import type { ComponentsCreateOptions, ComponentsListOptions, ComponentsPreviewOptions, ComponentsValidateOptions } from './commands/components.js';
 import { doctorCommand } from './commands/doctor.js';
-import { historyCommand } from './commands/history.js';
-import type { HistoryOptions } from './commands/history.js';
+import { journalCommand } from './commands/journal.js';
+import type { JournalOptions } from './commands/journal.js';
 import type { DoctorOptions } from './commands/doctor.js';
 import { envResetCommand, hooksRollbackCommand, hooksRunCommand } from './commands/hooks.js';
 import type { HookCommandOptions } from './commands/hooks.js';
@@ -510,14 +510,14 @@ function buildProgram(io: Io, setExit: (code: ExitCode) => void): Command {
     .action(action((u, g, o: DoctorOptions) => doctorCommand(u, g, o)));
 
   program
-    .command('history')
+    .command('journal')
     .description('the workspace journal: each scenario, README, thread, theme or component written and each hook run — who, when, the outcome')
     .option('--project <slug>', 'only the lines of this project')
     .option('--writes', 'only the authored writes')
     .option('--hooks', 'only the hook runs')
     .option('--limit <n>', 'the newest n lines (default 50)')
     .option('--json', 'machine-readable output')
-    .action(action((u, g, o: HistoryOptions) => historyCommand(u, g, o)));
+    .action(action((u, g, o: JournalOptions) => journalCommand(u, g, o)));
 
   program
     .command('schema')

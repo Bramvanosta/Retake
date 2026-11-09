@@ -1745,23 +1745,30 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   that is a symbolic link out of the project is refused, real paths compared). Producers (runner, editor, review)
   keep writing absolute paths into their records: refs inside run.json / render.json are a format change (L3.6 /
   BL-70); the engine converts at its boundary (a run's paths are re-rooted on its current folder).
-- **Project store and workspace journal** (L6.6, engine `store/`): every authored write goes through
-  `ProjectStore` (`writeText(ref, text, {ifMatch, what})` over `LocalStorage.writeText`; `createFolder(parent, name,
-  {build, recheck})` for a folder made whole — staged as `.tmp-<name>-<random>`, renamed into place under
-  `<workspace>/.retake/locks/create-*.lock` after the last check of its name): scenarios (core `checkScenarioSave`
-  checks, the store writes), the README, comment threads, themes (create, copy, edit), component scaffolds (components
-  `createComponent` takes the store's writer), new projects (core `planNewProject` names the files), `retake init`,
-  sandbox scaffolds (sandbox `initSandbox` takes the store's writer). Each write is journaled in
-  `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer: O_APPEND, fsync before the reply, no
-  delete path) — `{v, at, by: {client, channel, trust}, project?, op: write|folder|hook, what, path, if_match?, sha256?,
-  bytes?, files?, outcome}` —, and so is every hook and rollback run (hooks `HookContext.recordRun`, set by the engine's
-  hook contexts, the run executor and the sandbox seed: `{op: 'hook', hook?, index, kind?, phase, run?, ms?,
-  outcome}`, never a description, message or error). A file of its own beside `history.jsonl`: the history's lines
-  carry `counted` for the usage counters and the index's `history` table; the journal records who changed what.
-  Persona sessions are not authored state (secrets in the Retake home) and are not journaled. `retake history` reads it.
+- **Project store and workspace journal** (L6.6, engine `store/`): every authored write goes through `ProjectStore`
+  (`writeText(ref, text, {ifMatch, what})` over `LocalStorage.writeText`, `ifMatch` always stated; `createFolder(parent,
+  name, {build, recheck})` for a folder made whole — staged as `.tmp-<name>-<random>`, renamed into place under
+  `<workspace>/.retake/locks/create-<hash of its real path>.lock` after the last check of its name): scenarios (the
+  engine's `saveScenarioText` checks, the store writes), the README, comment threads, themes (create, copy, edit),
+  component scaffolds (components `createComponent` takes the store's writer), new projects (core `planNewProject` names
+  the files), `retake init`, sandbox scaffolds (sandbox `initSandbox` takes the store's writer). Each write is journaled
+  in `<workspace>/.retake/journal.jsonl` (`store/journal.ts`, its only writer: O_APPEND, never through a link, a torn
+  last line closed first, fsync before the reply — crash-safe, not power-loss-safe on macOS —, no delete path) — `{v,
+  at, by: {client, channel, trust}, project?, op: write|folder|hook, what, path, if_match?, sha256?, bytes?, files?,
+  outcome}` —, its `path` workspace-relative (compared as given and by real paths) or, for a store configured outside
+  the workspace, its label and the path inside it (`<project>/…`, `<templates_dir>/…`, `<components_dir>/…`), never
+  absolute; and so is every hook and rollback run (hooks `HookContext.recordRun`, set by the engine's hook contexts, the
+  run executor and the sandbox seed — its exec steps too, kind `exec` —: `{op: 'hook', hook?, index, kind?, phase, run?,
+  ms?, outcome}`, never a description, message, error or command; `index` is the position among all the seed's steps, a
+  rollback's `run` the run whose hooks journal it replays). A file of its own beside `history.jsonl`: the history's
+  lines carry `counted` for the usage counters and the index's `history` table; the journal records who changed what.
+  Persona sessions are not authored state (secrets in the Retake home) and are not journaled. `retake journal` reads it
+  (with `--limit`, from the end of the file).
 - **Folder layout** (L6.6, core `layout.ts`): `PROJECT_DIRS`, `STATE_DIR`, `STATE_DIRS`, `projectPath`, `statePath`,
-  `projectRef`, `stateRef`, `scenarioFile`, `runPath`, `defaultRetakeHome`; the import-rules ratchet counts a
-  node:path `join` / `resolve` of a layout name anywhere else (`layout` entries of scripts/audit/baseline.json).
+  `projectRef`, `stateRef`, `scenarioFile`, `scenarioRef`, `runPath`, `defaultRetakeHome`, `HISTORY_FILE`,
+  `WORKSPACE_JOURNAL_FILE`; the import-rules ratchet counts a layout path spelt by hand anywhere else — a string or
+  template naming `.retake`, `history.jsonl`, `journal.jsonl` or `<layout folder>/…`, or a layout folder as a node:path
+  `join` / `resolve` argument (`layout` entries of scripts/audit/baseline.json, each file with its count).
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health

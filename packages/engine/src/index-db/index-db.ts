@@ -38,7 +38,7 @@ import { isCorruptionError, loadSqlite } from './sqlite.js';
 import type { SqliteLoader } from './sqlite.js';
 import { diffSources, runChanges, scanSources, sourceKey } from './sources.js';
 import type { RunChange, RunRow } from './sources.js';
-import { projectPath } from '@retake/core';
+import { projectPath, projectRef } from '@retake/core';
 
 /** Bumped when the tables change: an index of another schema is rebuilt. */
 export const INDEX_SCHEMA = 1;
@@ -169,7 +169,7 @@ async function readRenders(dir: string): Promise<RenderRow[]> {
   const out: RenderRow[] = [];
   for (const f of files) {
     try {
-      const text = await readSmall(dir, `renders/${f}`, RENDER_RECORD_MAX);
+      const text = await readSmall(dir, projectRef('renders', f), RENDER_RECORD_MAX);
       if (text === undefined) continue;
       const r = JSON.parse(text) as Record<string, unknown>;
       if (r?.version !== 1 || typeof r.id !== 'string') continue;

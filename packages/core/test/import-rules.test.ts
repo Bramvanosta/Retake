@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { PROJECT_DIRS, STATE_DIR } from '../src/layout.js';
+import { HISTORY_FILE, PROJECT_DIRS, STATE_DIR, WORKSPACE_JOURNAL_FILE } from '../src/layout.js';
 // @ts-expect-error — a plain .mjs script without types
 import * as lib from '../../../scripts/audit/lib.mjs';
 
@@ -203,7 +203,7 @@ describe('the import-rules ratchet', () => {
     }
   });
 
-  it('counts the hand-joined layout names outside the layout module: node:path join / resolve under any name, a literal or a template', () => {
+  it('counts the hand-written layout paths outside the layout module: a path-like string or template anywhere, a layout folder as a node:path argument', () => {
     const layout = (rel: string, text: string): string[] => lib.layoutHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: { file: string; count: number }) => `${h.file} ${h.count}`);
     const text = [
       "import { join, resolve as res, posix } from 'node:path';",
@@ -217,16 +217,31 @@ describe('the import-rules ratchet', () => {
       "posix.join(dir, 'exports');", // 6
       "np.resolve(dir, 'comments', 'x');", // 7
       "join(dir, 'hooks', 'a'), join(dir, 'assets');", // 8, 9
-      // Not counted: other names, an array's join, another module's join, a layout name that is not a path argument.
-      "join(dir, 'project.yaml'); join(dir, 'runsx'); ['runs', 'x'].join('/'); other.join('runs'); f('runs');",
+      // Anywhere, not only as a path argument: a state folder, a layout file, a folder and a slash, a template part.
+      "export const JOURNALS_DIR = '.retake/journals';", // 10
+      "for (const part of ['.retake', sub]) dir = mine(dir, part);", // 11
+      "const ref = `scenarios/${name}.yaml`;", // 12
+      'const folder = `${root}/.retake/records/${id}`;', // 13
+      "const file = mine(stateDir(root), 'history.jsonl');", // 14
+      "throw new Error(`renders/${id}.json is not a record`);", // 15
+      "const j = 'journal.jsonl';", // 16
+      // Not counted: other names, an array's join, another module's join, a bare folder word outside a path call, a
+      // URL, a module specifier.
+      "join(dir, 'project.yaml'); join(dir, 'runsx'); ['runs', 'x'].join('/'); other.join('runs'); f('runs'); mode === 'review';",
+      "fetch(`/api/projects/${slug}/runs/${id}`); const m = await import('hooks/x'); export { a } from 'runs/b';",
     ].join('\n');
-    expect(layout('packages/engine/src/a.ts', text)).toEqual(['packages/engine/src/a.ts 9']);
+    expect(layout('packages/engine/src/a.ts', text)).toEqual(['packages/engine/src/a.ts 16']);
     expect(layout('packages/core/src/layout.ts', text)).toEqual([]);
-    expect(layout('packages/engine/src/b.ts', "import { join } from 'node:path';\njoin(dir, 'scenarios-old');\n")).toEqual([]);
+    expect(layout('packages/engine/src/b.ts', "import { join } from 'node:path';\njoin(dir, 'scenarios-old');\nconst x = 'scenarios';\n")).toEqual([]);
     // The names the check looks for are the layout module's.
     expect([...lib.LAYOUT_NAMES].sort()).toEqual([...Object.values(PROJECT_DIRS), STATE_DIR].sort());
-    // A ratchet entry per file, with its count: one more join in a file is a new entry (and its old count a stale one).
-    expect(lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('layout '))).toEqual([]);
+    expect([...lib.LAYOUT_FILES].sort()).toEqual([HISTORY_FILE, WORKSPACE_JOURNAL_FILE].sort());
+    // A ratchet entry per file, with its count: one more path in a file is a new entry (and its old count a stale one).
+    const entries = lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('layout '));
+    expect(entries.length).toBeGreaterThan(0);
+    for (const e of entries) expect(e).toMatch(/^layout packages\/[\w-]+\/src\/\S+ → \d+ hand-written layout paths?$/);
+    // The engine, the hooks and the sandbox spell no layout path by hand any more (only messages of the catalogue).
+    expect(entries.filter((e: string) => /packages\/(hooks|sandbox|runner-web|cli)\//.test(e) || (/packages\/engine\//.test(e) && !e.includes('catalogue.ts')))).toEqual([]);
   });
 
   it('fails on a new entry, a stale entry, a group without a reason, and says how to update the baseline', () => {

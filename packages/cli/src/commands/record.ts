@@ -1,4 +1,4 @@
-import { isAccessError } from '@retake/core';
+import { isAccessError, scenarioRef } from '@retake/core';
 import { checkAllowWrites, recordScenario } from '@retake/engine';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
@@ -142,7 +142,7 @@ function printOutcome(ui: Ui, global: GlobalOptions, slug: string, o: RecordOutc
     );
   }
   if (o.saved) ui.ok(`saved ${o.saved.file}`);
-  else if (o.not_saved === 'name_taken') ui.warn(`scenarios/${o.name}.yaml exists: not saved — the draft is kept in the recording's folder`);
+  else if (o.not_saved === 'name_taken') ui.warn(`${scenarioRef(o.name)} exists: not saved — the draft is kept in the recording's folder`);
   else if (o.not_saved === 'invalid') ui.error('the draft does not validate: not saved (see the errors above)');
   else if (o.not_saved === 'refused') ui.error('the draft was refused: not saved');
   const k = o.check;

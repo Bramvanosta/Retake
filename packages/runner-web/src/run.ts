@@ -1684,7 +1684,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
     ...(d.via ? { via: d.via } : {}),
     ...(d.agentVars ? { agentVars: d.agentVars } : {}),
     ...(d.confirmHook ? { confirmDestructive: d.confirmHook } : {}),
-    ...(d.recordHookRun ? { recordRun: (r: HookResultLike) => d.recordHookRun!(r, d.runId) } : {}),
+    ...(d.recordHookRun ? { recordRun: (r: HookResultLike, run?: string) => d.recordHookRun!(r, run ?? d.runId) } : {}),
   };
   return { mod, journal, ctx };
 }

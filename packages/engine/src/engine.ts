@@ -6,7 +6,7 @@
  * workspace's worker runs in a process of its own.
  */
 import { hostname } from 'node:os';
-import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders } from '@retake/core';
+import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders, projectRef } from '@retake/core';
 import type { CommentAuthor, LegacyInfo, LoadedProject, RunMode, Scenario, WorkspaceConfig } from '@retake/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
@@ -749,7 +749,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
     const p = await project(slug);
     const text = await getScenario(p, name);
     const { scenario } = parseScenario(text.yaml, { file: text.path, project: p });
-    if (!scenario) throw new EngineError('invalid', `scenarios/${name} does not parse: fix it first (scenario_check lists its issues)`);
+    if (!scenario) throw new EngineError('invalid', `${projectRef('scenarios', name)} does not parse: fix it first (scenario_check lists its issues)`);
     return sessionsOf(p, name, scenario, o);
   };
   // The admission rules (admission.ts) of the runs, renders and exports this caller submits: the Studio's and MCP's,

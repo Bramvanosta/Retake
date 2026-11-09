@@ -1,8 +1,8 @@
 /**
- * `retake history`: the workspace journal (`.retake/journal.jsonl`, engine store/journal.ts) — every authored write
+ * `retake journal`: the workspace journal (`.retake/journal.jsonl`, engine store/journal.ts) — every authored write
  * (a scenario, the README, a thread, a theme, a component, a project, the workspace's own files, a sandbox scaffold) and
  * every hook run (setup, teardown, step, seed, reset, rollback), who made it (the CLI, the Studio, MCP), when, and the
- * outcome. Read only: nothing here writes, rewrites or removes the journal.
+ * outcome. Read only: nothing here writes, rewrites or removes the journal. Not the job history (`history.jsonl`).
  */
 import { printableText } from '@retake/core';
 import { readJournal } from '@retake/engine';
@@ -13,7 +13,7 @@ import type { Ui } from '../ui.js';
 import { openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 
-export interface HistoryOptions {
+export interface JournalOptions {
   project?: string;
   /** Only the authored writes. */
   writes?: boolean;
@@ -30,7 +30,7 @@ function whoText(e: JournalEntry): string {
 }
 
 /** One line of the journal: when, who, what, the outcome. Names from files (paths, hook names) printed as text only. */
-export function historyLine(e: JournalEntry): string {
+export function journalLine(e: JournalEntry): string {
   const at = typeof e.at === 'string' ? e.at.replace('T', ' ').replace(/\.\d+Z$/, 'Z') : '?';
   const txt = (s: unknown) => printableText(String(s ?? '')).slice(0, 200);
   const project = e.project !== undefined ? ` ${txt(e.project)}` : '';
@@ -42,8 +42,8 @@ export function historyLine(e: JournalEntry): string {
   return `${at}  ${whoText(e)}  ${e.op === 'folder' ? 'created' : 'wrote'} ${txt(e.what)} ${txt(e.path)}${files}  ${txt(e.outcome)}`;
 }
 
-/** `retake history [--project P] [--writes | --hooks] [--limit N] [--json]`: the newest lines of the workspace journal. */
-export async function historyCommand(ui: Ui, global: GlobalOptions, opts: HistoryOptions): Promise<ExitCode> {
+/** `retake journal [--project P] [--writes | --hooks] [--limit N] [--json]`: the newest lines of the workspace journal. */
+export async function journalCommand(ui: Ui, global: GlobalOptions, opts: JournalOptions): Promise<ExitCode> {
   const limit = opts.limit === undefined ? 50 : Number(opts.limit);
   if (!Number.isInteger(limit) || limit < 1) throw new UsageError(`--limit must be a positive whole number, got "${opts.limit}"`);
   if (opts.writes && opts.hooks) throw new UsageError('--writes and --hooks: give one of them (neither lists both)');
@@ -61,6 +61,6 @@ export async function historyCommand(ui: Ui, global: GlobalOptions, opts: Histor
     ui.line(`nothing in the workspace journal${opts.project !== undefined ? ` for ${opts.project}` : ''} yet — it records each scenario, README, thread, theme or component written and each hook run`);
     return EXIT.ok;
   }
-  for (const e of entries) ui.result(historyLine(e));
+  for (const e of entries) ui.result(journalLine(e));
   return EXIT.ok;
 }

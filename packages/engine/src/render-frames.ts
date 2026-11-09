@@ -26,7 +26,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, SLUG_RE, ffprobeBin, projectPath } from '@retake/core';
+import { RENDER_ID_RE, SLUG_RE, ffprobeBin, projectPath, PROJECT_DIRS, projectRef } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { CommentIndex, recordShapeOk, timecodeOf } from './comments.js';
@@ -250,7 +250,7 @@ export class RenderFrames {
     }
     const record = await renderForWork(project, renderId);
     if (!recordShapeOk(record) || !SLUG_RE.test(record.scenario) || !record.id.startsWith(`${record.scenario}-v`)) {
-      throw new EngineError('refused', `renders/${renderId}.json has an id, scenario, created_at or variant the tool never writes: not used`);
+      throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} has an id, scenario, created_at or variant the tool never writes: not used`);
     }
     if (createdAt !== undefined && createdAt !== record.created_at) {
       throw new EngineError('conflict', `render ${renderId} was replaced since it was read (another render now has its id): read the renders again`, {
@@ -259,24 +259,24 @@ export class RenderFrames {
     }
     const dir = projectPath(project.dir, 'renders');
     const d = await lstat(dir).catch(() => null);
-    if (!d || d.isSymbolicLink() || !d.isDirectory()) throw new EngineError('refused', 'renders/ is not a real folder of the project: its videos are not shown');
+    if (!d || d.isSymbolicLink() || !d.isDirectory()) throw new EngineError('refused', `${PROJECT_DIRS.renders}/ is not a real folder of the project: its videos are not shown`);
     const file = join(dir, `${renderId}.mp4`);
     const [realFile, realRecord] = await Promise.all([realpath(file).catch(() => null), realpath(record.file).catch(() => null)]);
-    if (!realFile || realFile !== realRecord) throw new EngineError('refused', `renders/${renderId}.json names another file than renders/${renderId}.mp4: not shown`);
+    if (!realFile || realFile !== realRecord) throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} names another file than ${projectRef('renders', `${renderId}.mp4`)}: not shown`);
     let fd: number;
     try {
       fd = openSync(file, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | fsConstants.O_NONBLOCK);
     } catch (e) {
       const code = (e as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') throw new EngineError('not_found', `the video of render ${renderId} is missing`);
-      if (code === 'ELOOP' || code === 'EMLINK' || code === 'EFTYPE') throw new EngineError('refused', `renders/${renderId}.mp4 is a symbolic link: not shown`);
-      throw new EngineError('refused', `renders/${renderId}.mp4 cannot be opened: not shown`);
+      if (code === 'ELOOP' || code === 'EMLINK' || code === 'EFTYPE') throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} is a symbolic link: not shown`);
+      throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} cannot be opened: not shown`);
     }
     try {
       const st = fstatSync(fd);
-      if (!st.isFile()) throw new EngineError('refused', `renders/${renderId}.mp4 is not a file: not shown`);
-      if (st.nlink !== 1) throw new EngineError('refused', `renders/${renderId}.mp4 has another name (a hard link): not shown`);
-      if (!stillThere(file, st)) throw new EngineError('refused', `renders/${renderId}.mp4 changed while it was opened: not shown`);
+      if (!st.isFile()) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} is not a file: not shown`);
+      if (st.nlink !== 1) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} has another name (a hard link): not shown`);
+      if (!stillThere(file, st)) throw new EngineError('refused', `${projectRef('renders', `${renderId}.mp4`)} changed while it was opened: not shown`);
       return { record, fd, file, st, sig: `${st.dev}:${st.ino}:${st.size}:${st.mtimeMs}` };
     } catch (e) {
       closeSync(fd);
@@ -290,7 +290,7 @@ export class RenderFrames {
     const st = fstatSync(fd);
     if (!st.isFile() || st.ino !== opened.st.ino || st.dev !== opened.st.dev || st.nlink !== 1) {
       closeSync(fd);
-      throw new EngineError('refused', `renders/${opened.record.id}.mp4 changed while it was read: not shown`);
+      throw new EngineError('refused', `${projectRef('renders', `${opened.record.id}.mp4`)} changed while it was read: not shown`);
     }
     return fd;
   }
@@ -323,7 +323,7 @@ export class RenderFrames {
     }
     if (!probe) throw new EngineError('invalid', `the video of render ${record.id} cannot be read (ffprobe): not shown`);
     if (typeof record.fps !== 'number' || Math.abs(record.fps - probe.fps) > 1e-3 || record.plan?.fps !== record.fps) {
-      throw new EngineError('refused', `renders/${record.id}.json says ${String(record.fps).slice(0, 20)} fps but its video holds ${probe.fps} fps: its frames cannot be told apart, not shown`);
+      throw new EngineError('refused', `${projectRef('renders', `${record.id}.json`)} says ${String(record.fps).slice(0, 20)} fps but its video holds ${probe.fps} fps: its frames cannot be told apart, not shown`);
     }
     // A frame is found by its time (F − 0.5) / fps: only a video that starts at 0 with a constant frame rate maps times
     // to frame numbers the way the still's frame select does (review B L4; a hand-replaced mp4).

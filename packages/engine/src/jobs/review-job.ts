@@ -19,8 +19,9 @@ import { editor } from './render-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, ReviewJobResult } from './types.js';
 
-/** Lazy: @retake/review pulls in sharp and the editor. */
-export const review = () => import('@retake/review');
+// The lazy @retake/review (lazy.ts), re-exported for the modules that import it from here.
+import { review } from '../lazy.js';
+export { review };
 
 export interface ReviewRequest {
   project: string;

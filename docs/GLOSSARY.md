@@ -41,7 +41,8 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | facet · effect | — | what the catalogue says an operation does: its **effect** (`read`, `write` or `destructive`: removes or replaces data as its purpose, or in one of its cases, without an `if_match` on the version read — and says what, `removes`; a run's hooks or sandbox reset are its code, not its effect), whether it is queued as a job, whose code it runs (`project`: hooks, sandbox commands; `workspace`: components and themes rendered), whether it serves other operations (a server, the worker); the MCP tools' read-only and destructive hints are its effect | `kind` (the catalogue's single field before the facets) |
 | admission rule | — | a check the engine makes before it queues a job for the Studio or MCP: one run of a scenario at a time, one render of a scenario at a time, the acknowledgement of personas whose session is not valid, at most one export of a render and two of the workspace at once; each holds within one process, and its refusal is worded for the channel (the Studio's words, else the glossary's) | — |
 | caller | — | who drives the engine — its client (`cli`, `mcp`, `ui` for the Studio, `test`), the channel it speaks through (`cli`, `studio`, `mcp`) and the trust its work gets (`author`: a person at a terminal; `mcp`: an agent or a page); every decision the engine and the Studio's server take from who calls or who submitted a job is in one policy module (`packages/engine/src/caller.ts`) | `EngineClient`, `JobClient` (`submitted_by`), `AgentChannel`, `HookTrust`, `PlanTrust`, `BrandTrust` |
-| workspace journal | — | `<workspace>/.retake/journal.jsonl`: every authored write Retake made and every hook run, who made it, when, the outcome (`retake history`) | — |
+| workspace journal | — | `<workspace>/.retake/journal.jsonl`: every authored write Retake made and every hook run, who made it, when, the outcome (`retake journal`) | — |
+| project store · authored write | — | the one writer of what a person authors (scenarios, the README, threads, themes, components, new projects, the workspace's files, sandbox scaffolds): each write states the version it was made on (`if_match`: a hash, or none for a new file), takes its lock and is journaled (`packages/engine/src/store/project-store.ts`, `ProjectStore`); generated outputs (runs, renders, reviews, exports) and machine state (`.retake/`) are not authored writes | — |
 | the Studio | — | the web app of a workspace (`retake ui`) and the desktop app around it | — |
 
 ## Homonyms
@@ -63,7 +64,8 @@ Each of these words has several meanings: say which one (the qualified form on t
   scenarios and hooks.
 - **journal** — always qualified: the *workspace journal* (`.retake/journal.jsonl`: who wrote what, which hooks ran),
   a *hooks journal* (the rollbacks a run's hooks left to replay: `runs/<id>/hooks-journal.json`,
-  `.retake/journals/<id>.json`). The job *history* (`history.jsonl`) is neither: it counts what was produced.
+  `.retake/journals/<id>.json`). The job *history* (`history.jsonl`) is neither: it counts what was produced. `retake
+  journal` reads the workspace journal; no command is named after the history.
 - **kind** — always qualified: a *job kind* (`run`, `render`, `export`…: `JobRecord.kind`), a *component kind*
   (`overlay`, `transition`…), an *error kind* (`invalid`, `conflict`…: what a client outside the CLI is told), a
   *blocker kind* (which gate refuses a run). An operation has no kind: it has facets (its effect, job, code).

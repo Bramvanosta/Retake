@@ -6,14 +6,18 @@
  *
  * A file of its own beside the job history (`history.jsonl`): the history counts what was produced (its lines carry
  * `counted`, read by the usage counters and the index's `history` table), the journal records who changed what — mixing
- * them would change both readers. Append-only: each line is appended (O_APPEND) and synced to disk before the operation
- * that wrote it replies; nothing in Retake truncates, rewrites or removes the file (`retake prune` leaves it alone).
+ * them would change both readers. Append-only: each line is appended (O_APPEND, never through a symbolic link) and synced
+ * to disk before the operation that wrote it replies; nothing in Retake truncates, rewrites or removes the file (`retake
+ * prune` leaves it alone). A last line left torn (no line break: a crash mid-write) is closed before the next one, so
+ * only the torn line is lost. Synced with fsync: a line survives a crash of Retake or of the system, not a power loss on
+ * macOS (its fsync does not flush the drive's cache; F_FULLFSYNC would, at a cost every write would pay).
  * A line that cannot be written never fails the work it records (that work is done: failing its reply would make a
- * client retry a write already made): the failure is said once on stderr.
+ * client retry a write already made): the failure is said on stderr, at most once a minute with the count lost since.
  */
-import { mkdir, open, readFile } from 'node:fs/promises';
-import { isAbsolute, relative, sep } from 'node:path';
-import { STATE_DIR, WORKSPACE_JOURNAL_FILE, pathInside, statePath } from '@retake/core';
+import { existsSync, realpathSync } from 'node:fs';
+import { constants, mkdir, open, readFile } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { STATE_DIR, WORKSPACE_JOURNAL_FILE, relativeInside, statePath } from '@retake/core';
 import type { Caller } from '../caller.js';
 
 export const JOURNAL_VERSION = 1;
@@ -41,7 +45,11 @@ interface EntryBase {
 export interface JournalWrite extends EntryBase {
   op: 'write' | 'folder';
   what: JournalWhat;
-  /** The file or folder: workspace-relative POSIX when inside the workspace, else absolute. */
+  /**
+   * The file or folder: workspace-relative POSIX when inside the workspace (its real path or the one given), else its
+   * store's label and the path inside that store (`<project>/scenarios/quote.yaml`, `<templates_dir>/mine`) — never an
+   * absolute path (journalPath).
+   */
   path: string;
   /** The hash the write was made on (`if_match`): a hash, null (must not exist) or absent (no check). */
   if_match?: string | null;
@@ -53,7 +61,10 @@ export interface JournalWrite extends EntryBase {
   files_more?: number;
 }
 
-/** A hook run: one hook or one rollback executed (a dry run executes none, and journals none). */
+/**
+ * A hook run: one hook or one rollback executed (or refused). A dry run's hooks (`dry` results) are journaled none;
+ * hooks a dry run really executes (`retake run --dry --hooks run`) are.
+ */
 export interface JournalHook extends EntryBase {
   op: 'hook';
   /** The hook's name, when it has one. */
@@ -77,36 +88,104 @@ export function journalFile(root: string): string {
   return statePath(root, undefined, WORKSPACE_JOURNAL_FILE);
 }
 
-/** A path as the journal names it: workspace-relative POSIX when inside the workspace, else absolute. */
-export function journalPath(root: string, path: string): string {
-  if (!isAbsolute(path) || !pathInside(path, root, { self: true })) return path;
-  const rel = relative(root, path);
-  return rel === '' ? '.' : rel.split(sep).join('/');
+/** Where a store outside the workspace is (a projects, templates or components folder configured elsewhere). */
+export interface JournalPlace {
+  /** How the journal names it: `<project>`, `<templates_dir>`, `<components_dir>`… */
+  label: string;
+  /** Its folder. */
+  base: string;
 }
 
-let warned = false;
+/** A path's real spelling: its deepest existing folder resolved (symbolic links, /var → /private/var), the rest kept. */
+function realSpelling(p: string): string {
+  let head = p;
+  const rest: string[] = [];
+  while (!existsSync(head)) {
+    const up = dirname(head);
+    if (up === head) return p;
+    rest.unshift(basename(head));
+    head = up;
+  }
+  try {
+    return join(realpathSync.native(head), ...rest);
+  } catch {
+    return p;
+  }
+}
+
+/** `path` relative to `base` (POSIX, `.` for itself), compared as given and by real paths; undefined when outside. */
+function relativeTo(base: string, path: string): string | undefined {
+  const bases = [base, realSpelling(base)];
+  const paths = [path, realSpelling(path)];
+  for (const b of bases) {
+    for (const q of paths) {
+      const rel = relativeInside(q, b, { self: true });
+      if (rel !== undefined) return rel === '' ? '.' : rel.split(sep).join('/');
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A path as the journal names it: workspace-relative POSIX when inside the workspace — compared as given and by real
+ * paths, so a store rooted at the workspace's real path (theme edits) or a link to it reads the same — else, for a store
+ * configured outside the workspace, its label and the path inside it (`<templates_dir>/mine`), else
+ * `<outside workspace>/<name>`. Never an absolute path (the journal travels with the workspace). A relative `path` is
+ * kept as it is.
+ */
+export function journalPath(root: string, path: string, outside?: JournalPlace): string {
+  if (!isAbsolute(path)) return path;
+  const inWorkspace = relativeTo(root, path);
+  if (inWorkspace !== undefined) return inWorkspace;
+  const inPlace = outside ? relativeTo(outside.base, path) : undefined;
+  if (outside && inPlace !== undefined) return inPlace === '.' ? outside.label : `${outside.label}/${inPlace}`;
+  return `<outside workspace>/${basename(path)}`;
+}
+
+/** How often a journal that cannot be written is said on stderr. */
+const WARN_EVERY_MS = 60_000;
+let lastWarn = Number.NEGATIVE_INFINITY;
+let lost = 0;
+
+function warnLost(e: unknown): void {
+  lost++;
+  const now = Date.now();
+  if (now - lastWarn < WARN_EVERY_MS) return;
+  lastWarn = now;
+  const count = lost === 1 ? '' : ` (${lost} lines lost since the last warning)`;
+  lost = 0;
+  process.stderr.write(`retake: the workspace journal (${STATE_DIR}/${WORKSPACE_JOURNAL_FILE}) could not be written${count}: ${(e as Error).message}\n`);
+}
+
+/** Appending only, created owner-only, never through a symbolic link; read too, for its last byte. */
+const APPEND_FLAGS = constants.O_RDWR | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW;
 
 /**
  * Append one line and sync it to disk before returning (the operation replies after this). The state folder is
- * created when missing. Never throws: a failure is said once on stderr.
+ * created when missing; a torn last line (no line break) is closed first. Never throws: a failure is said on stderr.
  */
 export async function appendJournal(root: string, entry: Omit<JournalWrite, 'v' | 'at'> | Omit<JournalHook, 'v' | 'at'>): Promise<void> {
   const line = `${JSON.stringify({ v: JOURNAL_VERSION, at: new Date().toISOString(), ...entry })}\n`;
   try {
     await mkdir(statePath(root), { recursive: true });
-    // O_APPEND: lines of concurrent writers never interleave; the file is never opened for anything but appending.
-    const fh = await open(journalFile(root), 'a', 0o600);
+    // O_APPEND: lines of concurrent writers never interleave; the file is opened to append (and read its last byte),
+    // never to truncate. A concurrent writer may close a torn line too: an empty line is skipped by readJournal.
+    const fh = await open(journalFile(root), APPEND_FLAGS, 0o600);
     try {
-      await fh.write(line);
+      const { size } = await fh.stat();
+      let head = '';
+      if (size > 0) {
+        const last = Buffer.alloc(1);
+        await fh.read(last, 0, 1, size - 1);
+        if (last[0] !== 0x0a) head = '\n';
+      }
+      await fh.write(head + line);
       await fh.sync();
     } finally {
       await fh.close();
     }
   } catch (e) {
-    if (!warned) {
-      warned = true;
-      process.stderr.write(`retake: the workspace journal (${STATE_DIR}/${WORKSPACE_JOURNAL_FILE}) could not be written: ${(e as Error).message}\n`);
-    }
+    warnLost(e);
   }
 }
 
@@ -153,28 +232,82 @@ export interface JournalQuery {
   limit?: number;
 }
 
-/** The journal's lines, oldest first (a torn, foreign or newer-version line is skipped); [] when there is none. */
+/** One line as an entry when it is one of this version that passes the query, else undefined. */
+function entryOf(line: string, q: JournalQuery): JournalEntry | undefined {
+  if (!line.trim()) return undefined;
+  let e: Partial<JournalEntry>;
+  try {
+    e = JSON.parse(line) as Partial<JournalEntry>;
+  } catch {
+    return undefined;
+  }
+  if (e === null || typeof e !== 'object' || e.v !== JOURNAL_VERSION || typeof e.op !== 'string' || typeof e.at !== 'string') return undefined;
+  if (q.project !== undefined && e.project !== q.project) return undefined;
+  if (q.op === 'hook' && e.op !== 'hook') return undefined;
+  if (q.op === 'write' && e.op === 'hook') return undefined;
+  return e as JournalEntry;
+}
+
+/** The bytes read at a time from the end of the journal (readJournal with a limit). */
+const TAIL_CHUNK = 64 * 1024;
+
+/** The file's lines, newest first, read backwards a chunk at a time (a line break is one byte in UTF-8). */
+async function* linesFromEnd(file: string): AsyncGenerator<string> {
+  const fh = await open(file, 'r');
+  try {
+    let pos = (await fh.stat()).size;
+    let carry = Buffer.alloc(0);
+    while (pos > 0) {
+      const n = Math.min(TAIL_CHUNK, pos);
+      pos -= n;
+      const chunk = Buffer.alloc(n);
+      await fh.read(chunk, 0, n, pos);
+      const data = carry.length ? Buffer.concat([chunk, carry]) : chunk;
+      let end = data.length;
+      for (let i = data.length - 1; i >= 0; i--) {
+        if (data[i] !== 0x0a) continue;
+        if (end > i + 1) yield data.subarray(i + 1, end).toString('utf8');
+        end = i;
+      }
+      carry = data.subarray(0, end);
+    }
+    if (carry.length) yield carry.toString('utf8');
+  } finally {
+    await fh.close();
+  }
+}
+
+/**
+ * The journal's lines, oldest first (a torn, foreign or newer-version line is skipped); [] when there is none. With a
+ * `limit`, only the end of the file is read, back to the last `limit` lines that pass the filters.
+ */
 export async function readJournal(root: string, q: JournalQuery = {}): Promise<JournalEntry[]> {
+  const file = journalFile(root);
+  if (q.limit !== undefined && q.limit >= 0) {
+    const out: JournalEntry[] = [];
+    if (q.limit === 0) return out;
+    try {
+      for await (const line of linesFromEnd(file)) {
+        const e = entryOf(line, q);
+        if (!e) continue;
+        out.push(e);
+        if (out.length >= q.limit) break;
+      }
+    } catch {
+      return [];
+    }
+    return out.reverse();
+  }
   let text: string;
   try {
-    text = await readFile(journalFile(root), 'utf8');
+    text = await readFile(file, 'utf8');
   } catch {
     return [];
   }
   const out: JournalEntry[] = [];
   for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
-    let e: Partial<JournalEntry>;
-    try {
-      e = JSON.parse(line) as Partial<JournalEntry>;
-    } catch {
-      continue;
-    }
-    if (e === null || typeof e !== 'object' || e.v !== JOURNAL_VERSION || typeof e.op !== 'string' || typeof e.at !== 'string') continue;
-    if (q.project !== undefined && e.project !== q.project) continue;
-    if (q.op === 'hook' && e.op !== 'hook') continue;
-    if (q.op === 'write' && e.op === 'hook') continue;
-    out.push(e as JournalEntry);
+    const e = entryOf(line, q);
+    if (e) out.push(e);
   }
-  return q.limit !== undefined && q.limit >= 0 ? out.slice(Math.max(0, out.length - q.limit)) : out;
+  return out;
 }

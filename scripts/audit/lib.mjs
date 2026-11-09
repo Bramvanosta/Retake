@@ -130,7 +130,8 @@ export const RULES = [
   { id: 'R4', title: 'shells call the application only (no direct adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)) },
   { id: 'R5', title: 'the Studio front end imports types only from other packages (checked: any @retake value import, re-export, side-effect import or import() in src/app)', files: (f) => f.startsWith('packages/ui/src/app/'), bad: (s) => !!retake(s), typeOnlyCheck: true },
   { id: 'R6', title: 'shells do not touch the file system / processes themselves', files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)), bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) },
-  { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules)', files: (f) => /packages\/editor\/src\/(plan|plan-types|timing|camera|layout|panes|timeline|resolve|tutorial|summary)\.ts$/.test(f) || /packages\/review\/src\/(checks|pixel-checks|spans|timeline|anchor|diff)\.ts$/.test(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
+  { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules)', files: (f) => /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) || /packages\/review\/src\/(checks|pixel-checks|spans|timeline|anchor|diff)\.ts$/.test(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
+  { id: 'R8', title: 'the review imports the editor only through its planner entry (@retake/editor/plan: no renderer, no Remotion)', files: (f) => pkgOf(f) === 'review', bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan' },
 ];
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
@@ -138,7 +139,7 @@ export const CHECKS = [
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'setter', title: 'the process-wide setters (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) are used by packages/engine/src/workspace.ts only' },
-  { id: 'layout', title: 'the folder layout of a workspace and its projects is joined in packages/core/src/layout.ts only (entries: each file and how many `join(…)` / `resolve(…)` calls of node:path name a layout folder in it)' },
+  { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
 ];
 
 function parse(ts, rel, text) {
@@ -321,21 +322,32 @@ export function wiringHits(root, files) {
 
 /** The folder names of the layout (packages/core/src/layout.ts PROJECT_DIRS and STATE_DIR; the import-rules test checks they agree). */
 export const LAYOUT_NAMES = ['scenarios', 'hooks', 'assets', 'comments', 'runs', 'renders', 'review', 'exports', '.retake'];
+/** The workspace files the layout names (layout.ts HISTORY_FILE, WORKSPACE_JOURNAL_FILE). */
+export const LAYOUT_FILES = ['history.jsonl', 'journal.jsonl'];
 export const LAYOUT_HOME = 'packages/core/src/layout.ts';
 const PATH_MODULES = new Set(['path', 'node:path', 'path/posix', 'node:path/posix']);
+/** Names that are a path wherever they are written (no word of the tool's other vocabularies). */
+const LAYOUT_ALWAYS = ['.retake', ...LAYOUT_FILES];
 
 /**
- * The hand-joined layout names, read from the syntax tree: outside packages/core/src/layout.ts, each argument of a
- * node:path `join` / `resolve` call (under its own name, an import alias, `path.join`, `path.posix.join`, `posix.join`)
- * that is a string naming a layout folder (LAYOUT_NAMES) or starting with one (`'runs/x'`, `` `runs/${id}` ``).
- * `[{ file, count, lines }]` (the line of each), files with none left out.
+ * The hand-written layout names, read from the syntax tree, outside packages/core/src/layout.ts:
+ * - anywhere, a string or template that is a layout path — `.retake` or a layout file name (`'.retake'`,
+ *   `'history.jsonl'`), or text starting with a layout folder and a slash (`'runs/x'`, `` `scenarios/${name}.yaml` ``,
+ *   `'.retake/journals'`, a message naming `renders/<id>.json` too) — or a template part continuing a path with one
+ *   (`` `${dir}/.retake/jobs` ``);
+ * - each argument of a node:path `join` / `resolve` call (under its own name, an import alias, `path.join`,
+ *   `path.posix.join`, `posix.join`) that is a string naming a layout folder (`join(dir, 'runs')`).
+ * A module specifier is not counted; a string is counted once. `[{ file, count, lines }]` (the line of each), files
+ * with none left out.
  */
 export function layoutHits(root, files) {
   const ts = loadTs(root);
   const out = [];
-  const names = (t) => LAYOUT_NAMES.some((n) => t === n || t.startsWith(`${n}/`));
+  const folderName = (t) => LAYOUT_NAMES.some((n) => t === n || t.startsWith(`${n}/`));
+  const pathText = (t) => LAYOUT_ALWAYS.some((n) => t === n || t.startsWith(`${n}/`)) || LAYOUT_NAMES.some((n) => t.startsWith(`${n}/`));
+  const pathPart = (t) => LAYOUT_ALWAYS.some((n) => t === `/${n}` || t.startsWith(`/${n}/`));
   for (const { rel, text } of files) {
-    if (rel === LAYOUT_HOME || !LAYOUT_NAMES.some((n) => text.includes(`'${n}`) || text.includes(`"${n}`) || text.includes(`\`${n}`))) continue;
+    if (rel === LAYOUT_HOME || ![...LAYOUT_NAMES, ...LAYOUT_FILES].some((n) => text.includes(n))) continue;
     const sf = parse(ts, rel, text);
     const fns = new Map(); // local name → join | resolve
     const spaces = new Set(); // local names of the path module (or its posix / win32 parts)
@@ -355,16 +367,20 @@ export function layoutHits(root, files) {
     });
     const isSpace = (e) => (ts.isIdentifier(e) && spaces.has(e.text)) || (ts.isPropertyAccessExpression(e) && ['posix', 'win32'].includes(e.name.text) && isSpace(e.expression));
     const isPathCall = (callee) => (ts.isIdentifier(callee) && fns.has(callee.text)) || (ts.isPropertyAccessExpression(callee) && ['join', 'resolve'].includes(callee.name.text) && isSpace(callee.expression));
-    const lines = [];
+    const isSpecifier = (n) => n.parent && (ts.isImportDeclaration(n.parent) || ts.isExportDeclaration(n.parent) || ts.isExternalModuleReference(n.parent) || (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) || ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent));
+    const hit = new Set();
     (function visit(n) {
       if (ts.isCallExpression(n) && isPathCall(n.expression)) {
         for (const a of n.arguments) {
           const t = literal(ts, a) ?? (ts.isTemplateExpression(a) ? a.head.text : undefined);
-          if (t !== undefined && names(t)) lines.push(sf.getLineAndCharacterOfPosition(a.getStart(sf)).line + 1);
+          if (t !== undefined && folderName(t)) hit.add(a);
         }
       }
+      if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && !isSpecifier(n) && pathText(n.text)) hit.add(n);
+      if (ts.isTemplateExpression(n) && (pathText(n.head.text) || n.templateSpans.some((sp) => pathPart(sp.literal.text)))) hit.add(n);
       n.forEachChild(visit);
     })(sf);
+    const lines = [...hit].map((a) => sf.getLineAndCharacterOfPosition(a.getStart(sf)).line + 1).sort((x, y) => x - y);
     if (lines.length) out.push({ file: rel, count: lines.length, lines });
   }
   return out;
@@ -377,7 +393,7 @@ export function layoutHits(root, files) {
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
-  for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-joined layout name${h.count === 1 ? '' : 's'}`);
+  for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   const graph = fileGraph(scanned.fileImports);
   for (const c of cycles(graph).map((x) => x.sort())) {
     for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);

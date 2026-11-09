@@ -169,7 +169,19 @@ export async function runSeed(
   // sees a batch between exec steps: its index is moved to the seed's).
   let offset = 0;
   const trust = pctx.seedTrust;
-  if (pctx.recordSeedRun) ctx.recordRun = pctx.recordSeedRun;
+  const record = pctx.recordSeedRun;
+  // runHooks numbers a batch's steps from 0: reported at their position among ALL the seed steps (a rollback keeps its
+  // journal seq).
+  if (record) ctx.recordRun = (r, run) => record(r.phase === 'rollback' ? r : { ...r, index: offset + r.index }, run);
+  /** An exec step run, reported like a hook step (never its command); best effort, like recordHookRun. */
+  const recordExec = async (step: SeedStep, index: number, status: string, ms: number) => {
+    if (!record) return;
+    try {
+      await record({ index, ...(step.name !== undefined ? { name: step.name } : {}), kind: 'exec', phase: 'seed', status, ...(step.optional ? { optional: true } : {}), ms });
+    } catch {
+      // the step ran: its report is best effort
+    }
+  };
   if (trust?.trust === 'mcp') {
     ctx.trust = 'mcp';
     const confirm = trust.confirm;
@@ -204,13 +216,18 @@ export async function runSeed(
     if ('exec' in step) {
       await flush();
       if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec seed steps need provider docker-compose`, 'seed');
+      const t1 = Date.now();
       try {
         await provider.exec(pctx, step.exec);
       } catch (e) {
+        const refused = e instanceof SandboxError && e.code === 'seed';
+        const isInterrupt = e instanceof SandboxError && e.code === 'interrupted';
+        await recordExec(step, done, isInterrupt ? 'interrupted' : refused ? 'refused' : 'failed', Date.now() - t1);
         // Ctrl-C stays an interrupt (exit 130), not a failed seed.
-        if (e instanceof SandboxError && e.code === 'interrupted') throw e;
-        throw new SandboxError(`sandbox ${sandbox.env}: seed step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${e instanceof SandboxError && e.code === 'seed' ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
+        if (isInterrupt) throw e;
+        throw new SandboxError(`sandbox ${sandbox.env}: seed step ${done + 1}/${steps.length} (exec in ${step.exec.service}) ${refused ? 'was refused' : 'failed'}: ${errorMessage(e)}`, 'seed');
       }
+      await recordExec(step, done, 'ok', Date.now() - t1);
       done++;
       continue;
     }

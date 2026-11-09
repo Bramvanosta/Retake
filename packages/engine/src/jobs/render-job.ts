@@ -18,7 +18,7 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath, projectRef } from '@retake/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
@@ -35,8 +35,9 @@ import type { JobFileRead } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
-/** Lazy: @retake/editor pulls in Remotion's renderer and bundler. */
-export const editor = () => import('@retake/editor');
+// The lazy @retake/editor (lazy.ts), re-exported for the modules that import it from here.
+import { editor } from '../lazy.js';
+export { editor };
 
 export interface RenderRequest {
   project: string;
@@ -171,7 +172,7 @@ async function checkShownEdit(project: LoadedProject, scenario: string, planned:
     );
   }
   if (now !== shown) {
-    throw new EngineError('conflict', `scenarios/${scenario} changed since it was shown: look at the timeline again, then render`, {
+    throw new EngineError('conflict', `${projectRef('scenarios', scenario)} changed since it was shown: look at the timeline again, then render`, {
       details: { shown, ...(now !== undefined ? { current: now } : {}) },
     });
   }

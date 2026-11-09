@@ -231,7 +231,7 @@ export async function componentCreate(ws: WorkspaceConfig, req: ComponentCreateR
  * rooted at the workspace's components folder (`if_match` null: never over a file), journaled as the caller's.
  */
 export function componentWriter(ws: Pick<WorkspaceConfig, 'componentsDir'>, scope: StoreScope): (file: string, text: string) => Promise<void> {
-  const store = new ProjectStore(ws.componentsDir, scope);
+  const store = new ProjectStore(ws.componentsDir, scope, undefined, '<components_dir>');
   return async (file, text) => {
     await store.writeFileAt(file, text, { ifMatch: null, what: 'component' });
   };
