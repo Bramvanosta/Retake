@@ -18,7 +18,7 @@ import { openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName } from './refs.js';
 import { renderForWork } from './renders.js';
 import { review } from './jobs/review-job.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueue } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord } from './jobs/types.js';
 
@@ -91,7 +91,7 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : und
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
 
 /** Read a review (report.json, as data) and its newest job. `latest`: the review of the newest render (of `scenario`). */
-export async function reviewGet(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
+export async function reviewGet(ws: WorkspaceConfig, queue: JobQueue, slug: string, renderIdArg: string, o: { scenario?: string; images?: ReviewImagesMode } = {}): Promise<ReviewView> {
   checkProjectSlug(slug);
   if (o.scenario !== undefined) checkScenarioName(o.scenario);
   const project = await openProjectBySlug(ws, slug);

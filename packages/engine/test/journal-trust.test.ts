@@ -170,8 +170,8 @@ describe('approvals are bound to their job (L5.14)', () => {
     const sub = await engine.hooks.submit({ project: 'w', source: 'hooks/mark.yaml', dry: false }, accept);
     const original = (await queue.stored(sub.job.id))!;
     const copyId = `j_${ulid()}`;
-    await mkdir(queue.jobDir(copyId), { recursive: true });
-    await writeFile(join(queue.jobDir(copyId), 'job.json'), JSON.stringify({ ...original, id: copyId }));
+    await mkdir(queue.files.job(copyId), { recursive: true });
+    await writeFile(join(queue.files.job(copyId), 'job.json'), JSON.stringify({ ...original, id: copyId }));
     expect(await work()).toBe(0);
     expect((await queue.stored(sub.job.id))?.state).toBe('succeeded');
     const copy = (await queue.stored(copyId))!;
@@ -179,9 +179,9 @@ describe('approvals are bound to their job (L5.14)', () => {
     expect(JSON.stringify(await queue.events(copyId))).toMatch(/approval\(s\) of this job are not signed for it/);
     expect(read('marks.log')).toBe(`${before}x`);
     // The original's folder made again (queued, no claim): refused at its claim, its hook never runs again.
-    await rm(join(queue.jobDir(sub.job.id), 'claim'), { force: true });
-    await rm(join(queue.jobDir(sub.job.id), 'events.jsonl'), { force: true });
-    await writeFile(join(queue.jobDir(sub.job.id), 'job.json'), JSON.stringify(original));
+    await rm(join(queue.files.job(sub.job.id), 'claim'), { force: true });
+    await rm(join(queue.files.job(sub.job.id), 'events.jsonl'), { force: true });
+    await writeFile(join(queue.files.job(sub.job.id), 'job.json'), JSON.stringify(original));
     expect(await work()).toBe(0);
     const again = (await queue.stored(sub.job.id))!;
     expect(again.state).toBe('failed');
@@ -220,8 +220,8 @@ describe('approvals are bound to their job (L5.14)', () => {
       await writeFile(join(project2, 'project.yaml'), await readFile(join(project, 'project.yaml'), 'utf8'));
       await writeFile(join(project2, 'hooks', 'mark.yaml'), await readFile(join(project, 'hooks', 'mark.yaml'), 'utf8'));
       const q2 = new FileJobQueue(root2);
-      await mkdir(q2.jobDir(sub.job.id), { recursive: true });
-      await writeFile(join(q2.jobDir(sub.job.id), 'job.json'), await readFile(join(queue.jobDir(sub.job.id), 'job.json'), 'utf8'));
+      await mkdir(q2.files.job(sub.job.id), { recursive: true });
+      await writeFile(join(q2.files.job(sub.job.id), 'job.json'), await readFile(join(queue.files.job(sub.job.id), 'job.json'), 'utf8'));
       expect(await runWorker({ root: root2, idleExitMs: 300, pollMs: 50, log: (m) => logs.push(m) })).toBe(0);
       expect(((await q2.stored(sub.job.id))?.result as HooksJobResult | undefined)?.results.map((r) => r.status)).toEqual(['refused']);
       expect(JSON.stringify(await q2.events(sub.job.id))).toMatch(/approval\(s\) of this job are not signed for it/);

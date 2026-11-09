@@ -5,7 +5,7 @@
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { dirname, extname, join, normalize, sep } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright-core';
 import type { Browser, BrowserContext } from 'playwright-core';
 import { pathInside } from '@retake/core';
@@ -189,7 +189,7 @@ window.pdfReady = true;
     if (path === '/document.pdf') return route.fulfill({ status: 200, contentType: 'application/pdf', body: pdf });
     const file = normalize(join(root, decodeURIComponent(path)));
     // Strictly inside the pdf.js folder, as spelt (both normalised); a root spelt with a trailing separator holds nothing.
-    if (root.endsWith(sep) || !pathInside(file, root, { compare: 'spelling', self: false })) return route.fulfill({ status: 403, body: '' });
+    if (!pathInside(file, root, { compare: 'spelling', self: false, trailingSepHoldsNothing: true })) return route.fulfill({ status: 403, body: '' });
     try {
       const body = await readFile(file);
       return route.fulfill({ status: 200, contentType: MIME[extname(file)] ?? 'application/octet-stream', body });

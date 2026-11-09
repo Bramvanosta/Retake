@@ -269,7 +269,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });
   const getEngine = async () => engine;
-  const live = await Live.start({ ws: engine.workspace, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
+  const live = await Live.start({ ws: engine.workspace, queue: engine.queue, ...(o.sqlite ? { sqlite: o.sqlite } : {}), ...(o.pollMs ? { pollMs: o.pollMs } : {}), log });
   // The player origin starts after the Studio's listener (it must know the Studio's port): the timeline op reads it
   // when called, which is only ever after startStudioServer returned.
   let player: PlayerServer | undefined;
@@ -431,7 +431,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
       // The `fix` is kept as it is: a command the person copies into a terminal (`retake -C <workspace> …`), the same
       // one the screen already shows before the click.
       const root = engine.workspace.root;
-      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
+      const error = { code: e.code, message: pathFree(e.message, root), ...(e.fix ? { fix: e.fix } : {}), ...(e.docs ? { docs: e.docs } : {}), ...(e.details ? { details: withoutPathsDeep(e.details, root) } : {}) };
       send(res, status, { ok: false, error }, 'api', status === 429 ? { 'Retry-After': '1' } : {});
       return;
     }

@@ -1,7 +1,7 @@
 // Dependency-rule probe (read-only unless --write-baseline): the import rules of the target architecture, checked
 // against today's code. The rules, the scan and the ratchet live in lib.mjs; packages/core/test/import-rules.test.ts
 // holds the code to the baseline (scripts/audit/baseline.json: today's violations, each group with a reason, never more).
-// Usage: node scripts/audit/rules.mjs <repo-root> [--imports <imports.json>] [--json <out.json>] [--list]
+// Usage: node scripts/audit/rules.mjs [<repo-root>] [--imports <imports.json>] [--json <out.json>] [--list]
 //        node scripts/audit/rules.mjs <repo-root> --check            the ratchet: exit 1 on a new or stale entry
 //        node scripts/audit/rules.mjs <repo-root> --write-baseline   rewrite the baseline for today (reasons kept)
 //        (imports.json comes from `imports.mjs --json`; without --imports the sources are scanned here)
@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { BASELINE, RULES, compareBaseline, ratchetEntries, ratchetReport, readBaseline, rewriteBaseline, ruleHits, scan } from './lib.mjs';
 
-const root = path.resolve(process.argv[2] ?? '.');
+// The repository root is the first argument unless it is an option (`rules.mjs --check` checks the current folder).
+const root = path.resolve(process.argv[2] && !process.argv[2].startsWith('--') ? process.argv[2] : '.');
 const opt = (n) => { const i = process.argv.indexOf(n); return i > 0 ? process.argv[i + 1] : undefined; };
 const LIST = process.argv.includes('--list');
 

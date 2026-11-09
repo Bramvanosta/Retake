@@ -79,7 +79,7 @@ import type {
 } from '@retake/core';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueue } from './jobs/job-queue.js';
 import type { JobErrorView, JobRecord } from './jobs/types.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
@@ -237,7 +237,7 @@ export interface RecordStopped {
 }
 
 export interface RecordStudioContext {
-  queue: FileJobQueue;
+  queue: JobQueue;
   client: JobClient;
 }
 
@@ -312,7 +312,7 @@ function readRecordJson(dir: string): RecordJson | null {
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
 
 /** The recording's job (meta.json's job_id, else the caller's hint), only when it is that recording's `record` job. */
-async function jobOf(queue: FileJobQueue, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
+async function jobOf(queue: JobQueue, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
   const jid = meta ? meta.job_id : (hint ?? null);
   if (!jid || !JOB_ID_RE.test(jid)) return null;
   const job = await queue.get(jid);

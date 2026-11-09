@@ -52,7 +52,7 @@ import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
 import { openProject } from '../workspace.js';
 import { newJobId } from './ids.js';
-import { FileJobQueue } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import { verifiedApprovals } from './signing.js';
 import type { JobEventBody, JobProgress, JobRecord, SiteCandidateResult, SiteJobResult } from './types.js';
@@ -208,14 +208,17 @@ export async function siteHostConflicts(ws: WorkspaceConfig, host: string): Prom
 }
 
 /** The extractions whose job is queued or running (their folders are in use). */
-async function activeSites(root: string): Promise<string[]> {
-  const jobs = await new FileJobQueue(root).list({ kinds: ['site'], states: ['queued', 'running'], limit: 10_000 });
+async function activeSites(queue: JobQueue): Promise<string[]> {
+  const jobs = await queue.list({ kinds: ['site'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'site' ? [j.input.site_id] : []));
 }
 
-/** Keep the newest `keep` extraction folders (ids sort by creation); `except` and folders of active jobs never removed. */
-export async function pruneSites(ws: WorkspaceConfig, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
-  const active = await activeSites(ws.root).catch(() => null);
+/**
+ * Keep the newest `keep` extraction folders (ids sort by creation); `except` and the folders of the jobs queued or
+ * running in `queue` (the workspace's) are never removed.
+ */
+export async function pruneSites(ws: WorkspaceConfig, queue: JobQueue, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
+  const active = await activeSites(queue).catch(() => null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
   // Never through a link: .retake/ and site/ must be real folders.
@@ -262,7 +265,7 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
   // The folder is made by the worker (makeSiteDir), new: nothing is reserved on disk here.
   const id = newSiteId();
   const dir = siteDir(ctx.ws, id);
-  await pruneSites(ctx.ws, SITE_KEEP, [id]);
+  await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [id]);
   const input: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: id, url: first.href, submitted_by: ctx.client, approvals };
   const job = await ctx.queue.enqueue(input);
   const warnings = unsafeTestResolve().map.size ? ['the unsafe test resolver (RETAKE_UNSAFE_TEST_RESOLVE) is set in this server\'s environment'] : [];
@@ -272,6 +275,8 @@ export async function submitSiteJob(ctx: SubmitContext, req: { url: string }, ap
 export interface SiteJobContext {
   ws: WorkspaceConfig;
   cli: string;
+  /** The workspace's job queue (the folders of extractions queued or running are never pruned). */
+  queue: JobQueue;
   /** The job's id: its approval is signed for it (signing.ts). */
   jobId: string;
   input: SiteJobInput;
@@ -414,7 +419,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
   } catch (e) {
     throw toEngineError(e);
   }
-  await pruneSites(ctx.ws, SITE_KEEP, [input.site_id]);
+  await pruneSites(ctx.ws, ctx.queue, SITE_KEEP, [input.site_id]);
   const view = siteView(ctx.ws, input.site_id, url, report);
   return { kind: 'site', ...view, warnings: report.warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ctx.ws, input.site_id, view) };
 }
@@ -423,7 +428,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { signal?: AbortSignal; onPhase?: (phase: string) => void } = {}): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { queue: JobQueue; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();
@@ -436,7 +441,7 @@ export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, 
   } catch (e) {
     throw toEngineError(e);
   }
-  await pruneSites(ws, SITE_KEEP, [id]);
+  await pruneSites(ws, o.queue, SITE_KEEP, [id]);
   const view = siteView(ws, id, url, report);
   const warnings = [...conflicts.map((c) => `${url.host} is ${c}: environments are filmed through runs, not extracted (done anyway: you typed it)`), ...report.warnings];
   return { kind: 'site', ...view, warnings, untrusted: report.untrusted as Record<string, unknown>, draft: await siteDraft(ws, id, view) };

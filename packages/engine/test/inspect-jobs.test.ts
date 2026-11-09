@@ -13,7 +13,7 @@ import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { INSPECT_KEEP, createEngine, historyFile, markBoxes, newInspectId, pruneInspections, runWorker } from '../src/index.js';
+import { FileJobQueue, INSPECT_KEEP, createEngine, historyFile, markBoxes, newInspectId, pruneInspections, runWorker } from '../src/index.js';
 import type { Engine, EngineError, InspectJobResult, JobRecord } from '../src/index.js';
 import type { LoadedProject } from '@retake/core';
 import type { InspectReport } from '@retake/runner-web';
@@ -250,7 +250,7 @@ describe('inspect jobs: the worker inspects', () => {
     await engine.jobs.cancel(sub.job.id);
     await work();
     // Its job over, the old folder goes at the next prune.
-    expect(await pruneInspections({ dir: projectDir, slug: PROJECT } as LoadedProject, INSPECT_KEEP, [], root)).toContain(queued.inspect_id);
+    expect(await pruneInspections({ dir: projectDir, slug: PROJECT } as LoadedProject, INSPECT_KEEP, [], new FileJobQueue(root))).toContain(queued.inspect_id);
   });
 
   it('no write reached the fixture', async () => {

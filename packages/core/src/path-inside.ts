@@ -11,6 +11,9 @@
  *   with `dir` and a separator (a `dir` spelt with a trailing separator is taken as it is) — without normalising.
  * - `dotDotPrefix` (`'resolved'` only): a relative path that merely begins with `..` — a first name such as `..cache` —
  *   counts as outside too. The stricter, older spelling of the check; by default only a `..` segment leads out.
+ * - `trailingSepHoldsNothing` (`'spelling'` only): a `dir` spelt with a trailing separator — for a normalised or real
+ *   path, only the filesystem root — holds nothing but itself (and nothing at all with `self: false`). By default such a
+ *   `dir` is taken as it is.
  *
  * `packages/core/test/path-inside.test.ts` pins every combination the tool uses against the copies it replaced.
  */
@@ -27,6 +30,8 @@ export interface PathInsideOptions {
   compare?: 'resolved' | 'spelling';
   /** `'resolved'` only: a relative path beginning with `..` (`..cache` too) counts as outside (default false). */
   dotDotPrefix?: boolean;
+  /** `'spelling'` only: a `dir` spelt with a trailing separator holds nothing but itself (default false). */
+  trailingSepHoldsNothing?: boolean;
 }
 
 /**
@@ -42,6 +47,7 @@ export function relativeInside(p: string, dir: string, o: PathInsideOptions = {}
   const folder = spell(dir);
   if (o.compare === 'spelling') {
     if (child === folder) return o.self === false ? undefined : '';
+    if (o.trailingSepHoldsNothing && folder.endsWith(sep)) return undefined;
     const head = folder.endsWith(sep) ? folder : folder + sep;
     return child.startsWith(head) ? child.slice(head.length) : undefined;
   }

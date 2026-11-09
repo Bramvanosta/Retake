@@ -1,5 +1,5 @@
 import { isAccessError } from '@retake/core';
-import { checkAllowWrites, recordScenario } from '@retake/engine';
+import { FileJobQueue, checkAllowWrites, recordScenario } from '@retake/engine';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -68,6 +68,7 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
         submittedBy: 'cli',
       },
       {
+        queue: new FileJobQueue(ws.root),
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');

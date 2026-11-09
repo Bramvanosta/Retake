@@ -1750,7 +1750,9 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
 - **Errors.** `EngineError {code, message, fix?, details?, docs?}`, codes `not_found | invalid | conflict | refused |
   needs_approval | busy | unavailable | cancelled | internal` (core's error kinds, `error-kind.ts`). Every error class
   raised on purpose states its kind (`errorKind`, a getter where it depends on the message or a field) and may name its
-  guide page (`errorDocs`, carried as `docs`); `toEngineError(e)` reads them in one place (ScenarioError / ConfigError →
+  guide page (`errorDocs`, carried as `docs`: its URL on the public repository, core `docsUrl`, which an MCP error's
+  data carries); `toEngineError(e)` reads them in one place, an EngineError of another module copy keeping its fix,
+  details and docs (ScenarioError / ConfigError →
   not_found or invalid, AccessError / HookSecurityError / WriteRefusedError / HostRefusedError → refused, SandboxError
   busy / down / interrupted → busy / unavailable / cancelled, CancelledError → cancelled; the table:
   `packages/engine/test/error-kinds.test.ts`), anything without a kind → internal. The CLI prints an error with a kind
@@ -1785,6 +1787,18 @@ workers/worker.lock     {pid, started_at, host, version, build, since} — one w
 workers/worker.log      what workers print (stderr), appended
 ```
 
+- The queue is a port (L6.3; `jobs/job-queue.ts` `JobQueue`): submit, read (with the derived states), the markers a
+  client asks with (cancel, pause, stop), the worker's claim and writes, what holds heavy work and a heavy job's yield
+  (`takeHold`, `yieldOf` / `setYield`), the events, and `reader()` (the same queue with a reader's own memory of the
+  filming markers) — no path in it. Its behaviour is written once (`queue-core.ts`) over a job's named entries; the file
+  queue (`queue.ts` `FileJobQueue`, the files above) and an in-memory queue (`memory-queue.ts`, tests) keep them, and one
+  contract suite holds both (`packages/engine/test/job-queue-contract.ts`). The paths are the file queue's file part
+  (`files`: `JobFiles` — a job's folder, browser.json, live.json, yield.json, events.jsonl), used only by the code that
+  reads or writes a job's files itself (a render's browser, the live channel, the Studio's live run, the project
+  board's stat memo). Only the composition roots build the file queue: the engine (`Engine.queue`, which the Studio's
+  server reads), the worker, the job process and the CLI's in-process commands; every other module is handed it (the
+  import-rules ratchet's `queue` rule). The worker (`runWorker`) is in four parts over one record: finish, recovery,
+  claim and run.
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived

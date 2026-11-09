@@ -31,7 +31,7 @@ import { openWorkspace } from './workspace.js';
 import { liveWorker } from './jobs/lock.js';
 import type { WorkerLockRecord } from './jobs/lock.js';
 import { FileJobQueue } from './jobs/queue.js';
-import type { JobFilter } from './jobs/queue.js';
+import type { FileJobs, JobFilter } from './jobs/queue.js';
 import { runBlockers, submitRunJob } from './jobs/run-job.js';
 import { RunDataCache } from './run-data.js';
 import { RunThumbs } from './run-thumbs.js';
@@ -226,6 +226,11 @@ export interface Engine {
   readonly workspace: WorkspaceConfig;
   /** `retake -C <root>`: how the commands a human is asked to run start (they may be typed in any folder). */
   readonly cli: string;
+  /**
+   * The workspace's job queue, built here (the composition root): the Studio's watchers read it (each as a reader of
+   * its own: JobQueue.reader); its file part (`files`) is for the code that reads a job's files itself (a live run).
+   */
+  readonly queue: FileJobs;
   info(): EngineInfo;
   /** What the workspace produced, from its job history (history.jsonl: jobs and CLI runs). */
   usage(): Promise<UsageCounts>;
@@ -708,6 +713,7 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
 
   return {
     root: ws.root,
+    queue,
     workspace: ws,
     cli: studio,
     info: () => ({

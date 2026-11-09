@@ -37,7 +37,7 @@ import { LOOPBACK, listenLoopback } from '../http/listen.js';
 import { newSecret } from '../http/token.js';
 import { isAlive } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
-import type { FileJobQueue } from './queue.js';
+import type { FileJobs } from './queue.js';
 
 export const LIVE_FILE_VERSION = 1;
 export const LIVE_PATH = '/v1/frames';
@@ -150,9 +150,9 @@ async function writePrivate(file: string, text: string): Promise<void> {
  * Open the live channel of a running `run` job (the claiming worker only): the listener, then live.json. Frames the
  * sink receives go to the open streams; `wanted` is true while a stream is open.
  */
-export async function openLiveChannel(o: { queue: FileJobQueue; jobId: string; runId: string; worker: ProcessIdentity }): Promise<LiveChannel> {
+export async function openLiveChannel(o: { queue: Pick<FileJobs, 'files'>; jobId: string; runId: string; worker: ProcessIdentity }): Promise<LiveChannel> {
   if (!RUN_ID_RE.test(o.runId) || o.runId.length > 200) throw new Error(`invalid run id "${o.runId}"`);
-  const file = o.queue.liveFile(o.jobId);
+  const file = o.queue.files.live(o.jobId);
   const token = newSecret();
   const streams = new Set<Stream>();
   const sockets = new Set<Socket>();
@@ -269,8 +269,8 @@ export async function openLiveChannel(o: { queue: FileJobQueue; jobId: string; r
  * group or other permission bits, of bounded size, naming this job, a valid port and token, and the identity of the
  * worker that holds the job's claim — that worker alive (pid and start time). Null otherwise (no picture).
  */
-export async function readLiveChannel(queue: FileJobQueue, jobId: string): Promise<LiveChannelInfo | null> {
-  const file = queue.liveFile(jobId);
+export async function readLiveChannel(queue: Pick<FileJobs, 'files' | 'claimOf'>, jobId: string): Promise<LiveChannelInfo | null> {
+  const file = queue.files.live(jobId);
   // Opened without following a link and checked on the open descriptor (no window between the check and the read).
   const uid = process.getuid?.();
   const r = readPlainRange(file, 0, LIVE_FILE_MAX, { verify: (st) => (uid === undefined || st.uid === uid) && (st.mode & 0o077) === 0 && st.size <= LIVE_FILE_MAX });

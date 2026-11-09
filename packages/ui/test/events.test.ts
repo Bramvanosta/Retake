@@ -145,8 +145,8 @@ describe('/v1/events', () => {
       const jobs = s.next('jobs');
       const q = new FileJobQueue(ws);
       const id = newJobId();
-      await mkdir(join(q.dir, id), { recursive: true });
-      await writeFile(join(q.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state: 'queued', created_at: new Date().toISOString() }));
+      await mkdir(join(q.files.dir, id), { recursive: true });
+      await writeFile(join(q.files.dir, id, 'job.json'), JSON.stringify({ version: 1, id, kind: 'run', input: { v: 1, kind: 'run', project: P, scenario: 'quote', mode: 'dry', run_id: '20261018-100000-quote', submitted_by: 'mcp' }, state: 'queued', created_at: new Date().toISOString() }));
       // L5.10a fixes (review A-L7): the event names the changed jobs' projects. L5.14b: and what a take holds (nothing).
       expect(await jobs).toEqual({ changed: [id], projects: [P], held: null });
       expect(studio.calls).toBe(calls);

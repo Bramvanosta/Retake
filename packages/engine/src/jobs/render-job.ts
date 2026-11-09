@@ -30,7 +30,7 @@ import { isAlive } from './proc.js';
 import { signalablePid } from './signal.js';
 import type { ProcessIdentity } from './proc.js';
 import type { SubmitContext } from './run-job.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
 /** Lazy: @retake/editor pulls in Remotion's renderer and bundler. */
@@ -255,10 +255,10 @@ function isTempProfile(dir: string): boolean {
  * pid AND start time: Remotion starts it detached, so it outlives its parent), remove its temporary profile, the
  * version lock and the partial video files. Best effort: what fails is logged.
  */
-export async function cleanupInterruptedRender(ws: WorkspaceConfig, queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedRender(ws: WorkspaceConfig, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'render') return;
   const input = job.input;
-  await killRecordedBrowser(queue, job, log);
+  await killRecordedBrowser(files, job, log);
   try {
     await releaseRenderLock(ws, input);
     const project = await openProjectBySlug(ws, input.project);
@@ -279,10 +279,10 @@ export async function removePartials(dir: string, prefix: string): Promise<void>
  * The render browser a job recorded (job folder, browser.json) and left running when its worker was killed: killed when
  * it still runs as the same process (pid AND start time), and its temporary profile removed. Best effort.
  */
-export async function killRecordedBrowser(queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function killRecordedBrowser(files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   let browser: RecordedBrowser | undefined;
   try {
-    browser = JSON.parse(await readFile(queue.browserFile(job.id), 'utf8')) as RecordedBrowser;
+    browser = JSON.parse(await readFile(files.browser(job.id), 'utf8')) as RecordedBrowser;
   } catch {
     browser = undefined;
   }

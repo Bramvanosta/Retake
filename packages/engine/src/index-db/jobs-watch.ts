@@ -7,7 +7,7 @@
  */
 import { heldWork } from '../jobs/held.js';
 import type { HeldWork } from '../jobs/held.js';
-import { FileJobQueue } from '../jobs/queue.js';
+import type { JobQueue } from '../jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
 import type { JobRecord } from '../jobs/types.js';
 
@@ -21,7 +21,8 @@ export class JobsWatch {
   private live = new Map<string, string>();
   private records = new Map<string, JobRecord>();
 
-  constructor(private readonly queue: FileJobQueue) {}
+  /** `queue`: a reader of its own (JobQueue.reader): what holds heavy work is counted over this watch's polls. */
+  constructor(private readonly queue: JobQueue) {}
 
   /** Ids of the jobs that were unfinished at the last poll (L5.2b: the desktop shell's pending snapshot). */
   get unfinished(): string[] {

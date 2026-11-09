@@ -76,6 +76,13 @@
    ]
   },
   {
+   "rule": "R1",
+   "reason": "The app bundle's preparation loads the bundled browser engine with a module loader (node:module); it moves to an I/O entry of core.",
+   "entries": [
+    "packages/core/src/bundle.ts → node:module"
+   ]
+  },
+  {
    "rule": "R3",
    "reason": "The Studio server reuses the operation contract (ToolDef, callTool) of the MCP package until that contract moves into the engine.",
    "entries": [
@@ -184,6 +191,7 @@
    "rule": "cycle",
    "reason": "Core's model modules import one another (one cycle); it is broken when core is split into domain and I/O.",
    "entries": [
+    "packages/core/src/agent-policy.ts → 45 imports inside its cycle",
     "packages/core/src/agent-policy.ts → cycle of packages/core/src/agent-policy.ts",
     "packages/core/src/agent-trust.ts → cycle of packages/core/src/agent-policy.ts",
     "packages/core/src/brand.ts → cycle of packages/core/src/agent-policy.ts",
@@ -211,6 +219,7 @@
    "rule": "cycle",
    "reason": "The capture markers and the job queue use each other.",
    "entries": [
+    "packages/engine/src/jobs/captures.ts → 2 imports inside its cycle",
     "packages/engine/src/jobs/captures.ts → cycle of packages/engine/src/jobs/captures.ts",
     "packages/engine/src/jobs/queue.ts → cycle of packages/engine/src/jobs/captures.ts"
    ]
@@ -219,6 +228,7 @@
    "rule": "cycle",
    "reason": "Approvals, comments, renders, pruning and the job runners import one another.",
    "entries": [
+    "packages/engine/src/approvals.ts → 8 imports inside its cycle",
     "packages/engine/src/approvals.ts → cycle of packages/engine/src/approvals.ts",
     "packages/engine/src/comments.ts → cycle of packages/engine/src/approvals.ts",
     "packages/engine/src/jobs/render-job.ts → cycle of packages/engine/src/approvals.ts",
@@ -231,6 +241,7 @@
    "rule": "cycle",
    "reason": "The MCP HTTP transport and the server entry use each other.",
    "entries": [
+    "packages/mcp/src/http.ts → 2 imports inside its cycle",
     "packages/mcp/src/http.ts → cycle of packages/mcp/src/http.ts",
     "packages/mcp/src/index.ts → cycle of packages/mcp/src/http.ts"
    ]
@@ -239,6 +250,7 @@
    "rule": "cycle",
    "reason": "The MCP authoring tools share helpers both ways with the other tool modules.",
    "entries": [
+    "packages/mcp/src/tools/authoring.ts → 8 imports inside its cycle",
     "packages/mcp/src/tools/authoring.ts → cycle of packages/mcp/src/tools/authoring.ts",
     "packages/mcp/src/tools/inspect.ts → cycle of packages/mcp/src/tools/authoring.ts",
     "packages/mcp/src/tools/jobs.ts → cycle of packages/mcp/src/tools/authoring.ts",
@@ -250,6 +262,7 @@
    "rule": "cycle",
    "reason": "The step actions, their table and the runtime that resolves targets import one another.",
    "entries": [
+    "packages/runner-web/src/actions/artefacts.ts → 61 imports inside its cycle",
     "packages/runner-web/src/actions/artefacts.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
     "packages/runner-web/src/actions/calendar.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
     "packages/runner-web/src/actions/click.ts → cycle of packages/runner-web/src/actions/artefacts.ts",
@@ -274,6 +287,7 @@
    "rule": "cycle",
    "reason": "The desktop bridge and the update operations of the Studio server use each other.",
    "entries": [
+    "packages/ui/src/server/desktop.ts → 2 imports inside its cycle",
     "packages/ui/src/server/desktop.ts → cycle of packages/ui/src/server/desktop.ts",
     "packages/ui/src/server/update-ops.ts → cycle of packages/ui/src/server/desktop.ts"
    ]
@@ -282,17 +296,9 @@
    "rule": "cycle",
    "reason": "The Studio operation table and the theme operations use each other.",
    "entries": [
+    "packages/ui/src/server/ops.ts → 2 imports inside its cycle",
     "packages/ui/src/server/ops.ts → cycle of packages/ui/src/server/ops.ts",
     "packages/ui/src/server/theme-ops.ts → cycle of packages/ui/src/server/ops.ts"
-   ]
-  },
-  {
-   "rule": "queue",
-   "reason": "The Studio server builds the file job queue itself (live view, live runs, the worker supervisor) until the queue is a port the engine hands out.",
-   "entries": [
-    "packages/ui/src/server/live.ts → new FileJobQueue",
-    "packages/ui/src/server/run-live.ts → new FileJobQueue",
-    "packages/ui/src/server/supervise.ts → new FileJobQueue"
    ]
   }
  ]

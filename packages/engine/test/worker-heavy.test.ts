@@ -166,7 +166,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(await work(root, { [job.id]: 'exit3' }, {}, logs)).toBe(0);
     expect(logs.join('\n')).toMatch(/its job process runs another build: given back to the queue/);
     expect(logs.join('\n')).toMatch(/the code changed since this worker started: handing over/);
-    expect(existsSync(join(queue.jobDir(job.id), 'fake-started'))).toBe(true);
+    expect(existsSync(join(queue.files.job(job.id), 'fake-started'))).toBe(true);
     // The new worker (a real one, from the sources) takes it: it runs to its end there (a review of nothing: failed).
     const end = await waitFor(
       'the new worker ends the job',
@@ -186,7 +186,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     // A job carrying a signed approval (as a submit writes it), so that its claim takes it.
     const stored = (await queue.stored(job.id))!;
     const input = await signApprovals({ ...stored.input, approvals: [{ fingerprint: 'a'.repeat(64), by: 'human-cli', at: new Date().toISOString() }] } as never, { jobId: job.id, root });
-    await writeFile(join(queue.jobDir(job.id), 'job.json'), JSON.stringify({ ...stored, input }));
+    await writeFile(join(queue.files.job(job.id), 'job.json'), JSON.stringify({ ...stored, input }));
     const used = join(base, '.home', APPROVALS_USED_DIR, job.id);
     const seen: boolean[] = [];
     const logs: string[] = [];
@@ -236,7 +236,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(await queue.claimOf(take.id)).toBeUndefined();
     // Cancelled before the old worker ends (no new worker is started for it), then the running job ends.
     await queue.cancel(take.id, 'test');
-    await writeFile(join(queue.jobDir(job.id), 'fake-finish'), '');
+    await writeFile(join(queue.files.job(job.id), 'fake-finish'), '');
     expect(await worker).toBe(0);
     expect(await queue.claimOf(take.id)).toBeUndefined();
     expect((await queue.stored(job.id))?.state).toBe('succeeded');
@@ -269,7 +269,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
       expect(logs.join('\n')).toMatch(/a take has held heavy work for over 0\.02 min: this job goes on at normal priority/);
       m!.closeSync();
       await waitFor('said no more once the take ended', async () => (await queue.get(job.id))?.yield === undefined || undefined);
-      await writeFile(join(queue.jobDir(job.id), 'fake-finish'), '');
+      await writeFile(join(queue.files.job(job.id), 'fake-finish'), '');
       expect(await worker).toBe(0);
     } finally {
       m?.closeSync();
@@ -332,7 +332,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     (mine[0] as (s: string) => void)('SIGTERM');
     expect(await worker).toBe(0);
     expect(sent[0]).toEqual([run.worker!.pid, 'SIGTERM']);
-    expect(existsSync(join(queue.jobDir(job.id), 'fake-term'))).toBe(true);
+    expect(existsSync(join(queue.files.job(job.id), 'fake-term'))).toBe(true);
     expect((await queue.stored(job.id))?.state).toBe('cancelled');
   }, 30_000);
 
@@ -350,11 +350,11 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
     const take = FilmingMarker.open({ root: join(base, 'elsewhere'), source: 'cli', owner: await selfIdentity() })!;
     try {
-      await waitFor('held', () => existsSync(queue.yieldFile(job.id)));
+      await waitFor('held', () => existsSync(queue.files.yield(job.id)));
       const mine = process.listeners('SIGTERM').filter((l) => !before.includes(l));
       const t0 = Date.now();
       (mine[0] as (s: string) => void)('SIGTERM');
-      await waitFor('the job process got its SIGTERM', () => existsSync(join(queue.jobDir(job.id), 'fake-term')), 10_000);
+      await waitFor('the job process got its SIGTERM', () => existsSync(join(queue.files.job(job.id), 'fake-term')), 10_000);
       expect(Date.now() - t0).toBeLessThan(1_500);
       expect(await worker).toBe(0);
     } finally {
@@ -390,7 +390,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     const orphanJob = await review(queue, 'orphan-v1');
     const orphan = spawn(process.execPath, [fakeBin, '--job', orphanJob.id, '--kind', 'review', '--root', root, '--build', 'x', '--supervisor', String(dead), '--mode', 'orphan'], { stdio: 'ignore', detached: true });
     children.push(orphan);
-    await waitFor('the orphan started', () => existsSync(join(queue.jobDir(orphanJob.id), 'fake-started')));
+    await waitFor('the orphan started', () => existsSync(join(queue.files.job(orphanJob.id), 'fake-started')));
     const orphanStart = await processStart(orphan.pid!);
     await asRunning(orphanJob, { pid: orphan.pid, started_at: new Date(orphanStart!).toISOString(), host: hostname() });
     // Decoys: a process of the user with no recorded start time; one with its start time but not a job process; pids 0, 1, -1.
@@ -415,7 +415,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(await work(root, { [later.id]: 'succeed' }, { orphanGraceMs: 300 }, logs)).toBe(0);
     // The orphan: its grace, then a SIGTERM to it alone, its job persisted.
     expect(sent).toEqual([[orphan.pid!, 'SIGTERM']]);
-    expect(existsSync(join(queue.jobDir(orphanJob.id), 'fake-term'))).toBe(true);
+    expect(existsSync(join(queue.files.job(orphanJob.id), 'fake-term'))).toBe(true);
     expect((await queue.stored(orphanJob.id))?.state).toBe('interrupted');
     const order = logs.findIndex((l) => l.includes(`job ${orphanJob.id}: its job process`));
     const claimed = logs.findIndex((l) => l.includes(`job ${later.id}: running`));
@@ -439,7 +439,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     const f = (await queue.stored(forged.id))!;
     expect(f.state).toBe('failed');
     expect(f.error).toMatchObject({ code: 'invalid', message: expect.stringMatching(/refused without running: .* "run" job whose input is of kind "review"/) });
-    expect(existsSync(join(queue.jobDir(forged.id), 'fake-started'))).toBe(false);
+    expect(existsSync(join(queue.files.job(forged.id), 'fake-started'))).toBe(false);
     expect((await queue.events(forged.id)).map((e) => e.type)).toEqual(['state', 'result']);
     expect((await queue.stored(honest.id))?.state).toBe('succeeded');
   }, 30_000);
@@ -522,7 +522,7 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
     const engine = await createEngine({ root, client: 'test', autoStartWorker: false });
     const take = await engine.runs.submit({ project: 'w', scenario: 'gated', mode: 'capture', hooks: 'run' }, { approver: { approve: async () => ({ approved: true as const }) } });
     const heavy = await review(queue);
-    const yieldFile = queue.yieldFile(heavy.id);
+    const yieldFile = queue.files.yield(heavy.id);
     // Review B L2: the build is not stamped while the take films (a synchronous walk on the take's event loop).
     const checks: boolean[] = [];
     const worker = work(root, { [heavy.id]: 'until-file' }, { idleExitMs: 400, buildCheckMs: 1, jobProcessTest: { buildCheck: (filming) => void checks.push(filming) } });
@@ -544,13 +544,13 @@ describe.skipIf(!chromiumAvailable() || !hasFfmpeg)('review B M3: a take holds h
       return j && j.state !== 'queued' && j.state !== 'running' ? j : undefined;
     }, 60_000);
     await waitFor('normal priority after the take', () => !existsSync(yieldFile));
-    await writeFile(join(queue.jobDir(heavy.id), 'fake-finish'), '');
+    await writeFile(join(queue.files.job(heavy.id), 'fake-finish'), '');
     expect(await worker).toBe(0);
     expect(checks.length).toBeGreaterThan(10);
     expect(checks.filter(Boolean)).toEqual([]);
     expect((await queue.stored(take.job.id))?.state).toBe('succeeded');
     expect((await queue.stored(heavy.id))?.state).toBe('succeeded');
-    expect(readFileSync(join(queue.jobDir(heavy.id), 'fake-started'), 'utf8')).toMatch(/^\d+$/);
+    expect(readFileSync(join(queue.files.job(heavy.id), 'fake-started'), 'utf8')).toMatch(/^\d+$/);
     // L5.14b: the take's report says what ran beside it — no other take, a heavy job of its workspace slowed.
     const run = JSON.parse(readFileSync(join(project, 'runs', take.run_id, 'run.json'), 'utf8')) as { perf: { machine: Record<string, unknown> } };
     expect(run.perf.machine).toMatchObject({ takes_beside: 0, heavy_slowed: true });

@@ -23,6 +23,7 @@ import { JOB_INPUT_VERSION, loadWorkspaceConfig, siteApprovalFingerprint } from 
 import type { SiteJobInput, WorkspaceConfig } from '@retake/core';
 import {
   FileJobQueue,
+  MemoryJobQueue,
   SITE_KEEP,
   THEME_PROVENANCE_FILE,
   createEngine,
@@ -139,7 +140,7 @@ describe('site jobs without any network', () => {
   }, 60_000);
 
   it('the job checks for itself, whatever the worker in front of it does: verified approval, URL, environment host', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // An approval of the right URL, not signed: the job verifies it itself.
     const unsigned: SiteJobInput = { version: JOB_INPUT_VERSION, kind: 'site', site_id: newSiteId(), url: 'https://brand.test/', submitted_by: 'mcp', approvals: approval('https://brand.test/') };
     await expect(executeSiteJob(ctx(unsigned))).rejects.toMatchObject({ code: 'refused', message: expect.stringMatching(/refused without running/) });
@@ -155,7 +156,7 @@ describe('site jobs without any network', () => {
   });
 
   it('the extraction folder is made new by the worker: a planted folder or a linked parent is refused before any page opens', async () => {
-    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
+    const ctx = (input: SiteJobInput) => ({ ws, cli: 'retake', queue: new FileJobQueue(ws.root), jobId: JOB, input, signal: new AbortController().signal, event: () => undefined, progress: () => undefined });
     // A folder planted under the id of a signed job: refused (never reused, nothing written into it).
     const id = newSiteId();
     await mkdir(siteDir(ws, id), { recursive: true });
@@ -175,7 +176,7 @@ describe('site jobs without any network', () => {
       // Pruning never goes through the link either.
       await mkdir(join(other, newSiteId()));
       for (let i = 0; i < SITE_KEEP + 2; i++) await mkdir(join(other, newSiteId()));
-      expect(await pruneSites(ws2)).toEqual([]);
+      expect(await pruneSites(ws2, new FileJobQueue(ws2.root))).toEqual([]);
       expect((await readdir(other)).length).toBe(SITE_KEEP + 3);
     } finally {
       await rm(other, { recursive: true, force: true });
@@ -305,10 +306,23 @@ describe('site jobs without any network', () => {
       ids.push(id);
       await makeSiteDir(ws, id);
     }
-    await pruneSites(ws);
+    await pruneSites(ws, new FileJobQueue(ws.root));
     const left = (await readdir(join(root, '.retake', 'site'))).sort();
     expect(left).toHaveLength(SITE_KEEP);
     expect(left).toEqual(ids.slice(-SITE_KEEP).sort());
+  });
+
+  it('never prunes the folder of an extraction whose job is queued in the queue it is handed', async () => {
+    const q = new MemoryJobQueue(ws.root);
+    const active = newSiteId();
+    await makeSiteDir(ws, active);
+    for (let i = 0; i < SITE_KEEP + 2; i++) await makeSiteDir(ws, newSiteId());
+    const job = await q.enqueue({ version: JOB_INPUT_VERSION, kind: 'site', site_id: active, url: 'https://brand.test/', submitted_by: 'cli' });
+    expect(await pruneSites(ws, q)).not.toContain(active);
+    expect(existsSync(siteDir(ws, active))).toBe(true);
+    // Its job cancelled before it started, the oldest folder goes at the next prune.
+    await q.cancel(job.id, 'test');
+    expect(await pruneSites(ws, q)).toContain(active);
   });
 });
 

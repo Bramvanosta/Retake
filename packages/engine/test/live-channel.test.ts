@@ -35,7 +35,7 @@ afterAll(async () => {
 /** A job folder claimed by this process (as the worker running it). */
 async function claimedJob(): Promise<string> {
   const id = newJobId();
-  await mkdir(queue.jobDir(id), { recursive: true });
+  await mkdir(queue.files.job(id), { recursive: true });
   expect(await queue.claim(id, await selfIdentity())).toBe(true);
   return id;
 }
@@ -91,18 +91,18 @@ describe('the live channel of a run job', () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ queue, jobId: id, runId: '20261026-120000-quote', worker: await selfIdentity() });
     try {
-      const file = queue.liveFile(id);
+      const file = queue.files.live(id);
       expect((await stat(file)).mode & 0o777).toBe(0o600);
       const info = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
       expect(info).toMatchObject({ v: 1, port: ch.port, job: id, run: '20261026-120000-quote', pid: process.pid });
       expect(info.token).toMatch(/^[A-Za-z0-9_-]{43}$/);
       // No temporary file left beside it.
-      expect((await readdir(queue.jobDir(id))).sort()).toEqual(['claim', 'live.json']);
+      expect((await readdir(queue.files.job(id))).sort()).toEqual(['claim', 'live.json']);
       expect((await readLiveChannel(queue, id))?.port).toBe(ch.port);
     } finally {
       await ch.close();
     }
-    expect(existsSync(queue.liveFile(id))).toBe(false);
+    expect(existsSync(queue.files.live(id))).toBe(false);
     expect(await readLiveChannel(queue, id)).toBeNull();
   });
 
@@ -243,7 +243,7 @@ describe('the live channel of a run job', () => {
   it('S2: live.json is not trusted unless private, a regular file, of this job, and its worker holds the claim and lives', async () => {
     const id = await claimedJob();
     const ch = await openLiveChannel({ queue, jobId: id, runId: 'r4', worker: await selfIdentity() });
-    const file = queue.liveFile(id);
+    const file = queue.files.live(id);
     try {
       const good = await readFile(file, 'utf8');
       expect(await readLiveChannel(queue, id)).not.toBeNull();
@@ -254,28 +254,28 @@ describe('the live channel of a run job', () => {
       expect(await readLiveChannel(queue, id)).not.toBeNull();
       // Another job's live.json copied here.
       const other = await claimedJob();
-      await writeFile(queue.liveFile(other), good, { mode: 0o600 });
+      await writeFile(queue.files.live(other), good, { mode: 0o600 });
       expect(await readLiveChannel(queue, other)).toBeNull();
       // A link to a private file that would be trusted as live.json itself (this job's, the claiming worker's): the
       // link alone refuses it (opened without following it — no window between a check and the read).
       const linked = await claimedJob();
       const target = join(root, `link-target-${id}.json`);
       await writeFile(target, JSON.stringify({ ...JSON.parse(good), job: linked }), { mode: 0o600 });
-      await rename(target, queue.liveFile(linked));
+      await rename(target, queue.files.live(linked));
       expect(await readLiveChannel(queue, linked)).not.toBeNull();
-      await rename(queue.liveFile(linked), target);
-      await symlink(target, queue.liveFile(linked));
+      await rename(queue.files.live(linked), target);
+      await symlink(target, queue.files.live(linked));
       expect(await readLiveChannel(queue, linked)).toBeNull();
       // A worker that does not hold the claim (another pid in live.json).
       const forged = await claimedJob();
-      await writeFile(queue.liveFile(forged), JSON.stringify({ ...JSON.parse(good), job: forged, pid: process.pid + 1 }), { mode: 0o600 });
+      await writeFile(queue.files.live(forged), JSON.stringify({ ...JSON.parse(good), job: forged, pid: process.pid + 1 }), { mode: 0o600 });
       expect(await readLiveChannel(queue, forged)).toBeNull();
       // The claim's worker is gone (a pid that exited): a stale file of a killed worker.
       const dead = spawnSync(process.execPath, ['-e', ''], { stdio: 'ignore' }).pid!;
       const stale = newJobId();
-      await mkdir(queue.jobDir(stale), { recursive: true });
-      await writeFile(join(queue.jobDir(stale), 'claim'), JSON.stringify({ pid: dead, at: new Date().toISOString() }));
-      await writeFile(queue.liveFile(stale), JSON.stringify({ ...JSON.parse(good), job: stale, pid: dead, started_at: undefined }), { mode: 0o600 });
+      await mkdir(queue.files.job(stale), { recursive: true });
+      await writeFile(join(queue.files.job(stale), 'claim'), JSON.stringify({ pid: dead, at: new Date().toISOString() }));
+      await writeFile(queue.files.live(stale), JSON.stringify({ ...JSON.parse(good), job: stale, pid: dead, started_at: undefined }), { mode: 0o600 });
       expect(await readLiveChannel(queue, stale)).toBeNull();
       // Garbage.
       await writeFile(file, '{"v":1,', { mode: 0o600 });

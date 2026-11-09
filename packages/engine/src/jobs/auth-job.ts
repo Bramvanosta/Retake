@@ -13,7 +13,7 @@ import { JOB_INPUT_VERSION, SLUG_RE, resolveEnvironment } from '@retake/core';
 import type { AuthLoginJobInput, WorkspaceConfig } from '@retake/core';
 import { EngineError, toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import { LoginOptionError, loginTarget, signInPersona } from '../login.js';
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
@@ -75,7 +75,7 @@ const stoppedLeft = (profileKept: boolean) =>
     : ', nothing was saved';
 
 /** Stop a sign-in (its window closes; signInStoppedText says what stays): an `auth_login` job only — never a run or any other job. */
-export async function cancelSignIn(queue: FileJobQueue, jobId: string, by: string): Promise<JobRecord> {
+export async function cancelSignIn(queue: JobQueue, jobId: string, by: string): Promise<JobRecord> {
   const rec = await queue.get(jobId);
   if (!rec) throw new EngineError('not_found', `job ${jobId} not found (job_list names the jobs)`);
   if (rec.kind !== 'auth_login') throw new EngineError('refused', `job ${jobId} is not a sign-in (it is a ${rec.kind} job): only a sign-in is stopped here`);

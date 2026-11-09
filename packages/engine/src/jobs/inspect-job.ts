@@ -36,7 +36,7 @@ import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import { newJobId } from './ids.js';
-import { FileJobQueue } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
 import type { InspectJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
@@ -78,17 +78,17 @@ export function newInspectId(): string {
 }
 
 /** The inspections of a project whose job is queued or running (their folders are in use). */
-export async function activeInspections(root: string, slug: string): Promise<string[]> {
-  const jobs = await new FileJobQueue(root).list({ project: slug, kinds: ['inspect'], states: ['queued', 'running'], limit: 10_000 });
+export async function activeInspections(queue: JobQueue, slug: string): Promise<string[]> {
+  const jobs = await queue.list({ project: slug, kinds: ['inspect'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'inspect' ? [j.input.inspect_id] : []));
 }
 
 /**
  * Keep the newest `keep` inspection folders of a project (ids sort by creation); `except` is never removed, nor —
- * given the workspace root — the folder of an inspection whose job is still queued or running.
+ * given the workspace's job queue — the folder of an inspection whose job is still queued or running.
  */
-export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], root?: string): Promise<string[]> {
-  const active = root !== undefined ? await activeInspections(root, project.slug).catch(() => null) : [];
+export async function pruneInspections(project: LoadedProject, keep = INSPECT_KEEP, except: readonly string[] = [], queue?: JobQueue): Promise<string[]> {
+  const active = queue !== undefined ? await activeInspections(queue, project.slug).catch(() => null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -255,7 +255,7 @@ export async function submitInspectJob(ctx: SubmitContext, req: InspectSubmitReq
   const id = newInspectId();
   const dir = inspectDir(project, id);
   await mkdir(dir, { recursive: true });
-  await pruneInspections(project, INSPECT_KEEP, [id], ctx.ws.root);
+  await pruneInspections(project, INSPECT_KEEP, [id], ctx.queue);
   const input: InspectJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'inspect',

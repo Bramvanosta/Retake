@@ -63,7 +63,15 @@ export function sandboxErrorKind(code: string | undefined, message: string, othe
   return /^unknown|has no sandbox|not a sandbox/.test(message) ? 'not_found' : otherwise;
 }
 
-/** The guide pages error classes point at (repository paths). */
+/** Where the repository's files are read on the web: a guide page's documentation URL is this followed by its path. */
+export const DOCS_BASE_URL = 'https://github.com/Bramvanosta/Retake/blob/main/';
+
+/** The documentation URL of a guide page named by its repository path (`docs/guide/sandbox.md`); a URL stays as it is. */
+export function docsUrl(page: string): string {
+  return /^https:\/\//.test(page) ? page : DOCS_BASE_URL + page.replace(/^\/+/, '');
+}
+
+/** The guide pages error classes point at (repository paths; a client is given their docsUrl). */
 export const GUIDE = {
   scenarios: 'docs/guide/scenarios.md',
   workspace: 'docs/guide/workspace.md',

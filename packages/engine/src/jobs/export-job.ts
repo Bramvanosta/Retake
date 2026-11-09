@@ -18,7 +18,7 @@ import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
 import { editor, killRecordedBrowser, removePartials } from './render-job.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { ExportJobResult, JobEventBody, JobProgress, JobRecord } from './types.js';
 
@@ -90,10 +90,10 @@ export async function submitExportJob(ctx: SubmitContext, req: ExportRequest): P
  * After an export job was interrupted (its worker killed): the re-render's browser it recorded is killed, and the partial
  * files of exports/<render_id>/ are removed. Best effort.
  */
-export async function cleanupInterruptedExport(ws: WorkspaceConfig, queue: FileJobQueue, job: JobRecord, log: (m: string) => void): Promise<void> {
+export async function cleanupInterruptedExport(ws: WorkspaceConfig, files: JobFiles, job: JobRecord, log: (m: string) => void): Promise<void> {
   if (job.input.kind !== 'export') return;
   const input = job.input;
-  await killRecordedBrowser(queue, job, log);
+  await killRecordedBrowser(files, job, log);
   try {
     const project = await openProjectBySlug(ws, input.project);
     const dir = join(project.dir, 'exports', input.render_id);

@@ -132,7 +132,7 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
       const rec = (await queue.list({ project: 'demo', kinds: ['render'], limit: 1 }))[0]!;
       const me = { ...(await selfIdentity()), host: hostname() };
       await queue.write({ ...rec, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me, progress: { phase: 'rendering', fraction: 0.4, steps_done: 0, steps_total: 0 } } as never);
-      await writeFile(queue.yieldFile(rec.id), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString(), cause: 'elsewhere' })}\n`);
+      await writeFile(queue.files.yield(rec.id), `${JSON.stringify({ v: 1, state: 'background', since: new Date().toISOString(), cause: 'elsewhere' })}\n`);
       await expect.poll(() => job.innerText(), POLL).toContain('v1 · rendering 40 % · slowed during a take (elsewhere on this Mac)');
       await expect.poll(() => held.innerText().catch(() => ''), LIVE).toContain('a render is slowed during a take (elsewhere on this Mac)');
       expect(await held.getAttribute('data-held')).toBe('background');
@@ -151,7 +151,7 @@ describe.skipIf(!canRun)('captures first in the Studio (L5.14)', () => {
 
       // The take over: normal priority again, said within one poll.
       marker!.closeSync();
-      await rm(queue.yieldFile(rec.id), { force: true });
+      await rm(queue.files.yield(rec.id), { force: true });
       await expect.poll(() => held.count(), LIVE).toBe(0);
       await expect.poll(() => job.innerText(), POLL).not.toContain('during a take');
       await queue.write({ ...rec, state: 'cancelled', finished_at: new Date().toISOString() } as never);

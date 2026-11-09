@@ -178,7 +178,7 @@ describe.skipIf(!canRun)('the Studio render ops (L4.5 part E)', () => {
     expect(input).toMatchObject({ kind: 'render', project: 'demo', scenario: 'tl', run_id: RUN, edit_sha256: sha(TEXT), review: { fps: 1 }, overrides: {}, submitted_by: 'ui' });
     expect(input).not.toHaveProperty('template');
     // The text it was planned from goes with the job (B5).
-    expect(await readFile(join(queue.jobDir(d.job), 'edit.yaml'), 'utf8')).toBe(TEXT);
+    expect(await readFile(join(queue.files.job(d.job), 'edit.yaml'), 'utf8')).toBe(TEXT);
     // Still refused while it waits (a third click later).
     const again = await call('scenario_render', renderArgs());
     expect(again.status).toBe(409);

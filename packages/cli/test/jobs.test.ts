@@ -95,7 +95,7 @@ describe('retake jobs', () => {
       const me = { ...(await selfIdentity()), host: hostname() };
       await q.write({ ...(await q.stored(review.id))!, state: 'running', started_at: new Date().toISOString(), worker: me, supervisor: me });
       const { writeFile } = await import('node:fs/promises');
-      await writeFile(q.yieldFile(review.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
+      await writeFile(q.files.yield(review.id), JSON.stringify({ v: 1, state: 'background', since: '2026-11-04T14:02:00.000Z', cause: 'elsewhere' }));
       expect((await retake('jobs')).out).toMatch(/review quote-v2 · slowed during a take \(elsewhere on this Mac\)/);
       expect((await retake('jobs', 'status', review.id)).out).toMatch(/held +slowed during a take \(elsewhere on this Mac\) since 2026-11-04T14:02:00\.000Z/);
       expect((await retake('jobs', '--json')).out).not.toContain('another-workspace');

@@ -254,7 +254,7 @@
     "template": {
       "type": "string",
       "minLength": 1,
-      "description": "Template name (default: the project template)."
+      "description": "Theme name (default: the project theme)."
     },
     "pacing": {
       "$ref": "#/$defs/PacingOverrides"

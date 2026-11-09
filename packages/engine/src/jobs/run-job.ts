@@ -35,7 +35,7 @@ import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { getScenario } from '../scenarios.js';
 import { sha256Hex } from '../storage.js';
-import type { FileJobQueue } from './queue.js';
+import type { JobQueue } from './job-queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RunJobResult } from './types.js';
 
 export interface RunSubmitRequest {
@@ -55,7 +55,7 @@ export interface RunSubmitRequest {
 
 export interface SubmitContext {
   ws: WorkspaceConfig;
-  queue: FileJobQueue;
+  queue: JobQueue;
   /** "retake -C <root>": how the commands a human is asked to run start. */
   cli: string;
   client: JobClient;

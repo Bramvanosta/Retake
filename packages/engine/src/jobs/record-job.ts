@@ -32,6 +32,7 @@ import type { RecordOutcome, RecordPorts } from '../record.js';
 import { settleDiscardAtJobEnd } from '../record-studio.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { checkEnvName } from './hooks-job.js';
+import type { JobQueue } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, RecordJobResult } from './types.js';
 
@@ -123,6 +124,8 @@ export type RecordJobTestHooks = Pick<RecordPorts, 'drive' | 'headless' | 'windo
 export interface RecordJobContext {
   ws: WorkspaceConfig;
   cli: string;
+  /** The workspace's job queue (a recording whose job is queued or running is never pruned). */
+  queue: JobQueue;
   input: RecordJobInput;
   /** job_cancel: discard while recording; after it, stop the check replay. */
   signal: AbortSignal;
@@ -214,6 +217,7 @@ export async function executeRecordJob(ctx: RecordJobContext): Promise<RecordJob
         ...(ctx.jobId !== undefined ? { jobId: ctx.jobId } : {}),
       },
       {
+        queue: ctx.queue,
         // Messages of the engine and the runner: counts and enums, never page text or a typed value.
         log: (level, message) => {
           if (level !== 'debug') ctx.event({ type: 'log', level, message });

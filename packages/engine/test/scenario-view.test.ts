@@ -455,7 +455,7 @@ describe('events (B1): scenario files and runs named', () => {
   });
 
   it('the index: an in-place save is its own key; a run that starts, progresses and finishes is named with its scenario', async () => {
-    const ix = await WorkspaceIndex.open(engine.workspace);
+    const ix = await WorkspaceIndex.open(engine.workspace, { queue: engine.queue.reader() });
     try {
       // The second pass also watches the run.json of the runs the first found unfinished.
       await ix.reconcile();

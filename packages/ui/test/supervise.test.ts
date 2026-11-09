@@ -71,7 +71,7 @@ function out(ok = true) {
 }
 
 function sup(o: PipeOut, x: { board?: UnsavedBoard; worker?: boolean; gapMs?: number } = {}) {
-  return new Supervisor({ root: ws, board: x.board ?? new UnsavedBoard(join(ws, 'projects')), out: o, pollMs: 60_000, gapMs: x.gapMs ?? 0, workerAlive: async () => x.worker ?? true });
+  return new Supervisor({ root: ws, queue: new FileJobQueue(ws), board: x.board ?? new UnsavedBoard(join(ws, 'projects')), out: o, pollMs: 60_000, gapMs: x.gapMs ?? 0, workerAlive: async () => x.worker ?? true });
 }
 
 const capture = { project: P, scenario: 'quote', mode: 'capture', scenario_sha256: '0'.repeat(64), run_id: '20261029-120000-quote' };
@@ -218,7 +218,7 @@ describe('stock, then one job_end per job that ends (L5.2b)', () => {
   it(`at most ${JOB_END_PER_MIN} job_end lines a minute`, async () => {
     const w = out();
     const logs: string[] = [];
-    const s = new Supervisor({ root: ws, board: new UnsavedBoard(join(ws, 'projects')), out: w.o, pollMs: 60_000, gapMs: 0, workerAlive: async () => true, log: (m) => logs.push(m) });
+    const s = new Supervisor({ root: ws, queue: new FileJobQueue(ws), board: new UnsavedBoard(join(ws, 'projects')), out: w.o, pollMs: 60_000, gapMs: 0, workerAlive: async () => true, log: (m) => logs.push(m) });
     await s.nudge();
     for (let i = 0; i < JOB_END_PER_MIN + 5; i++) await job({ kind: 'export', input: { project: P, render_id: 'quote-v1' }, state: 'failed' });
     await s.nudge();

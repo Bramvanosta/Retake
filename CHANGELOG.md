@@ -11,6 +11,8 @@ release — for the person about to click Install and Restart.
   write or host refused on a read-only environment or by the allow-list, an agent's render refused, an export error,
   an unusable hooks source, a cancelled review, a full disk during a render.
 - `retake new --theme` names the starter theme (`--template` still works).
+- An MCP tool's error names the guide page about it (`docs`, a web address) when there is one.
+- `retake doctor` and `retake list` say "theme" where they said "template" (the check names stay).
 
 ## [0.2.0] — 2026-11-03
 

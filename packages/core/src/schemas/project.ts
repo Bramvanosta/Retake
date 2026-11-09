@@ -166,7 +166,7 @@ const projectShape = {
   frame: FrameSpecSchema.describe(
     'Default frame of every scenario (default card): raw, card, browser, laptop, phone, tablet or a layout component id "namespace/name".',
   ).optional(),
-  template: nonEmpty().describe('Template name (the workspace templates/<name>, else a starter template: default, editorial, motion) or a path relative to the project dir.').optional(),
+  template: nonEmpty().describe('Theme name (the workspace templates/<name>, else a starter theme: default, editorial, motion) or a path relative to the project dir.').optional(),
   locale: nonEmpty().optional(),
   allow_hosts: z
     .array(nonEmpty())

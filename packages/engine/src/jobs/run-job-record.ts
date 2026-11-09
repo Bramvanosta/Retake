@@ -18,7 +18,7 @@ import { FilmingMarker, TakeBeside } from './captures.js';
 import { processStart } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
 import { interrupted, jobProject } from './queue.js';
-import type { FileJobQueue } from './queue.js';
+import type { FileJobs } from './queue.js';
 import { executeEnvResetJob, executeHooksJob } from './hooks-job.js';
 import { executeRunJob, finaliseReservedRun, pauseMaxMs } from './run-job.js';
 import { openLiveChannel } from './live-channel.js';
@@ -34,7 +34,8 @@ export type Workspace = Awaited<ReturnType<typeof openWorkspace>>;
 export interface JobRunnerContext {
   root: string;
   ws: Workspace;
-  queue: FileJobQueue;
+  /** The queue, with its file part (a render's browser.json, a run's live channel, a render's job folder). */
+  queue: FileJobs;
   /** How the commands a human is asked to run start ("retake -C <root>"). */
   cli: string;
   build: string;
@@ -275,7 +276,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       if (rejected) event({ type: 'log', level: 'warn', message: `${rejected} approval(s) of this job are not signed for it with this Retake home's key (not written by its submit): ignored` });
       const job = { ...parsed.data, ...(approvalsOf(parsed.data) ? { approvals } : {}) } as typeof parsed.data;
       // Every kind runs with trust `mcp` (hooks, seed steps): only the approvals taken at submit count.
-      const base = { ws, cli, signal: controller.signal, event };
+      const base = { ws, cli, queue, signal: controller.signal, event };
       const onProgress = (p: JobProgress) => {
         latest = p;
         if (!progressTimer) progressTimer = setTimeout(flushProgress, 500);
@@ -284,7 +285,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
       const recordBrowser = (b: { pid: number; user_data_dir?: string }) => {
         chain = chain.then(async () => {
           const t = await processStart(b.pid).catch(() => null);
-          await writeFile(queue.browserFile(id), `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`).catch(() => undefined);
+          await writeFile(queue.files.browser(id), `${JSON.stringify({ pid: b.pid, ...(t !== null ? { started_at: new Date(t).toISOString() } : {}), ...(b.user_data_dir ? { user_data_dir: b.user_data_dir } : {}) })}\n`).catch(() => undefined);
         });
       };
       switch (job.kind) {
@@ -355,7 +356,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
             input: job,
             progress: onProgress,
             browser: recordBrowser,
-            jobDir: queue.jobDir(id),
+            jobDir: queue.files.job(id),
           });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
@@ -437,7 +438,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
     if (stored.kind === 'render' || stored.kind === 'export' || stored.kind === 'preview') {
       // The render browser is closed: its record must not outlive the job (a reused pid is never killed anyway).
       await chain;
-      await rm(queue.browserFile(id), { force: true }).catch(() => undefined);
+      await rm(queue.files.browser(id), { force: true }).catch(() => undefined);
     }
     await finish(rec, error);
   };

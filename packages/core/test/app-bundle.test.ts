@@ -142,6 +142,18 @@ console.log(JSON.stringify({ problems: m.bundleProblems(), threw, templates, env
     expect(bundleProblems()).toEqual([expect.stringMatching(/module lookup guard does not load \(.*node\/guard\.cjs is missing\): reinstall Retake/)]);
   });
 
+  // The bundle's own containment copy (`within`: pathInside's lexical check, options `{}`), through its caller: the
+  // folder itself and a name beginning with `..` are inside, a `..` segment leads out.
+  it('the manifest check: the bundle folder itself and a `..cache` name are inside, `../x` and `a/../../x` are not', () => {
+    const own = fakeBundle({ paths: { plugin: '.' } });
+    expect(readBundleManifest(own.root).paths.plugin).toBe(realpathSync(own.root));
+    const dotted = fakeBundle({ paths: { plugin: '..cache' } });
+    expect(readBundleManifest(dotted.root).paths.plugin).toBe(join(realpathSync(dotted.root), '..cache'));
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: '../x' } }).root)).toThrow(/paths\.plugin \(\.\.\/x\) leaves the bundle/);
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: 'a/../../x' } }).root)).toThrow(/leaves the bundle/);
+    expect(() => readBundleManifest(fakeBundle({ paths: { plugin: '..' } }).root)).toThrow(/leaves the bundle/);
+  });
+
   it('paths leaving the bundle are refused (.., absolute, a link out)', () => {
     expect(() => readBundleManifest(fakeBundle({ paths: { browsers: '../elsewhere' } }).root)).toThrow(/leaves the bundle/);
     expect(() => readBundleManifest(fakeBundle({ paths: { browsers: '/opt/browsers' } }).root)).toThrow(BundleError);

@@ -52,7 +52,7 @@ import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
 import { newJobId } from './jobs/ids.js';
-import { FileJobQueue } from './jobs/queue.js';
+import type { JobQueue } from './jobs/job-queue.js';
 import { selfIdentity } from './jobs/proc.js';
 import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
@@ -81,19 +81,19 @@ export function newRecordId(): string {
 }
 
 /** The recordings of a project whose `record` job is queued or running (their folders are in use or reserved). */
-export async function activeRecords(root: string, slug: string): Promise<string[]> {
-  const jobs = await new FileJobQueue(root).list({ project: slug, kinds: ['record'], states: ['queued', 'running'], limit: 10_000 });
+export async function activeRecords(queue: JobQueue, slug: string): Promise<string[]> {
+  const jobs = await queue.list({ project: slug, kinds: ['record'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'record' ? [j.input.rec_id] : []));
 }
 
 /**
- * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace root —
- * the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
+ * Keep the newest `keep` recording folders of a project; `except` is never removed, nor — given the workspace's job
+ * queue — the folder of a recording whose job is still queued or running. L4.8 (critique B12): nor a folder whose lock is held
  * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
  * RECORD_UNSAVED_KEEP_MS.
  */
-export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], root?: string): Promise<string[]> {
-  const active = root !== undefined ? await activeRecords(root, project.slug).catch(() => null) : [];
+export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueue): Promise<string[]> {
+  const active = queue !== undefined ? await activeRecords(queue, project.slug).catch(() => null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
   except = [...except, ...active];
@@ -184,6 +184,8 @@ export interface RecordRequest {
 }
 
 export interface RecordPorts {
+  /** The workspace's job queue: a recording whose job is queued or running is never pruned. */
+  queue: JobQueue;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /** What the recording does now. */
   onPhase?: (phase: 'preflight' | 'recording' | 'draft' | 'check') => void;
@@ -358,7 +360,7 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 }
 
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
-export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, ports: RecordPorts = {}): Promise<RecordOutcome> {
+export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, ports: RecordPorts): Promise<RecordOutcome> {
   const started = Date.now();
   // L5.13: never beside an old Studio or worker (engine legacy.ts).
   await refuseBesideOldHolder(project.root, 'this recording');
@@ -405,7 +407,7 @@ export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject
     max_ms: maxMs ?? null,
     owner: await selfIdentity(),
   });
-  await pruneRecords(project, RECORD_KEEP, [id], ws.root);
+  await pruneRecords(project, RECORD_KEEP, [id], ports.queue);
   const eventsFile = join(dir, 'events.jsonl');
 
   ports.onPhase?.('recording');

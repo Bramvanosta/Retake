@@ -8,7 +8,12 @@ import { READ, WRITE_FILES, defineTool } from './define.js';
 import type { ToolDef } from './define.js';
 import type { ToolAnnotations } from '../server.js';
 
-/** The real path of `x` (macOS /tmp → /private/tmp; the case as given), or `x` itself when it does not resolve. */
+/**
+ * The real path of `x` (macOS /tmp → /private/tmp; the case as given), or `x` itself when it does not resolve. Kept
+ * instead of core's realPathOf (the native call: the case as stored on disk, a missing tail joined to its real parent)
+ * so that engine_info's "started outside the workspace" answers exactly as before; core test/path-inside.test.ts pins
+ * them.
+ */
 function realOrSame(x: string): string {
   try {
     return realpathSync(x);
@@ -102,7 +107,7 @@ export const projectCreate = defineTool({
     slug: projectSlug.optional().describe('Folder name (default: from the name).'),
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
-    template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a template name of the workspace (never a path)').optional().describe('Template (theme) name; default "default".'),
+    template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a theme name of the workspace or a starter theme (never a path)').optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
   }),
   annotations: WRITE_FILES,
   async run(args, { engine }) {

@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { ReviewView, RunStatusWithJob } from '@retake/engine';
-import { INSTRUCTIONS, TOOLS, okResult } from '../src/index.js';
+import { ScenarioError } from '@retake/core';
+import { INSTRUCTIONS, TOOLS, errorResult, okResult } from '../src/index.js';
 import { COMPACT_FINDINGS_MAX, COMPACT_WARNINGS_MAX, compactElements, compactReview, compactRunStatus } from '../src/compact.js';
 
 const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
@@ -137,6 +138,11 @@ describe('the tools', () => {
     expect(tool('job_status').input.safeParse({ job_id: JOB, wait_s: 600 }).success).toBe(true);
     expect(tool('job_status').input.safeParse({ job_id: JOB, wait_s: 601 }).success).toBe(false);
     expect(tool('run_status').input.safeParse({ project: 'p', run_id: '20261026-200205-quote', wait_s: 26 }).success).toBe(false);
+  });
+
+  it("an error result carries the documentation URL of the error's guide page in its data", () => {
+    expect(errorResult(new ScenarioError('scenario x is invalid')).structuredContent).toEqual({ error: { code: 'invalid', message: 'scenario x is invalid', docs: 'https://github.com/Bramvanosta/Retake/blob/main/docs/guide/scenarios.md' } });
+    expect(errorResult(new Error('boom')).structuredContent).toEqual({ error: { code: 'internal', message: 'boom' } });
   });
 
   it('results carry their JSON on one line', () => {

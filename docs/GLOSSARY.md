@@ -15,10 +15,10 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | workspace | Workspace | the folder with `retake.yaml`: projects, themes, components | — |
 | Retake home | — | the folder of this machine's own state (`RETAKE_HOME`, default `~/.retake`): signed-in sessions, the signing key | — |
 | project | Project | one product: `projects/<slug>/` with `project.yaml`, `README.md`, `scenarios/`, `hooks/`, `assets/` | — |
-| scenario | Production | the script of one video: `scenarios/<name>.yaml`, scenes of steps | — |
+| scenario | Productions (the project's list; a scenario's own screen: Scenario) | the script of one video: `scenarios/<name>.yaml`, scenes of steps | — |
 | scene · step | Scene · step (the Script mode's blocks) | a part of a scenario · one action in it (open, click, type, wait…) | — |
 | environment | Location | a named set of the product's pages (URLs) a scenario is filmed on, with its access (read-only or read-write) | `env` (`--env`, `default_env`, `env_reset`, `retake env`) |
-| persona | Cast | an account a video is filmed as, signed in once; its saved browser state is its **session** | — |
+| persona | Cast (the sidebar group; its rows and fields: Persona) | an account a video is filmed as, signed in once; its saved browser state is its **session** | — |
 | dry run | Rehearse | a scenario played without video: a screenshot per step, irreversible steps not executed, hooks skipped by default | `--dry`, `run_dry`, the run mode `dry` |
 | capture | Capture (in the Shoot mode) | a scenario played and filmed, with its setup and teardown hooks: `capture.mp4` + `timeline.json` | `run_capture`, `retake run` |
 | run | Run (in the Shoot mode) | the record of one dry run or capture: `runs/<id>/` with its `run.json`, named by its run id | — |
@@ -28,7 +28,7 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | review | Review | the contact sheets, key frames, checks and report of a render: `review/<render>/` | — |
 | export | Export | a render in delivery formats (1080p, 4K, vertical, square, GIF…): `exports/<render>/` | — |
 | raw export | — | a run's footage for another editing tool: clips per scene, cursor data, markers (`retake export-capture`) | — |
-| theme | Themes (the Library) | the look of a video: colours, fonts, logo and the styling of its components; a workspace theme or a starter (default, editorial, motion) | `template`: the `templates/` folder, `template.yaml`, the `template:` key of `project.yaml`, a scenario's `video.template`, `retake schema template`, the MCP `template_*` tools and their `template` argument |
+| theme | Themes (the Library) | the look of a video: colours, fonts, logo and the styling of its components; a workspace theme or a starter (default, editorial, motion) | `template`: the `templates/` folder, `template.yaml`, the `template:` key of `project.yaml`, a scenario's `video.template`, `retake schema template`, the MCP `template_*` tools and their `template` argument, the check names `Templates` and `Template <name>` of `retake doctor` (its `--json` output) |
 | component | Components (the Library) | a reusable piece of a video (title card, caption, callout…): `components/<namespace>/<name>/` | — |
 | thread | Thread | a conversation anchored on a moment (and optionally a region) of a render, open or resolved: `comments/<scenario>/<id>.json` | `retake comment …` and the MCP `comment_*` / `comments_list` tools act on threads |
 | comment | Comment | one message of a thread: its first one or a reply | — |
@@ -60,9 +60,10 @@ Each of these words has several meanings: say which one (the qualified form on t
 
 ## Retired words
 
-The help of the `retake` command and the MCP tools (titles, descriptions, argument descriptions) never use these
-words; `packages/cli/test/glossary.test.ts` reads this table. Keep it short and exact: a row is a word (its plural
-too) or a phrase.
+The help of the `retake` command, the MCP tools (titles, descriptions, argument descriptions, validation messages) and
+the descriptions of the YAML schemas (`packages/core/schema`) never use these words; `packages/cli/test/glossary.test.ts`
+reads this table. Other texts (error messages, the Studio, the docs) are not checked. Keep it short and exact: a row is
+a word (its inflections too: -s, -es, -ed, -ing) or a phrase (its plural too).
 
 <!-- retired-words:start -->
 | Retired | Say instead | Why |

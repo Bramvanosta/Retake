@@ -62,8 +62,12 @@ export type { InterruptOptions, InterruptPort, InterruptScope } from './interrup
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
 export { newJobId } from './jobs/ids.js';
-export { FileJobQueue, jobProject, jobsDir, stateDir } from './jobs/queue.js';
-export type { ClaimRecord, JobFilter } from './jobs/queue.js';
+export type { ClaimRecord, DeriveOptions, JobFilter, JobPosition, JobQueue, TakeHold, YieldMark } from './jobs/job-queue.js';
+export { jobProject } from './jobs/queue-core.js';
+export { FileJobQueue, JobFiles, jobsDir, stateDir } from './jobs/queue.js';
+export type { FileJobs } from './jobs/queue.js';
+export { MemoryJobQueue } from './jobs/memory-queue.js';
+export type { MemoryJobQueueOptions } from './jobs/memory-queue.js';
 export { WORKER_CLIENT_RE, WorkerLock, liveWorker, otherCopy, readWorkerLock, workerLockFile, workersDir } from './jobs/lock.js';
 export type { WorkerLockRecord } from './jobs/lock.js';
 export { buildDirs, buildStamp } from './jobs/build.js';

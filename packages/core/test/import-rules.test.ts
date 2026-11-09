@@ -4,6 +4,7 @@
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
  * The rules are scripts/audit/lib.mjs, shared with the audit scripts (rules.mjs, imports.mjs).
  */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -38,19 +39,62 @@ describe('the import-rules ratchet', () => {
     expect(hits({ 'packages/editor/src/plan.ts': ['remotion', 'node:fs', './timing.js'], 'packages/review/src/checks.ts': ['react'], 'packages/editor/src/render/a.ts': ['remotion'] })).toEqual(['R7 packages/editor/src/plan.ts → remotion', 'R7 packages/editor/src/plan.ts → node:fs', 'R7 packages/review/src/checks.ts → react']);
   });
 
-  it('allows type-only imports from other packages in the Studio front end, not value imports', () => {
+  /** Rule hits of files written into a scratch repository (the specifiers the scan's pre-processor would list). */
+  const hitsOf = (files: Record<string, { text: string; specs: string[] }>): string[] => {
     const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
-    const put = (rel: string, text: string) => {
-      mkdirSync(dirname(join(root, rel)), { recursive: true });
-      writeFileSync(join(root, rel), text);
-    };
-    put('packages/ui/src/app/types.ts', "import type { Step } from '@retake/core';\n");
-    put('packages/ui/src/app/value.ts', "import { parseScenario } from '@retake/core';\n");
     try {
-      expect(hits({ 'packages/ui/src/app/types.ts': ['@retake/core'], 'packages/ui/src/app/value.ts': ['@retake/core'] }, root)).toEqual(['R5 packages/ui/src/app/value.ts → @retake/core']);
+      for (const [rel, { text }] of Object.entries(files)) {
+        mkdirSync(dirname(join(root, rel)), { recursive: true });
+        writeFileSync(join(root, rel), text);
+      }
+      return hits(Object.fromEntries(Object.entries(files).map(([rel, { specs }]) => [rel, specs])), root);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  };
+
+  it('allows type-only imports from other packages in the Studio front end, not value imports', () => {
+    const app = (name: string, text: string) => [`packages/ui/src/app/${name}.ts`, { text, specs: ['@retake/core'] }] as const;
+    const files = Object.fromEntries([
+      app('types', "import type { Step } from '@retake/core';\n"),
+      app('named-types', "import { type Step, type Scene } from '@retake/core';\n"),
+      app('reexport-types', "export type { Step } from '@retake/core';\n"),
+      app('reexport-named-types', 'export { type Step } from "@retake/core";\n'),
+      app('type-position', "let s: import('@retake/core').Step;\n"),
+      app('value', "import { parseScenario } from '@retake/core';\n"),
+      app('double-quotes', 'import { parseScenario } from "@retake/core";\n'),
+      app('mixed', "import { type Step, parseScenario } from '@retake/core';\n"),
+      app('default', "import core from '@retake/core';\n"),
+      app('reexport', "export { parseScenario } from '@retake/core';\n"),
+      app('reexport-all', "export * from '@retake/core';\n"),
+      app('side-effect', "import '@retake/core';\n"),
+      app('dynamic', "const core = await import('@retake/core');\n"),
+      app('require', "import core = require('@retake/core');\n"),
+    ]);
+    const flagged = hitsOf(files).map((h) => h.replace(/^R5 packages\/ui\/src\/app\/(.+)\.ts → @retake\/core$/, '$1'));
+    expect(flagged.sort()).toEqual(['default', 'double-quotes', 'dynamic', 'mixed', 'reexport', 'reexport-all', 'require', 'side-effect', 'value']);
+    // A file that cannot be read counts as a value import (the check fails closed).
+    expect(hits({ 'packages/ui/src/app/gone.ts': ['@retake/core'] }, join(tmpdir(), 'retake-import-rules-none'))).toEqual(['R5 packages/ui/src/app/gone.ts → @retake/core']);
+  });
+
+  it('counts a module loader in core as I/O: node:module, process.getBuiltinModule(), import() of a computed name', () => {
+    const found = hitsOf({
+      'packages/core/src/loader.ts': { text: "import { createRequire } from 'node:module';\nexport const req = createRequire(import.meta.url);\n", specs: ['node:module'] },
+      'packages/core/src/builtin.ts': { text: "export const fs = process.getBuiltinModule('node:fs');\nexport const g = globalThis.process.getBuiltinModule('fs');\n", specs: [] },
+      'packages/core/src/computed.ts': { text: "export const load = (name: string) => import(name);\nexport const ok = () => import('./x.js');\n", specs: ['./x.js'] },
+      'packages/core/src/net.ts': { text: '', specs: ['node:tls', 'http2', 'node:dgram', 'node:vm', 'node:path'] },
+      'packages/core/src/pure.ts': { text: "import { join } from 'node:path';\nexport const j = join;\n", specs: ['node:path'] },
+      'packages/editor/src/other.ts': { text: "export const fs = process.getBuiltinModule('node:fs');\n", specs: [] },
+    });
+    expect(found.sort()).toEqual([
+      'R1 packages/core/src/builtin.ts → getBuiltinModule()',
+      'R1 packages/core/src/computed.ts → import()',
+      'R1 packages/core/src/loader.ts → node:module',
+      'R1 packages/core/src/net.ts → http2',
+      'R1 packages/core/src/net.ts → node:dgram',
+      'R1 packages/core/src/net.ts → node:tls',
+      'R1 packages/core/src/net.ts → node:vm',
+    ]);
   });
 
   it('finds a file cycle and names it by its first file', () => {
@@ -58,12 +102,65 @@ describe('the import-rules ratchet', () => {
     expect(cycles).toEqual([['packages/x/src/a.ts', 'packages/x/src/b.ts']]);
   });
 
-  it('flags the file job queue built outside the engine, under its name, an alias or as a base class', () => {
+  it('counts the imports inside a cycle, so a new import between files already in it fails the ratchet', () => {
+    const write = (fileImports: Record<string, string[]>): string[] => {
+      const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+      try {
+        mkdirSync(join(root, 'packages/x/src'), { recursive: true });
+        writeFileSync(join(root, 'packages/x/package.json'), '{"name":"@retake/x"}');
+        for (const [rel, specs] of Object.entries(fileImports)) writeFileSync(join(root, rel), specs.map((s) => `import './${s}';\n`).join(''));
+        return lib.ratchetEntries(root);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    };
+    // a → b → c → a: one cycle of three imports.
+    const before = write({ 'packages/x/src/a.ts': ['b.js'], 'packages/x/src/b.ts': ['c.js'], 'packages/x/src/c.ts': ['a.js'] });
+    expect(before).toEqual([
+      'cycle packages/x/src/a.ts → 3 imports inside its cycle',
+      'cycle packages/x/src/a.ts → cycle of packages/x/src/a.ts',
+      'cycle packages/x/src/b.ts → cycle of packages/x/src/a.ts',
+      'cycle packages/x/src/c.ts → cycle of packages/x/src/a.ts',
+    ]);
+    const baseline = { groups: [{ rule: 'cycle', reason: 'They use each other.', entries: before.map((e) => e.slice('cycle '.length)) }] };
+    expect(lib.ratchetReport(lib.compareBaseline(before, baseline))).toBe('');
+    // b → a as well: the same files, one more cycle among them (an import twice counts once).
+    const after = write({ 'packages/x/src/a.ts': ['b.js'], 'packages/x/src/b.ts': ['c.js', 'a.js', 'a.js'], 'packages/x/src/c.ts': ['a.js'] });
+    const cmp = lib.compareBaseline(after, baseline);
+    expect(cmp.added).toEqual(['cycle packages/x/src/a.ts → 4 imports inside its cycle']);
+    expect(cmp.stale).toEqual(['cycle packages/x/src/a.ts → 3 imports inside its cycle']);
+    // Rewritten, the new count stays in the cycle's group with its reason.
+    expect(lib.rewriteBaseline(after, baseline).groups).toEqual([{ rule: 'cycle', reason: 'They use each other.', entries: [...after.map((e) => e.slice('cycle '.length))].sort() }]);
+  });
+
+  it('flags the file job queue built outside the composition roots, under its name, an alias or as a base class', () => {
     expect(wiring('packages/ui/src/server/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(root);")).toEqual(['queue packages/ui/src/server/a.ts → new FileJobQueue']);
-    expect(wiring('packages/cli/src/a.ts', "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);")).toEqual(['queue packages/cli/src/a.ts → new FileJobQueue']);
+    expect(wiring('packages/ui/src/server/c.ts', "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);")).toEqual(['queue packages/ui/src/server/c.ts → new FileJobQueue']);
     expect(wiring('packages/mcp/src/a.ts', "import * as e from '@retake/engine';\nconst q = new e.FileJobQueue(root);\nclass Mine extends e.FileJobQueue {}")).toEqual(['queue packages/mcp/src/a.ts → new FileJobQueue', 'queue packages/mcp/src/a.ts → extends FileJobQueue']);
-    expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root);')).toEqual([]);
+    // Inside the engine too: a module is handed the queue (the JobQueue port), it does not build one.
+    expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue']);
+    expect(wiring('packages/engine/src/index-db/index-db.ts', 'const q = new FileJobQueue(ws.root);')).toEqual(['queue packages/engine/src/index-db/index-db.ts → new FileJobQueue']);
+    // The composition roots: the engine, the worker, the job process, the CLI's commands, and the adapter's own reader().
+    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/commands/a.ts']) {
+      expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);"), root).toEqual([]);
+    }
     expect(wiring('packages/ui/src/server/b.ts', "import type { FileJobQueue } from '@retake/engine';\nlet q: FileJobQueue;")).toEqual([]);
+  });
+
+  it('flags the file job queue class passed on as a value outside the composition roots, not its use as a type', () => {
+    const value = ['queue packages/ui/src/server/a.ts → FileJobQueue as a value'];
+    const at = (text: string) => wiring('packages/ui/src/server/a.ts', text);
+    expect(at("import { FileJobQueue } from '@retake/engine';\nconst Q = FileJobQueue;\nconst q = new Q(root);")).toEqual(value);
+    expect(at("const { FileJobQueue: Q } = await import('@retake/engine');\nconst q = new Q(root);")).toEqual(value);
+    expect(at("const { FileJobQueue } = engine;\nmake(FileJobQueue);")).toEqual(value);
+    expect(at("import * as e from '@retake/engine';\nconst Q = e['FileJobQueue'];")).toEqual(value);
+    expect(at("import * as e from '@retake/engine';\nregister(e.FileJobQueue);")).toEqual(value);
+    expect(at("import { FileJobQueue as F } from '@retake/engine';\nexport const kinds = { F };")).toEqual(value);
+    expect(at("import * as e from '@retake/engine';\nimport Q = e.FileJobQueue;")).toEqual(value);
+    // Types only: annotations, typeof, generics, implements, type declarations.
+    expect(at("import { FileJobQueue } from '@retake/engine';\nlet q: FileJobQueue;\ntype Ctor = typeof FileJobQueue;\ninterface I { q: FileJobQueue }\nclass Mine implements FileJobQueue {}\nconst xs: Array<FileJobQueue> = [];\nconst y = q as FileJobQueue;")).toEqual([]);
+    expect(wiring('packages/engine/src/jobs/b.ts', 'const Q = FileJobQueue;')).toEqual(['queue packages/engine/src/jobs/b.ts → FileJobQueue as a value']);
+    expect(wiring('packages/engine/src/engine.ts', 'const Q = FileJobQueue;')).toEqual([]);
   });
 
   it('flags a process-wide setter used outside the workspace module, called or passed on, and not its declaration', () => {
@@ -73,6 +170,20 @@ describe('the import-rules ratchet', () => {
     expect(wiring('packages/engine/src/workspace.ts', "import { useAgentPolicy } from '@retake/core';\nuseAgentPolicy(null);")).toEqual([]);
     expect(wiring('packages/core/src/agent-policy.ts', 'export function useAgentPolicy(folders: string[] | null): void {}')).toEqual([]);
     expect(wiring('packages/core/src/index.ts', "export { useAgentPolicy } from './agent-policy.js';")).toEqual([]);
+  });
+
+  it('rules.mjs --check without a root checks the current folder', () => {
+    const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+    try {
+      mkdirSync(join(root, 'packages/x/src'), { recursive: true });
+      writeFileSync(join(root, 'packages/x/package.json'), '{"name":"@retake/x"}');
+      writeFileSync(join(root, 'packages/x/src/a.ts'), 'export const a = 1;\n');
+      const r = spawnSync(process.execPath, [join(ROOT, 'scripts/audit/rules.mjs'), '--check'], { cwd: root, encoding: 'utf8' });
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain('scripts/audit/baseline.json holds: 0 entries');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('fails on a new entry, a stale entry, a group without a reason, and says how to update the baseline', () => {

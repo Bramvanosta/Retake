@@ -189,7 +189,7 @@ describe.skipIf(!chromiumAvailable())('a run job watched and paused through the 
     const status = await engine.runs.status('w', sub.run_id);
     expect(status.paused).toBeUndefined();
     expect(status.pauses).toEqual(rec.pauses);
-    expect(existsSync(queue.liveFile(sub.job.id))).toBe(false);
+    expect(existsSync(queue.files.live(sub.job.id))).toBe(false);
     const events = (await queue.events(sub.job.id)).flatMap((e) => (e.type === 'run' ? [e.event] : []));
     expect(events.filter((e) => e.type === 'pause').map((e) => (e as { state: string }).state)).toEqual(['paused', 'resumed']);
     // The outline comes once the run's secrets are known, before any step (review A).

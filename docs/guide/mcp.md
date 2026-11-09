@@ -153,7 +153,8 @@ same advice if it is not yours. This is checked at start only, the client does n
 
 Every result starts with a short summary for Claude, then the data as JSON (also as `structuredContent`) with local
 paths it can read; an error is a tool error with a code (`not_found`, `invalid`, `conflict`, `refused`,
-`needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix`.
+`needs_approval`, `busy`, `unavailable`, `cancelled`, `internal`), a message and, where one exists, the `fix` and
+`docs`: the web address of the guide page about it.
 
 **Authoring: Claude writes the scenario.** The loop the server's instructions give: `project_get` (the README, the
 environments and their page keys) → `page_inspect` each page the video shows → Claude writes the YAML itself, copying

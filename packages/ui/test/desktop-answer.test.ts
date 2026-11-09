@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TOOLS } from '@retake/mcp';
+import { FileJobQueue } from '@retake/engine';
 import { DesktopPipe, OWN_OPS, SHOWN_PER_MIN, UI_OPS, UnsavedBoard, startStudioServer, startSupervisor } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
@@ -61,7 +62,7 @@ describe('DesktopPipe', () => {
   it('the supervisor frames the page lines like its own, on its pipe', async () => {
     const out: string[] = [];
     const desktop = new DesktopPipe();
-    const server = { engine: { workspace: { root: ws, projectsDir: join(ws, 'projects') } }, unsaved: new UnsavedBoard(join(ws, 'projects')), desktop, onWrite: () => () => undefined, close: async () => undefined };
+    const server = { engine: { workspace: { root: ws, projectsDir: join(ws, 'projects') }, queue: new FileJobQueue(ws) }, unsaved: new UnsavedBoard(join(ws, 'projects')), desktop, onWrite: () => () => undefined, close: async () => undefined };
     const sup = startSupervisor({ server, out: { write: (t) => (out.push(t), true), once: () => undefined }, pollMs: 60_000 });
     expect(desktop.supervised).toBe(true);
     desktop.answer(ID, 'proceed');

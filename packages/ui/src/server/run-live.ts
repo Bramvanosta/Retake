@@ -32,7 +32,7 @@
  * Nothing here logs a token, a body, a frame or a line of the files it reads.
  */
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
@@ -42,7 +42,6 @@ import {
   ERROR_STATUS,
   EngineError,
   FINISHED_JOB_STATES,
-  FileJobQueue,
   RUN_ID_RE,
   RunFolder,
   openLiveFeed,
@@ -52,7 +51,7 @@ import {
   securityHeaders,
   toEngineError,
 } from '@retake/engine';
-import type { Engine, LiveFeedFrame, RangeRead } from '@retake/engine';
+import type { Engine, FileJobs, LiveFeedFrame, RangeRead } from '@retake/engine';
 import { sseText } from './live.js';
 
 /** Run streams served at once, at most. */
@@ -681,7 +680,8 @@ export interface RunLiveOptions {
 /** The run streams of one Studio server. */
 export class RunLive {
   readonly engine: Engine;
-  readonly queue: FileJobQueue;
+  /** The engine's job queue, with its file part (a job's live.json and events, read here by byte range). */
+  readonly queue: FileJobs;
   readonly pollMs: number;
   readonly feeds = new Map<string, FrameFeed>();
   private readonly streams = new Set<RunStream>();
@@ -695,7 +695,7 @@ export class RunLive {
 
   constructor(private readonly o: RunLiveOptions) {
     this.engine = o.engine;
-    this.queue = new FileJobQueue(o.ws.root);
+    this.queue = o.engine.queue;
     this.pollMs = o.pollMs ?? RUN_LIVE_POLL_MS;
   }
 
@@ -760,7 +760,7 @@ export class RunLive {
       const log = new JsonlTail((o, m) => folder.readRange('log.jsonl', o, m), logStart, truncated);
       let jobLog: JsonlTail | null = null;
       if (jobId) {
-        const file = join(this.queue.jobDir(jobId), 'events.jsonl');
+        const file = this.queue.files.events(jobId);
         const jobSize = size(readPlainRange(file, 0, 0));
         let jobStart = from === 'after' ? (a.after?.job ?? 0) : 0;
         if (jobStart > jobSize) jobStart = 0;

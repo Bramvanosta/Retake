@@ -17,7 +17,7 @@
 import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync, readSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { lstat, readdir, realpath } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import { join } from 'node:path';
 import { readPlainFile, pathInside } from '@retake/core';
 import type { PlainFileProblem, PlainFileRead } from '@retake/core';
 import { RUN_ID_RE } from './refs.js';
@@ -49,7 +49,7 @@ export async function lsig(path: string): Promise<string> {
  * trailing separator — only the filesystem root, for a real path — holds nothing but itself, as this check always had it.
  */
 function inside(real: string, root: string): boolean {
-  return root.endsWith(sep) ? real === root : pathInside(real, root, { compare: 'spelling' });
+  return pathInside(real, root, { compare: 'spelling', trailingSepHoldsNothing: true });
 }
 
 /** A folder as resolved: its real path and inode. */

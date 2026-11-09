@@ -40,6 +40,12 @@ describe('retake new / list / validate', () => {
     expect(list.code).toBe(EXIT.ok);
     const data = JSON.parse(list.out) as { projects: Array<{ slug: string; name: string; environments: string[] }> };
     expect(data.projects).toEqual([expect.objectContaining({ slug: 'demo', name: 'Demo product', environments: ['staging'] })]);
+    // The words a person reads follow the glossary (docs/GLOSSARY.md): themes, not templates.
+    const human = await retake('list');
+    expect(human.code).toBe(EXIT.ok);
+    expect(human.out).toMatch(/^Themes /m);
+    expect(human.out).toMatch(/^ {2}default, editorial, motion$/m);
+    expect(human.out).not.toMatch(/^Templates/m);
   });
 
   it('validates scenarios with file:line:col messages and exit codes', async () => {

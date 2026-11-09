@@ -29,8 +29,8 @@
  */
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
-import { FileJobQueue, JobsWatch, liveWorker } from '@retake/engine';
-import type { JobRecord } from '@retake/engine';
+import { JobsWatch, liveWorker } from '@retake/engine';
+import type { JobQueue, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
 
@@ -214,6 +214,8 @@ export interface PipeOut {
 
 export interface SupervisorOptions {
   root: string;
+  /** The engine's job queue (Engine.queue): the supervisor's watch reads it as a reader of its own. */
+  queue: JobQueue;
   /** The workspace's projects folder (names are kept only for what exists there); default `<root>/projects`. */
   projectsDir?: string;
   board: UnsavedBoard;
@@ -227,7 +229,6 @@ export interface SupervisorOptions {
 }
 
 export class Supervisor {
-  private readonly queue: FileJobQueue;
   private readonly watch: JobsWatch;
   private readonly jobs = new Map<string, JobRecord>();
   /** The names of each job in `jobs` that pass the slug rules and exist (looked up once, when it is first seen). */
@@ -249,8 +250,7 @@ export class Supervisor {
   written = 0;
 
   constructor(private readonly o: SupervisorOptions) {
-    this.queue = new FileJobQueue(o.root);
-    this.watch = new JobsWatch(this.queue);
+    this.watch = new JobsWatch(o.queue.reader());
     this.unsubscribe = o.board.onChange(() => this.schedulePush());
   }
 
@@ -423,12 +423,12 @@ export class Supervisor {
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {
-  server: { engine: { workspace: { root: string; projectsDir: string } }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
+  server: { engine: { workspace: { root: string; projectsDir: string }; queue: JobQueue }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
   out: PipeOut;
   pollMs?: number;
   log?: (message: string) => void;
 }): Supervisor {
-  const sup = new Supervisor({ root: o.server.engine.workspace.root, projectsDir: o.server.engine.workspace.projectsDir, board: o.server.unsaved, out: o.out, ...(o.pollMs ? { pollMs: o.pollMs } : {}), ...(o.log ? { log: o.log } : {}) });
+  const sup = new Supervisor({ root: o.server.engine.workspace.root, queue: o.server.engine.queue, projectsDir: o.server.engine.workspace.projectsDir, board: o.server.unsaved, out: o.out, ...(o.pollMs ? { pollMs: o.pollMs } : {}), ...(o.log ? { log: o.log } : {}) });
   const off = o.server.onWrite(() => void sup.nudge());
   // L5.12d: the window page's ack and answer to the quit question go out on the same pipe.
   o.server.desktop?.attach((line) => sup.pageLine(line));

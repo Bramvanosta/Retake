@@ -123,6 +123,7 @@ export function errorResult(e: unknown): CallResult {
       message: err.message,
       ...(err.fix ? { fix: err.fix } : {}),
       ...(err.details ? { details: err.details } : {}),
+      ...(err.docs ? { docs: err.docs } : {}),
     },
   };
   return {

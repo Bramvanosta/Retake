@@ -621,13 +621,14 @@ async function workspaceChecks(p: DoctorProbes, ws: WorkspaceConfig): Promise<Do
   );
   const templates = await listTemplates(ws.root).catch(() => []);
   if (!templates.length) {
-    out.push({ status: 'warn', name: 'Templates', detail: `no templates in ${ws.templatesDir}`, hint: p.bundle ? "the app's starter themes are missing: reinstall Retake" : "copy a starter from the repository's templates/ folder" });
+    // The check names `Templates` / `Template <name>` stay (`retake doctor --json` reads them; docs/GLOSSARY.md).
+    out.push({ status: 'warn', name: 'Templates', detail: `no themes in ${ws.templatesDir}`, hint: p.bundle ? "the app's starter themes are missing: reinstall Retake" : "copy a starter from the repository's templates/ folder" });
   }
   for (const t of templates) {
     try {
       const loaded = await loadTemplate(t.dir, ws.root);
       const fonts = [loaded.assets.display, ...loaded.assets.body];
-      const from = t.source === 'starter' ? ' · starter template' : '';
+      const from = t.source === 'starter' ? ' · starter theme' : '';
       out.push({ status: 'ok', name: `Template ${t.name}`, detail: `fonts present (${fonts.length} file${fonts.length === 1 ? '' : 's'})${from}` });
     } catch (e) {
       out.push({ status: 'fail', name: `Template ${t.name}`, detail: errorMessage(e).split('\n')[0], hint: `add the missing files to ${t.dir} or fix template.yaml` });

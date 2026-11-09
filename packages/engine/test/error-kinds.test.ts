@@ -11,6 +11,8 @@ import {
   BundleError,
   ClockError,
   ConfigError,
+  DOCS_BASE_URL,
+  ERROR_KINDS,
   EnvironmentError,
   H264EncoderError,
   HostRefusedError,
@@ -20,6 +22,8 @@ import {
   StepError as ScenarioStepError,
   TemplateError,
   WriteRefusedError,
+  docsUrl,
+  errorKindOf,
 } from '@retake/core';
 import type { ValidationIssue } from '@retake/core';
 import { ComponentError } from '@retake/components';
@@ -29,7 +33,7 @@ import { ReviewCancelledError, ReviewError } from '@retake/review';
 import { CancelledError, EncodeError, LoginPageError, PreflightError, RunnerError, StepError } from '@retake/runner-web';
 import { SandboxError } from '@retake/sandbox';
 import { ENGINE_ERROR_CODES, EngineError, HooksSourceError, RunOptionError, SandboxTakeError, toEngineError } from '../src/index.js';
-import { ERROR_KINDS, errorKindOf } from '@retake/core';
+import { scenarioChangedConflict } from '../src/errors.js';
 
 const ISSUE: ValidationIssue = { severity: 'error', path: ['scenes', 0], message: 'm', line: 1, col: 1 } as ValidationIssue;
 const PROJECT = { config: { name: 'shop', allow_hosts: ['staging.example.com'] } } as never;
@@ -129,20 +133,56 @@ describe('error kinds: stated by the classes', () => {
     expect(ENGINE_ERROR_CODES).toBe(ERROR_KINDS);
   });
 
-  it('the guide page a class names reaches the EngineError, and exists', () => {
+  it('the guide page a class names reaches the EngineError as its documentation URL, and exists', () => {
     const repo = resolve(__dirname, '../../..');
     let named = 0;
     for (const [what, e] of TABLE) {
       const docs = (e as { errorDocs?: string }).errorDocs;
-      expect(toEngineError(e).docs, what).toBe(e instanceof EngineError ? undefined : docs);
+      expect(toEngineError(e).docs, what).toBe(e instanceof EngineError || docs === undefined ? undefined : `${DOCS_BASE_URL}${docs}`);
       if (docs === undefined) continue;
       named++;
       expect(docs, what).toMatch(/^docs\/guide\/[a-z-]+\.md$/);
       expect(existsSync(resolve(repo, docs)), `${what}: ${docs}`).toBe(true);
     }
     expect(named).toBeGreaterThan(40);
-    expect(toEngineError(new SandboxError('busy', 'busy')).docs).toBe('docs/guide/sandbox.md');
-    expect(toEngineError(new SandboxConfigError('x', [], '/s.yaml', 'local')).docs).toBe('docs/guide/sandbox.md');
+    expect(toEngineError(new SandboxError('busy', 'busy')).docs).toBe('https://github.com/Bramvanosta/Retake/blob/main/docs/guide/sandbox.md');
+    expect(toEngineError(new SandboxConfigError('x', [], '/s.yaml', 'local')).docs).toBe('https://github.com/Bramvanosta/Retake/blob/main/docs/guide/sandbox.md');
     expect(toEngineError(new RunnerError('x')).docs).toBeUndefined();
+    expect(docsUrl('https://example.com/x')).toBe('https://example.com/x');
+  });
+});
+
+describe('errors from another module copy', () => {
+  it('an EngineError of another copy keeps its code, message, fix, details and docs', async () => {
+    // A second instance of the module (the query makes it one): its class is not this one.
+    const other = (await import('../src/errors.js?another-copy')) as typeof import('../src/errors.js');
+    expect(other.EngineError).not.toBe(EngineError);
+    const e = new other.EngineError('needs_approval', 'approve it', { fix: 'retake hooks approve x', details: { hooks: ['a'] }, docs: `${DOCS_BASE_URL}docs/guide/security.md` });
+    expect(e).not.toBeInstanceOf(EngineError);
+    const got = toEngineError(e);
+    expect(got).toBeInstanceOf(EngineError);
+    expect({ code: got.code, message: got.message, fix: got.fix, details: got.details, docs: got.docs }).toEqual({ code: 'needs_approval', message: 'approve it', fix: 'retake hooks approve x', details: { hooks: ['a'] }, docs: `${DOCS_BASE_URL}docs/guide/security.md` });
+    // Without options: none invented.
+    const bare = toEngineError(new other.EngineError('busy', 'held'));
+    expect({ fix: bare.fix, details: bare.details, docs: bare.docs }).toEqual({ fix: undefined, details: undefined, docs: undefined });
+    // Another class's own `details` (a step error's) is not an EngineError's: not copied.
+    expect(toEngineError(new StepError('target not found', { scene: 's' } as never)).details).toBeUndefined();
+  });
+
+  it('a changed scenario is a conflict with both hashes, read from its kind and fields (any module copy), not its name', async () => {
+    const [a, b] = ['a'.repeat(64), 'b'.repeat(64)];
+    const mapped = scenarioChangedConflict(new ScenarioChangedError('/p/q.yaml', a, b), 'q changed') as EngineError;
+    expect(mapped).toBeInstanceOf(EngineError);
+    expect({ code: mapped.code, message: mapped.message, details: mapped.details }).toEqual({ code: 'conflict', message: 'q changed', details: { submitted: a, current: b } });
+    const core = (await import('../../core/src/scenario.js?another-copy')) as typeof import('../../core/src/scenario.js');
+    expect(core.ScenarioChangedError).not.toBe(ScenarioChangedError);
+    expect((scenarioChangedConflict(new core.ScenarioChangedError('/p/q.yaml', a, b), 'q changed') as EngineError).details).toEqual({ submitted: a, current: b });
+    // Only the name: not a changed scenario. A conflict without the hashes, an EngineError: unchanged.
+    const named = Object.assign(new Error('x'), { name: 'ScenarioChangedError', expected: a, actual: b });
+    expect(scenarioChangedConflict(named, 'm')).toBe(named);
+    const engine = new EngineError('conflict', 'if_match');
+    expect(scenarioChangedConflict(engine, 'm')).toBe(engine);
+    const other = new ComponentError('component "x" already exists');
+    expect(scenarioChangedConflict(other, 'm')).toBe(other);
   });
 });

@@ -239,7 +239,7 @@ describe('POST /v1/live: steps and log from log.jsonl', () => {
       { type: 'mystery', secret: 'x' },
       { type: 'step_end', scene: 'a', step: 0, action: 'hold', status: 'bogus', ms: 1 },
     );
-    await appendFile(join(queue.jobDir(j.job), 'events.jsonl'), [
+    await appendFile(join(queue.files.job(j.job), 'events.jsonl'), [
       JSON.stringify({ seq: 1, t: '2026-10-26T12:00:00.000Z', type: 'state', state: 'running' }),
       JSON.stringify({ seq: 2, t: '2026-10-26T12:00:00.000Z', type: 'run', event: { type: 'log', level: 'info', message: 'a run event, already in log.jsonl' } }),
       JSON.stringify({ seq: 3, t: '2026-10-26T12:00:00.000Z', type: 'log', level: 'warn', message: 'sandbox note from the worker' }),
@@ -256,7 +256,7 @@ describe('POST /v1/live: steps and log from log.jsonl', () => {
     const ends = [...logText.matchAll(/\n/g)].map((m) => Buffer.byteLength(logText.slice(0, m.index + 1)));
     for (const e of snap.events.filter((x) => x.src === 'log')) expect(ends).toContain(e.seq);
     expect(snap.cursor.log).toBe(Buffer.byteLength(logText));
-    expect(snap.cursor.job).toBe((await stat(join(queue.jobDir(j.job), 'events.jsonl'))).size);
+    expect(snap.cursor.job).toBe((await stat(join(queue.files.job(j.job), 'events.jsonl'))).size);
     expect(snap.events[1].ev.steps).toEqual([{ scene: 'a', step: 0, action: 'hold', desc: 'hold 1 s' }, { scene: 'a', step: 1, action: 'click', desc: 'click "Catalog"' }]);
     expect(snap.events[2].ev).toMatchObject({ persona: 'supplier', status: 'signed_in_auto', untrusted: { detail: 'Signed in as <b>Maja</b>' } });
     expect(snap.events[6].ev).toMatchObject({ type: 'job_log', level: 'warn', untrusted: { message: 'sandbox note from the worker' } });
@@ -375,7 +375,7 @@ describe('POST /v1/live: review fixes', () => {
     for (let i = 0; i < LIVE_SNAPSHOT_LOG_LINES + 120; i++) lines.push({ type: 'log', level: 'info', message: `line ${i}`, ts: at(10 + Math.floor(i / 100)) });
     await log(j.run, ...lines);
     // The worker took the job before the run's first line (its line was written to its own file).
-    await appendFile(join(queue.jobDir(j.job), 'events.jsonl'), JSON.stringify({ seq: 1, t: '2026-10-26T11:59:59.000Z', type: 'state', state: 'running' }) + '\n');
+    await appendFile(join(queue.files.job(j.job), 'events.jsonl'), JSON.stringify({ seq: 1, t: '2026-10-26T11:59:59.000Z', type: 'state', state: 'running' }) + '\n');
     await finishJob(j.job);
     const s = await live({ project: P, run_id: j.run });
     const snap = (await s.next('snapshot')) as { log_lines_dropped?: number; events: Array<{ src: string; ev: { type: string; untrusted?: { message?: string } } }> };

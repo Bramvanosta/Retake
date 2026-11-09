@@ -17,7 +17,7 @@ import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { RUN_ID_RE, checkProjectSlug, checkScenarioName } from './refs.js';
 import { editor, planRenderRequest } from './jobs/render-job.js';
 import type { RenderRequest } from './jobs/render-job.js';
-import type { FileJobQueue } from './jobs/queue.js';
+import type { JobQueue } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord, JobYield, RenderJobResult } from './jobs/types.js';
 
@@ -184,7 +184,7 @@ export async function renderForWork(project: LoadedProject, renderIdArg: string,
 }
 
 /** The render id `latest` names: the newest render (record or job) of the project, of `scenario` when given. */
-async function latestRenderId(projectDir: string, queue: FileJobQueue, slug: string, scenario?: string): Promise<string | undefined> {
+async function latestRenderId(projectDir: string, queue: JobQueue, slug: string, scenario?: string): Promise<string | undefined> {
   const ed = await editor();
   const candidates: Array<{ id: string; at: string }> = [];
   for (const r of await ed.listRenders(projectDir)) if (scenario === undefined || r.scenario === scenario) candidates.push({ id: r.id, at: r.created_at });
@@ -196,7 +196,7 @@ async function latestRenderId(projectDir: string, queue: FileJobQueue, slug: str
 }
 
 /** A render's status: its newest job (queued, running, its result or error), then its record. */
-export async function renderStatus(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
+export async function renderStatus(ws: WorkspaceConfig, queue: JobQueue, slug: string, renderIdArg: string, scenario?: string): Promise<RenderStatusView> {
   checkProjectSlug(slug);
   if (scenario !== undefined) checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);
@@ -482,7 +482,7 @@ export function renderView(projectDir: string, r: RenderRecord, renderJobs: read
 }
 
 /** A scenario's render jobs and renders, path-free (the Studio's render queue and list). */
-export async function scenarioRenders(ws: WorkspaceConfig, queue: FileJobQueue, slug: string, scenario: string): Promise<ScenarioRendersView> {
+export async function scenarioRenders(ws: WorkspaceConfig, queue: JobQueue, slug: string, scenario: string): Promise<ScenarioRendersView> {
   checkProjectSlug(slug);
   checkScenarioName(scenario);
   const project = await openProjectBySlug(ws, slug);

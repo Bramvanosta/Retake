@@ -45,7 +45,10 @@ const runFiles = (p: string, root: string) => p === root || p.startsWith(root + 
 /** runner-web artefacts render (the pdf.js route). */
 const pdfRoute = (p: string, root: string) => p.startsWith(root + sep);
 
-// ── The same, through pathInside (the options each site passes; run-files and the pdf.js route keep their guard) ────
+// ── The same, through pathInside (the options each site passes) ─────────────────────────────────────────────────────
+/** The options of engine run-files.ts `inside` and of the pdf.js route (runner-web artefacts/render.ts). */
+const RUN_FILES: PathInsideOptions = { compare: 'spelling', trailingSepHoldsNothing: true };
+const PDF_ROUTE: PathInsideOptions = { compare: 'spelling', self: false, trailingSepHoldsNothing: true };
 // `normalised`: the site only ever gets normalised paths (real paths, `normalize(join(…))`), the folder absolute and
 // without a trailing separator but for the filesystem root; the sweep gives it those.
 const SITES: { name: string; old: (p: string, dir: string) => boolean; now: (p: string, dir: string) => boolean; opts?: PathInsideOptions; normalised?: true }[] = [
@@ -55,8 +58,8 @@ const SITES: { name: string; old: (p: string, dir: string) => boolean; now: (p: 
   { name: 'lexical, folder not inside', old: strictNoSelf, opts: { self: false }, now: (p, d) => pathInside(p, d, { self: false }) },
   { name: 'spelling, folder inside', old: prefixSelf, opts: { compare: 'spelling' }, now: (p, d) => pathInside(p, d, { compare: 'spelling' }) },
   { name: 'spelling, case folded', old: prefixFold, opts: { compare: 'spelling', fold: true }, now: (p, d) => pathInside(p, d, { compare: 'spelling', fold: true }) },
-  { name: 'run-files (a root spelt with a trailing separator holds only itself)', old: runFiles, now: (p, d) => (d.endsWith(sep) ? p === d : pathInside(p, d, { compare: 'spelling' })), normalised: true },
-  { name: 'pdf.js route (the root itself and a root spelt with a trailing separator hold nothing)', old: pdfRoute, now: (p, d) => !d.endsWith(sep) && pathInside(p, d, { compare: 'spelling', self: false }), normalised: true },
+  { name: 'run-files (a root spelt with a trailing separator holds only itself)', old: runFiles, opts: RUN_FILES, now: (p, d) => pathInside(p, d, RUN_FILES), normalised: true },
+  { name: 'pdf.js route (the root itself and a root spelt with a trailing separator hold nothing)', old: pdfRoute, opts: PDF_ROUTE, now: (p, d) => pathInside(p, d, PDF_ROUTE), normalised: true },
 ];
 
 // [p, dir, …the expected answer of each site above, in order]

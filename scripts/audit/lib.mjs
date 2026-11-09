@@ -86,83 +86,170 @@ export function cycles(graph) {
   return out;
 }
 
-/** The file graph of relative imports, and its cycles (each sorted). */
-export function fileCycles(fileImports) {
+/** The file graph of relative imports: file → the files it imports (each once). */
+export function fileGraph(fileImports) {
   const fg = {};
   for (const [f, specs] of Object.entries(fileImports)) {
-    fg[f] = [];
+    const to = new Set();
     for (const s of specs) {
       if (!s.startsWith('.')) continue;
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).replace(/\.js$/, '');
       for (const ext of ['.ts', '.tsx', '/index.ts', '/index.tsx']) {
-        if (fileImports[target + ext] !== undefined) { fg[f].push(target + ext); break; }
+        if (fileImports[target + ext] !== undefined) { to.add(target + ext); break; }
       }
     }
+    fg[f] = [...to];
   }
-  return cycles(fg).map((c) => c.sort());
+  return fg;
+}
+
+/** The cycles of the file graph of relative imports (each sorted). */
+export function fileCycles(fileImports) {
+  return cycles(fileGraph(fileImports)).map((c) => c.sort());
+}
+
+/** How many imports (file → file, each pair once) run between the files of one cycle. */
+export function cycleEdges(graph, cycle) {
+  const inside = new Set(cycle);
+  return cycle.reduce((n, f) => n + (graph[f] ?? []).filter((t) => inside.has(t)).length, 0);
 }
 
 // The layer rules of docs/audit/target-architecture.md. `files` selects importing files; `bad(spec, file)` says whether
 // one import breaks the rule.
-const IO = /^(node:)?(fs|fs\/promises|child_process|net|http|https|os|dns|dns\/promises|worker_threads|readline|sqlite|zlib|stream)$|^(playwright|playwright-core|pg|sharp|esbuild|@remotion\/(renderer|bundler)|@modelcontextprotocol|pdfjs-dist)/;
+// A module loader (node:module's createRequire) loads any package at run time, so it counts as I/O too.
+const IO = /^(node:)?(fs|fs\/promises|child_process|net|tls|http|https|http2|dgram|os|dns|dns\/promises|worker_threads|readline|sqlite|zlib|stream|vm|module)$|^(playwright|playwright-core|pg|sharp|esbuild|@remotion\/(renderer|bundler)|@modelcontextprotocol|pdfjs-dist)/;
 const pkgOf = (f) => f.split('/')[1];
 const retake = (s) => (s.startsWith('@retake/') ? s.slice(8).split('/')[0] : null);
 const SHELLS = ['cli', 'mcp', 'ui'];
 const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'components'];
 export const RULES = [
-  { id: 'R1', title: 'core is I/O-free (domain)', files: (f) => pkgOf(f) === 'core', bad: (s) => IO.test(s) },
+  { id: 'R1', title: 'core is I/O-free (domain; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O)', files: (f) => pkgOf(f) === 'core', bad: (s) => IO.test(s), loaders: true },
   { id: 'R2', title: 'adapters never import application or shells', files: (f) => ADAPTERS.includes(pkgOf(f)), bad: (s) => ['engine', 'mcp', 'ui', 'cli'].includes(retake(s)) },
   { id: 'R3', title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)', files: (f) => ['mcp', 'ui'].includes(pkgOf(f)), bad: (s, f) => { const p = retake(s); return !!p && SHELLS.includes(p) && p !== pkgOf(f); } },
   { id: 'R4', title: 'shells call the application only (no direct adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)) },
-  { id: 'R5', title: 'the Studio front end imports types only from other packages (checked: any @retake value import in src/app)', files: (f) => f.startsWith('packages/ui/src/app/'), bad: (s) => !!retake(s), typeOnlyCheck: true },
+  { id: 'R5', title: 'the Studio front end imports types only from other packages (checked: any @retake value import, re-export, side-effect import or import() in src/app)', files: (f) => f.startsWith('packages/ui/src/app/'), bad: (s) => !!retake(s), typeOnlyCheck: true },
   { id: 'R6', title: 'shells do not touch the file system / processes themselves', files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)), bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) },
   { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules)', files: (f) => /packages\/editor\/src\/(plan|plan-types|timing|camera|layout|panes|timeline|resolve|tutorial|summary)\.ts$/.test(f) || /packages\/review\/src\/(checks|pixel-checks|spans|timeline|anchor|diff)\.ts$/.test(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
 ];
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
-  { id: 'cycle', title: 'no import cycle between the files of a package (entry: a file and the first file of its cycle)' },
-  { id: 'queue', title: 'only the engine builds the file job queue (`new FileJobQueue`)' },
+  { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
+  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI (and the adapter itself, for a reader); everything else is handed the JobQueue port' },
   { id: 'setter', title: 'the process-wide setters (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) are used by packages/engine/src/workspace.ts only' },
 ];
 
-/** Rule hits as `[{ rule, file, spec }]`, one per import statement (a file importing a module twice gives two). */
+function parse(ts, rel, text) {
+  return ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, rel.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+}
+
+const literal = (ts, e) => (e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) ? e.text : undefined);
+
+/**
+ * What a file loads, read from its syntax tree: `values`, the module specifiers it imports or re-exports as values (an
+ * `import`, `export … from`, `export *`, side-effect `import '…'`, `import x = require()`, `import()` or `require()` call;
+ * not `import type`, `export type` nor an import whose every name is `type`), and `loaders`, its run-time module loaders
+ * (`getBuiltinModule()` calls, `import()` of a computed name).
+ */
+export function moduleUses(ts, rel, text) {
+  const values = new Set();
+  const loaders = new Set();
+  const allTypes = (els) => els.length > 0 && els.every((e) => e.isTypeOnly);
+  (function visit(n) {
+    if (ts.isImportDeclaration(n)) {
+      const c = n.importClause;
+      const typeOnly = !!c && (c.isTypeOnly || (!c.name && !!c.namedBindings && ts.isNamedImports(c.namedBindings) && allTypes(c.namedBindings.elements)));
+      const spec = literal(ts, n.moduleSpecifier);
+      if (spec !== undefined && !typeOnly) values.add(spec);
+      return;
+    }
+    if (ts.isExportDeclaration(n)) {
+      const spec = literal(ts, n.moduleSpecifier);
+      const typeOnly = n.isTypeOnly || (!!n.exportClause && ts.isNamedExports(n.exportClause) && allTypes(n.exportClause.elements));
+      if (spec !== undefined && !typeOnly) values.add(spec);
+      return;
+    }
+    if (ts.isImportEqualsDeclaration(n)) {
+      const spec = ts.isExternalModuleReference(n.moduleReference) ? literal(ts, n.moduleReference.expression) : undefined;
+      if (spec !== undefined && !n.isTypeOnly) values.add(spec);
+      return;
+    }
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      const dynamic = callee.kind === ts.SyntaxKind.ImportKeyword;
+      if (dynamic || (ts.isIdentifier(callee) && callee.text === 'require')) {
+        const spec = literal(ts, n.arguments[0]);
+        if (spec !== undefined) values.add(spec);
+        else if (dynamic) loaders.add('import()');
+      }
+      const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : undefined;
+      if (name === 'getBuiltinModule') loaders.add('getBuiltinModule()');
+    }
+    n.forEachChild(visit);
+  })(parse(ts, rel, text));
+  return { values, loaders };
+}
+
+/**
+ * Rule hits as `[{ rule, file, spec }]`, one per specifier the pre-processor lists (a file importing a module twice
+ * gives the hit twice; ratchetEntries keeps one entry per rule, file and import). The type-only rule (R5) keeps the
+ * specifiers the file loads as values, and the I/O rule of core (R1) adds the file's run-time module loaders, both read
+ * from the syntax tree; a file that cannot be read counts as loading every one of its specifiers as a value.
+ */
 export function ruleHits(root, fileImports, rules = RULES) {
+  const ts = (rules.some((r) => r.typeOnlyCheck || r.loaders) && loadTs(root)) || undefined;
+  const uses = new Map();
+  const usesOf = (f) => {
+    if (!uses.has(f)) {
+      let text;
+      try {
+        text = fs.readFileSync(path.join(root, f), 'utf8');
+      } catch {
+        text = undefined;
+      }
+      uses.set(f, text === undefined ? null : moduleUses(ts, f, text));
+    }
+    return uses.get(f);
+  };
   const hits = [];
   for (const r of rules) {
     for (const [f, specs] of Object.entries(fileImports)) {
       if (!r.files(f)) continue;
-      let src;
       for (const s of specs) {
         if (!r.bad(s, f)) continue;
         if (r.typeOnlyCheck) {
-          src ??= fs.readFileSync(path.join(root, f), 'utf8');
-          const re = new RegExp(`import\\s+(?!type\\b)[^;]*from\\s+'${s.replace(/[/.]/g, '\\$&')}'`);
-          if (!re.test(src)) continue;
+          const u = usesOf(f);
+          if (u && !u.values.has(s)) continue;
         }
         hits.push({ rule: r.id, file: f, spec: s });
       }
+      if (r.loaders) for (const l of usesOf(f)?.loaders ?? []) hits.push({ rule: r.id, file: f, spec: l });
     }
   }
   return hits;
 }
 
 const QUEUE_CLASS = 'FileJobQueue';
+/** Where the file job queue may be built: the composition roots, and the adapter's own file (its reader() makes one). */
+const QUEUE_ROOTS = ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts'];
+const queueRoot = (rel) => QUEUE_ROOTS.includes(rel) || rel.startsWith('packages/cli/src/');
 const SETTERS = ['useAgentPolicy', 'useWorkspaceFfmpeg', 'useWorkspaceRender'];
 const SETTER_HOME = 'packages/engine/src/workspace.ts';
 
 /**
- * The wiring rules, read from the syntax tree: `new FileJobQueue(…)` (or a class extending it) outside packages/engine,
- * and any use of a process-wide setter — a call or the function passed on as a value, under its own name, an import
- * alias or `ns.name` — outside packages/engine/src/workspace.ts. Declarations, imports and re-exports are not uses.
+ * The wiring rules, read from the syntax tree: outside the composition roots (QUEUE_ROOTS, the CLI), `new FileJobQueue(…)`, a class extending it and
+ * any other use of the class as a value (`const Q = FileJobQueue`, a destructured `{ FileJobQueue }`, `ns.FileJobQueue`
+ * passed on), under its own name, an import alias or `ns.name` (a type position is not a use); and any use of a
+ * process-wide setter — a call or the function passed on as a value, under the same names — outside
+ * packages/engine/src/workspace.ts. Declarations, imports and re-exports are not uses.
  */
 export function wiringHits(root, files) {
   const ts = loadTs(root);
   const hits = [];
   for (const { rel, text } of files) {
-    const queue = !rel.startsWith('packages/engine/') && text.includes(QUEUE_CLASS);
+    const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
     const setters = rel !== SETTER_HOME && SETTERS.some((s) => text.includes(s));
     if (!queue && !setters) continue;
-    const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, rel.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+    const sf = parse(ts, rel, text);
     const names = new Map([[QUEUE_CLASS, QUEUE_CLASS], ...SETTERS.map((s) => [s, s])]); // local name → original
     sf.forEachChild(function imports(n) {
       if (ts.isImportSpecifier(n)) {
@@ -173,10 +260,31 @@ export function wiringHits(root, files) {
     });
     const nameOf = (e) => (ts.isIdentifier(e) ? names.get(e.text) : ts.isPropertyAccessExpression(e) && names.has(e.name.text) && e.name.text === names.get(e.name.text) ? e.name.text : undefined);
     const found = new Set();
-    (function visit(n) {
+    const named = (x, text) => !!x && (ts.isIdentifier(x) || ts.isStringLiteral(x)) && x.text === text;
+    // The places where the class's name is not a value of its own: a declaration's name, a property name (counted on
+    // the access), an object key, and the class built or extended (counted as such).
+    const notAValue = (n) => {
+      const p = n.parent;
+      if (!p) return false;
+      if ((ts.isPropertyAccessExpression(p) && p.name === n) || (ts.isPropertyAssignment(p) && p.name === n)) return true;
+      if ((ts.isClassDeclaration(p) || ts.isFunctionDeclaration(p) || ts.isVariableDeclaration(p) || ts.isParameter(p) || ts.isPropertyDeclaration(p) || ts.isMethodDeclaration(p) || ts.isBindingElement(p)) && p.name === n) return true;
+      if (ts.isNewExpression(p) && p.expression === n) return true;
+      return ts.isExpressionWithTypeArguments(p) && p.expression === n;
+    };
+    (function visit(n, inType = false) {
       if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) return;
-      if (queue && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) found.add(`queue:new ${QUEUE_CLASS}`);
-      if (queue && ts.isHeritageClause(n) && n.types.some((t) => nameOf(t.expression) === QUEUE_CLASS)) found.add(`queue:extends ${QUEUE_CLASS}`);
+      // Type positions (annotations, `typeof`, generics, `implements`, type declarations) never use the class as a value.
+      const typeHere = inType || (ts.isTypeNode(n) && !ts.isExpressionWithTypeArguments(n)) || ts.isInterfaceDeclaration(n) || ts.isTypeAliasDeclaration(n) || (ts.isHeritageClause(n) && n.token === ts.SyntaxKind.ImplementsKeyword);
+      if (queue && !typeHere && ts.isNewExpression(n) && nameOf(n.expression) === QUEUE_CLASS) found.add(`queue:new ${QUEUE_CLASS}`);
+      if (queue && !typeHere && ts.isHeritageClause(n) && n.types.some((t) => nameOf(t.expression) === QUEUE_CLASS)) found.add(`queue:extends ${QUEUE_CLASS}`);
+      if (queue && !typeHere) {
+        const ref = (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n)) && nameOf(n) === QUEUE_CLASS && !notAValue(n);
+        const destructured = ts.isBindingElement(n) && named(n.propertyName ?? n.name, QUEUE_CLASS);
+        const indexed = ts.isElementAccessExpression(n) && named(n.argumentExpression, QUEUE_CLASS);
+        const shorthand = ts.isShorthandPropertyAssignment(n) && names.get(n.name.text) === QUEUE_CLASS;
+        const aliased = ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference) && n.moduleReference.right.text === QUEUE_CLASS; // import Q = ns.FileJobQueue
+        if (ref || destructured || indexed || shorthand || aliased) found.add(`queue:${QUEUE_CLASS} as a value`);
+      }
       if (setters && (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n))) {
         const orig = nameOf(n);
         const p = n.parent;
@@ -184,19 +292,31 @@ export function wiringHits(root, files) {
         const inner = ts.isIdentifier(n) && p && ts.isPropertyAccessExpression(p) && p.name === n; // counted on the access
         if (orig && SETTERS.includes(orig) && !declName && !inner) found.add(`setter:${orig}`);
       }
-      n.forEachChild(visit);
+      n.forEachChild((c) => visit(c, typeHere));
     })(sf);
     for (const k of found) { const i = k.indexOf(':'); hits.push({ rule: k.slice(0, i), file: rel, spec: k.slice(i + 1) }); }
   }
   return hits;
 }
 
-/** One ratchet entry per (rule, file, import): the strings the baseline holds, sorted. */
+/**
+ * One ratchet entry per (rule, file, import): the strings the baseline holds, sorted. A cycle gives one entry per file
+ * and one with the number of imports inside it, so a new import between files already in a cycle fails too.
+ */
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
-  for (const c of fileCycles(scanned.fileImports)) for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);
+  const graph = fileGraph(scanned.fileImports);
+  for (const c of cycles(graph).map((x) => x.sort())) {
+    for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);
+    set.add(`cycle ${c[0]} → ${cycleEdges(graph, c)} imports inside its cycle`);
+  }
   return [...set].sort();
+}
+
+/** The cycle an entry of the cycle check belongs to (its first file), else undefined. */
+function cycleOf(entry) {
+  return /→ cycle of (.+)$/.exec(entry)?.[1] ?? /^(?:cycle )?(.+) → \d+ imports inside its cycle$/.exec(entry)?.[1];
 }
 
 export function readBaseline(root) {
@@ -233,16 +353,28 @@ export function compareBaseline(entries, baseline) {
   };
 }
 
-/** The baseline rewritten for today's entries: reasons and groups kept, stale entries dropped, new ones in a group per rule to explain. */
+/**
+ * The baseline rewritten for today's entries: reasons and groups kept, stale entries dropped, new ones in a group per
+ * rule to explain — except a new entry of a cycle a group already holds (a file joining it, its new import count),
+ * which joins that group.
+ */
 export function rewriteBaseline(entries, baseline) {
   const now = new Set(entries);
   const kept = new Set();
   const groups = [];
+  const cycleGroups = new Map();
   for (const g of baseline.groups ?? []) {
     const es = (g.entries ?? []).filter((e) => now.has(`${g.rule} ${e}`) && !kept.has(`${g.rule} ${e}`));
     es.forEach((e) => kept.add(`${g.rule} ${e}`));
-    if (es.length) groups.push({ rule: g.rule, reason: g.reason ?? '', entries: es.sort() });
+    const group = { rule: g.rule, reason: g.reason ?? '', entries: es };
+    if (g.rule === 'cycle') for (const e of g.entries ?? []) if (cycleOf(e) && !cycleGroups.has(cycleOf(e))) cycleGroups.set(cycleOf(e), group);
+    groups.push(group);
   }
+  for (const e of entries) {
+    const group = e.startsWith('cycle ') && !kept.has(e) ? cycleGroups.get(cycleOf(e.slice(6))) : undefined;
+    if (group) { group.entries.push(e.slice(6)); kept.add(e); }
+  }
+  for (let i = groups.length - 1; i >= 0; i--) if (groups[i].entries.length) groups[i].entries.sort(); else groups.splice(i, 1);
   for (const c of CHECKS) {
     const fresh = entries.filter((e) => e.startsWith(`${c.id} `) && !kept.has(e)).map((e) => e.slice(c.id.length + 1));
     if (fresh.length) groups.push({ rule: c.id, reason: '', entries: fresh });

@@ -1,5 +1,5 @@
 import { printableText } from '@retake/core';
-import { EngineError, createThemeFromBrand, extractSiteForAuthor } from '@retake/engine';
+import { EngineError, FileJobQueue, createThemeFromBrand, extractSiteForAuthor } from '@retake/engine';
 import type { SiteJobResult, ThemeCreated } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -124,7 +124,7 @@ export async function themeFromSiteCommand(ui: Ui, global: GlobalOptions, url: s
   const ws = await openWorkspace(global);
   let r: SiteJobResult;
   try {
-    r = await extractSiteForAuthor(ws, url);
+    r = await extractSiteForAuthor(ws, url, { queue: new FileJobQueue(ws.root) });
   } catch (e) {
     if (e instanceof EngineError) throw new CliError(`${e.message}${e.fix ? `\n  fix: ${e.fix}` : ''}`);
     throw e;
