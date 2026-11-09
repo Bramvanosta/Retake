@@ -3,12 +3,12 @@
  * render to compare with.
  */
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { loadProject, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
 import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
-import { listRenders, rendersDir } from '@retake/editor';
-import type { RenderRecord } from '@retake/editor';
+import { isRenderRecord, readRenderRecords } from '@retake/editor/plan';
+import type { RenderRecord } from '@retake/editor/plan';
 
 /** A review that cannot start (message written for the user). */
 export class ReviewError extends Error {
@@ -43,8 +43,18 @@ async function readRecord(file: string): Promise<RenderRecord> {
   } catch (e) {
     throw new ReviewError(`cannot read the render record ${file}: ${(e as Error).message}`);
   }
-  if (!r || r.version !== 1 || typeof r.id !== 'string' || !r.plan) throw new ReviewError(`${file} is not a render record (renders/<id>.json)`);
+  if (!isRenderRecord(r)) throw new ReviewError(`${file} is not a render record (renders/<id>.json)`);
   return r;
+}
+
+/** `<project>/renders`: where the project's renders and their records are. */
+function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
+  return projectPath(project.dir, 'renders');
+}
+
+/** The render records of a project (renders/*.json), oldest first; unreadable files are skipped. */
+function listRenders(project: Pick<LoadedProject, 'dir'>): Promise<RenderRecord[]> {
+  return readRenderRecords(rendersDir(project), { list: (d) => readdir(d), read: (f) => readFile(f, 'utf8') });
 }
 
 /**

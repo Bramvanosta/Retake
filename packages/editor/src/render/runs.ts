@@ -8,6 +8,7 @@ import { basename, isAbsolute, join, resolve } from 'node:path';
 import { RUN_FOLDER_RE, newerRunMessage, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
 import type { LoadedProject, Scenario } from '@retake/core';
 import type { RenderRecord } from './types.js';
+import { readRenderRecords } from '../render-record.js';
 import { RenderError } from './types.js';
 
 export interface RunRef {
@@ -151,20 +152,5 @@ export async function reserveVersion(dir: string, name: string, owner = String(p
 /** The RenderRecords of a project (renders/*.json), oldest first. Unreadable files are skipped. */
 export async function listRenders(project: Pick<LoadedProject, 'dir'> | string): Promise<RenderRecord[]> {
   const dir = typeof project === 'string' ? projectPath(resolve(project), 'renders') : rendersDir(project);
-  let files: string[];
-  try {
-    files = (await readdir(dir)).filter((f) => f.endsWith('.json') && !f.startsWith('.'));
-  } catch {
-    return [];
-  }
-  const out: RenderRecord[] = [];
-  for (const f of files) {
-    try {
-      const r = JSON.parse(await readFile(join(dir, f), 'utf8')) as RenderRecord;
-      if (r && r.version === 1 && typeof r.id === 'string' && r.plan) out.push(r);
-    } catch {
-      // not a render record
-    }
-  }
-  return out.sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+  return readRenderRecords(dir, { list: (d) => readdir(d), read: (f) => readFile(f, 'utf8') });
 }

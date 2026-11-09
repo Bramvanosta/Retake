@@ -18,8 +18,8 @@ How this audit was run, so the next one can follow the same steps and compare it
 | Script | Measures |
 |---|---|
 | `imports.mjs <root> [--json f]` | Package graph from real imports, declared vs actual dependencies, `node:` built-ins, I/O vs pure files, package and file cycles |
-| `rules.mjs <root> [--imports f] [--json f] [--list]` | The layer rules R1–R7 and their violation counts |
-| `rules.mjs <root> --check` / `--write-baseline` | The import-rules ratchet: R1–R7, file cycles, who builds the file job queue, who calls the process-wide setters, against `baseline.json` (`--write-baseline` rewrites it, keeping each group's reason); `packages/core/test/import-rules.test.ts` runs the same check |
+| `rules.mjs <root> [--imports f] [--json f] [--list]` | The layer rules R1–R8 and their violation counts |
+| `rules.mjs <root> --check` / `--write-baseline` | The import-rules ratchet: R1–R8, file cycles, who builds the file job queue, who calls the process-wide setters, against `baseline.json` (`--write-baseline` rewrites it, keeping each group's reason); `packages/core/test/import-rules.test.ts` runs the same check |
 | `lib.mjs` | The scan, the rules and the ratchet shared by the two scripts above and the test |
 | `sizes.mjs <root> [--json f]` | Largest files, functions of 150 lines or more, test lines and kinds per package |
 | `dupes.mjs <root> [--json f]` | Duplicated blocks (8 normalised lines), within and across packages |

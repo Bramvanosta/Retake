@@ -7,9 +7,9 @@ import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@re
 import type { DisplayEntry, RunRecord, Timeline, TimelineWrite } from '@retake/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText } from '@retake/components';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components';
-import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor';
+import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor/plan';
 import { insetPhoneEdge } from '@retake/components/kit';
-import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor';
+import type { CameraFrame, ClipSegment, EditPlan, RenderRecord, ResolvedComponent } from '@retake/editor/plan';
 import type { OutputClick } from './timeline.js';
 import { cursorAt } from './timeline.js';
 import type { Finding, FindingAt, ReviewEnvironment, ReviewRules, SegmentDuration, Severity } from './types.js';

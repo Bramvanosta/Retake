@@ -4,8 +4,8 @@
  * opening still (the page was loading), captions that do not show in their area, segments that render nothing.
  */
 import type { Timeline } from '@retake/core';
-import { viewOf } from '@retake/editor';
-import type { ClipSegment, EditPlan } from '@retake/editor';
+import { viewOf } from '@retake/editor/plan';
+import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import type { CheckContext } from './checks.js';
 import { captionRegion, locate } from './checks.js';
 import type { RegionStats } from './pixels.js';

@@ -11,8 +11,8 @@ import { loadProject, loadTemplate, parseScenario, stepFingerprint } from '@reta
 import type { Scene, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { brandmarkRect, planEdit } from '@retake/editor';
-import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
+import { brandmarkRect, planEdit } from '@retake/editor/plan';
+import type { ClipSegment, EditOverrides, EditPlan } from '@retake/editor/plan';
 import { captionRegion, frameAnchor, segmentSpans, transitionSpans } from '../src/index.js';
 import { REPO, synthTimeline } from './helpers.js';
 

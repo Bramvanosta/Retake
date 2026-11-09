@@ -4,7 +4,7 @@
  */
 import type { LoadedProject, ErrorKind } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
-import type { PlanSegment, RenderRecord } from '@retake/editor';
+import type { PlanSegment, RenderRecord } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';
 

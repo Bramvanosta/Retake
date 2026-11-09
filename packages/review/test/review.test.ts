@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ReviewCancelledError, recoverReviewDir, reviewImages, reviewRender } from '../src/index.js';
 import type { Finding, ReviewResult } from '../src/index.js';
 import type { OutputTimeline } from '../src/timeline.js';
-import type { ClipSegment, EditPlan } from '@retake/editor';
+import type { ClipSegment, EditPlan } from '@retake/editor/plan';
 import { hasTool, makeCase, scenesTimeline, workspace } from './helpers.js';
 import type { Workspace } from './helpers.js';
 

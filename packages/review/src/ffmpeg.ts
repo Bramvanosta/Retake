@@ -3,11 +3,10 @@
  * numbers), streamed as raw RGB to a callback one frame at a time (back-pressure: the next frame is read once the
  * callback resolved). Frame numbers are exact for the CFR videos the renderer and the runner write.
  */
-import { spawn } from 'node:child_process';
-import { probeMedia } from '@retake/editor';
+import { execFile, spawn } from 'node:child_process';
 import type { RgbImage } from './pixels.js';
 import { ReviewError } from './load.js';
-import { ffmpegBin } from '@retake/core';
+import { ffmpegBin, ffprobeBin } from '@retake/core';
 
 export interface VideoInfo {
   width: number;
@@ -17,8 +16,36 @@ export interface VideoInfo {
   frames?: number;
 }
 
+/**
+ * What ffprobe says of a video's first video stream and its length (the question the render's own probe asks);
+ * undefined when ffprobe fails or does not answer in JSON.
+ */
+function ffprobeVideo(file: string): Promise<VideoInfo | undefined> {
+  const args = ['-v', 'error', '-show_entries', 'stream=codec_type,codec_name,width,height,r_frame_rate,nb_frames:format=duration', '-of', 'json', file];
+  return new Promise((ok) => {
+    execFile(ffprobeBin(), args, { maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+      if (err) return ok(undefined);
+      try {
+        const j = JSON.parse(String(stdout)) as { streams: Array<Record<string, string | number>>; format: { duration?: string } };
+        const v = j.streams.find((s) => s.codec_type === 'video');
+        const [num, den] = String(v?.r_frame_rate ?? '0/1').split('/').map(Number);
+        const out: VideoInfo = {
+          duration_s: Number(j.format.duration ?? 0),
+          width: Number(v?.width ?? 0),
+          height: Number(v?.height ?? 0),
+          fps: den ? Math.round((num / den) * 1000) / 1000 : 0,
+        };
+        if (v?.nb_frames !== undefined) out.frames = Number(v.nb_frames);
+        ok(out);
+      } catch {
+        ok(undefined);
+      }
+    });
+  });
+}
+
 export async function probeVideo(file: string): Promise<VideoInfo> {
-  const p = await probeMedia(file);
+  const p = await ffprobeVideo(file);
   if (!p || !p.width || !p.height) throw new ReviewError(`cannot read the video ${file} (ffprobe failed: is ffmpeg installed and the file a video?)`);
   return { width: p.width, height: p.height, fps: p.fps, duration_s: p.duration_s, frames: p.frames };
 }

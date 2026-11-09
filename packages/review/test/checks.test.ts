@@ -13,8 +13,8 @@ import { loadProject, loadTemplate } from '@retake/core';
 import type { LoadedProject, LoadedTemplate, Timeline, TimelineEnvironment } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
-import { planEdit } from '@retake/editor';
-import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor';
+import { planEdit } from '@retake/editor/plan';
+import type { CardSegment, ClipSegment, EditOverrides, EditPlan, RenderRecord } from '@retake/editor/plan';
 import {
   DEFAULT_RULES,
   buildOutputTimeline,
