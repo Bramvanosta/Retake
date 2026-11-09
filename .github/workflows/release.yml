@@ -20,7 +20,9 @@
 #    removes what this build does not make, uploads the DMG, the update archive and its .sig, SHA256SUMS-macos.txt.
 #  - publish (ubuntu, `environment: release`, contents: write, one at a time across tags): the release made public, then
 #    the update published (scripts/publish-update.mjs, with the job token: the version's platform file, then the
-#    update-feed release's latest.json / rc.json — the only release whose files are replaced once public).
+#    update-feed release's latest.json / rc.json — the only release whose files are replaced once public), last the
+#    Homebrew casks pushed to the owner's tap (scripts/homebrew-cask.mjs: `retake` for a stable version, `retake@beta`
+#    for every version) with the tap's deploy key, in a step that holds no job token.
 #
 # No CI workflow runs the tests on pull requests or main yet (BACKLOG BL-144): nothing here checks that the tagged
 # commit's tests passed — run `pnpm build` and `pnpm test` before you tag.
@@ -33,12 +35,14 @@
 #  - the updater set: TAURI_SIGNING_PRIVATE_KEY (the updater key file's content) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 #    (secrets), RETAKE_UPDATE_PUBKEY (the .pub file's content, a variable) — none: an app without the updater ("Updates
 #    are off in this build"). The feed's address comes from the run's own context (GITHUB_SERVER_URL,
-#    GITHUB_REPOSITORY: scripts/release.mjs feed); publishing it needs no other secret than the job token.
+#    GITHUB_REPOSITORY: scripts/release.mjs feed); publishing it needs no other secret than the job token;
+#  - the tap set: HOMEBREW_TAP_DEPLOY_KEY (the private half of an SSH deploy key with write access to the owner's
+#    homebrew-tap repository, and to nothing else) — none: the casks are not updated (a notice says so).
 # Secrets live in the `release` environment (Settings › Environments › release: deployments from v* tags only);
 # variables there or in the repository. Only the jobs that reference the environment can read its secrets.
 #
 # The job token may write releases: it is handed only to the steps that call `gh` and to publish-update.mjs, in jobs
-# that run no build tool.
+# that run no build tool. The tap's deploy key goes to the one step that pushes the casks, which holds no job token.
 #
 # No cache: every run starts from the checkout, the pinned downloads and the lockfile (nothing restored from an earlier
 # run). Every job's first step after its checkout installs Node.js from the official tarball, checked in the shell
@@ -79,6 +83,7 @@ jobs:
       dmg: ${{ steps.config.outputs.dmg }}
       archive: ${{ steps.config.outputs.archive }}
       signature: ${{ steps.config.outputs.signature }}
+      tap: ${{ steps.config.outputs.tap }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -133,6 +138,7 @@ jobs:
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_SECRET_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
           HAS_SECRET_RETAKE_UPDATE_PUBKEY: ${{ secrets.RETAKE_UPDATE_PUBKEY != '' }}
+          HAS_SECRET_HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY != '' }}
           HAS_VAR_APPLE_CERTIFICATE: ${{ vars.APPLE_CERTIFICATE != '' }}
           HAS_VAR_APPLE_CERTIFICATE_PASSWORD: ${{ vars.APPLE_CERTIFICATE_PASSWORD != '' }}
           HAS_VAR_APPLE_SIGNING_IDENTITY: ${{ vars.APPLE_SIGNING_IDENTITY != '' }}
@@ -142,6 +148,7 @@ jobs:
           HAS_VAR_APPLE_API_KEY_P8: ${{ vars.APPLE_API_KEY_P8 != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY: ${{ vars.TAURI_SIGNING_PRIVATE_KEY != '' }}
           HAS_VAR_TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ vars.TAURI_SIGNING_PRIVATE_KEY_PASSWORD != '' }}
+          HAS_VAR_HOMEBREW_TAP_DEPLOY_KEY: ${{ vars.HOMEBREW_TAP_DEPLOY_KEY != '' }}
         run: |
           set -eu
           node scripts/release.mjs preflight "$VERSION" --output "$GITHUB_OUTPUT"
@@ -486,11 +493,12 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" "$O"/* --clobber
           gh release edit "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/notes.md"
 
-  # The files are attached: the release goes public, then the update points at files that exist.
+  # The files are attached: the release goes public, then the update points at files that exist, then the casks.
   publish:
-    needs: [release, attach]
+    needs: [release, sign, attach]
     runs-on: ubuntu-24.04
-    # No secret here: the environment is the gate (its reviewers, its v* rule) before the release goes public.
+    # The environment is the gate (its reviewers, its v* rule) before the release goes public; its one secret here is
+    # the tap's deploy key, in the last step.
     environment: release
     timeout-minutes: 20
     permissions:
@@ -560,3 +568,69 @@ jobs:
           export RETAKE_UPDATE_FEED
           D="$RUNNER_TEMP/update"
           node scripts/publish-update.mjs "$VERSION" --artifact "$D/$ARCHIVE" --signature "$D/$SIGNATURE"
+      - name: The Homebrew casks' inputs
+        id: cask
+        if: needs.release.outputs.tap == 'on'
+        # The DMG's sha256 from the release's SHA256SUMS-macos.txt, itself checked against the sign job's sum; the
+        # repository's website (its homepage field; none: the repository's page); the tap's place, from the run's own
+        # context (scripts/homebrew-cask.mjs tap).
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DMG: ${{ needs.release.outputs.dmg }}
+          SUMS: ${{ needs.sign.outputs.sums }}
+        run: |
+          set -eu
+          D="$RUNNER_TEMP/cask"
+          rm -rf "$D"
+          mkdir -p "$D"
+          gh release download "$GITHUB_REF_NAME" --dir "$D" --pattern SHA256SUMS-macos.txt
+          (cd "$D" && echo "$SUMS  SHA256SUMS-macos.txt" | shasum -a 256 -c)
+          node scripts/homebrew-cask.mjs sha256 "$D/SHA256SUMS-macos.txt" "$DMG" >> "$GITHUB_OUTPUT"
+          gh api "repos/$GH_REPO" --jq '"homepage=\(.homepage // "")"' >> "$GITHUB_OUTPUT"
+          node scripts/homebrew-cask.mjs tap >> "$GITHUB_OUTPUT"
+      - name: Update the Homebrew tap
+        if: needs.release.outputs.tap == 'on'
+        # Last: the release and the update are out. The deploy key may write to the tap and nothing else; the tap's host
+        # key is pinned. A cask never moves back (a re-run of an old tag leaves it alone); a tap that moved meanwhile
+        # (another product's release) is cloned again, three times at most.
+        env:
+          HOMEBREW_TAP_DEPLOY_KEY: ${{ secrets.HOMEBREW_TAP_DEPLOY_KEY }}
+          VERSION: ${{ needs.release.outputs.version }}
+          DMG: ${{ needs.release.outputs.dmg }}
+          SHA256: ${{ steps.cask.outputs.sha256 }}
+          HOMEPAGE: ${{ steps.cask.outputs.homepage }}
+          REMOTE: ${{ steps.cask.outputs.remote }}
+          KNOWN_HOST: ${{ steps.cask.outputs.known_host }}
+          GIT_AUTHOR_NAME: ${{ steps.cask.outputs.author }}
+          GIT_AUTHOR_EMAIL: ${{ steps.cask.outputs.email }}
+          GIT_COMMITTER_NAME: ${{ steps.cask.outputs.author }}
+          GIT_COMMITTER_EMAIL: ${{ steps.cask.outputs.email }}
+        run: |
+          set -eu
+          umask 077
+          K="$RUNNER_TEMP/tap-ssh"
+          rm -rf "$K"
+          mkdir -p "$K"
+          trap 'rm -rf "$K"' EXIT
+          printf '%s\n' "$HOMEBREW_TAP_DEPLOY_KEY" > "$K/key"
+          unset HOMEBREW_TAP_DEPLOY_KEY
+          printf '%s\n' "$KNOWN_HOST" > "$K/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i $K/key -o IdentitiesOnly=yes -o UserKnownHostsFile=$K/known_hosts -o StrictHostKeyChecking=yes"
+          T="$RUNNER_TEMP/tap"
+          for attempt in 1 2 3; do
+            rm -rf "$T"
+            git clone --quiet --depth 1 "$REMOTE" "$T"
+            node scripts/homebrew-cask.mjs write "$VERSION" --dmg "$DMG" --sha256 "$SHA256" --homepage "$HOMEPAGE" --tap "$T"
+            git -C "$T" add Casks
+            if git -C "$T" diff --cached --quiet; then
+              echo "the casks are up to date"
+              exit 0
+            fi
+            git -C "$T" commit --quiet -m "retake $VERSION"
+            if git -C "$T" push --quiet origin HEAD; then
+              exit 0
+            fi
+            echo "the tap moved meanwhile (attempt $attempt of 3)"
+          done
+          echo "::error::the casks of $VERSION were not pushed to the tap: re-run the publish job"
+          exit 1

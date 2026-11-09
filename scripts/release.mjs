@@ -16,7 +16,7 @@
  *   node scripts/release.mjs preflight <version> --output <file>
  *                                             what this release is made with (review e B-M1): each set of secrets
  *                                             and variables all or nothing (CONFIG_SETS) — appends signed, updates
- *                                             (+ feed, pubkey) to <file> ($GITHUB_OUTPUT), says each part that is off,
+ *                                             (+ feed, pubkey), tap to <file> ($GITHUB_OUTPUT), says each part that is off,
  *                                             fails naming what a partial set lacks
  *   node scripts/release.mjs files <version>  the names of the files a release attaches (dmg=, archive=, signature=:
  *                                             bundle.mjs's own names)
@@ -35,10 +35,11 @@ export const dmgName = (version) => `${PRODUCT}_${version}_aarch64.dmg`;
 export const releaseFiles = (version) => ({ dmg: dmgName(version), archive: UPDATE_ARCHIVE, signature: `${UPDATE_ARCHIVE}.sig` });
 
 /**
- * What a release can be made with (review e B-M1), as two sets — each all or nothing: none of a set → that part is
- * off (said); some → the run fails before anything is built, naming what is missing. Each name is a secret (of the
- * `release` environment) or a variable. The update's publication needs nothing more (L5.16f): the feed is a release of
- * this repository, written with the workflow's own job token.
+ * What a release can be made with (review e B-M1), as sets — each all or nothing: none of a set → that part is off
+ * (said: a warning, a notice for a `notice` set); some → the run fails before anything is built, naming what is missing.
+ * Each name is a secret (of the `release` environment) or a variable. The update's publication needs nothing more
+ * (L5.16f): the feed is a release of this repository, written with the workflow's own job token. The tap set pushes the
+ * Homebrew casks (scripts/homebrew-cask.mjs) with a deploy key of the tap.
  */
 export const CONFIG_SETS = {
   apple: {
@@ -51,6 +52,12 @@ export const CONFIG_SETS = {
     names: { TAURI_SIGNING_PRIVATE_KEY: 'secret', TAURI_SIGNING_PRIVATE_KEY_PASSWORD: 'secret', RETAKE_UPDATE_PUBKEY: 'variable' },
     off: 'Updates are off in this build: the updater needs the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets and the RETAKE_UPDATE_PUBKEY variable — docs/RELEASING.md',
   },
+  tap: {
+    what: 'The Homebrew casks',
+    names: { HOMEBREW_TAP_DEPLOY_KEY: 'secret' },
+    off: 'The Homebrew tap is not updated: that needs the HOMEBREW_TAP_DEPLOY_KEY secret — docs/RELEASING.md',
+    notice: true,
+  },
 };
 
 /**
@@ -59,28 +66,29 @@ export const CONFIG_SETS = {
  * (HAS_VAR_<NAME> for a secret's name, HAS_SECRET_<NAME> for a variable's) — "a variable, not a secret" is said; with the
  * updater, REPO_PRIVATE / REPO_VISIBILITY (the repository as the API describes it, read with the job token): an app that
  * updates itself needs a public repository (review f A-L3) — refused here, not after the release is public.
- * Returns `{ outputs, warnings, errors }`.
+ * Returns `{ outputs, warnings, notices, errors }`.
  */
 export function preflight(version, env = process.env) {
   const has = (n, kind) => (kind === 'secret' ? env[`HAS_SECRET_${n}`] === 'true' : !!env[n]?.trim());
   const elsewhere = (n, kind) => (kind === 'secret' ? env[`HAS_VAR_${n}`] === 'true' : env[`HAS_SECRET_${n}`] === 'true');
   const on = {};
   const warnings = [];
+  const notices = [];
   const errors = [];
-  for (const [set, { what, names, off }] of Object.entries(CONFIG_SETS)) {
+  for (const [set, { what, names, off, notice }] of Object.entries(CONFIG_SETS)) {
     const all = Object.entries(names);
     const missing = all.filter(([n, k]) => !has(n, k));
     const misplaced = missing.filter(([n, k]) => elsewhere(n, k));
     on[set] = missing.length === 0;
     if (on[set]) continue;
     if (missing.length === all.length && !misplaced.length) {
-      warnings.push(off);
+      (notice ? notices : warnings).push(off);
       continue;
     }
     const why = missing.map(([n, k]) => `${n} (${elsewhere(n, k) ? `set as a ${k === 'secret' ? 'variable' : 'secret'}: it must be a ${k}` : `a ${k}, not set`})`);
     errors.push(`${what} needs all of ${all.map(([n]) => n).join(', ')} — or none: missing ${why.join(', ')}`);
   }
-  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off' };
+  const outputs = { signed: String(on.apple), updates: on.updater ? 'on' : 'off', tap: on.tap ? 'on' : 'off' };
   if (on.updater) {
     try {
       outputs.feed = feedFor(version, env);
@@ -101,7 +109,7 @@ export function preflight(version, env = process.env) {
       errors.push(`RETAKE_UPDATE_PUBKEY is not a public key (the content of the .pub file \`tauri signer generate\` wrote): ${e.message}`);
     }
   }
-  return { outputs, warnings, errors };
+  return { outputs, warnings, notices, errors };
 }
 
 export class ReleaseError extends Error {}
@@ -179,13 +187,14 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
     } else if (command === 'preflight') {
       if (!VERSION_RE.test(String(arg ?? ''))) throw new ReleaseError(`"${arg}" is not a version (no leading v)`);
       if (rest[0] !== '--output' || !rest[1] || rest.length !== 2) throw new ReleaseError('preflight <version> --output <file> ($GITHUB_OUTPUT)');
-      const { outputs, warnings, errors } = preflight(arg);
+      const { outputs, warnings, notices, errors } = preflight(arg);
       // Workflow commands on stdout: GitHub shows each as an annotation of the run.
       for (const w of warnings) process.stdout.write(`::warning::${w}\n`);
+      for (const w of notices) process.stdout.write(`::notice::${w}\n`);
       for (const e of errors) process.stdout.write(`::error::${e}\n`);
       if (errors.length) process.exit(1);
       appendFileSync(rest[1], Object.entries(outputs).map(([k, v]) => `${k}=${v}\n`).join(''));
-      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates}\n`);
+      process.stdout.write(`signed=${outputs.signed} updates=${outputs.updates} tap=${outputs.tap}\n`);
     } else if (command === 'files') {
       if (!VERSION_RE.test(String(arg ?? ''))) throw new ReleaseError(`"${arg}" is not a version (no leading v)`);
       process.stdout.write(Object.entries(releaseFiles(arg)).map(([k, v]) => `${k}=${v}\n`).join(''));
