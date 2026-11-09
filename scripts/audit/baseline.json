@@ -84,18 +84,16 @@
   },
   {
    "rule": "R3",
-   "reason": "The Studio server reuses the operation contract (ToolDef, callTool) of the MCP package until that contract moves into the engine.",
+   "reason": "The Studio server serves some MCP tools as they are (TOOLS) until those tools are operations of the engine; the operation contract itself comes from @retake/engine/contract.",
    "entries": [
-    "packages/ui/src/server/comment-ops.ts → @retake/mcp",
-    "packages/ui/src/server/desktop.ts → @retake/mcp",
-    "packages/ui/src/server/library-ops.ts → @retake/mcp",
-    "packages/ui/src/server/ops.ts → @retake/mcp",
-    "packages/ui/src/server/record-ops.ts → @retake/mcp",
-    "packages/ui/src/server/setup-ops.ts → @retake/mcp",
-    "packages/ui/src/server/studio.ts → @retake/mcp",
-    "packages/ui/src/server/theme-ops.ts → @retake/mcp",
-    "packages/ui/src/server/unsaved.ts → @retake/mcp",
-    "packages/ui/src/server/update-ops.ts → @retake/mcp"
+    "packages/ui/src/server/studio.ts → @retake/mcp"
+   ]
+  },
+  {
+   "rule": "R3",
+   "reason": "The Set-up sheet's ops build Claude's registration of Retake (the MCP config snippet) with the MCP package's helpers until they move to an integrations entry of the engine.",
+   "entries": [
+    "packages/ui/src/server/setup-ops.ts → @retake/mcp"
    ]
   },
   {

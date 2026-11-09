@@ -42,8 +42,9 @@ import {
   securityHeaders,
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
-import { TOOLS, callTool, capUntrusted } from '@retake/mcp';
-import type { ToolDef } from '@retake/mcp';
+import { callTool, capUntrusted, catalogueOperation, pinArguments, studioPins } from '@retake/engine/contract';
+import type { ToolDef } from '@retake/engine/contract';
+import { TOOLS } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -57,6 +58,7 @@ import { themeOps } from './theme-ops.js';
 import { recordOps } from './record-ops.js';
 import { commentOps, pathFree } from './comment-ops.js';
 import { opChain } from './op-chain.js';
+import type { OpChain } from './op-chain.js';
 import { RunLive } from './run-live.js';
 import { studioWorkerEnv } from './worker-env.js';
 import { UnsavedBoard, unsavedOps } from './unsaved.js';
@@ -64,71 +66,27 @@ import { DesktopPipe, desktopOps } from './desktop.js';
 import { SetupState, setupOps, systemSetupContext } from './setup-ops.js';
 import { UpdateState, updateOps } from './update-ops.js';
 import type { SetupContext } from './setup-ops.js';
-import { z } from 'zod';
 
 /**
- * The ops the Studio may call — L4.1: read the engine and the projects, write a README (if_match), list jobs, list a
- * project's runs: MCP tools; and the Studio's own reads (ops.ts): the workspace index (activity_list, search) and the
- * Projects screen's cards in one call (projects_overview). L4.2: a run's status (`run_status`, without its long-poll:
- * the running banner's progress), the scenario screen's reads (scenario_blocks, run_thumbs), its Dry run / Capture
- * (`scenario_run`, an own op with pinned arguments: no sandbox, no until, no wait — critique B11) and Cancel
- * (`run_cancel`). L4.3: the YAML view's live check (`scenario_validate`, read-only) and the scenario write path
- * (`scenario_edit`, an own op — `scenario_save` stays out: one Studio write path) and the step forms (`scenario_forms`).
- * L4.4: the Run screen's Pause / Resume (`run_pause`) and preflight panel (`scenario_sessions`), the Sessions panel
- * (`auth_status`, read-only; `auth_login` NARROWED to a headed window for the person, never a wait; `sign_in_cancel`).
- * L4.5: the timeline screen's read (`timeline_view`: the view and the preview's capability URLs), `timeline_leave` (a
- * page left: its project's preview URLs are revoked once no page holds one) and `preview_allow` (the person allows a
- * workspace component to run in the preview, this session only: PreviewAllowList); part E: Render with
- * pinned arguments (`scenario_render`), the render queue and list (`scenario_renders`), Cancel of a render or review of
- * the project (`render_cancel`), the review without paths (`render_review`) and its contact sheets (`review_image`).
- * L4.6: the comment ops (comment-ops.ts — threads_list, threads_counts, thread_get, thread_still, render_outline,
- * render_frame, frame_anchor; thread_add, thread_reply, thread_resolve, thread_reopen, thread_apply: the channel
- * `studio`, never a proposal) and `timeline_view {proposal}` (the preview of Claude's proposal). The MCP's comment tools
- * (comments_list, comment_reply, comment_resolve) stay out: a page is never Claude.
- * L4.7: the component library (library-ops.ts — library_view, library_images, library_render: posters and loops are
- * pixels the worker rendered, never component code in the Studio's origin) and the theme editor (theme-ops.ts —
- * theme_view, theme_edit, theme_copy, theme_create, brand_files, site_list, theme_preview: the live preview in the
- * sandboxed frame, workspace components held until allowed). `template_from_site` stays out (a site extraction needs a
- * person's approval of the URL: the Studio shows the command), as do the MCP theme tools (MCP never edits a theme).
- * L4.8: the Record screen (record-ops.ts — record_options, record_start, record_view, record_annotate, record_stop,
- * record_discard, record_save: the control panel of the headed window the worker opens; nothing reaches that window).
- * `scenario_record` and `job_cancel` stay out (a recording from the Studio is pinned: page and path, no --allow-writes,
- * the check on; it is stopped, discarded and saved through its own ops only).
- * L5.2b: `unsaved_report` (unsaved.ts — what a tab holds unsaved, kinds and names only: the desktop app's quit question).
- * L5.12d: `desktop_answer` (desktop.ts — the window page's ack and answer to the desktop app's quit question, written
- * on the supervised pipe; 409 on any other server).
- * L5.16c: the installed app's Set-up sheet (setup-ops.ts — setup_status, setup_cli_install, setup_cli_choose,
- * setup_cli_remove, setup_claude_code_run, setup_claude_desktop_add, setup_notifications, setup_done): the desktop app's
- * own server only, never MCP tools — no MCP tool can install the command or register Retake with Claude.
- * Each later lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
+ * The ops the Studio may call: the MCP tools it serves and its own ops (ops.ts and the other *-ops.ts modules). Each
+ * is an operation of the catalogue (@retake/engine/contract), which also says why the Studio serves none of the other
+ * MCP tools, which arguments it pins (a page asks for less than Claude may) and its ops' own HTTP statuses. Each later
+ * lot adds the ops its screen needs; a tool that is not listed answers 404 `unknown op`.
  */
 export const UI_OPS = ['engine_info', 'project_list', 'project_get', 'project_update_readme', 'job_list', 'run_list', 'run_status', 'run_cancel', 'scenario_validate', 'auth_status', 'auth_login', ...OWN_OPS] as const;
 export type UiOp = (typeof UI_OPS)[number];
 
 /**
- * MCP tools the Studio calls with fewer arguments than Claude (critique B11: pin what a page can ask): `run_status`
- * never long-polls from a page (`wait_s` absent or 0 — a page waiting 25 s holds one of the browser's 6 connections).
- * `auth_login` (L4.4) opens only the headed window where the PERSON signs in (`mode: 'headed'`; `auto` is what every
- * run's preflight does by itself) and never waits (`wait_s` 0: the Sessions panel follows the job): a page script can
- * do no more than open a window the person sees (it closes by itself after RETAKE_SIGNIN_MAX_MIN).
+ * An op's own HTTP status for an engine error code (the catalogue's `studio.status`; L4.6, critique B7): a frame
+ * request past the server's queue is 429 with Retry-After — the page backs off and asks for its newest frame again.
+ * Its timeout is `unavailable` (503, reason `timeout`: review B L3), which the page says after one more try.
  */
-const NARROWED: Partial<Record<UiOp, (t: ToolDef) => ToolDef>> = {
-  run_status: (t) => ({ ...t, input: (t.input as z.ZodObject).extend({ wait_s: z.literal(0).optional().describe('Always 0 from the Studio (no long-poll).') }) }),
-  auth_login: (t) => ({
-    ...t,
-    input: (t.input as z.ZodObject).extend({
-      mode: z.literal('headed').default('headed').describe('Always headed from the Studio: a window where the person signs in.'),
-      wait_s: z.literal(0).default(0).describe('Always 0 from the Studio (the panel follows the job).'),
-    }),
+export const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = Object.fromEntries(
+  UI_OPS.flatMap((op) => {
+    const status = catalogueOperation(op)?.studio;
+    return status && 'status' in status && status.status ? [[op, { ...status.status }]] : [];
   }),
-};
-
-/**
- * An op's own HTTP status for an engine error code (L4.6, critique B7): a frame request past the server's queue is 429
- * with Retry-After — the page backs off and asks for its newest frame again. Its timeout is `unavailable` (503, reason
- * `timeout`: review B L3), which the page says after one more try.
- */
-const OP_STATUS: Partial<Record<UiOp, Partial<Record<EngineErrorCode, number>>>> = { render_frame: { busy: 429 } };
+);
 
 /** Every string of an error's details made path-free (pathFree), at most 8 levels deep (deeper values are dropped). */
 export function withoutPathsDeep(v: unknown, root: string, depth = 0): unknown {
@@ -243,8 +201,50 @@ export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
   return new Map(UI_OPS.map((op) => {
     const t = mcp.get(op) ?? mine.get(op);
     if (!t) throw new Error(`UI op ${op} is not a tool`);
-    return [op, NARROWED[op]?.(t) ?? t];
+    const pins = studioPins(op);
+    return [op, pins.length ? pinArguments(t, pins) : t];
   }));
+}
+
+/** What the Studio's own ops close over: the server's live state, built once per server. */
+export interface StudioToolDeps {
+  live: Live;
+  chain: OpChain;
+  player: () => PlayerServer;
+  forbid: () => readonly string[];
+  allow: PreviewAllowList;
+  registry: NonNullable<Parameters<typeof timelineOps>[0]['registry']>;
+  leases: PreviewLeases;
+  unsaved: UnsavedBoard;
+  desktop: DesktopPipe;
+  setupState: SetupState;
+  updateState: UpdateState;
+  setupContext: () => SetupContext;
+  workspace: string;
+}
+
+/** The ops of one Studio server: the MCP tools of the allow-list and the Studio's own ops, each by name (uiTools). */
+export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
+  const { chain, leases } = d;
+  return uiTools([
+    ...indexOps(d.live),
+    overviewOp(),
+    boardOp(),
+    ...scenarioOps(),
+    ...runOps(),
+    ...editOps(chain),
+    ...liveOps(),
+    ...timelineOps({ player: d.player, forbid: d.forbid, allow: d.allow, registry: d.registry, leases }),
+    ...renderOps(chain),
+    ...commentOps({ chain }),
+    ...libraryOps({ chain }),
+    ...themeOps({ chain, player: d.player, forbid: d.forbid, allow: d.allow, leases }),
+    ...recordOps({ chain }),
+    ...unsavedOps(d.unsaved),
+    ...desktopOps(d.desktop),
+    ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
+    ...updateOps({ pipe: d.desktop, state: d.updateState }),
+  ]);
 }
 
 function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefined {
@@ -288,25 +288,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
   const setupState = new SetupState();
   const updateState = new UpdateState();
   const setupContext = o.setup ?? (() => systemSetupContext());
-  const tools = uiTools([
-    ...indexOps(live),
-    overviewOp(),
-    boardOp(),
-    ...scenarioOps(),
-    ...runOps(),
-    ...editOps(chain),
-    ...liveOps(),
-    ...timelineOps({ player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases }),
-    ...renderOps(chain),
-    ...commentOps({ chain }),
-    ...libraryOps({ chain }),
-    ...themeOps({ chain, player: playerNow, forbid, allow: previewAllow, leases }),
-    ...recordOps({ chain }),
-    ...unsavedOps(unsaved),
-    ...desktopOps(desktop),
-    ...setupOps({ pipe: desktop, state: setupState, ctx: setupContext, workspace: engine.workspace.root }),
-    ...updateOps({ pipe: desktop, state: updateState }),
-  ]);
+  const tools = studioTools({ live, chain, player: playerNow, forbid, allow: previewAllow, registry: async () => (await memoRegistry(engine.workspace)).registry, leases, unsaved, desktop, setupState, updateState, setupContext, workspace: engine.workspace.root });
   const writeListeners = new Set<() => void>();
   const runLive = new RunLive({ engine, ws: engine.workspace, log, ...(o.runPollMs ? { pollMs: o.runPollMs } : {}) });
   const token = newSecret();

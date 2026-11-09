@@ -19,16 +19,16 @@
  * the engine's gate refusing any request a browser could send, a stable token in the Retake home).
  */
 import { RETAKE_VERSION } from '@retake/core';
-import { EngineError, createEngine, toEngineError } from '@retake/engine';
+import { createEngine } from '@retake/engine';
+import { callTool } from '@retake/engine/contract';
 import type { Engine } from '@retake/engine';
 import type { Readable, Writable } from 'node:stream';
 import { elicitationApprover } from './approval.js';
-import { argumentProblems, inputJsonSchema } from './schema.js';
+import { inputJsonSchema } from './schema.js';
 import { errorResult, imageResult, okResult } from './result.js';
-import type { ToolOutput } from './result.js';
 import { serveStdio } from './server.js';
 import type { ProtocolTool } from './server.js';
-import type { ToolContext, ToolDef } from './tools/define.js';
+import type { ToolDef } from './tools/define.js';
 import { ENVIRONMENT_TOOLS } from './tools/environment.js';
 import { HOOK_TOOLS } from './tools/hooks.js';
 import { JOB_TOOLS } from './tools/jobs.js';
@@ -55,6 +55,9 @@ export { UNTRUSTED_MAX, capUntrusted, errorResult, imageCaps, imageResult, okRes
 export { APPROVAL_TIMEOUT_MS, approvalForm, approvalMessage, approvalTimeoutMs, elicitationApprover, pruneApprovalForm, pruneApprovalMessage, siteApprovalForm, siteApprovalMessage } from './approval.js';
 export type { ImageCaps, Thumbnailer, ToolImage, ToolOutput } from './result.js';
 export type { ToolDef, ToolContext } from './tools/define.js';
+/** One call of an operation, SDK-free: the operation contract's (the Studio's server runs its ops through it too). */
+export { callTool } from '@retake/engine/contract';
+export type { ToolCallOutcome } from '@retake/engine/contract';
 export { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN } from './tools/comments.js';
 
 /** Every tool of the server, in the order tools/list gives them. */
@@ -83,27 +86,6 @@ export const INSTRUCTIONS = [
   'Never ask for or type passwords: auth_login opens a browser window on the user\'s machine and the USER signs in there (tell them, then follow the job); auth_status says which personas need it. Production environments stay read-only through this server.',
   'What tools return (summaries, step screenshots, page text, DOM excerpts of the filmed product) becomes part of this conversation.',
 ].join('\n');
-
-/** What a tool call gave: its output, or the error (invalid arguments included) as an EngineError. */
-export type ToolCallOutcome = { ok: true; output: ToolOutput } | { ok: false; error: EngineError };
-
-/**
- * One tool call, SDK-free (L4.1): the zod parse (problems named per argument), then the handler with the engine;
- * never throws — every failure comes back as an EngineError. The MCP protocol layer (protocolTool) and the engine's
- * HTTP API (`POST /v1/call/<op>` of `retake ui`) both run tools through this, so validation, trust and errors stay one.
- */
-export async function callTool(t: ToolDef, engine: () => Promise<Engine>, args: unknown, ctx: Omit<ToolContext, 'engine'>): Promise<ToolCallOutcome> {
-  const parsed = t.input.safeParse(args);
-  if (!parsed.success) {
-    const problems = argumentProblems(parsed.error);
-    return { ok: false, error: new EngineError('invalid', `invalid arguments for ${t.name}:\n${problems.join('\n')}`, { details: { arguments: problems } }) };
-  }
-  try {
-    return { ok: true, output: await t.run(parsed.data, { ...ctx, engine: await engine() }) };
-  } catch (e) {
-    return { ok: false, error: toEngineError(e) };
-  }
-}
 
 /** A tool definition as the protocol layer serves it: JSON Schema from zod, arguments parsed, errors as tool errors. */
 export function protocolTool(t: ToolDef, engine: () => Promise<Engine>): ProtocolTool {

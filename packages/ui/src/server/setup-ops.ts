@@ -67,7 +67,7 @@ import type { BundleInfo, ClaudeStep, InstallLocation } from '@retake/core';
 import { readFileSync, existsSync } from 'node:fs';
 import { EngineError } from '@retake/engine';
 import { mcpConfigJson, pluginInstallCommands, pluginInstallSteps, pluginMarketplaceRoot } from '@retake/mcp';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import { parseShellLine } from './desktop.js';
 import type { DesktopPipe } from './desktop.js';
 

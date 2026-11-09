@@ -54,6 +54,8 @@ export default defineConfig({
       // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
       '@retake/review': pkg('review'),
+      // Before '@retake/engine', as for the kit: the operation contract's own entry.
+      '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),
       '@retake/engine': pkg('engine'),
       '@retake/mcp': pkg('mcp'),
       '@retake/ui': pkg('ui'),

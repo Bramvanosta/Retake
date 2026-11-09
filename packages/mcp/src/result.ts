@@ -4,23 +4,13 @@
  * under an `untrusted` key, truncated; never in the summary. Errors are tool errors (`isError`) with a typed code.
  */
 import { toEngineError } from '@retake/engine';
+import { capUntrusted } from '@retake/engine/contract';
+import type { ToolImage, ToolOutput } from '@retake/engine/contract';
 import type { CallResult, ContentBlock } from './server.js';
 
-/** An image a tool result shows (a contact sheet, a key frame): a label and its file. */
-export interface ToolImage {
-  label: string;
-  file: string;
-}
-
-export interface ToolOutput {
-  summary: string;
-  data: Record<string, unknown>;
-  /**
-   * Images to show the client, in order: the first ones go inline as JPEG thumbnails (after the text, each preceded by
-   * its label), within the caps; the others are listed as files to read. Never base64 in `data`.
-   */
-  images?: ToolImage[];
-}
+/** What a tool returns, and the cap on its untrusted text, are the operation contract's (@retake/engine/contract). */
+export { UNTRUSTED_MAX, capUntrusted, truncate } from '@retake/engine/contract';
+export type { ToolImage, ToolOutput } from '@retake/engine/contract';
 
 /** Caps of the images one result carries inline (R-MCP-04): a count, the base64 total, the long side of a thumbnail. */
 export interface ImageCaps {
@@ -84,23 +74,6 @@ export async function imageResult(out: ToolOutput, thumb: Thumbnailer, caps: Ima
     blocks.push({ type: 'image', data: img.base64, mimeType: 'image/jpeg' });
   });
   return { ...base, content: [...base.content, ...blocks] };
-}
-
-/** Longest untrusted string a result carries. */
-export const UNTRUSTED_MAX = 2000;
-
-export function truncate(s: string, max = UNTRUSTED_MAX): string {
-  return s.length > max ? `${s.slice(0, max)}… (${s.length - max} more characters)` : s;
-}
-
-/** Every string under `untrusted` keys, truncated (at any depth). */
-export function capUntrusted<T>(value: T, inside = false): T {
-  if (typeof value === 'string') return (inside ? truncate(value) : value) as T;
-  if (Array.isArray(value)) return value.map((v) => capUntrusted(v, inside)) as T;
-  if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, capUntrusted(v, inside || k === 'untrusted')])) as T;
-  }
-  return value;
 }
 
 export function okResult(out: ToolOutput): CallResult {

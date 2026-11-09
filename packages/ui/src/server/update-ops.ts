@@ -19,7 +19,7 @@
  */
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import type { DesktopPipe } from './desktop.js';
 
 export const UPDATE_STATES = ['off', 'idle', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;

@@ -15,12 +15,9 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError, isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { Readable, Writable } from 'node:stream';
 
-export interface ToolAnnotations {
-  readOnlyHint?: boolean;
-  destructiveHint?: boolean;
-  idempotentHint?: boolean;
-  openWorldHint?: boolean;
-}
+/** A tool's annotations and a call's progress are the operation contract's (@retake/engine/contract). */
+import type { Progress, ToolAnnotations } from '@retake/engine/contract';
+export type { Progress, ToolAnnotations };
 
 /** A text block, or an image (base64 data: a JPEG thumbnail the server made; the SDK's ImageContent). */
 export type ContentBlock = { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: 'image/jpeg' | 'image/png' };
@@ -29,12 +26,6 @@ export interface CallResult {
   content: ContentBlock[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
-}
-
-export interface Progress {
-  progress: number;
-  total?: number;
-  message?: string;
 }
 
 /** A form a human fills in through the client (MCP elicitation, form mode): a message and a flat JSON Schema. */

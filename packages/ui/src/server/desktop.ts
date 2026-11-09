@@ -19,7 +19,7 @@
  */
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import { parseUpdateLine } from './update-ops.js';
 import type { UpdateLine } from './update-ops.js';
 

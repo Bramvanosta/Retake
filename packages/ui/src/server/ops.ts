@@ -63,7 +63,7 @@ import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_R
 import type { ActionName } from '@retake/core';
 import { EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine } from '@retake/engine';
 import type { Engine, EnvironmentView, RenderEditSource, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import type { Live } from './live.js';
 import { COMMENT_OPS } from './comment-ops.js';
 import { LIBRARY_OPS } from './library-ops.js';

@@ -1,27 +1,8 @@
 import type { z } from 'zod';
-import type { Approver, Engine } from '@retake/engine';
-import type { Progress, ToolAnnotations } from '../server.js';
-import type { ToolOutput } from '../result.js';
+import type { ToolAnnotations, ToolDef } from '@retake/engine/contract';
 
-export interface ToolContext {
-  engine: Engine;
-  /** Aborted when the client cancels the call: it ends a wait, never the job. */
-  signal: AbortSignal;
-  /** Progress notifications while a call waits (when the client asked for them). */
-  progress?: (p: Progress) => void;
-  /** Asks the client's user to approve hooks (form elicitation); undefined when the client cannot ask anyone. */
-  approver?: Approver;
-}
-
-/** A tool of the server: one zod input schema (published as JSON Schema, and the parser), annotations and a handler. */
-export interface ToolDef<S extends z.ZodType = z.ZodType> {
-  name: string;
-  title: string;
-  description: string;
-  input: S;
-  annotations: ToolAnnotations;
-  run(args: z.output<S>, ctx: ToolContext): Promise<ToolOutput>;
-}
+/** A tool of the server is an operation of the contract (@retake/engine/contract): its definition lives there. */
+export type { ToolContext, ToolDef } from '@retake/engine/contract';
 
 export function defineTool<S extends z.ZodType>(t: ToolDef<S>): ToolDef {
   return t as unknown as ToolDef;

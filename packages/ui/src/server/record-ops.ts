@@ -35,7 +35,7 @@ import { z } from 'zod';
 import { JOB_ID_RE, PROJECT_SLUG_RE, RECORD_ID_RE, RecordAnnotationChangeSchema, SLUG_RE, resolveRunAccess } from '@retake/core';
 import { RECORD_LIST_MAX, defaultRecordName, openProjectBySlug, recordMaxMs, recordStart } from '@retake/engine';
 import type { AuthStatusItem, Engine, RecordListItem, RecordState, RecordView } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';

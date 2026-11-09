@@ -34,7 +34,7 @@ import { z } from 'zod';
 import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
 import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@retake/engine';
 import type { Engine, LibraryStatesView, TemplateSummary } from '@retake/engine';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';

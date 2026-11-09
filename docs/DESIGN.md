@@ -19,8 +19,9 @@ packages/runner-web   Playwright/CDP runner: in-page kit (cursor overlay, resolv
 packages/editor       (phase 2) Remotion compositions + edit planner + render API
 packages/review       (phase 2) contact sheets, key frames, report.json, diff vs previous render
 packages/engine       (L3.1) the engine API the CLI and the MCP server share (§4b): workspace / project loading, reads,
-                      if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker
-packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c), SDK-free tool layer `callTool` (§4c)
+                      if_match saves, local storage refs, EngineError, the run executor, the job queue and its worker;
+                      `@retake/engine/contract`: the operation contract (`ToolDef`, SDK-free `callTool`) and catalogue (§4c)
+packages/mcp          (L3.1) MCP server over stdio (§4b) and Streamable HTTP (L4.1, §4c): the contract's operations as tools
 packages/ui           (L4.1) the Studio web app and its server (`retake ui`, §4c)
 packages/cli          `retake` command — everything the MCP does, for humans and CI
 fixtures/wholesale    local test product (supplier console + buyer shop) built with real Radix UI and Base UI components
@@ -2147,10 +2148,19 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 `readme_error` says why (a link leading out: `readme` and `readme_hash` null; not UTF-8: the text with U+FFFD).
 `project_update_readme` holds `README_MAX_CHARS` (200,000) for the file as written, its final line break included.
 
-**MCP `callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** — the zod parse (problems per
-argument) and the handler, SDK-free; `protocolTool` and the Studio server both use it.
+**`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
+`exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
+SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef` / `ToolContext` /
+`ToolOutput`, `capUntrusted` and `pinArguments`, and the **operation catalogue** (`catalogue.ts`): every operation once
+(122: the 45 MCP tools, the Studio's 65 own ops, 12 operations only the CLI serves), its kind (read, write, job, runs
+code, destructive) and, for each shell (CLI commands, MCP tool, Studio op), the service or the one-line reason it has
+none; the Studio's entry holds its pinned arguments (`run_status` `wait_s` 0; `auth_login` `mode` headed, `wait_s` 0)
+and its ops' own statuses (`render_frame` busy → 429). Tests hold MCP `TOOLS` (in order), the Studio's `UI_OPS` and own
+ops, and the CLI's commander tree (`commandPaths()`) to it; snapshots hold the published tool list and the Studio's
+operation table byte for byte (packages/mcp/test/fixtures/tool-list.json, packages/ui/test/fixtures/op-table.json).
 
-**`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it).
+**`@retake/ui`** (deps: core, engine, mcp, esbuild, react, react-dom; the MCP package never depends on it; from the MCP
+package it takes only the tools it serves as they are and the Set-up sheet's registration helpers).
 - `buildUi()` — esbuild in memory: `src/app/main.tsx` + its CSS → `/app.js`, `/app.css` (ESM, minified, targets
   chrome120 / safari17 / firefox120), `/` a static `INDEX_HTML` without inline script or style; ≈ 100 ms, ≈ 190 KB.
 - `startStudioServer({root, port?, log?, sqlite?, pollMs?, startWorker?, workerSpawn?, workerIdleExitMs?}) → {url, port,

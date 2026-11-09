@@ -10,6 +10,11 @@
       "source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./contract": {
+      "source": "./src/contract.ts",
+      "types": "./dist/contract.d.ts",
+      "default": "./dist/contract.js"
     }
   },
   "files": [
@@ -23,6 +28,7 @@
     "@retake/hooks": "workspace:*",
     "@retake/review": "workspace:*",
     "@retake/runner-web": "workspace:*",
-    "@retake/sandbox": "workspace:*"
+    "@retake/sandbox": "workspace:*",
+    "zod": "^4.1.0"
   }
 }

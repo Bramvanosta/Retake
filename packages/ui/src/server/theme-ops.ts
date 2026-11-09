@@ -35,7 +35,7 @@ import type { ComponentKind, LoadedTemplate } from '@retake/core';
 import { EngineError, checkSiteUrl, firstErrorLine, memoRegistry, openProjectBySlug, siteCommandLine, siteHostConflicts, themeAssetProblems, themeEditList, themeForWork } from '@retake/engine';
 import type { Engine, SiteList, ThemeEditList, ThemeEditResult, ThemeEditView } from '@retake/engine';
 import type { ComponentRegistry } from '@retake/components';
-import type { ToolDef } from '@retake/mcp';
+import type { ToolDef } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import type { OpChain } from './op-chain.js';
 import { opChain } from './op-chain.js';

@@ -606,6 +606,23 @@ export function helpTexts(): string[] {
 }
 
 /**
+ * Every command that runs something, by its path (`run`, `hooks run`; hidden ones included, the groups themselves
+ * not): what the operation catalogue (@retake/engine/contract) is held to.
+ */
+export function commandPaths(): string[] {
+  const out: string[] = [];
+  const walk = (c: Command, prefix: string): void => {
+    for (const sub of c.commands) {
+      const path = prefix ? `${prefix} ${sub.name()}` : sub.name();
+      if (sub.commands.length) walk(sub, path);
+      else out.push(path);
+    }
+  };
+  walk(buildProgram(memoryIo(), () => {}), '');
+  return out;
+}
+
+/**
  * Run the CLI with `argv` (process.argv form: the first two entries are ignored). Never throws:
  * returns the exit code (0 ok, 1 failure, 2 usage error).
  */
