@@ -41,14 +41,15 @@ export function isUnder(p: string, folder: string): boolean {
  * The current PATH, the node's own folder first, without the folders a package manager added for the script it runs,
  * plus the Homebrew / system folders that exist and are missing. Absolute entries only: a relative one (`.`, `bin`)
  * resolves against the cwd, and a server's cwd is the client's project folder, where an agent writes files. For the same
- * reason, no entry inside the workspace (`workspace`, when given: `<ws>/bin`, `<ws>/node_modules/.bin`): the agent writes
- * files there, and the server's children would run them. The node's folder goes first, so the `node` the server's
+ * reason, no entry inside the workspace (`workspace`, when given — its root, or all its folders: `<ws>/bin`,
+ * `<ws>/node_modules/.bin`): the agent writes files there, and the server's children would run them. The node's folder goes first, so the `node` the server's
  * children find is the one that runs it (the registered one).
  */
-export function clientPath(node: string, current = process.env.PATH ?? '', exists: (p: string) => boolean = existsSync, workspace?: string): string {
+export function clientPath(node: string, current = process.env.PATH ?? '', exists: (p: string) => boolean = existsSync, workspace?: string | readonly string[]): string {
+  const folders = workspace === undefined ? [] : typeof workspace === 'string' ? [workspace] : workspace;
   const parts = [
     dirname(node),
-    ...current.split(delimiter).filter((p) => p && isAbsolute(p) && !TRANSIENT_PATH.test(p) && !(workspace && isUnder(p, workspace))),
+    ...current.split(delimiter).filter((p) => p && isAbsolute(p) && !TRANSIENT_PATH.test(p) && !folders.some((f) => isUnder(p, f))),
   ];
   for (const p of EXTRA_PATH) if (exists(p)) parts.push(p);
   return [...new Set(parts)].join(delimiter);

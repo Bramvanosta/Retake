@@ -21,10 +21,12 @@
  *
  * Nothing here logs a token, a body or a README.
  */
+import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import { loadWorkspaceConfig, workspaceFolders } from '@retake/core';
 import {
   BodyTooLargeError,
   BootstrapCodes,
@@ -254,12 +256,15 @@ function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefine
 export async function startStudioServer(o: StudioServerOptions): Promise<StudioServer> {
   const log = o.log ?? (() => undefined);
   const assets = await buildUi();
-  // The Studio starts the worker when a run is submitted (L4.2), with a clean environment (critique B5).
+  // The Studio starts the worker when a run is submitted (L4.2), with a clean environment (critique B5) — cleaned of
+  // every folder of the workspace (its projects, templates and components folders may lie outside the root).
+  const root = resolve(o.root);
+  const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [root]);
   const engine = await createEngine({
     root: o.root,
     client: 'ui',
     autoStartWorker: o.startWorker !== false,
-    workerEnv: studioWorkerEnv(process.env, resolve(o.root)),
+    workerEnv: studioWorkerEnv(process.env, root, process.execPath, existsSync, folders),
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });

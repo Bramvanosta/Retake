@@ -275,6 +275,42 @@ describe("production across projects: another project's production / read-only h
     }
   });
 
+  it('a protected page written with a loopback name is an address too: compared with what a name resolves to, and a loopback page with a protected name', async () => {
+    await mkdir(join(ws, 'projects', 'local-prod'), { recursive: true });
+    await writeFile(join(ws, 'projects', 'local-prod', 'project.yaml'), project('Local prod', ['  live:', '    production: true', '    pages:', '      console: http://localhost:4997']));
+    const dns = resolveWith({ 'dev.example.test': ['127.0.0.1'], 'frozen.example.com': ['::1'], 'away.example.test': ['192.0.2.3'] });
+    try {
+      const e = await refusal(mcp.projects.create({ name: 'Named', slug: 'named', environments: { staging: { console: 'http://dev.example.test:4997/' } } }));
+      expect(e.code).toBe('refused');
+      expect(e.message).toContain('points at a host of production environment live of project local-prod (dev.example.test resolves to a loopback address)');
+      // A loopback page beside a protected name (frozen.example.com, https) that resolves to loopback.
+      const back = await refusal(mcp.projects.create({ name: 'Back', slug: 'back', environments: { staging: { console: 'https://localhost/x' } } }));
+      expect(back.message).toContain('points at a host of read-only environment frozen of project prod (frozen.example.com resolves to a loopback address)');
+      expect((await mcp.projects.create({ name: 'Away', slug: 'away', environments: { staging: { console: 'http://away.example.test:4997/' } } })).slug).toBe('away');
+    } finally {
+      dns.restore();
+      await rm(join(ws, 'projects', 'local-prod'), { recursive: true, force: true });
+    }
+  });
+
+  it('the names of one check are resolved together, under one deadline', async () => {
+    const asked: string[] = [];
+    const before = setProtectedHostResolver({
+      lookup: (name) => (asked.push(name), new Promise((r) => setTimeout(() => r(['192.0.2.50']), 400))),
+      timeoutMs: 2000,
+    });
+    try {
+      const started = Date.now();
+      const pages = Object.fromEntries(['a', 'b', 'c', 'd'].map((k) => [k, `http://${k}.slow.example.test:4999/`]));
+      expect((await mcp.projects.create({ name: 'Many', slug: 'many', environments: { staging: pages, preview: { e: 'http://e.slow.example.test:4999/' } } })).slug).toBe('many');
+      expect([...asked].sort()).toEqual(['a', 'b', 'c', 'd', 'e'].map((k) => `${k}.slow.example.test`));
+      // One after the other would take 5 × 400 ms.
+      expect(Date.now() - started).toBeLessThan(1600);
+    } finally {
+      setProtectedHostResolver(before);
+    }
+  });
+
   it('runs, hooks and resets on a read-write environment pointing at them are refused; a protected environment, another port, are not', async () => {
     const run = await refusal(mcp.runs.submit({ project: 'twin', scenario: 'short', mode: 'dry' }));
     expect(run.code).toBe('refused');

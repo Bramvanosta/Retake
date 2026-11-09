@@ -7,9 +7,9 @@
  * sandboxed. The sign-in and recording windows are launched headless here (same launch site, same options).
  */
 import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { join, relative } from 'node:path';
+import { readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { chromium } from 'playwright-core';
@@ -23,6 +23,7 @@ import {
   launchOptions,
   launchTarget,
   openSession,
+  playwrightExecutable,
   probeChromium,
   recordSession,
   renderCursorAtlas,
@@ -121,18 +122,57 @@ describe('every runner launch goes through launchOptions (source scan)', () => {
   it('under the agent policy (a job of the worker): no argument that is not a switch, none that loads code or files, no executable inside the workspace', () => {
     const ws = '/ws-of-an-agent';
     const args = ['--hide-scrollbars', 'https://example.com/', '--user-data-dir=/tmp/p', '--proxy-server=http://127.0.0.1:1'];
-    expect(launchOptions({ args }).args).toEqual([...args, '--site-per-process']);
+    expect(launchOptions({ args: [], browserArgs: args }).args).toEqual([...args, '--site-per-process']);
     expect(launchTarget({ executable: `${ws}/bin/chrome` })).toEqual({ executablePath: `${ws}/bin/chrome`, channel: undefined });
     useAgentPolicy([ws]);
     try {
-      expect(() => launchOptions({ args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir opens the browser on a profile folder/);
-      expect(launchOptions({ args: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
+      expect(() => launchOptions({ args: [], browserArgs: args })).toThrow(/^Chromium was not launched: "https:\/\/example\.com\/" is not a switch .*; --user-data-dir is not one of the switches these jobs may pass/);
+      expect(launchOptions({ args: [], browserArgs: ['--hide-scrollbars', '--proxy-server=http://127.0.0.1:1'] }).args).toContain('--proxy-server=http://127.0.0.1:1');
+      // The allow-list is for browser.args: the runner's own switches come first and are not judged by it.
+      expect(launchOptions({ args: ['--a-switch-of-the-runner'], browserArgs: ['--lang=fr'] }).args).toEqual(['--a-switch-of-the-runner', '--lang=fr', '--site-per-process']);
+      expect(() => launchOptions({ args: ['--lang=fr'], browserArgs: ['--a-switch-of-the-runner'] })).toThrow(/--a-switch-of-the-runner is not one of the switches/);
+      // The always-refused switches stay refused in either list.
+      expect(() => launchOptions({ args: ['--no-sandbox'], browserArgs: [] })).toThrow(/--no-sandbox turns Chromium's sandbox off/);
       expect(() => launchTarget({ executable: `${ws}/bin/chrome` })).toThrow(/^Chromium was not launched: browser\.executable \(\/ws-of-an-agent\/bin\/chrome\) lies inside the workspace/);
       expect(() => launchTarget({ executable: 'bin/chrome' })).toThrow(/browser\.executable \(bin\/chrome\) is a relative path/);
       expect(launchTarget({ executable: '/opt/chromium/chrome' }).executablePath).toBe('/opt/chromium/chrome');
       expect(launchTarget({})).toEqual({ executablePath: process.env.RETAKE_CHROMIUM, channel: process.env.RETAKE_CHROMIUM ? undefined : 'chromium' });
     } finally {
       useAgentPolicy(null);
+    }
+  });
+
+  it.skipIf(!!process.env.RETAKE_CHROMIUM)("under the agent policy, the browser Playwright picks for the channel is checked like browser.executable (PLAYWRIGHT_BROWSERS_PATH inside the workspace: refused); an executable starts by its real path", async () => {
+    const shell = playwrightExecutable(undefined, true);
+    const full = playwrightExecutable('chromium', true);
+    expect(shell).toMatch(/headless_shell/);
+    expect(full).not.toBe(shell);
+    expect(playwrightExecutable(undefined, false)).toBe(full);
+    // A workspace that holds Playwright's browser folder (as when PLAYWRIGHT_BROWSERS_PATH points into it).
+    let browsers = dirname(shell!);
+    while (!full!.startsWith(`${browsers}/`)) browsers = dirname(browsers);
+    expect(launchTarget({ channel: 'headless-shell' })).toEqual({ executablePath: undefined, channel: undefined });
+    useAgentPolicy([browsers]);
+    try {
+      const why = process.env.PLAYWRIGHT_BROWSERS_PATH ? '\\$PLAYWRIGHT_BROWSERS_PATH' : "Playwright's browser";
+      expect(() => launchTarget({ channel: 'headless-shell' })).toThrow(new RegExp(`^Chromium was not launched: ${why} \\(.*headless_shell.*\\) lies inside the workspace`));
+      expect(() => launchTarget({})).toThrow(/lies inside the workspace/);
+      expect(() => launchTarget({ channel: 'headless-shell' }, { headless: false })).toThrow(/lies inside the workspace/);
+    } finally {
+      useAgentPolicy(null);
+    }
+    const dir = await tempDir('retake-launch-link-');
+    try {
+      await symlink(full!, join(dir, 'chrome'));
+      expect(launchTarget({ executable: join(dir, 'chrome') }).executablePath).toBe(join(dir, 'chrome'));
+      useAgentPolicy(['/ws-of-an-agent']);
+      try {
+        expect(launchTarget({ executable: join(dir, 'chrome') }).executablePath).toBe(realpathSync(full!));
+      } finally {
+        useAgentPolicy(null);
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
   });
 });

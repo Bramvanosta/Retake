@@ -59,7 +59,7 @@ export function findDocker(env: NodeJS.ProcessEnv = process.env, exists: (p: str
 
 /**
  * The environment docker runs with: this process's — under the agent policy (a job of the Studio, the desktop app or an
- * MCP client) only core childEnv's allow-list of it for docker (the shell's own variables, DOCKER_* and BUILDKIT_*, the
+ * MCP client) only core childEnv's allow-list of it for docker (the shell's own variables, docker's own by name, the
  * names of `pass`: project.yaml `pass_env:`) —, without `COMPOSE_*` (sandbox.yaml alone says what is started) nor the
  * names of `unset` (L5.8: those a sandbox's env file sets — a shell's value would win over the file's).
  */

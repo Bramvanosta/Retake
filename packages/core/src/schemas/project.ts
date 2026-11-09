@@ -175,7 +175,7 @@ const projectShape = {
   pass_env: z
     .array(nonEmpty())
     .describe(
-      "Variables of the worker's environment that the programs of a job the Studio, the desktop app or an MCP client starts also get (shell hooks, docker, a process sandbox's services), e.g. [DATABASE_URL]. They get only the shell's own variables otherwise (PATH, HOME, USER, the locale, TZ, proxy and certificate settings; DOCKER_* for docker). Never a loader variable (NODE_OPTIONS, LD_PRELOAD, GIT_*…). A command typed in a terminal passes everything on.",
+      "Variables of the worker's environment that the programs of a job the Studio, the desktop app or an MCP client starts also get (shell hooks, docker, a process sandbox's services), e.g. [DATABASE_URL]. They get only the shell's own variables otherwise (PATH, HOME, USER, the locale, TZ, proxy and certificate settings; docker's connection settings such as DOCKER_HOST and DOCKER_CONTEXT for docker). Never a loader variable (NODE_OPTIONS, LD_PRELOAD, GIT_*…). A command typed in a terminal passes everything on.",
     )
     .optional(),
   databases: DatabasesSchema.optional(),

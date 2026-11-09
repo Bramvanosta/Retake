@@ -261,15 +261,20 @@ HookContext = {
   Rollback: file or inline SQL from the hook's `rollback`.
 - **shell**: `child_process.spawn('sh', ['-c', run])`, cwd = project dir, env merged (+ `RETAKE_PROJECT_DIR`,
   `RETAKE_ENV`, `RETAKE_RUN_ID`, `RETAKE_ALLOWED_HOSTS`), timeout, output logged. What it inherits (`inheritedEnv`):
-  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes) core
+  `process.env` in the CLI; under the agent policy (core `useAgentPolicy`: the worker and its job processes, the MCP
+  server and the Studio server) core
   `policyChildEnv` — `CHILD_ENV_BASE` (PATH without relative entries or entries inside the workspace folders, HOME,
   USER, LOGNAME, SHELL, TMPDIR, TERM, LANG, LC_*, TZ, the proxy and certificate variables) plus project.yaml
   `pass_env:` (core `passEnvProblem` refuses a loader variable at validation, `childEnv` drops one again); an unsigned
   rollback gets `childEnv`'s base only. Its own `env` (rendered: `{{env:NAME}}` from the worker's environment) and the
   sandbox `base` go on top, as before; the host check reads the same environment. A failure under the policy ends
-  with `childEnvHint`: the names it inherited (never values) and `PASS_ENV_FIX`. The sandbox applies the same list to
-  process services (`serviceEnv`) and to `docker` (`dockerEnv(base, unset, pass)`, `DOCKER_CHILD_ENV` added:
-  `DOCKER_*`, `BUILDKIT_*`; `ComposeProjectRef.pass` carries `pass_env` to every compose command).
+  with `childEnvHint`: the names it inherited (never values) and `PASS_ENV_FIX`; a failed unsigned rollback ends
+  with `bareEnvHint` instead (the names, no `pass_env:` advice: it gets none). The sandbox applies the same list to
+  process services (`serviceEnv`) and to `docker` (`dockerEnv(base, unset, pass)`, `DOCKER_CHILD_ENV` added by name:
+  `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`,
+  `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`, `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`; `ComposeProjectRef.pass`
+  carries `pass_env` to every compose command). The docker binary itself (`$RETAKE_DOCKER`, PATH, the usual places)
+  is checked by core `policyProgram` and started by its real path (`ComposeProvider.program`).
 - **js**: requires `ctx.evalInPage` (else a clear error: "js hooks need a browser: run them through the runner").
   The runner and `retake hooks run` evaluate it with runner-web `evalHookInPage`: a tab of the run's browser context
   per environment page key (shares cookies / localStorage / IndexedDB with the capture tabs; not in `session.pages`,
@@ -5383,8 +5388,8 @@ quietly using the system's tools. A playwright-core that does not load in `prepa
   fails on a command literal `'ffmpeg'` / `'ffprobe'` anywhere else.
 - Capture browser: `browser.executable` → `$RETAKE_CHROMIUM` → playwright-core's registry, which points at the bundle's
   browsers (below) — source `bundled`, else `playwright` (the cache).
-- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) →
-  Remotion's own download — never from a bundle (`assertRenderBrowser`: a bundle without its shell refuses to render).
+- Render browser: `$RETAKE_CHROMIUM_HEADLESS_SHELL` → the registry's headless shell (`bundled` / `playwright`) → none:
+  no render starts (`assertRenderBrowser` says how to install the headless shell; Remotion never downloads its own).
 - Starter themes: `paths.templates`, else the repository's `templates/` (`STARTER_TEMPLATES_DIR`, so the "shipped
   theme" checks follow); the Claude plugin marketplace: `paths.plugin`, else the folder above the entry point.
 - `retake --version` adds `(app bundle: <path>)`; doctor names each source (`retake.yaml`, `$RETAKE_FFMPEG`,

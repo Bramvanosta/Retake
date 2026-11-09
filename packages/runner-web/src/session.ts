@@ -905,7 +905,7 @@ export type { GpuInfo, SystemInfoReply } from '@retake/core';
 async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string, session: BrowserSession): Promise<Realm> {
   const b = opts.browser ?? {};
   // The target first: a refused executable leaves no temporary profile behind.
-  const { executablePath, channel } = launchTarget(b);
+  const { executablePath, channel } = launchTarget(b, { headless: opts.headed ? false : (b.headless ?? true) });
   const temp = spec.userDataDir ? null : await mkdtemp(join(tmpdir(), 'retake-profile-'));
   if (temp) registerSessionCopy(temp);
   const userDataDir = spec.userDataDir ?? temp!;
@@ -937,7 +937,7 @@ async function launchRealm(opts: SessionOptions, spec: RealmSpec, source: string
       handleSIGTERM: false,
       handleSIGHUP: false,
       ...(opts.httpCredentials ? { httpCredentials: { ...opts.httpCredentials } } : {}),
-      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args), ...(b.args ?? [])] }),
+      ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...frameRateArgs(b), ...scaleArgs(opts.scale, opts.headed || b.headless === false, b.args)], browserArgs: b.args }),
     });
   } catch (e) {
     if (temp) await rm(temp, { recursive: true, force: true }).catch(() => undefined);

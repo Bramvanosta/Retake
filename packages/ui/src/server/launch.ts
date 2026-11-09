@@ -6,10 +6,13 @@
  * — the loser of a simultaneous start closes its own listener and reuses the winner — and writes the token record.
  * Closing the server removes both files when they are still its own.
  * A workspace whose ui.json names a live server with no token record in this home (a server of another RETAKE_HOME, or
- * of an older Retake whose record held the token) is told, and nothing is opened.
+ * of an older Retake whose record held the token) is told, and nothing is opened. A Retake home inside the workspace
+ * is refused before anything starts (the token would lie where an agent reads files).
  * L5.2: each answer names the player origin (`player`) — the desktop shell allows navigations to it; undefined when an
  * older running server's bootstrap answer has none.
  */
+import { resolve } from 'node:path';
+import { isUnder, loadWorkspaceConfig, realPathOf, retakeHome, workspaceFolders } from '@retake/core';
 import {
   DISCOVERY_VERSION,
   EngineError,
@@ -91,7 +94,23 @@ async function running(root: string, file: string, tokenFile: string, holder?: D
   });
 }
 
+/**
+ * Refused (`refused`) when this Retake home's token folder lies inside a folder of the workspace (RETAKE_HOME set
+ * there): an agent reads and writes files in the workspace, and the token drives the person's Studio.
+ */
+async function assertTokenOutside(root: string): Promise<void> {
+  const dir = studioTokenDir();
+  const folders = await loadWorkspaceConfig(root).then(workspaceFolders, () => [resolve(root)]);
+  const inside = folders.find((f) => isUnder(dir, f) || isUnder(realPathOf(dir), f));
+  if (inside) {
+    throw new EngineError('refused', `the Retake home (${retakeHome()}) lies inside the workspace (${inside}): the Studio keeps its token there, where an agent can read files`, {
+      fix: 'set RETAKE_HOME to a folder outside the workspace (or leave it unset: ~/.retake), then run retake ui again',
+    });
+  }
+}
+
 export async function launchStudio(o: StudioServerOptions): Promise<Launched> {
+  await assertTokenOutside(o.root);
   const file = discoveryFile(o.root);
   const tokenFile = await studioTokenFile(o.root);
   const found = await running(o.root, file, tokenFile);

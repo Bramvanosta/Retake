@@ -8,7 +8,7 @@ export interface WorkspaceOptions {
   /**
    * This process serves trust `mcp` (core agent-policy.ts): the jobs worker and its job processes, the MCP server, the
    * Studio server — never a command a person types. Its jobs then run no program from inside the workspace and pass
-   * Chromium switches only, none that loads code or files.
+   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES.
    */
   agent?: boolean;
 }

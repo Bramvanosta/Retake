@@ -1,15 +1,18 @@
 /**
- * Who holds the port `retake mcp --http` could not take (L5.18, SEC-18). The port is fixed (47820) so a registration
- * survives restarts; while the server is down, any local program may listen there first — another account's included
- * — and receive the bearer token a client sends to it. So when the port is taken, the server looks the listener up
- * before giving its usual "port busy" answer: only a listener that belongs to this account AND is a Retake MCP server
- * (`… bin.js|retake … mcp … --http`) keeps that answer; any other one, one the lookup cannot see (on macOS a non-root
- * `lsof` lists this account's processes only: another account's listener is invisible), or a lookup that fails or
- * times out, is refused with the advice to stop it and to rotate the token — a client may already have sent it there.
+ * Who holds the port `retake mcp --http` could not take (L5.18). The port is fixed (47820) so a registration survives
+ * restarts; while the server is down, any local program may listen there first — another account's included — and
+ * receive the bearer token a client sends to it. So when the port is taken, the server looks the listener up before
+ * giving its "port busy" answer: only a listener that belongs to this account AND is a Retake MCP server
+ * (`… bin.js|retake … mcp … --http`) keeps that answer; any other one, or one the lookup cannot see (on macOS a
+ * non-root `lsof` lists this account's processes only: another account's listener is invisible), is refused with the
+ * advice to stop it and to rotate the token — a client may already have sent it there. A lookup that fails or times
+ * out is tried once more; failing again, the listener is unidentified (`unidentified`), and the answer says how to
+ * look and what to do if it is not this account's server.
  *
- * Only the start is checked: a listener that takes the port while this server is down, after a client has seen the
- * real one, is not detected here, and a client does not check the server it reaches (BACKLOG BL-162). Programs run
- * by absolute path with a fixed environment: the workspace's PATH never picks the tool.
+ * Only the start is checked, and a listener is told apart by its account and its command line, which another program
+ * of this account could copy (BACKLOG BL-162); a listener that takes the port while this server is down, after a client
+ * has seen the real one, is not detected here, and a client does not check the server it reaches. Programs run by
+ * absolute path with a fixed environment: the workspace's PATH never picks the tool.
  */
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -80,15 +83,15 @@ export function listenersAreOurs(listeners: readonly PortListener[], uid: number
   return listeners.length > 0 && listeners.every((l) => l.uid === uid && RETAKE_MCP_HTTP.test(l.args));
 }
 
-export type PortHolderVerdict = { ours: true } | { ours: false; why: string };
+export type PortHolderVerdict = { ours: true } | { ours: false; why: string; unidentified?: true };
 
-/** Who holds `port`: ours, or why not (the seam failing counts as not ours). */
+/** Who holds `port`: ours, or why not (the seam failing twice counts as not ours: unidentified). */
 export async function portHolder(port: number, lookup: PortListenerLookup = lsofPortListeners, uid = process.getuid?.() ?? -1): Promise<PortHolderVerdict> {
   let listeners: PortListener[];
   try {
-    listeners = await lookup(port);
+    listeners = await lookup(port).catch(() => lookup(port));
   } catch (e) {
-    return { ours: false, why: `the program holding it cannot be identified (${e instanceof Error ? e.message : 'lookup failed'})` };
+    return { ours: false, unidentified: true, why: `the program holding it cannot be identified (${e instanceof Error ? e.message : 'lookup failed'})` };
   }
   if (listenersAreOurs(listeners, uid)) return { ours: true };
   if (listeners.length === 0) return { ours: false, why: "it is held by a program this account cannot see (another account's, or one that cannot be identified)" };

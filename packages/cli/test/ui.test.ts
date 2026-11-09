@@ -377,7 +377,7 @@ describe('the browser opener (a spawn stand-in: no browser opens)', () => {
         kill: () => true,
         unref: () => undefined,
       });
-      if (command === 'open' && args[0]?.endsWith('.webloc')) {
+      if (command === '/usr/bin/open' && args[0]?.endsWith('.webloc')) {
         const f = args[0];
         call.file = { mode: statSync(f).mode & 0o777, dirMode: statSync(dirname(f)).mode & 0o777, text: readFileSync(f, 'utf8') };
       }
@@ -404,17 +404,17 @@ describe('the browser opener (a spawn stand-in: no browser opens)', () => {
   });
 
   it('macOS: osascript reads `open location "<url>"` from its stdin; no argument holds the code', async () => {
-    const s = stand({ osascript: 0, open: 0 });
+    const s = stand({ '/usr/bin/osascript': 0, '/usr/bin/open': 0 });
     expect(await openBrowser(URL_, { spawn: s.spawn, platform: 'darwin', tmp })).toBe(true);
-    expect(s.calls.map((c) => [c.command, c.args])).toEqual([['osascript', ['-']]]);
+    expect(s.calls.map((c) => [c.command, c.args])).toEqual([['/usr/bin/osascript', ['-']]]);
     expect(s.calls[0].input).toBe(`open location "${URL_}"\n`);
     noCodeInArgs(s.calls);
   });
 
   it('macOS, osascript failing: a 0600 .webloc in a private folder, opened by its path, then removed; osascript and open both failing: false (the link is printed), no other opener, no file left', async () => {
-    const s = stand({ osascript: 1, open: 0 });
+    const s = stand({ '/usr/bin/osascript': 1, '/usr/bin/open': 0 });
     expect(await openBrowser(URL_, { spawn: s.spawn, platform: 'darwin', tmp, keepMs: 0 })).toBe(true);
-    expect(s.calls.map((c) => c.command)).toEqual(['osascript', 'open']);
+    expect(s.calls.map((c) => c.command)).toEqual(['/usr/bin/osascript', '/usr/bin/open']);
     const opened = s.calls[1];
     expect(opened.args).toHaveLength(1);
     expect(opened.args[0]).toMatch(/\.webloc$/);
@@ -423,9 +423,9 @@ describe('the browser opener (a spawn stand-in: no browser opens)', () => {
     expect(opened.file!.text).toContain(`<string>${URL_}</string>`);
     noCodeInArgs(s.calls);
     expect(await readdir(tmp)).toEqual([]);
-    const none = stand({ osascript: 1, open: 1 });
+    const none = stand({ '/usr/bin/osascript': 1, '/usr/bin/open': 1 });
     expect(await openBrowser(URL_, { spawn: none.spawn, platform: 'darwin', tmp, keepMs: 0 })).toBe(false);
-    expect(none.calls.map((c) => c.command)).toEqual(['osascript', 'open']);
+    expect(none.calls.map((c) => c.command)).toEqual(['/usr/bin/osascript', '/usr/bin/open']);
     noCodeInArgs(none.calls);
     expect(await readdir(tmp)).toEqual([]);
     const missing = stand({});
@@ -437,7 +437,7 @@ describe('the browser opener (a spawn stand-in: no browser opens)', () => {
     expect(openLocationScript('http://127.0.0.1:4981/a"b\\c')).toBe('open location "http://127.0.0.1:4981/a\\"b\\\\c"\n');
     expect(openLocationScript(`${URL_}\n`)).toBeNull();
     expect(openLocationScript(`${URL_}"\rdo shell script "x`)).toBeNull();
-    const s = stand({ osascript: 0 });
+    const s = stand({ '/usr/bin/osascript': 0 });
     expect(await openBrowser(`${URL_}\n`, { spawn: s.spawn, platform: 'darwin', tmp })).toBe(false);
     expect(s.calls).toEqual([]);
     expect(weblocText('http://127.0.0.1:1/?a=1&b=<2>')).toContain('<string>http://127.0.0.1:1/?a=1&amp;b=&lt;2&gt;</string>');

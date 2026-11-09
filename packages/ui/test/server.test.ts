@@ -282,6 +282,29 @@ describe('one server per workspace (discovery file, token in the Retake home)', 
     return { port: (server.address() as AddressInfo).port, seen, close: () => new Promise((r) => server.close(() => r())) };
   }
 
+  it('a Retake home inside the workspace is refused before anything starts: the token would lie where an agent reads files', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'studio-ui-home-'));
+    const before = process.env.RETAKE_HOME;
+    try {
+      await fixtureWorkspace(dir);
+      for (const home of [join(dir, '.home'), join(dir, 'projects', 'h')]) {
+        process.env.RETAKE_HOME = home;
+        const e = await launchStudio({ root: dir }).then(
+          () => null,
+          (x: unknown) => x as { code: string; message: string; fix?: string },
+        );
+        expect(e?.code, home).toBe('refused');
+        expect(e?.message).toMatch(/^the Retake home \(.*\) lies inside the workspace \(.*\): the Studio keeps its token there, where an agent can read files$/);
+        expect(e?.fix).toBe('set RETAKE_HOME to a folder outside the workspace (or leave it unset: ~/.retake), then run retake ui again');
+        expect(await readDiscovery(discoveryFile(dir))).toBeNull();
+        await expect(stat(join(home, 'ui'))).rejects.toThrow();
+      }
+    } finally {
+      process.env.RETAKE_HOME = before;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it('a second launch reuses the first with a fresh code; ui.json holds no token, the home\'s 0600 record does; close removes both', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-ui-launch-'));
     try {

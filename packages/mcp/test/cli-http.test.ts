@@ -3,9 +3,9 @@
  * prints the HTTP registration (the URL; the stable token of the Retake home, 0600, only by reference — its file in
  * the `claude mcp add` line, $RETAKE_MCP_TOKEN in the .mcp.json block — never the token itself); `--http --port 0
  * --json` prints one JSON line, nothing on stderr, serves the 45 tools to the SDK's Streamable HTTP client holding that
- * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error. SEC-18: --print-config --http
- * says stdio is the safe default; a fixed port held by a listener that is not a Retake MCP server is refused with the
- * rotate-token advice, one held by this account's own `retake mcp --http` keeps the port-busy answer.
+ * token, and stops on SIGTERM (exit 0); the HTTP flags without --http are a usage error. --print-config --http says
+ * stdio is the safe default; a fixed port held by a listener that is not a Retake MCP server is refused with the
+ * rotate-token advice, one held by this account's own `retake mcp --http` keeps the port-busy answer (use it or stop it).
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -71,7 +71,7 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     expect(first.err).toContain(`claude mcp add --transport http retake http://127.0.0.1:47999/mcp --scope user --header "Authorization: Bearer $(cat ${file})"`);
     expect(first.err).toContain(`export RETAKE_MCP_TOKEN="$(cat ${file})"`);
     expect(first.err).toContain(`retake --root ${ws} mcp --http --port 47999`);
-    // SEC-18: stdio is the safe default, and what HTTP leaves open on a shared Mac.
+    // stdio is the safe default, and what HTTP leaves open on a shared Mac.
     expect(first.err).toContain('stdio (retake mcp --print-config, without --http) is the safe default');
     expect(first.err).toContain("another account's program can listen on port 47999 and receive the token your client sends");
     expect(first.err).toContain('the client does not check the server it reaches');
@@ -109,7 +109,7 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     expect(end.out.trim().split('\n')).toHaveLength(1);
   });
 
-  it('SEC-18: the port held by a program that is not a Retake MCP server → refused (exit 1), stop it and rotate the token', async () => {
+  it('the port held by a program that is not a Retake MCP server → refused (exit 1), stop it and rotate the token', async () => {
     const holder = spawn(process.execPath, ['-e', "require('net').createServer().listen({port: 4975, host: '127.0.0.1', exclusive: true}, () => console.log('up'))"], { stdio: ['ignore', 'pipe', 'inherit'] });
     children.push(holder);
     await new Promise<void>((r) => holder.stdout!.once('data', () => r()));
@@ -126,14 +126,16 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     }
   });
 
-  it.skipIf(process.platform !== 'darwin')("SEC-18: the port held by this account's own retake mcp --http → the port-busy answer, no token advice", async () => {
+  it.skipIf(process.platform !== 'darwin')("the port held by this account's own retake mcp --http → the port-busy answer (use it or stop it), no token advice", async () => {
     const first = retake(['--root', ws, 'mcp', '--http', '--port', '4976', '--json']);
     expect(JSON.parse(await first.line)).toMatchObject({ port: 4976, pid: first.child.pid });
     try {
       const r = await retake(['--root', ws, 'mcp', '--http', '--port', '4976']).exit;
       expect(r.code, r.err).toBe(1);
       expect(r.err).toContain('cannot listen on 127.0.0.1:4976: EADDRINUSE');
-      expect(r.err).toContain('fix: pass another --port, or leave it out for a free one');
+      expect(r.err).toContain('a Retake MCP server of this account already serves on it');
+      expect(r.err).toContain('fix: use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again');
+      expect(r.err).not.toContain('leave it out');
       expect(r.err).not.toContain('rotate-token');
     } finally {
       first.child.kill('SIGTERM');

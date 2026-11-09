@@ -6,8 +6,9 @@
  * neither expires nor is evicted); and the gate WITH the valid token and a valid initialize body:
  * any Origin or Sec-Fetch-* header refused (browsers), a foreign Host 421, no or wrong token 401, other routes 404,
  * OPTIONS 405, a non-JSON body 415, an oversized one 413. The stable token file: created once 0600, reused, rotated,
- * refused when not private. The fixed port taken (SEC-18): a listener that is not this account's Retake MCP server, none
- * visible, or a failing lookup → refused with the rotate-token advice; this account's own one → the usual busy answer.
+ * refused when not private. The fixed port taken: a listener that is not this account's Retake MCP server or none
+ * visible → refused with the rotate-token advice; a lookup failing twice → refused, with how to look first; this
+ * account's own one → the busy answer (use it or stop it).
  */
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
@@ -383,7 +384,7 @@ describe('the stable token (Retake home, 0600)', () => {
   });
 });
 
-describe("the fixed port taken (SEC-18): only this account's own Retake MCP server keeps the 'port busy' answer", () => {
+describe("the fixed port taken: only this account's own Retake MCP server keeps the 'port busy' answer", () => {
   const uid = process.getuid?.() ?? -1;
   const RETAKE_ARGS = '/usr/local/bin/node /opt/retake/packages/cli/dist/bin.js --root /w mcp --http --port 4971';
   /** Hold 127.0.0.1:`port` from this process (a listener that is not a Retake MCP server). */
@@ -423,7 +424,6 @@ describe("the fixed port taken (SEC-18): only this account's own Retake MCP serv
         [async () => [{ pid: 4242, uid: uid + 1, args: RETAKE_ARGS }], /a program of another account \(pid 4242\)/],
         [async () => [{ pid: 4243, uid, args: 'python3 -m http.server 4971' }], /this account that is not a Retake MCP server \(pid 4243\)/],
         [async () => [], /a program this account cannot see/],
-        [() => Promise.reject(new Error('lsof timed out after 2000 ms')), /cannot be identified \(lsof timed out after 2000 ms\)/],
       ];
       for (const [lookup, why] of cases) {
         const seen: number[] = [];
@@ -441,13 +441,35 @@ describe("the fixed port taken (SEC-18): only this account's own Retake MCP serv
     }
   });
 
+  it('a lookup that fails is tried once more: a second failure refuses, saying how to look and what to do if it is not ours; a second success decides', async () => {
+    const held = await hold(4974);
+    try {
+      const seen: number[] = [];
+      const e = await failure(start(4974, (p) => (seen.push(p), Promise.reject(new Error('lsof timed out after 2000 ms')))));
+      expect(seen).toEqual([4974, 4974]);
+      expect(e.code).toBe('refused');
+      expect(e.message).toBe('127.0.0.1:4974 is taken and the program holding it cannot be identified (lsof timed out after 2000 ms)');
+      expect(e.fix).toContain('see what listens there (lsof -nP -iTCP:4974 -sTCP:LISTEN): if it is your own retake mcp --http, use it or stop it first; if not, stop that program');
+      expect(e.fix).toContain('retake mcp --http --rotate-token');
+      let calls = 0;
+      const flaky: PortListenerLookup = async () => (++calls === 1 ? Promise.reject(new Error('lsof exited with 2')) : [{ pid: 4245, uid, args: RETAKE_ARGS }]);
+      const busy = await failure(start(4974, flaky));
+      expect(calls).toBe(2);
+      expect(busy.code).toBe('busy');
+    } finally {
+      await new Promise((r) => held.close(r));
+    }
+  });
+
   it("this account's own Retake MCP server on the port: the usual port-busy answer, no token advice", async () => {
     const held = await hold(4972);
     try {
       const e = await failure(start(4972, async () => [{ pid: 4244, uid, args: RETAKE_ARGS }]));
       expect(e.code).toBe('busy');
-      expect(e.message).toBe('cannot listen on 127.0.0.1:4972: EADDRINUSE');
-      expect(e.fix).toBe('pass another --port, or leave it out for a free one');
+      expect(e.message).toBe('cannot listen on 127.0.0.1:4972: EADDRINUSE: a Retake MCP server of this account already serves on it');
+      // The port is fixed: "leave it out for a free one" would name the same port again.
+      expect(e.fix).toBe('use that server (its clients reach it already), or stop it before starting another — or pass another --port and register again');
+      expect(e.fix).not.toContain('rotate-token');
     } finally {
       await new Promise((r) => held.close(r));
     }

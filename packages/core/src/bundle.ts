@@ -23,7 +23,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { programProblem } from './agent-policy.js';
+import { policyProgram } from './agent-policy.js';
 
 /** The manifest file of a bundle (in `Contents/Resources`, or the stage folder). */
 export const BUNDLE_FILE = 'bundle.json';
@@ -348,8 +348,9 @@ export function mediaTools(): MediaTools {
 const SOURCE_NAMES: Record<MediaToolSource, string> = { 'retake.yaml': '`ffmpeg:` of retake.yaml', RETAKE_FFMPEG: '$RETAKE_FFMPEG', RETAKE_FFPROBE: '$RETAKE_FFPROBE', bundled: 'ffmpeg', PATH: 'ffmpeg' };
 
 /**
- * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else this process's — refused (BundleError) under
- * the agent policy (core agent-policy.ts) when it lies inside the workspace or is a relative path.
+ * The ffmpeg or ffprobe to run: `explicit` (an option naming one), else this process's — under the agent policy (core
+ * agent-policy.ts policyProgram) by the real path that was checked, and refused (BundleError) when it lies inside the
+ * workspace or is a relative path.
  */
 function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
   const given = explicit?.trim();
@@ -364,9 +365,9 @@ function mediaBin(tool: 'ffmpeg' | 'ffprobe', explicit?: string): string {
     const source = tool === 'ffmpeg' ? t.ffmpegSource : t.ffprobeSource;
     what = source === 'PATH' || source === 'bundled' ? tool : SOURCE_NAMES[source];
   }
-  const problem = programProblem(bin, what);
-  if (problem) throw new BundleError(problem);
-  return bin;
+  const checked = policyProgram(bin, what);
+  if (checked.problem) throw new BundleError(checked.problem);
+  return checked.program;
 }
 
 /** The ffmpeg to run: `explicit` (an option naming one), else this process's (mediaBin). */

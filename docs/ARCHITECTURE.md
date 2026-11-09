@@ -70,19 +70,26 @@ MCP. No server-side capture or rendering in V1. A full cloud offer is kept in mi
      save, at submit and by the worker): the agent could otherwise read any variable of that environment back through
      an error message (masking catches a value as is, not base64 of it). The worker keeps its environment for itself;
      the programs its jobs start (shell hooks and rollbacks, docker / compose, process-sandbox services) get only core
-     `childEnv`'s allow-list of it — the shell's own variables, the proxy and certificate ones, `DOCKER_*` /
-     `BUILDKIT_*` for docker — plus the names of project.yaml `pass_env:` (a person's file, never a loader variable)
-     and their own declared `env` (`{{env:NAME}}`, a human's refs only). The CLI's children inherit everything.
+     `childEnv`'s allow-list of it — the shell's own variables, the proxy and certificate ones (a proxy URL's
+     `user:password@` included), docker's own by name (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, TLS, API
+     version, platform, BuildKit) — plus the names of project.yaml `pass_env:` (a person's file, never a loader
+     variable) and their own declared `env` (`{{env:NAME}}`, a human's refs only); an unsigned rollback gets the base
+     alone. The CLI's children inherit everything.
    - *Local files*: a file a scenario or hook references through MCP (drop_file, eval.file, sql / js files, the
      scripts a shell hook names) is inside the project folder, symbolic links followed; code is never run from a file
      the agent can write (README.md, `scenarios/`, `runs/`…). A process that serves trust mcp (the jobs worker and its
      job processes, the MCP server, the Studio server: engine `openWorkspace({agent})` → core `useAgentPolicy`) runs no
-     program named by a relative path or lying inside the workspace (`browser.executable`, `ffmpeg:`, the render
-     browser, the `RETAKE_FFMPEG` / `RETAKE_FFPROBE` / `RETAKE_CHROMIUM*` variables, a command found on PATH there:
-     core `programProblem`, checked by runner-web `launchTarget`, core `ffmpegBin` / `ffprobeBin`, editor
-     `assertRenderBrowser`), passes Chromium switches only, none that loads code or files (core `agentArgProblem`,
-     through runner-web `launchOptions`), and its worker gets no tool variable pointing inside the workspace
-     (`cleanWorkerEnv`). The CLI keeps its own. No render downloads a browser (Remotion's own download is refused).
+     program named by a relative path or lying inside the workspace folders (`browser.executable`, `ffmpeg:`, the
+     render browser, the browser Playwright picks for a channel — wherever `PLAYWRIGHT_BROWSERS_PATH` puts it —,
+     `docker`, the `RETAKE_FFMPEG` / `RETAKE_FFPROBE` / `RETAKE_CHROMIUM*` / `RETAKE_DOCKER` variables, a command found
+     on PATH there: core `policyProgram`, checked by runner-web `launchTarget`, core `ffmpegBin` / `ffprobeBin`, editor
+     `assertRenderBrowser`, sandbox `ComposeProvider`) and starts the one it checked by its real path; it passes
+     Chromium, in `browser.args`, only switches of an allow-list (core `AGENT_ALLOWED_SWITCHES`, `agentArgProblem`,
+     through runner-web `launchOptions({ browserArgs })`; the runner's own switches are not judged by it). The worker a
+     client starts gets the tool variables as they are (`cleanWorkerEnv` drops only loader entries and PATH folders
+     inside any workspace folder), so a job that would use one inside the workspace fails with what to change. The
+     Studio refuses a Retake home inside the workspace (its token lives there). The CLI keeps its own. No render
+     downloads a browser (Remotion is always given one: `assertRenderBrowser`).
    - *Approvals*: through MCP the files' trust flags do not count (the agent can write them): destructive hooks,
      every shell hook or shell seed step, and a setup hook whose rollback is destructive, shell or JavaScript need a
      human, asked by the client at submit (MCP elicitation; the form shows each hook and its rollback) and carried as

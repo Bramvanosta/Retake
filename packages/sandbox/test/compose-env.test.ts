@@ -6,13 +6,14 @@
  * the real `docker compose config` (RETAKE_TEST_DOCKER=1; the docker CLI and its daemon, no image needed) what it
  * read: the file's tag wins over the shell's, the subfolder's file is the one read.
  */
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ConfigError, composeEnvFile, envFileKeys, loadProject, useAgentPolicy } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
-import { ComposeProvider, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
+import { ComposeProvider, SandboxError, composeArgs, composeProject, dockerEnv, emptyState, sandboxPaths } from '@retake/sandbox';
 import type { DockerExec, DockerRunOptions, ProviderContext } from '@retake/sandbox';
 
 const ENABLED = process.env.RETAKE_TEST_DOCKER === '1';
@@ -118,6 +119,47 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
     };
     await new ComposeProvider({ exec }).config(ctxOf(p));
     expect(calls[0]?.pass).toEqual(['GREETING']);
+  });
+
+  it('under the agent policy the docker binary is a program like any other: $RETAKE_DOCKER inside the workspace or relative is refused before it starts; one outside starts by its real path', async () => {
+    const p = await project('docker-bin', [], { 'compose.yaml': COMPOSE });
+    // A stand-in docker that writes how it was started ($0) beside itself, then answers nothing.
+    const standIn = async (file: string) => {
+      await mkdir(join(file, '..'), { recursive: true });
+      await writeFile(file, '#!/bin/sh\necho "$0" >> "$(dirname "$0")/ran.txt"\n');
+      await chmod(file, 0o755);
+    };
+    const inside = join(p.dir, 'bin', 'docker');
+    await standIn(inside);
+    const outside = join(tmp, 'docker-elsewhere', 'docker-real');
+    await standIn(outside);
+    await symlink(outside, join(tmp, 'docker-elsewhere', 'docker'));
+    const before = process.env.RETAKE_DOCKER;
+    useAgentPolicy([p.dir]);
+    try {
+      process.env.RETAKE_DOCKER = inside;
+      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(/^sandbox stage: docker-compose sandboxes: \$RETAKE_DOCKER \(.*\/bin\/docker\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_DOCKER at its new place$/);
+      await expect(new ComposeProvider().config(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER .* lies inside the workspace/);
+      expect(existsSync(join(p.dir, 'bin', 'ran.txt'))).toBe(false);
+      process.env.RETAKE_DOCKER = 'bin/docker';
+      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(/\$RETAKE_DOCKER \(bin\/docker\) is a relative path/);
+      process.env.RETAKE_DOCKER = join(tmp, 'docker-elsewhere', 'docker');
+      await expect(new ComposeProvider().docker(ctxOf(p))).rejects.toThrow(SandboxError);
+      expect(readFileSync(join(tmp, 'docker-elsewhere', 'ran.txt'), 'utf8').trim().split('\n')[0]).toBe(realpathSync(outside));
+    } finally {
+      useAgentPolicy(null);
+      if (before === undefined) delete process.env.RETAKE_DOCKER;
+      else process.env.RETAKE_DOCKER = before;
+    }
+    // A command a person types: the binary runs where it is.
+    process.env.RETAKE_DOCKER = inside;
+    try {
+      await new ComposeProvider().docker(ctxOf(p)).catch(() => undefined);
+      expect(existsSync(join(p.dir, 'bin', 'ran.txt'))).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.RETAKE_DOCKER;
+      else process.env.RETAKE_DOCKER = before;
+    }
   });
 
   it.skipIf(!ENABLED)('the real docker compose under the agent policy: a shell variable reaches the compose file only through pass_env', async () => {

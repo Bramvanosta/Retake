@@ -326,7 +326,7 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
     await disableAutofill(userDataDir);
     if (policy.readOnly) enableServiceWorkerRequests();
     const b = projectBrowser(o.project, o.browser);
-    const { executablePath, channel } = launchTarget(b);
+    const { executablePath, channel } = launchTarget(b, { headless: o.headless === true });
     // L5.16c: a persona's profile copy is never opened by an older Chromium than the one that opened it last.
     if (persona) checkProfileBrowser(userDataDir, launchMajor({ executablePath, channel }), persona.name);
     const size = o.windowSize;
@@ -346,8 +346,8 @@ export async function recordSession(o: RecordSessionOptions): Promise<RecordSess
         args: [
           ...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'),
           ...(size ? [`--window-size=${size.width},${size.height}`] : ['--start-maximized']),
-          ...(b.args ?? []),
         ],
+        browserArgs: b.args,
       }),
     });
     const launched = context;

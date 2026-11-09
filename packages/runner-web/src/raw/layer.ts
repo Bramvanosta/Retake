@@ -97,7 +97,7 @@ export async function renderCursorAtlas(opts: { kit: KitConfig; scale: number; b
   for (let k = 0; k < rippleCount; k++) specs.push({ age_ms: k * ATLAS.ripple_step_s * 1000 });
   const rows = Math.ceil(specs.length / columns);
   const target = launchTarget(opts.browser);
-  const browser = await chromium.launch({ headless: true, ...target, ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS, ...(opts.browser?.args ?? [])] }) });
+  const browser = await chromium.launch({ headless: true, ...target, ...launchOptions({ args: DEFAULT_BROWSER_ARGS, browserArgs: opts.browser?.args }) });
   await refuseUnsandboxed(browser, () => browser.close(), 'The cursor layer browser');
   let png: Buffer;
   try {

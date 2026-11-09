@@ -271,7 +271,12 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   (and if the page reloads meanwhile, the app says the server is gone and offers Restart). Attaching needs that
   server's token, which `retake ui` keeps in the Retake home (`~/.retake/ui/`), not in the workspace: a server
   started with another `RETAKE_HOME` (or by an older Retake) is not attached to — the app's *The Studio could not start* alert
-  quotes why; stop that server, or start it with the default home.
+  quotes why; stop that server, or start it with the default home. The app uses the default home (`~/.retake`) unless
+  it was started with `RETAKE_HOME` set (from a terminal), so a `retake ui` typed with another `RETAKE_HOME` and the
+  app do not share a server: start the terminal's with the same home, or stop it. An app or a `retake ui` of a build
+  from before this one does not see the current record and starts a second server: update both, or quit the older
+  one first (see [Upgrading](upgrading.md#two-builds-on-one-workspace-the-studios-token-in-the-retake-home)). A
+  Retake home inside the workspace is refused (the token would lie where an agent reads files).
   The jobs worker is never the app's: quitting while a capture runs lets it finish.
 - **Quit asks when something would be left behind** (L5.2b). With a job of the workspace's queue running or waiting
   (a capture, dry run, render, review, export, recording, sandbox start or reset, environment reset or hooks, queued
@@ -330,8 +335,8 @@ pnpm desktop:clean             # both build folders, apps/desktop/gen/ and the a
   ffmpeg is still found in Homebrew's folders. A jobs worker the app's server starts keeps that environment while it
   lives (it exits after 60 s without a job), so a job Claude submits through MCP meanwhile runs with it too — let it
   idle out before relying on `{{env:…}}` set in a terminal (BACKLOG BL-125). Your jobs from the app follow the rules
-  of every job the worker runs, Claude's included: no program from inside the workspace and only switches in
-  `browser.args`, none that loads code or files, and their shell hooks, `docker` and sandbox services get only the
+  of every job the worker runs, Claude's included: no program from inside the workspace and in `browser.args` only
+  switches of a short list (see [Workspace](workspace.md)), and their shell hooks, `docker` and sandbox services get only the
   shell's own variables of the worker's environment plus the names of project.yaml `pass_env:` (see
   [Workspace](workspace.md)); a run typed in a terminal keeps them.
   macOS may ask

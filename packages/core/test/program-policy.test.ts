@@ -1,23 +1,27 @@
 /**
  * The agent policy (core agent-policy.ts): a process that serves trust `mcp` (the jobs worker, the MCP server, the
  * Studio server) runs no program named by a relative path or lying inside the workspace (any spelling, through a link
- * either way, a bare command found on PATH there), and passes Chromium only switches, none that loads code or files —
- * while a command a person types (policy off) keeps both. ffmpeg / ffprobe follow it wherever they are named.
+ * either way, a bare command found on PATH there) and starts the one it checked by its real path; it passes Chromium
+ * only switches of an allow-list — while a command a person types (policy off) keeps both. ffmpeg / ffprobe follow it
+ * wherever they are named.
  */
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import {
-  AGENT_REFUSED_SWITCHES,
+  AGENT_ALLOWED_SWITCHES,
+  AGENT_REFUSED_FEATURES,
   agentArgProblem,
   agentArgsProblems,
   agentPolicyFolders,
+  agentProgram,
   agentProgramProblem,
   ffmpegBin,
   ffprobeBin,
   loadWorkspaceConfig,
   policyArgsProblems,
+  policyProgram,
   programProblem,
   useAgentPolicy,
   useWorkspaceFfmpeg,
@@ -80,6 +84,19 @@ describe('programs under the agent policy', () => {
     expect(programProblem(inWs, 'browser.executable')).toBeNull();
   });
 
+  it('the program to start is the real path that was checked (a link outside, a bare command on PATH); the policy off gives it back as it is', () => {
+    expect(agentProgram(join(outside, 'bin', 'link-out-of-ws'), 'browser.executable', folders)).toEqual({ program: join(outside, 'bin', 'link-out-of-ws'), problem: null });
+    symlinkSync(outTool, join(outside, 'bin', 'link-to-out'));
+    expect(agentProgram(join(outside, 'bin', 'link-to-out'), 'browser.executable', folders)).toEqual({ program: outTool, problem: null });
+    expect(agentProgram('link-to-out', 'ffmpeg', folders, { path: join(outside, 'bin') })).toEqual({ program: outTool, problem: null });
+    expect(agentProgram('no-such-tool-anywhere', 'ffmpeg', folders, { path: join(outside, 'bin') })).toEqual({ program: 'no-such-tool-anywhere', problem: null });
+    expect(agentProgram(join(outside, 'bin', 'link-in'), 'browser.executable', folders)).toEqual({ program: join(outside, 'bin', 'link-in'), problem: expect.stringMatching(/lies inside the workspace/) });
+    expect(policyProgram(join(outside, 'bin', 'link-to-out'), 'browser.executable')).toEqual({ program: join(outside, 'bin', 'link-to-out'), problem: null });
+    useAgentPolicy(folders);
+    expect(policyProgram(join(outside, 'bin', 'link-to-out'), 'browser.executable')).toEqual({ program: outTool, problem: null });
+    expect(policyProgram(inWs, 'browser.executable').problem).toMatch(/lies inside the workspace/);
+  });
+
   it("ffmpeg and ffprobe: retake.yaml's or a variable's inside the workspace is refused under the policy, run by the CLI", async () => {
     writeFileSync(join(ws, 'retake.yaml'), 'ffmpeg: bin/tool\n');
     const cfg = await loadWorkspaceConfig(ws);
@@ -89,6 +106,9 @@ describe('programs under the agent policy', () => {
     expect(() => ffmpegBin()).toThrow(/^`ffmpeg:` of retake\.yaml \(.*\/ws\/bin\/tool\) lies inside the workspace/);
     expect(() => ffmpegBin(inWs)).toThrow(/^ffmpeg \(.*\) lies inside the workspace/);
     expect(ffmpegBin(outTool)).toBe(outTool);
+    // Started by the real path that was checked: a link changed afterwards starts nothing else.
+    symlinkSync(outTool, join(outside, 'bin', 'ff-link'));
+    expect(ffmpegBin(join(outside, 'bin', 'ff-link'))).toBe(outTool);
     useWorkspaceFfmpeg(undefined);
     const saved = process.env.RETAKE_FFPROBE;
     process.env.RETAKE_FFPROBE = inWs;
@@ -108,20 +128,36 @@ describe('browser.args under the agent policy', () => {
     for (const a of ['https://example.com/', 'file:///etc/hosts', 'page.html', '--', '---x', '--name value', '']) expect(agentArgProblem(a), a).toMatch(/is not a switch \(Chromium opens such an argument as a page or a file\) — .*: remove it from browser\.args/);
   });
 
-  it('refuses the switches that load code or files, or open a debugging channel; keeps the others', () => {
-    const refused = ['user-data-dir', 'load-extension', 'disable-extensions-except', 'register-pepper-plugins', 'js-flags', 'remote-allow-origins', 'allow-file-access-from-files', 'allow-file-access', 'enable-logging', 'log-file'];
-    expect(Object.keys(AGENT_REFUSED_SWITCHES).sort()).toEqual([...refused].sort());
-    for (const name of refused) {
-      expect(agentArgProblem(`--${name}=/x`), name).toMatch(new RegExp(`^--${name} .* — .*remove it from browser\\.args`));
-      expect(agentArgProblem(`--${name.toUpperCase()}`), name).not.toBeNull();
+  it('an allow-list: the switches of AGENT_ALLOWED_SWITCHES pass (any case, with a value); every other switch is refused', () => {
+    for (const name of AGENT_ALLOWED_SWITCHES) {
+      expect(agentArgProblem(`--${name}`), name).toBeNull();
+      expect(agentArgProblem(`--${name.toUpperCase()}=1`), name).toBeNull();
     }
-    for (const a of ['--zygote-cmd-prefix=/bin/sh', '--renderer-cmd-prefix=x', '--ppapi-plugin-launcher=x', '--gpu-launcher', '--remote-debugging-pipe', '-remote-debugging-port=1']) expect(agentArgProblem(a), a).not.toBeNull();
-    for (const a of ['--hide-scrollbars', '--lang=fr-FR', '--proxy-server=http://127.0.0.1:8080', '--proxy-bypass-list=<-loopback>', '--host-resolver-rules=MAP * 127.0.0.1', '--window-size=1280,800', '--force-device-scale-factor=2']) {
+    for (const a of ['--hide-scrollbars', '--lang=fr-FR', '--proxy-server=http://127.0.0.1:8080', '--proxy-bypass-list=<-loopback>', '--host-resolver-rules=MAP * 127.0.0.1', '--window-size=1280,800', '--force-device-scale-factor=2', '--disable-features=Translate', '--use-angle=metal']) {
       expect(agentArgProblem(a), a).toBeNull();
     }
+    // Switches that load code or a profile, write logs, dumps or traces, trust other certificates, open a page or a
+    // debugging channel — none is on the list, nor any switch Chromium may add later.
+    const refused = [
+      '--user-data-dir=/x', '--load-extension=/x', '--disable-extensions-except=/x', '--register-pepper-plugins=/x', '--js-flags=--allow-natives-syntax',
+      '--remote-allow-origins=*', '--allow-file-access-from-files', '--allow-file-access', '--enable-logging', '--log-file=/x', '--v=1', '--vmodule=*=3',
+      '--ssl-key-log-file=/x', '--ignore-certificate-errors', '--ignore-certificate-errors-spki-list=x', '--user-agent=x', '--homepage=https://example.com/',
+      '--app=https://example.com/', '--disk-cache-dir=/x', '--crash-dumps-dir=/x', '--enable-crash-reporter', '--trace-startup', '--trace-startup-file=/x',
+      '--enable-net-benchmarking', '--net-log-capture-mode=Everything', '--log-net-log=/x', '--zygote-cmd-prefix=/bin/sh', '--ppapi-plugin-launcher=x',
+      '--remote-debugging-pipe', '-remote-debugging-port=1', '--use-fake-ui-for-media-stream', '--unsafely-treat-insecure-origin-as-secure=http://x.example', '--a-switch-of-a-later-chromium',
+    ];
+    for (const a of refused) expect(agentArgProblem(a), a).toMatch(/^--\S+ is not one of the switches these jobs may pass — .*: remove it from browser\.args \(a run typed in a terminal keeps it\)$/);
     expect(agentArgsProblems(['--lang=fr', '--user-data-dir=/tmp/p', 'x'])).toEqual([
-      { index: 1, message: expect.stringMatching(/^--user-data-dir opens the browser on a profile folder/) },
+      { index: 1, message: expect.stringMatching(/^--user-data-dir is not one of the switches these jobs may pass/) },
       { index: 2, message: expect.stringMatching(/^"x" is not a switch/) },
     ]);
+  });
+
+  it('a feature list may not take the network service out of its sandbox (any case, `-` / `_`, a trial group after `<` or `:`)', () => {
+    expect(AGENT_REFUSED_FEATURES).toEqual({ enable: ['NetworkServiceInProcess', 'NetworkServiceInProcess2'], disable: ['NetworkServiceSandbox'] });
+    for (const a of ['--disable-features=Translate,NetworkServiceSandbox', '--disable-features=network_service_sandbox<Trial', '--enable-features=NetworkServiceInProcess', '--ENABLE-FEATURES=x,*networkserviceinprocess2:p/1']) {
+      expect(agentArgProblem(a), a).toMatch(/takes Chromium's network service out of its sandbox — /);
+    }
+    for (const a of ['--enable-features=NetworkServiceSandbox', '--disable-features=NetworkServiceInProcess', '--enable-features=Vulkan', '--disable-features=Translate,MediaRouter']) expect(agentArgProblem(a), a).toBeNull();
   });
 });

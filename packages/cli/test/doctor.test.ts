@@ -300,11 +300,13 @@ describe('retake doctor (mocked environment)', () => {
 describe('retake doctor: what jobs of the Studio, the desktop app or an MCP client would refuse; the render browser', () => {
   it('a program inside the workspace or by a relative path, a browser.args entry that is no switch or loads files: one WARN line naming each', () => {
     const ws = { root: '/w', projectsDir: '/w/projects', templatesDir: '/t', componentsDir: '/w/components', ffmpeg: '/w/tools/ffmpeg' };
-    const c = agentJobsCheck({ RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_FFPROBE: '/usr/bin/ffprobe' }, ws, { args: ['--lang=fr', '--load-extension=/w/ext', 'https://example.com/'] });
+    const c = agentJobsCheck({ RETAKE_CHROMIUM: 'chrome/Chromium', RETAKE_FFPROBE: '/usr/bin/ffprobe', RETAKE_DOCKER: '/w/bin/docker', PLAYWRIGHT_BROWSERS_PATH: '/t/browsers' }, ws, { args: ['--lang=fr', '--load-extension=/w/ext', 'https://example.com/'] });
     expect(c).toMatchObject({ status: 'warn', name: 'Studio and MCP jobs', hint: expect.stringMatching(/a run typed in a terminal .* is not affected/) });
     expect(c?.detail).toMatch(/^would refuse: \$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path/);
     expect(c?.detail).toMatch(/ · `ffmpeg:` of retake\.yaml \(\/w\/tools\/ffmpeg\) lies inside the workspace \(\/w\)/);
-    expect(c?.detail).toMatch(/ · browser\.args\[1\]: --load-extension loads browser extensions/);
+    expect(c?.detail).toMatch(/ · \$RETAKE_DOCKER \(\/w\/bin\/docker\) lies inside the workspace \(\/w\)/);
+    expect(c?.detail).toMatch(/ · \$PLAYWRIGHT_BROWSERS_PATH \(\/t\/browsers\) lies inside the workspace \(\/t\)/);
+    expect(c?.detail).toMatch(/ · browser\.args\[1\]: --load-extension is not one of the switches these jobs may pass/);
     expect(c?.detail).toMatch(/ · browser\.args\[2\]: "https:\/\/example\.com\/" is not a switch/);
     expect(c?.detail).not.toMatch(/RETAKE_FFPROBE|--lang/);
     expect(agentJobsCheck({ RETAKE_FFMPEG: 'ffmpeg' }, { ...ws, ffmpeg: '/opt/ff/ffmpeg' }, { executable: '/opt/chromium/chrome', args: ['--lang=fr'] })).toBeNull();

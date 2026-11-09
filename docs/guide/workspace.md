@@ -41,25 +41,41 @@ desktop app or an MCP client starts (your own Studio runs included) — follow t
 terminal (`retake run`, `retake render`…) does not:
 
 - **Programs from outside the workspace only.** `browser.executable`, `ffmpeg:` and the tool variables
-  (`$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`, `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`) may not name a
-  relative path or a program inside the workspace (its root, `projects_dir`, `templates_dir`, `components_dir`; a
-  symbolic link is followed either way), since an agent can write files there; a command name looked up on `PATH`
-  may not be found in such a folder either. The job fails before the program starts and says what to change: move the
-  program out of the workspace and point the setting at its new place. A worker started by the Studio or an MCP
-  client does not inherit a tool variable that points inside the workspace.
-- **Switches only in `browser.args`.** An argument that is not a switch (`--name` or `--name=value`: Chromium opens
-  anything else as a page or a file, and everything after `--`) is refused, and so are the switches that load code or
-  files or open the browser to other programs: `--user-data-dir`, `--load-extension`, `--disable-extensions-except`,
-  `--register-pepper-plugins`, `--js-flags`, `--remote-allow-origins`, `--allow-file-access-from-files`,
-  `--allow-file-access`, `--enable-logging`, `--log-file`, any `--*-cmd-prefix` or `--*-launcher` and any
-  `--remote-debugging-*`. Proxy and resolver switches (`--proxy-server`, `--host-resolver-rules`…) stay.
+  (`$RETAKE_CHROMIUM`, `$RETAKE_CHROMIUM_HEADLESS_SHELL`, `$RETAKE_FFMPEG`, `$RETAKE_FFPROBE`, `$RETAKE_DOCKER`) may
+  not name a relative path or a program inside the workspace (its root, `projects_dir`, `templates_dir`,
+  `components_dir`; a symbolic link is followed either way), since an agent can write files there; a command name
+  looked up on `PATH` may not be found in such a folder either, nor may the browser Playwright picks for a capture
+  (its cache, or the folder `$PLAYWRIGHT_BROWSERS_PATH` names). The job fails before the program starts and says
+  what to change: move the program out of the workspace and point the setting at its new place. A program that
+  passes is started by its real path, the one that was checked. A worker started by the Studio or an MCP client gets
+  the tool variables as they are: one that points inside the workspace makes the job that would use it fail with
+  that message.
+- **An allow-list of `browser.args`.** An argument that is not a switch (`--name` or `--name=value`: Chromium opens
+  anything else as a page or a file, and everything after `--`) is refused, and so is every switch but these:
+  `--window-size`, `--window-position`, `--start-maximized`, `--hide-scrollbars`, `--force-device-scale-factor`,
+  `--lang`, `--accept-lang`; `--force-color-profile`, `--force-dark-mode`, `--blink-settings`,
+  `--force-prefers-reduced-motion`, `--force-prefers-no-reduced-motion`, `--font-render-hinting`,
+  `--disable-font-subpixel-positioning`, `--disable-lcd-text`, `--disable-smooth-scrolling`; `--use-gl`,
+  `--use-angle`, `--disable-gpu`, `--disable-gpu-compositing`, `--enable-gpu-rasterization`, `--ignore-gpu-blocklist`,
+  `--disable-frame-rate-limit`, `--disable-gpu-vsync`; `--disable-background-timer-throttling`,
+  `--disable-backgrounding-occluded-windows`, `--disable-renderer-backgrounding`, `--disable-hang-monitor`,
+  `--disable-ipc-flooding-protection`, `--disable-component-update`, `--disable-domain-reliability`, `--disable-sync`,
+  `--disable-dev-shm-usage`; `--no-first-run`, `--no-default-browser-check`, `--disable-notifications`,
+  `--disable-popup-blocking`, `--disable-prompt-on-repost`; `--autoplay-policy`, `--mute-audio`,
+  `--use-fake-device-for-media-stream`; `--proxy-server`, `--proxy-bypass-list`, `--no-proxy-server`,
+  `--host-resolver-rules`, `--webrtc-ip-handling-policy`, `--force-webrtc-ip-handling-policy`, `--disable-quic`;
+  `--enable-features`, `--disable-features`, `--enable-blink-features`, `--disable-blink-features` — a feature list
+  that takes the network service out of its sandbox (`--disable-features=NetworkServiceSandbox`,
+  `--enable-features=NetworkServiceInProcess`) is refused as well. Retake's own switches are not concerned.
 - **An allow-list of the environment.** The programs such a job starts — shell hooks and their rollbacks, `docker`
   and `docker compose`, a process sandbox's services — get only the shell's own variables of the worker's
   environment: `PATH` (without relative entries or folders inside the workspace), `HOME`, `USER`, `LOGNAME`, `SHELL`,
   `TMPDIR`, `TERM`, `LANG`, `LC_*`, `TZ`, the proxy variables (`HTTP_PROXY`, `https_proxy`, `NO_PROXY`…) and the
   certificate ones (`SSL_CERT_FILE`, `SSL_CERT_DIR`, `NODE_EXTRA_CA_CERTS`, `REQUESTS_CA_BUNDLE`, `CURL_CA_BUNDLE`);
-  `docker` also `DOCKER_*` and `BUILDKIT_*`. A token or a password exported in the terminal that started the Studio
-  or the worker never reaches them. A program that needs another variable gets it by name from project.yaml
+  `docker` also `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`, `DOCKER_CERT_PATH`, `DOCKER_TLS`,
+  `DOCKER_TLS_VERIFY`, `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`, `DOCKER_BUILDKIT` and `BUILDKIT_PROGRESS`. A
+  token or a password exported in the terminal that started the Studio or the worker never reaches them — but a
+  proxy variable is passed as it is, `user:password@` included. A program that needs another variable gets it by name from project.yaml
   `pass_env:` (below; never a loader variable such as `NODE_OPTIONS`, `LD_PRELOAD`, `GIT_*` or `PYTHONPATH`: a
   validation error), or through its own `env:` (`DATABASE_URL: "{{env:DATABASE_URL}}"`, read from the worker's
   environment and masked in logs); what a hook or a service sets in `env:` reaches it as before. A shell hook that

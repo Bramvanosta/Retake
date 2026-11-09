@@ -254,9 +254,12 @@ worker) counts too, judged by its own healthcheck.
   folder (another checkout given the same `compose.project`) refuse it, never read, reset or touched. Every call names
   the project, its folder and its files, and runs without the shell's `COMPOSE_*` variables (a `COMPOSE_PROFILES`
   would change what starts). In a job of the Studio, the desktop app or an MCP client, `docker` gets only the shell's
-  own variables, `DOCKER_*` (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`…), `BUILDKIT_*` and the names of
+  own variables, docker's connection settings by name (`DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG`,
+  `DOCKER_CERT_PATH`, `DOCKER_TLS`, `DOCKER_TLS_VERIFY`, `DOCKER_API_VERSION`, `DOCKER_DEFAULT_PLATFORM`,
+  `DOCKER_BUILDKIT`, `BUILDKIT_PROGRESS`; never another `DOCKER_*`, such as a registry password) and the names of
   project.yaml `pass_env:`: a `${VAR}` of the compose file that your shell sets reaches it only through `pass_env:`
-  (or the env file below).
+  (or the env file below). There, the `docker` binary itself (`$RETAKE_DOCKER`, or the one found on `PATH`) may not
+  be a relative path or lie inside the workspace: the job fails before it starts, saying to move it.
 - **A renamed `compose.project`**: the name an earlier `up` used stays in the state until nothing of it is left. While
   its containers run, `up` refuses (`compose project … — the name an earlier up of this sandbox used (compose.project
   changed since) — is still running: retake sandbox down …`); `status` says what it left (containers, volumes);

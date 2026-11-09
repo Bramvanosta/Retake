@@ -6,7 +6,7 @@
  */
 import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { bundleInfo, insideBundle, programProblem } from '@retake/core';
+import { bundleInfo, insideBundle, policyProgram } from '@retake/core';
 import type { BundleInfo } from '@retake/core';
 import { RenderError } from './types.js';
 
@@ -63,13 +63,16 @@ export function renderBrowser(env: NodeJS.ProcessEnv = process.env, bundle: Bund
 
 /**
  * A render may start with this browser (else a RenderError saying what to change): one there is — Remotion never
- * downloads its own, from an app bundle or anywhere else — and, under the agent policy (core programProblem: a job of
- * the worker), one outside the workspace.
+ * downloads its own, from an app bundle or anywhere else — and, under the agent policy (core policyProgram: a job of
+ * the worker), one outside the workspace. Returns the executable to start: under the policy, the real path that was
+ * checked.
  */
-export function assertRenderBrowser(b: RenderBrowser, bundle: BundleInfo | null = bundleInfo()): void {
+export function assertRenderBrowser(b: RenderBrowser, bundle: BundleInfo | null = bundleInfo()): string {
   if (!b.path) throw new RenderError(`no browser to render with: ${b.note ?? missingNote(bundle)}`);
-  const problem = programProblem(b.path, b.source === 'env' ? `$${HEADLESS_SHELL_ENV}` : 'the render browser');
-  if (problem) throw new RenderError(problem);
+  const what = b.source === 'env' ? `$${HEADLESS_SHELL_ENV}` : b.source === 'playwright' && process.env.PLAYWRIGHT_BROWSERS_PATH?.trim() ? '$PLAYWRIGHT_BROWSERS_PATH' : 'the render browser';
+  const checked = policyProgram(b.path, what);
+  if (checked.problem) throw new RenderError(checked.problem);
+  return checked.program;
 }
 
 /**

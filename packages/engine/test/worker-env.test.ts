@@ -1,14 +1,15 @@
 /**
  * Review A #3 / B L5 (L4.2 fixes): the environment of a jobs worker a client starts. Every client but the CLI (the
  * Studio, an MCP client, tests) hands its worker cleanWorkerEnv — no package-manager variables, no model or agent
- * credential, no code loaded from the workspace (NODE_OPTIONS files, NODE_PATH / DYLD_* / LD_* entries inside it or
- * relative), no tool variable naming a program inside the workspace, PATH without the workspace under any spelling —
- * and the CLI keeps its own.
+ * credential, no code loaded from the workspace (NODE_OPTIONS files, NODE_PATH / DYLD_* / LD_* entries inside one of its
+ * folders or relative), PATH without its folders under any spelling — the tool variables kept as they are (the
+ * worker's agent policy refuses one inside the workspace, saying what to change) — and the CLI keeps its own.
  */
 import { mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { loadWorkspaceConfig, programProblem, useAgentPolicy } from '@retake/core';
 import { cleanWorkerEnv, createEngine } from '../src/index.js';
 import type { WorkerSpawnFn } from '../src/index.js';
 import { fixtureWorkspace } from './helpers.js';
@@ -83,25 +84,36 @@ describe('cleanWorkerEnv', () => {
     });
   });
 
-  it('tool variables naming a program inside the workspace (any spelling) are dropped; ones outside and command names kept', () => {
-    const up = (p: string) => (process.platform === 'darwin' ? p.toUpperCase() : p);
-    const env = cleanWorkerEnv(
-      {
-        RETAKE_FFMPEG: join(ws, 'bin', 'ffmpeg'),
-        RETAKE_FFPROBE: up(join(ws, 'bin', 'ffprobe')),
-        RETAKE_CHROMIUM: join(ws, 'chrome', '..', 'bin', 'Chromium'),
-        RETAKE_CHROMIUM_HEADLESS_SHELL: ` ${join(ws, 'shell', 'headless_shell')}`,
-        PATH: '/usr/bin',
-      },
-      ws,
-      { exists: () => false },
-    );
-    for (const k of ['RETAKE_FFMPEG', 'RETAKE_FFPROBE', 'RETAKE_CHROMIUM', 'RETAKE_CHROMIUM_HEADLESS_SHELL']) expect(env[k], k).toBeUndefined();
-    expect(cleanWorkerEnv({ RETAKE_FFMPEG: '/opt/ff/ffmpeg', RETAKE_FFPROBE: 'ffprobe', RETAKE_CHROMIUM: `${ws}-other/Chromium` }, ws, { exists: () => false })).toMatchObject({
-      RETAKE_FFMPEG: '/opt/ff/ffmpeg',
-      RETAKE_FFPROBE: 'ffprobe',
-      RETAKE_CHROMIUM: `${ws}-other/Chromium`,
-    });
+  it('tool variables are kept as they are, inside the workspace too: the worker refuses such a program when a job would start it, saying what to change', () => {
+    const tools = {
+      RETAKE_FFMPEG: join(ws, 'bin', 'ffmpeg'),
+      RETAKE_FFPROBE: 'tools/ffprobe',
+      RETAKE_CHROMIUM: join(ws, 'chrome', '..', 'bin', 'Chromium'),
+      RETAKE_CHROMIUM_HEADLESS_SHELL: '/opt/shell/headless_shell',
+      RETAKE_DOCKER: join(ws, 'bin', 'docker'),
+      PLAYWRIGHT_BROWSERS_PATH: join(ws, 'browsers'),
+    };
+    const env = cleanWorkerEnv({ ...tools, PATH: '/usr/bin' }, ws, { exists: () => false });
+    expect(env).toMatchObject(tools);
+    useAgentPolicy([ws]);
+    try {
+      // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
+      expect(programProblem(env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG')).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
+      expect(programProblem(env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE')).toMatch(/is a relative path/);
+      expect(programProblem(env.RETAKE_DOCKER!, '$RETAKE_DOCKER')).toMatch(/lies inside the workspace/);
+    } finally {
+      useAgentPolicy(null);
+    }
+  });
+
+  it("all the workspace's folders count (its templates or components folder outside the root): PATH and load-path entries there are dropped", () => {
+    const templates = join(ws, '..', `${ws.split('/').pop()}-templates`);
+    const env = cleanWorkerEnv({ PATH: [join(templates, 'bin'), '/usr/bin'].join(delimiter), NODE_PATH: join(templates, 'lib'), DYLD_LIBRARY_PATH: '/opt/lib' }, ws, { node: '/n/bin/node', exists: () => false, folders: [ws, templates] });
+    expect(env.PATH).toBe(['/n/bin', '/usr/bin'].join(delimiter));
+    expect(env.NODE_PATH).toBeUndefined();
+    expect(env.DYLD_LIBRARY_PATH).toBe('/opt/lib');
+    // The root alone: that folder is not the workspace's.
+    expect(cleanWorkerEnv({ PATH: join(templates, 'bin'), NODE_PATH: join(templates, 'lib') }, ws, { node: '/n/bin/node', exists: () => false })).toMatchObject({ PATH: ['/n/bin', join(templates, 'bin')].join(delimiter), NODE_PATH: join(templates, 'lib') });
   });
 
   it('PATH: no entry inside the workspace under another case or spelling (realpath.native)', () => {
@@ -121,7 +133,9 @@ describe('every client but the CLI starts its worker with it', () => {
     };
     const saved = { OPENAI_API_KEY: process.env.OPENAI_API_KEY, PATH: process.env.PATH };
     process.env.OPENAI_API_KEY = 'sk-from-the-agent';
-    process.env.PATH = [join(ws, 'bin'), process.env.PATH ?? ''].join(delimiter);
+    // The fixture workspace's templates_dir lies outside its root (the repository's templates/).
+    const templates = (await loadWorkspaceConfig(ws)).templatesDir;
+    process.env.PATH = [join(ws, 'bin'), join(templates, 'bin'), process.env.PATH ?? ''].join(delimiter);
     try {
       const engine = await createEngine({ root: ws, client, workerSpawn: spawn });
       const sub = await engine.runs.submit({ project: 'northfield-fixture', scenario: 'highlights', mode: 'dry' });
@@ -140,6 +154,7 @@ describe('every client but the CLI starts its worker with it', () => {
     const env = await spawned('mcp');
     expect(env.OPENAI_API_KEY).toBeUndefined();
     expect((env.PATH ?? '').split(delimiter)).not.toContain(join(ws, 'bin'));
+    expect((env.PATH ?? '').split(delimiter)).not.toContain(join((await loadWorkspaceConfig(ws)).templatesDir, 'bin'));
     expect(env.RETAKE_HOME).toBe(join(ws, '.home'));
   });
 

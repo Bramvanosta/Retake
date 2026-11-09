@@ -22,11 +22,12 @@
  * Chromium switches: the ones that turn Chromium's OS sandbox or its site isolation off (SANDBOX_OFF_SWITCHES,
  * SITE_ISOLATION_OFF_FEATURES) or open the browser to other code (BROWSER_OPEN_SWITCHES), refused in `browser.args`
  * whoever writes them (sandboxOffArgProblem): every browser Retake launches runs sandboxed. For a job an agent can shape
- * also positional arguments and the switches of AGENT_REFUSED_SWITCHES (agentArgProblem).
+ * also positional arguments and every switch outside AGENT_ALLOWED_SWITCHES (agentArgProblem).
  *
  * Agent policy: whether this process serves trust `mcp` (useAgentPolicy: the jobs worker, the MCP server, the Studio
  * server — never a command a person types), and under it the programs a job may run (programProblem: none from inside
- * the workspace, none by a relative path) and the browser switches it may pass (policyArgsProblems). Also under it, the
+ * the workspace, none by a relative path; policyProgram also gives the real path to start) and the browser switches it
+ * may pass (policyArgsProblems: an allow-list). Also under it, the
  * environment of the programs a job starts: an allow-list of the worker's (childEnv, project.yaml `pass_env:`).
  */
 import { accessSync, constants as fsConstants, statSync } from 'node:fs';
@@ -639,37 +640,94 @@ export function sandboxOffArgsProblems(args: readonly string[]): Array<{ index: 
 }
 
 /**
- * Chromium switches (without their leading dashes) refused in `browser.args` of a job an agent can shape (agent
- * policy, below) besides the always-refused ones: they load code or a profile of the switch's choosing, open the
- * browser to pages driving it, or write files where the switch says. A command a person types keeps them.
+ * The Chromium switches (without their leading dashes) `browser.args` of a job an agent can shape (agent policy, below)
+ * may hold, besides the always-refused ones (sandboxOffArgProblem): the window and the screen, the language, colours
+ * and fonts, the GPU, timers and background work, first-run screens, media autoplay and fake capture devices, the
+ * proxy and the host resolver, WebRTC and QUIC, features. Any other switch is refused — a list of what is safe rather
+ * than of what is not, since Chromium has many switches that load code or a profile, write logs, dumps or traces where
+ * they say, trust other certificates or open a page or a debugging channel. A command a person types keeps every
+ * switch but the always-refused ones.
  */
-export const AGENT_REFUSED_SWITCHES: Readonly<Record<string, string>> = {
-  'user-data-dir': 'opens the browser on a profile folder of its choosing',
-  'load-extension': 'loads browser extensions from a folder',
-  'disable-extensions-except': 'loads browser extensions from a folder',
-  'register-pepper-plugins': 'loads plugins from a file',
-  'js-flags': "passes flags to Chromium's JavaScript engine",
-  'remote-allow-origins': "lets web pages connect to the browser's debugging port",
-  'allow-file-access-from-files': 'lets local files read other local files',
-  'allow-file-access': 'lets pages read local files',
-  'enable-logging': "writes the browser's log to a file",
-  'log-file': "writes the browser's log to a file of its choosing",
-};
-
-/** Families of switches refused like AGENT_REFUSED_SWITCHES: a program started in front of a child process, a debugging port or pipe. */
-export const AGENT_REFUSED_SWITCH_PATTERNS: ReadonlyArray<{ re: RegExp; why: string }> = [
-  { re: /-cmd-prefix$/, why: "starts Chromium's child processes through another program" },
-  { re: /-launcher$/, why: "starts Chromium's child processes through another program" },
-  { re: /^remote-debugging-/, why: 'opens a debugging channel that drives the browser' },
+export const AGENT_ALLOWED_SWITCHES: readonly string[] = [
+  // window, screen, language
+  'window-size',
+  'window-position',
+  'start-maximized',
+  'hide-scrollbars',
+  'force-device-scale-factor',
+  'lang',
+  'accept-lang',
+  // colours, fonts, motion
+  'force-color-profile',
+  'force-dark-mode',
+  'blink-settings',
+  'force-prefers-reduced-motion',
+  'force-prefers-no-reduced-motion',
+  'font-render-hinting',
+  'disable-font-subpixel-positioning',
+  'disable-lcd-text',
+  'disable-smooth-scrolling',
+  // GPU and frames
+  'use-gl',
+  'use-angle',
+  'disable-gpu',
+  'disable-gpu-compositing',
+  'enable-gpu-rasterization',
+  'ignore-gpu-blocklist',
+  'disable-frame-rate-limit',
+  'disable-gpu-vsync',
+  // timers and background work
+  'disable-background-timer-throttling',
+  'disable-backgrounding-occluded-windows',
+  'disable-renderer-backgrounding',
+  'disable-hang-monitor',
+  'disable-ipc-flooding-protection',
+  'disable-component-update',
+  'disable-domain-reliability',
+  'disable-sync',
+  'disable-dev-shm-usage',
+  // first-run screens, prompts
+  'no-first-run',
+  'no-default-browser-check',
+  'disable-notifications',
+  'disable-popup-blocking',
+  'disable-prompt-on-repost',
+  // media
+  'autoplay-policy',
+  'mute-audio',
+  'use-fake-device-for-media-stream',
+  // network
+  'proxy-server',
+  'proxy-bypass-list',
+  'no-proxy-server',
+  'host-resolver-rules',
+  'webrtc-ip-handling-policy',
+  'force-webrtc-ip-handling-policy',
+  'disable-quic',
+  // features
+  'enable-features',
+  'disable-features',
+  'enable-blink-features',
+  'disable-blink-features',
 ];
 
-const AGENT_ARGS_FIX = 'jobs the Studio, the desktop app or an MCP client start take switches only, and none that loads code or files: remove it from browser.args (a run typed in a terminal keeps it)';
+/**
+ * Chromium features a job an agent can shape may not name in `--enable-features=` (`enable`) or `--disable-features=`
+ * (`disable`) — the ones that move the network service out of its sandbox — besides SITE_ISOLATION_OFF_FEATURES
+ * (always refused). Compared without case, `-` or `_`.
+ */
+export const AGENT_REFUSED_FEATURES: Readonly<{ enable: readonly string[]; disable: readonly string[] }> = {
+  enable: ['NetworkServiceInProcess', 'NetworkServiceInProcess2'],
+  disable: ['NetworkServiceSandbox'],
+};
+
+const AGENT_ARGS_FIX = 'jobs the Studio, the desktop app or an MCP client start pass Chromium only the switches of a short list (see `browser.args` in the workspace guide): remove it from browser.args (a run typed in a terminal keeps it)';
 
 /**
  * Why `arg` may not be passed to Chromium for a job an agent can shape (null when it may), besides
  * sandboxOffArgProblem: an argument that is not a switch (`--name` or `--name=value`; Chromium opens anything else as a
- * page or a file when it starts, and reads everything after `--` so), or a switch of AGENT_REFUSED_SWITCHES /
- * AGENT_REFUSED_SWITCH_PATTERNS.
+ * page or a file when it starts, and reads everything after `--` so), a switch that is not one of
+ * AGENT_ALLOWED_SWITCHES, or a feature list naming one of AGENT_REFUSED_FEATURES.
  */
 export function agentArgProblem(arg: string): string | null {
   const m = typeof arg === 'string' ? SWITCH.exec(arg) : null;
@@ -678,9 +736,18 @@ export function agentArgProblem(arg: string): string | null {
     const shown = typeof arg === 'string' ? showHiddenChars(arg.length > 80 ? `${arg.slice(0, 77)}…` : arg) : String(arg);
     return `"${shown}" is not a switch (Chromium opens such an argument as a page or a file) — ${AGENT_ARGS_FIX}`;
   }
-  if (Object.hasOwn(AGENT_REFUSED_SWITCHES, name)) return `--${name} ${AGENT_REFUSED_SWITCHES[name]} — ${AGENT_ARGS_FIX}`;
-  const family = AGENT_REFUSED_SWITCH_PATTERNS.find((p) => p.re.test(name));
-  if (family) return `--${showHiddenChars(name)} ${family.why} — ${AGENT_ARGS_FIX}`;
+  if (!AGENT_ALLOWED_SWITCHES.includes(name)) {
+    const shown = showHiddenChars(name.length > 60 ? `${name.slice(0, 57)}…` : name);
+    return `--${shown} is not one of the switches these jobs may pass — ${AGENT_ARGS_FIX}`;
+  }
+  const side = name === 'enable-features' ? 'enable' : name === 'disable-features' ? 'disable' : null;
+  if (side && m[2] !== undefined) {
+    const refused = AGENT_REFUSED_FEATURES[side].map(featureKey);
+    for (const entry of m[2].split(',')) {
+      const feature = entry.replace(/[<:].*$/s, '').replace(/^\s*\*?/, '').trim();
+      if (feature && refused.includes(featureKey(feature))) return `--${name}=${showHiddenChars(feature)} takes Chromium's network service out of its sandbox — ${AGENT_ARGS_FIX}`;
+    }
+  }
   return null;
 }
 
@@ -755,27 +822,45 @@ export interface ProgramPolicyOptions {
  * either. An absolute path elsewhere, or a command found elsewhere on the PATH, may.
  */
 export function agentProgramProblem(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): string | null {
+  return agentProgram(program, what, folders, o).problem;
+}
+
+/**
+ * agentProgramProblem, and the file to start when it says nothing: the real path of the program it checked (for a bare
+ * command name, of the file the PATH finds), links followed — so a link changed after the check starts nothing else.
+ * A bare name the PATH does not find, and a refused program, are given back as they are.
+ */
+export function agentProgram(program: string, what: string, folders: readonly string[], o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
   const p = program.trim();
-  if (!p) return null;
+  const refused = (problem: string) => ({ program, problem });
+  if (!p) return { program, problem: null };
   const shown = showHiddenChars(p);
   const runs = 'jobs the Studio, the desktop app or an MCP client start run programs from outside the workspace only (an agent can write files in it)';
   if (!isAbsolute(p)) {
-    if (p.includes('/')) return `${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`;
+    if (p.includes('/')) return refused(`${what} (${shown}) is a relative path — ${runs}: give the absolute path of a program outside the workspace`);
     const found = onPath(p, o.path ?? process.env.PATH ?? '', o.exists ?? isExecutableFile);
-    if (!found) return null;
-    if (!isAbsolute(found.entry)) return `${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`;
+    if (!found) return { program, problem: null };
+    if (!isAbsolute(found.entry)) return refused(`${what} (${shown}) is found through the relative PATH folder "${showHiddenChars(found.entry)}" — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
     const inside = folders.find((f) => isUnder(found.file, f));
-    if (inside) return `${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`;
-    return null;
+    if (inside) return refused(`${what} (${shown}) is found on PATH at ${showHiddenChars(found.file)}, inside the workspace (${inside}) — ${runs}: remove that folder from PATH, or give the absolute path of a program outside the workspace`);
+    return { program: realPathOf(found.file), problem: null };
   }
   const inside = folders.find((f) => isUnder(p, f));
-  if (inside) return `${what} (${shown}) lies inside the workspace (${inside}) — ${runs}: move the program out of the workspace and point ${what} at its new place`;
-  return null;
+  if (inside) return refused(`${what} (${shown}) lies inside the workspace (${inside}) — ${runs}: move the program out of the workspace and point ${what} at its new place`);
+  return { program: realPathOf(p), problem: null };
 }
 
 /** agentProgramProblem under this process's agent policy: null when the policy is off (a command a person types). */
 export function programProblem(program: string, what: string, o: ProgramPolicyOptions = {}): string | null {
   return agentFolders ? agentProgramProblem(program, what, agentFolders, o) : null;
+}
+
+/**
+ * agentProgram under this process's agent policy: the real path to start, or the refusal. Policy off (a command a
+ * person types): the program as given, never refused.
+ */
+export function policyProgram(program: string, what: string, o: ProgramPolicyOptions = {}): { program: string; problem: string | null } {
+  return agentFolders ? agentProgram(program, what, agentFolders, o) : { program, problem: null };
 }
 
 /** agentArgsProblems under this process's agent policy: none when the policy is off. */
@@ -798,8 +883,15 @@ export const CHILD_ENV_BASE: readonly RegExp[] = [
   /^(?:SSL_CERT_FILE|SSL_CERT_DIR|NODE_EXTRA_CA_CERTS|REQUESTS_CA_BUNDLE|CURL_CA_BUNDLE)$/,
 ];
 
-/** What `docker` also gets on top of CHILD_ENV_BASE: which daemon and context it talks to, its config, BuildKit's settings. */
-export const DOCKER_CHILD_ENV: readonly RegExp[] = [/^DOCKER_[A-Z0-9_]+$/, /^BUILDKIT_[A-Z0-9_]+$/];
+/**
+ * What `docker` also gets on top of CHILD_ENV_BASE, by name: which daemon and context it talks to and how (TLS), its
+ * config folder, the API version, the default platform, BuildKit and its progress output — never another DOCKER_*
+ * variable (a registry password or token the person exported).
+ */
+export const DOCKER_CHILD_ENV: readonly RegExp[] = [
+  /^DOCKER_(?:HOST|CONTEXT|CONFIG|CERT_PATH|TLS|TLS_VERIFY|API_VERSION|DEFAULT_PLATFORM|BUILDKIT)$/,
+  /^BUILDKIT_PROGRESS$/,
+];
 
 /** How to give a job's programs another variable: the fix line of every refusal and hint about it. */
 export const PASS_ENV_FIX = 'a person lists its name in project.yaml `pass_env:` (e.g. `pass_env: [NAME]`), or sets it in the hook\'s own `env` (`{{env:NAME}}` reads it from the worker\'s environment)';
@@ -857,6 +949,15 @@ export function policyChildEnv(source: NodeJS.ProcessEnv, o: Omit<ChildEnvOption
 export function childEnvHint(names: readonly string[]): string {
   const shown = [...new Set(names)].sort();
   return `a job the Studio, the desktop app or an MCP client starts gives its programs only some variables of the worker's environment — this one saw ${shown.join(', ') || 'none'}; if it needs another, ${PASS_ENV_FIX}`;
+}
+
+/**
+ * The hint added to a rollback Retake did not sign that failed: the variables it could see (names only — it gets
+ * CHILD_ENV_BASE of this process's environment and nothing else, `pass_env:` included) and what to do instead.
+ */
+export function bareEnvHint(names: readonly string[]): string {
+  const shown = [...new Set(names)].sort();
+  return `a rollback Retake did not sign gets only the shell's own variables of this environment, never project.yaml \`pass_env:\` — this one saw ${shown.join(', ') || 'none'}; if it needs another, run it by hand`;
 }
 
 // ── Navigation ──────────────────────────────────────────────────────────────────────────────────────────────────────

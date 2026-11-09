@@ -530,13 +530,15 @@ running: the MCP server keeps working without it.
   with the same clean environment, so whoever starts it — Claude or the Studio — it never carries more: the browser's foot,
   `retake jobs` and `retake doctor` say who started it (*worker running (pid 4242, started by the Studio)*). `retake ui` itself
   runs with the same cleaned `PATH`, like `retake mcp`. The worker runs your Studio jobs under the same rules as
-  Claude's: no program from inside the workspace (`browser.executable`, `ffmpeg:`, `$RETAKE_CHROMIUM`… there, or a
-  relative path) and only switches in `browser.args`, none that loads code or files — the job fails before it starts
-  the program and says what to change; the same run typed in a terminal is not affected (see
-  [Workspace](workspace.md)). A tool variable pointing inside the workspace does not reach the worker. The programs
-  a Studio job starts — shell hooks, `docker`, a sandbox's services — get only the shell's own variables of the
-  worker's environment (`PATH`, `HOME`, `USER`, the locale, `TZ`, proxy and certificate settings; `DOCKER_*` for
-  docker) and the names project.yaml lists in `pass_env:`; a hook that needs a token the terminal exported reads it in
+  Claude's: no program from inside the workspace (`browser.executable`, `ffmpeg:`, `$RETAKE_CHROMIUM`,
+  `$RETAKE_DOCKER`, the browser `$PLAYWRIGHT_BROWSERS_PATH` holds… there, or a relative path) and in `browser.args`
+  only switches of a short list (window, language, colours, GPU, timers, proxy, features…) — the job fails before it
+  starts the program and says what to change; the same run typed in a terminal is not affected (see
+  [Workspace](workspace.md)). A tool variable pointing inside the workspace reaches the worker as it is, and the job
+  that would use it fails with that message. The programs a Studio job starts — shell hooks, `docker`, a sandbox's
+  services — get only the shell's own variables of the worker's environment (`PATH`, `HOME`, `USER`, the locale,
+  `TZ`, proxy and certificate settings; `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG` and docker's other
+  connection settings for docker) and the names project.yaml lists in `pass_env:`; a hook that needs a token the terminal exported reads it in
   its own `env:` (`{{env:NAME}}`) or through `pass_env:`. A hook that fails says which variables it got.
 - **Text from files is shown as text.** Names, URLs, errors and READMEs never become markup or links, and
   right-to-left override characters are shown as visible marks (`[U+202E]`).
@@ -560,7 +562,12 @@ running: the MCP server keeps working without it.
   the running server keeps its own): it takes the port and the token from the home's file, never from the workspace.
   Ctrl-C stops the server and removes both files. A `.retake/` folder you cannot write is refused with what to do.
   A `retake ui` with another `RETAKE_HOME` (or a server of an older Retake on the workspace) says so and opens
-  nothing: run it with the home that server was started with, or stop that server first.
+  nothing: run it with the home that server was started with, or stop that server first. The other way round is not
+  guarded: an older build's `retake ui` (or app) reads this record as broken, replaces it and starts a second server
+  on the workspace — stop the older one before starting this one, and do not run both (see
+  [Upgrading](upgrading.md#two-builds-on-one-workspace-the-studios-token-in-the-retake-home)). A Retake home inside
+  the workspace (`RETAKE_HOME` set to a folder of it) is refused before anything starts: the token would lie where an
+  agent reads files — set `RETAKE_HOME` to a folder outside the workspace, or leave it unset.
   What the token's place protects against: a program that can read or write the workspace folder and nothing else —
   an agent confined to it, a synced or shared copy of the folder — finds no secret in `.retake/` and cannot redirect
   the token. A program running as you that reads your Retake home can still use it: that program is you (the home

@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
+import { AGENT_SHELL_GRAMMAR, agentPolicyFolders, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { checkShellHosts } from '../allow-list.js';
 import { describeShell } from '../describe.js';
@@ -234,9 +234,10 @@ async function execute(
   if (r.code !== 0) {
     const output = (r.stderr.trim() || r.stdout.trim()).trimEnd();
     const how = r.code === null ? `was killed by ${r.signal}` : `exited with code ${r.code}`;
-    // Under the agent policy the command got only some variables of the worker's environment: say which (names only),
-    // and how to pass another.
-    const hint = agentPolicyFolders() ? ` (${childEnvHint(Object.keys(inheritedEnv(ctx, cmd)))})` : '';
+    // The command got only some variables of this process's environment: say which (names only) — and, under the
+    // agent policy, how to pass another (a rollback Retake did not sign takes none: pass_env does not reach it).
+    const names = () => Object.keys(inheritedEnv(ctx, cmd));
+    const hint = cmd.bare ? ` (${bareEnvHint(names())})` : agentPolicyFolders() ? ` (${childEnvHint(names())})` : '';
     throw new HookError(`${label} ${how}${output ? `: ${tail(output, 1_000)}` : ''}${hint}`);
   }
   return 'exit 0';

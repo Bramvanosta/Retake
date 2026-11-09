@@ -1,6 +1,6 @@
 import { delimiter, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv, useAgentPolicy } from '@retake/core';
+import { bareEnvHint, childEnv, childEnvHint, parseProjectYaml, passEnvProblem, policyChildEnv, useAgentPolicy } from '@retake/core';
 
 const WS = '/work/space';
 
@@ -68,6 +68,14 @@ describe('the environment of the programs a job starts under the agent policy (c
     expect(env.STRIPE_SECRET_KEY).toBeUndefined();
   });
 
+  it("docker's variables by name only: a registry password or token exported as DOCKER_* / BUILDKIT_* never reaches it", () => {
+    const named = { DOCKER_HOST: 'h', DOCKER_CONTEXT: 'c', DOCKER_CONFIG: '/c', DOCKER_CERT_PATH: '/p', DOCKER_TLS: '1', DOCKER_TLS_VERIFY: '1', DOCKER_API_VERSION: '1.45', DOCKER_DEFAULT_PLATFORM: 'linux/amd64', DOCKER_BUILDKIT: '1', BUILDKIT_PROGRESS: 'plain' };
+    const secrets = { DOCKER_PASSWORD: 'pw', DOCKER_AUTH_CONFIG: '{"auths":{}}', DOCKER_TOKEN: 't', DOCKER_REGISTRY_PASSWORD: 'pw', BUILDKIT_TOKEN: 't', DOCKER_HOST_X: 'x' };
+    const env = childEnv({ ...named, ...secrets }, { folders: [WS], docker: true });
+    expect(env).toEqual(named);
+    expect(childEnv({ ...named, ...secrets }, { folders: [WS] })).toEqual({});
+  });
+
   it('applies only under the agent policy (policyChildEnv): a command a person types inherits', () => {
     expect(policyChildEnv(SOURCE, { pass: ['DATABASE_URL'] })).toBeNull();
     useAgentPolicy([WS]);
@@ -80,6 +88,12 @@ describe('the environment of the programs a job starts under the agent policy (c
     const hint = childEnvHint(['PATH', 'HOME', 'RETAKE_ENV', 'HOME']);
     expect(hint).toContain('saw HOME, PATH, RETAKE_ENV;');
     expect(hint).toContain('project.yaml `pass_env:`');
+  });
+
+  it("an unsigned rollback's hint names the variables it saw and never advises pass_env (it does not reach one)", () => {
+    const hint = bareEnvHint(['PATH', 'HOME', 'PATH']);
+    expect(hint).toBe("a rollback Retake did not sign gets only the shell's own variables of this environment, never project.yaml `pass_env:` — this one saw HOME, PATH; if it needs another, run it by hand");
+    expect(hint).not.toContain('e.g. `pass_env:');
   });
 });
 

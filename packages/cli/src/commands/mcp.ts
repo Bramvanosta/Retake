@@ -5,7 +5,7 @@
  * behind the engine's gate, with the stable token of the Retake home (`--rotate-token` renews it); `--print-config
  * --http` prints that registration for Claude Code — the URL, and the token only by reference (its file, an
  * environment variable): never the token itself — and says that stdio is the safe default. A fixed port held by a
- * listener that is not this account's Retake MCP server is refused, with the advice to rotate the token (SEC-18).
+ * listener that is not this account's Retake MCP server is refused, with the advice to rotate the token.
  */
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';

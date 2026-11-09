@@ -326,7 +326,7 @@ async function autoSession(
  */
 async function headedSession(o: SignInOptions, userDataDir: string, url: string, applied: StorageStateFile | undefined): Promise<StorageStateFile> {
   const b = projectBrowser(o.project, o.browser);
-  const { executablePath, channel } = launchTarget(b);
+  const { executablePath, channel } = launchTarget(b, { headless: o.headless === true });
   // L5.16c: never an older Chromium than the one that opened this profile last (profile-browser.ts).
   const major = launchMajor({ executablePath, channel });
   checkProfileBrowser(userDataDir, major);
@@ -342,7 +342,7 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     handleSIGINT: false,
     handleSIGTERM: false,
     ...(httpCredentials ? { httpCredentials: { ...httpCredentials } } : {}),
-    ...launchOptions({ args: [...DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), ...(b.args ?? [])] }),
+    ...launchOptions({ args: DEFAULT_BROWSER_ARGS.filter((a) => a !== '--hide-scrollbars'), browserArgs: b.args }),
   });
   await refuseUnsandboxed(context.browser(), () => context.close(), 'The sign-in browser');
   recordProfileBrowser(userDataDir, major);

@@ -147,16 +147,21 @@ function ran(spawnFn: Spawner, command: string, args: readonly string[], input?:
  * carries a one-time code, so on macOS it never goes into a program's arguments, which any process of the machine can
  * list (ps): `osascript` reads `open location "<url>"` from its stdin; when that fails, the URL is written to a 0600
  * `.webloc` in a private temporary folder, `open` gets that file's path, and the file is removed a few seconds later.
+ * Both by their absolute paths (OSASCRIPT, OPEN): the PATH never picks the program the code goes to.
  * Elsewhere `xdg-open <url>` (its argument holds the code for the instant it runs; the code dies once the page redeemed
  * it, or after 60 s); Windows: none.
  */
+/** macOS's own programs that open the Studio's URL, by absolute path. */
+export const OSASCRIPT = '/usr/bin/osascript';
+export const OPEN = '/usr/bin/open';
+
 export async function openBrowser(url: string, o: OpenerOptions = {}): Promise<boolean> {
   const spawnFn = o.spawn ?? spawn;
   const platform = o.platform ?? process.platform;
   if (platform === 'darwin') {
     const script = openLocationScript(url);
     if (!script) return false;
-    if (await ran(spawnFn, 'osascript', ['-'], script)) return true;
+    if (await ran(spawnFn, OSASCRIPT, ['-'], script)) return true;
     let dir: string | undefined;
     try {
       dir = await mkdtemp(join(o.tmp ?? tmpdir(), 'retake-open-'));
@@ -164,7 +169,7 @@ export async function openBrowser(url: string, o: OpenerOptions = {}): Promise<b
       const file = join(dir, 'Retake Studio.webloc');
       await writeFile(file, weblocText(url), { mode: 0o600, flag: 'wx' });
       await chmod(file, 0o600);
-      const ok = await ran(spawnFn, 'open', [file]);
+      const ok = await ran(spawnFn, OPEN, [file]);
       if (ok) await new Promise((r) => setTimeout(r, o.keepMs ?? 3000));
       return ok;
     } catch {

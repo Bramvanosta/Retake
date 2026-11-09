@@ -3,7 +3,7 @@
  * the bundle hash, the composition's frame helpers (transition windows, stand-in transitions, brand mark, music volume),
  * render versioning and records, run lookup, the browser choice and the asset server (Range requests).
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -337,6 +337,18 @@ describe('render environment', () => {
     try {
       expect(() => assertRenderBrowser(b, null)).toThrow(/^\$RETAKE_CHROMIUM_HEADLESS_SHELL \(.*\/tools\/headless_shell\) lies inside the workspace .*: move the program out of the workspace/);
       expect(() => assertRenderBrowser({ path: process.execPath, source: 'playwright' }, null)).not.toThrow();
+    } finally {
+      useAgentPolicy(null);
+    }
+  });
+
+  it('the render browser to start: as given for a command a person types; under the agent policy the real path that was checked', () => {
+    const link = join(tmp, 'shell-link');
+    symlinkSync(process.execPath, link);
+    expect(assertRenderBrowser({ path: link, source: 'env' }, null)).toBe(link);
+    useAgentPolicy([join(tmp, 'ws-of-an-agent')]);
+    try {
+      expect(assertRenderBrowser({ path: link, source: 'env' }, null)).toBe(realpathSync(process.execPath));
     } finally {
       useAgentPolicy(null);
     }

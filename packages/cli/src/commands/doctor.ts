@@ -382,8 +382,9 @@ function renderBrowserCheck(p: DoctorProbes): DoctorCheck | null {
 /**
  * What jobs of the Studio, the desktop app or an MCP client would refuse (core agent-policy.ts, whose rules a command
  * typed in a terminal does not follow): a program named inside the workspace or by a relative path (`browser`'s
- * executable, retake.yaml's ffmpeg, the tool variables), a `browser.args` entry that is not a switch or loads code or
- * files. A WARN line naming each, or none. Bare command names are not looked up (the worker's PATH holds no folder of
+ * executable, retake.yaml's ffmpeg, the tool variables — PLAYWRIGHT_BROWSERS_PATH's browser folder included), a
+ * `browser.args` entry that is not a switch or not one of the switches such jobs may pass. A WARN line naming each, or
+ * none. Bare command names are not looked up (the worker's PATH holds no folder of
  * the workspace).
  */
 export function agentJobsCheck(env: NodeJS.ProcessEnv, ws: WorkspaceConfig, browser: BrowserConfig | undefined, name = 'Studio and MCP jobs'): DoctorCheck | null {
@@ -396,6 +397,8 @@ export function agentJobsCheck(env: NodeJS.ProcessEnv, ws: WorkspaceConfig, brow
     [ws.ffmpeg, '`ffmpeg:` of retake.yaml'],
     [env.RETAKE_FFMPEG, '$RETAKE_FFMPEG'],
     [env.RETAKE_FFPROBE, '$RETAKE_FFPROBE'],
+    [env.RETAKE_DOCKER, '$RETAKE_DOCKER'],
+    [env.PLAYWRIGHT_BROWSERS_PATH, '$PLAYWRIGHT_BROWSERS_PATH'],
   ];
   const problems = [
     ...programs.flatMap(([p, what]) => (p?.trim() ? [agentProgramProblem(p, what, folders, noLookup)] : [])).filter((m): m is string => m !== null),
