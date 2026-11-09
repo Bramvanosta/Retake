@@ -52,7 +52,7 @@ import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
 import { newJobId } from './jobs/ids.js';
-import type { JobQueue } from './jobs/job-queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import { selfIdentity } from './jobs/proc.js';
 import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
@@ -81,7 +81,7 @@ export function newRecordId(): string {
 }
 
 /** The recordings of a project whose `record` job is queued or running (their folders are in use or reserved). */
-export async function activeRecords(queue: JobQueue, slug: string): Promise<string[]> {
+export async function activeRecords(queue: JobQueueView, slug: string): Promise<string[]> {
   const jobs = await queue.list({ project: slug, kinds: ['record'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'record' ? [j.input.rec_id] : []));
 }
@@ -92,7 +92,7 @@ export async function activeRecords(queue: JobQueue, slug: string): Promise<stri
  * (an annotate, a Save or a Discard in progress), nor an unsaved, undiscarded Studio recording younger than
  * RECORD_UNSAVED_KEEP_MS.
  */
-export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueue): Promise<string[]> {
+export async function pruneRecords(project: LoadedProject, keep = RECORD_KEEP, except: readonly string[] = [], queue?: JobQueueView): Promise<string[]> {
   const active = queue !== undefined ? await activeRecords(queue, project.slug).catch(() => null) : [];
   // The jobs could not be read: nothing is pruned (a folder in use is never removed on a guess).
   if (active === null) return [];
@@ -185,7 +185,7 @@ export interface RecordRequest {
 
 export interface RecordPorts {
   /** The workspace's job queue: a recording whose job is queued or running is never pruned. */
-  queue: JobQueue;
+  queue: JobQueueView;
   log?: (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void;
   /** What the recording does now. */
   onPhase?: (phase: 'preflight' | 'recording' | 'draft' | 'check') => void;

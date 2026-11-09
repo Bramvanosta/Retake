@@ -2,7 +2,8 @@
  * The job queue's contract (the JobQueue port), one suite every adapter passes: the file queue (the product's) and the
  * in-memory one (tests). Written first against the file queue as it was, so the port keeps its behaviour exactly: the
  * input contract, the derived states (interrupted, cancelled before it started, yield), the markers (cancel, pause,
- * stop), the exclusive claim, what a write keeps, the events and the approvals signed at enqueue.
+ * stop), the exclusive claim, what a write keeps, the events and their seqs, a submit's own files, a queue with its own
+ * memory, and the approvals signed at enqueue.
  */
 import { spawnSync } from 'node:child_process';
 import { hostname } from 'node:os';
@@ -68,11 +69,26 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.get(ok.id))?.state).toBe('queued');
     });
 
+    it('jobFile reads a submit\'s file back as stored: missing when there is none, too large past its cap; never a name of the job\'s own', async () => {
+      const { queue: q } = await make('job-file');
+      const job = await q.enqueue(RUN_INPUT, { files: { 'edit.yaml': 'caption: é\n' } });
+      expect(await q.jobFile(job.id, 'edit.yaml', 100)).toEqual({ ok: true, text: 'caption: é\n' });
+      // The cap counts bytes (é is two): at the size it reads, one byte below it does not.
+      expect(await q.jobFile(job.id, 'edit.yaml', 12)).toEqual({ ok: true, text: 'caption: é\n' });
+      expect(await q.jobFile(job.id, 'edit.yaml', 11)).toEqual({ ok: false, reason: 'too_large' });
+      expect(await q.jobFile(job.id, 'other.yaml', 100)).toEqual({ ok: false, reason: 'missing' });
+      expect(await q.jobFile((await q.enqueue(RUN_INPUT)).id, 'edit.yaml', 100)).toEqual({ ok: false, reason: 'missing' });
+      for (const name of ['job.json', 'cancel', 'events.jsonl', '../x.yaml', '.hidden.yaml']) {
+        await expect(q.jobFile(job.id, name, 100), name).rejects.toMatchObject({ code: 'invalid' });
+      }
+    });
+
     it('a job id that is not one is refused (never a path); an unknown one reads as nothing', async () => {
       const { queue: q } = await make('ids');
       for (const bad of ['../x', 'j_short', '', `j_${'A'.repeat(25)}/`]) {
         await expect(q.get(bad), bad).rejects.toMatchObject({ code: 'invalid' });
-        await expect(q.cancelRequested(bad), bad).rejects.toMatchObject({ code: 'invalid' });
+        await expect(q.cancelOf(bad), bad).rejects.toMatchObject({ code: 'invalid' });
+        await expect(q.jobFile(bad, 'edit.yaml', 100), bad).rejects.toMatchObject({ code: 'invalid' });
         // The events of a job that cannot be read are none.
         expect(await q.events(bad), bad).toEqual([]);
       }
@@ -111,27 +127,24 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
     it('a cancel before the claim derives `cancelled` (written by nobody); asked twice it keeps the first time; a finished job is returned as it is', async () => {
       const { queue: q } = await make('cancel');
       const a = await q.enqueue(RUN_INPUT);
-      expect(await q.cancelRequested(a.id)).toBe(false);
       expect(await q.cancelOf(a.id)).toBeUndefined();
       const c = await q.cancel(a.id, 'test');
       expect(c).toMatchObject({ state: 'cancelled', derived: true, error: { code: 'cancelled', message: 'cancelled before it started' } });
       expect(c.cancel_requested_at).toBeTypeOf('string');
       expect(c.finished_at).toBe(c.cancel_requested_at);
       expect((await q.stored(a.id))?.state).toBe('queued');
-      expect(await q.cancelRequested(a.id)).toBe(true);
-      expect(await q.cancelOf(a.id)).toBe(c.cancel_requested_at);
-      expect(await q.cancelReason(a.id)).toBeUndefined();
+      expect(await q.cancelOf(a.id)).toEqual({ at: c.cancel_requested_at });
       expect((await q.cancel(a.id, 'test')).cancel_requested_at).toBe(c.cancel_requested_at);
       // Discard (an open recording window): the reason is kept.
       const d = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130003-quote' });
       await q.cancel(d.id, 'ui', 'discard');
-      expect(await q.cancelReason(d.id)).toBe('discard');
+      expect(await q.cancelOf(d.id)).toEqual({ at: expect.any(String), reason: 'discard' });
       // A finished job: no marker, returned as stored.
       const f = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130004-quote' });
       const done: JobRecord = { ...f, state: 'succeeded', finished_at: new Date().toISOString() };
       await q.write(done);
       expect(await q.cancel(f.id, 'test')).toEqual(done);
-      expect(await q.cancelRequested(f.id)).toBe(false);
+      expect(await q.cancelOf(f.id)).toBeUndefined();
       // A running job: the request is said on it, the state is its worker's.
       const r = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130005-quote' });
       await running(q, r);
@@ -187,26 +200,26 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
     it('pause (a running run job) and stop markers: created once, removed on resume; said on the job only while it runs', async () => {
       const { queue: q } = await make('markers');
       const job = await q.enqueue(RUN_INPUT);
-      expect(await q.pauseRequested(job.id)).toBe(false);
+      expect(await q.pauseOf(job.id)).toBeUndefined();
       await q.requestPause(job.id, true, 'test');
-      expect(await q.pauseRequested(job.id)).toBe(true);
-      const at = await q.pauseOf(job.id);
+      const at = (await q.pauseOf(job.id))?.at;
       expect(at).toBeTypeOf('string');
       // Queued: not said on it.
       expect((await q.get(job.id))?.pause_requested_at).toBeUndefined();
       await running(q, (await q.stored(job.id))!);
       expect((await q.get(job.id))?.pause_requested_at).toBe(at);
       await q.requestPause(job.id, true, 'test');
-      expect(await q.pauseOf(job.id)).toBe(at);
+      expect(await q.pauseOf(job.id)).toEqual({ at });
       await q.requestPause(job.id, false, 'test');
-      expect(await q.pauseRequested(job.id)).toBe(false);
       expect(await q.pauseOf(job.id)).toBeUndefined();
       await q.requestPause(job.id, false, 'test');
       expect((await q.get(job.id))?.pause_requested_at).toBeUndefined();
-      expect(await q.stopRequested(job.id)).toBe(false);
+      expect(await q.stopOf(job.id)).toBeUndefined();
       await q.requestStop(job.id, 'test');
+      const stop = await q.stopOf(job.id);
+      expect(stop?.at).toBeTypeOf('string');
       await q.requestStop(job.id, 'test');
-      expect(await q.stopRequested(job.id)).toBe(true);
+      expect(await q.stopOf(job.id)).toEqual(stop);
     });
 
     it('write keeps what is stored: the derived fields (cancel and pause requests, derived, yield) are never written', async () => {
@@ -239,6 +252,10 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.events(job.id, { limit: 2 })).map((e) => e.seq)).toEqual([2, 3]);
       // A second writer goes on from the last seq.
       expect(await q.append(job.id, await q.lastSeq(job.id), [{ type: 'result' }])).toBe(4);
+      // The seq given is the writer's: what it appends follows it, whatever was written (one writer at a time).
+      expect(await q.append(job.id, 10, [{ type: 'result' }, { type: 'result' }])).toBe(12);
+      expect((await q.events(job.id)).map((e) => e.seq)).toEqual([1, 2, 3, 4, 11, 12]);
+      expect(await q.lastSeq(job.id)).toBe(12);
     });
 
     it('position per lane (captures before heavy jobs, the oldest first); a queued take holds every heavy job (held_by "take")', async () => {
@@ -295,13 +312,19 @@ export function jobQueueContract(adapter: string, make: (name: string, cli?: str
       expect((await q.get(run.id))?.yield).toBeUndefined();
     });
 
-    it('a reader reads and writes the same jobs, with the same root and commands', async () => {
+    it('a queue with its own memory reads and writes the same jobs, for the same root; its fix texts start with `retake` unless told', async () => {
       const { queue: q } = await make('reader', 'retake -C /ws');
-      const r = q.reader();
+      const r = q.withOwnMemory();
       expect(r).not.toBe(q);
-      expect([r.root, r.cli]).toEqual([q.root, q.cli]);
+      expect([r.root, r.cli]).toEqual([q.root, 'retake']);
+      expect(q.withOwnMemory('retake -C /other').cli).toBe('retake -C /other');
+      // A derived interrupted job's fix starts with the reading queue's command.
+      const lost = await q.enqueue({ ...RUN_INPUT, run_id: '20261017-130009-quote' });
+      await q.claim(lost.id, { pid: deadPid() });
+      expect((await q.get(lost.id))?.error?.fix).toMatch(/^retake -C \/ws env reset /);
+      expect((await r.get(lost.id))?.error?.fix).toMatch(/^retake env reset /);
       const job = await q.enqueue(RUN_INPUT);
-      expect(await r.ids()).toEqual([job.id]);
+      expect(await r.ids()).toEqual([lost.id, job.id]);
       expect(await r.claim(job.id, await selfIdentity())).toBe(true);
       expect(await q.claim(job.id, await selfIdentity())).toBe(false);
       await r.append(job.id, 0, [{ type: 'result' }]);

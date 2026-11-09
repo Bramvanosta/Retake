@@ -1,13 +1,13 @@
 import { resolve } from 'node:path';
 import { InspectTargetSchema, parseYaml, resolveEnvironment } from '@retake/core';
 import type { TargetSpec } from '@retake/core';
-import { FileJobQueue, INSPECT_KEEP, appendHistory, inspectRoot, newInspectId, pageOfUrl, prepareInspect, pruneInspections, runInspection } from '@retake/engine';
+import { INSPECT_KEEP, appendHistory, inspectRoot, newInspectId, pageOfUrl, prepareInspect, pruneInspections, runInspection } from '@retake/engine';
 import type { InspectSourceDraft } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor } from './auth.js';
 
@@ -84,7 +84,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
   } finally {
     ui.clearStatus();
   }
-  if (opts.out === undefined) await pruneInspections(project, INSPECT_KEEP, [id], new FileJobQueue(ws.root));
+  if (opts.out === undefined) await pruneInspections(project, INSPECT_KEEP, [id], workspaceQueue(ws));
   const r = run.report;
   await appendHistory(ws.root, {
     kind: 'inspect',

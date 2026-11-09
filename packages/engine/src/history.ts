@@ -8,7 +8,7 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobClient } from '@retake/core';
-import { stateDir } from './jobs/queue.js';
+import { stateDir } from './workspace-state.js';
 
 export const HISTORY_VERSION = 1;
 

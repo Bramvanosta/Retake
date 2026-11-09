@@ -1,12 +1,12 @@
 import { isAccessError } from '@retake/core';
-import { FileJobQueue, checkAllowWrites, recordScenario } from '@retake/engine';
+import { checkAllowWrites, recordScenario } from '@retake/engine';
 import type { RecordOutcome, RecordPorts } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
-import { openProject, openWorkspace } from '../workspace.js';
+import { openProject, openWorkspace, workspaceQueue } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
 import { loginCommandFor, retakeCommand } from './auth.js';
 
@@ -68,7 +68,7 @@ export async function recordCommand(ui: Ui, global: GlobalOptions, projectArg: s
         submittedBy: 'cli',
       },
       {
-        queue: new FileJobQueue(ws.root),
+        queue: workspaceQueue(ws),
         log: (level, msg) => (level === 'warn' || level === 'error' ? ui.warn(msg) : ui.debug(msg)),
         onPhase: (phase) => {
           if (phase === 'preflight') ui.setStatus('checking the session…');

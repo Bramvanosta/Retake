@@ -17,10 +17,13 @@
  *
  * A job whose final state cannot be written makes the worker exit non-zero: readers then see its pid gone and derive
  * `interrupted`, never a `running` job with a live pid that will never finish (a job process whose worker is gone ends
- * its job itself). *
- * The code is in four parts over one Worker record: finish (a job's end this worker writes itself), recovery (what dead
- * workers and job processes left), claim (the open jobs and the one each slot takes) and run (the two slots and the
- * heavy job's yield); runWorker sets them up and runs the loop.
+ * its job itself).
+ *
+ * The code: one Worker record holds everything a worker keeps while it serves a workspace (its settings, the queue and
+ * its paths, the two slots, the takes it sees, its counts), and module functions read and change it, grouped under four
+ * section comments — finish (a job's end this worker writes itself), recovery (what dead workers and job processes
+ * left), claim (the open jobs and the one each slot takes) and run (the two slots and the heavy job's yield). They share
+ * the record rather than talk through interfaces of their own; runWorker builds it and runs the loop.
  */
 import { execFile, spawn } from 'node:child_process';
 import { closeSync, existsSync, openSync, realpathSync } from 'node:fs';
@@ -43,9 +46,11 @@ import { pick } from './pick.js';
 import type { PickRecord } from './pick.js';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
-import { interrupted } from './queue-core.js';
-import { FileJobQueue, stateDir } from './queue.js';
-import type { FileJobs } from './queue.js';
+import { interrupted } from './interrupted.js';
+import type { JobQueue } from './job-queue.js';
+import { FileJobQueue } from './queue.js';
+import type { JobFiles } from './queue.js';
+import { stateDir } from '../workspace-state.js';
 import { appendHistory } from '../history.js';
 import { createJobRunner, historyOf, shellQuote, unknownInput } from './run-job-record.js';
 import { jobProcessCommand, spawnWorker } from './spawn.js';
@@ -168,7 +173,9 @@ interface Worker {
   readonly kill: KillFn | undefined;
   readonly ws: Awaited<ReturnType<typeof openWorkspace>>;
   readonly cli: string;
-  readonly queue: FileJobs;
+  readonly queue: JobQueue;
+  /** The queue's paths (a render's browser.json), apart from the queue. */
+  readonly files: JobFiles;
   readonly dirs: ReturnType<typeof buildDirs>;
   readonly build: string;
   lock: WorkerLock;
@@ -262,7 +269,7 @@ async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
         ? { ...stored, state: 'failed', finished_at: now, error: { code: 'invalid', message: 'refused by its job process: not the queued heavy job this worker claimed' } }
         : { ...interrupted(stored, w.cli, `its job process exited (${signal ? `signal ${signal}` : `code ${code}`}) before it wrote the job's end — .retake/workers/worker.log says why`), finished_at: now };
   await closeJob(w, final, { cleanup: true });
-  await rm(w.queue.files.browser(h.id), { force: true }).catch(() => undefined);
+  await rm(w.files.browser(h.id), { force: true }).catch(() => undefined);
 }
 
 // ── recovery: what dead workers and job processes left ──
@@ -271,15 +278,15 @@ async function onHeavyExit(w: Worker, h: HeavyChild): Promise<void> {
 async function cleanupDead(w: Worker, final: JobRecord): Promise<void> {
   if (final.input.kind === 'render') {
     const { cleanupInterruptedRender } = await import('./render-job.js');
-    await cleanupInterruptedRender(w.ws, w.queue.files, final, w.log);
+    await cleanupInterruptedRender(w.ws, w.files, final, w.log);
   } else if (final.input.kind === 'export') {
     // An export's re-render leaves the same: its browser and partial files.
     const { cleanupInterruptedExport } = await import('./export-job.js');
-    await cleanupInterruptedExport(w.ws, w.queue.files, final, w.log);
+    await cleanupInterruptedExport(w.ws, w.files, final, w.log);
   } else if (final.input.kind === 'preview') {
     // A preview's browser, started detached like a render's.
     const { killRecordedBrowser } = await import('./render-job.js');
-    await killRecordedBrowser(w.queue.files, final, w.log);
+    await killRecordedBrowser(w.files, final, w.log);
   } else if (final.input.kind === 'review') {
     // A review killed between its two renames leaves the previous review set aside.
     const { cleanupInterruptedReview } = await import('./review-job.js');
@@ -355,7 +362,7 @@ async function scanOpenJobs(w: Worker): Promise<PickRecord[]> {
     // The class comes from the kind of the input the job runs, through this build's JOB_CLASS (no field of job.json orders it).
     const kind = String((stored.input as { kind?: unknown } | undefined)?.kind ?? stored.kind);
     // A cancelled queued take holds nothing (review B L7): only takes are asked (one marker read each).
-    const cancelled = stored.state === 'queued' && isFilming(stored.input) && (await w.queue.cancelRequested(id));
+    const cancelled = stored.state === 'queued' && isFilming(stored.input) && (await w.queue.cancelOf(id)) !== undefined;
     out.push({ id, state: stored.state, kind, input: stored.input, claimed, ...(cancelled ? { cancelled } : {}) });
   }
   return out;
@@ -555,7 +562,7 @@ async function steerHeavy(w: Worker, h: HeavyChild): Promise<void> {
   }
   // Critique M3: a cancelled job ends itself (teardown, clean-ups) — at background priority during a take; its tree
   // is killed only when it has not ended `cancelGraceMs` after the cancel.
-  if (h.cancelSeen === undefined && (await w.queue.cancelRequested(h.id))) h.cancelSeen = Date.now();
+  if (h.cancelSeen === undefined && (await w.queue.cancelOf(h.id)) !== undefined) h.cancelSeen = Date.now();
   if (h.cancelSeen !== undefined && !h.killed && Date.now() - h.cancelSeen >= w.cancelGraceMs) {
     h.killed = 'cancel';
     w.log(`job ${h.id}: still running ${Math.round(w.cancelGraceMs / 1000)} s after its cancel: killing its job process`);
@@ -620,6 +627,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     ws,
     cli,
     queue,
+    files: queue.files,
     dirs,
     build,
     lock,
@@ -719,6 +727,7 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     root,
     ws,
     queue,
+    files: queue.files,
     cli,
     build,
     worker: w.worker,

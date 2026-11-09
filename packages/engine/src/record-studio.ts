@@ -79,7 +79,7 @@ import type {
 } from '@retake/core';
 import { EngineError, toEngineError } from './errors.js';
 import { isAlive } from './jobs/proc.js';
-import type { JobQueue } from './jobs/job-queue.js';
+import type { JobQueueView } from './jobs/job-queue.js';
 import type { JobErrorView, JobRecord } from './jobs/types.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import { lockHolder, takeProjectLock } from './project-lock.js';
@@ -237,7 +237,7 @@ export interface RecordStopped {
 }
 
 export interface RecordStudioContext {
-  queue: JobQueue;
+  queue: JobQueueView;
   client: JobClient;
 }
 
@@ -312,7 +312,7 @@ function readRecordJson(dir: string): RecordJson | null {
 const count = (v: unknown): number | null => (typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null);
 
 /** The recording's job (meta.json's job_id, else the caller's hint), only when it is that recording's `record` job. */
-async function jobOf(queue: JobQueue, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
+async function jobOf(queue: JobQueueView, slug: string, id: string, meta: RecordMeta | null, hint?: string): Promise<JobRecord | null> {
   const jid = meta ? meta.job_id : (hint ?? null);
   if (!jid || !JOB_ID_RE.test(jid)) return null;
   const job = await queue.get(jid);
@@ -409,7 +409,8 @@ async function situation(ctx: RecordStudioContext, project: LoadedProject, id: s
   const job = await jobOf(ctx.queue, project.slug, id, meta, hint);
   const record = folder ? readRecordJson(dir) : null;
   const ann = folder ? readRecordAnnotations(dir) : { annotations: null };
-  const [stopAsked, cancelAsked, reason] = job ? await Promise.all([ctx.queue.stopRequested(job.id), ctx.queue.cancelRequested(job.id), ctx.queue.cancelReason(job.id)]) : [false, false, undefined];
+  const [stop, cancel] = job ? await Promise.all([ctx.queue.stopOf(job.id), ctx.queue.cancelOf(job.id)]) : [undefined, undefined];
+  const [stopAsked, cancelAsked, reason] = [stop !== undefined, cancel !== undefined, cancel?.reason];
   const discardAsked = reason === 'discard';
   // Who started it (A-L1): a Studio recording only when its job — the one meta.json names — says so too.
   const byJob = job?.input.kind === 'record' ? job.input.submitted_by : undefined;

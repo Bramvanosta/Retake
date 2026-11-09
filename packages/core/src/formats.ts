@@ -15,6 +15,12 @@ import { join } from 'node:path';
  */
 export const RETAKE_VERSION = '0.2.0';
 
+/**
+ * Where Retake's repository is read on the web: the root package.json's `repository` field (its URL without `git+` and
+ * `.git`), repeated here (a test keeps them equal). The documentation URLs of errors point into it (error-kind.ts).
+ */
+export const RETAKE_REPOSITORY = 'https://github.com/Bramvanosta/Retake';
+
 /** The format version of each file this Retake reads and writes (a file without `version` is version 1). */
 export const FORMAT_VERSIONS = { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 } as const;
 

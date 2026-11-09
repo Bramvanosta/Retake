@@ -24,9 +24,9 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { LoadedProject, WorkspaceConfig } from '@retake/core';
 import { HISTORY_VERSION, historyFile } from '../history.js';
 import type { HistoryEntry } from '../history.js';
-import type { JobQueue } from '../jobs/job-queue.js';
+import type { JobQueueView } from '../jobs/job-queue.js';
 import { jobProject } from '../jobs/queue-core.js';
-import { stateDir } from '../jobs/queue.js';
+import { stateDir } from '../workspace-state.js';
 import { FINISHED_JOB_STATES } from '../jobs/types.js';
 import type { JobRecord } from '../jobs/types.js';
 import { listProjectSummaries } from '../projects.js';
@@ -112,8 +112,8 @@ export interface IndexChanges {
 }
 
 export interface IndexOptions {
-  /** The workspace's job queue (a reader of its own: JobQueue.reader), for the activity feed's unfinished jobs. */
-  queue: JobQueue;
+  /** The workspace's job queue (one with its own memory: JobQueueView.withOwnMemory), for the activity feed's unfinished jobs. */
+  queue: JobQueueView;
   /** node:sqlite (default: loaded with the scoped warning filter). */
   loader?: SqliteLoader;
 }
@@ -205,7 +205,7 @@ export class WorkspaceIndex {
   private constructor(
     private readonly db: DatabaseSync,
     private readonly ws: WorkspaceConfig,
-    private readonly queue: JobQueue,
+    private readonly queue: JobQueueView,
     readonly file: string,
     /** Why the file was built at open; undefined when an existing index was reused. */
     readonly rebuilt: IndexRebuild | undefined,

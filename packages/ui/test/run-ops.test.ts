@@ -115,7 +115,7 @@ describe('the Sessions panel: auth_status, auth_login (headed only, no wait), si
     const refused = await call('sign_in_cancel', { job: run.job });
     expect(refused.status).toBe(403);
     expect(refused.json<Fail>().error.message).toContain('not a sign-in');
-    expect(await queue.cancelRequested(run.job)).toBe(false);
+    expect(await queue.cancelOf(run.job)).toBeUndefined();
     expect((await call('sign_in_cancel', { job: '../j' })).status).toBe(400);
     await call('run_cancel', { project: P, run_id: run.run_id });
   });

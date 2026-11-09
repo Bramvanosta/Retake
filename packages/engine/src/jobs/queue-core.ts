@@ -6,8 +6,9 @@
  *
  * One writer per entry: job.json is written once by the submitter (`queued`), then only by the worker that claimed the
  * job; claim is created once by the worker that takes the job; cancel / pause / stop by a client (pause is removed by a
- * resume); yield.json and events.jsonl by the claiming worker. Readers never write: what a dead worker cannot write is
- * derived when reading (queue.ts says how the next worker persists it).
+ * resume); yield.json and events.jsonl by the claiming worker; a submit's files once, by the submit, read back through
+ * jobFile. Readers never write: what a dead worker cannot write is derived when reading (queue.ts says how the next
+ * worker persists it).
  */
 import { JOB_ID_RE, JobInputSchema, isFilming, jobClass } from '@retake/core';
 import type { JobInput } from '@retake/core';
@@ -18,7 +19,8 @@ import type { ProcessIdentity } from './proc.js';
 import { signApprovals } from './signing.js';
 import { FINISHED_JOB_STATES, JOB_RECORD_VERSION } from './types.js';
 import type { JobEvent, JobEventBody, JobRecord, JobYield } from './types.js';
-import type { ClaimRecord, DeriveOptions, JobFilter, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
+import { interrupted } from './interrupted.js';
+import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
 
 /** A job's id, checked (never a path): the id itself, else `invalid`. */
 export function checkJobId(id: string): string {
@@ -39,9 +41,10 @@ export interface JobEntries {
   add(id: string, name: string, text: string): Promise<void>;
   /** An entry's text; undefined when it is missing or cannot be read. */
   read(id: string, name: string): Promise<string | undefined>;
+  /** A submit's file, read as stored: a plain file of at most `max` bytes (never a link followed), else why not. */
+  readPlain(id: string, name: string, max: number): Promise<JobFileRead>;
   /** When an entry was last written (ISO), or undefined. */
   mtime(id: string, name: string): Promise<string | undefined>;
-  exists(id: string, name: string): Promise<boolean>;
   /** Create an entry only if it does not exist: false when it does; a job that is gone throws ENOENT. */
   create(id: string, name: string, text: string): Promise<boolean>;
   /** Replace an entry atomically (a reader sees the old text or the new one). */
@@ -58,6 +61,12 @@ const JOB_FILE_RE = /^[a-z][a-z0-9-]{0,30}\.(?:yaml|json|txt)$/;
 /** The job's own entries: never written by a submit. */
 const JOB_RESERVED_FILES = new Set(['job.json', 'claim', 'cancel', 'pause', 'stop', 'browser.json', 'live.json', 'events.jsonl', 'yield.json']);
 
+/** The name of a submit's file, checked (a plain name, none of the job's own): the name itself, else `invalid`. */
+function checkJobFile(name: string): string {
+  if (!JOB_FILE_RE.test(name) || JOB_RESERVED_FILES.has(name)) throw new EngineError('invalid', `invalid job file name "${name.slice(0, 40)}"`);
+  return name;
+}
+
 /** The queue's behaviour over an adapter's entries; `filming()`: what a filming marker of this user holds (takeHold). */
 export abstract class StoredJobQueue implements JobQueue {
   /** Ids whose record was read finished (final: never read again by takeHold). */
@@ -72,7 +81,7 @@ export abstract class StoredJobQueue implements JobQueue {
   /** A filming marker of this user that holds heavy work (`here`: its workspace is this one), else undefined. */
   protected abstract filming(): Promise<TakeHold>;
 
-  abstract reader(): JobQueue;
+  abstract withOwnMemory(cli?: string): JobQueue;
 
   private async json<T>(id: string, name: string): Promise<T | undefined> {
     const text = await this.entries.read(id, name);
@@ -93,10 +102,7 @@ export abstract class StoredJobQueue implements JobQueue {
     // Its approvals are signed for this job (signing.ts): the worker honours no approval a submit did not write for it.
     const signed = await signApprovals(parsed.data, { jobId: id, root: this.root });
     await this.entries.make(id);
-    for (const [name, text] of Object.entries(opts.files ?? {})) {
-      if (!JOB_FILE_RE.test(name) || JOB_RESERVED_FILES.has(name)) throw new EngineError('invalid', `invalid job file name "${name.slice(0, 40)}"`);
-      await this.entries.add(id, name, text);
-    }
+    for (const [name, text] of Object.entries(opts.files ?? {})) await this.entries.add(id, checkJobFile(name), text);
     const rec: JobRecord = { version: JOB_RECORD_VERSION, id, kind: signed.kind, input: signed, state: 'queued', created_at: new Date().toISOString() };
     await this.entries.replace(id, 'job.json', JSON.stringify(rec, null, 2) + '\n');
     return rec;
@@ -113,10 +119,15 @@ export abstract class StoredJobQueue implements JobQueue {
     return this.json<ClaimRecord>(checkJobId(id), 'claim');
   }
 
-  async cancelOf(id: string): Promise<string | undefined> {
-    const marker = await this.json<{ at?: string }>(checkJobId(id), 'cancel');
-    if (marker?.at) return marker.at;
-    return this.entries.mtime(id, 'cancel');
+  async cancelOf(id: string): Promise<CancelMark | undefined> {
+    const marker = await this.json<{ at?: string; reason?: unknown }>(checkJobId(id), 'cancel');
+    const at = marker?.at ? marker.at : await this.entries.mtime(id, 'cancel');
+    if (at === undefined) return undefined;
+    return { at, ...(marker?.reason === 'discard' ? { reason: 'discard' as const } : {}) };
+  }
+
+  async jobFile(id: string, name: string, maxBytes: number): Promise<JobFileRead> {
+    return this.entries.readPlain(checkJobId(id), checkJobFile(name), maxBytes);
   }
 
   async get(id: string, opts: DeriveOptions = {}): Promise<JobRecord | undefined> {
@@ -126,10 +137,10 @@ export abstract class StoredJobQueue implements JobQueue {
 
   async derive(stored: JobRecord, opts: DeriveOptions = {}): Promise<JobRecord> {
     const rec: JobRecord = { ...stored };
-    const cancelAt = FINISHED_JOB_STATES.has(rec.state) ? undefined : await this.cancelOf(rec.id);
+    const cancelAt = FINISHED_JOB_STATES.has(rec.state) ? undefined : (await this.cancelOf(rec.id))?.at;
     if (cancelAt) rec.cancel_requested_at = cancelAt;
     if (rec.state === 'running' && rec.kind === 'run') {
-      const pauseAt = await this.pauseOf(rec.id);
+      const pauseAt = (await this.pauseOf(rec.id))?.at;
       if (pauseAt) rec.pause_requested_at = pauseAt;
     }
     const heavy = jobClass(rec.kind) === 'heavy';
@@ -231,15 +242,6 @@ export abstract class StoredJobQueue implements JobQueue {
     return (await this.get(id)) ?? rec;
   }
 
-  async cancelRequested(id: string): Promise<boolean> {
-    return this.entries.exists(checkJobId(id), 'cancel');
-  }
-
-  async cancelReason(id: string): Promise<'discard' | undefined> {
-    const marker = await this.json<{ reason?: unknown }>(checkJobId(id), 'cancel');
-    return marker?.reason === 'discard' ? 'discard' : undefined;
-  }
-
   /**
    * Ask a running job to pause (`on`) or to resume (L4.4): the `pause` marker is created once (asking again keeps the
    * first time) or removed. The caller checks the job may pause (engine runs.pause); the worker only reads the marker.
@@ -250,14 +252,15 @@ export abstract class StoredJobQueue implements JobQueue {
     else await this.entries.remove(id, 'pause');
   }
 
-  async pauseRequested(id: string): Promise<boolean> {
-    return this.entries.exists(checkJobId(id), 'pause');
+  async pauseOf(id: string): Promise<JobMark | undefined> {
+    return this.markOf(id, 'pause');
   }
 
-  async pauseOf(id: string): Promise<string | undefined> {
-    const marker = await this.json<{ at?: string }>(checkJobId(id), 'pause');
-    if (typeof marker?.at === 'string') return marker.at;
-    return this.entries.mtime(id, 'pause');
+  /** A pause or stop marker: the time it says, else its file's time; undefined when there is none. */
+  private async markOf(id: string, name: 'pause' | 'stop'): Promise<JobMark | undefined> {
+    const marker = await this.json<{ at?: unknown }>(checkJobId(id), name);
+    const at = typeof marker?.at === 'string' ? marker.at : await this.entries.mtime(id, name);
+    return at === undefined ? undefined : { at };
   }
 
   /**
@@ -269,8 +272,8 @@ export abstract class StoredJobQueue implements JobQueue {
     await this.entries.create(checkJobId(id), 'stop', JSON.stringify({ at: new Date().toISOString(), by }) + '\n');
   }
 
-  async stopRequested(id: string): Promise<boolean> {
-    return this.entries.exists(checkJobId(id), 'stop');
+  async stopOf(id: string): Promise<JobMark | undefined> {
+    return this.markOf(id, 'stop');
   }
 
   async claim(id: string, who: ProcessIdentity): Promise<boolean> {
@@ -364,121 +367,7 @@ export abstract class StoredJobQueue implements JobQueue {
   }
 }
 
-function shellWord(s: string): string {
-  return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
-}
-
 /** The project of a job's input (a site extraction is workspace-level: none). */
 export function jobProject(input: JobInput): string | undefined {
   return 'project' in input ? input.project : undefined;
-}
-
-/** A job closed as interrupted (derived for a dead worker; written by the worker that saw its job process die). */
-export function interrupted(rec: JobRecord, cli: string, why: string): JobRecord {
-  const i = rec.input;
-  if (i.kind === 'site') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The site extraction stopped with its browser (files written before stay in .retake/site/${i.site_id}/); nothing else was touched`,
-        fix: `${cli} theme from-site ${shellWord(i.url)}`,
-      },
-    };
-  }
-  if (i.kind === 'render') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The render stopped: nothing was written under ${i.render_id} (the next worker removes its temporary files and its browser)`,
-        fix: `${cli} render ${i.project} ${i.scenario} --run ${i.run_id}${i.template ? ` --theme ${i.template}` : ''}`,
-      },
-    };
-  }
-  if (i.kind === 'review' || i.kind === 'export') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message:
-          i.kind === 'review'
-            ? `interrupted: ${why}. The review stopped: the previous review of ${i.render_id} is kept (the next worker puts it back and removes the temporary folder)`
-            : `interrupted: ${why}. The export stopped: formats written before stay in exports/${i.render_id}/ (the next worker removes partial files and a re-render's browser)`,
-        fix: i.kind === 'review' ? `${cli} review ${i.project} ${i.render_id}` : `${cli} export ${i.project} ${i.render_id} --formats ${i.formats.join(',')}`,
-      },
-    };
-  }
-  if (i.kind === 'preview') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The preview stopped: images written before stay in .retake/previews/${i.preview_id}/ (the next worker kills its browser)`,
-        ...(i.target.kind === 'component' ? { fix: `${cli} components preview ${i.target.component}${i.template ? ` --theme ${i.template}` : ''} --out <folder>` } : {}),
-      },
-    };
-  }
-  if (i.kind === 'inspect') {
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message: `interrupted: ${why}. The inspection stopped: it ran a dry replay only (no hook); submit it again`,
-        fix: `${cli} inspect ${i.project} ${i.source.kind === 'page' ? i.source.page : i.source.scenario}${i.env ? ` --env ${i.env}` : ''}`,
-      },
-    };
-  }
-  if (i.kind === 'record') {
-    // Where it was (the job's last progress): from the draft on, the recording had ended and its draft was written.
-    const phase = rec.progress?.phase ?? '';
-    const folder = `.retake/records/${i.rec_id}`;
-    // A recording the Studio started is never saved by its job: the person saves it from the Record screen.
-    const studio = i.submitted_by === 'ui';
-    const message = studio
-      ? phase === 'check' || phase === 'draft'
-        ? `interrupted: ${why}. The recording had ended: open it in the Studio's Record screen to look at its draft and save it`
-        : `interrupted: ${why}. The recording stopped with it: what was recorded up to then is kept — open it in the Studio's Record screen to save it, or record again`
-      : phase === 'check'
-        ? `interrupted: ${why}. The recording had ended and its draft was made: ${folder}/draft.yaml (saved under scenarios/ too when its name was free); only its check replay was cut — dry-run the draft`
-        : phase === 'draft'
-          ? `interrupted: ${why}. The recording had ended; its draft was being made: ${folder}/draft.yaml if it was written (${folder}/events.jsonl holds what was recorded); record again if it is missing`
-          : `interrupted: ${why}. The recording stopped with it: no draft was made (what was recorded up to then is in ${folder}/events.jsonl, if the window had opened); record again`;
-    return {
-      ...rec,
-      state: 'interrupted',
-      derived: true,
-      error: {
-        code: 'cancelled',
-        message,
-        fix: `${cli} record ${i.project}${i.scenario ? ` ${i.scenario}` : ''}${i.env ? ` --env ${i.env}` : ''}${i.persona ? ` --persona ${i.persona}` : ''} --page ${i.source.page}${i.source.path !== '/' ? ` --path ${shellWord(i.source.path)}` : ''}`,
-      },
-    };
-  }
-  const env = i.env ? ` --env ${i.env}` : '';
-  const error: JobRecord['error'] =
-    i.kind === 'auth_login'
-      ? { code: 'cancelled', message: `interrupted: ${why}. The sign-in stopped with it: its session may not have been saved`, fix: `${cli} login ${i.project}${env}${i.persona ? ` --persona ${i.persona}` : ''}${i.mode === 'auto' ? ' --auto' : ''}` }
-      : i.kind === 'sandbox_up' || i.kind === 'sandbox_reset'
-        ? {
-            code: 'cancelled',
-            message: `interrupted: ${why}. Services it started may still run, and a seed it began is not recorded: the next sandbox up seeds again`,
-            fix: `${cli} sandbox up ${i.project}${env}`,
-          }
-        : {
-            code: 'cancelled',
-            message: `interrupted: ${why}. ${i.kind === 'run' ? 'Its run' : 'It'} stopped where it was; rollbacks it left pending are replayed by an environment reset`,
-            fix: `${cli} env reset ${i.project}${env}`,
-          };
-  return { ...rec, state: 'interrupted', derived: true, error };
 }

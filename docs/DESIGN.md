@@ -1788,18 +1788,26 @@ workers/worker.lock     {pid, started_at, host, version, build, since} — one w
 workers/worker.log      what workers print (stderr), appended
 ```
 
-- The queue is a port (L6.3; `jobs/job-queue.ts` `JobQueue`): submit, read (with the derived states), the markers a
-  client asks with (cancel, pause, stop), the worker's claim and writes, what holds heavy work and a heavy job's yield
-  (`takeHold`, `yieldOf` / `setYield`), the events, and `reader()` (the same queue with a reader's own memory of the
-  filming markers) — no path in it. Its behaviour is written once (`queue-core.ts`) over a job's named entries; the file
-  queue (`queue.ts` `FileJobQueue`, the files above) and an in-memory queue (`memory-queue.ts`, tests) keep them, and one
-  contract suite holds both (`packages/engine/test/job-queue-contract.ts`). The paths are the file queue's file part
-  (`files`: `JobFiles` — a job's folder, browser.json, live.json, yield.json, events.jsonl), used only by the code that
-  reads or writes a job's files itself (a render's browser, the live channel, the Studio's live run, the project
-  board's stat memo). Only the composition roots build the file queue: the engine (`Engine.queue`, which the Studio's
-  server reads), the worker, the job process and the CLI's in-process commands; every other module is handed it (the
-  import-rules ratchet's `queue` rule). The worker (`runWorker`) is in four parts over one record: finish, recovery,
-  claim and run.
+- The queue is a port (L6.3; `jobs/job-queue.ts`), in two views. `JobQueueView` reads and asks: read (with the derived
+  states), a submit's own files (`jobFile`: a render's edit snapshot, never a link followed), the markers a client asks
+  with (cancel, pause, stop: `cancelOf` / `pauseOf` / `stopOf` say when, and a cancel's reason), who claimed a job, what
+  holds heavy work and a heavy job's yield (`takeHold`, `yieldOf`), the events, and `withOwnMemory()` (the same jobs for
+  another watcher: its own memory of the jobs seen finished and of the filming markers, and the default `retake` in
+  its derived fix texts). `JobQueue` adds the submit (`enqueue`) and the claiming worker's writes (`claim`, `unclaim`,
+  `write`, `setYield`, `append`: events get seq + 1, + 2… after the seq the writer passes, one writer at a time).
+  `Engine.queue` is a `JobQueueView`: the MCP server and the Studio read it, and the ratchet's `queue-call` rule keeps
+  the submit and the worker's writes inside `packages/engine/src`. No path in either. The behaviour is written once
+  (`queue-core.ts`) over a job's named entries; the file queue (`queue.ts` `FileJobQueue`, the files above) and an
+  in-memory queue (`memory-queue.ts`: tests of the code that is handed a queue) keep them, and one contract suite holds
+  both (`packages/engine/test/job-queue-contract.ts`). The paths are the file queue's file part (`JobFiles` — a job's
+  folder, job.json, browser.json, live.json, yield.json, events.jsonl), handed apart from the queue to the code that
+  reads or writes a job's files itself (the worker: a render's browser; the live channel; the Studio's live run through
+  `Engine.jobFiles`; the project board's stat memo). Only the composition roots build the file queue: the engine, the
+  worker, the job process and the CLI's `workspaceQueue` (its in-process commands read it so that their pruning spares
+  the folders of active jobs), plus the adapter's own `withOwnMemory()`; every other module is handed one (the
+  ratchet's `queue` rule). `<workspace>/.retake` and its jobs folder are named by `workspace-state.ts`; what an
+  interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`) keeps one record of everything it holds,
+  read and changed by module functions under four section comments: finish, recovery, claim and run.
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived

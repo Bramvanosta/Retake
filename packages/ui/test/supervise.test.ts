@@ -14,9 +14,9 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { JOB_KINDS } from '@retake/core';
 import type { JobKind } from '@retake/core';
-import { FileJobQueue, selfIdentity } from '@retake/engine';
-import type { JobRecord } from '@retake/engine';
-import { JOB_END_PER_MIN, PIPE_LINE_MAX, Supervisor, UnsavedBoard, jobOutcome, pendingLine, pipeKind } from '../src/index.js';
+import { FileJobQueue, openWorkspace, selfIdentity } from '@retake/engine';
+import type { JobQueueView, JobRecord } from '@retake/engine';
+import { JOB_END_PER_MIN, Live, PIPE_LINE_MAX, Supervisor, UnsavedBoard, jobOutcome, pendingLine, pipeKind } from '../src/index.js';
 import type { PipeOut } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
@@ -335,5 +335,47 @@ describe('the tables', () => {
       [o('sandbox_up', 'succeeded', {}), { outcome: 'succeeded' }],
     ];
     for (const [got, want] of rows) expect(got).toEqual(want);
+  });
+});
+
+describe('each watcher reads the engine\'s queue with a memory of its own', () => {
+  /** The engine's queue as the Studio is handed it: what was read on it itself, and each withOwnMemory asked of it. */
+  function engineQueue(): { queue: JobQueueView; reads: string[]; own: Array<string | undefined> } {
+    const base = new FileJobQueue(ws, 'retake -C /ws');
+    const reads: string[] = [];
+    const own: Array<string | undefined> = [];
+    const queue = new Proxy(base, {
+      get(t, k) {
+        if (k === 'withOwnMemory') return (cli?: string) => (own.push(cli), t.withOwnMemory(cli));
+        if (typeof k === 'string' && k !== 'root' && k !== 'cli') reads.push(k);
+        return Reflect.get(t, k, t);
+      },
+    });
+    return { queue, reads, own };
+  }
+
+  it('the supervisor\'s watch (Quit\'s pending jobs): one queue of its own, the default `retake` command, nothing read on the engine\'s', async () => {
+    await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v7' }, state: 'queued' });
+    const e = engineQueue();
+    const w = out();
+    const s = new Supervisor({ root: ws, queue: e.queue, board: new UnsavedBoard(join(ws, 'projects')), out: w.o, pollMs: 60_000, gapMs: 0, workerAlive: async () => true });
+    await s.nudge();
+    await sleep(30);
+    expect(w.parsed().at(-1)).toMatchObject({ type: 'pending', jobs_total: 1 });
+    expect({ own: e.own, reads: e.reads }).toEqual({ own: [undefined], reads: [] });
+    s.stop();
+  });
+
+  it('the Studio\'s live events: the job watch and the index each one of their own, nothing read on the engine\'s', async () => {
+    await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v8' }, state: 'queued' });
+    const e = engineQueue();
+    const logs: string[] = [];
+    const live = await Live.start({ ws: await openWorkspace({ root: ws }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
+    try {
+      expect(logs.filter((m) => /failed|could not/.test(m))).toEqual([]);
+      expect({ own: e.own, reads: e.reads }).toEqual({ own: [undefined, undefined], reads: [] });
+    } finally {
+      await live.close();
+    }
   });
 });

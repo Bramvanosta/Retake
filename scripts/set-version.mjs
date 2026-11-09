@@ -3,7 +3,8 @@
  * Move Retake's one version number (L5.16d review d B-M3, docs/guide/desktop-app.md "Releasing an update"): every file that carries it,
  * the same list packages/cli/test/app-bundle.test.ts "one version number" checks — the root and every package's
  * package.json, RETAKE_VERSION (core formats.ts), apps/desktop/tauri.conf.json, the Claude plugin's manifest, the
- * desktop crate's Cargo.toml and its Cargo.lock entry. Only the version field of each changes.
+ * desktop crate's Cargo.toml and its Cargo.lock entry. Only the version field of each changes. The documentation URLs
+ * of errors follow (core DOCS_BASE_URL: the root package.json's repository at the tag v<RETAKE_VERSION>).
  *
  *   node scripts/set-version.mjs 0.2.1          # write it everywhere
  *   node scripts/set-version.mjs --check        # list the files that disagree with the root package.json (exit 1)

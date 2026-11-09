@@ -36,6 +36,8 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | hook | — | a setup or teardown file (sql, http, js, sh) run around a capture; its rollbacks undo what it did | — |
 | sandbox | Sandbox | a disposable, local copy of the product (`sandbox.yaml`), reset to its seed before a take | — |
 | job · worker | — | work queued for the workspace's jobs worker (dry runs, captures, renders, reviews, exports, hooks, sign-ins) · the background process that runs them | — |
+| operation | — | one thing Retake does for a client, served by the `retake` command, the MCP server and / or the Studio (a dry run, a render, reading a project…); named by the MCP tool or Studio op that serves it, else by its command | `op` (the Studio server's ops, `UI_OPS`) |
+| catalogue | — | the operation catalogue: every operation once, with its kind (read, write, job, runs code, destructive) and which shells serve it, and why not (`packages/engine/src/catalogue.ts`) | — |
 | the Studio | — | the web app of a workspace (`retake ui`) and the desktop app around it | — |
 
 ## Homonyms

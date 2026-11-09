@@ -34,8 +34,9 @@ import type { LoadedProject, RunRecord, WorkspaceConfig } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobRecord } from './jobs/types.js';
-import { jobProject } from './jobs/queue.js';
-import type { FileJobs } from './jobs/queue.js';
+import { jobProject } from './jobs/queue-core.js';
+import type { JobQueueView } from './jobs/job-queue.js';
+import type { JobFiles } from './jobs/queue.js';
 import { RUN_ID_RE } from './refs.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
@@ -139,8 +140,9 @@ export interface RunPoster {
 
 export interface ProjectBoardContext {
   ws: WorkspaceConfig;
-  /** The queue with its file part: a job's record is memoised by its file's stat. */
-  queue: FileJobs;
+  queue: JobQueueView;
+  /** The queue's paths: a job's record is memoised by its file's stat (JobFiles.record). */
+  files: Pick<JobFiles, 'record'>;
   project(slug: string): Promise<LoadedProject>;
   /** The run's status with its job overlaid, for a run whose job is not in the board's queue pass (a pass cut short). */
   overlay(slug: string, run: { id: string; status: RunRecord['status'] }): Promise<ViewRunStatus>;
@@ -626,7 +628,7 @@ export class ProjectBoards {
     for (let i = ids.length - 1; i >= 0; i--) {
       if (jobs.length >= BOARD_JOBS_MAX) return { jobs, complete: false };
       const id = ids[i];
-      const sig = lsigSync(join(q.files.job(id), 'job.json'));
+      const sig = lsigSync(this.ctx.files.record(id));
       let held = this.jobMemo.get(id);
       if (!held || held.sig !== sig) {
         this.stats.jobs++;

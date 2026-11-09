@@ -6,6 +6,7 @@
  * names — and the CLI prints an error that has a kind as one line, without a stack. An error without one is a bug:
  * `internal`, its stack printed.
  */
+import { RETAKE_REPOSITORY, RETAKE_VERSION } from './formats.js';
 
 export const ERROR_KINDS = [
   /** No such project, scenario, run, persona, sandbox… */
@@ -63,8 +64,11 @@ export function sandboxErrorKind(code: string | undefined, message: string, othe
   return /^unknown|has no sandbox|not a sandbox/.test(message) ? 'not_found' : otherwise;
 }
 
-/** Where the repository's files are read on the web: a guide page's documentation URL is this followed by its path. */
-export const DOCS_BASE_URL = 'https://github.com/Bramvanosta/Retake/blob/main/';
+/**
+ * Where the repository's files are read on the web, as of this build's release tag (`v<RETAKE_VERSION>`: the guide as it
+ * was for this version, scripts/set-version.mjs moves both): a guide page's documentation URL is this followed by its path.
+ */
+export const DOCS_BASE_URL = `${RETAKE_REPOSITORY}/blob/v${RETAKE_VERSION}/`;
 
 /** The documentation URL of a guide page named by its repository path (`docs/guide/sandbox.md`); a URL stays as it is. */
 export function docsUrl(page: string): string {

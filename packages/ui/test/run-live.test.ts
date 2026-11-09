@@ -183,7 +183,7 @@ function jpeg(n: number, size = 4096): Buffer {
   return b;
 }
 const frame = (ch: LiveChannel, n: number, size?: number) => ch.sink.frame({ data: jpeg(n, size), width: 960, height: 540, at: Date.now(), page: 'console' });
-const channel = async (j: { run: string; job: string }) => openLiveChannel({ queue, jobId: j.job, runId: j.run, worker: await selfIdentity() });
+const channel = async (j: { run: string; job: string }) => openLiveChannel({ files: queue.files, jobId: j.job, runId: j.run, worker: await selfIdentity() });
 
 describe('POST /v1/live: the gate (S5)', () => {
   it('token, another page, method, content type, body cap and shape; an unknown run 404; at most 2 streams; never an op', async () => {

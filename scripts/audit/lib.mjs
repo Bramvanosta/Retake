@@ -1,5 +1,6 @@
 // The shared part of the import probes (read-only): one scan of `packages/*/src`, the layer rules, file cycles and the
-// two wiring rules (who builds the file job queue, who calls the process-wide setters), plus the ratchet that compares
+// wiring rules (who builds the file job queue, who submits to it or writes as its worker, who calls the process-wide
+// setters), plus the ratchet that compares
 // them with the committed baseline (scripts/audit/baseline.json). Used by imports.mjs, rules.mjs and the import-rules
 // test (packages/core/test/import-rules.test.ts), so the scripts and the test have one implementation.
 import fs from 'node:fs';
@@ -134,7 +135,8 @@ export const RULES = [
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
-  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI (and the adapter itself, for a reader); everything else is handed the JobQueue port' },
+  { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
+  { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
   { id: 'setter', title: 'the process-wide setters (useAgentPolicy, useWorkspaceFfmpeg, useWorkspaceRender) are used by packages/engine/src/workspace.ts only' },
 ];
 
@@ -229,26 +231,36 @@ export function ruleHits(root, fileImports, rules = RULES) {
 }
 
 const QUEUE_CLASS = 'FileJobQueue';
-/** Where the file job queue may be built: the composition roots, and the adapter's own file (its reader() makes one). */
-const QUEUE_ROOTS = ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts'];
-const queueRoot = (rel) => QUEUE_ROOTS.includes(rel) || rel.startsWith('packages/cli/src/');
+/**
+ * Where the file job queue may be built: the composition roots — the engine, the worker, the job process, and the CLI's
+ * workspaceQueue (its in-process commands read the queue so that their pruning spares the folders of active jobs) —
+ * and the adapter's own file (its withOwnMemory() makes one).
+ */
+const QUEUE_ROOTS = ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/workspace.ts'];
+const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
+/** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
+const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append']);
+const queueCallsAllowed = (rel) => rel.startsWith('packages/engine/src/');
 const SETTERS = ['useAgentPolicy', 'useWorkspaceFfmpeg', 'useWorkspaceRender'];
 const SETTER_HOME = 'packages/engine/src/workspace.ts';
 
 /**
  * The wiring rules, read from the syntax tree: outside the composition roots (QUEUE_ROOTS, the CLI), `new FileJobQueue(…)`, a class extending it and
  * any other use of the class as a value (`const Q = FileJobQueue`, a destructured `{ FileJobQueue }`, `ns.FileJobQueue`
- * passed on), under its own name, an import alias or `ns.name` (a type position is not a use); and any use of a
- * process-wide setter — a call or the function passed on as a value, under the same names — outside
- * packages/engine/src/workspace.ts. Declarations, imports and re-exports are not uses.
+ * passed on), under its own name, an import alias or `ns.name` (a type position is not a use); outside
+ * packages/engine/src, a call of the queue's submit or of a worker's write on something named `queue` (`queue.claim(…)`,
+ * `engine.queue.enqueue(…)`, `this.queue['write'](…)`); and any use of a process-wide setter — a call or the function
+ * passed on as a value, under the same names — outside packages/engine/src/workspace.ts. Declarations, imports and
+ * re-exports are not uses.
  */
 export function wiringHits(root, files) {
   const ts = loadTs(root);
   const hits = [];
   for (const { rel, text } of files) {
     const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
+    const calls = !queueCallsAllowed(rel) && text.includes('queue');
     const setters = rel !== SETTER_HOME && SETTERS.some((s) => text.includes(s));
-    if (!queue && !setters) continue;
+    if (!queue && !calls && !setters) continue;
     const sf = parse(ts, rel, text);
     const names = new Map([[QUEUE_CLASS, QUEUE_CLASS], ...SETTERS.map((s) => [s, s])]); // local name → original
     sf.forEachChild(function imports(n) {
@@ -284,6 +296,13 @@ export function wiringHits(root, files) {
         const shorthand = ts.isShorthandPropertyAssignment(n) && names.get(n.name.text) === QUEUE_CLASS;
         const aliased = ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference) && n.moduleReference.right.text === QUEUE_CLASS; // import Q = ns.FileJobQueue
         if (ref || destructured || indexed || shorthand || aliased) found.add(`queue:${QUEUE_CLASS} as a value`);
+      }
+      if (calls && ts.isCallExpression(n)) {
+        const callee = n.expression;
+        const method = ts.isPropertyAccessExpression(callee) ? callee.name.text : ts.isElementAccessExpression(callee) ? literal(ts, callee.argumentExpression) : undefined;
+        const on = ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee) ? callee.expression : undefined;
+        const queueNamed = !!on && ((ts.isIdentifier(on) && on.text === 'queue') || (ts.isPropertyAccessExpression(on) && on.name.text === 'queue'));
+        if (method && QUEUE_WRITES.has(method) && queueNamed) found.add(`queue-call:queue.${method}`);
       }
       if (setters && (ts.isIdentifier(n) || ts.isPropertyAccessExpression(n))) {
         const orig = nameOf(n);

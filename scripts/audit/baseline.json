@@ -215,15 +215,6 @@
   },
   {
    "rule": "cycle",
-   "reason": "The capture markers and the job queue use each other.",
-   "entries": [
-    "packages/engine/src/jobs/captures.ts → 2 imports inside its cycle",
-    "packages/engine/src/jobs/captures.ts → cycle of packages/engine/src/jobs/captures.ts",
-    "packages/engine/src/jobs/queue.ts → cycle of packages/engine/src/jobs/captures.ts"
-   ]
-  },
-  {
-   "rule": "cycle",
    "reason": "Approvals, comments, renders, pruning and the job runners import one another.",
    "entries": [
     "packages/engine/src/approvals.ts → 8 imports inside its cycle",

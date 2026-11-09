@@ -140,11 +140,27 @@ describe('the import-rules ratchet', () => {
     // Inside the engine too: a module is handed the queue (the JobQueue port), it does not build one.
     expect(wiring('packages/engine/src/jobs/a.ts', 'const q = new FileJobQueue(root);')).toEqual(['queue packages/engine/src/jobs/a.ts → new FileJobQueue']);
     expect(wiring('packages/engine/src/index-db/index-db.ts', 'const q = new FileJobQueue(ws.root);')).toEqual(['queue packages/engine/src/index-db/index-db.ts → new FileJobQueue']);
-    // The composition roots: the engine, the worker, the job process, the CLI's commands, and the adapter's own reader().
-    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/commands/a.ts']) {
+    // The composition roots: the engine, the worker, the job process, the CLI's workspaceQueue, and the adapter's own withOwnMemory().
+    for (const root of ['packages/engine/src/engine.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/jobs/job-child.ts', 'packages/engine/src/jobs/queue.ts', 'packages/cli/src/workspace.ts']) {
       expect(wiring(root, "import { FileJobQueue as Q } from '@retake/engine';\nconst q = new Q(root);"), root).toEqual([]);
     }
+    // A CLI command is handed the CLI's one queue (workspaceQueue), it does not build its own.
+    expect(wiring('packages/cli/src/commands/a.ts', "import { FileJobQueue } from '@retake/engine';\nconst q = new FileJobQueue(ws.root);")).toEqual(['queue packages/cli/src/commands/a.ts → new FileJobQueue']);
     expect(wiring('packages/ui/src/server/b.ts', "import type { FileJobQueue } from '@retake/engine';\nlet q: FileJobQueue;")).toEqual([]);
+  });
+
+  it('flags a submit or a worker\'s write on the job queue outside packages/engine/src, not a read nor a client\'s request', () => {
+    const at = (rel: string, text: string) => wiring(rel, text);
+    expect(at('packages/ui/src/server/a.ts', 'await engine.queue.enqueue(input);')).toEqual(['queue-call packages/ui/src/server/a.ts → queue.enqueue']);
+    expect(at('packages/mcp/src/tools/a.ts', "await queue.claim(id, me);\nawait queue.unclaim(id);\nawait this.queue['write'](rec);")).toEqual([
+      'queue-call packages/mcp/src/tools/a.ts → queue.claim',
+      'queue-call packages/mcp/src/tools/a.ts → queue.unclaim',
+      'queue-call packages/mcp/src/tools/a.ts → queue.write',
+    ]);
+    expect(at('packages/cli/src/commands/a.ts', 'await o.queue.setYield(id, null);\nawait queue.append(id, 0, []);')).toEqual(['queue-call packages/cli/src/commands/a.ts → queue.setYield', 'queue-call packages/cli/src/commands/a.ts → queue.append']);
+    // Reads and a client's requests are the view's: fine anywhere; the engine's own modules submit and write.
+    expect(at('packages/ui/src/server/a.ts', 'await engine.queue.list({});\nawait queue.cancel(id, by);\nawait queue.withOwnMemory().takeHold();\nawait other.write(x);')).toEqual([]);
+    expect(at('packages/engine/src/jobs/a.ts', 'await ctx.queue.enqueue(input);\nawait w.queue.write(rec);')).toEqual([]);
   });
 
   it('flags the file job queue class passed on as a value outside the composition roots, not its use as a type', () => {

@@ -182,9 +182,11 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
   let boards: ProjectBoards;
   let overlays = 0;
   const fresh = () => {
+    const queue = new FileJobQueue(ws);
     boards = new ProjectBoards({
       ws: wsc,
-      queue: new FileJobQueue(ws),
+      queue,
+      files: queue.files,
       project: (slug) => openProjectBySlug(wsc, slug),
       overlay: async (_slug, r) => {
         overlays++;

@@ -3,7 +3,7 @@
  * of every error class the packages raise on purpose, message cases included, so moving the mapping onto the classes
  * (each states its error kind) changed nothing. An error the tool did not raise on purpose is `internal`.
  */
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -16,6 +16,8 @@ import {
   EnvironmentError,
   H264EncoderError,
   HostRefusedError,
+  RETAKE_REPOSITORY,
+  RETAKE_VERSION,
   SandboxConfigError,
   ScenarioChangedError,
   ScenarioError,
@@ -145,10 +147,20 @@ describe('error kinds: stated by the classes', () => {
       expect(existsSync(resolve(repo, docs)), `${what}: ${docs}`).toBe(true);
     }
     expect(named).toBeGreaterThan(40);
-    expect(toEngineError(new SandboxError('busy', 'busy')).docs).toBe('https://github.com/Bramvanosta/Retake/blob/main/docs/guide/sandbox.md');
-    expect(toEngineError(new SandboxConfigError('x', [], '/s.yaml', 'local')).docs).toBe('https://github.com/Bramvanosta/Retake/blob/main/docs/guide/sandbox.md');
+    expect(toEngineError(new SandboxError('busy', 'busy')).docs).toBe(`${DOCS_BASE_URL}docs/guide/sandbox.md`);
+    expect(toEngineError(new SandboxConfigError('x', [], '/s.yaml', 'local')).docs).toBe(`${DOCS_BASE_URL}docs/guide/sandbox.md`);
     expect(toEngineError(new RunnerError('x')).docs).toBeUndefined();
     expect(docsUrl('https://example.com/x')).toBe('https://example.com/x');
+  });
+
+  it('the documentation URL is the repository of the root package.json at this version\'s release tag (one source of each)', () => {
+    const pkg = JSON.parse(readFileSync(resolve(__dirname, '../../../package.json'), 'utf8')) as { version: string; repository: { type: string; url: string } };
+    expect(pkg.repository.type).toBe('git');
+    const web = pkg.repository.url.replace(/^git\+/, '').replace(/\.git$/, '');
+    expect(web).toMatch(/^https:\/\/[^/]+\/[^/]+\/[^/]+$/);
+    expect(RETAKE_REPOSITORY).toBe(web);
+    expect(DOCS_BASE_URL).toBe(`${web}/blob/v${pkg.version}/`);
+    expect(RETAKE_VERSION).toBe(pkg.version);
   });
 });
 
@@ -184,5 +196,13 @@ describe('errors from another module copy', () => {
     expect(scenarioChangedConflict(engine, 'm')).toBe(engine);
     const other = new ComponentError('component "x" already exists');
     expect(scenarioChangedConflict(other, 'm')).toBe(other);
+    // A conflict whose hashes are not both strings is not a changed scenario: unchanged, whatever else it carries.
+    for (const [expected, actual] of [[1, 2], [a, undefined], [undefined, b], [a, { sha: b }], [null, null]] as const) {
+      const odd = Object.assign(new Error('x'), { errorKind: 'conflict', expected, actual });
+      expect(scenarioChangedConflict(odd, 'm'), JSON.stringify([expected, actual])).toBe(odd);
+    }
+    // Any error of kind `conflict` with both hashes reads as one (by kind and fields: the class name is not looked at).
+    const kinded = Object.assign(new Error('x'), { errorKind: 'conflict', expected: a, actual: b });
+    expect((scenarioChangedConflict(kinded, 'm') as EngineError).details).toEqual({ submitted: a, current: b });
   });
 });

@@ -504,8 +504,8 @@ describe('discard, cancel and one window at a time', () => {
     await q.write({ ...job0, state: 'running', started_at: now, worker: { pid: process.pid, host: 'h' }, progress: { steps_done: 0, steps_total: 0, phase: 'preflight', updated_at: now } });
     const r = keep(await ui.record.stop(PROJECT, pre, { job: job0.id }));
     expect(r.action).toBe('cancelled');
-    expect(await q.stopRequested(job0.id)).toBe(true);
-    expect(await q.cancelRequested(job0.id)).toBe(false);
+    expect(await q.stopOf(job0.id)).toMatchObject({ at: expect.any(String) });
+    expect(await q.cancelOf(job0.id)).toBeUndefined();
     expect(r.view.can.stop).toBe(false);
     await q.write({ ...job0, state: 'cancelled', started_at: now, finished_at: now });
     // The worker takes a job whose stop was asked as it was taken: nothing opens, nothing is kept, no folder.

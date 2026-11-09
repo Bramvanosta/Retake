@@ -18,7 +18,7 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, readPlainFile } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE } from '@retake/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput, WorkspaceConfig } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
@@ -30,6 +30,7 @@ import { isAlive } from './proc.js';
 import { signalablePid } from './signal.js';
 import type { ProcessIdentity } from './proc.js';
 import type { SubmitContext } from './run-job.js';
+import type { JobFileRead } from './job-queue.js';
 import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
@@ -309,23 +310,23 @@ export interface RenderJobContext {
   progress(p: JobProgress): void;
   /** The render browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
-  /** The job's folder (its edit.yaml snapshot, L4.5). */
-  jobDir?: string;
+  /** A file the submit added to the job, read through the queue (JobQueue.jobFile): its edit.yaml snapshot, L4.5. */
+  jobFile?: (name: string, maxBytes: number) => Promise<JobFileRead>;
 }
 
 /**
- * The scenario text a render job plans its edit from (L4.5, critique B5): the job folder's edit.yaml, read without
- * following a link, whose sha256 must be the job's `edit_sha256` (a conflict otherwise). Undefined when the job has no
- * edit of the file, or was queued by a build without snapshots (the worker then reads today's file, as before L4.5).
+ * The scenario text a render job plans its edit from (L4.5, critique B5): the job's edit.yaml, read through the queue
+ * without following a link, whose sha256 must be the job's `edit_sha256` (a conflict otherwise). Undefined when the job
+ * has no edit of the file, or was queued by a build without snapshots (the worker then reads today's file, as before L4.5).
  */
-export function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256'>, jobDir: string | undefined): string | undefined {
-  if (!input.edit_sha256 || !jobDir) return undefined;
-  const read = readPlainFile(join(jobDir, EDIT_SNAPSHOT_FILE), SCENARIO_EDIT_MAX_CHARS * 4);
+export async function renderJobEditText(input: Pick<RenderJobInput, 'edit_sha256'>, jobFile: RenderJobContext['jobFile']): Promise<string | undefined> {
+  if (!input.edit_sha256 || !jobFile) return undefined;
+  const read = await jobFile(EDIT_SNAPSHOT_FILE, SCENARIO_EDIT_MAX_CHARS * 4);
   if (!read.ok) {
     if (read.reason === 'missing') return undefined;
     throw new EngineError('conflict', `the scenario snapshot of this render (${EDIT_SNAPSHOT_FILE}) cannot be read (${read.reason}): submit the render again`);
   }
-  const text = read.bytes.toString('utf8');
+  const text = read.text;
   if (sha256Hex(text) !== input.edit_sha256) {
     throw new EngineError('conflict', `the scenario snapshot of this render (${EDIT_SNAPSHOT_FILE}) is not the version it was submitted with: submit the render again`);
   }
@@ -387,7 +388,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   }
   let editText: string | undefined;
   try {
-    editText = renderJobEditText(input, ctx.jobDir);
+    editText = await renderJobEditText(input, ctx.jobFile);
   } catch (e) {
     await releaseRenderLock(ctx.ws, input).catch(() => undefined);
     throw e;

@@ -1,10 +1,12 @@
 /**
- * The in-memory job queue (tests): the JobQueue port's behaviour (queue-core.ts) over a map instead of a job folder —
- * no file, no path. The contract suite (packages/engine/test/job-queue-contract.ts) holds it to the file queue's
- * behaviour. Approvals are still signed with the Retake home's key for `root` (signing.ts), and the derived states still
- * look at the recorded processes (proc.ts), as the file queue does.
+ * The in-memory job queue: the JobQueue port's behaviour (queue-core.ts) over a map instead of a job folder — no file,
+ * no path. It exists for the tests of the code that is handed a queue (pruning, a watcher, a job's markers): they build
+ * the jobs they need without a workspace's .retake/jobs, and without a worker. It is also the second adapter that keeps
+ * the port honest: the contract suite (packages/engine/test/job-queue-contract.ts) holds it to the file queue's
+ * behaviour, so nothing of the port may need a path. Approvals are still signed with the Retake home's key for `root`
+ * (signing.ts), and the derived states still look at the recorded processes (proc.ts), as the file queue does.
  */
-import type { TakeHold } from './job-queue.js';
+import type { JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
 
@@ -42,12 +44,14 @@ class MemoryEntries implements JobEntries {
     return this.job(id)?.get(name)?.text;
   }
 
-  async mtime(id: string, name: string): Promise<string | undefined> {
-    return this.job(id)?.get(name)?.at;
+  async readPlain(id: string, name: string, max: number): Promise<JobFileRead> {
+    const text = this.job(id)?.get(name)?.text;
+    if (text === undefined) return { ok: false, reason: 'missing' };
+    return Buffer.byteLength(text) > max ? { ok: false, reason: 'too_large' } : { ok: true, text };
   }
 
-  async exists(id: string, name: string): Promise<boolean> {
-    return this.job(id)?.has(name) ?? false;
+  async mtime(id: string, name: string): Promise<string | undefined> {
+    return this.job(id)?.get(name)?.at;
   }
 
   async create(id: string, name: string, text: string): Promise<boolean> {
@@ -80,11 +84,16 @@ class MemoryEntries implements JobEntries {
 export interface MemoryJobQueueOptions {
   /** How the commands a human is asked to run start (default "retake"). */
   cli?: string;
-  /** What a filming marker of this user holds (default: nothing). */
-  filming?: () => Promise<TakeHold>;
+  /**
+   * What a filming marker of this user holds (default: nothing): a new source for each queue and each of its
+   * withOwnMemory() queues — each its own memory of the takes, as each file queue has its own marker watch.
+   */
+  filming?: () => () => Promise<TakeHold>;
 }
 
 export class MemoryJobQueue extends StoredJobQueue {
+  private readonly hold: (() => Promise<TakeHold>) | undefined;
+
   /** `root`: the workspace the approvals are signed for. */
   constructor(
     root: string,
@@ -92,13 +101,15 @@ export class MemoryJobQueue extends StoredJobQueue {
     entries: JobEntries = new MemoryEntries(),
   ) {
     super(root, o.cli ?? 'retake', entries);
+    this.hold = o.filming?.();
   }
 
-  reader(): MemoryJobQueue {
-    return new MemoryJobQueue(this.root, this.o, this.entries);
+  /** The same jobs (one map), no finished job seen yet and a filming source of its own. */
+  withOwnMemory(cli = 'retake'): MemoryJobQueue {
+    return new MemoryJobQueue(this.root, { ...this.o, cli }, this.entries);
   }
 
   protected async filming(): Promise<TakeHold> {
-    return this.o.filming ? this.o.filming() : undefined;
+    return this.hold ? this.hold() : undefined;
   }
 }

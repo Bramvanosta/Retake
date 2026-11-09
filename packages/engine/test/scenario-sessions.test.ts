@@ -169,7 +169,7 @@ describe('the headed sign-in of a job', () => {
     expect(e.code).toBe('refused');
     expect(e.message).toContain('not a sign-in');
     const queue = new FileJobQueue(root);
-    expect(await queue.cancelRequested(run.job.id)).toBe(false);
+    expect(await queue.cancelOf(run.job.id)).toBeUndefined();
     expect((await queue.get(run.job.id))?.state).toBe('queued');
     expect((await refusal(engine.auth.cancelSignIn('j_00000000000000000000000000'))).code).toBe('not_found');
   });

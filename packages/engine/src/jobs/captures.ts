@@ -32,7 +32,7 @@ import { isAbsolute, join } from 'node:path';
 import { readPlainFile, retakeHome, ulid } from '@retake/core';
 import type { ProcessIdentity } from './proc.js';
 import { processStart } from './proc.js';
-import { stateDir } from './queue.js';
+import { stateDir } from '../workspace-state.js';
 
 /** How often an owner rewrites its marker's time (ms). */
 export const BEAT_MS = 2_000;

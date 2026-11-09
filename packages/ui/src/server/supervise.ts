@@ -30,7 +30,7 @@
 import { access } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JobsWatch, liveWorker } from '@retake/engine';
-import type { JobQueue, JobRecord } from '@retake/engine';
+import type { JobQueueView, JobRecord } from '@retake/engine';
 import type { UnsavedBoard, UnsavedItem } from './unsaved.js';
 import type { DesktopPipe } from './desktop.js';
 
@@ -214,8 +214,8 @@ export interface PipeOut {
 
 export interface SupervisorOptions {
   root: string;
-  /** The engine's job queue (Engine.queue): the supervisor's watch reads it as a reader of its own. */
-  queue: JobQueue;
+  /** The engine's job queue (Engine.queue): the supervisor's watch reads it with a memory of its own (withOwnMemory). */
+  queue: JobQueueView;
   /** The workspace's projects folder (names are kept only for what exists there); default `<root>/projects`. */
   projectsDir?: string;
   board: UnsavedBoard;
@@ -250,7 +250,7 @@ export class Supervisor {
   written = 0;
 
   constructor(private readonly o: SupervisorOptions) {
-    this.watch = new JobsWatch(o.queue.reader());
+    this.watch = new JobsWatch(o.queue.withOwnMemory());
     this.unsubscribe = o.board.onChange(() => this.schedulePush());
   }
 
@@ -423,7 +423,7 @@ export class Supervisor {
  * `server.close()` (which stops it first), polls again after each Studio write op.
  */
 export function startSupervisor(o: {
-  server: { engine: { workspace: { root: string; projectsDir: string }; queue: JobQueue }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
+  server: { engine: { workspace: { root: string; projectsDir: string }; queue: JobQueueView }; unsaved: UnsavedBoard; desktop?: DesktopPipe; onWrite(f: () => void): () => void; close(): Promise<void> };
   out: PipeOut;
   pollMs?: number;
   log?: (message: string) => void;

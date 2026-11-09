@@ -52,7 +52,7 @@ import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
 import { openProject } from '../workspace.js';
 import { newJobId } from './ids.js';
-import type { JobQueue } from './job-queue.js';
+import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import { verifiedApprovals } from './signing.js';
 import type { JobEventBody, JobProgress, JobRecord, SiteCandidateResult, SiteJobResult } from './types.js';
@@ -208,7 +208,7 @@ export async function siteHostConflicts(ws: WorkspaceConfig, host: string): Prom
 }
 
 /** The extractions whose job is queued or running (their folders are in use). */
-async function activeSites(queue: JobQueue): Promise<string[]> {
+async function activeSites(queue: JobQueueView): Promise<string[]> {
   const jobs = await queue.list({ kinds: ['site'], states: ['queued', 'running'], limit: 10_000 });
   return jobs.flatMap((j) => (j.input.kind === 'site' ? [j.input.site_id] : []));
 }
@@ -217,7 +217,7 @@ async function activeSites(queue: JobQueue): Promise<string[]> {
  * Keep the newest `keep` extraction folders (ids sort by creation); `except` and the folders of the jobs queued or
  * running in `queue` (the workspace's) are never removed.
  */
-export async function pruneSites(ws: WorkspaceConfig, queue: JobQueue, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
+export async function pruneSites(ws: WorkspaceConfig, queue: JobQueueView, keep = SITE_KEEP, except: readonly string[] = []): Promise<string[]> {
   const active = await activeSites(queue).catch(() => null);
   if (active === null) return [];
   const spared = new Set([...except, ...active]);
@@ -276,7 +276,7 @@ export interface SiteJobContext {
   ws: WorkspaceConfig;
   cli: string;
   /** The workspace's job queue (the folders of extractions queued or running are never pruned). */
-  queue: JobQueue;
+  queue: JobQueueView;
   /** The job's id: its approval is signed for it (signing.ts). */
   jobId: string;
   input: SiteJobInput;
@@ -428,7 +428,7 @@ export async function executeSiteJob(ctx: SiteJobContext): Promise<SiteJobResult
  * `retake theme from-site <url>` (trust `author`): the same extraction in-process, never a job and never an approval
  * (the human typed the URL). The same network rules; an environment page or a protected host is a warning here.
  */
-export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { queue: JobQueue; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
+export async function extractSiteForAuthor(ws: WorkspaceConfig, rawUrl: string, o: { queue: JobQueueView; signal?: AbortSignal; onPhase?: (phase: string) => void }): Promise<SiteJobResult> {
   const url = checkSiteUrl(rawUrl);
   const conflicts = await siteHostConflicts(ws, url.host);
   const id = newSiteId();

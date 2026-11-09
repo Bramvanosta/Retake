@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { RETAKE_VERSION, engineLocation } from '@retake/core';
 import { isAlive, processStart, selfIdentity } from './proc.js';
 import type { ProcessIdentity } from './proc.js';
-import { stateDir } from './queue.js';
+import { stateDir } from '../workspace-state.js';
 
 export interface WorkerLockRecord extends ProcessIdentity {
   host: string;
