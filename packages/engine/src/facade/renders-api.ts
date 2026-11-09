@@ -1,5 +1,5 @@
 /**
- * The façade's production sub-APIs (createEngine): `renders` (plan, submit — the admission rules —, status, a scenario's
+ * The façade's pipeline sub-APIs (createEngine): `renders` (plan, submit — the admission rules —, status, a scenario's
  * renders, frames and outlines), `timeline` (the timeline view), `reviews` (submit, read, images), `exports` (submit).
  */
 import { submitRenderJob } from '../jobs/render-job.js';

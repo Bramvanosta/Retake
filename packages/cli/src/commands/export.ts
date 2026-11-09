@@ -1,8 +1,8 @@
 import { resolve } from 'node:path';
 import { EXPORT_FORMAT_NAMES } from '@retake/core';
-import { DEFAULT_JOB_EXPORT_FORMATS, editorErrorOf, exportInProcess, findRenderOf } from '@retake/engine';
+import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
-import { CliError, EXIT, UsageError } from '../errors.js';
+import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
@@ -57,13 +57,8 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
   // Captures first (L5.14): the render is the one named now ("latest" resolved before any wait, critique M10).
-  let render: string;
-  try {
-    render = renderArg === 'latest' ? (await findRenderOf(project, renderArg, opts.scenario)).id : renderArg;
-  } catch (e) {
-    if (await editorErrorOf(e)) throw new CliError((e as Error).message);
-    throw e;
-  }
+  // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
+  const render = renderArg === 'latest' ? (await findRenderOf(project, renderArg, opts.scenario)).id : renderArg;
   const gate = await heavyGate(ui, { root: ws.root, what: 'exporting', noWait: opts.wait === false });
   if (gate.waited) ui.info(`exporting render ${render}`);
   const ac = new AbortController();
@@ -109,7 +104,6 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
     return r.failures.length > 0 ? EXIT.failure : EXIT.ok;
   } catch (e) {
     ui.clearStatus();
-    if (await editorErrorOf(e)) throw new CliError((e as Error).message);
     throw e;
   } finally {
     process.removeListener('SIGINT', onSigint);

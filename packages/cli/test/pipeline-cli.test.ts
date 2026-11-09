@@ -1,16 +1,18 @@
 /**
- * What the production commands print, exit with and record — `retake render`, `still`, `export`, `review`, `run` and
- * `inspect` — held byte for byte against fixtures/production-cli.json: stdout, stderr, the exit code and the lines each
- * one adds to the workspace's history and journal (.retake/history.jsonl, .retake/journal.jsonl). The heavy steps are
+ * What the pipeline's commands print, exit with and record — `retake render`, `still`, `export`, `review`, `run` and
+ * `inspect` — held byte for byte against fixtures/pipeline-cli.json: stdout, stderr, the exit code and the lines each
+ * one adds to the workspace's history and journal (.retake/history.jsonl, .retake/journal.jsonl). The heavy calls are
  * replaced at their package boundary (the editor's renderVideo / renderStill / planRun / exportRender, the review's
  * reviewRender, the runner's runScenario) with fixed results, so no browser, capture or render runs; everything between
- * the command line and those steps (the options, the run and render lookups, the summaries, the errors, the history
- * lines) is the real code. A refactor of the CLI or of the engine operations it calls keeps every case; a change of what
- * a command prints or records changes some. After an intended change: RETAKE_WRITE_SNAPSHOTS=1 on this file, then
- * review the diff. Times (`… ms`, `… s` of a clock), the workspace path and the time of a history line are normalised.
+ * the command line and those calls (the options, the run and render lookups, the summaries, the errors, the history
+ * lines, the pruning of older inspections) is the real code. A refactor of the CLI or of the engine functions it calls
+ * keeps every case; a change of what a command prints or records changes some. After an intended change:
+ * RETAKE_WRITE_SNAPSHOTS=1 on this file, then review the diff. Only what a clock measures is normalised (the time a
+ * command prints after its output's path, a run's `in … ·`, the time and duration of a history line), with the
+ * workspace path; the times of the fixed results (a record's timings, an export's or a step's ms) are kept as printed.
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,8 +25,8 @@ const fakes = vi.hoisted(() => ({
   exportRender: undefined as unknown as (o: Record<string, unknown>) => Promise<unknown>,
   reviewRender: undefined as unknown as (o: Record<string, unknown>) => Promise<unknown>,
   runScenario: undefined as unknown as (o: Record<string, unknown>) => Promise<unknown>,
-  /** The options each replaced step was called with, in order (paths normalised by the test). */
-  calls: [] as Array<{ step: string; options: Record<string, unknown> }>,
+  /** The options each replaced call was made with, in order (paths normalised by the test). */
+  calls: [] as Array<{ call: string; options: Record<string, unknown> }>,
   /** Names made at run time (an inspection's id), replaced by a placeholder. */
   volatile: [] as string[],
 }));
@@ -48,10 +50,11 @@ vi.mock('@retake/runner-web', async (importOriginal) => {
   return { ...real, runScenario: (o: Record<string, unknown>) => fakes.runScenario(o) };
 });
 
-import { RenderCancelledError, RenderError } from '@retake/editor';
+import { ExportError, RenderCancelledError, RenderError } from '@retake/editor';
+import { INSPECT_KEEP } from '@retake/engine';
 import { EXIT, main, memoryIo } from '../src/index.js';
 
-const FILE = fileURLToPath(new URL('./fixtures/production-cli.json', import.meta.url));
+const FILE = fileURLToPath(new URL('./fixtures/pipeline-cli.json', import.meta.url));
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const RUN_ID = '20260101-120000-tour';
 let ws: string;
@@ -63,7 +66,7 @@ interface Case {
   err: string;
   history: string[];
   journal: string[];
-  calls: Array<{ step: string; options: Record<string, unknown> }>;
+  calls: Array<{ call: string; options: Record<string, unknown> }>;
 }
 const results: Record<string, Case> = {};
 
@@ -75,17 +78,20 @@ const lines = async (file: string): Promise<string[]> => {
   }
 };
 
-/** The workspace path, clock times and the time of a history line, made stable. */
+/** A time as formatMs prints it ("850 ms", "1.7 s", "2 m 05 s"). */
+const SPAN = String.raw`(?:\d+ ms|\d+\.\d s|\d+ m \d\d s)`;
+
+/**
+ * The workspace path and the times a clock measured, made stable: the time a command prints after the path of what it
+ * wrote (`still`, `export`) and a run's `in … ·` (its summary). Every other time comes from the fixed results: kept.
+ */
 function normalise(text: string): string {
   let t = text.split(ws).join('<ws>');
   for (const v of fakes.volatile) t = t.split(v).join('<id>');
-  return t
-    .replace(/\b\d+ ms\b/g, '<t>')
-    .replace(/\b\d+\.\d s\b/g, '<t>')
-    .replace(/\b\d+ m \d\d s\b/g, '<t>');
+  return t.replace(new RegExp(String.raw`(<ws>\S*) ${SPAN}$`, 'gm'), '$1 <t>').replace(new RegExp(String.raw`\bin ${SPAN} ·`, 'g'), 'in <t> ·');
 }
 
-/** A history line with its time (and, for the steps timed by the command itself, its duration) made stable. */
+/** A history line with its time (and, for the work timed by the command itself, its duration) made stable. */
 function normaliseHistory(line: string): string {
   const kind = /"kind":"([a-z]+)"/.exec(line)?.[1];
   let l = normalise(line);
@@ -94,7 +100,7 @@ function normaliseHistory(line: string): string {
   return l;
 }
 
-/** What the replaced steps were called with: plain data only (functions and signals named, paths normalised). */
+/** What the replaced calls were made with: plain data only (functions and signals named, paths normalised). */
 function callShape(options: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(options).sort(([a], [b]) => a.localeCompare(b))) {
@@ -123,7 +129,7 @@ async function retake(name: string, ...args: string[]): Promise<Case> {
     err: normalise(io.stderr()),
     history: (await lines(history)).slice(h0).map(normaliseHistory),
     journal: (await lines(journal)).slice(j0).map((l) => normalise(l).replace(/"at":"[^"]+"/, '"at":"<at>"')),
-    calls: fakes.calls.map((x) => ({ step: x.step, options: callShape(x.options) })),
+    calls: fakes.calls.map((x) => ({ call: x.call, options: callShape(x.options) })),
   };
   results[name] = c;
   return c;
@@ -254,7 +260,7 @@ function inspectReport(file: string) {
 }
 
 beforeAll(async () => {
-  ws = await mkdtemp(join(tmpdir(), 'retake-production-cli-'));
+  ws = await mkdtemp(join(tmpdir(), 'retake-pipeline-cli-'));
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   const made = await main(['node', 'retake', '--root', ws, 'new', 'demo', '--name', 'Demo product', '--env', 'staging=app:http://app.example.test'], memoryIo());
   expect(made).toBe(EXIT.ok);
@@ -266,7 +272,7 @@ beforeAll(async () => {
   await mkdir(join(projectDir, 'renders'), { recursive: true });
   await writeFile(join(projectDir, 'renders', 'tour-v1.json'), JSON.stringify(renderRecord('tour-v1')));
   fakes.renderVideo = async (o) => {
-    fakes.calls.push({ step: 'renderVideo', options: o });
+    fakes.calls.push({ call: 'renderVideo', options: o });
     const onProgress = o.onProgress as ((p: unknown) => void) | undefined;
     onProgress?.({ stage: 'planning', progress: 1, overall: 0.05 });
     onProgress?.({ stage: 'bundling', progress: 1, overall: 0.1, cached: true });
@@ -275,13 +281,13 @@ beforeAll(async () => {
     onProgress?.({ stage: 'done', progress: 1, overall: 1 });
     return renderRecord('tour-v2', { warnings: ['music: none'] });
   };
-  fakes.renderStill = async (o) => void fakes.calls.push({ step: 'renderStill', options: o });
+  fakes.renderStill = async (o) => void fakes.calls.push({ call: 'renderStill', options: o });
   fakes.planRun = async (o) => {
-    fakes.calls.push({ step: 'planRun', options: o });
+    fakes.calls.push({ call: 'planRun', options: o });
     return { plan: PLAN, run: { id: RUN_ID, dir: runDir }, registry: {}, timeline: { scenario: 'tour' }, edit: { from: 'run' } };
   };
   fakes.exportRender = async (o) => {
-    fakes.calls.push({ step: 'exportRender', options: o });
+    fakes.calls.push({ call: 'exportRender', options: o });
     const dir = join(projectDir, 'exports', String(o.render));
     const formats = o.formats as string[];
     const outputs = formats.map((format) => ({
@@ -300,11 +306,11 @@ beforeAll(async () => {
     return { render: o.render, dir, manifest: join(dir, 'manifest.json'), master: { width: 1920, height: 1080, duration_s: 2 }, outputs, failures: [] };
   };
   fakes.reviewRender = async (o) => {
-    fakes.calls.push({ step: 'reviewRender', options: o });
+    fakes.calls.push({ call: 'reviewRender', options: o });
     return reviewResult(String(o.render));
   };
   fakes.runScenario = async (o) => {
-    fakes.calls.push({ step: 'runScenario', options: o });
+    fakes.calls.push({ call: 'runScenario', options: o });
     const inspect = o.inspect as { onResult?: (r: unknown) => void } | undefined;
     if (inspect) {
       fakes.volatile.push(String(o.runId));
@@ -325,7 +331,7 @@ afterAll(async () => {
   if (ws) await rm(ws, { recursive: true, force: true });
 });
 
-describe('the production commands, held against fixtures/production-cli.json', () => {
+describe('the pipeline commands, held against fixtures/pipeline-cli.json', () => {
   it('render: the summary, --json with --review, an unknown run, a cancelled render', async () => {
     expect((await retake('render', 'render', 'demo', 'tour', '--concurrency', '2', '--no-music')).code).toBe(EXIT.ok);
     expect((await retake('render --json --review', 'render', 'demo', 'tour', '--json', '--review', '--vertical')).code).toBe(EXIT.ok);
@@ -369,7 +375,7 @@ describe('the production commands, held against fixtures/production-cli.json', (
     expect((await retake('run --dry --json', 'run', 'demo', 'tour', '--dry', '--json')).code).toBe(EXIT.ok);
     const keep = fakes.runScenario;
     fakes.runScenario = async (o) => {
-      fakes.calls.push({ step: 'runScenario', options: o });
+      fakes.calls.push({ call: 'runScenario', options: o });
       const run = runRecord({ status: 'failed', steps_done: 0, error: { message: 'target "Save" not found', scene: 'home', step: 0, action: 'hold' } });
       return run;
     };
@@ -383,6 +389,70 @@ describe('the production commands, held against fixtures/production-cli.json', (
     expect((await retake('inspect', 'inspect', 'demo', 'app', '--images', 'none')).code).toBe(EXIT.ok);
     expect((await retake('inspect --json', 'inspect', 'demo', 'tour', '--images', 'none', '--json')).code).toBe(EXIT.ok);
     expect((await retake('inspect unknown', 'inspect', 'demo', 'nowhere')).code).toBe(EXIT.usage);
+  });
+
+  it('render: a Ctrl-C cancels it; still: a plan or a frame that fails', async () => {
+    const keep = { renderVideo: fakes.renderVideo, planRun: fakes.planRun, renderStill: fakes.renderStill };
+    // Ctrl-C while the render runs: the command's own SIGINT listener (the one added since) aborts the render's signal.
+    const known = new Set(process.listeners('SIGINT'));
+    fakes.renderVideo = async (o) => {
+      fakes.calls.push({ call: 'renderVideo', options: o });
+      for (const l of process.listeners('SIGINT')) if (!known.has(l)) (l as () => void)();
+      if ((o.signal as AbortSignal).aborted) throw new RenderCancelledError();
+      return keep.renderVideo(o);
+    };
+    expect((await retake('render ctrl-c', 'render', 'demo', 'tour')).code).toBe(EXIT.failure);
+    fakes.renderVideo = keep.renderVideo;
+    fakes.planRun = async (o) => {
+      fakes.calls.push({ call: 'planRun', options: o });
+      throw new RenderError('no capture of "tour" yet: run it first');
+    };
+    expect((await retake('still plan failed', 'still', 'demo', 'tour', '--frame', '3')).code).toBe(EXIT.failure);
+    fakes.planRun = keep.planRun;
+    fakes.renderStill = async (o) => {
+      fakes.calls.push({ call: 'renderStill', options: o });
+      throw new RenderError('the frame could not be drawn');
+    };
+    expect((await retake('still failed', 'still', 'demo', 'tour', '--frame', '3')).code).toBe(EXIT.failure);
+    fakes.renderStill = keep.renderStill;
+  });
+
+  it('export: a format that failed (exit 1), an export that cannot start, a cancelled re-render', async () => {
+    const keep = fakes.exportRender;
+    fakes.exportRender = async (o) => {
+      const r = (await keep(o)) as { outputs: Array<{ format: string }> };
+      return { ...r, outputs: r.outputs.filter((x) => x.format !== 'gif_preview'), failures: [{ format: 'gif_preview', error: 'ffmpeg failed: invalid frame size' }] };
+    };
+    expect((await retake('export failures', 'export', 'demo', 'tour-v1', '--formats', 'webm,gif_preview')).code).toBe(EXIT.failure);
+    fakes.exportRender = async (o) => {
+      fakes.calls.push({ call: 'exportRender', options: o });
+      throw new ExportError('render "tour-v9" not found in renders/');
+    };
+    expect((await retake('export cannot start', 'export', 'demo', 'tour-v9', '--formats', 'webm')).code).toBe(EXIT.failure);
+    fakes.exportRender = async (o) => {
+      fakes.calls.push({ call: 'exportRender', options: o });
+      throw new RenderCancelledError();
+    };
+    expect((await retake('export cancelled', 'export', 'demo', 'tour-v1', '--formats', 'vertical_9x16')).code).toBe(EXIT.failure);
+    fakes.exportRender = keep;
+  });
+
+  it('inspect: the oldest of INSPECT_KEEP + 1 inspections removed; none with --out', async () => {
+    const root = join(projectDir, '.retake', 'inspect');
+    const folders = async () => (await readdir(root).catch(() => [] as string[])).sort();
+    const seeded = Array.from({ length: INSPECT_KEEP + 1 }, (_, i) => `i_${String(i).padStart(26, '0')}`);
+    for (const id of seeded) await mkdir(join(root, id), { recursive: true });
+    const before = await folders();
+    expect(before).toEqual(expect.arrayContaining(seeded));
+    // --out: the inspection's files go elsewhere, the project's inspections stay as they are.
+    expect((await retake('inspect --out', 'inspect', 'demo', 'app', '--images', 'none', '--out', join(ws, 'inspected'))).code).toBe(EXIT.ok);
+    expect(await folders()).toEqual(before);
+    // Into the project: only the newest INSPECT_KEEP stay (the inspection made now is the newest).
+    expect((await retake('inspect pruned', 'inspect', 'demo', 'app', '--images', 'none')).code).toBe(EXIT.ok);
+    const after = await folders();
+    expect(after).not.toContain(seeded[0]);
+    expect(after).toEqual(before.filter((n) => n !== seeded[0]));
+    expect(after.length).toBe(INSPECT_KEEP);
   });
 
   it('the help of each command', async () => {

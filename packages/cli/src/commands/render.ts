@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
 import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
-import { defaultStillFile, editorErrorOf, findRunOf, planStep, renderInProcess, stillInProcess } from '@retake/engine';
+import { defaultStillFile, editorErrorOf, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
 import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -127,12 +127,6 @@ function abortOnSigint(ui: Ui): { signal: AbortSignal; dispose: () => void } {
   return { signal: controller.signal, dispose: () => process.removeListener('SIGINT', onSigint) };
 }
 
-/** An error of the editor's render API (a failed or cancelled render, an unknown run, a plan that cannot be made). */
-async function isRenderError(e: unknown): Promise<boolean> {
-  const kind = await editorErrorOf(e);
-  return kind === 'render' || kind === 'render_cancelled';
-}
-
 /** "h264 VideoToolbox 8M", "h264 crf 16" (L5.15: the encoder of the record). */
 export function encodingWords(r: Pick<RenderRecord, 'encoding'>): string {
   const e = r.encoding;
@@ -203,13 +197,8 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   if (opts.tutorial !== undefined) overrides.tutorial = opts.tutorial;
   await warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
   // Captures first (L5.14): the run is the one named now ("latest" resolved before any wait, critique M10).
-  let runId: string;
-  try {
-    runId = (await findRunOf(project, opts.run ?? 'latest', scenario)).id;
-  } catch (e) {
-    if (await isRenderError(e)) throw new CliError((e as Error).message);
-    throw e;
-  }
+  // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
+  const runId = (await findRunOf(project, opts.run ?? 'latest', scenario)).id;
   const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering run ${runId}`);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
@@ -251,9 +240,8 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
     return EXIT.ok;
   } catch (e) {
     printer?.done();
-    const kind = await editorErrorOf(e);
-    if (kind === 'render_cancelled') throw new CliError('render cancelled: nothing was written');
-    if (kind === 'render') throw new CliError((e as Error).message);
+    // A cancelled render in the CLI's words; any other error as it is.
+    if ((await editorErrorOf(e)) === 'render_cancelled') throw new CliError('render cancelled: nothing was written');
     throw e;
   } finally {
     dispose();
@@ -272,23 +260,16 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   const overrides: EditOverrides = {};
   if (variant) overrides.variant = variant;
   if (opts.layout) overrides.frame = opts.layout;
-  let planned;
-  try {
-    planned = await planStep({
-      workPolicy: ws.policy,
-      project,
-      run: opts.run ?? 'latest',
-      scenario,
-      ...(opts.theme ? { template: opts.theme } : {}),
-      overrides,
-      root: ws.root,
-      measureMusic: false,
-    });
-  } catch (e) {
-    if (await isRenderError(e)) throw new CliError((e as Error).message);
-    throw e;
-  }
-  const { plan, run, registry } = planned;
+  const { plan, run, registry } = await planWork({
+    workPolicy: ws.policy,
+    project,
+    run: opts.run ?? 'latest',
+    scenario,
+    ...(opts.theme ? { template: opts.theme } : {}),
+    overrides,
+    root: ws.root,
+    measureMusic: false,
+  });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out ? resolve(opts.out) : await defaultStillFile(project, scenario, plan.variant, frame);
   // Captures first (L5.14): the run was planned (resolved) before any wait.
@@ -299,9 +280,6 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
   try {
     // The still, then its line of the workspace's history (a still is a render too).
     await stillInProcess({ workPolicy: ws.policy, plan, frame, out, root: ws.root, registry, project });
-  } catch (e) {
-    if (await isRenderError(e)) throw new CliError((e as Error).message);
-    throw e;
   } finally {
     ui.clearStatus();
     await gate.dispose();

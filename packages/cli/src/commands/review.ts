@@ -1,6 +1,6 @@
 import type { Finding, ReviewProgress } from '@retake/review';
 import { environmentLine, findingLine, summaryLine } from '@retake/review';
-import { findRenderOf, reviewStep } from '@retake/engine';
+import { findRenderOf, reviewWork } from '@retake/engine';
 import type { ReviewResult } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -63,10 +63,10 @@ export function printReview(ui: Ui, r: ReviewResult): void {
 /** Run a review with a status line; returns the result. */
 export async function runReview(
   ui: Ui,
-  opts: { policy: WorkPolicy; project: Parameters<typeof reviewStep>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
+  opts: { policy: WorkPolicy; project: Parameters<typeof reviewWork>[0]['project']; root: string; render: string; scenario?: string; fps?: 1 | 2; previous?: string | false; quiet?: boolean },
 ): Promise<ReviewResult> {
   try {
-    return await reviewStep({
+    return await reviewWork({
       policy: opts.policy,
       project: opts.project,
       root: opts.root,

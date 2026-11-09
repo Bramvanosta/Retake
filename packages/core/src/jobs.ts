@@ -314,6 +314,9 @@ export const ReviewJobInputSchema = z.strictObject({
 /** Delivery formats of an export (the editor's EXPORT_FORMATS). */
 export const EXPORT_FORMAT_NAMES = ['mp4_1080p', 'mp4_4k', 'webm', 'vertical_9x16', 'square_1x1', 'gif_preview'] as const;
 
+/** The formats of an export that names none: the ones derived from the master (no re-render) — the editor's and the jobs'. */
+export const DEFAULT_EXPORT_FORMAT_NAMES: readonly ExportFormatName[] = ['mp4_1080p', 'webm', 'gif_preview'];
+
 /**
  * An export (L3.2): delivery files of a render in exports/<render_id>/ (+ manifest.json), transcoded from the master or
  * re-rendered (vertical, square, 4K) by the worker under the trust rules of a render job. No output location: the

@@ -87,9 +87,10 @@ export { signalInterrupts } from './interrupts.js';
 export type { InterruptOptions, InterruptPort, InterruptScope } from './interrupts.js';
 export { RunOptionError, SandboxTakeError, checkAllowWrites, checkSandboxEnv, executeRun, pickSandboxEnv, prepareRun, writesSummary } from './execute-run.js';
 export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './execute-run.js';
-export { defaultStillFile, editorErrorOf, exportStep, findRenderOf, findRunOf, planStep, renderStep, reviewStep, stillStep } from './production.js';
+// The pipeline calls a shell makes itself (renderWork / stillWork / exportWork: through the in-process functions below).
+export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork } from './pipeline.js';
 export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
-export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './production.js';
+export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './pipeline.js';
 export { newJobId } from './jobs/ids.js';
 export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, JobQueueView, TakeHold, YieldMark } from './jobs/job-queue.js';
 export { jobProject } from './jobs/queue-core.js';
@@ -128,7 +129,8 @@ export type { WorkerEnvOptions } from './jobs/worker-env.js';
 export { runWorker } from './jobs/worker.js';
 export { BEAT_MS, CAP_CARRY_MS, FilmingMarker, FilmingWatch, HELD_FILE, HOLD_MAX_MIN, TakeBeside, heldFile, isTakeOwnerCommand, workerHolds, MARKER_MAX_BYTES, MARKER_NAME_RE, STALE_MS, ancestorPids, capMinutes, capturesDir, capturesLocation, workspaceCaptureId } from './jobs/captures.js';
 export type { FilmingState, FilmingWatchOptions, LiveTake, MarkerRecord, TakeBesideReport } from './jobs/captures.js';
-// What a take reports to its filming callback (the runner's types, for the shells that film without importing it).
+// What a take reports to its filming callback: the runner's types, re-exported so that the CLI's `retake run` names them
+// without importing the runner (a shell imports no adapter: the import rules' R4, scripts/audit/lib.mjs).
 export type { FilmingEvent, FilmingReport } from '@retake/runner-web';
 export { heldWork, heldWorkWords, yieldWords } from './jobs/held.js';
 export type { HeldWork } from './jobs/held.js';

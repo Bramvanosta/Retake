@@ -3,11 +3,11 @@
  * workspace, the project store's scope, the job queue, the worker starter, the run overlays, the admission rules and the
  * caches the screens share — made once per engine, then handed to the builder of each sub-API (src/facade/*-api.ts).
  */
-import { loginCommand as coreLoginCommand, workspaceFolders } from '@retake/core';
+import { loginCommand as coreLoginCommand } from '@retake/core';
 import type { AgentChannel, LoadedProject, RunMode, Scenario, FileFacts } from '@retake/core';
 import { admission } from '../admission.js';
 import type { Admission } from '../admission.js';
-import { admits, agentChecks, agentWorkspace, callerOf, cleansWorkerEnv, refusalChannel } from '../caller.js';
+import { admits, agentChecks, agentWorkspace, callerOf, refusalChannel } from '../caller.js';
 import type { Caller } from '../caller.js';
 import { CommentIndex } from '../comments.js';
 import type { FileJobQueue } from '../jobs/queue.js';
@@ -15,7 +15,7 @@ import { runBlockers } from '../jobs/run-job.js';
 import type { SubmitContext } from '../jobs/run-job.js';
 import { ensureWorker } from '../jobs/spawn.js';
 import type { JobRecord } from '../jobs/types.js';
-import { cleanWorkerEnv } from '../jobs/worker-env.js';
+import { workerEnvOf } from '../jobs/worker-env.js';
 import { ProjectBoards } from '../project-board.js';
 import { openProjectBySlug } from '../projects.js';
 import { RenderFrames } from '../render-frames.js';
@@ -95,17 +95,18 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const runThumbs = new RunThumbs({ policy: ws.policy }, runData);
   // The comment viewer's frames wait for the same ffmpeg slots as the run thumbnails (critique B7).
   const renderFrames = new RenderFrames({ policy: ws.policy, slots: runThumbs.ffmpegSlots, comments: commentIndex });
-  const startWorker: EngineContext['startWorker'] = async () =>
-    opts.autoStartWorker === false
-      ? undefined
-      : ensureWorker(ws.root, {
-          ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
-          // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the
-          // Studio's later jobs too); the Studio passes its own (the same cleaner).
-          ...(opts.workerEnv ? { env: opts.workerEnv } : cleansWorkerEnv(caller) ? { env: cleanWorkerEnv(process.env, ws.root, { folders: workspaceFolders(ws) }) } : {}),
-          ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
-          startedBy: opts.client,
-        });
+  const startWorker: EngineContext['startWorker'] = async () => {
+    if (opts.autoStartWorker === false) return undefined;
+    // Any caller but the CLI hands its worker a clean environment (a worker an MCP client starts serves the Studio's
+    // later jobs too); the Studio passes its own (the same cleaner).
+    const env = workerEnvOf(opts, caller, ws);
+    return ensureWorker(ws.root, {
+      ...(opts.workerIdleExitMs !== undefined ? { idleExitMs: opts.workerIdleExitMs } : {}),
+      ...(env ? { env } : {}),
+      ...(opts.workerSpawn ? { spawn: opts.workerSpawn } : {}),
+      startedBy: opts.client,
+    });
+  };
   /** What run.json cannot say: its worker died (interrupted), or the job ended before the run started. */
   const overlaid = (status: RunStatusWithJob['status'], job: JobRecord): 'interrupted' | 'cancelled' | 'failed' | undefined =>
     job.state === 'interrupted' || ((job.state === 'cancelled' || job.state === 'failed') && status === 'queued') ? job.state : undefined;

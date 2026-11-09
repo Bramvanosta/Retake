@@ -74,7 +74,7 @@ export async function inspectCommand(ui: Ui, global: GlobalOptions, projectArg: 
     run = await inspectInProcess({
       policy: ws.policy,
       root: ws.root,
-      ...(opts.out === undefined ? { prune: workspaceQueue(ws) } : {}),
+      ...(opts.out === undefined ? { pruneUnlessOpenIn: workspaceQueue(ws) } : {}),
       prepared,
       runsDir,
       id,

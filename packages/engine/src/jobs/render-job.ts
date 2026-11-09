@@ -36,7 +36,7 @@ import type { JobFiles } from './queue.js';
 import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './types.js';
 
 import { editor } from '../lazy.js';
-import { planStep, renderStep } from '../production.js';
+import { planWork, renderWork } from '../pipeline.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RenderRequest {
@@ -131,7 +131,7 @@ export async function planRenderRequest(
   const project = await openProjectBySlug(ws, req.project);
   const ed = await editor();
   try {
-    const planned = await planStep({
+    const planned = await planWork({
       workPolicy: ws.policy,
       project,
       run: req.run_id ?? 'latest',
@@ -374,7 +374,7 @@ export async function reviewInline(
   }
 }
 
-/** Execute a `render` job: the timeline check, then the render step (production.ts: trust `mcp`, network guard) with the reserved id. */
+/** Execute a `render` job: the timeline check, then the pipeline's render (pipeline.ts: trust `mcp`, network guard) with the reserved id. */
 export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
@@ -396,8 +396,8 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
     throw e;
   }
   let last = '';
-  // The render step the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
-  const record = await renderStep({
+  // The pipeline's render that the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
+  const record = await renderWork({
     workPolicy: ctx.ws.policy,
     project,
     run: input.run_id,

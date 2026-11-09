@@ -1767,9 +1767,9 @@ Engine {
 loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona(project, env, persona, {mode, page?, url?},
   {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
 appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
-planStep / renderStep / stillStep / exportStep / reviewStep(adapter options) → the adapter's result   // production.ts (L6.7)
+planWork / renderWork / stillWork / exportWork / reviewWork(adapter options) → the adapter's result   // pipeline.ts (L6.7)
 findRunOf / findRenderOf / defaultStillFile / editorErrorOf(e) → 'render_cancelled' | 'render' | 'export' | undefined
-renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: step + history line
+renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: the call + history line
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
   runId?, scenario?, trust?, log, confirm?, loginCommand, signal?}) → {ctx, access, closeSessions} / hooksAccess
                                                        // moved from cli commands/hooks.ts (the CLI keeps printing and Ctrl-C)
@@ -1786,16 +1786,20 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   `exportsApi`, `templatesApi` / `componentsApi`, `inspectApi` / `recordApi`, `commentsApi`; `info.ts`, `sessions.ts`).
   The types live in `facade/types.ts`, re-exported by engine.ts; `packages/engine/test/engine-facade.test.ts` holds the
   façade's keys and every sub-API's, in order.
-- **Production steps, one per step** (L6.7, `production.ts`). Plan, render, still, export and review are each one
-  function over the adapter's call (the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, the
-  review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`, the network
-  guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options, results and
-  errors pass through unchanged. The CLI runs them in process — no job, no worker — through `in-process.ts`
-  (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`, `inspectInProcess`
-  over `runInspection` with the pruning of older inspections), each the step then its history line. The CLI's
-  production commands import no adapter (render, export, review, run: the editor's errors through `editorErrorOf`; review
-  keeps the review package's summary lines); `packages/cli/test/production-cli.test.ts` holds their stdout, stderr,
-  exit codes, history and journal lines byte for byte (fixtures/production-cli.json).
+- **The pipeline, one function per part** (L6.7, `pipeline.ts`; the word in the [glossary](GLOSSARY.md)). Plan,
+  render, still, export and review are each one function over the adapter's call (`planWork` / `renderWork` /
+  `stillWork` / `exportWork` over the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, `reviewWork`
+  over the review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`,
+  the network guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options,
+  results and errors pass through unchanged. The CLI runs them in process — no job, no worker — through
+  `in-process.ts` (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`,
+  `inspectInProcess` over `runInspection` with the pruning of older inspections, `pruneUnlessOpenIn` the workspace's
+  queue), each the call then its history line. The CLI's render, still, export and run commands import no adapter;
+  `retake review` runs `reviewWork` but still imports the review package's summary-line formatters (`summaryLine`,
+  `findingLine`, `environmentLine`: an R4 entry of `scripts/audit/baseline.json`). The editor's errors state their kind
+  (core error-kind.ts), so the CLI prints them as they are; only a cancelled render is reworded (`editorErrorOf`).
+  `packages/cli/test/pipeline-cli.test.ts` holds their stdout, stderr, exit codes, history and journal lines byte for
+  byte (fixtures/pipeline-cli.json), times measured by a clock alone normalised.
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
   `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).
@@ -2090,7 +2094,7 @@ workers/worker.log      what workers print (stderr), appended
   `retake render`, `retake still` and `retake inspect` get theirs (no job) from the engine's in-process operations
   (`in-process.ts`), `retake export` one counting the formats it re-rendered (component previews are not counted), and
   `retake record` from `record.ts`: one writer per kind of line, no shell writes one itself
-  (`packages/engine/test/production-steps.test.ts` lists the writers). `engine.usage()` sums them; `entitlements()` is
+  (`packages/engine/test/pipeline.test.ts` lists the writers). `engine.usage()` sums them; `entitlements()` is
   the parked licence hook.
 - `retake jobs [list] | status <id> | cancel <id>` (CLI, `commands/jobs.ts`) reads the same queue through the engine
   (`client: 'cli'`, `autoStartWorker: false`: a worker started from a terminal would inherit the terminal's

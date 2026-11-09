@@ -10,7 +10,7 @@
   },
   {
    "rule": "R4",
-   "reason": "CLI commands drive the adapters themselves (capture, render, review, export, hooks, sandboxes, doctor) until they run on the engine operations.",
+   "reason": "CLI commands drive the adapters themselves (raw export, plan, components, the review's summary lines, hooks, sandboxes, doctor, sign-in checks, the session copies an interrupt removes) until they run on the engine operations.",
    "entries": [
     "packages/cli/src/commands/auth.ts → @retake/runner-web",
     "packages/cli/src/commands/components.ts → @retake/components",
