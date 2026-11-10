@@ -22,8 +22,9 @@
 #    the update published (scripts/publish-update.mjs, with the job token: the version's platform file, then the
 #    update-feed release's latest.json / rc.json — the only release whose files are replaced once public).
 #
-# The CI workflow (ci.yml) builds and runs the default suite on pull requests and main; this workflow does not wait for
-# it yet (BACKLOG BL-144): see that main's CI run of the commit you tag is green before you tag.
+# The CI workflow (ci.yml) builds and checks the guards on pull requests and main; this workflow does not wait for it
+# yet (BACKLOG BL-144): see that main's CI run of the commit you tag is green, and run `pnpm test` on the Mac, before
+# you tag.
 #
 # What is not configured is skipped and said; a partial set fails the run (scripts/release.mjs CONFIG_SETS):
 #  - the Apple set (all secrets): APPLE_CERTIFICATE (the Developer ID Application certificate's .p12, base64),

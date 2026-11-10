@@ -1,7 +1,7 @@
 /**
  * The CI workflow (.github/workflows/ci.yml, BACKLOG BL-144) read as data: when it runs, what a pull request's code
  * may reach (no secret, no environment, a read-only token, no cache), every action pinned like release.yml's, the
- * pinned Node.js first, the guards and the default suite after the build, the shell's Rust from its toolchain file.
+ * pinned Node.js first, the guards after the build and no test suite (BL-163), the shell's Rust from its toolchain file.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -61,10 +61,10 @@ describe('the CI workflow (ci.yml)', () => {
     }
   });
 
-  it('the pinned Node.js first in each job; the guards and the default suite after the build', () => {
+  it('the pinned Node.js first in each job; the guards after the build; no test suite on the runner (BL-163)', () => {
     for (const job of Object.keys(jobs)) expect(names(job)[1], job).toBe('Node.js, the pinned build');
     for (const job of Object.keys(jobs)) expect(step(job, 'Node.js, the pinned build').run).toBe('bash apps/desktop/scripts/ci-node.sh');
-    const order = ['pnpm (corepack, at package.json\'s packageManager)', 'Dependencies', 'Build the packages', "The repository's guards", 'The test suite'];
+    const order = ['pnpm (corepack, at package.json\'s packageManager)', 'Dependencies', 'Build the packages', "The repository's guards"];
     const at = order.map((n) => names('checks').indexOf(n));
     expect(at.every((i) => i > 1)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);
@@ -72,15 +72,10 @@ describe('the CI workflow (ci.yml)', () => {
     expect(step('checks', 'Build the packages').run).toBe('pnpm build');
     const guards = step('checks', "The repository's guards").run!;
     for (const g of ['node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites']) expect(guards).toContain(g);
-    const suite = step('checks', 'The test suite').run!;
-    expect(suite).toMatch(/export RETAKE_HOME="\$RUNNER_TEMP\/retake-home"/);
-    // Two files at a time, as on the Mac (vitest.config.ts); a failing test run twice more, on the runner only.
-    expect(suite.trim().split('\n').at(-1)).toBe('pnpm test --retry=2');
-    expect(read('vitest.config.ts')).not.toMatch(/retry/);
-    expect(read('vitest.config.ts')).toContain('poolOptions: { forks: { maxForks: 2 } }');
-    // No gated test turned on (they stay opt-in, as on a Mac); the Mac-calibrated timings off.
-    expect([...code.matchAll(/RETAKE_TEST_[A-Z_]+/g)].map((m) => m[0])).toEqual(['RETAKE_TEST_SHARED_RUNNER']);
-    expect(jobs.checks!.env).toEqual({ RETAKE_DISK_WARN: 'off', RETAKE_TEST_SHARED_RUNNER: '1' });
+    // The suite runs on the Mac only until it is faster and steadier (BL-163): no test step, no browser, no gated test.
+    expect(names('checks').at(-1)).toBe("The repository's guards");
+    expect(code).not.toMatch(/pnpm test|vitest|playwright|ffmpeg|RETAKE_TEST_/);
+    expect(jobs.checks!.env).toBeUndefined();
     // Every script the workflow names exists.
     for (const [p] of raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w/.-]+\.(?:mjs|sh)|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)) {
       if (p.includes('/node_modules/')) {
@@ -90,7 +85,7 @@ describe('the CI workflow (ci.yml)', () => {
     }
   });
 
-  it('RETAKE_TEST_SHARED_RUNNER skips Mac-calibrated timings only, in the files listed here (a new one is a decision)', () => {
+  it('RETAKE_TEST_SHARED_RUNNER skips Mac-calibrated timings only, in the files listed here (a new one is a decision; for a shared runner, BL-163)', () => {
     const files = execFileSync('git', ['grep', '-l', 'RETAKE_TEST_SHARED_RUNNER', '--', 'packages'], { cwd: REPO, encoding: 'utf8' }).trim().split('\n').sort();
     expect(files).toEqual([
       'packages/cli/test/ci-workflow.test.ts',

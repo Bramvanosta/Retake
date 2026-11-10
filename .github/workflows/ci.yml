@@ -3,16 +3,10 @@
 #    - the pinned Node.js, then pnpm;
 #    - the packages built;
 #    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
-#      cited test title present;
-#    - Chromium and the headless shell (the revisions the lockfile's playwright-core pins), ffmpeg (Homebrew's);
-#    - the default test suite (`pnpm test`). The gated tests stay opt-in, as on a Mac: slow, captures first,
-#      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed. The tests calibrated on
-#      the Mac Retake is made for (capture frame rates, freezes, paint and wait timings) skip here:
-#      RETAKE_TEST_SHARED_RUNNER=1 (a runner has fewer cores and no GPU); they run on the Mac with the full suite.
-#      Two test files at a time, as on the Mac (vitest.config.ts): one at a time ran past two hours and stalled. Two
-#      browsers drawn without a GPU load the runner's three cores, so a timing the suite asserts fails now and then:
-#      a test that fails is run twice more before the run fails (--retry=2, here only: on the Mac a test fails the
-#      first time).
+#      cited test title present.
+#    The test suite does not run here: on a shared runner (three cores, no GPU) it took about fifty minutes and some
+#    timing tests failed on every run, a different set each time. It runs on the Mac (`pnpm test`) until it is made
+#    faster and steadier (BACKLOG BL-163).
 #  - desktop: the desktop shell's rules crate (apps/desktop/core, `cargo test`), on the Rust of
 #    apps/desktop/rust-toolchain.toml.
 #
@@ -36,12 +30,9 @@ concurrency:
 jobs:
   checks:
     runs-on: macos-15
-    timeout-minutes: 120
+    timeout-minutes: 30
     permissions:
       contents: read
-    env:
-      RETAKE_DISK_WARN: "off"
-      RETAKE_TEST_SHARED_RUNNER: "1"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -69,23 +60,6 @@ jobs:
           node scripts/audit/rules.mjs . --check
           node scripts/requirements.mjs --untested 1
           node scripts/requirements.mjs --check-cites
-      - name: Chromium and the headless shell
-        run: node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
-      - name: ffmpeg
-        env:
-          HOMEBREW_NO_AUTO_UPDATE: "1"
-          HOMEBREW_NO_INSTALL_CLEANUP: "1"
-        run: |
-          set -eu
-          command -v ffmpeg >/dev/null || brew install ffmpeg
-          ffmpeg -hide_banner -version | head -1
-      - name: The test suite
-        # A Retake home of the run's own, outside the checkout.
-        run: |
-          set -eu
-          export RETAKE_HOME="$RUNNER_TEMP/retake-home"
-          mkdir -p "$RETAKE_HOME"
-          pnpm test --retry=2
 
   desktop:
     runs-on: macos-15
