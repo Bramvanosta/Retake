@@ -1,6 +1,5 @@
 export * from './types.js';
 export * from './formats.js';
-export * from './legacy.js';
 export * from './targets.js';
 export * from './steps.js';
 export * from './templating.js';

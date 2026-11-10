@@ -7,11 +7,11 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { canonicalJson } from '../canonical-json.js';
-import { DEFAULT_COMPOSE_FILES } from '../checks/sandbox.js';
+import { composeEnvFilePath, composeEnvRef, envFileValues } from '../checks/sandbox.js';
 import { sqlSource } from '../destructive.js';
 import { issuesMessage } from '../issues.js';
 import { SANDBOX_SEED_DIR, SandboxConfigError, parseSandboxYaml, sandboxAuth } from '../sandbox.js';
-import type { LoadedSandbox, ProjectConfig } from '../types.js';
+import type { LoadedSandbox, ProjectConfig, SandboxManifest } from '../types.js';
 import { nodeFileFacts } from './file-facts.js';
 
 /**
@@ -34,7 +34,33 @@ export async function loadSandboxes(projectDir: string, config: ProjectConfig): 
     }
     const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config }, files: nodeFileFacts });
     if (!manifest) throw new SandboxConfigError(issuesMessage(`sandbox ${env}`, issues, file), issues, file, env);
-    out[env] = { env, file, dir: dirname(file), manifest, issues, secrets: sandboxAuth(manifest).secrets };
+    const composeEnv = await accountsComposeEnv(dirname(file), manifest, env, file);
+    out[env] = { env, file, dir: dirname(file), manifest, issues, ...(composeEnv ? { composeEnv } : {}), secrets: sandboxAuth(manifest, composeEnv).secrets };
+  }
+  return out;
+}
+
+/**
+ * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file: those names only.
+ * Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
+ */
+export async function accountsComposeEnv(dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
+  const names = new Set<string>();
+  for (const a of Object.values(manifest.accounts ?? {})) for (const v of [a.username, a.password]) if (composeEnvRef(v) !== undefined) names.add(composeEnvRef(v)!);
+  if (!names.size) return undefined;
+  const envFile = composeEnvFilePath(dir, manifest, existsSync);
+  const fail = (why: string) => new SandboxConfigError(`sandbox ${env}: ${file}: ${why}`, [], file, env);
+  if (!envFile) throw fail(`{{compose_env:${[...names][0]}}} reads the sandbox's compose env file, and there is none (compose.env_file, or a .env next to the first compose file)`);
+  let values: Record<string, string>;
+  try {
+    values = envFileValues(await readFile(envFile, 'utf8'));
+  } catch (e) {
+    throw fail(`the compose env file ${envFile} cannot be read: ${(e as Error).message}`);
+  }
+  const out: Record<string, string> = {};
+  for (const n of names) {
+    if (!Object.hasOwn(values, n) || values[n] === "") throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
+    out[n] = values[n];
   }
   return out;
 }
@@ -96,10 +122,5 @@ export async function seedHash(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>,
  * the environment docker runs with — a shell's value would win over the file's.
  */
 export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): string | undefined {
-  const c = sandbox.manifest.compose;
-  if (sandbox.manifest.provider !== 'docker-compose' || c?.env_file === false) return undefined;
-  if (typeof c?.env_file === 'string') return resolve(sandbox.dir, c.env_file);
-  const first = resolve(sandbox.dir, (c?.files ?? DEFAULT_COMPOSE_FILES)[0]);
-  const guess = join(dirname(first), '.env');
-  return existsSync(guess) ? guess : undefined;
+  return composeEnvFilePath(sandbox.dir, sandbox.manifest, existsSync);
 }

@@ -1,7 +1,7 @@
 import { Argument, Command, CommanderError, Option } from 'commander';
 import { resolve } from 'node:path';
-import { COMPONENT_KINDS, RETAKE_VERSION, oldHomeLine, oldHomeState, oldVarsLine, oldVarsUnread } from '@retake/core';
-import { assertOutsideBundle, bundleInfoOrNull, nodeFileFacts } from '@retake/core/io';
+import { COMPONENT_KINDS, RETAKE_VERSION } from '@retake/core';
+import { assertOutsideBundle, bundleInfoOrNull } from '@retake/core/io';
 import type { JsonSchemaName } from '@retake/core';
 import { homedir } from 'node:os';
 import { commentAddCommand, commentListCommand, commentReopenCommand, commentReplyCommand, commentResolveCommand } from './commands/comment.js';
@@ -642,13 +642,6 @@ export function commandPaths(): string[] {
  */
 export async function main(argv: readonly string[] = process.argv, io: Io = processIo()): Promise<ExitCode> {
   let code: ExitCode = EXIT.ok;
-  // L5.13: sign-ins left in the home from before the rename are not read — one line on stderr (never stdout: MCP over
-  // stdio and `ui --supervised` speak there), until they are moved (critique H3; legacy.ts). Likewise the old variables
-  // still set without their new twin (the old HOME or ROOT: another home, another workspace — reviews A M4 / B M4).
-  const old = oldHomeState(process.env, homedir(), (p) => nodeFileFacts.kind(p) !== undefined);
-  if (old) io.err(`${oldHomeLine(old)}\n`);
-  const vars = oldVarsUnread(process.env);
-  if (vars.length) io.err(`${oldVarsLine(vars)}\n`);
   const program = buildProgram(io, (c) => (code = c));
   try {
     await program.parseAsync([...argv]);

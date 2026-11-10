@@ -42,7 +42,6 @@ import { needFiles } from './file-facts.js';
 import type { FileFacts } from './file-facts.js';
 import type { RenderSettings } from './render-settings.js';
 import type { IssuePath } from './issues.js';
-import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { scenePageEntries, splitPageOpen } from './pages.js';
 import { normalizeStep, stepActionKeys } from './steps.js';
 import { suggestion } from './validation/suggest.js';
@@ -62,10 +61,9 @@ export function channelWords(via: AgentChannel | undefined): string {
 }
 
 /**
- * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`) — with the
- * tool folder's name from before L5.13: its files (page dumps, drafts) are never run as code either (critique H1).
+ * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`).
  */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/', ...OLD_AGENT_WRITABLE_PATHS];
+export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/'];
 
 /**
  * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared

@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { withOldOutgoingEnv, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
 import {
   BREAKER_STALE_MS,
@@ -397,8 +397,7 @@ describe('a service: command and environment', () => {
         TOKEN: 'from-env-1234',
         REGION: 'eu',
         NODE_ENV: 'development',
-        // L5.13: also under its name from before the rename (core legacy.ts; sandbox legacy-env.test.ts names it).
-        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
+        RETAKE_SANDBOX: 'sandbox',
       });
     } finally {
       delete process.env.RETAKE_TEST_SECRET;
@@ -424,7 +423,7 @@ describe('a service: command and environment', () => {
         API_URL: 'http://localhost:4603/api',
         // Its own env still reads the worker's environment.
         TOKEN: 'from-env-1234',
-        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
+        RETAKE_SANDBOX: 'sandbox',
       });
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);

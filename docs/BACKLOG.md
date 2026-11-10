@@ -2135,17 +2135,10 @@ and `job_end` lines); what remains:
 ### BL-136 — Rename extras cut from L5.13a and L5.13b (and the old names to drop later)
 *S–M · cut in L5.13a / L5.13b · builds on: L5.13a, L5.13b · see BL-124*
 
-- **Drop the old outgoing variables**: hook and seed shells and sandbox process services still get `DEMO_STUDIO_SANDBOX`,
-  `_RUN_ID`, `_ENV`, `_PROJECT_DIR` and `_ALLOWED_HOSTS` next to the `RETAKE_*` ones (core `legacy.ts`
-  `withOldOutgoingEnv`, critique H2) — once no product script reads them.
-- **Delete `scripts/rename-l513.mjs`** (and its guard entry) once no branch from before L5.13 is left.
-- The other old names `legacy.ts` keeps (the old home, workspace file, tool folder and variables detected for
-  `retake doctor` and the notices; the agent-writable `.demo-studio/`, the dropped `DEMO_STUDIO_MCP_TOKEN`; the theme
-  provenance and raw-package markers, the session snapshot's `demo_studio` key; run.json's old `perf.cpu.studio` read
-  by the perf line) — once no installation from before L5.13 is left (the safety ones last).
-- A `retake migrate` that moves the home, the workspace file and the tool folders after asking (today: told, never
-  moved); a note of the old home in the desktop app's own window before the Studio loads (today: the Studio's sidebar,
-  the CLI's stderr, doctor, engine_info).
+- *Done in v0.2.1 (decision, user, 2026-11-10: nothing of the old name is kept):* the old outgoing variables, the
+  rename script, every old name the code detected or recognised (home, workspace file, tool folders, variables,
+  safety lists, theme and raw-package markers, the snapshot key, the old perf field) and the idea of a migration
+  command are gone — an installation from before L5.13 is simply not seen.
 - The `ds` abbreviations (`__ds_snapshot` is a database name in the person's sandboxes, `ds-asset`…).
 - The built-in `studio/` component namespace → `retake/`, with a migration of every theme and scenario that names it
   (if ever wanted); the `studio` comment channel and the `studio:*` page events likewise.

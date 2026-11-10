@@ -163,9 +163,7 @@ flight with their own dashed edge, no fade.)
   **Library** (Components, Themes); **Locations** (one row per environment, its riskiest flag in a word: production,
   read-only, sandbox, default); **Cast** (Sessions, then each persona's session as a shape and a word); **Project**
   (README with "unsaved" while dirty, Record a scenario). Its foot: the workspace path, the version and the worker's
-  pid, the UI gallery link; above them, the rename notes when something from before L5.13 is left unread (`role="note"`:
-  the old home's sign-ins, as the engine names the folder — with the old home variable, "set RETAKE_HOME to it, or move
-  it" —, and the old variables set), a gap after the last note only (the notes themselves at the foot's own gap). A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
+  pid, the UI gallery link. A scenario open (L5.10b, B32-Scenario): its own list in the browser's place (a `browser`
   slot; the foot stays) — Video (the total length), Before filming, each scene (number, title, length, a 2 px bar against
   the longest), the cards (quieter), After filming; a row selects its entry and brings it into view (on the board the
   entry, in the YAML view its lines).

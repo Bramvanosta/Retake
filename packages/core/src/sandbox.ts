@@ -9,8 +9,8 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMap, isScalar, parseDocument } from 'yaml';
-import { checkSandbox } from './checks/sandbox.js';
-export { envFileKeys } from './checks/sandbox.js';
+import { checkSandbox, composeEnvRef } from './checks/sandbox.js';
+export { composeEnvFilePath, composeEnvRef, envFileKeys, envFileValues } from './checks/sandbox.js';
 import { normalizeDisplay } from './display.js';
 import { isLoopbackHost } from './hosts.js';
 import { isGlobalAuth } from './auth.js';
@@ -100,14 +100,22 @@ function substituteAccount(v: unknown, account: { username?: string; password?: 
 
 /**
  * The accounts of a sandbox as the auth block of its environment (login steps with their {{account.*}} substituted),
- * and the plain passwords by persona (secret values: masked wherever a run writes).
+ * and the plain passwords by persona (secret values: masked wherever a run writes). `composeEnv`: what the sandbox's
+ * compose env file sets (LoadedSandbox.composeEnv) — a `{{compose_env:NAME}}` username or password is its value there,
+ * and from then on a plain one (demo accounts of a local, disposable copy: one source, masked like the others).
  */
-export function sandboxAuth(manifest: SandboxManifest): { auth?: AuthConfig; secrets: Record<string, string[]> } {
+export function sandboxAuth(manifest: SandboxManifest, composeEnv: Record<string, string> = {}): { auth?: AuthConfig; secrets: Record<string, string[]> } {
   const secrets: Record<string, string[]> = {};
   if (!manifest.accounts && manifest.login_url === undefined) return { secrets };
   const personas: Record<string, PersonaConfig> = {};
   for (const [name, account] of Object.entries(manifest.accounts ?? {})) {
-    const { username, password, ...persona } = account;
+    const { username: writtenUsername, password: writtenPassword, ...persona } = account;
+    const fromFile = (v: string | undefined) => {
+      const name = composeEnvRef(v);
+      return name !== undefined && Object.hasOwn(composeEnv, name) ? composeEnv[name] : v;
+    };
+    const username = fromFile(writtenUsername);
+    const password = fromFile(writtenPassword);
     if (persona.login) persona.login = substituteAccount(persona.login, { username, password }) as PersonaConfig['login'];
     // An account signed in by its mail address receives its mail there (wait_for_email {to: persona:<name>}, L5.6).
     if (persona.email === undefined && username !== undefined && /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/.test(username)) persona.email = username;
@@ -158,7 +166,7 @@ export function mergeSandboxes(config: ProjectConfig, sandboxes: Record<string, 
       ...(s.manifest.mailbox ? { mailbox: mailbox as MailboxConfig } : {}),
       ...(s.manifest.databases ? { databases: Object.fromEntries(Object.entries(s.manifest.databases).map(([k, d]) => [k, { url: d.url }])) } : {}),
     };
-    const { auth: block } = sandboxAuth(s.manifest);
+    const { auth: block } = sandboxAuth(s.manifest, s.composeEnv);
     if (block) (auth ??= {})[s.env] = block;
   }
   return { ...config, environments, environment_settings: settings, ...(auth ? { auth } : {}) };

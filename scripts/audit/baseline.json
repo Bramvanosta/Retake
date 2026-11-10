@@ -95,10 +95,9 @@
   },
   {
    "rule": "layout",
-   "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), the old names, a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
+   "reason": "Paths spelt as text on purpose: the trust lists (agent-writable paths, a person's files), a new project's .gitignore lines, help texts and the Studio's browser code (no node:path there).",
    "entries": [
     "packages/core/src/agent-policy.ts → 10 hand-written layout paths",
-    "packages/core/src/legacy.ts → 1 hand-written layout path",
     "packages/core/src/project.ts → 10 hand-written layout paths",
     "packages/core/src/schemas/timeline.ts → 2 hand-written layout paths",
     "packages/engine/src/catalogue.ts → 3 hand-written layout paths",

@@ -11,7 +11,7 @@
  * repeated here, in every package.json, apps/desktop/tauri.conf.json, skills/.claude-plugin/plugin.json and
  * apps/desktop/Cargo.toml (a test keeps them equal).
  */
-export const RETAKE_VERSION = '0.2.0';
+export const RETAKE_VERSION = '0.2.1';
 
 /**
  * Where Retake's repository is read on the web: the root package.json's `repository` field (its URL without `git+` and

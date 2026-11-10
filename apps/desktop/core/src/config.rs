@@ -169,18 +169,9 @@ pub fn is_workspace(dir: &Path) -> bool {
     dir.join("retake.yaml").exists() || dir.join("projects").is_dir()
 }
 
-/// The workspace file before L5.13 (the CLI's core legacy.ts names it too): only named in the hint below.
-const OLD_WORKSPACE_FILE: &str = "studio.yaml"; // old-name: the hint of a folder whose workspace file is the old one
-
-/// The alert of File › Open Workspace… for a folder that is no workspace (L5.13a review A L6): one that holds the old
-/// workspace file is told to rename it, as the CLI says.
+/// The alert of File › Open Workspace… for a folder that is no workspace.
 pub fn not_workspace_text(dir: &Path) -> String {
     let d = dir.display();
-    if dir.join(OLD_WORKSPACE_FILE).is_file() {
-        return format!(
-            "{d} has no retake.yaml or projects/ folder. Its {OLD_WORKSPACE_FILE}, if it is this tool's workspace file from before the rename, is not read any more: rename it retake.yaml, then open the folder again. The workspace open now stays open."
-        );
-    }
     format!("{d} has no retake.yaml or projects/ folder. The workspace open now stays open.")
 }
 
@@ -429,13 +420,9 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_with_the_old_workspace_file_is_told_to_rename_it() {
-        let d = test_dir("old-ws");
+    fn a_folder_that_is_no_workspace_is_told_so() {
+        let d = test_dir("no-ws");
         assert_eq!(not_workspace_text(&d), format!("{} has no retake.yaml or projects/ folder. The workspace open now stays open.", d.display()));
-        fs::write(d.join(OLD_WORKSPACE_FILE), "version: 1\n").unwrap();
-        assert!(!is_workspace(&d), "the old file alone is no workspace: nothing reads it");
-        let text = not_workspace_text(&d);
-        assert!(text.contains(&format!("Its {OLD_WORKSPACE_FILE}, if it is this tool's workspace file from before the rename, is not read any more: rename it retake.yaml")), "{text}");
         fs::remove_dir_all(&d).unwrap();
     }
 

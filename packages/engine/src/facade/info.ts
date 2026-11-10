@@ -1,19 +1,11 @@
-/** The façade's `info()` (engine_info): the API version, this process, the features, the entitlements, what is left from before the rename. */
-import { hostname, homedir } from 'node:os';
-import { RETAKE_VERSION, legacyInfo } from '@retake/core';
-import type { LegacyInfo } from '@retake/core';
-import { nodeFileFacts } from '@retake/core/io';
+/** The façade's `info()` (engine_info): the API version, this process, the features, the entitlements. */
+import { hostname } from 'node:os';
+import { RETAKE_VERSION } from '@retake/core';
 import { entitlements } from '../entitlements.js';
 import type { EngineContext } from './context.js';
 import type { Engine } from './types.js';
 
 export const ENGINE_API_VERSION = 1;
-
-/** engine_info's `legacy` field, when something from before the rename is left unread (core legacyInfo). */
-function legacyField(): { legacy?: LegacyInfo } {
-  const legacy = legacyInfo(process.env, homedir(), (p) => nodeFileFacts.kind(p) !== undefined);
-  return legacy ? { legacy } : {};
-}
 
 /** engine.info(): what this engine is and can do (engine_info). */
 export function infoOf(ctx: EngineContext): Engine['info'] {
@@ -81,8 +73,5 @@ export function infoOf(ctx: EngineContext): Engine['info'] {
       'history',
     ],
     entitlements: entitlements(),
-    // L5.13: the sign-ins and the variables of before the rename, not read (critique H3, reviews A M4 / B M4: told
-    // where the person is — the Studio, Claude).
-    ...legacyField(),
   });
 }

@@ -1699,8 +1699,7 @@ describe('⚑ screens stay on the kit (L5.9 part E: a TypeScript-parser lint wit
   it('the product\'s name lives in brand.ts: never written in the app\'s sources (the screens, the kit, the shell, the gallery) or bundle.ts', async () => {
     const files = await appSources();
     files.push(['../bundle.ts', await readFile(join(APP, '..', 'bundle.ts'), 'utf8')]);
-    // The name as a word, in JSX text, a string or a template (L5.13; the name before it is the guard test's: core
-    // old-name.test.ts).
+    // The name as a word, in JSX text, a string or a template.
     const NAME = /\bRetake\b/;
     expect(files.filter(([f, text]) => f !== 'brand.ts' && NAME.test(code(text))).map(([f]) => f)).toEqual([]);
     expect(files.find(([f]) => f === 'brand.ts')![1]).toContain("export const APP_NAME = 'Retake';");
@@ -2690,19 +2689,11 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
   });
 });
 
-describe('L5.13: the rename notes in the browser foot', () => {
-  it('⚑ the old home as the engine names it, as text (with the old home variable: set RETAKE_HOME to it, or move it); a gap after the last note only (L5.13b reviews B-L2)', async () => {
+describe('no note about an earlier name in the browser foot (v0.2.1)', () => {
+  it('⚑ the shell and its stylesheet hold no legacy note', async () => {
     const shellCss = cssRules((await kitCss()).find(([f]) => f === 'shell/shell.css')![1]);
-    expect(shellCss.filter((r) => r.selector.includes('sh-foot-legacy')).map((r) => [r.selector, r.decls])).toEqual([
-      ['.sh-foot-legacy', [['color', 'var(--ui-text-2)']]],
-      ['.sh-foot-legacy + .sh-foot-line:not(.sh-foot-legacy)', [['margin-top', 'var(--ui-space-4)']]],
-    ]);
+    expect(shellCss.filter((r) => r.selector.includes('legacy'))).toEqual([]);
     const shell = await readFile(join(APP, 'shell', 'AppShell.tsx'), 'utf8');
-    const note = /data-testid="legacy-home">([\s\S]*?)<\/p>/.exec(shell)?.[1] ?? '';
-    expect(note).toContain('Sign-ins from before the rename are in <Txt className="k-mono" text={info.legacy.old_home} />');
-    expect(note).toContain('{info.legacy.old_home_var ? (');
-    expect(note).toContain(', set by <Txt className="k-mono" text={info.legacy.old_home_var} />, and not read: set <span className="k-mono">RETAKE_HOME</span> to it, or move it');
-    // No home written by the page itself: the engine's words only (core legacyInfo).
-    expect(note).not.toMatch(/~\//);
+    expect(shell).not.toMatch(/legacy|old_home|old_vars/);
   });
 });

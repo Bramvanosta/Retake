@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { accessSync, closeSync, constants, existsSync, fstatSync, lstatSync, openSync, readSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { delimiter, dirname, join, relative, resolve } from 'node:path';
-import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, OLD_DIR, OLD_ENV_PREFIX, OLD_WORKSPACE_FILE, RECREATED_HOME_FILES, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, gitignoreFix, gitignoreNamesOldDirOnly, oldDirMove, oldEnvNames, oldHomeDir, oldWorkspaceFileAt, oldWorkspaceFileMessage, WORKSPACE_GITIGNORE, expandHome, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, unsafeTestResolve, RETAKE_VERSION, defaultRetakeHome, statePath, PERSON_POLICY } from '@retake/core';
+import { ConfigError, agentArgsProblems, agentProgramProblem, workspaceFolders, UNSAFE_TEST_RESOLVE_ENV, WORKSPACE_FILE, WORKSPACE_GITIGNORE, expandHome, resolveEnvironment, sandboxAdvice, sandboxAdviceText, sandboxNames, unsafeTestResolve, RETAKE_VERSION, defaultRetakeHome, statePath } from '@retake/core';
 import { findWorkspaceRoot, listProjects, listTemplates, loadTemplate, retakeHome, bundleInfoOrNull, bundleProblems, resolveMediaTools, clientPath, engineLocation, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { CLI_NAME, LAUNCHER_REL, MOVE_TO_APPLICATIONS, cliLinkState, cliOnPath, defaultCliDir, installLocation, installLocationWords, onReadOnlyVolume, readAppSettings, readUpdateChecks, stableNodePath, updateChecksOff, UPDATE_DISABLE_ENV, zshQuote } from '@retake/engine/integrations';
 import type { BrowserConfig, LoadedProject, WorkspaceConfig, WorkPolicy } from '@retake/core';
@@ -62,9 +62,9 @@ export interface DoctorProbes {
   engine?: string;
   /** L5.16c: is this folder on a read-only volume (the app's location; default core onReadOnlyVolume)? */
   readOnly?(p: string): boolean;
-  /** The names in a real folder (not a link), or null: what "Before Retake" counts (pending journals). */
+  /** The names in a real folder (not a link), or null. */
   list?(dir: string): string[] | null;
-  /** The text of a small regular file (not a link; ≤ 64 KB), or null: the `.gitignore` files "Before Retake" reads. */
+  /** The text of a small regular file (not a link; ≤ 64 KB), or null. */
   read?(file: string): string | null;
   /** The app bundle this engine runs from (L5.16, core bundleInfo), or null / absent: a repository checkout. */
   bundle?: BundleInfo | null;
@@ -983,95 +983,8 @@ export function capturesCheck(c: CapturesProbe): DoctorCheck {
   return { status: 'ok', name, detail: parts.join(' · ') };
 }
 
-const BEFORE = 'Before Retake';
-
-/**
- * L5.13 — what is left from before the rename, each line with the exact command; no line when nothing is.
- * Stats, folder listings and the workspace's and projects' own `.gitignore` files, through the probes (nothing under
- * the old home is read, nothing is written):
- * the old home's sign-ins (the folder the old home variable names when it is set: core oldHomeDir; not looked at when
- * RETAKE_HOME is set — the person chose a home — nor without a HOME), the old variables in the
- * environment, the old workspace file (`refused`: the load failed on it), the old tool folders of the workspace and its
- * projects with their pending rollback journals (critique L9), a `.gitignore` that ignores the old folder and not
- * `.retake/` (review B M1). Hooks, components and the MCP registration that still
- * name an old name are the grep commands of the upgrade guide (docs/guide/upgrading.md).
- */
-export function beforeRetakeChecks(p: DoctorProbes, ws: WorkspaceConfig, refused?: string): DoctorCheck[] {
-  const out: DoctorCheck[] = [];
-  // The probes' HOME only (never this process's): a mocked environment without one looks at no home at all.
-  const home = p.env.HOME?.trim();
-  // The old home, or the folder the old home variable names when it is set (the old build kept the sign-ins there:
-  // core oldHomeDir).
-  const where = home ? oldHomeDir(p.env, home) : null;
-  if (home && where && where.dir !== defaultRetakeHome(home)) {
-    const signIns = (dir: string) => p.exists(join(dir, 'profiles')) || p.exists(join(dir, 'sessions'));
-    const old = where.byVar ? `${where.shown} (set by ${where.byVar})` : where.shown;
-    const oldDir = where.dir;
-    const newDir = defaultRetakeHome(home);
-    if (p.exists(oldDir)) {
-      const stop = 'stop the Studio, the desktop app, MCP clients and the worker first';
-      // With the variable: keeping that folder as the home is the other way (RETAKE_HOME names it).
-      const orVar = where.byVar ? `set RETAKE_HOME to ${where.word} where ${where.byVar} is set, or move it: ` : '';
-      if (!signIns(oldDir)) {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${where.byVar ? `${where.shown} (set by ${where.byVar}, from before the rename)` : `${old} (from before the rename)`} is not read; it holds no sign-ins`, hint: `remove it once you have checked it holds nothing you need` });
-      } else if (signIns(newDir)) {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} and ~/.retake both hold sign-ins: only ~/.retake is read`, hint: `merge by hand: move the profiles/<project>/<env>/<persona> and sessions/ entries you still need from ${where.shown} into ~/.retake (${stop}), then remove ${where.shown}` });
-      } else if (p.exists(newDir)) {
-        out.push({
-          status: 'warn',
-          name: `${BEFORE}: home`,
-          detail: `${old} holds the sign-ins from before the rename and is not read; ~/.retake holds only files the tool recreated by itself (${RECREATED_HOME_FILES.join(', ')})`,
-          hint: `${orVar}${stop}, then: mv ~/.retake ~/.retake.after-upgrade && mv ${where.word} ~/.retake`,
-        });
-      } else {
-        out.push({ status: 'warn', name: `${BEFORE}: home`, detail: `${old} holds the sign-ins from before the rename and is not read`, hint: `${orVar}${stop}, then: mv ${where.word} ~/.retake` });
-      }
-    }
-  }
-  const vars = oldEnvNames(p.env);
-  if (vars.length) {
-    out.push({
-      status: 'warn',
-      name: `${BEFORE}: variables`,
-      detail: `${vars.slice(0, 5).join(', ')}${vars.length > 5 ? `, … (${vars.length})` : ''} set: not read any more`,
-      hint: `rename them RETAKE_* (${OLD_ENV_PREFIX}HOME → RETAKE_HOME…) where they are set: your shell profile, the env of an MCP registration`,
-    });
-  }
-  if (refused) {
-    const m = oldWorkspaceFileMessage(ws.root);
-    out.push({ status: 'fail', name: `${BEFORE}: workspace file`, detail: m.message, hint: m.fix });
-  } else if (p.exists(join(ws.root, WORKSPACE_FILE)) && oldWorkspaceFileAt(ws.root, homedir(), nodeFileFacts)) {
-    out.push({ status: 'warn', name: `${BEFORE}: workspace file`, detail: `${join(ws.root, OLD_WORKSPACE_FILE)} (from before the rename) lies next to ${WORKSPACE_FILE}: not read`, hint: `copy what it still holds into ${WORKSPACE_FILE}, then remove it` });
-  }
-  const dirs = [ws.root, ...(p.list?.(ws.projectsDir) ?? []).sort().map((slug) => join(ws.projectsDir, slug))];
-  const label = (dir: string) => (dir === ws.root ? 'workspace' : `project ${relative(ws.projectsDir, dir)}`);
-  for (const dir of dirs) {
-    // Review B M1: a .gitignore the tool wrote names the old folder only — moved, `.retake/` would be committed.
-    const ignore = join(dir, '.gitignore');
-    const text = p.read?.(ignore);
-    if (text && gitignoreNamesOldDirOnly(text)) {
-      out.push({ status: 'warn', name: `${BEFORE}: ${label(dir)} .gitignore`, detail: `${ignore} ignores ${OLD_DIR}/ but not .retake/ (the tool's state of this machine)`, hint: `add it: ${gitignoreFix(ignore)}` });
-    }
-    if (!p.exists(join(dir, OLD_DIR))) continue;
-    const journals = (p.list?.(join(dir, OLD_DIR, 'journals')) ?? []).filter((f) => f.endsWith('.json')).length;
-    // L5.14 review B L2: written before journals were signed, they are replayed only by a person in a terminal.
-    const slug = dir === ws.root ? '<project>' : relative(ws.projectsDir, dir);
-    const pending = journals
-      ? ` · ${journals} pending rollback journal${journals === 1 ? '' : 's'} (retake env reset finds them only once moved; written before this version, a person replays them from a terminal: retake env reset ${slug} --replay-unsigned, asked about each)`
-      : '';
-    const both = p.exists(statePath(dir));
-    out.push({
-      status: 'warn',
-      name: `${BEFORE}: ${dir === ws.root ? 'workspace folder' : label(dir)}`,
-      detail: `${join(dir, OLD_DIR)} (the tool's folder from before the rename) is not read${both ? ', next to .retake/' : ''}${pending}`,
-      hint: both ? `move what you still need from it (journals/, records/…) into ${statePath(dir)} by hand, then remove it` : `stop the Studio, the worker and the project's sandboxes, then: ${oldDirMove(dir)}`,
-    });
-  }
-  return out;
-}
-
 /** Every doctor check, in display order. */
-export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: GlobalOptions; refused?: string } = {}): Promise<DoctorCheck[]> {
+export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, opts: { project?: string; global?: GlobalOptions } = {}): Promise<DoctorCheck[]> {
   const out: DoctorCheck[] = [nodeCheck(probes)];
   const damaged = probes.bundleProblems?.() ?? [];
   if (damaged.length) out.push({ status: 'fail', name: 'App bundle', detail: damaged.join(' · '), hint: 'reinstall Retake' });
@@ -1103,7 +1016,6 @@ export async function doctorChecks(probes: DoctorProbes, ws: OpenedWorkspace, op
   out.push(await mcpCheck(probes, ws));
   if (probes.captures) out.push(capturesCheck(await probes.captures(ws.root)));
   if (opts.project) out.push(...(await projectChecks(probes, ws, opts.project, opts.global ?? {})));
-  out.push(...beforeRetakeChecks(probes, ws, opts.refused));
   return out;
 }
 
@@ -1135,18 +1047,8 @@ export interface DoctorOptions {
 
 /** `retake doctor [--project slug]`: check the machine, the workspace and optionally a project. Exit 1 on any FAIL. */
 export async function doctorCommand(ui: Ui, global: GlobalOptions, opts: DoctorOptions, probes: DoctorProbes = systemProbes()): Promise<ExitCode> {
-  let ws: OpenedWorkspace;
-  let refused: string | undefined;
-  try {
-    ws = await openWorkspace(global);
-  } catch (e) {
-    // The workspace file from before L5.13 alone: a "Before Retake" line says to rename it; the rest is still checked.
-    const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-    if (!(e instanceof ConfigError) || probes.exists(join(root, WORKSPACE_FILE)) || !oldWorkspaceFileAt(root, homedir(), nodeFileFacts)) throw e;
-    ws = { root, projectsDir: join(root, 'projects'), templatesDir: join(root, 'templates'), componentsDir: join(root, 'components'), policy: PERSON_POLICY };
-    refused = errorMessage(e);
-  }
-  const checks = await doctorChecks(probes, ws, { project: opts.project, global, refused });
+  const ws = await openWorkspace(global);
+  const checks = await doctorChecks(probes, ws, { project: opts.project, global });
   const fails = checks.filter((c) => c.status === 'fail').length;
   const warns = checks.filter((c) => c.status === 'warn').length;
   if (opts.json) {

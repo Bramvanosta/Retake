@@ -26,7 +26,7 @@
  */
 import { existsSync } from 'node:fs';
 import { delimiter, isAbsolute } from 'node:path';
-import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, OLD_SECRET_ENV, isUnder, loadPathSeparator, workspaceFolders } from '@retake/core';
+import { LOAD_PATH_ENV, NODE_OPTIONS_LOADS, isUnder, loadPathSeparator, workspaceFolders } from '@retake/core';
 import { clientPath, retakeHome, nodeFileFacts } from '@retake/core/io';
 import { cleansWorkerEnv } from '../caller.js';
 import type { Caller } from '../caller.js';
@@ -40,9 +40,8 @@ export const WORKER_ENV_DROPPED: readonly RegExp[] = [
   /^INIT_CWD$/,
   /^COREPACK_/,
   /^(?:NPM|NODE_AUTH|YARN_NPM_AUTH)_TOKEN$/,
-  // the MCP server's HTTP token (and its variable from before L5.13: a shell may still export it — R-REN-04)
+  // the MCP server's HTTP token
   /^RETAKE_MCP_TOKEN$/,
-  ...OLD_SECRET_ENV,
   // models and the agent around them
   /^ANTHROPIC_/,
   /^CLAUDE/,
