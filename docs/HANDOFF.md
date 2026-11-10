@@ -34,6 +34,62 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after the architecture series L6.1 – L6.13)
+- **The architecture series done (2026-11-10; pending the person's review of the pull request)** — the tasks T1 – T14
+  of the 2026-11-04 audit's [action plan](audit/action-plan.md), on branch `claude/arch-l6` (one commit per lot, then
+  its review fixes). Code quality and architecture only: the existing behaviour is kept (the few visible changes are in
+  the CHANGELOG's [Unreleased]); nothing was measured. The target is [audit/target-architecture.md](audit/target-architecture.md),
+  the words are in [GLOSSARY.md](GLOSSARY.md).
+  - **Guard rails (L6.1 – L6.2).** The import-rules ratchet (`scripts/audit/lib.mjs`, `rules.mjs --check |
+    --write-baseline`, `packages/core/test/import-rules.test.ts`, baseline `scripts/audit/baseline.json`: one entry
+    per (rule, file, import), each group with a reason; fails on new and on stale entries) — 99 entries after L6.8, 59
+    now, R1 (I/O in the pure core) at 0, no import cycle. The glossary; `retake new --theme`; one path containment
+    (`pathInside`), one canonical JSON, error kinds carried by the error classes.
+  - **Engine (L6.3 – L6.6).** The job queue is a port (`JobQueueView` / `JobQueue`, `FileJobQueue`, `MemoryJobQueue`,
+    one contract suite); one operation catalogue (`packages/engine/src/catalogue.ts`, facets effect / job / code /
+    serves / removes / admission; `@retake/engine/catalogue` browser-safe) drives the CLI, MCP and the Studio; the
+    admission rules (admission.ts) hold for the Studio and MCP (the CLI is exempt); one `Caller`; one project layout
+    (layout.ts) and one `ProjectStore` for every authored write, with the workspace journal (`.retake/journal.jsonl`,
+    `retake journal`).
+  - **CLI and engine façade (L6.7).** The CLI's render / still / export / run / inspect call the engine's pipeline
+    (`packages/engine/src/pipeline.ts`: planWork, renderWork, stillWork, exportWork, reviewWork; `in-process.ts`: the
+    work then its history line); `createEngine` split by sub-API (`packages/engine/src/facade/`); four history writers,
+    listed by a test; a CLI snapshot of 40 cases (`packages/cli/test/pipeline-cli.test.ts`).
+  - **Core (L6.8 – L6.9).** App set-up and the MCP config snippet in `@retake/engine/integrations`; `@retake/core/io`
+    (packages/core/src/io/) holds the readers, the Retake home and its key, secrets, file writers, bundle discovery and
+    the media tools; the root of `@retake/core` does no I/O and reads three environment values only (named, pinned by
+    a test). Disk facts through `FileFacts`, video probes through `VideoProber`. The work policy (`WorkPolicy`: agent
+    folders, ffmpeg, render settings; `PERSON_POLICY`, `workPolicyFrom`) replaces the module-level policy state: the
+    engine's opened workspace carries it (`agent` required when opening one) and every adapter receives it (`policy`,
+    `workPolicy` in the editor's render options).
+  - **Editor (L6.10).** `@retake/editor/plan` (the planner, its types, the frame geometry, the render records' reader)
+    loads no renderer (a test traces it); `planEdit` is an orchestration of steps in `src/planner/`; the pure frame
+    geometry is `@retake/components/geometry`; review imports the editor only through the plan entry and shares one
+    ffprobe summary parser (core).
+  - **In-page kit (L6.11).** `window.__retake` is built by esbuild (once per process, in memory) from
+    `packages/runner-web/src/kit/page/*.ts`; every page module only declares (held by kit-build.test.ts), `main.ts` acts
+    in the original order; the modules are type-checked with the DOM types and no Node types and not emitted; a golden
+    of what the page receives, recorded from the kit as it was before.
+  - **Studio data layer (L6.12 – L6.13).** A typed tool contract (`ToolDef<S, D, N>`, `defineTool` keeps the answer
+    type); `StudioOps` derived from the Studio's tools (arguments as `/v1/call` parses them, results the tools' own; one
+    narrowed result listed); only `src/app/data/` calls the API; `packages/ui/test/feature-boundaries.test.ts` holds
+    the app's import boundaries.
+  - **Worker (T14).** `runWorker` orchestrates named parts (`packages/engine/src/jobs/worker-*.ts`).
+  - **Two full suites** at the end of the series: the first caught one regression of L6.9 (a run's shell hooks got
+    no policy, through a structural type tsc could not check — fixed in `55cdcb4`, the mirrors now checked at compile
+    time) and tests that L6.9 adapted without running; the second (2026-11-10, load average 25–38 on 10 cores): 5179 passed, 104 skipped, 1 failed — `mcp/test/stdio-theme.test.ts`'s refused agent-writable logo answered `not_found` (the file was missing when it was read; the order of the checks in `engine/src/brand/files.ts` is the one on `main`; the file passes 6 times in 6 alone) — and 1 unhandled rejection in the Studio e2e library-budget test's route handler at teardown; both noted, not fixed.
+  - **Small behaviour notes:** a still's and an inspection's history `ms` leave out the status line and the gate's
+    release (a few ms shorter); a run's history line is written before the capture marker is closed; the MCP stdio
+    test's `job_cancel` destructive hint had been stale since L6.5; render bundles and the Studio player's bundle
+    rebuild once (the geometry files joined their hash); a component README that is a symbolic link out of the
+    components folder is refused (CHANGELOG).
+  - **Open:** T15's rest (a CI on pull requests — only release.yml exists —, `rust-toolchain.toml`, one
+    `onlyBuiltDependencies` list — package.json and pnpm-workspace.yaml both hold one —, `.gitignore` patterns for
+    signing material; SECURITY.md and `packageManager` with its hash are in place) and T16 (the next audit's measures, not run: the person asked for no measuring in this series). For the
+    person to decide: the desktop bundle stages each package's `dist` as it is (`pnpm deploy`), so an output whose
+    source was removed (an old `kit/kit.js`) can ship — clean `dist` before staging, or refuse a `.js` without a
+    source.
+
 ## State (after L5.18)
 - **L5.18 done (2026-11-09; pending the person's review of the pull request)** — hardening before the first release,
   the second of two lots (branch `claude/t-sec-2`, 7 commits on L5.17's `55b0da5`; requirements R-SEC-29 – R-SEC-37).
@@ -898,6 +954,8 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
+**The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
+
 **Before tagging v0.2.0: the person's review of the two hardening lots** (L5.17 and L5.18 done — ROADMAP
 "L5.17 – L5.18"; the person checks the [action plan](audit/action-plan.md)'s security task against their private
 report). Then come back to the audit of 2026-11-04 (`docs/audit/`):
