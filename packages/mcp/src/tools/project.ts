@@ -68,7 +68,7 @@ export const projectGet = defineTool({
   name: 'project_get',
   title: 'Read a project',
   description:
-    'A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied. Never returns session files or login steps.',
+    'A project: README (product, audience, goals, tone — read it before writing scenarios), readme_hash (the if_match of project_update_readme), scenarios, environments (pages, display URLs, production / read-only access, sandbox, persona names) and project.yaml with its defaults applied; readme_environments when the README\'s "Environments & links" section no longer matches them. Never returns session files or login steps.',
   input: z.strictObject({ project: projectSlug }),
   annotations: READ,
   async run({ project }, { engine }) {
@@ -82,6 +82,16 @@ export const projectGet = defineTool({
         `scenarios: ${p.scenarios.join(', ') || 'none yet'}`,
         `environments:${envs.length ? `\n${envs.map((l) => `- ${l}`).join('\n')}` : ' none'}`,
         p.readme_error ? `README.md: ${p.readme_error}` : p.readme === null ? 'README.md: missing (project_update_readme writes it)' : `README.md: ${p.readme.length} characters (readme_hash ${p.readme_hash})`,
+        ...(p.readme_environments
+          ? [
+              `README.md › "Environments & links" is out of date (it was written when the project was created): ${[
+                p.readme_environments.missing.length ? `it does not mention ${p.readme_environments.missing.map((l) => l.replace(/^- /, '')).join('; ')}` : '',
+                p.readme_environments.gone.length ? `it still lists ${p.readme_environments.gone.map((l) => l.replace(/^- /, '')).join('; ')}` : '',
+              ]
+                .filter(Boolean)
+                .join(' — ')}. Offer to update that section (project_update_readme).`,
+            ]
+          : []),
         ...(p.warnings.length ? [`project.yaml: ${plural(p.warnings.length, 'warning')}`] : []),
         // L5.8 (R-FLD-30): a local environment holding state and no sandbox — never reset it by hand between takes.
         ...(advice
@@ -95,7 +105,10 @@ export const projectGet = defineTool({
   },
 });
 
-const pageMap = z.record(z.string().min(1).max(100), z.string().min(1).max(2000)).describe('Page key → base URL, e.g. {"app": "https://app.staging.example.com"}.');
+const pageUrl = z.string().min(1).max(2000);
+const pageMap = z
+  .record(z.string().min(1).max(100), z.union([pageUrl, z.strictObject({ url: pageUrl, display: z.string().min(1).max(2000).optional() })]))
+  .describe('Page key → base URL, or {url, display} (display: the URL the browser frame shows instead, e.g. the production host for a local page), e.g. {"app": "https://app.staging.example.com"}.');
 
 export const projectCreate = defineTool({
   name: 'project_create',
@@ -107,6 +120,7 @@ export const projectCreate = defineTool({
     slug: projectSlug.optional().describe('Folder name (default: from the name).'),
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
+    default_env: envName.optional().describe('The environment used when a scenario does not say (one of `environments`; default: the first one).'),
     template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a template name of the workspace (never a path)').optional().describe('Template (theme) name; default "default".'),
   }),
   annotations: WRITE_FILES,

@@ -6,6 +6,35 @@ release — for the person about to click Install and Restart.
 
 ## [Unreleased]
 
+## [0.2.2] — 2026-11-10
+
+Signed-in pages of an app that keeps its session in the browser's database (Firebase sign-in) can be inspected and
+filmed, a sandbox says what it is doing while it starts, and a long list with a search field is chosen from without
+extra settings.
+
+### Fixed
+- **An automated sign-in that ended too early.** A single-page app signs in with a request, then stores its session
+  (the Firebase SDK: in IndexedDB) and routes away; the sign-in browser closed right after the last step and saved a
+  signed-out profile, so every signed-in page landed on the sign-in page ("the session expired during the run"). The
+  steps' requests now end first, and the page gets a moment to leave the sign-in page.
+- **An automated sign-in that did not hold said "signed in".** A persona without a `check` is now opened once more
+  the way a run will see it: landing on a sign-in page fails the login, saying so, and nothing is saved.
+- **IndexedDB in saved sessions.** A `storage_state` persona's snapshot holds its IndexedDB and a run restores it;
+  a profile persona's travels in its profile, as before.
+- **The skills' workspace check** compared the workspace with the session's working directory only: a session with
+  the product's repository added no longer stops.
+
+### Added
+- **`retake sandbox up` and `reset` show their steps** as they happen — the compose files, the build, the start, each
+  health check, the seed, the snapshot — on one live line in a terminal, as time-stamped lines otherwise; `--verbose`
+  copies every line of `docker compose`, and the last line gives the time of each step.
+- **`select` and `pick` search by themselves.** An option a long list has not rendered is typed in the list's search
+  field; `search:` still types something else, and the error says when a list has a search field.
+- **One page, several accounts.** Several personas (or sandbox accounts) may list the same page; the first one is its
+  default and a scene films another with `persona:`.
+- **`project_create`** (MCP) takes `{url, display}` pages and `default_env`; `project_get` says when the README's
+  "Environments & links" section no longer matches the project's environments.
+
 ## [0.2.1] — 2026-11-10
 
 Docker sandboxes work again from the app and from Claude with OrbStack, a sandbox can use compose files kept in your

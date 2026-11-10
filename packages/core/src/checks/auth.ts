@@ -205,7 +205,6 @@ export function checkAuth(
     if (block.login_url !== undefined) checkPatterns(block.login_url, [...path, 'login_url'], urls, ctx);
     if (!isObj(block.personas)) continue;
     const seen = new Map<string, string>();
-    const pageOwner = new Map<string, string>();
     for (const [name, p] of Object.entries(block.personas)) {
       const pp: IssuePath = [...path, 'personas', name];
       const lower = name.toLowerCase();
@@ -219,10 +218,8 @@ export function checkAuth(
           ctx.error([...pp, 'pages', i], `unknown page "${page}"${suggestion(page, keys)} (${global ? 'environment pages' : `environment ${blockEnvs[0]}`}: ${keys.join(', ') || 'none'})`);
           return;
         }
-        const owner = pageOwner.get(page);
-        if (owner !== undefined && owner !== name) {
-          ctx.error([...pp, 'pages', i], `page "${page}" is already signed in as persona "${owner}": an environment page belongs to at most one persona (film the other account on a page id of its own, \`persona:\` in the scene)`);
-        } else pageOwner.set(page, name);
+        // Several personas may list one page (one app, several roles — hotfix v0.2.2): the first one declared is the
+        // page's default, a scene names another with `persona:`.
       });
       const check = isObj(p.check) ? p.check : undefined;
       if (check && typeof check.url === 'string') {

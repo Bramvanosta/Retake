@@ -198,12 +198,60 @@ export interface CreateProjectInput {
   slug?: string;
   /** Full README.md content (default: a skeleton with the expected sections). */
   readme?: string;
-  environments?: ProjectConfig['environments'];
+  /** Environment name → its pages: page key → base URL, or `{url, display}` (the URL the browser frame shows). */
+  environments?: Record<string, Record<string, string | { url: string; display?: string }>>;
+  /** The environment used when a scenario does not say (default: the first one). */
+  default_env?: string;
   /** Personas (L1.6): global, or keyed by environment name. */
   auth?: ProjectConfig['auth'];
   template?: string;
   capture?: Partial<CaptureSettings>;
   frame?: FrameStyle;
+}
+
+/** The pages a new project is created with, as readmeSkeleton takes them: the URLs, and the display URLs given. */
+function createdPages(environments: CreateProjectInput['environments'] = {}): [ProjectConfig['environments'], ProjectConfig['environment_settings']] {
+  const urls: ProjectConfig['environments'] = {};
+  const settings: NonNullable<ProjectConfig['environment_settings']> = {};
+  for (const [env, pages] of Object.entries(environments)) {
+    urls[env] = {};
+    for (const [page, spec] of Object.entries(pages)) {
+      urls[env][page] = typeof spec === 'string' ? spec : spec.url;
+      if (typeof spec !== 'string' && spec.display !== undefined) settings[env] = { ...settings[env], display: { ...settings[env]?.display, [page]: spec.display } };
+    }
+  }
+  return [urls, settings];
+}
+
+/** One line of a README's "Environments & links" section, as the skeleton writes it. */
+function environmentLink(env: string, page: string, url: string, display?: string): string {
+  return `- ${env} · ${page}: ${url}${display ? ` (shown as ${display})` : ''}`;
+}
+
+/**
+ * What a README's "## Environments & links" section no longer says about the project's environments (hotfix v0.2.2: the
+ * section is written once, when the project is created, and environments are added to project.yaml later). `missing`:
+ * pages whose URL the section does not mention; `gone`: lines in the skeleton's own form (`- env · page: url`) for an
+ * environment or a page that no longer exists. Null when there is no such section, or nothing to say.
+ */
+export function readmeEnvironmentsDrift(
+  readme: string,
+  pages: ReadonlyArray<{ env: string; page: string; url: string; display?: string }>,
+): { missing: string[]; gone: string[] } | null {
+  const lines = readme.split(/\r?\n/);
+  const start = lines.findIndex((l) => /^##\s+Environments\b/i.test(l));
+  if (start < 0) return null;
+  const end = lines.findIndex((l, i) => i > start && /^#{1,2}\s/.test(l));
+  const section = lines.slice(start + 1, end < 0 ? undefined : end);
+  // A display URL ("shown as …") is not the page's own: another environment may live at that address.
+  const text = section.join('\n').replace(/\(shown as [^)]*\)/g, '');
+  const missing = pages.filter((p) => !text.includes(p.url.replace(/\/+$/, ''))).map((p) => environmentLink(p.env, p.page, p.url, p.display));
+  const gone: string[] = [];
+  for (const l of section) {
+    const m = /^- (\S+) · (\S+): \S/.exec(l);
+    if (m && !pages.some((p) => p.env === m[1] && p.page === m[2])) gone.push(l);
+  }
+  return missing.length || gone.length ? { missing, gone } : null;
 }
 
 /**
@@ -217,8 +265,7 @@ export function readmeSkeleton(
 ): string {
   const links = Object.entries(environments).flatMap(([env, pages]) =>
     Object.entries(pages).map(([page, url]) => {
-      const display = settings[env]?.display?.[page];
-      return `- ${env} · ${page}: ${url}${display ? ` (shown as ${display})` : ''}`;
+      return environmentLink(env, page, url, settings[env]?.display?.[page]);
     }),
   );
   return [
@@ -263,6 +310,7 @@ function projectYamlText(input: CreateProjectInput, slug: string): string {
     version: FORMAT_VERSIONS.project,
     name: input.name,
     environments: input.environments ?? {},
+    ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
     ...(input.auth ? { auth: input.auth } : {}),
     capture: { width, height, scale, fps, ...input.capture },
     frame: input.frame ?? DEFAULT_FRAME,
@@ -314,7 +362,7 @@ export async function createProject(root: string, input: CreateProjectInput): Pr
     await writeFile(join(dir, sub, '.gitkeep'), '');
   }
   await writeTextAtomic(file, yamlText);
-  const readme = input.readme ?? readmeSkeleton(input.name, input.environments);
+  const readme = input.readme ?? readmeSkeleton(input.name, ...createdPages(input.environments));
   await writeTextAtomic(join(dir, README_FILE), readme.endsWith('\n') ? readme : `${readme}\n`);
   await writeTextAtomic(join(dir, '.gitignore'), PROJECT_GITIGNORE.join('\n') + '\n');
   return loadProject(dir, wsRoot);

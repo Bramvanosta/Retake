@@ -62,6 +62,9 @@ type Log = (level: 'debug' | 'info' | 'warn' | 'error', message: string) => void
 const LOGIN_STEP_TIMEOUT_S = 15;
 /** Without `expect_text`, a check is valid once its page loaded this long ago off every sign-in page. */
 const CHECK_SETTLE_MS = 500;
+/** After the last login step: how long its requests may take to end, then how long the page may take to leave the sign-in page. */
+const SIGN_IN_SETTLE_MS = 10_000;
+const SIGN_IN_LEAVE_MS = 2_000;
 
 function firstLine(s: string): string {
   return s.split('\n')[0];
@@ -673,6 +676,12 @@ export async function autoLogin(context: BrowserContext, persona: ResolvedPerson
     await untilAborted(page, deps.signal, () => page.waitForLoadState('load', { timeout: 15_000 })).catch((e: unknown) => {
       if (deps.signal?.aborted) throw e;
     });
+    // A sign-in without a navigation (a single-page app: the last step sends a request, the product then stores its
+    // session and routes away) is not finished when its last step is: closing the tab now would save a signed-out
+    // browser. So: the requests the steps started end first, then the page gets a moment to leave the sign-in page.
+    await networkIdle(page, { timeoutMs: SIGN_IN_SETTLE_MS, ...(deps.signal ? { signal: deps.signal } : {}) });
+    const leaveBy = wallNow() + SIGN_IN_LEAVE_MS;
+    while (matchers.length > 0 && matchLoginUrl(page.url(), matchers) && wallNow() < leaveBy) await sleep(50, deps.signal);
   } finally {
     signingIn = false;
     await closePage(page);

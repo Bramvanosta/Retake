@@ -144,7 +144,7 @@ export const personaShape = {
     .email({ error: 'email is a mail address (name@example.com)' })
     .describe('The persona\'s mail address: wait_for_email {to: persona:<name>} matches it, mail cards label the mailbox after the persona.')
     .optional(),
-  pages: z.array(keyString('page')).describe('Environment pages this persona is signed into by default (a page belongs to at most one persona).').optional(),
+  pages: z.array(keyString('page')).describe('Environment pages this persona is signed into. Several personas may list one page (one app, several roles): the first one declared is its default, a scene names another with `persona:`.').optional(),
   session: z
     .enum(['profile', 'storage_state'])
     .describe('profile (default): the Chromium profile `retake login` keeps, copied for each run; storage_state: cookies + localStorage only.')

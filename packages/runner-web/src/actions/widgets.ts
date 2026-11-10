@@ -13,6 +13,8 @@ import type { ActionResult } from './types.js';
 
 /** Wait for an expected option/item before re-clicking its trigger once (field-tested value). */
 export const RETRY_TRIGGER_AFTER_MS = 3000;
+/** An option still missing this long after its list opened is typed in the list's search field, when it has one. */
+export const AUTO_SEARCH_AFTER_MS = 800;
 /** Base UI may re-open the row menu shortly after its confirmation dialog closes. */
 const MENU_REOPEN_GRACE_MS = 300;
 
@@ -33,12 +35,19 @@ async function findFirst(ctx: StepContext, targets: TargetObject[], timeoutMs: n
   return resolveTarget(ctx, hit, { timeoutMs: 1000 });
 }
 
-async function missing(ctx: StepContext, what: string, scope: TargetObject['in'], timeoutMs: number): Promise<StepError> {
+async function missing(ctx: StepContext, what: string, scope: TargetObject['in'], timeoutMs: number, searched?: 'no' | 'auto' | 'given'): Promise<StepError> {
   const r = await ctx.rt.kit.find({ text: what, in: scope });
   const near = r.count === 0 ? (r as ResolveMissing).near : [];
   const scopeNote = r.count === 0 && !(r as ResolveMissing).scope_found ? ' (no popover is open)' : '';
+  // A list that filters by a search field: say how to reach an option it has not rendered.
+  const hint =
+    searched === 'no' && scope === 'popover' && (await ctx.rt.kit.find(SEARCH_FIELD).catch(() => ({ count: 0 }))).count > 0
+      ? ` — this list has a search field: add \`search: ${JSON.stringify(what)}\` to the step`
+      : searched === 'auto'
+        ? ` — typed in the list's search field, no option matched: give \`search:\` with the text that finds it`
+        : '';
   return new StepError(
-    `${ctx.step.action}: "${what}" not found in the open ${scope}${scopeNote} after ${(timeoutMs / 1000).toFixed(1)} s; ${formatNear(near)}`,
+    `${ctx.step.action}: "${what}" not found in the open ${scope}${scopeNote} after ${(timeoutMs / 1000).toFixed(1)} s${hint}; ${formatNear(near)}`,
     { target: describeTarget({ text: what, in: scope }), candidates: 0, near },
   );
 }
@@ -130,7 +139,8 @@ async function openAndFind(
   trigger: Resolved,
   targets: TargetObject[],
   search: string | undefined,
-): Promise<{ open: ClickRun; found: Resolved | null; retried: boolean }> {
+  autoSearch?: string,
+): Promise<{ open: ClickRun; found: Resolved | null; retried: boolean; searched?: boolean }> {
   const { rt } = ctx;
   const deadline = wallNow() + ctx.timeoutMs;
   const before = await popupIds(ctx);
@@ -148,7 +158,16 @@ async function openAndFind(
     await typeSearch(ctx, search);
     return { open, found: await findFirst(ctx, targets, Math.max(500, deadline - wallNow())), retried };
   }
-  let found = await findFirst(ctx, targets, firstWait);
+  // Without `search`: a long list often renders only its first options and filters by its search field. When the option
+  // does not show shortly after the list opened and the list can be searched, the option's own text is typed there —
+  // what a person does (hotfix v0.2.2); `search:` stays the way to type something else.
+  let found = await findFirst(ctx, targets, Math.min(AUTO_SEARCH_AFTER_MS, firstWait));
+  if (!found && autoSearch !== undefined && !(await nothingOpened(ctx, trigger, before)) && (await searchReady(ctx))) {
+    rt.log('info', `${ctx.scene.id}.${ctx.step.index}: "${autoSearch}" is not in the open list, typing it in its search field`);
+    await typeSearch(ctx, autoSearch);
+    return { open, found: await findFirst(ctx, targets, Math.max(500, deadline - wallNow())), retried, searched: true };
+  }
+  if (!found) found = await findFirst(ctx, targets, Math.max(0, firstWait - AUTO_SEARCH_AFTER_MS));
   if (!found && (await nothingOpened(ctx, trigger, before))) {
     const again = await reclick(ctx, trigger, expectPopup);
     if (again) [open, retried] = [again, true];
@@ -190,14 +209,14 @@ export async function select(ctx: StepContext, args: SelectArgs): Promise<Action
   }
 
   const initial = await popupIds(ctx);
-  const { open, found, retried } = await openAndFind(ctx, trigger, optionTargets(args.option), args.search);
-  if (!found) throw await missing(ctx, args.option, 'popover', ctx.timeoutMs);
+  const { open, found, retried, searched } = await openAndFind(ctx, trigger, optionTargets(args.option), args.search, args.option);
+  if (!found) throw await missing(ctx, args.option, 'popover', ctx.timeoutMs, args.search ? 'given' : searched ? 'auto' : 'no');
   const opened = [...(await popupIds(ctx))].filter((id) => !initial.has(id));
   await clickResolved(ctx, found, { expect_popup: false, hover_ms: rt.pacing.nudge_hover_ms + 60, click_role: 'option' });
   if (!(await waitPopupsGone(ctx, opened, 1500))) {
     rt.log('debug', `${ctx.scene.id}.${ctx.step.index}: the listbox stayed open after choosing "${args.option}"`);
   }
-  return composite(open, ctx, { option: args.option, ...(retried ? { retried } : {}) });
+  return composite(open, ctx, { option: args.option, ...(retried ? { retried } : {}), ...(searched ? { searched: args.option } : {}) });
 }
 
 export async function pick(ctx: StepContext, args: PickArgs): Promise<ActionResult> {
@@ -207,17 +226,17 @@ export async function pick(ctx: StepContext, args: PickArgs): Promise<ActionResu
   const spec: TargetSpec = typeof args.field === 'string' ? { label: args.field } : args.field;
   const initial = await popupIds(ctx);
   const trigger = await resolveTarget(ctx, spec);
-  const { open, found: first, retried } = await openAndFind(ctx, trigger, optionTargets(options[0]), args.search);
-  if (!first) throw await missing(ctx, options[0], 'popover', ctx.timeoutMs);
+  const { open, found: first, retried, searched } = await openAndFind(ctx, trigger, optionTargets(options[0]), args.search, options[0]);
+  if (!first) throw await missing(ctx, options[0], 'popover', ctx.timeoutMs, args.search ? 'given' : searched ? 'auto' : 'no');
   await clickResolved(ctx, first, { expect_popup: false, click_role: 'option' });
   for (const opt of options.slice(1)) {
     const r = await findFirst(ctx, optionTargets(opt), ctx.timeoutMs);
-    if (!r) throw await missing(ctx, opt, 'popover', ctx.timeoutMs);
+    if (!r) throw await missing(ctx, opt, 'popover', ctx.timeoutMs, args.search || searched ? 'given' : 'no');
     await clickResolved(ctx, r, { expect_popup: false, click_role: 'option' });
   }
   const close = args.close ?? 'outside';
   await closeOpened(ctx, initial, close);
-  return composite(open, ctx, { options, close, ...(retried ? { retried } : {}) });
+  return composite(open, ctx, { options, close, ...(retried ? { retried } : {}), ...(searched ? { searched: options[0] } : {}) });
 }
 
 /**

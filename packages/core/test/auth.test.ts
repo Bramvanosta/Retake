@@ -359,6 +359,24 @@ describe('which persona films each page (R-AUTH-01, static plan)', () => {
     ]);
   });
 
+  it('one page, several personas (hotfix v0.2.2): the project validates; the first one declared is the page’s default, `persona:` names another, two page ids film both', () => {
+    const text = ['name: N', 'environments:', '  local: {admin: "http://localhost:4810"}', 'auth:', '  login_url: /login', '  personas:', '    owner: {pages: [admin]}', '    staff: {pages: [admin]}'].join('\n');
+    expect(parseProjectYaml(text).issues.filter((i) => i.severity === 'error')).toEqual([]);
+    const shared = project(text.split('\n'));
+    const opts = { env: 'local', envPages: shared.config.environments.local, personas: resolvePersonas(shared, 'local', { home: '/h' }), hooks: true };
+    const byDefault = planPersonas(scenario(['scenes:', '  - id: a', '    page: admin', '    open: /', '    steps: [{wait: 1}]']), opts);
+    expect([...byDefault.pages]).toEqual([['admin', 'owner']]);
+    const named = planPersonas(scenario(['scenes:', '  - id: a', '    page: admin', '    persona: staff', '    open: /', '    steps: [{wait: 1}]']), opts);
+    expect([...named.pages]).toEqual([['admin', 'staff']]);
+    expect(named).toMatchObject({ used: ['staff'], issues: [] });
+    const both = planPersonas(scenario(['scenes:', '  - id: a', '    pages:', '      theirs: {page: admin, open: /}', '      ours: {page: admin, persona: staff, open: /}', '    steps: [{wait: 1}]']), opts);
+    expect([...both.pages]).toEqual([
+      ['theirs', 'owner'],
+      ['ours', 'staff'],
+    ]);
+    expect(both.issues).toEqual([]);
+  });
+
   it('an environment without personas binds nothing (persona keys are ignored); the legacy form binds every page to default', () => {
     const s = scenario(['scenes:', '  - id: a', '    page: shop', '    persona: buyer', '    open: /', '    steps: [{new_tab: {href: /x}}]']);
     const none = planPersonas(s, { env: 'local', envPages: p.config.environments.local, personas: [], hooks: true });
@@ -418,11 +436,9 @@ describe('validation (R-AUTH-01, R-AUTH-02)', () => {
       'auth.staging.personas.none: "none" is reserved (`persona: none` films a page without any persona): pick another name',
       'auth.staging.personas.Admin.check.url: "consol:" is not an environment page (did you mean "console"?) (pages: console)',
       'auth.staging.personas.admin: persona "admin" differs from "Admin" only by case (their session folders would be the same on macOS)',
-      'auth.staging.personas.admin.pages.0: page "console" is already signed in as persona "none": an environment page belongs to at most one persona (film the other account on a page id of its own, `persona:` in the scene)',
       'auth.staging.personas.admin.pages.1: unknown page "shop" (environment staging: console)',
       'auth.staging.personas.admin.login.2.open: {{hooks.token.json}} is not available in login steps: they run before the setup hooks',
       'auth.staging.personas.admin.login.3.wait_for: unknown variable {{vars.nobody}}; declared: who',
-      'auth.staging.personas.other.pages.0: page "console" is already signed in as persona "none": an environment page belongs to at most one persona (film the other account on a page id of its own, `persona:` in the scene)',
     ]);
     expect(warns(issues)).toEqual([
       'auth.local.personas.a: persona "a" has no `check` and no `login_url`: an expired session is only noticed when a step fails (add check: {url, expect_text})',

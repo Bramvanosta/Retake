@@ -20,8 +20,10 @@ start: look first, then scaffold only if nothing existing does it.
 1. Call `engine_info`. If no Retake tool is available, stop: the Retake MCP server is not connected. Tell
    the user to run `retake mcp --print-config` from their workspace, follow the lines it prints (the plugin's
    README explains them) and start a new session. Compare the workspace root `engine_info` names with this
-   session's working directory: if they differ, stop and ask the user which workspace they mean (the plugin's values
-   are shared by every folder it is installed in; its README says how to switch).
+   session's folders (its working directory and any folder added to the session): if it is none of them, stop and ask
+   the user which workspace they mean (the plugin's values are shared by every folder it is installed in; its README
+   says how to switch). A working directory that moved to another folder of the session — the product's repository,
+   added to read it — is not a different workspace.
 2. `project_list`, `project_get {project}` (which project and therefore which theme the component is for), and
    `template_list {project}`: the user's theme is the one marked as the project's. Previews use it.
 

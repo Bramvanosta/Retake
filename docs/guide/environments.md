@@ -16,7 +16,7 @@ auth:                                  # global, or keyed by environment name (a
     login_url: /sign-in                # sign-in pages: a path prefix, "<page>:/path", a URL prefix or {regex, flags}
     personas:
       supplier:
-        pages: [console]               # environment pages it is signed into (a page belongs to one persona)
+        pages: [console]               # environment pages it is signed into (several personas may list one page)
         check: {url: "console:/products", expect_text: Maja Lindqvist}   # off camera, before every run
         login:                         # optional: automated login, off camera (secret references only)
           - open: "console:/sign-in"
@@ -29,8 +29,8 @@ auth:                                  # global, or keyed by environment name (a
         check: {url: "shop:/", expect_text: Demo Café}
 ```
 
-A persona's keys: `email` (its mail address: `wait_for_email {to: persona:<name>}`), `pages`, `session` (`profile`, the default: a Chromium profile; `storage_state`: cookies and
-localStorage only), `check` (`url`: `"<page>:/path"`, a path or a URL, default its first page's `/`; `expect_text`: a
+A persona's keys: `email` (its mail address: `wait_for_email {to: persona:<name>}`), `pages`, `session` (`profile`, the default: a Chromium profile; `storage_state`: cookies,
+localStorage and IndexedDB only), `check` (`url`: `"<page>:/path"`, a path or a URL, default its first page's `/`; `expect_text`: a
 text only shown when signed in — without it, signed in means "loads off the sign-in pages"; `expect_not_url`: more
 sign-in pages; `timeout`, default 10 s), `login_url` (its own sign-in pages, with `auth.login_url`) and `login` (steps
 `open`, `click`, `type`, `press`, `wait_for`, `wait` in scenario syntax; `{{hooks.…}}` is not available there).
@@ -47,19 +47,27 @@ retake auth status                                                           # e
 (`~/.retake/profiles/<project>/<env>/<persona>/`), on its check page (`--page KEY` / `--url URL` to choose),
 with the session saved so far — still signed in when it still works. Sign in, then close the window (or quit the
 browser). It saves a snapshot of the session (`~/.retake/sessions/<project>/<env>/<persona>.json`: the cookies —
-session cookies too, which a profile loses when it closes — and localStorage, readable only by you), checks the
+session cookies too, which a profile loses when it closes — and localStorage; for a `storage_state` persona, which has
+no profile, IndexedDB too, where some products keep their sign-in; readable only by you), checks the
 session the way a run will see it and prints
 `✓ supplier (env signed-in) signed in: console:/products shows "Maja Lindqvist" — runs use a copy of this session`
 (else "still signed out … did the sign-in finish?", exit 1). A window that ends signed out never replaces a saved
 session that still works (it is kept, and said so). A new profile never offers to save a password; a first sign-in
 that fails leaves no profile behind. Ctrl-C closes the window and saves nothing (exit 130). `--persona` is needed when
 the environment has several personas; `--auto` runs the persona's `login:` steps headless instead of a window — after
-checking the saved session the way a run sees it: one still valid is kept as is, no step runs. A profile a browser
-still holds (another login window) is refused. On a terminal, `retake new` asks for the personas (a persona whose
+checking the saved session the way a run sees it: one still valid is kept as is, no step runs. A sign-in without a
+navigation (a single-page app: the last step sends a request, the app then stores its session — the Firebase SDK
+keeps it in IndexedDB — and routes away) is waited for: the requests the steps started end, then the page has 2 s to
+leave the sign-in page, before the browser closes. A persona without a `check` is then opened once more the way a run
+will see it: landing on a sign-in page (`login_url`) fails the login ("the steps ran, but a new browser with the saved
+session lands on the sign-in page") and nothing is saved — end the steps with a `wait_for` on something only a
+signed-in page shows, and give the persona a `check`. A profile a browser still holds (another login window) is
+refused. On a terminal, `retake new` asks for the personas (a persona whose
 environment pages all have one already films none by default: a scene picks it with `persona:`) and offers to sign
 each one in (no answer: later).
 
-**Who films which page.** A page is signed in as the persona whose `pages` list its environment page;
+**Who films which page.** A page is signed in as the persona whose `pages` list its environment page — the first one
+declared when several do (one app, several roles) —;
 `persona: <name>` on a scene — or on a page of a multi-page scene, `pages.<id>.persona` — chooses another one, and
 `persona: none` none (a fresh browser: a sign-up, a public page). A page id keeps the persona it is first filmed with
 for the whole run: another account on the same environment page needs a page id of its own (a multi-page scene's

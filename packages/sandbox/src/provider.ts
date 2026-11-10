@@ -23,6 +23,16 @@ export interface SeedTrust {
   confirm?: (description: string, reason: string, request: HookApprovalRequest) => boolean | Promise<boolean>;
 }
 
+/**
+ * What a sandbox call is doing, for whoever shows it (the CLI's live line and its summary — hotfix v0.2.2): `step`
+ * starts a named step (the one before is over), `note` is one line of what the current step is doing (a line of
+ * `docker compose`, of a seed command — already masked).
+ */
+export interface SandboxProgress {
+  step(name: string, detail?: string): void;
+  note(text: string): void;
+}
+
 export interface ProviderContext {
   project: LoadedProject;
   sandbox: LoadedSandbox;
@@ -31,6 +41,7 @@ export interface ProviderContext {
   /** Write `state` (synchronously, atomically). */
   save(): void;
   log: SandboxLog;
+  progress?: SandboxProgress;
   signal?: AbortSignal;
   seedTrust?: SeedTrust;
 }

@@ -13,8 +13,10 @@ Retake server's instructions; when those instructions or a tool's description sa
 1. Call `engine_info`. If no Retake tool is available, stop: the Retake MCP server is not connected. Tell
    the user to run `retake mcp --print-config` from their workspace, follow the lines it prints (the plugin's
    README explains them) and start a new session. Compare the workspace root `engine_info` names with this
-   session's working directory: if they differ, stop and ask the user which workspace they mean (the plugin's values
-   are shared by every folder it is installed in; its README says how to switch).
+   session's folders (its working directory and any folder added to the session): if it is none of them, stop and ask
+   the user which workspace they mean (the plugin's values are shared by every folder it is installed in; its README
+   says how to switch). A working directory that moved to another folder of the session — the product's repository,
+   added to read it — is not a different workspace.
 2. `project_list`, then `project_get {project}`: read the README (product, audience, goals, tone), the environments
    with their page keys (production and read-only ones are filmed read-only), the personas and the scenarios that
    already exist. No project yet: offer `project_create` with what the user tells you.

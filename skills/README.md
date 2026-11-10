@@ -28,7 +28,7 @@ cd <workspace> && claude plugin install retake@retake --scope local --config nod
   settings, keyed `retake@retake`), while `--scope local` only enables the plugin per folder: installing in
   a second workspace re-points the sessions of the first one at the second workspace. To switch, uninstall in the old
   folder first (below), then install in the new one. Each skill compares `engine_info`'s workspace root with the
-  session's folder and stops when they differ; `engine_info` itself says when the server was started outside its
+  session's folders (the working directory and any folder added to it) and stops when it is none of them; `engine_info` itself says when the server was started outside its
   workspace (`started_in`).
 - The server's `PATH` keeps absolute entries only, and none inside the workspace (Claude writes files there): use a
   dedicated workspace folder, not one that holds your tools.

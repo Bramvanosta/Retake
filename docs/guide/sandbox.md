@@ -111,10 +111,11 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   first compose file; docker-compose only) — one source for the product's seed and for the sign-in, no keychain
   item to copy, and it works in the desktop app, which never sees your shell's variables. Read when the project
   loads and masked like a plain password; a name the file does not set is an error.
-- **One app, several accounts**: an environment page belongs to at most one account. For two roles of the same app
-  (an owner and an admin on one URL), give the service one page key per account on the same URL —
-  `pages: {admin: "http://admin.localhost:4810", backoffice: "http://admin.localhost:4810"}` — and each account its
-  own (`pages: [admin]`, `pages: [backoffice]`); a scene opens the page of the account it films.
+- **One app, several accounts**: two roles of the same app (an owner and an admin on one URL) may both list its page
+  (`pages: [admin]` on each account). The first account declared is the page's default; a scene films the other one
+  with `persona: <account>` (`{page: admin, persona: staff}`). One video that shows both gives each a page id of its
+  own in a multi-page scene — `pages: {theirs: {page: admin}, ours: {page: admin, persona: staff}}` —: a page id keeps
+  one account for the whole run. (A page key per account on the same URL — `admin` and `backoffice` — still works.)
 - Seed steps: `http`, `sql`, `shell`, `exec` — no `js` (there is no browser); they stop at the first failure, are
   never rolled back (a `rollback` is ignored, with a warning) and need no `confirm: true` (a seed rebuilds a local,
   disposable copy). A SQL file that is pg_dump's plain output (`COPY … FROM stdin`, `\connect`) is refused: dump with
@@ -137,6 +138,13 @@ retake run northfield-fixture sandbox-quote --sandbox   # up if needed, health, 
 
 `--env <name>` picks the sandbox (default: the first of project.yaml `sandboxes:`). `status` exits with `0` only when
 every service runs and is healthy, `--json` for scripts.
+
+`up` and `reset` say what they are doing while they do it — an image build and the health checks take minutes: on a
+terminal, one live line (the step, its elapsed time, the last line of `docker compose` or of the seed command), replaced
+by `✓ step  time` when the step ends; in a pipe or CI, a time-stamped line as each step starts and ends. The steps:
+`compose` (the compose files, the ports), `build` (with `--build`), `start` (until every service runs and is healthy),
+`health <service>`, `databases`, `seed n/N`, `snapshot`, `restart <service>` — a process sandbox: `start <service>`.
+`--verbose` copies every line of `docker compose` and of the seed; the last line, `steps`, gives the time of each one.
 
 - **`up`** starts the services that are not running (a process sandbox: in the order sandbox.yaml declares them, each
   one healthy before the next starts; a docker-compose one: `docker compose up`, below). It then seeds the sandbox

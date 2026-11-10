@@ -160,7 +160,10 @@ export async function runSeed(
     saved: {},
     // Read-write (a sandbox always is); the hosts of production / read-only environments stay protected.
     access: runAccess(env, false, project),
-    log: (level, msg) => opts.log(level === 'error' ? 'debug' : level, msg),
+    log: (level, msg) => {
+      opts.log(level === 'error' ? 'debug' : level, msg);
+      pctx.progress?.note(msg);
+    },
     // Ctrl-C stops a running shell step's process group; a second one kills it (Sandbox.killStartedSync).
     ...(opts.signal ? { signal: opts.signal } : {}),
     ...(opts.running ? { running: opts.running } : {}),
@@ -189,6 +192,8 @@ export async function runSeed(
   const flush = async () => {
     if (!batch.length) return;
     offset = done;
+    const kinds = [...new Set(batch.map((b) => (b as { name?: string }).name ?? Object.keys(b as object).find((k) => k !== 'name') ?? 'step'))].join(', ');
+    pctx.progress?.step(`seed ${done + 1}${batch.length > 1 ? `–${done + batch.length}` : ''}/${steps.length}`, kinds);
     const res = await runHooks(batch, ctx, { phase: 'seed', journal });
     if (!res.ok && opts.signal?.aborted) throw interrupted(`sandbox ${sandbox.env} seed`);
     if (!res.ok) {
@@ -203,6 +208,7 @@ export async function runSeed(
     if ('exec' in step) {
       await flush();
       if (!provider.exec) throw new SandboxError(`sandbox ${sandbox.env}: exec seed steps need provider docker-compose`, 'seed');
+      pctx.progress?.step(`seed ${done + 1}/${steps.length}`, `exec in ${step.exec.service}`);
       try {
         await provider.exec(pctx, step.exec);
       } catch (e) {

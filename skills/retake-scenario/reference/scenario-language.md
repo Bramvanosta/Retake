@@ -63,8 +63,8 @@ Every step has exactly one action.
 | `hover` | `hover: {text: Pricing, ms: 900}` | rest on an element |
 | `type` | `type: {into: {label: Email}, text: buyer@example.com}` | type character by character (`clear`, `enter`, `cps`) |
 | `press` | `press: Enter` | a key (Playwright key names; `{key, times}`) |
-| `select` | `select: {field: Country, option: Sweden}` | a native select or a combobox |
-| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg]}` | a multi-select popover |
+| `select` | `select: {field: Country, option: Sweden}` | a native select or a combobox; a long list with a search field: the option is typed there when it does not show — `search: Swe` types something else |
+| `pick` | `pick: {field: Bag sizes, option: [1 kg, 5 kg], search: kg}` | a multi-select popover; `search` types in its search field first (without it, the first option's text when it does not show) |
 | `menu` | `menu: {row: Iceland, item: Pause, confirm: Pause}` | a row's action menu |
 | `date` | `date: {field: Delivery window, day: 14 March 2027}` | a date picker |
 | `scroll` | `scroll: {to: {text: Awards}, offset: -140}` | an animated scroll (`{by: 400}`, `in`) |
