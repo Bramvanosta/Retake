@@ -79,7 +79,7 @@ const AccountSchema = z
   .strictObject({
     username: nonEmpty().describe('{{account.username}} in its login steps.').optional(),
     password: nonEmpty()
-      .describe('{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}.')
+      .describe('{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}, or {{compose_env:NAME}}: the value NAME has in the sandbox\'s compose env file (docker-compose).')
       .optional(),
     ...personaShape,
   })

@@ -15,7 +15,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { OLD_RAW_KIND, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin } from '@retake/core';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, newerRunMessage, resolveEnvironment, shownText, ffmpegBin } from '@retake/core';
 import type { BrowserConfig, DisplayEntry, H264Encoder, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline } from '@retake/core';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
@@ -465,8 +465,7 @@ export async function assertReplaceable(dir: string): Promise<void> {
   if (entries.length === 0) return;
   try {
     const m = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as { kind?: string };
-    // A package made before L5.13 carries the kind of that name (legacy.ts): still a raw package.
-    if (m.kind === 'retake/raw-capture' || m.kind === OLD_RAW_KIND) return;
+    if (m.kind === 'retake/raw-capture') return;
   } catch {
     /* not a package */
   }

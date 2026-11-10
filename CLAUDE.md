@@ -4,7 +4,6 @@ Retake turns a written scenario (YAML) into a finished product video: it drives 
 in-page cursor, captures it, edits it automatically with themeable components (Remotion), reviews the result (contact
 sheets, checks) and exports it — or exports the raw capture for an editing tool. TypeScript pnpm monorepo, Node ≥ 22.
 The current goal is **a local tool for our own use**; selling it is a later topic (`docs/BACKLOG.md`).
-Before L5.13 the tool was called Demo Studio (command `studio`, home `~/.demo-studio`, workspace file `studio.yaml`, variables `DEMO_STUDIO_*`): nothing reads those names any more — `retake doctor` says what to move; the old names the code still knows live in `packages/{core,engine}/src/legacy.ts` only. <!-- old-name: the history line -->
 
 ## Read first
 1. `docs/HANDOFF.md` — state, Mac setup, order of the next lots, decisions, notes per lot. **Always start here.**
@@ -61,7 +60,6 @@ node scripts/requirements.mjs [--lot L1.5]                    # regenerate docs/
 node scripts/requirements.mjs --untested 1                    # fails while a phase-1 requirement has no test
 node scripts/requirements.mjs --check-cites                   # fails when an evidence string quotes a missing test title
 node scripts/test-guard.mjs [--base <ref>] [<path>]            # migrated tests: no lost title, expect or test id vs a git ref
-node scripts/rename-l513.mjs [--dry] [--only <files>]        # the L5.13 rename, for a branch from before it
 python3 scripts/validate-raw.py <exports/package>             # optional: check a raw package (opentimelineio)
 node packages/cli/dist/bin.js mcp --print-config               # MCP server registration for Claude Code / desktop (--http: over HTTP)
 node packages/cli/dist/bin.js ui                               # the Studio web app on 127.0.0.1 (one server per workspace)

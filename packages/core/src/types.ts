@@ -1477,6 +1477,11 @@ export interface LoadedSandbox {
   manifest: SandboxManifest;
   /** Warnings of sandbox.yaml. */
   issues: ValidationIssue[];
+  /**
+   * What its accounts' `{{compose_env:NAME}}` references read from the compose env file, by name (those names only):
+   * secret values like `secrets`, never printed.
+   */
+  composeEnv?: Record<string, string>;
   /** The plain passwords of its accounts, by persona: registered as secret values when one signs in (never printed). */
   secrets: Record<string, string[]>;
 }
@@ -2354,7 +2359,7 @@ export interface RunPerfCpu {
   gpu: number;
   renderer: number;
   chromium_other: number;
-  /** Retake's own process (the runner). Run records written before L5.13a call it `studio` (perfSummary reads both). */
+  /** Retake's own process (the runner). */
   retake: number;
   /** ffmpeg encoding capture.mp4. */
   encoder: number;

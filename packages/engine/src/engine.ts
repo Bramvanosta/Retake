@@ -6,8 +6,8 @@
  * workspace's worker runs in a process of its own.
  */
 import { hostname } from 'node:os';
-import { RETAKE_VERSION, legacyInfo, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders } from '@retake/core';
-import type { CommentAuthor, LegacyInfo, RunMode, WorkspaceConfig } from '@retake/core';
+import { RETAKE_VERSION, listProjects, loginCommand as coreLoginCommand, parseScenario, workspaceFolders } from '@retake/core';
+import type { CommentAuthor, RunMode, WorkspaceConfig } from '@retake/core';
 import { personaStateView, projectPersonaStates, scenarioPersonaStates } from './auth.js';
 import type { PersonaState, PersonaStateView } from './auth.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -182,12 +182,6 @@ export interface EngineInfo {
   features: string[];
   /** What this installation may do (a parked commercial hook: everything, no limit). */
   entitlements: Entitlements;
-  /**
-   * L5.13: what is left from before the rename and not read — `old_home`: the old home still holds the sign-ins
-   * (`retake doctor` gives the move; `old_home_var` when it is the folder the old home variable names); `old_vars`: old variables set whose `RETAKE_*` twin is not (an MCP client never
-   * shows the CLI's stderr line). Absent when nothing is.
-   */
-  legacy?: LegacyInfo;
 }
 
 export interface AuthStatusItem extends Omit<PersonaStateView, 'detail' | 'at'> {
@@ -576,12 +570,6 @@ function shellQuote(s: string): string {
   return /^[\w@%+=:,./-]+$/.test(s) ? s : `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
-/** engine_info's `legacy` field, when something from before the rename is left unread (core legacyInfo). */
-function legacyField(): { legacy?: LegacyInfo } {
-  const legacy = legacyInfo();
-  return legacy ? { legacy } : {};
-}
-
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
   // Every client but the CLI serves trust mcp in this process (the MCP server, the Studio server; tests: fail-safe).
   const ws = await openWorkspace({ root: opts.root, agent: opts.client !== 'cli' });
@@ -773,9 +761,6 @@ export async function createEngine(opts: EngineOptions): Promise<Engine> {
         'history',
       ],
       entitlements: entitlements(),
-      // L5.13: the sign-ins and the variables of before the rename, not read (critique H3, reviews A M4 / B M4: told
-      // where the person is — the Studio, Claude).
-      ...legacyField(),
     }),
     usage: () => usageCounts(ws.root),
     projects: {

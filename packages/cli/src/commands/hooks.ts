@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { ScenarioError, isAccessError, newRunId } from '@retake/core';
 import type { LoadedProject, RunAccess, Scenario } from '@retake/core';
-import { HooksSourceError, createHookContext, refuseBesideOldHolder, selectHooks } from '@retake/engine';
+import { HooksSourceError, createHookContext, selectHooks } from '@retake/engine';
 import type { HookSelection } from '@retake/engine';
 import type { HookContext, HookResult } from '@retake/hooks';
 import { CliError, EXIT, UsageError } from '../errors.js';
@@ -255,8 +255,6 @@ async function rollbackAllPending(ui: Ui, project: LoadedProject, ctx: HookConte
 export async function envResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: HookCommandOptions): Promise<ExitCode> {
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  // L5.13: never beside an old Studio or worker (engine legacy.ts).
-  await refuseBesideOldHolder(project.root, 'this env reset');
   const hooks = await import('@retake/hooks');
   const runId = newRunId('env-reset');
   const { ctx, access, close, interrupted } = await hookContext(ui, project, { ...opts, runId }, global);

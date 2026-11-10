@@ -104,6 +104,11 @@ export interface DockerRunOptions {
   timeoutMs?: number;
   signal?: AbortSignal;
   cwd?: string;
+  /**
+   * The name docker is started under when `bin` is not the path it was found at (the real path the agent policy
+   * checked): OrbStack's `docker` is a link to a multi-call binary that picks its role from that name.
+   */
+  argv0?: string;
   /** Variables added to dockerEnv() (an exec step's `-e NAME` values). */
   env?: Record<string, string>;
   /** Names left out of this process's environment (the ones the sandbox's env file sets, L5.8). */
@@ -126,7 +131,7 @@ export function runDocker(bin: string, args: string[], opts: DockerRunOptions = 
     if (opts.signal?.aborted) return resolve({ code: null, stdout: '', stderr: '', ms: 0, aborted: true });
     let child: ChildProcess;
     try {
-      child = spawn(bin, args, { cwd: opts.cwd, env: { ...dockerEnv(process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
+      child = spawn(bin, args, { cwd: opts.cwd, ...(opts.argv0 ? { argv0: opts.argv0 } : {}), env: { ...dockerEnv(process.env, opts.unset, opts.pass), ...(opts.env ?? {}) }, stdio: ['ignore', 'pipe', 'pipe'] });
     } catch (e) {
       return resolve({ code: null, stdout: '', stderr: '', ms: 0, error: (e as Error).message });
     }

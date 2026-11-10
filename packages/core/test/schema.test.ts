@@ -223,9 +223,6 @@ describe('zod schemas', () => {
     expect(RunRecordSchema.safeParse(run).success).toBe(true);
     expect(RunRecordSchema.safeParse({ ...run, perf: { ...run.perf, frames: { ...run.perf!.frames, extra: 1 } } }).success).toBe(false);
     expect(perfSummary(run.perf!)).toBe('0.95 cores (Chromium 0.64, encoder 0.16, retake 0.15, product 0.00) · 34.4 fps (moves ≥ 55) · no freeze · 1 slow transition: reports.1 1.9 s · 20 MB');
-    // A run recorded before L5.13a names the tool's own CPU `studio` (review B L8): the same line.
-    const { retake, ...older } = run.perf!.cpu!;
-    expect(perfSummary({ ...run.perf!, cpu: { ...older, studio: retake } as unknown as typeof older & { retake: number } })).toBe(perfSummary(run.perf!));
     expect(perfSummary({ ...run.perf!, cpu: undefined, gpu: { accelerated: false }, stalls: [{ t: 1, ms: 250, during: 'ripple' }], transitions: undefined, disk: undefined, frame_rate_limit: false })).toBe(
       'no GPU · 34.4 fps (moves ≥ 55) · 1 freeze (cut by the edit) · frame-rate limiter off',
     );

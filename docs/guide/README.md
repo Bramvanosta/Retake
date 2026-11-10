@@ -19,7 +19,7 @@ install it, a first video and where to go next.
 | [The desktop app (macOS)](desktop-app.md) | installing Retake.app, its updates, the desktop shell |
 | [Security model](security.md) | what Retake protects, and how |
 | [Development](development.md) | the repository's layout, the test suites, the phase status |
-| [Upgrading from before L5.13](upgrading.md) | moving an installation from the tool's earlier name |
+| [Upgrading](upgrading.md) | a new build on a workspace an older one served |
 
 Also in `docs/`: [RELEASING.md](../RELEASING.md) (how a release is built and published),
 [BRING-YOUR-OWN-MOTION.md](../BRING-YOUR-OWN-MOTION.md) (your own intro, outro and overlays),
@@ -126,6 +126,6 @@ Environments* means the section of that name below.
 - [Repository layout](development.md#repository-layout)
 - [Phase status](development.md#phase-status)
 
-### [Upgrading from before L5.13](upgrading.md)
+### [Upgrading](upgrading.md)
 
 - [Two builds on one workspace](upgrading.md#two-builds-on-one-workspace-the-studios-token-in-the-retake-home)

@@ -212,7 +212,7 @@ accounts:
       `error ${lineOf(text, 'cwd: ~/data')}:34 seed.4.shell.cwd: cwd "~/data" only exists on this computer: write it relative to sandbox.yaml`,
       `error ${lineOf(text, 'restart: [ap]')}:13 reset.restart.0: unknown service "ap" (did you mean "app"?) (services: app, web)`,
       `error ${lineOf(text, '/postgres"')}:15 databases.main.url: database main is "postgres": a snapshot reset drops and recreates its database at every take — give the sandbox a database of its own`,
-      `error ${lineOf(text, 'password: "x{{')}:15 accounts.admin.password: a password is plain text or one {{env:VAR}} / {{keychain:service/account}} reference (it is put into the login steps as is)`,
+      `error ${lineOf(text, 'password: "x{{')}:15 accounts.admin.password: a password is plain text or one {{env:VAR}} / {{keychain:service/account}} / {{compose_env:NAME}} reference (it is put into the login steps as is)`,
       `error ${lineOf(text, 'expect_text: "{{account')}:40 accounts.admin.check.expect_text: {{account.username}} is only available in the login steps of an account (accounts.<name>.login)`,
       `error ${lineOf(text, '    login:')}:5 accounts.admin.login: the login steps use {{account.username}}: give account admin a \`username\``,
     ]);

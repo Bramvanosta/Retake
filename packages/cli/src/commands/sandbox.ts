@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { resolveEnvironment, sandboxNames } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import type { ResetResult, Sandbox, SandboxLog, SandboxStatus, ServiceStatus } from '@retake/sandbox';
-import { refuseBesideOldHolder, sandboxUpText } from '@retake/engine';
+import { sandboxUpText } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
@@ -102,7 +102,6 @@ async function interruptible<T>(ui: Ui, sb: Sandbox, fn: (signal: AbortSignal) =
 
 export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
-  await refuseBesideOldHolder((await openWorkspace(global)).root, 'sandbox up');
   if (opts.build) composeOnly(sb, '--build', 'its services are programs of this machine');
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
@@ -137,7 +136,6 @@ export async function sandboxDownCommand(ui: Ui, global: GlobalOptions, projectA
 
 export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
-  await refuseBesideOldHolder((await openWorkspace(global)).root, 'sandbox reset');
   try {
     const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), reseed: opts.reseed }));
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);

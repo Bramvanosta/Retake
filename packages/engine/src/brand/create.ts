@@ -21,8 +21,6 @@ import { basename, dirname, extname, join, relative, sep } from 'node:path';
 import {
   AuthorBrandInputSchema,
   BrandInputSchema,
-  OLD_MADE_BY,
-  OLD_THEME_PROVENANCE_FILE,
   RETAKE_VERSION,
   STARTER_TEMPLATES_DIR,
   TEMPLATE_FILE,
@@ -162,17 +160,11 @@ export async function replaceProblem(dir: string, trust: BrandTrust = 'author'):
   const st = await lstat(dir);
   if (!st.isDirectory()) return `${dir} is not a folder (a link or a file)`;
   let prov: Provenance;
-  let provFile = THEME_PROVENANCE_FILE;
+  const provFile = THEME_PROVENANCE_FILE;
   try {
     prov = JSON.parse(await readFile(join(dir, THEME_PROVENANCE_FILE), 'utf8')) as Provenance;
   } catch {
-    // A theme the tool made before L5.13 carries the provenance file of that name (legacy.ts): still the tool's.
-    try {
-      prov = JSON.parse(await readFile(join(dir, OLD_THEME_PROVENANCE_FILE), 'utf8')) as Provenance;
-      provFile = OLD_THEME_PROVENANCE_FILE;
-    } catch {
-      return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
-    }
+    return `${dir} was not made by this tool (no readable ${THEME_PROVENANCE_FILE})`;
   }
   if (!madeByTool(prov) || !prov.files || typeof prov.files !== 'object') return `${dir}: ${provFile} is not this tool's`;
   if (trust === 'mcp' && prov.trust !== 'mcp') return `${dir} was made by a human with retake theme create: through MCP only a theme made through MCP is replaced`;
@@ -193,9 +185,9 @@ export async function replaceProblem(dir: string, trust: BrandTrust = 'author'):
   return null;
 }
 
-/** Whether a provenance record is this tool's — `made_by` of today, or of before L5.13 (legacy.ts). */
+/** Whether a provenance record is this tool's. */
 function madeByTool(prov: Partial<Provenance> | null | undefined): boolean {
-  return prov?.made_by === 'retake' || (prov?.made_by as string | undefined) === OLD_MADE_BY;
+  return prov?.made_by === 'retake';
 }
 
 /** Remove this tool's build / swap folders left by a crash (see the module comment); anything else stays. */

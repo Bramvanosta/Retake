@@ -5,7 +5,6 @@ import { insideBundle, isRelativeToolPath } from './bundle.js';
 import { checkWorkspace } from './checks/project.js';
 import { FORMAT_VERSIONS } from './formats.js';
 import { ConfigError, hasErrors, issuesMessage } from './issues.js';
-import { oldWorkspaceFileAt, oldWorkspaceFileMessage } from './legacy.js';
 import { WorkspaceFileSchema } from './schemas/project.js';
 import type { WorkspaceConfig } from './types.js';
 import { expandHome } from './util.js';
@@ -32,23 +31,21 @@ function findUp(start: string, test: (dir: string) => boolean): string | undefin
 }
 
 /**
- * `$RETAKE_ROOT` if set, else the nearest ancestor containing retake.yaml — or this tool's workspace file from before
- * L5.13, which stops the walk so loadWorkspaceConfig can say to rename it (legacy.ts) —, else the nearest ancestor
+ * `$RETAKE_ROOT` if set, else the nearest ancestor containing retake.yaml, else the nearest ancestor
  * containing a projects/ or templates/ directory, else `start`.
  */
 export function findWorkspaceRoot(start: string = process.cwd()): string {
   const env = process.env.RETAKE_ROOT;
   if (env && env.trim()) return resolve(expandHome(env.trim()));
   return (
-    findUp(start, (d) => existsSync(join(d, WORKSPACE_FILE)) || oldWorkspaceFileAt(d)) ??
+    findUp(start, (d) => existsSync(join(d, WORKSPACE_FILE))) ??
     findUp(start, (d) => isDir(join(d, 'projects')) || isDir(join(d, 'templates'))) ??
     resolve(start)
   );
 }
 
 /**
- * Read retake.yaml (optional) and resolve the projects / templates / components directories. Refused when the only
- * workspace file is this tool's from before L5.13: ignoring it would drop its settings without a word (legacy.ts).
+ * Read retake.yaml (optional) and resolve the projects / templates / components directories.
  */
 export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig> {
   const absRoot = resolve(root);
@@ -59,10 +56,6 @@ export async function loadWorkspaceConfig(root: string): Promise<WorkspaceConfig
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw new ConfigError(`cannot read ${file}: ${(e as Error).message}`, [], file);
-    }
-    if (oldWorkspaceFileAt(absRoot)) {
-      const old = oldWorkspaceFileMessage(absRoot);
-      throw new ConfigError(`${old.message} — ${old.fix}`, [], file);
     }
     text = '';
   }

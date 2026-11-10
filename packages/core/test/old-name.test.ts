@@ -3,11 +3,10 @@
  *
  * L5.13 — the old name is gone: no file of the repository says "Demo Studio" (any spelling: demo-studio, DEMO_STUDIO_,
  * demoStudio, wrapped across a line), runs the old command (`studio <sub>`, `pnpm studio`, `Usage: studio`…), or names
- * the old workspace file or home — except where an old name is the point:
- * - whole files: the rename script, the two legacy modules (`packages/core/src/legacy.ts`, `packages/engine/src/legacy.ts`
- *   — a third package never gains old-name reads quietly) and the legacy tests (`packages/<pkg>/test/legacy*.test.ts`),
- *   this test;
- * - in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
+ * the old workspace file or home. Since v0.2.1 no code knows an old name (the legacy modules, their tests, the rename
+ * script and the upgrade guide are gone: an installation of that time is simply not seen). What is left:
+ * - this test, whole;
+ * - the history lines of the records: in the files listed in TAGGED only, a line carrying `old-name:` or a region between `old-name:begin` and
  *   `old-name:end` (critique L6: a tag elsewhere is itself a failure, so a count cannot hide a new leftover).
  * Scanned: every tracked file, and the untracked files git does not ignore under the source folders (a new file is
  * checked before it is committed; a person's own notes elsewhere are not) — their contents and their paths (a file or
@@ -45,21 +44,14 @@ export const PATTERNS: ReadonlyArray<[string, RegExp]> = [
 ];
 
 /** Whole files that are about the old names. */
-const WHOLE: readonly RegExp[] = [/^scripts\/rename-l513\.mjs$/, /^packages\/(?:core|engine)\/src\/legacy\.ts$/, /^packages\/[^/]+\/test\/legacy[^/]*\.test\.ts$/, /^packages\/core\/test\/old-name\.test\.ts$/];
+const WHOLE: readonly RegExp[] = [/^packages\/core\/test\/old-name\.test\.ts$/];
 
 /** Files whose `old-name:` lines and regions are allowed, and why. */
 const TAGGED: Readonly<Record<string, string>> = {
-  '.gitignore': "the state folders of before L5.13 stay ignored (an older checkout's)",
-  'vitest.config.ts': 'the old variables are dropped from the test environment',
-  'packages/ui/src/app/shell/AppShell.tsx': "the Studio's notice of the old home",
-  'apps/desktop/core/src/config.rs': "the desktop app's hint for a folder holding the old workspace file",
-  'docs/guide/upgrading.md': 'the upgrade guide',
   'docs/DESIGN.md': 'the L5.13 section',
   'docs/BACKLOG.md': 'the history line, BL-136',
-  'docs/MACOS-CHECKLIST.md': 'the upgrade check (14f)',
   'docs/HANDOFF.md': 'the history line',
   'docs/ROADMAP.md': "L5.13's row and paragraph",
-  'CLAUDE.md': 'the history line',
 };
 
 /** Source folders whose untracked (not ignored) files are scanned too. */
@@ -168,9 +160,8 @@ describe('the old name is gone (L5.13)', () => {
     ]) expect(oldNameHits(kept, false), kept).toEqual([]);
   });
 
-  it('the legacy modules allowed whole are core\'s and engine\'s only; a path of the old name is a hit (reviews B L2, B L4)', () => {
-    expect(['packages/core/src/legacy.ts', 'packages/engine/src/legacy.ts'].every((f) => WHOLE.some((re) => re.test(f)))).toBe(true);
-    expect(WHOLE.some((re) => re.test('packages/ui/src/legacy.ts'))).toBe(false);
+  it('no legacy module is allowed any more (v0.2.1); a path of the old name is a hit (reviews B L2, B L4)', () => {
+    for (const f of ['packages/core/src/legacy.ts', 'packages/engine/src/legacy.ts', 'packages/ui/src/legacy.ts', 'scripts/rename-l513.mjs']) expect(WHOLE.some((re) => re.test(f)), f).toBe(false);
     for (const path of ['skills/demo-studio-scenario/SKILL.md', 'projects/x/studio.yaml', 'docs/DemoStudio.md']) expect(pathHits(path).length, path).toBeGreaterThan(0);
     for (const path of ['skills/retake-scenario/SKILL.md', 'packages/ui/src/server/studio.ts', 'packages/components/library/studio/card-title/index.tsx']) expect(pathHits(path), path).toEqual([]);
   });

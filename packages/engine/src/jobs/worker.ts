@@ -30,7 +30,6 @@ import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
 import type { EngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
-import { refuseBesideOldHolder } from '../legacy.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { FilmingWatch, capMinutes, heldFile } from './captures.js';
@@ -168,7 +167,6 @@ export async function runWorker(o: WorkerOptions): Promise<number> {
     return 1;
   }
   try {
-    await refuseBesideOldHolder(root, 'this jobs worker');
   } catch (e) {
     log(`${(e as Error).message}: exiting (${(e as EngineError).fix ?? ''})`);
     return 1;

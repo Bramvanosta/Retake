@@ -27,7 +27,7 @@ import type { ChildProcess, SpawnOptions } from 'node:child_process';
 import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EngineError, refuseBesideOldHolder } from '@retake/engine';
+import { EngineError } from '@retake/engine';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -236,7 +236,6 @@ export async function uiCommand(ui: Ui, global: GlobalOptions, opts: UiCommandOp
   const { applyShellLine, launchStudio, startSupervisor } = await import('@retake/ui');
   let launched;
   try {
-    await refuseBesideOldHolder(root, 'this Studio');
     launched = await launchStudio({ root, port, log: (m) => ui.line(m) });
   } catch (e) {
     if (e instanceof EngineError) {

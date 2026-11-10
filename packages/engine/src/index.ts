@@ -297,8 +297,6 @@ export type { GateOptions, GateRequest, GateResult, GateStatus, RouteSpec } from
 export { BOOTSTRAP_CODES_MAX, BOOTSTRAP_CODE_TTL_MS, BootstrapCodes, bearerToken, newSecret, secretEquals } from './http/token.js';
 export { LOOPBACK, isLoopbackAddress, listenLoopback } from './http/listen.js';
 export { ERROR_STATUS } from './http/status.js';
-export { OLD_HOLDER_MAX_BYTES, oldLiveHolder, refuseBesideOldHolder } from './legacy.js';
-export type { OldHolder } from './legacy.js';
 export { DISCOVERY_VERSION, claimDiscovery, discoveryFile, holderAlive, readDiscovery, readStudioToken, releaseDiscovery, releaseStudioToken, studioTokenDir, studioTokenFile, tokenHolderAlive, writeStudioToken } from './http/discovery.js';
 export type { DiscoveryClaim, DiscoveryRecord, StudioTokenRecord } from './http/discovery.js';
 export { INDEX_SCHEMA, RUNS_INDEX_MAX, WorkspaceIndex, ftsQuery, indexFile } from './index-db/index-db.js';
