@@ -1,14 +1,14 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, parseScenario, runIdOfScenario, scenarioChangedMessage, projectPath } from '@retake/core';
-import { loadProjectTemplate, newerRunMessage, readJson, writeJson, fileFacts } from '@retake/core/io';
-import type { LoadedProject, Scenario, Timeline } from '@retake/core';
+import { join, resolve } from 'node:path';
+import { COMPONENT_ID_RE, DEFAULT_FILM, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, namedRunProblem, parseScenario, scenarioChangedMessage, takeWords, timelineProblem } from '@retake/core';
+import { loadProjectTemplate, readNamedRun, writeJson, fileFacts } from '@retake/core/io';
+import type { Scenario } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
-import { editOfToday, noteEdit, planEdit, planInputFiles, runEnv, summarizePlan } from '@retake/editor';
+import { editOfToday, noteEdit, planEdit, planInputFiles, recordEnv, summarizePlan } from '@retake/editor';
+import { findRunOf } from '@retake/engine';
 import type { EditOverrides } from '@retake/editor';
 import { CliError, EXIT, UsageError } from '../errors.js';
-import { variantOption } from './render.js';
+import { variantOption, warnLatest } from './render.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
@@ -26,55 +26,6 @@ export interface PlanCommandOptions {
   json?: boolean;
   /** Write the plan JSON to this file. */
   out?: string;
-}
-
-interface RunRef {
-  id: string;
-  dir: string;
-}
-
-/** A run folder whose timeline.json is a capture (not a dry run). */
-function hasCaptureTimeline(dir: string): boolean {
-  try {
-    return (JSON.parse(readFileSync(join(dir, 'timeline.json'), 'utf8')) as { mode?: string }).mode === 'capture';
-  } catch {
-    return false;
-  }
-}
-
-/**
- * The run a command works on: a run id (folder of <project>/runs), a run directory, or `latest` (the most recent
- * capture run — dry runs and runs without a timeline are skipped —, of `scenario` when given). Run ids start with
- * their date, so they sort chronologically.
- */
-export function resolveRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const runsDir = projectPath(project.dir, 'runs');
-  if (arg === 'latest') {
-    let ids: string[] = [];
-    try {
-      ids = readdirSync(runsDir).filter((id) => statSync(join(runsDir, id)).isDirectory());
-    } catch {
-      ids = [];
-    }
-    const candidates = ids
-      .filter((id) => (scenario ? runIdOfScenario(id, scenario) : true))
-      .filter((id) => hasCaptureTimeline(join(runsDir, id)))
-      .sort()
-      .reverse();
-    if (candidates.length === 0) {
-      throw new CliError(
-        `no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`retake run ${project.slug} <scenario>\``,
-      );
-    }
-    return { id: candidates[0], dir: join(runsDir, candidates[0]) };
-  }
-  const asId = join(runsDir, arg);
-  if (existsSync(asId)) return { id: arg, dir: asId };
-  const asDir = resolve(arg);
-  if (isAbsolute(arg) || arg.startsWith('.') || /[\\/]/.test(arg)) {
-    if (existsSync(asDir)) return { id: asDir.split(/[\\/]/).pop() ?? arg, dir: asDir };
-  }
-  throw new CliError(`run "${arg}" not found in ${runsDir} (use a run id, a run directory or "latest")`);
 }
 
 /** The scenario snapshot of a run (extra context for the planner); undefined when absent or invalid. */
@@ -97,16 +48,21 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
   }
   const ws = await openWorkspace(global);
   const project = await openProject(ws, projectArg);
-  const run = resolveRun(project, runArg, opts.scenario);
-  // A run.json a newer Retake wrote (R-PRIN-13), as render and export-capture refuse it.
-  const newer = newerRunMessage(run.dir);
-  if (newer) throw new CliError(`run ${run.id}: ${newer}`);
-  const captured = await readJson<Timeline>(join(run.dir, 'timeline.json'));
-  if (opts.scenario && captured.scenario !== opts.scenario) {
-    throw new CliError(`run ${run.id} is a run of scenario "${captured.scenario}", not "${opts.scenario}"`);
-  }
-  if (captured.mode === 'dry') throw new CliError(`run ${run.id} is a dry run: there is no capture to plan`);
-  const env = await runEnv(run.dir);
+  // The run: a run id, a run directory, or `latest` — the newest capture an edit can work on, of `--scenario` when
+  // given, by the rule every reader of runs shares (the editor's findRun, as render and export-capture; its errors
+  // state their kind: main prints their sentence alone, exit 1).
+  const run = await findRunOf(project, runArg, opts.scenario);
+  warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
+  // The named run's rule (core namedRunProblem, over the one reader), in its sentence: a run.json a newer Retake wrote
+  // (R-PRIN-13), no timeline or one that does not read, a run of another scenario, a dry run. A plan reads no film:
+  // a run without its film still plans, as it always has.
+  const { facts, timeline: whole } = await readNamedRun(run.dir);
+  const problem = namedRunProblem(facts, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), trust: 'author', inside: true });
+  if (problem && problem.why !== 'no-film') throw new CliError(takeWords(problem, { run: run.id, verb: 'plan', dir: run.dir }));
+  // The head reads and the whole does not: its lists are not lists.
+  if (!whole.ok) throw new CliError(takeWords(timelineProblem(whole) ?? { why: 'no-timeline' }, { run: run.id, verb: 'plan', dir: run.dir }));
+  const captured = whole.value;
+  const env = recordEnv(facts.record);
   // L5.5: the edit of today's scenario file when its filmed part is unchanged since the run, else the run's.
   const { timeline, edit, warnings } = editOfToday(project, run, captured, env, 'auto', undefined, fileFacts(ws.policy));
   const themeRef = opts.theme ?? timeline.video?.template ?? project.config.template;
@@ -122,7 +78,7 @@ export async function planCommand(ui: Ui, global: GlobalOptions, projectArg: str
     template,
     project,
     registry,
-    captureFile: join(run.dir, timeline.capture.file || 'capture.mp4'),
+    captureFile: join(run.dir, timeline.capture.file || DEFAULT_FILM),
     scenario: await runScenario(run.dir),
     env,
     overrides,

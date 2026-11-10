@@ -293,7 +293,8 @@ describe('project_board: L5.10a fixes (reviews A and B), on the board and its co
     await writeFile(join(dir, 'scenarios', 'blocks.yaml'), BLOCKS_YAML);
     const write = async (id: string, scenario: string) => {
       await mkdir(join(dir, 'runs', id), { recursive: true });
-      await writeFile(join(dir, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, scenario, mode: 'dry', status: 'failed', started_at: '2026-10-01T10:00:00.000Z', finished_at: '2026-10-01T10:01:00.000Z', env: 'local', steps_total: 1, steps_done: 0 }));
+      // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
+      await writeFile(join(dir, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'many', scenario, mode: 'dry', status: 'failed', started_at: '2026-10-01T10:00:00.000Z', finished_at: '2026-10-01T10:01:00.000Z', dir: join(dir, 'runs', id), env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 1, steps_done: 0, screenshots: [], hooks: { setup: 'skipped', teardown: 'skipped' }, warnings: [], error: { message: 'failed' } }));
     };
     // 400 runs of blocks (the window holds 300); the oldest is the only run of catalogue; reports has an old run and
     // one that is the last of the window (it sorts just before the 299 newest blocks runs).

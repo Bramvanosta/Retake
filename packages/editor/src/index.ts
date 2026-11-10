@@ -59,7 +59,7 @@ export type { PlanRunOptions, PlanTrust, PlannedEdit, PlannedRun } from './rende
 export { GUARDED_NO_OTHER_BROWSER, allowedDownload, allowedRequest, armNetworkGuard, browserProcessInfo, guardedPageFailed, guardedPageFailure, originOf, pickFreePort } from './render/network-guard.js';
 export type { BrowserProcessInfo, NetworkAllowList, NetworkGuard } from './render/network-guard.js';
 export { THEME_FILES_MAX, THEME_HASH_BYTES_MAX, themeContentHash, themeStatSignature } from './render/theme-hash.js';
-export { findRun, listRenders, nextVersion, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
+export { NoCaptureRunError, findRun, listRenders, nextVersion, recordEnv, rendersDir, reserveVersion, runEnv, runScenario, takenVersions, versionLockFile } from './render/runs.js';
 export type { RunRef } from './render/runs.js';
 export { CONTENT_TYPES, parseRange, startAssetServer } from './render/asset-server.js';
 export type { AssetServer } from './render/asset-server.js';

@@ -1,10 +1,10 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, editReplannedMessage, scenarioChangedMessage, takeWords, untilStep } from '@retake/core';
 import { scenarioSinceRun } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import { defaultStillFile, editorErrorOf, editorRenderer, findRunOf, planWork, renderInProcess, stillInProcess } from '@retake/engine';
-import type { EditOverrides, RenderProgress, RenderRecord } from '@retake/engine';
+import type { EditOverrides, RenderProgress, RenderRecord, RunRef } from '@retake/engine';
 import { CliError, EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -160,6 +160,47 @@ function summary(ui: Ui, r: RenderRecord): void {
 }
 
 /**
+ * What `latest` said of the run it picked (core latestTake, through the editor's findRun), as lines for stderr — none
+ * for a run that was named, none when there is nothing to say:
+ * - the newer captures it passed over (failed, cancelled, not finished or interrupted, without their film…), each with
+ *   its id and the rule's fixed words for the reason (never a message read from a file), at most five named and the
+ *   rest counted; then the newer run folders whose run.json is missing or does not read as a record (a count: nothing
+ *   says which scenario they are of); then how to name one instead;
+ * - where the capture it picked ends when it was stopped by `--until` (it is still the latest capture): the step when
+ *   run.json names it as a scenario does (core untilStep), else only that it stops early — no text of a file is
+ *   printed as the file has it.
+ * `scenario`: the scenario asked for, when one was; `name`: how a run is named to the command.
+ */
+export function latestNotice(run: RunRef, o: { scenario?: string; name?: string } = {}): string[] {
+  const pick = run.latest;
+  if (!pick) return [];
+  const lines: string[] = [];
+  const n = pick.passed.length + pick.passed_more;
+  const w = pick.without_record;
+  if (n > 0 || w > 0) {
+    const parts: string[] = [];
+    if (n > 0) {
+      const list = pick.passed.map((p) => `${p.run} (${takeWords(p.why, { run: p.run, verb: 'render' })})`);
+      if (pick.passed_more > 0) list.push(`and ${pick.passed_more} more`);
+      parts.push(`${n} newer capture${n === 1 ? '' : 's'}${o.scenario ? ` of "${o.scenario}"` : ''} passed over — ${list.join('; ')}`);
+    }
+    if (w > 0) parts.push(`${w} newer run folder${w === 1 ? '' : 's'} without a run.json that reads as a record ${w === 1 ? 'was' : 'were'} not considered`);
+    lines.push(`run ${run.id} is used: ${parts.join('; ')} (${o.name ?? 'name one with --run <id>'})`);
+  }
+  if (pick.take?.until) {
+    const at = untilStep(pick.take.until);
+    lines.push(`run ${run.id} stops ${at ? `at step ${at.scene}.${at.step}` : 'early'} (\`--until\`): the capture holds the scenario up to there`);
+  }
+  return lines;
+}
+
+/** latestNotice on stderr; nothing with `--json` (as the commands' other notes). */
+export function warnLatest(ui: Ui, run: RunRef, o: { scenario?: string; name?: string; json?: boolean } = {}): void {
+  if (o.json) return;
+  for (const line of latestNotice(run, o)) ui.warn(line);
+}
+
+/**
  * L5.5: before a render, say whether the scenario file changed since the run was captured — its filmed part (the render
  * shows the take as captured: re-capture to film it), or its edit alone (re-planned on this take). A run that cannot be
  * found says nothing here: the render reports it.
@@ -202,7 +243,10 @@ export async function renderCommand(ui: Ui, global: GlobalOptions, projectArg: s
   await warnScenarioChanged(ui, project, opts.run ?? 'latest', scenario);
   // Captures first (L5.14): the run is the one named now ("latest" resolved before any wait, critique M10).
   // The editor's errors state their kind (core error-kind.ts): main prints their message alone, exit 1.
-  const runId = (await findRunOf(project, opts.run ?? 'latest', scenario)).id;
+  const run = await findRunOf(project, opts.run ?? 'latest', scenario);
+  const runId = run.id;
+  // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
+  warnLatest(ui, run, { scenario, json: opts.json });
   const gate = await heavyGate(ui, { root: ws.root, what: 'rendering', noWait: opts.wait === false });
   if (gate.waited) ui.info(`rendering run ${runId}`);
   const printer = opts.json ? null : new RenderProgressPrinter(ui);
@@ -275,6 +319,7 @@ export async function stillCommand(ui: Ui, global: GlobalOptions, projectArg: st
     root: ws.root,
     measureMusic: false,
   });
+  warnLatest(ui, run, { scenario, json: opts.json });
   if (frame >= plan.durationInFrames) throw new CliError(`--frame ${frame} is past the end of the video (${plan.durationInFrames} frames, 0–${plan.durationInFrames - 1})`);
   const out = opts.out ? resolve(opts.out) : await defaultStillFile(project, scenario, plan.variant, frame);
   // Captures first (L5.14): the run was planned (resolved) before any wait.

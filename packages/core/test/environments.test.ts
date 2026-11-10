@@ -864,7 +864,7 @@ describe('run files: environment blocks', () => {
     expect(zodIssues(TimelineSchema, tl)).toEqual([]);
     expect(zodIssues(TimelineSchema, { ...tl, environment: { ...tl.environment, access: 'read-mostly' } })).not.toEqual([]);
     const record = {
-      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 'now', dir: '/x', env: 'production',
+      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 'now', finished_at: 'now', dir: '/x', env: 'production',
       options: { hooks: 'run', headed: false, allow_writes: true }, steps_total: 0, steps_done: 0, screenshots: [],
       hooks: { setup: 'none', teardown: 'none' }, warnings: [], environment: { production: true, access: 'read-write', clock: { at: '2026-11-02T10:24:00', timezone: 'Europe/Paris', freeze: true } },
     };

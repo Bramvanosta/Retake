@@ -92,6 +92,21 @@ deliberate use — 1). It cannot see a grammar spelt another way, a pattern put 
 from pieces, a parser written with string methods, a grammar reached under another name, nor anything outside
 `packages/*/src`.
 
+A run's record and a capture's timeline are read in one place in core (`run-record.ts`: the pure parse boundary;
+`io/run-folder.ts`: the files — a value or a typed problem), the run record is a union of states (`run-record.ts`) and
+"can this capture be edited" and "which run is `latest`" are two pure rules (`take.ts`). The ratchet's `record-read`
+check counts, in `packages/*/src` outside those two files, a value given the type of a run record or a timeline: the
+result of `JSON.parse` or `readJson` cast, typed by a type argument, by its variable's annotation or by its
+function's return type; any other cast to one of those types; a type guard or an assertion function that says a value
+is one; a generic call that names one as its type argument; a parse through a record's or a timeline's schema itself;
+an interface that extends one. Two files read a run folder's file on their own, on purpose, into a shape of their own
+— `engine/src/prune.ts` (until what prune keeps is decided) and `engine/src/jobs/run-job.ts` (a reserved run is closed
+on a lenient read: a record the reader refuses must still be closed) —: each `JSON.parse` there is an entry of the
+baseline with its reason. The check cannot see a type under an alias or an own interface of the same members anywhere
+else, a file's own bytes handed to the reader's parsers (the engine's confined run folder and the comments' anchor do:
+the type is the reader's, the link and size rules are theirs), an untyped parse result that reaches a record without a
+cast, nor anything outside `packages/*/src`.
+
 ## Path (no big-bang)
 1. **Guard rails** — the ratchet test at today's counts, a glossary, one containment function, error kinds carried by
    the error classes. Small, safe, and they stop new drift.

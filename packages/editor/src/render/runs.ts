@@ -2,12 +2,12 @@
  * Runs and renders of a project on disk: the run a render works on (id, directory or `latest`), the next free render
  * version and the RenderRecords already written.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RENDER_VERSION_MAX, isRunId, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderSuffix, runIdOfScenario, runIdStamp } from '@retake/core';
-import { newerRunMessage } from '@retake/core/io';
-import type { LoadedProject, Scenario } from '@retake/core';
+import { RENDER_VERSION_MAX, insideFolder, latestTake, orderRuns, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderSuffix, takeNeedsTimeline, takeOf, takeWords } from '@retake/core';
+import { nodeFileFacts, readRunFolder, readRunRecord } from '@retake/core/io';
+import type { LatestPick, LoadedProject, RunRead, Scenario } from '@retake/core';
 import { readRenderRecords } from '../render-record.js';
 import type { RenderRecord } from '../render-record.js';
 import { RenderError } from './types.js';
@@ -15,57 +15,92 @@ import { RenderError } from './types.js';
 export interface RunRef {
   id: string;
   dir: string;
+  /**
+   * Set when the run was picked as `latest` (core latestTake): the take — `take.until` when the capture was stopped by
+   * `--until` — and the newer captures of the scenario it passed over, for whoever says so. Absent for a run named
+   * by its id or its folder.
+   */
+  latest?: LatestPick;
 }
 
-/** A run folder whose timeline.json is a capture (not a dry run). */
-function hasCaptureTimeline(dir: string): boolean {
-  try {
-    return (JSON.parse(readFileSync(join(dir, 'timeline.json'), 'utf8')) as { mode?: string }).mode === 'capture';
-  } catch {
-    return false;
+/** `latest` found no capture to edit: what it passed over on the way (`pick.take` is absent). */
+export class NoCaptureRunError extends RenderError {
+  constructor(
+    message: string,
+    readonly pick: LatestPick,
+  ) {
+    super(message);
   }
 }
 
+/** How a run is named instead of `latest`, in the words of who asked: a terminal's option, or the argument of an MCP tool. */
+const NAME_ONE = { author: 'name one with `--run <id>`', mcp: 'name one with `run_id`' } as const;
+
 /**
- * `latest` order: dated run ids first (the stamp the runner writes, core runIdStamp), newest first (they sort
- * chronologically), then any other folder name. A folder
- * named to sort above every date (`zz…-quote`: runs/ is writable by an agent) is never preferred to a real capture.
+ * What `latest` passed over when it found nothing, in the rule's fixed words (core takeWords) with the count of each
+ * reason over every capture passed over, and how many folders had no run.json that reads as a record. No folder name:
+ * the sentence may reach a trusted line.
  */
-function latestFirst(a: string, b: string): number {
-  return Number(runIdStamp(b) !== null) - Number(runIdStamp(a) !== null) || (a < b ? 1 : a > b ? -1 : 0);
+function passedWords(pick: LatestPick, trust: 'author' | 'mcp'): string {
+  const total = pick.passed.length + pick.passed_more;
+  const parts: string[] = [];
+  if (total > 0) {
+    const reasons = pick.reasons.map((r) => `${takeWords(r.why, { run: '', verb: 'render' })} (${r.count})`);
+    parts.push(`${total} capture${total === 1 ? '' : 's'} of it cannot be edited: ${reasons.join(', ')}`);
+  }
+  if (pick.without_record > 0) {
+    parts.push(`${pick.without_record} run folder${pick.without_record === 1 ? '' : 's'} without a readable run.json ${pick.without_record === 1 ? 'was' : 'were'} not considered (${NAME_ONE[trust]})`);
+  }
+  return parts.length ? ` — ${parts.join('; ')}` : '';
 }
 
 /**
- * The run to edit: a run id (folder of <project>/runs), a run directory, or `latest` (the most recent capture run —
- * dry runs and runs without a timeline are skipped —, of `scenario` when given). `latest` considers only folder names
- * that are run ids (letters, digits, ".", "_", "-"; ≤ 200 characters: the name reaches trusted summaries) and prefers
- * dated ids (latestFirst). A run whose run.json a newer Retake wrote is refused (R-PRIN-13).
+ * The run to edit: a run id (folder of <project>/runs), a run directory, or `latest` — the newest usable capture, of
+ * `scenario` when given, by the two rules every reader of runs shares (core take.ts: takeOf, orderRuns, latestTake;
+ * the run folders read by core/io readRunFolder). `latest` says what it passed over (`RunRef.latest`). A run named
+ * by its id or its folder is found whatever it holds; one whose run.json a newer Retake wrote is refused (R-PRIN-13).
  */
-export function findRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
-  const run = locateRun(project, arg, scenario);
-  const newer = newerRunMessage(run.dir);
-  if (newer) throw new RenderError(`run ${run.id}: ${newer}`);
+export async function findRun(project: LoadedProject, arg: string, scenario?: string): Promise<RunRef> {
+  const run = await locateRun(project, arg, scenario);
+  if (run.latest) return run;
+  const record = await readRunRecord(join(run.dir, 'run.json'), { follow: true });
+  if (!record.ok && record.problem === 'newer-format') throw new RenderError(takeWords({ why: 'newer-format', message: record.message }, { run: run.id, verb: 'render' }));
   return run;
 }
 
-function locateRun(project: LoadedProject, arg: string, scenario?: string): RunRef {
+/**
+ * findRun without the named run's format check (planRun reads the run folder itself: plan-run.ts).
+ *
+ * `o.trust` — `mcp`: `latest` takes only a run whose folder really lies in the project. A run of a `runs/` that is a
+ * link to elsewhere (or whose parent is) is said `outside` to the rule (core takeOf), so it is passed over and counted
+ * with the others, as naming it through MCP is refused (plan-run.ts namedRunFacts). At a terminal (`author`, the
+ * default) nothing of this applies.
+ */
+export async function locateRun(project: LoadedProject, arg: string, scenario?: string, o: { trust?: 'author' | 'mcp' } = {}): Promise<RunRef> {
   const runsDir = projectPath(project.dir, 'runs');
   if (arg === 'latest') {
-    let ids: string[] = [];
+    let names: string[] = [];
     try {
-      ids = readdirSync(runsDir).filter((id) => statSync(join(runsDir, id)).isDirectory());
+      names = readdirSync(runsDir);
     } catch {
-      ids = [];
+      names = [];
     }
-    const candidates = ids
-      .filter((id) => isRunId(id))
-      .filter((id) => (scenario ? runIdOfScenario(id, scenario) : true))
-      .filter((id) => hasCaptureTimeline(join(runsDir, id)))
-      .sort(latestFirst);
-    if (candidates.length === 0) {
-      throw new RenderError(`no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`retake run ${project.slug} ${scenario ?? '<scenario>'}\``);
+    // Each run's record first; its timeline only when the record does not already rule it out (core takeNeedsTimeline).
+    const pick = await latestTake(orderRuns(names), scenario, async (id) => {
+      const facts = await readRunFolder(runsDir, id, { timeline: (record) => takeNeedsTimeline(record, scenario) });
+      return takeOf(facts, { outside: o.trust === 'mcp' && facts.folder === 'dir' && !insideFolder(project.dir, join(runsDir, id), nodeFileFacts) });
+    });
+    if (pick.take) return { id: pick.take.run, dir: join(runsDir, pick.take.run), latest: pick };
+    if (pick.only_newer) {
+      // The newest capture was written by a newer Retake. A terminal names it; through MCP a run that was not picked
+      // is never named in a sentence (its name is a folder's: `untrusted.passed_over` has it).
+      const said = takeWords({ why: 'newer-format', message: pick.only_newer.message }, { run: pick.only_newer.run, verb: 'render' });
+      throw new NoCaptureRunError(o.trust === 'mcp' ? `the newest capture${scenario ? ` of scenario "${scenario}"` : ''}: ${pick.only_newer.message}` : said, pick);
     }
-    return { id: candidates[0], dir: join(runsDir, candidates[0]) };
+    throw new NoCaptureRunError(
+      `no capture run${scenario ? ` of scenario "${scenario}"` : ''} in ${runsDir}: capture one with \`retake run ${project.slug} ${scenario ?? '<scenario>'}\`${passedWords(pick, o.trust ?? 'author')}`,
+      pick,
+    );
   }
   const asId = join(runsDir, arg);
   if (existsSync(asId)) return { id: arg, dir: asId };
@@ -85,14 +120,18 @@ export async function runScenario(dir: string): Promise<Scenario | undefined> {
   }
 }
 
-/** The environment a run filmed (run.json `env`); undefined when absent (the planner then uses the timeline's alone). */
+/** The environment a record names: of a record that reads, also one whose status Retake never writes; else undefined. */
+export function recordEnv(record: RunRead): string | undefined {
+  const env = record.ok ? record.value.env : record.problem === 'unknown-status' ? record.record.env : undefined;
+  return typeof env === 'string' && env !== '' ? env : undefined;
+}
+
+/**
+ * The environment a run filmed (run.json `env`, through the one reader: core/io readRunRecord); undefined when the
+ * record is absent or does not read (the planner then uses the timeline's alone).
+ */
 export async function runEnv(dir: string): Promise<string | undefined> {
-  try {
-    const env = (JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as { env?: unknown }).env;
-    return typeof env === 'string' && env !== '' ? env : undefined;
-  } catch {
-    return undefined;
-  }
+  return recordEnv(await readRunRecord(join(dir, 'run.json'), { follow: true }));
 }
 
 /** `<project>/renders` */

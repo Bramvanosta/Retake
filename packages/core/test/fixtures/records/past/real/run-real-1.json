@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "id": "20261021-090001-quote",
+  "project": "northfield-fixture",
+  "scenario": "quote",
+  "mode": "capture",
+  "status": "succeeded",
+  "started_at": "2026-10-28T07:36:36.898Z",
+  "dir": "/workspace/projects/northfield-fixture/runs/20261021-090001-quote",
+  "env": "local",
+  "options": {
+    "hooks": "run",
+    "headed": false
+  },
+  "steps_total": 25,
+  "steps_done": 25,
+  "screenshots": [],
+  "hooks": {
+    "setup": "ok",
+    "teardown": "ok"
+  },
+  "warnings": [],
+  "environment": {
+    "access": "read-write"
+  },
+  "engine": {
+    "node": "22.0.0",
+    "chromium": "141.0.0.0",
+    "os": "darwin 25.0.0 arm64",
+    "fonts": {
+      "files": 100,
+      "digest": "000000000000"
+    }
+  },
+  "capture": "/workspace/projects/northfield-fixture/runs/20261021-090001-quote/capture.mp4",
+  "perf": {
+    "seconds": 48.85,
+    "cpu": {
+      "browser": 20.33,
+      "gpu": 5.37,
+      "renderer": 3.1,
+      "chromium_other": 0.23,
+      "encoder": 8.57,
+      "total": 45.42,
+      "cores": 0.93,
+      "product": 0.38
+    },
+    "machine": {
+      "cpus": 10,
+      "load_mean": 12.38,
+      "load_max": 20.45
+    },
+    "gpu": {
+      "accelerated": true,
+      "renderer": "a GPU"
+    },
+    "frame_rate_limit": true,
+    "frames": {
+      "received": 1576,
+      "fps": 32.3,
+      "motion_fps_min": 37.9,
+      "dropped": 7,
+      "kicked": 10
+    },
+    "stalls": [],
+    "transitions": {
+      "measured": 15,
+      "slow": []
+    },
+    "encode": {
+      "codec": "h264_videotoolbox",
+      "quality": "q:v 85",
+      "finish_ms": 26,
+      "late_frames": 0
+    },
+    "disk": {
+      "run_mb": 20.9,
+      "frames_kept": false,
+      "free_gb": 54.2
+    }
+  },
+  "timeline": "/workspace/projects/northfield-fixture/runs/20261021-090001-quote/timeline.json",
+  "finished_at": "2026-10-28T07:37:29.122Z"
+}

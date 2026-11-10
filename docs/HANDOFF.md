@@ -49,6 +49,42 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.6a)
+- **L7.6a done (2026-11-10; branch `claude/arch-l7`)** — the run record as a union, the take, one "usable capture"
+  rule and one "latest run" rule (first half of U5 of the
+  [2026-11-10 action plan](audit/2026-11-10/action-plan.md), finding D2).
+  - **The record.** A run record is a union of five states (`packages/core/src/run-record.ts`); the members that
+    decide a state are read-only and a status changes through four pure functions, so no code path writes a state
+    the union does not have; what the runner and the engine write is byte for byte what they wrote. A strict schema
+    for what this version writes, **a tolerant reader for what any version left on a disk**: only id, scenario, kind,
+    status and what that state has decide whether a `run.json` is a record; every other member is read leniently.
+    A `run.json` that is no record is said as that (`run_status`, the lists' problem row, `latest`'s count), never
+    as a run without `run.json`.
+  - **One reader, two rules.** `packages/core/src/io/run-folder.ts` reads a run folder and answers a value or a
+    typed problem; `packages/core/src/take.ts` (pure) says whether a capture can be edited and which run `latest`
+    names. They replace the copies of the CLI, the editor, the engine, the raw export, the review and the Studio
+    front end (prune's two and the scenario view's picture rule stay). Ratchet check `record-read`; baseline 93.
+  - **Decided (the person, 2026-11-10).** `latest` is the newest succeeded capture with its timeline and film, in
+    one order of runs (dated ids first) and with no window; it says what it passed over — at a terminal a line on
+    stderr with run ids and a fixed word per reason, through MCP a count in the text and the names under `untrusted`
+    only. A capture stopped by `--until` is taken, with a line saying where it ends. A run named by its id keeps
+    working whatever its record says, also with a timeline made by hand. Through MCP only: a run whose folder lies
+    outside the project is refused when named and is never `latest`, and a named run's film is one file name of its
+    folder. The Studio's Render, its timeline's default and the board's capture are the same run in every state.
+  - **Proved.** A reviewer built `HEAD` beside the lot and ran 200 crafted projects through the engine, the editor,
+    the CLI and MCP: every difference is a decision or a listed fix. **Prune did not move** (no cell, 74 projects):
+    what it keeps is a lot of its own. The MCP tool list, the Studio's op table, the generated schemas and the CLI
+    golden are byte-identical.
+  - **Decided, not built yet.** Prune keeps both the newest succeeded take and the newest usable one, and a render
+    renamed by hand keeps protecting its take (the prune lot and L7.6b).
+  - **Left.** The render record is not a union yet (L7.6b). Only three real run folders were on this machine to
+    read: the other past shapes are fixtures written by hand, which is why the reader does not depend on them being
+    exact. A record that says `running` cannot say whether its process is alive. `latest` reads one `run.json` per
+    newer run (18 – 21 ms under 200). BACKLOG BL-165 holds the small pieces.
+  - **Checked.** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`; each changed test file alone; two
+    renders and fourteen plans through the built CLI on crafted folders. **The full suite was not run** (once, at
+    the end of the branch); no real browser capture ran.
+
 ## State (after L7.5)
 - **L7.5 done (2026-11-10; branch `claude/arch-l7`)** — one id module in the domain (U3 of the
   [2026-11-10 action plan](audit/2026-11-10/action-plan.md), finding D3).
@@ -1142,7 +1178,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: the prune lot and L7.6b (the rest of U5), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

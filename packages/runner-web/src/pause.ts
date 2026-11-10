@@ -14,7 +14,7 @@
  * shows after the resume — a jump at that point when it changed.
  */
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunRecord, TimelinePause } from '@retake/core';
+import type { RunProgress, RunningRun, TimelinePause } from '@retake/core';
 import { CancelledError } from './errors.js';
 import type { ScreencastRecorder } from './recorder.js';
 import type { LogLevel } from './runtime.js';
@@ -58,7 +58,7 @@ export interface PausePoint {
   gate: PauseGate;
   /** The run's signal (the cancel and the sign-in guard). */
   signal: AbortSignal;
-  record: RunRecord;
+  record: RunningRun;
   take: PauseTake;
   emit(e: RunProgress): void;
   save(): void;

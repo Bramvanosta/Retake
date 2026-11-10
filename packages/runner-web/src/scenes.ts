@@ -23,7 +23,7 @@ import type {
   NormalizedStep,
   OverlaySpec,
   RunProgress,
-  RunRecord,
+  RunningRun,
   Scenario,
   Scene,
   SceneEntry,
@@ -79,7 +79,7 @@ export interface SceneLoopOptions {
   scenario: Scenario;
   scenarioName: string;
   until: { sceneIndex: number; stepIndex: number } | null;
-  record: RunRecord;
+  record: RunningRun;
   emit: (e: RunProgress) => void;
   save: () => void;
   /**
@@ -93,7 +93,7 @@ export interface SceneLoopOptions {
  * Template part of the scenario (R-RUN-16): a TemplateError fails the run; a {{hooks.…}} token that cannot resolve
  * because the setup hooks were skipped says how to run them.
  */
-export function templated<T>(fn: () => T, record: RunRecord): T {
+export function templated<T>(fn: () => T, record: RunningRun): T {
   try {
     return fn();
   } catch (e) {

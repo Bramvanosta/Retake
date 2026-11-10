@@ -9,7 +9,7 @@
  * (R-ISS-08: the previous frame frozen from the commit until the new page painted). Frames sit on the export grid:
  * frame n shows capture time n / fps, the screencast frame on screen then (never interpolated).
  */
-import { LOADING_CUT_MIN_S } from '@retake/core';
+import { DEFAULT_FILM, LOADING_CUT_MIN_S } from '@retake/core';
 import { fileSlug } from '../util.js';
 import type { Timeline, TimelineEvent, TimelineLoading, TimelineScene, TimelinePageSegment } from '@retake/core';
 
@@ -410,7 +410,7 @@ export function mainSource(timeline: Timeline): RawSource {
   const c = timeline.capture;
   return {
     track: 'main',
-    video: c.file || 'capture.mp4',
+    video: c.file || DEFAULT_FILM,
     frames_index: 'frames.jsonl',
     frames_dir: 'frames',
     width: Math.round(c.width * c.scale),

@@ -18,7 +18,7 @@ import { copyFile, mkdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Page } from 'playwright-core';
-import type { RunProgress, RunRecord, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
+import type { RunProgress, RunRecord, RunningRun, Timeline, TimelineLoading, TimelinePause } from '@retake/core';
 import { CaptureClock, PerfSampler, RunPauser, runScenario } from '../src/index.js';
 import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/index.js';
 import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
@@ -147,7 +147,7 @@ describe('the capture clock with pauses', () => {
     const clock = new CaptureClock(wall() - 5000);
     const gate = { requested: true };
     const notes: TimelinePause[] = [];
-    const record = { warnings: [] } as unknown as RunRecord;
+    const record = { status: 'running', warnings: [] } as unknown as RunningRun;
     const pauser = new RunPauser({
       gate,
       signal: new AbortController().signal,

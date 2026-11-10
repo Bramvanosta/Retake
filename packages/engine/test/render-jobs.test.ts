@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, createEngine, historyFile, jobsDir, runWorker } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -60,6 +60,8 @@ beforeAll(async () => {
   t.scenario = SCENARIO;
   timelineFile = join(runDir, 'timeline.json');
   await writeFile(timelineFile, JSON.stringify(t, null, 2));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'));
   // The renders share the repository's bundle cache (no rebundle per test file).
   await linkSharedCache(root);
@@ -234,6 +236,8 @@ describe.skipIf(!canRender)('render jobs', () => {
       for (const id of crafted) {
         await mkdir(join(runs, id), { recursive: true });
         await writeFile(join(runs, id, 'timeline.json'), await readFile(join(runs, RUN, 'timeline.json'), 'utf8'));
+        // With its record too: the order of runs keeps it from `latest`, not a missing file.
+        await writeFile(join(runs, id, 'run.json'), JSON.stringify(syntheticRunRecord(join(runs, id), { id: RUN, scenario: SCENARIO, project: 'demo' })));
       }
       const p = await engine.renders.plan({ project: 'demo', scenario: SCENARIO });
       expect(p.run_id).toBe(RUN);

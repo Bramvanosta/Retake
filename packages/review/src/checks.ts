@@ -4,7 +4,7 @@
  * render itself (status, probe, missing components, plan warnings). Pixel checks live in ./pixel-checks.ts.
  */
 import { displayUrl, findLocalUrls, isLocalUrl, shownUrl as namedUrl } from '@retake/core';
-import type { DisplayEntry, RunRecord, Timeline, TimelineWrite } from '@retake/core';
+import type { DisplayEntry, StoredRunRecord, Timeline, TimelineWrite, UnknownStatusRun } from '@retake/core';
 import { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines, fitText, insetPhoneEdge } from '@retake/components/geometry';
 import type { ComponentManifest, ComponentRegistry, TextMeasurer } from '@retake/components/geometry';
 import { CLEAR_LOOKAHEAD_S, brandmarkRect, drawnOverlayBox, drawsUrl, focusBox, insetRectAt, mapPaneRect, mapSourceRect, mapUseRect, overlayBoxAt, paneCaptureAt, paneSource, paneViewOf, stepBoxes, trackBoxAt, viewOf } from '@retake/editor/plan';
@@ -26,7 +26,7 @@ export interface CheckContext {
   registry?: ComponentRegistry;
   measure: TextMeasurer;
   /** The run's run.json (L5.7: its `perf`), when it can be read. */
-  run?: RunRecord;
+  run?: StoredRunRecord | UnknownStatusRun;
 }
 
 /** Where a frame is: time, segment, scene and step (from the plan's provenance). */

@@ -126,6 +126,7 @@ describe('retry_click and capture.step_shots (R-FLD-12, R-FLD-16)', () => {
       mode: 'capture',
       status: 'failed',
       started_at: 'x',
+      finished_at: 'y',
       dir: '/d',
       env: 'local',
       options: { hooks: 'run', headed: false },

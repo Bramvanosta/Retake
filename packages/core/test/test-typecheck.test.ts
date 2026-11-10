@@ -113,7 +113,7 @@ function vitestAliases(): Record<string, string> {
 }
 
 /** How many expected-error directives the test folders hold (2026-11-10). */
-const EXPECT_ERRORS = 29;
+const EXPECT_ERRORS = 32;
 
 describe('the type check of the test files (tsconfig.test.json)', () => {
   const config = readConfig('tsconfig.test.json');
@@ -237,8 +237,10 @@ describe('the type check of the test files (tsconfig.test.json)', () => {
       });
     }
     expect(without).toEqual([]);
-    // Held at the number of the day (17 of the 29 are packages/ui/test/studio-ops.test.ts's check file, whose point they
+    // Held at the number of the day (17 of the 32 are packages/ui/test/studio-ops.test.ts's check file, whose point they
     // are): one more is a decision, written here in the commit that adds it; one fewer lowers the number.
+    // L7.6a, +3 (29 → 32), all in packages/core/test/run-record.test.ts: the three assignments that must not compile on
+    // a run record — its status, its error, its end — each over the assignment itself, wrong on purpose.
     expect(count).toBe(EXPECT_ERRORS);
   });
 

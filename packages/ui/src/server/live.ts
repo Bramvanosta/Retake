@@ -201,7 +201,7 @@ export class Live {
       const { kind, project } = sourceKey(key);
       if (kind !== 'runs' || project === undefined) continue;
       const read = next.has(key) ? await listRuns({ dir: join(this.o.ws.projectsDir, project) } as LoadedProject, { limit: RUNS_INDEX_MAX }).catch(() => []) : [];
-      const after: RunRow[] = read.filter((r) => !r.newer).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
+      const after: RunRow[] = read.filter((r) => !r.newer && !r.unread).map((r) => ({ id: r.id, scenario: r.scenario ?? null, status: r.status ?? null }));
       if (prev) runs.push(...runChanges(project, this.runRows.get(project) ?? [], after, prev.get(key), next.get(key)));
       this.runRows.set(project, after);
     }

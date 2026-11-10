@@ -385,7 +385,7 @@ describe('the scenario screen in Chromium', () => {
     await shot('15-scenario-running');
     // The run finishes: one re-read, no banner.
     const t2 = Date.now();
-    await writeFile(join(project(), 'runs', RUNNING, 'run.json'), JSON.stringify({ ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')), status: 'cancelled', finished_at: new Date().toISOString() }));
+    await writeFile(join(project(), 'runs', RUNNING, 'run.json'), JSON.stringify({ ...JSON.parse(await readFile(join(project(), 'runs', RUNNING, 'run.json'), 'utf8')), status: 'cancelled', finished_at: new Date().toISOString(), error: { message: 'cancelled' } }));
     await expect.poll(() => page.getByTestId('running').count(), POLL).toBe(0);
     await sleep(800);
     expect(ops('scenario_blocks', t2)).toHaveLength(1);

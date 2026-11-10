@@ -211,7 +211,8 @@ RETAKE_VERSION: string                          // the package version (`retake 
 FORMAT_VERSIONS: { scenario: 1, project: 1, template: 1, workspace: 1, run: 1 }
 newerFormatMessage(value, { file, supported }): string | undefined   // "this project.yaml is version 2: it was made
                                                                      //  for a newer Retake (this one reads version 1) — update Retake"
-newerRunMessage(runDir): string | undefined          // the same for runs/<id>/run.json (render, plan, export-capture refuse it)
+                                                     // a run.json goes through the one reader (io/run-folder.ts, below):
+                                                     // `{ ok: false, problem: 'newer-format', message }` with this sentence
 checkYamlDocument(text, schema, semantic?, empty?, { formatVersion?: { file, supported } }): CheckedDocument
 ```
 
@@ -223,9 +224,11 @@ schema, `checkYamlDocument` with `formatVersion` (`parseScenario`, `validateScen
 with one positioned error at the key — no unknown-key errors for the newer format's keys; `0`, `"1"` or `1.5` stay
 plain schema errors. `parseTemplateYaml` drops `version` before merging the file over the defaults (it is the file's,
 not a template section). Writers: `createProject` (first key), the runner (`RunRecord.version`, first key); the
-starter templates and the fixture's files carry it. Hook files (top-level lists) have none. `findRun` (render,
-export-capture), `retake plan`'s own `resolveRun` and `exportCapture` refuse a run whose run.json is newer; a run.json without `version` (before L1.4)
-reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
+starter templates and the fixture's files carry it. Hook files (top-level lists) have none. A run **named** by its
+id or its folder whose run.json is newer is refused by every command that works on it (render, still, plan,
+export-capture: the named run's rule, core `namedRunProblem`); `latest` passes such a run over and says so, and
+answers the "update Retake" sentence only when no capture this version reads is left; a run.json without `version`
+(before L1.4) reads as 1. No migration: Retake never rewrites a user's file (a `retake migrate` is BL-70).
 
 Validation rules beyond the schema (semantic): exactly one action key per step; unknown keys are
 errors (typo protection) with a "did you mean" suggestion; scene ids unique and slug-like; step ids
@@ -1947,6 +1950,80 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   which imports types only, has one mirror (`packages/ui/src/app/id-words.ts`, pinned by `ui/test/id-words.test.ts`).
   The ratchet's `id-grammar` check counts an id pattern written by hand anywhere else in `packages/*/src`, and a capped
   grammar tested without its cap (its title lists the six kinds and what it cannot see).
+- **Run records, takes and `latest`** (L7.6a; core `run-record.ts` and `take.ts` — pure — and `io/run-folder.ts`).
+  - *The record.* `RunRecord` is a union of five states by `status` — `QueuedRun`, `RunningRun`, `SucceededRun`,
+    `FailedRun`, `CancelledRun` — in which a state cannot hold what it never has (a succeeded run has no `error`, a
+    queued one no `finished_at`; a failed or cancelled one may keep `current`, `paused` and what it had filmed: a run
+    closed from outside). The three members that decide a state — `status`, `finished_at`, `error` — are read-only in
+    every state, so on the union too: a status changes through four pure functions only (`queuedRun`, `startedRun`,
+    `finishRun`, `closeReservedRun`), never by an assignment. `RunRecordSchema` (strict) is what this version writes;
+    `StoredRunRecord` / `StoredRunRecordSchema` is what any version left on a disk. Type-level asserts
+    (`schemas/type-checks.ts`) hold the union and its schemas together and fail if the union is folded back into
+    optional members or if a deciding member becomes assignable.
+  - *The tolerance rule of the stored record* (`parseRunRecord`). Only what the two rules and the union need decides
+    whether a run.json is a record: it is an object of a format this version reads; it has an `id`, a `scenario`, a
+    `mode` and a `status`; and it holds what its state has (a finished run its `finished_at`, a failed or cancelled
+    one its `error`) and nothing its state never has. **Every other member is read leniently and never loses the
+    run**: unknown keys pass at every level; a closed word (`options.hooks`, `hooks.*`, `environment.access`,
+    `stopped_at.reason`, a sandbox's provider) is kept as the text the file holds (`StoredWord`: the type says "one of
+    these, or any other text"); a count is any number; a member a record may lack that does not read (`environment`,
+    `stopped_at`, `pauses`, `optional_failures`, a `null` block, and the two diagnostic blocks `engine` and `perf`
+    whole) is left out; one every record holds (`options`, `hooks`, `warnings`, the step counts, the paths) is read
+    member by member, and what does not read becomes its empty value. Each repair is a note of the read
+    (`<member>-dropped`), and a record that reads whole is handed over as the file holds it. So a record written by a
+    later version of the same format — new words, new blocks — is listed, usable and `latest`; **a new value never
+    needs a new format number, a change to what decides a state does.** A status that is none of the five is
+    `unknown-status`, with the record (`UnknownRunStatus`: a text no literal is; `isKnownRun` tells the two apart).
+    A record that is still refused (not an object, no status, an impossible state) is no run of any list and is
+    *said*: `run_status` and the lists' problem row (`RunSummary.unread`, beside `newer`) say
+    "its run.json does not read as a record" — never "no run.json" when the file is there — and `latest` counts it.
+  - *The one reader.* `readRunFolder(runsDir, name)` (a listing: no symbolic link is followed), `readNamedRunFolder` /
+    `readNamedRun(dir)` (a run a person named: read through links, the whole timeline from the same read), and
+    `readRunRecord`, `readTimelineHead`, `readTimeline` for one file: regular files within their caps, parsed by
+    core's pure `parseRunRecord` / `parseTimelineHead` / `parseTimeline` into `Read<T, P>` — the value, or a typed
+    problem (`missing`, `unreadable`, `too-big`, `not-a-file`, `not-json`, `invalid`; `P` holds the problems one kind
+    of file has: a run record's `newer-format` and `unknown-status`, `RunRead`), never a throw on a file someone else
+    wrote. A walk over many runs reads each run.json first and opens a timeline only when the record does not already
+    decide (`readRunFolder`'s `timeline` question, answered by core `takeNeedsTimeline`: a failed take, a dry run or
+    another scenario's capture costs its record alone). The engine's confined `RunFolder` keeps its own byte access
+    and hands the bytes to the same parsers. The ratchet's `record-read` check counts any value given the type of a
+    run record or a timeline outside these two files, and the two deliberate own reads (prune's, the reserved run's
+    close) as entries with their reasons (its title lists the kinds and what it cannot see).
+  - *Rule 1, a usable capture* (`takeOf(facts)` → a `Take` or one reason of the closed list `NotUsable`): a real
+    folder whose name is a run id; a run.json that reads and says a capture that succeeded; a timeline.json whose
+    head reads whole (mode, scenario, its run id, its film's name) and names the same scenario; the film it names
+    (`capture.mp4` when the name is empty, `DEFAULT_FILM`) a regular file of the folder (`isFilmName`: one path
+    segment); none of them a symbolic link. Only the head of the timeline is looked at: a take whose lists are no
+    lists is refused, in one sentence, by the command that reads the whole timeline. A capture stopped by `--until`
+    is usable: the take carries the fact (`Take.until`).
+  - *Rule 2, `latest`* (`orderRuns`, `latestTake`): the run ids in one order — dated ids first, newest first, then
+    the other names descending — walked lazily to the first usable take whose **record** names the scenario; on the
+    way it collects the captures passed over (at most `PASSED_OVER_MAX` named, all of them counted by reason) and
+    counts the folders whose run.json is missing (beside a timeline) or is no record — said whether or not a take is
+    found. No window: every run folder is a candidate. Used by the editor's `findRun` (the CLI, the render job), the
+    engine's lists (`runFolderIds`, `listRuns`), the scenario view (`ScenarioRunChoice.take`, and `capture` on the
+    view and on its actions: the first take listed, or — past the runs listed — the rule asked over all of them), the
+    board's capture and the timeline view's default take, so Render's capture and the timeline's default are the
+    same run in every state; the Studio front end holds no predicate and looks through no list (`view.capture`).
+  - *A named run* (`namedRunProblem`) has its own, older rule: it works whatever its record says — and with a
+    timeline made by hand that holds no run id or names no film (the film is then `capture.mp4`) —, and is refused
+    only for a newer-format record, a timeline that is missing or does not read (`timelineProblem`: the one mapping
+    every shell uses), another scenario than the one asked for, a dry run or a missing film. For work submitted
+    through MCP it is also refused when its folder lies outside the project once links are followed (the folder a
+    link, or a folder above it), when its run.json, its timeline.json or its film is a symbolic link, and when the
+    film its timeline names is not a file of the run folder. Through MCP `latest` takes no run outside the project
+    either (`takeOf`'s `outside`, set by the editor's `locateRun`), and the run it picked is judged by the same
+    named rule when it is read.
+  - *Words.* `takeWords` gives each reason fixed words; a notice or an error never repeats a message read from a
+    file, and a text a run's files hold (the scenario a timeline names, its film, the scene of `--until`) is said
+    printable, on one line, or not at all (`printableText`, `untilStep`). A record that says `running` does not say
+    whether its process still is: the words are "not finished, or interrupted", and the way to name the run is always
+    given. The CLI names the passed-over runs on stderr; an MCP answer carries their count in its text and their
+    names under `untrusted.passed_over` only (a folder of `runs/` is named by whoever can write there), and no
+    sentence that reaches it names a run that was not picked.
+  - *Prune* keeps its own read of a run.json and its own "last capture by its record" (`pruneReadRun`,
+    `pruneLastCapture` in engine `prune.ts`) until what it keeps is decided in a lot of its own; the scenario view's
+    picture rule (which run's screenshots a step shows) is also its own.
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health

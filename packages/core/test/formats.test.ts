@@ -7,7 +7,7 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ConfigError, RETAKE_VERSION, FORMAT_VERSIONS, RunRecordSchema, newerFormatMessage, parseProjectYaml, parseScenario, parseTemplateYaml, validateScenario } from '@retake/core';
-import { loadWorkspaceConfig, newerRunMessage } from '@retake/core/io';
+import { loadWorkspaceConfig, readRunRecord } from '@retake/core/io';
 import type { ValidationIssue } from '@retake/core';
 import { tempDir, writeFiles } from './helpers.js';
 
@@ -87,13 +87,18 @@ describe('file format versions (R-PRIN-13)', () => {
   it('run.json: absent or 1 is read, a newer one refused; the schema takes version and engine', async () => {
     const run = await tempDir();
     cleanups.push(run.cleanup);
-    expect(newerRunMessage(run.dir)).toBeUndefined(); // no run.json
+    // The refusal of a run.json a newer Retake wrote, as the one reader of run folders says it (core/io readRunRecord).
+    const newerRunMessage = async (dir: string) => {
+      const r = await readRunRecord(join(dir, 'run.json'));
+      return !r.ok && r.problem === 'newer-format' ? r.message : undefined;
+    };
+    expect(await newerRunMessage(run.dir)).toBeUndefined(); // no run.json
     await writeFile(join(run.dir, 'run.json'), '{"id": "r", "status": "succeeded"}');
-    expect(newerRunMessage(run.dir)).toBeUndefined(); // a run made before L1.4
+    expect(await newerRunMessage(run.dir)).toBeUndefined(); // a run made before L1.4
     await writeFile(join(run.dir, 'run.json'), '{"version": 2, "id": "r"}');
-    expect(newerRunMessage(run.dir)).toBe(newer('run.json'));
+    expect(await newerRunMessage(run.dir)).toBe(newer('run.json'));
     const base = {
-      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 't', dir: '/r', env: 'local',
+      id: 'r', project: 'p', scenario: 's', mode: 'capture', status: 'succeeded', started_at: 't', finished_at: 't', dir: '/r', env: 'local',
       options: { hooks: 'run', headed: false }, steps_total: 0, steps_done: 0, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [],
     };
     expect(RunRecordSchema.safeParse(base).success).toBe(true);

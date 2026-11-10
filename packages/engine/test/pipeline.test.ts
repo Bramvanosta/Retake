@@ -55,7 +55,7 @@ import { loopsWork, previewsWork, stillWork } from '../src/render/work.js';
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 const SCENARIO = 'steps';
@@ -112,6 +112,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'capture.mp4'), 'never read');
   await writeFile(join(dir, 'renders', `${SCENARIO}-v1.json`), JSON.stringify(recordOf(`${SCENARIO}-v1`)));
   await writeFile(join(dir, 'renders', `${SCENARIO}-v1.mp4`), 'never read');

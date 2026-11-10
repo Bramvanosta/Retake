@@ -2,9 +2,10 @@
  * One line about what a take cost and how it was filmed (L5.7, run.json `perf`): the CLI's run summary, the MCP
  * run_status summary. Never names a target (page text): scene.step only.
  */
-import type { RunPerf } from './types.js';
+import type { StoredRunPerf } from './run-record.js';
 
-export function perfSummary(p: RunPerf): string {
+/** `p`: a take's `perf` as any version left it (a take whose `cpu` has no `retake` says 0). */
+export function perfSummary(p: StoredRunPerf): string {
   const parts: string[] = [];
   if (p.cpu) {
     const chromium = p.cpu.browser + p.cpu.gpu + p.cpu.renderer + p.cpu.chromium_other;

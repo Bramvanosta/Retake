@@ -1,6 +1,7 @@
 /**
  * Zod schemas of every file format (scenario, project, template, timeline, run record) and their
- * JSON Schemas. Objects are strict: unknown keys are errors (typo protection).
+ * JSON Schemas. Objects are strict: unknown keys are errors (typo protection) — the stored run record's aside, which
+ * reads what any version left on a disk.
  * For precise, positioned messages use parseScenario / parseProjectYaml rather than `safeParse`.
  */
 export { SLUG_RE, KEY_RE, COMPONENT_ID_RE, FRAME_STYLES, MULTI_PAGE_FRAMES, componentIdSchema, keyString } from './schemas/primitives.js';
@@ -51,7 +52,7 @@ export {
 export { ProjectFileSchema, ProjectConfigSchema, WorkspaceFileSchema } from './schemas/project.js';
 export { SandboxFileSchema, SeedStepSchema, SEED_KINDS } from './schemas/sandbox.js';
 export { TemplateSchema, TemplateFileSchema } from './schemas/template.js';
-export { TimelineSchema, RunRecordSchema } from './schemas/timeline.js';
+export { TimelineSchema, RunRecordSchema, StoredRunRecordSchema, StoredRunEngineSchema, StoredRunPerfSchema, UnknownStatusRunSchema } from './schemas/timeline.js';
 export {
   scenarioJsonSchema,
   projectJsonSchema,

@@ -135,7 +135,7 @@ export class RunSecrets {
     return this.redactDeep(tl, TIMELINE_POLICY);
   }
 
-  redactRecord(r: RunRecord): RunRecord {
+  redactRecord<R extends RunRecord>(r: R): R {
     return this.redactDeep(r, RECORD_POLICY);
   }
 

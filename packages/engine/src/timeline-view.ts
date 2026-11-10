@@ -447,6 +447,8 @@ async function buildView(
   t0: number,
   themes: ThemeChoices,
   proposal?: ProposalPreview,
+  /** The take shown is the default one (none was asked for): it is among the choices even when the list ends before it. */
+  defaulted = false,
 ): Promise<TimelineViewResult> {
   const { registry } = await memoRegistry(ws);
   let planned;
@@ -509,7 +511,9 @@ async function buildView(
   const root = shownText !== undefined ? parseYaml(shownText).value : undefined;
   const choices = await choicesOf(registry, root, plan, editable, themes);
   const capture = await memoCapture(planned.captureFile, ws.policy);
+  // The takes to choose from: the scenario's newest captures of any status, in the one order of runs.
   const runs = (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 20 })).map((r) => r.id);
+  if (defaulted && !runs.includes(planned.run.id)) runs.unshift(planned.run.id);
   const { untrusted, ...shape } = model;
   const view: TimelineView = {
     project: project.slug,
@@ -582,8 +586,11 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       throw new EngineError('invalid', `a proposal is previewed on the take its comment was made on (run ${proposal.run_id})`, { details: { argument: 'run_id' } });
     }
   }
-  // The run the view shows: asked, else the latest capture (its timeline.json's size and mtime are in the key).
-  const runId = proposal?.run_id ?? req.run_id ?? (await (await import('./runs.js')).listRuns(project, { scenario: req.scenario, mode: 'capture', limit: 1 }))[0]?.id;
+  // The run the view shows: asked, else `latest` — the newest capture an edit can work on, by the rule every reader of
+  // runs shares, over every run folder (no window): the take the scenario view names as Render's (`capture`), which
+  // asks the same rule the same way (scenario-view.ts captureOf). Its timeline.json's size and mtime are in the key.
+  const asked = proposal?.run_id ?? req.run_id;
+  const runId = asked ?? (await (await import('./runs.js')).latestCapture(project, req.scenario)).take?.run;
   const timelineStat = runId ? statKey(projectPath(project.dir, 'runs', runId, 'timeline.json')) : 'none';
   // The scenario's comment folder (its mtime moves when a thread is added or rewritten: an entry is a rename): new pins.
   const commentsStat = statKey(projectPath(project.dir, 'comments', req.scenario));
@@ -604,6 +611,8 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
       file.hash ?? null,
       file.blocked ?? null,
       runId ?? null,
+      // The default take is put among its choices when the list ends before it: a view of its own.
+      asked === undefined,
       timelineStat,
       commentsStat,
       projectStat,
@@ -623,7 +632,7 @@ export async function timelineView(ws: OpenedWorkspace, cli: string, req: Timeli
   }
   const hit = p !== undefined;
   if (!p) {
-    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal);
+    const built = buildView(ws, cli, project, { ...req, ...(runId ? { run_id: runId } : {}) }, file, t0, themes, proposal, asked === undefined);
     p = built;
     viewMemo.set(key, built);
     if (viewMemo.size > VIEW_MEMO_MAX) {

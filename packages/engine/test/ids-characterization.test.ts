@@ -340,12 +340,14 @@ describe('the scenario view\'s run argument', () => {
 describe('the project board', () => {
   it('reads the takes of the folders whose name is a run id', async () => {
     const p = await project('board-runs', { quote: SCENARIO_YAML });
-    await run(p.dir, `${STAMP}quote`);
     await run(p.dir, a(200, 'y'));
     const s = async () => (await engine.projects.board('board-runs')).scenarios.find((x) => x.name === 'quote');
     expect(short((await s())?.last_run?.id ?? '')).toBe('<200 y>');
     await run(p.dir, a(201, 'z'));
     expect(short((await s())?.last_run?.id ?? '')).toBe('<200 y>'); // D-1: 201 characters
+    // L7.6a (one order of runs): a dated run is before a folder named by hand, whatever that name sorts as.
+    await run(p.dir, `${STAMP}quote`);
+    expect((await s())?.last_run?.id).toBe(`${STAMP}quote`);
   });
 
   it('a scenario whose theme is a folder path: the render of today\'s file is the one shown', async () => {
@@ -353,7 +355,7 @@ describe('the project board', () => {
     const yaml = `${SCENARIO_YAML}template: ./themes/${long}\n`;
     const p = await project('board-theme', { quote: yaml });
     const cap = '20261020-100000-quote';
-    await writeRun(p.dir, { ...capture(cap, { video: false }), scenario: 'quote' });
+    await writeRun(p.dir, { ...capture(cap), scenario: 'quote' });
     await record(p.dir, 'quote-v1', { run_id: cap, template: long, created_at: '2026-10-20T11:00:00.000Z', edit: { from: 'scenario', sha256: sha(yaml) } } as Partial<RenderRecord>);
     await record(p.dir, 'quote-v2', { run_id: cap, template: 'editorial', created_at: '2026-10-20T12:00:00.000Z', edit: { from: 'scenario', sha256: sha(yaml) } } as Partial<RenderRecord>);
     const s = (await engine.projects.board('board-theme')).scenarios.find((x) => x.name === 'quote');
@@ -370,7 +372,7 @@ describe('the project board', () => {
     const ok = a(100, 't');
     const yaml2 = `${SCENARIO_YAML}template: ./themes/${ok}\n`;
     const p2 = await project('board-theme-ok', { quote: yaml2 });
-    await writeRun(p2.dir, { ...capture(cap, { video: false }), scenario: 'quote' });
+    await writeRun(p2.dir, { ...capture(cap), scenario: 'quote' });
     await record(p2.dir, 'quote-v1', { run_id: cap, template: ok, created_at: '2026-10-20T11:00:00.000Z', edit: { from: 'scenario', sha256: sha(yaml2) } } as Partial<RenderRecord>);
     await record(p2.dir, 'quote-v2', { run_id: cap, template: 'editorial', created_at: '2026-10-20T12:00:00.000Z', edit: { from: 'scenario', sha256: sha(yaml2) } } as Partial<RenderRecord>);
     const s2 = (await engine.projects.board('board-theme-ok')).scenarios.find((x) => x.name === 'quote');

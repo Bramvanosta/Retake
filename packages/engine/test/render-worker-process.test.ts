@@ -20,7 +20,7 @@ import { renderVideo } from '@retake/editor';
 import { FileJobQueue, createEngine, historyFile } from '../src/index.js';
 import type { Engine, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 import { REPO } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
@@ -106,6 +106,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = 'synthetic';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: '20260101-120000-synthetic', scenario: 'synthetic', project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'), 12);
   await linkSharedCache(root);
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });

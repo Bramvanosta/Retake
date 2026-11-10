@@ -36,11 +36,13 @@ const RUN_STATE: Record<string, [MarkState, string]> = {
   queued: ['waiting', 'queued'],
 };
 
-function LastRun({ extras }: { extras: Extras | undefined }) {
+/** The last run of a project, in a few words (a row that is no run says why in fixed words). */
+export function LastRun({ extras }: { extras: Extras | undefined }) {
   if (!extras || extras.error) return null;
   const r = extras.last_run;
   if (!r) return <span className="sc-quiet">No run yet</span>;
   if (r.newer) return <span className="sc-quiet">{shown(`Last run written by a newer ${APP_NAME}`)}</span>;
+  if (r.unread) return <span className="sc-quiet">{shown('Last run: its run.json does not read as a record')}</span>;
   const [state, word] = RUN_STATE[r.status] ?? ['attention', 'status unknown'];
   return (
     <span className="wl-run">

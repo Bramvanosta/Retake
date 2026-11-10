@@ -6,8 +6,8 @@ import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { GUIDE, missingOrInvalid, projectPath } from '@retake/core';
-import { loadProject } from '@retake/core/io';
-import type { LoadedProject, RunRecord, Timeline, ErrorKind } from '@retake/core';
+import { loadProject, readRunRecord, readTimeline } from '@retake/core/io';
+import type { LoadedProject, StoredRunRecord, Timeline, ErrorKind, UnknownStatusRun } from '@retake/core';
 import { isRenderRecord, readRenderRecords } from '@retake/editor/plan';
 import type { RenderRecord } from '@retake/editor/plan';
 
@@ -107,29 +107,33 @@ export async function findPrevious(project: LoadedProject, current: RenderRecord
   return older[older.length - 1];
 }
 
-/** The run timeline of a render (cursor track, clicks, captions as captured); undefined when the run is gone. */
+/**
+ * The run timeline of a render (cursor track, clicks, captions as captured); undefined when the run is gone or its
+ * timeline does not read (the core's one reader: core/io run-folder.ts). A review reads the run its render names,
+ * through a link too.
+ */
 export async function renderTimeline(project: LoadedProject, record: RenderRecord): Promise<{ timeline?: Timeline; file?: string }> {
   for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
     const file = join(dir, 'timeline.json');
-    try {
-      return { timeline: JSON.parse(await readFile(file, 'utf8')) as Timeline, file };
-    } catch {
-      // try the next place
-    }
+    const r = await readTimeline(file, { follow: true });
+    if (r.ok) return { timeline: r.value, file };
+    // else: try the next place
   }
   return {};
 }
 
-/** The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it can be read. */
-export async function renderRun(project: LoadedProject, record: RenderRecord): Promise<RunRecord | undefined> {
+/**
+ * The run.json of a render's run (L5.7: what the take cost, its slow transitions), when it reads as a record — a
+ * status Retake never writes included; a record a newer Retake wrote, or a file that is no record, is not read.
+ */
+export async function renderRun(project: LoadedProject, record: RenderRecord): Promise<StoredRunRecord | UnknownStatusRun | undefined> {
   for (const dir of [record.run_dir, projectPath(project.dir, 'runs', record.run_id)]) {
     if (!dir) continue;
-    try {
-      return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
-    } catch {
-      // try the next place
-    }
+    const r = await readRunRecord(join(dir, 'run.json'), { follow: true });
+    if (r.ok) return r.value;
+    if (r.problem === 'unknown-status') return r.record;
+    // else: try the next place
   }
   return undefined;
 }

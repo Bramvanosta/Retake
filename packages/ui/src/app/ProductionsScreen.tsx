@@ -74,13 +74,26 @@ function RecentRuns({ slug }: { slug: string }) {
   if (runs.state === 'loading') return <p className="sc-quiet">Loading the runs…</p>;
   if (runs.state === 'error') return <Txt className="sc-quiet" text={runs.error} />;
   if (runs.data.runs.length === 0) return <p className="sc-quiet">No run yet.</p>;
+  return <RunRows runs={runs.data.runs} />;
+}
+
+/**
+ * The rows of a list of runs. A row that is no run of the list — its run.json was written by a newer version, or does
+ * not read as a record — shows its id and fixed words, never a field of a file that says nothing.
+ */
+export function RunRows({ runs }: { runs: readonly RunListItem[] }) {
   return (
     <ul className="pr-runs">
-      {runs.data.runs.map((r) =>
+      {runs.map((r) =>
         r.newer ? (
           <li key={r.id} className="sc-quiet">
             <Txt className="k-mono" text={r.id} />
             {shown(`: written by a newer ${APP_NAME}`)}
+          </li>
+        ) : r.unread ? (
+          <li key={r.id} className="sc-quiet">
+            <Txt className="k-mono" text={r.id} />
+            {shown(': its run.json does not read as a record')}
           </li>
         ) : (
           <li key={r.id} className="pr-run">

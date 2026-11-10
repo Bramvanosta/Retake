@@ -125,7 +125,7 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
 - **components** lists, validates and scaffolds components — see [Components](themes-and-components.md#components).
 - **plan** shows how a capture will be edited (segments, components, speeds, trims, zooms, captions, warnings)
   without rendering — see [Editing](editing.md#editing-the-edit-plan).
-- **render** plans and renders the latest capture of a scenario (or `--run`) into `renders/<scenario>-v<N>.mp4` with a
+- **render** plans and renders [the latest capture](editing.md#the-latest-capture) of a scenario (or `--run`) into `renders/<scenario>-v<N>.mp4` with a
   progress bar and a summary; **still** renders one frame of the planned video as a PNG — see
   [Rendering](editing.md#rendering).
 - **review** writes contact sheets, per-scene sheets, key frames, an output-time timeline and a report of a render,

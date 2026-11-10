@@ -2457,6 +2457,34 @@ name is not a theme name (another character than letters, digits, `_` and `-`, o
 reference is longer than 200 characters, no theme is compared and the row shows the newest render of today's file
 and take. The row and the render need the theme's identity, not its name. *From:* L7.5.
 
+### BL-165 — Runs and takes: what the one rule left
+*From:* L7.6a. Small pieces, any order.
+
+- Run ids compared as text where "is this run newer" is asked — the board's "failed after the capture" and its
+  poster, the scenario view's "newer partial run" note, the front end's board words: with a run folder named by hand
+  the text order and the one order of runs (dated ids first) disagree. One `isNewerRun(a, b)` in the domain, used by
+  the four places.
+- `--json` output of `render`, `still`, `plan` and `export-capture` carries nothing of what `latest` passed over or
+  did not consider (the line is on stderr only): a member for scripts.
+- A run record that says `running` whose process is gone is never closed: lists show it running, prune keeps it for
+  ever, and `latest` can only say "not finished, or interrupted". A liveness fact in the record (or a sweep that
+  closes such records) would let each say which.
+- A run id's date stamp is not compared with its record's `started_at`: a complete capture folder with a future date
+  is the latest capture everywhere.
+- The head of a timeline is read by parsing the whole file: the Studio's scenario view parses one timeline per listed
+  succeeded capture the first time it is shown (not measurable at tens of KB; about 0.6 s once with twenty captures of
+  7 MB), and the timeline view's default asks the rule on each call (one run.json per newer run). A head read that
+  stops early, or a memo for the default.
+- `latest` reads one run.json per newer run (about 0.1 ms each): a project with hundreds of failed or foreign runs
+  above its last capture pays it on every `render`, twice (the "scenario changed" note resolves the run too).
+- `run_status` reads the record of a run folder that is a symbolic link, which the lists skip.
+- Through MCP a capture whose film has more than one name (a hard link) is picked as `latest` and then refused by the
+  plan: it could be passed over like a linked film, so that an older capture renders.
+- `retake plan` resolves `latest` with the editor's rule but plans on its own (it reads no film): a named run without
+  its film still plans there and fails at `render`.
+- The raw export's manifest for a run whose run.json is no record: `run.status` / `run.env` are absent with no word
+  in the package's notes.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

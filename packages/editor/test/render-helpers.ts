@@ -1,7 +1,7 @@
 /**
  * Fixtures of the render tests: a temp workspace (repo templates, built-in library) with one project whose run is a
- * synthetic timeline over a generated capture whose frames are colour-coded (frame n has a solid colour that encodes
- * n), so a rendered frame tells which source frame it shows.
+ * synthetic timeline (and its run record) over a generated capture whose frames are colour-coded (frame n has a solid
+ * colour that encodes n), so a rendered frame tells which source frame it shows.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadProject } from '@retake/core/io';
-import type { LoadedProject, Timeline } from '@retake/core';
+import { RETAKE_VERSION } from '@retake/core';
+import type { LoadedProject, RunRecord, Timeline } from '@retake/core';
 import { synthTimeline } from './helpers.js';
 
 export const REPO = fileURLToPath(new URL('../../../', import.meta.url));
@@ -85,6 +86,35 @@ export function syntheticTimeline(): Timeline {
   return t;
 }
 
+/**
+ * The run record of the synthetic run: a capture that succeeded, with the members the runner writes (`dir`: the run
+ * folder; `id`, `scenario`: another run's).
+ */
+export function syntheticRunRecord(dir: string, o: { id?: string; scenario?: string; project?: string } = {}): RunRecord {
+  return {
+    version: 1,
+    id: o.id ?? RUN_ID,
+    project: o.project ?? 'demo',
+    scenario: o.scenario ?? 'synthetic',
+    mode: 'capture',
+    status: 'succeeded',
+    started_at: '2026-01-01T12:00:00.000Z',
+    dir,
+    env: 'local',
+    options: { hooks: 'run', headed: false },
+    steps_total: 2,
+    steps_done: 2,
+    screenshots: [],
+    hooks: { setup: 'none', teardown: 'none' },
+    warnings: [],
+    environment: { access: 'read-write' },
+    engine: { retake: RETAKE_VERSION, node: process.versions.node, os: 'test' },
+    capture: join(dir, 'capture.mp4'),
+    timeline: join(dir, 'timeline.json'),
+    finished_at: '2026-01-01T12:00:04.000Z',
+  };
+}
+
 export interface RenderWorkspace {
   root: string;
   project: LoadedProject;
@@ -101,6 +131,7 @@ export async function renderWorkspace(): Promise<RenderWorkspace> {
   await mkdir(runDir, { recursive: true });
   await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(syntheticTimeline(), null, 2));
+  await writeFile(join(runDir, 'run.json'), `${JSON.stringify(syntheticRunRecord(runDir), null, 2)}\n`);
   makeColourCapture(join(runDir, 'capture.mp4'));
   const project = await loadProject('demo', root);
   return { root, project, runDir, cleanup: () => rm(root, { recursive: true, force: true }) };

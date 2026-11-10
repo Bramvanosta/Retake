@@ -209,7 +209,7 @@ export {
   renderJobEditText,
   reviewInline,
 } from './jobs/render-job.js';
-export type { InlineReview, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
+export type { InlineReview, LatestRunNotice, PassedOverRuns, RecordedBrowser, RenderEditSource, RenderRequest } from './jobs/render-job.js';
 export { SCENARIO_RENDERS_MAX, failureWords, planPreview, planSignature, renderForWork, renderStatus, reportReads, scenarioRenders, withoutPaths } from './renders.js';
 export { cleanupInterruptedReview, executeReviewJob, reviewCommandLine, submitReviewJob } from './jobs/review-job.js';
 export type { ReviewRequest } from './jobs/review-job.js';

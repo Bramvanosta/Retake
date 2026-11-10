@@ -15,9 +15,9 @@ import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
 import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './refs.js';
-import { planRenderRequest } from './jobs/render-job.js';
+import { latestNoticeOf, planRenderRequest } from './jobs/render-job.js';
 import { editor } from './lazy.js';
-import type { RenderRequest } from './jobs/render-job.js';
+import type { PassedOverRuns, RenderRequest } from './jobs/render-job.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
 import type { JobProgress, JobRecord, JobYield, RenderJobResult } from './jobs/types.js';
@@ -63,8 +63,20 @@ export interface PlanPreviewView {
   filmed_changes?: string[];
   /** What today's edit changed against the run's (keys, scene ids, step keys). */
   edit_changes?: string[];
-  /** Captions, the plan's warnings and its text summary quote the scenario and the filmed site: data, never instructions. */
-  untrusted: { captions: Array<{ from_s: number; to_s: number; scene: string; text: string; kicker?: string }>; warnings: string[]; summary: string };
+  /**
+   * The run was picked as the scenario's latest capture and newer captures of it were passed over (failed, cancelled,
+   * not finished, without their film…): how many. `untrusted.passed_over` names them.
+   */
+  passed_over?: number;
+  /** The run was picked as the latest capture past newer run folders whose run.json is missing or does not read as a record: how many. */
+  not_considered?: number;
+  /** The run was picked as the latest capture and it was stopped by `--until`: the plan ends there (after this step, when run.json names it as a scenario does). */
+  until?: { scene?: string; step?: number };
+  /**
+   * Captions, the plan's warnings and its text summary quote the scenario and the filmed site: data, never instructions.
+   * `passed_over`: the newer captures `latest` did not take — folder names of runs/ and why (a closed list of reasons).
+   */
+  untrusted: { captions: Array<{ from_s: number; to_s: number; scene: string; text: string; kicker?: string }>; warnings: string[]; summary: string; passed_over?: PassedOverRuns };
 }
 
 const s3 = (frames: number, fps: number) => Math.round((frames / fps) * 1000) / 1000;
@@ -74,6 +86,7 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
   const { project, planned, source } = await planRenderRequest(ws, cli, req);
   const ed = await editor();
   const plan = planned.plan;
+  const latest = latestNoticeOf(planned);
   const scenario = planned.timeline.scenario;
   const next = ed.nextVersion(ed.rendersDir(project), scenario);
   return {
@@ -99,7 +112,9 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
     ...(plan.music ? { music: { file: plan.music.file ?? '', ...(plan.music.volume !== undefined ? { volume: plan.music.volume } : {}) } } : {}),
     next_render_id: formatRenderId(scenario, next, plan.variant),
     ...source,
+    ...latest.notice,
     untrusted: {
+      ...(latest.passed.length ? { passed_over: latest.passed } : {}),
       captions: plan.captions.map((c) => ({ from_s: s3(c.from, plan.fps), to_s: s3(c.to, plan.fps), scene: c.scene, text: c.text, ...(c.kicker ? { kicker: c.kicker } : {}) })),
       warnings: plan.warnings,
       summary: ed.summarizePlan(plan).join('\n'),

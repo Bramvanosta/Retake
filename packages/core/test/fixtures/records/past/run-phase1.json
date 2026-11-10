@@ -1,0 +1,19 @@
+{
+  "id": "20261011-182706-quote",
+  "project": "northfield-fixture",
+  "scenario": "quote",
+  "mode": "capture",
+  "status": "succeeded",
+  "started_at": "2026-10-11T16:27:06.000Z",
+  "dir": "/workspace/projects/northfield-fixture/runs/20261011-182706-quote",
+  "env": "local",
+  "options": { "hooks": "run", "headed": false },
+  "steps_total": 25,
+  "steps_done": 25,
+  "screenshots": [],
+  "hooks": { "setup": "ok", "teardown": "ok" },
+  "warnings": [],
+  "capture": "/workspace/projects/northfield-fixture/runs/20261011-182706-quote/capture.mp4",
+  "timeline": "/workspace/projects/northfield-fixture/runs/20261011-182706-quote/timeline.json",
+  "finished_at": "2026-10-11T16:28:01.000Z"
+}

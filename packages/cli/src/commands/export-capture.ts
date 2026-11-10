@@ -1,5 +1,4 @@
 import { isAbsolute, join, resolve } from 'node:path';
-import { readFile } from 'node:fs/promises';
 import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS } from '@retake/core';
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, Timeline, WorkFileFacts } from '@retake/core';
@@ -13,7 +12,7 @@ import type { Ui } from '../ui.js';
 import { formatMs } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
 import type { GlobalOptions } from '../workspace.js';
-import { formatBytes } from './render.js';
+import { formatBytes, warnLatest } from './render.js';
 
 /** The raw export flags shared by `retake export-capture` and `retake run --raw`. */
 export interface RawFlags {
@@ -80,12 +79,15 @@ export async function rawExportOfRun(
   flags: ReturnType<typeof parseRawFlags>,
   opts: { json?: boolean; jsonLines?: boolean; signal?: AbortSignal },
 ): Promise<RawExportResult> {
-  const { exportCapture, RawExportError } = await import('@retake/runner-web');
+  const { exportCapture, rawExportRun, RawExportError } = await import('@retake/runner-web');
+  // The run's timeline through the package's own gate (the one reader and the named run's rule): a run it refuses is
+  // refused here in the same words, before the theme is looked for.
   let timeline: Timeline;
   try {
-    timeline = JSON.parse(await readFile(join(runDir, 'timeline.json'), 'utf8')) as Timeline;
+    timeline = (await rawExportRun(runDir)).recorded;
   } catch (e) {
-    throw new CliError(`${runDir}: no readable timeline.json (${errorMessage(e)})`);
+    if (e instanceof RawExportError) throw new CliError(e.message);
+    throw e;
   }
   const { template, note } = await runTemplate(project, timeline, fileFacts(ws.policy));
   if (note && !opts.json) ui.warn(note);
@@ -151,7 +153,10 @@ export async function exportCaptureCommand(ui: Ui, global: GlobalOptions, projec
   const project = await openProject(ws, projectArg);
   let runDir: string;
   try {
-    runDir = findRun(project, runArg, opts.scenario).dir;
+    const run = await findRun(project, runArg, opts.scenario);
+    runDir = run.dir;
+    // What `latest` passed over, and a capture stopped by `--until` (stderr; nothing for a run that was named).
+    warnLatest(ui, run, { ...(opts.scenario !== undefined ? { scenario: opts.scenario } : {}), name: 'name one in place of "latest"', json: opts.json });
   } catch (e) {
     if (e instanceof RenderError) throw new CliError(e.message);
     throw e;

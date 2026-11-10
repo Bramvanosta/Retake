@@ -16,7 +16,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { PERSON_POLICY, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
-import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, newerRunMessage, nodeFileFacts, fileFacts, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
+import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, nodeFileFacts, fileFacts, readRunRecord, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
@@ -148,7 +148,12 @@ describe('core loaders and disk probes (characterization)', () => {
     // Runs.
     write('ws/projects/p/runs/r1/run.json', '{"version": 99}');
     write('ws/projects/p/runs/r2/run.json', '{"version": 1}');
-    broken.newerRun = shown([newerRunMessage(join(tmp, 'ws/projects/p/runs/r1')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/r2')) ?? null, newerRunMessage(join(tmp, 'ws/projects/p/runs/none')) ?? null]);
+    // The refusal of a run.json a newer Retake wrote, as the one reader of run folders says it (L7.6a: readRunRecord).
+    const newerRunMessage = async (dir: string) => {
+      const r = await readRunRecord(join(dir, 'run.json'));
+      return !r.ok && r.problem === 'newer-format' ? r.message : null;
+    };
+    broken.newerRun = shown([await newerRunMessage(join(tmp, 'ws/projects/p/runs/r1')), await newerRunMessage(join(tmp, 'ws/projects/p/runs/r2')), await newerRunMessage(join(tmp, 'ws/projects/p/runs/none'))]);
     write('ws/projects/p/runs/r2/scenario.yaml', scenarioText('data/old.csv'));
     broken.sinceRun = shown(scenarioSinceRun(p2, join(tmp, 'ws/projects/p/runs/r2'), 'present') ?? null);
     // The seed of a synthetic sandbox: the files it reads (its SQL steps, its seed folder) and their hash.

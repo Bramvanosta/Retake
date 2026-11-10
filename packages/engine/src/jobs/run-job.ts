@@ -10,9 +10,9 @@
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { FORMAT_VERSIONS, JOB_INPUT_VERSION, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
+import { FORMAT_VERSIONS, JOB_INPUT_VERSION, closeReservedRun, listSteps, loginCommand as coreLoginCommand, resolveEnvironment, resolveStepRef, queuedRun, usedNamedHooks, projectPath, statePath, projectRef } from '@retake/core';
 import { reserveRunId, writeJson } from '@retake/core/io';
-import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunRecord, RunStatus } from '@retake/core';
+import type { JobApproval, JobClient, LoadedProject, RunJobInput, RunProgress, RunStatus } from '@retake/core';
 import type { FilmingEvent, FilmingReport, LiveSink, PauseGate } from '@retake/runner-web';
 import { agentChannel, approvalChecker, checkAgentTrust, preflightHooks, refusedError, seedApprovalItems, takeApprovals } from '../approvals.js';
 import type { Approver, Preflight } from '../approvals.js';
@@ -89,9 +89,14 @@ function stepsTotal(prepared: PreparedRun, until: string | undefined): number {
   return u ? listed.filter((s) => s.sceneIndex < u.sceneIndex || (s.sceneIndex === u.sceneIndex && s.step.index <= u.stepIndex)).length : listed.length;
 }
 
-async function runRecordOf(dir: string): Promise<RunRecord | undefined> {
+/**
+ * run.json of a reserved run as it lies there, read leniently on purpose: a record the reader of run folders would
+ * refuse (a member it does not know how to read) must still be closed, or it would say `running` for ever.
+ */
+async function runRecordOf(dir: string): Promise<Record<string, unknown> | undefined> {
   try {
-    return JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
+    const value: unknown = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8'));
+    return value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
   } catch {
     return undefined;
   }
@@ -104,7 +109,7 @@ async function runRecordOf(dir: string): Promise<RunRecord | undefined> {
 export async function finaliseReservedRun(dir: string, status: Extract<RunStatus, 'failed' | 'cancelled'>, message: string): Promise<void> {
   const rec = await runRecordOf(dir);
   if (!rec || (rec.status !== 'queued' && rec.status !== 'running')) return;
-  await writeJson(join(dir, 'run.json'), { ...rec, status, finished_at: new Date().toISOString(), error: { ...(rec.error ?? {}), message } });
+  await writeJson(join(dir, 'run.json'), closeReservedRun({ ...rec, status: rec.status }, { status, at: new Date().toISOString(), message }));
 }
 
 /** A run request opened and prepared once (its project, its scenario loaded and checked against its environment). */
@@ -302,13 +307,12 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
   }
   await admit?.reserve();
   const { id: runId, dir } = await reserveRunId(projectPath(project.dir, 'runs'), prepared.scenario.name);
-  const queued: RunRecord = {
+  const queued = queuedRun({
     version: FORMAT_VERSIONS.run,
     id: runId,
     project: project.slug,
     scenario: prepared.scenario.name,
     mode: req.mode,
-    status: 'queued',
     started_at: new Date().toISOString(),
     dir,
     env: env.name,
@@ -318,7 +322,7 @@ export async function submitRunJob(ctx: SubmitContext, req: RunSubmitRequest, ap
     screenshots: [],
     hooks: { setup: 'none', teardown: 'none' },
     warnings: [],
-  };
+  });
   await writeJson(join(dir, 'run.json'), queued);
   const input: RunJobInput = {
     version: JOB_INPUT_VERSION,

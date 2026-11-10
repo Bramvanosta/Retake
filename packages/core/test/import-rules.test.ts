@@ -1064,6 +1064,149 @@ describe('the import-rules ratchet', () => {
     });
   });
 
+  describe('record-read: a run.json or a timeline.json gets its type from the one reader', () => {
+    type ReadHit = { file: string; count: number; lines: number[]; kinds: number[] };
+    const found = (rel: string, lines: string[]): ReadHit[] => lib.recordReadHits(ROOT, [{ rel, pkg: rel.split('/')[1], text: lines.join('\n'), specs: [] }]);
+    /** The kind found on each line of a synthetic file (0: no hit), in line order. */
+    const kinds = (lines: string[], rel = 'packages/engine/src/a.ts'): number[] => {
+      const h = found(rel, lines)[0];
+      return lines.map((_, i) => (h ? h.kinds[h.lines.indexOf(i + 1)] ?? 0 : 0));
+    };
+
+    it('1. a parsed value cast to a record or a timeline, through await, parentheses, ! and `as unknown`', () => {
+      expect(kinds([
+        "const a = JSON.parse(text) as RunRecord;",
+        "const b = JSON.parse(await readFile(f, 'utf8')) as unknown as Timeline;",
+        "const c = (await readJson(file)) as Partial<StoredRunRecord>;",
+        "const d = (JSON.parse(text)!) as RunRecord | null;",
+        "const e = <Timeline>JSON.parse(text);",
+        "const f = (await io.readJson(file)) as core.RunRecord[];",
+        "const g = JSON.parse(text) as { mode?: string };", // an own shape: not a record's type
+        "const h = JSON.parse(text) as PruneRun | null;",
+        "const i = JSON.parse(text) as import('@retake/core').RunRecord;", // the type reached without an import
+        "const j = JSON.parse(text) as typeof import('@retake/core');",
+      ], 'packages/engine/src/a.ts')).toEqual([1, 1, 1, 1, 1, 1, 0, 0, 1, 0]);
+    });
+
+    it('2. to 4. a type argument, the annotation of the variable it initialises, the return type of the function that returns it', () => {
+      expect(kinds([
+        "const a = await readJson<Timeline>(file);",
+        "const b = JSON.parse<RunRecord>(text);",
+        "const c: RunRecord = JSON.parse(text);",
+        "const d: Promise<Timeline | undefined> = readJson(file);",
+        "async function e(): Promise<RunRecord> {",
+        "  return JSON.parse(await readFile(f, 'utf8'));",
+        "}",
+        "const g = (text: string): StoredRunRecord => JSON.parse(text);",
+        "const h = async (): Promise<FinishedRun | undefined> => { try { return await readJson(file); } catch { return undefined; } };",
+        "const i: unknown = JSON.parse(text);",
+        "function j(): unknown { return JSON.parse(text); }",
+        "const k = await readJson<{ scenario: string }>(file);",
+      ])).toEqual([2, 2, 3, 3, 0, 4, 0, 4, 4, 0, 0, 0]);
+    });
+
+    it('5. any other value cast to a record or a timeline, once per cast', () => {
+      expect(kinds([
+        "const a = value as RunRecord;",
+        "const b = value as unknown as Timeline;",
+        "const c = { ...rec, status: 'succeeded' } as SucceededRun;",
+        "const d = (isObj(v) ? v : undefined) as UnknownStatusRun | undefined;",
+        "const e = value as RunRecord['status'];", // a member's type is no record
+        "const f = name as keyof Timeline;",
+        "const g = value as RunSummary;",
+        "const h = [] as const;",
+        "const i = value as unknown as import('@retake/core').Timeline;",
+      ])).toEqual([5, 5, 5, 5, 0, 0, 0, 0, 5]);
+      // One cast, one hit — also when two record types are named, or the cast is doubled.
+      expect(found('packages/engine/src/a.ts', ['const a = value as unknown as RunRecord | Timeline;'])[0].count).toBe(1);
+    });
+
+    it('the reader is free, and it is this file, no more; the types are the run record\'s states and the timeline\'s', () => {
+      const all = ['const a = JSON.parse(text) as RunRecord;', 'const b = value as unknown as Timeline;'];
+      expect(lib.RECORD_READ_HOME).toEqual(['packages/core/src/run-record.ts', 'packages/core/src/io/run-folder.ts']);
+      for (const rel of lib.RECORD_READ_HOME) {
+        expect(found(rel, all), rel).toEqual([]);
+        expect(statSync(join(ROOT, rel)).isFile(), rel).toBe(true);
+      }
+      expect(found('packages/core/src/io/files.ts', all).map((h) => [h.count, h.kinds])).toEqual([[2, [1, 5]]]);
+      expect(found('packages/ui/src/app/a.tsx', all)[0].count).toBe(2);
+      // Every state of the union is named, so a cast to one state does not slip by.
+      expect([...lib.RECORD_READ_TYPES].sort()).toEqual(['CancelledRun', 'FailedRun', 'FinishedRun', 'QueuedRun', 'RunRecord', 'RunRecordOnDisk', 'RunningRun', 'StoredRunRecord', 'SucceededRun', 'Timeline', 'TimelineHead', 'UnknownStatusRun']);
+      const states = readFileSync(join(ROOT, 'packages/core/src/run-record.ts'), 'utf8');
+      for (const name of lib.RECORD_READ_TYPES.filter((n: string) => !['Timeline', 'RunRecordOnDisk'].includes(n))) expect(states, name).toMatch(new RegExp(`export (type|interface) ${name}\\b`));
+    });
+
+    it('6-9. a type guard, a generic cast helper, a parse through a schema, an interface that extends a state', () => {
+      expect(kinds([
+        "const isRecord = (v: unknown): v is RunRecord => typeof v === 'object';",
+        "function assertRecord(v: unknown): asserts v is StoredRunRecord {}",
+        "const a = cast<RunRecord>(JSON.parse(text));",
+        "const b = asRead<Timeline>(value);",
+        "const c = StoredRunRecordSchema.parse(JSON.parse(text));",
+        "const d = schemas.RunRecordSchema.safeParse(value);",
+        "const e = TimelineSchema.safeParse(value);",
+        "interface Mine extends SucceededRun { more: true }",
+        // Not one: a guard of another type, a call typed by a member, a schema of something else, another interface.
+        "const isSummary = (v: unknown): v is RunSummary => true;",
+        "const f = pick<RunRecord['status']>(value);",
+        "const g = ScenarioSchema.parse(value);",
+        "interface Other extends RunSummary { more: true }",
+        "const h = new Map<string, RunRecord>();",
+      ])).toEqual([6, 6, 7, 7, 8, 8, 8, 9, 0, 0, 0, 0, 0]);
+      // `readJson<T>` stays kind 2 (a parse typed by its type argument), not the cast helper's.
+      expect(kinds(["const a = await readJson<Timeline>(file);"])).toEqual([2]);
+    });
+
+    it('10. a file that reads a run folder on its own, on purpose: each JSON.parse there is an entry of its own kind', () => {
+      expect(lib.RECORD_READ_OWN).toEqual(['packages/engine/src/prune.ts', 'packages/engine/src/jobs/run-job.ts']);
+      const own = ["const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as Mine | null;", "const again = JSON.parse(text);"];
+      for (const rel of lib.RECORD_READ_OWN) {
+        expect(statSync(join(ROOT, rel)).isFile(), rel).toBe(true);
+        expect(kinds(own, rel), rel).toEqual([10, 10]);
+      }
+      // Anywhere else a parse into a shape of one's own is not seen (said in the title).
+      expect(kinds(own, 'packages/engine/src/runs.ts')).toEqual([0, 0]);
+      // A record type named there is still the other kind.
+      expect(kinds(["const r = JSON.parse(text) as RunRecord;"], lib.RECORD_READ_OWN[0])).toEqual([1]);
+    });
+
+    it('says what it does not see: an alias, an own interface, an untyped value that reaches a record without a cast', () => {
+      expect(kinds([
+        "type Rec = RunRecord;",
+        "const a = JSON.parse(text) as Rec;", // under an alias
+        "const b = JSON.parse(text) as { status: string; mode: string; scenario: string };", // an own shape of the same members
+        "const c = JSON.parse(text); const d: RunRecord = c;", // `any`, typed a statement later
+        "const e = parseFile(file); use(e);", // behind a helper of another name
+        "function f(r: RunRecord) {} f(JSON.parse(text));", // handed to a parameter
+        "const g: { record: RunRecord } = { record: JSON.parse(text) };", // a property
+      ])).toEqual([0, 0, 0, 0, 0, 0, 0]);
+    });
+
+    it('the repository: no record or timeline typed outside the reader; one more is a new entry', () => {
+      const scanned = lib.scan(ROOT);
+      const today: string[] = lib.ratchetEntries(ROOT, scanned);
+      // No record or timeline is typed outside the reader. The two own reads — prune's and the job's lenient close,
+      // each into a shape of its own, as their comments say — are in sight: one entry each, with its reason in the baseline.
+      expect(lib.recordReadHits(ROOT, scanned.files).map((h: ReadHit) => [h.file, h.kinds])).toEqual([
+        ['packages/engine/src/jobs/run-job.ts', [10]],
+        ['packages/engine/src/prune.ts', [10]],
+      ]);
+      const OWN = ["record-read packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's file", "record-read packages/engine/src/prune.ts → 1 own read of a run folder's file"];
+      expect(today.filter((e: string) => e.startsWith('record-read ')).sort()).toEqual(OWN);
+      const groups = (JSON.parse(readFileSync(join(ROOT, 'scripts/audit/baseline.json'), 'utf8')) as { groups: Array<{ rule: string; reason: string; entries: string[] }> }).groups.filter((g) => g.rule === 'record-read');
+      expect(groups.flatMap((g) => g.entries).sort()).toEqual(OWN.map((e) => e.slice('record-read '.length)));
+      for (const g of groups) expect(g.reason.length, g.entries[0]).toBeGreaterThan(80);
+      // The parse boundary itself holds the one cast of a parsed timeline (so the check is not vacuous there).
+      const home = scanned.files.find((f: { rel: string }) => f.rel === lib.RECORD_READ_HOME[0]);
+      expect(lib.recordReadHits(ROOT, [{ ...home, rel: 'packages/core/src/other.ts' }]).map((h: ReadHit) => h.count >= 1)).toEqual([true]);
+      const more = lib.compareBaseline([...today, 'record-read packages/engine/src/runs.ts → 1 record typed without the reader'], lib.readBaseline(ROOT));
+      expect(more.added).toEqual(['record-read packages/engine/src/runs.ts → 1 record typed without the reader']);
+      expect(more.stale).toEqual([]);
+      const title = lib.CHECKS.find((c: { id: string }) => c.id === 'record-read')?.title ?? '';
+      for (const word of ['RECORD_READ_HOME', 'RECORD_READ_TYPES', 'RECORD_READ_SCHEMAS', 'RECORD_READ_OWN', 'type guard', 'generic cast helper', 'Not seen', 'alias', 'handed to the reader', 'without a cast', 'outside packages/*/src']) expect(title, word).toContain(word);
+    });
+  });
+
   it('fails on a new entry, a stale entry, a group without a reason, and says how to update the baseline', () => {
     const baseline = { groups: [{ rule: 'R1', reason: 'Loaders.', entries: ['packages/core/src/a.ts → node:fs', 'packages/core/src/gone.ts → node:fs'] }, { rule: 'R6', reason: '', entries: ['packages/cli/src/commands/a.ts → node:fs'] }] };
     const now = ['R1 packages/core/src/a.ts → node:fs', 'R1 packages/core/src/new.ts → node:os', 'R6 packages/cli/src/commands/a.ts → node:fs'];

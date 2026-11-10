@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { editReplannedMessage, scenarioChangedMessage } from '@retake/core';
+import { SLUG_RE, editReplannedMessage, scenarioChangedMessage } from '@retake/core';
 import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
@@ -45,9 +45,30 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}) {
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}, extraUntrusted: Record<string, unknown> = {}) {
   const r = await engine.renders.status(project, id);
-  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData } };
+  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData, untrusted: { ...r.untrusted, ...extraUntrusted } } };
+}
+
+/** A scene id as a scenario writes one (a slug of at most 100 characters): only such a text is said in a trusted line — run.json is a file anyone may write. */
+const isSceneId = (v: unknown): v is string => typeof v === 'string' && v.length <= 100 && SLUG_RE.test(v);
+
+/**
+ * The trusted lines of a plan or a render about the run `latest` picked (none for a run named by run_id):
+ * - how many newer captures of the scenario were passed over — failed, cancelled, not finished, without their film… —
+ *   as a count only: their folder names are text anyone who can write runs/ chose, and stay under "untrusted";
+ * - where the capture picked ends when it was stopped by `--until` (the step as `--until` names it, when its scene
+ *   reads as a scene id; else only that it was stopped).
+ */
+export function latestLines(p: { run_id: string; passed_over?: number; not_considered?: number; until?: { scene?: string; step?: number } }): string[] {
+  const lines: string[] = [];
+  if (p.passed_over) lines.push(`${plural(p.passed_over, 'newer capture')} of the scenario passed over: "untrusted.passed_over" names ${p.passed_over === 1 ? 'it' : 'them'}`);
+  if (p.not_considered) lines.push(`${plural(p.not_considered, 'newer run folder')} without a run.json that reads as a record ${p.not_considered === 1 ? 'was' : 'were'} not considered`);
+  if (p.until) {
+    const step = isSceneId(p.until.scene) && Number.isInteger(p.until.step) ? ` at step ${p.until.scene}.${p.until.step}` : ' early';
+    lines.push(`run ${p.run_id} stops${step} (\`--until\`): the render shows the scenario up to there`);
+  }
+  return lines;
 }
 
 /**
@@ -79,6 +100,7 @@ export const planPreview = defineTool({
       summary: [
         `plan of ${p.scenario} (run ${p.run_id}): ${p.variant} ${p.width}×${p.height} @ ${p.fps} fps, ${p.duration_s} s, theme ${p.theme}, frame ${p.frame}`,
         ...editLines(project, scenario, p),
+        ...latestLines(p),
         `${plural(p.segments.length, 'segment')}: ${[...kinds].map(([k, n]) => `${n} ${k}`).join(', ')}${p.music ? '; music' : ''}`,
         ...(p.untrusted.warnings.length ? [`${plural(p.untrusted.warnings.length, 'warning')} in "untrusted"`] : []),
         // A changed filmed part shows only in a new capture: never offer to render the old run (L3.8 review M1).
@@ -109,6 +131,7 @@ export const render = defineTool({
       [
         `render ${sub.render_id} submitted (job ${sub.job.id}): run ${sub.run_id}, ${sub.variant}, ${sub.duration_s} s.`,
         ...editLines(project, scenario, sub),
+        ...latestLines(sub),
         ...(sub.warnings.length ? [`${plural(sub.warnings.length, 'plan warning')}: render_status shows them under "untrusted".`] : []),
       ],
       // the run it renders (the render's record names it only once rendered)
@@ -118,7 +141,12 @@ export const render = defineTool({
         ...(sub.scenario_changed !== undefined ? { scenario_changed: sub.scenario_changed } : {}),
         ...(sub.filmed_changes ? { filmed_changes: sub.filmed_changes } : {}),
         ...(sub.edit_changes ? { edit_changes: sub.edit_changes } : {}),
+        ...(sub.passed_over !== undefined ? { passed_over: sub.passed_over } : {}),
+        ...(sub.not_considered !== undefined ? { not_considered: sub.not_considered } : {}),
+        ...(sub.until ? { until: sub.until } : {}),
       },
+      // the newer captures `latest` passed over: folder names of runs/, kept with the other text nobody vouches for
+      sub.untrusted?.passed_over ? { passed_over: sub.untrusted.passed_over } : {},
     );
   },
 });

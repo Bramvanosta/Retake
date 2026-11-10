@@ -356,13 +356,13 @@ export class WorkspaceIndex {
         }
         if (r.runs) {
           const before = db.prepare('SELECT id, scenario, status FROM runs WHERE project = ?').all(r.slug) as unknown as RunRow[];
-          const after: RunRow[] = r.runs.filter((x) => !x.newer).map((x) => ({ id: x.id, scenario: x.scenario ?? null, status: x.status ?? null }));
+          const after: RunRow[] = r.runs.filter((x) => !x.newer && !x.unread).map((x) => ({ id: x.id, scenario: x.scenario ?? null, status: x.status ?? null }));
           runs.push(...runChanges(r.slug, before, after, prev.get(`runs:${r.slug}`), next.get(`runs:${r.slug}`)));
           db.prepare('DELETE FROM runs WHERE project = ?').run(r.slug);
           delSearch.run(r.slug, 'run');
           const add = db.prepare('INSERT INTO runs(project, id, scenario, mode, status, env, started_at, finished_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
           for (const run of r.runs) {
-            if (run.newer) continue;
+            if (run.newer || run.unread) continue;
             add.run(r.slug, run.id, run.scenario ?? null, run.mode ?? null, run.status ?? null, run.env ?? null, run.started_at ?? null, run.finished_at ?? null);
             addSearch.run('run', r.slug, run.id, [run.scenario, run.mode === 'dry' ? 'dry run' : 'capture', run.status].filter(Boolean).join(' · '), run.env ?? '');
           }

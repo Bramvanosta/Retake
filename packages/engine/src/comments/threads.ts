@@ -44,6 +44,7 @@ import type { ThreadFile } from './store.js';
 import { recordShapeOk, renderIndex, threadView, timecodeOf, todayText } from './views.js';
 import type { CommentView } from './views.js';
 import type { WorkPolicy, WorkFileFacts } from '@retake/core';
+import { parseTimeline } from '@retake/core';
 
 // ── Creating a thread ───────────────────────────────────────────────────────
 
@@ -121,8 +122,9 @@ export async function runInputs(projectDir: string, record: RenderRecord, warnin
   if (record.plan.markers.some((m) => m.step === undefined)) {
     const tl = await readPlainFile(join(runDir, 'timeline.json'), RUN_FILE_MAX_BYTES);
     try {
-      const t = tl ? (JSON.parse(tl.toString('utf8')) as Partial<Timeline>) : undefined;
-      if (t && Array.isArray(t.markers) && Array.isArray(t.events)) out.timeline = { markers: t.markers, events: t.events };
+      // The bytes within this file's own cap; what they are is the one parse boundary's to say (core parseTimeline).
+      const t = tl ? parseTimeline(JSON.parse(tl.toString('utf8'))) : undefined;
+      if (t?.ok) out.timeline = { markers: t.value.markers, events: t.value.events };
     } catch {
       /* no timeline: markers name no step */
     }

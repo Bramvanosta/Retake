@@ -418,7 +418,9 @@ describe('Shoot: the status bar\'s actions, the Scenario menu, the sheet', () =>
     expect(changes).toBeLessThanOrEqual(3);
     expect(ops('run_status', t0).length).toBeGreaterThan(0);
     expect(ops('scenario_actions', t0).length).toBeLessThanOrEqual(1);
-    await writeFile(file, JSON.stringify({ ...JSON.parse(await readFile(file, 'utf8')), status: 'succeeded', finished_at: new Date().toISOString() }));
+    // The run ends as the runner ends one: its step in flight leaves the record (a succeeded record never holds one).
+    const { current: _current, ...ended } = JSON.parse(await readFile(file, 'utf8')) as Record<string, unknown>;
+    await writeFile(file, JSON.stringify({ ...ended, status: 'succeeded', finished_at: new Date().toISOString() }));
     await expect.poll(() => page.getByTestId('status-scenario').innerText(), POLL).toContain('Last take succeeded');
     expect(consoleErrors).toEqual([]);
   });

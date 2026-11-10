@@ -10,13 +10,18 @@
  *    files of the project folder; the theme is a name (or project.yaml's own template); no slot value is a remote URL;
  * 2. after planning: every file the plan serves (`plan.assets`) lies in the project folder, the run folder or the theme
  *    folder, symbolic links resolved — whatever named it (an image slot without an extension, a theme's logo or font).
+ * And the run itself: one that is reached through a symbolic link and lies outside the project folder is refused
+ * (core namedRunProblem) — gate 2 alone would take the link's target for "the run folder".
+ *
+ * Whether the run can be planned is the one rule of a named run (core take.ts namedRunProblem) on the facts of the one
+ * reader (core/io readNamedRun); `latest` was picked by the rule of a usable capture (runs.ts).
  */
 import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { displayPages, editReplannedMessage, insideFolder, isCaptureScene, issuesMessage, parseScenario, renderFileProblems, replanEdit, resolveEnvironment, templateRefProblem, timelineVideo, GUIDE } from '@retake/core';
-import { loadProjectTemplate, readJson, scenarioSinceRun, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { LoadedProject, LoadedTemplate, Scenario, TemplateContext, Timeline, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
+import { DEFAULT_FILM, displayPages, editReplannedMessage, insideFolder, isCaptureScene, issuesMessage, namedRunProblem, parseScenario, renderFileProblems, replanEdit, resolveEnvironment, takeWords, templateRefProblem, timelineProblem, timelineVideo, GUIDE } from '@retake/core';
+import { loadProjectTemplate, readNamedRun, scenarioSinceRun, nodeFileFacts, fileFacts } from '@retake/core/io';
+import type { LoadedProject, LoadedTemplate, NamedProblem, Read, RunFolderFacts, Scenario, TemplateContext, Timeline, ErrorKind, WorkPolicy, WorkFileFacts } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
 import { planFileUses, planInputFiles, remoteSlotUses } from '../inputs.js';
@@ -25,7 +30,7 @@ import { musicFile, musicSpecOf } from '../planner/music.js';
 import { PLAN_ASSET_SCHEME } from '../plan-types.js';
 import type { EditOverrides, EditPlan } from '../plan-types.js';
 import { probeMedia } from './probe.js';
-import { findRun, runEnv, runScenario } from './runs.js';
+import { locateRun, recordEnv, runScenario } from './runs.js';
 import type { RunRef } from './runs.js';
 import { RenderError } from './types.js';
 
@@ -173,21 +178,39 @@ function hardLinked(file: string): boolean {
   }
 }
 
+/**
+ * The facts of the run folder a plan works on, read through symbolic links (a named run always was), and whether the
+ * folder really lies in the project (`inside`: its real path, links followed — the folder's own or one above it, as
+ * a `runs/` that is a link to another disk). The rule decides with both (core namedRunProblem): through MCP a run
+ * outside the project is refused — one someone named, and one `latest` picked too, which was inside when it was
+ * picked (runs.ts locateRun) and can only be outside now if the folder changed since; at a terminal nothing of it applies.
+ */
+async function namedRunFacts(project: LoadedProject, dir: string): Promise<{ facts: RunFolderFacts; inside: boolean; timeline: Read<Timeline> }> {
+  // One read of the folder: its facts and its whole timeline (timeline.json is parsed once).
+  const { facts, timeline } = await readNamedRun(dir);
+  return { facts, inside: insideFolder(project.dir, dir, nodeFileFacts), timeline };
+}
+
 /** Plan a capture run (see the module comment); throws RenderError (PlanTrustError for a trust refusal). */
 export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const t0 = performance.now();
   const project = o.project;
   const trust = o.trust ?? 'author';
   const root = resolve(o.root ?? project.root);
-  const run = findRun(project, o.run, o.scenario);
-  const timelineFile = join(run.dir, 'timeline.json');
-  if (!existsSync(timelineFile)) throw new RenderError(`run ${run.id} has no timeline.json (${run.dir})`);
-  const captured = await readJson<Timeline>(timelineFile);
-  if (o.scenario && captured.scenario !== o.scenario) throw new RenderError(`run ${run.id} is a run of scenario "${captured.scenario}", not "${o.scenario}"`);
-  if (captured.mode === 'dry') throw new RenderError(`run ${run.id} is a dry run: there is no capture to render`);
+  const run = await locateRun(project, o.run, o.scenario, { trust });
+  const facts = await namedRunFacts(project, run.dir);
+  const refused = namedRunProblem(facts.facts, { ...(o.scenario !== undefined ? { scenario: o.scenario } : {}), trust, inside: facts.inside });
+  const words = (problem: NamedProblem): string => takeWords(problem, { run: run.id, verb: 'render', dir: run.dir });
+  if (refused?.why === 'linked-outside' || refused?.why === 'outside' || refused?.why === 'linked-files' || refused?.why === 'film-outside') throw new PlanTrustError([words(refused)]);
+  // A missing film is said where it always was: after the trust gate and the theme (no-film is the rule's last test).
+  if (refused && refused.why !== 'no-film') throw new RenderError(words(refused));
+  // The head read and the whole does not: its lists are not lists.
+  const read = facts.timeline;
+  if (!read.ok) throw new RenderError(words(timelineProblem(read) ?? { why: 'no-timeline' }));
+  const captured = read.value;
   const overrides: EditOverrides = { ...(o.overrides ?? {}) };
   const scenarioSnapshot = await runScenario(run.dir);
-  const envName = await runEnv(run.dir);
+  const envName = recordEnv(facts.facts.record);
   const { timeline, edit, warnings: editWarnings, text: editText } = editOfToday(project, run, captured, envName, o.edit ?? 'auto', o.editText, fileFacts(o.workPolicy));
   const video = timeline.video ?? (scenarioSnapshot ? timelineVideo(scenarioSnapshot, project.config) : undefined);
   if (trust === 'mcp') {
@@ -198,8 +221,9 @@ export async function planRun(o: PlanRunOptions): Promise<PlannedRun> {
   const template = theme && typeof theme === 'object' ? theme : await loadProjectTemplate(project, theme, { files: fileFacts(o.workPolicy) });
   if (o.template || overrides.theme) overrides.theme = template.name;
   const registry = o.registry ?? (await loadComponentRegistry({ root }));
-  const captureFile = join(run.dir, timeline.capture.file || 'capture.mp4');
-  if (!existsSync(captureFile)) throw new RenderError(`run ${run.id} has no capture video (${captureFile})`);
+  // The film the rule judged: the name the run's own timeline gives (`capture.mp4` when it names none).
+  if (refused) throw new RenderError(words(refused));
+  const captureFile = join(run.dir, facts.facts.timeline.ok ? facts.facts.timeline.value.film : DEFAULT_FILM);
   // The planner is pure: the music track's length is measured here so it can plan the loops (or the trim).
   const musicSpec = musicSpecOf(video, overrides);
   let musicDuration_s: number | undefined;

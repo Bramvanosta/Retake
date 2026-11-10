@@ -22,7 +22,7 @@
  */
 import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LoadedProject, RunRecord } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { listCommentsAndUnread } from './comments/views.js';
 import { editor } from './lazy.js';
 import { isRenderOfItsScenario } from './refs.js';
@@ -94,13 +94,38 @@ async function sizeOf(path: string): Promise<number> {
   return n;
 }
 
-async function readRun(dir: string): Promise<RunRecord | null> {
+/** What prune reads of a run.json: the members its own rule decides on, as the file says them. */
+interface PruneRun {
+  id: string;
+  status: string;
+  mode?: unknown;
+  scenario: string;
+}
+
+/**
+ * Prune's own read of a run.json — NOT the one reader of the run folders (core/io readRunRecord), on purpose: what
+ * prune keeps and deletes is decided in a lot of its own, and until then it reads as it always has (any JSON object
+ * with a text `id` and `status`; a link is followed; the format's version is not looked at). Sending it through the
+ * reader would change what it keeps (a linked run folder, a record of a newer Retake).
+ */
+async function pruneReadRun(dir: string): Promise<PruneRun | null> {
   try {
-    const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as RunRecord;
+    const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as PruneRun | null;
     return r && typeof r.id === 'string' && typeof r.status === 'string' ? r : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * The last capture of each scenario BY ITS RECORD — prune's own rule until that decision, NOT the usable-capture rule
+ * (core takeOf): the newest run whose run.json says a capture that succeeded, whether or not its timeline and its film
+ * are there. `runs`: oldest first (the last of a scenario wins).
+ */
+function pruneLastCapture(runs: readonly PruneRun[]): Map<string, string> {
+  const last = new Map<string, string>();
+  for (const r of runs) if (r.mode === 'capture' && r.status === 'succeeded') last.set(r.scenario, r.id);
+  return last;
 }
 
 const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
@@ -206,19 +231,18 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
 
   // Takes: the last succeeded capture per scenario, and every take a kept render or a thread uses.
   const runsDir = projectPath(project.dir, 'runs');
-  const runs: RunRecord[] = [];
+  const runs: PruneRun[] = [];
   const unreadable: string[] = [];
   for (const name of (await readdir(runsDir).catch(() => [] as string[])).sort()) {
     // Only a take of the shape the tool makes is ever a candidate (a folder named by hand stays).
     if (!isMadeRunId(name)) continue;
-    const r = await readRun(join(runsDir, name));
+    const r = await pruneReadRun(join(runsDir, name));
     if (r) runs.push({ ...r, id: name });
     else unreadable.push(name);
   }
   const usedRuns = new Set<string>([...threadRuns]);
   for (const r of renders) if (keptRenders.has(r.id)) usedRuns.add(r.run_id);
-  const lastCapture = new Map<string, string>();
-  for (const r of runs) if (r.mode === 'capture' && r.status === 'succeeded') lastCapture.set(r.scenario, r.id);
+  const lastCapture = pruneLastCapture(runs);
   let runsKept = unreadable.length;
   for (const r of runs) {
     const keep = unreadRun(r) || !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || lastCapture.get(r.scenario) === r.id;

@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { Page } from 'playwright-core';
-import { ARTEFACTS_DIR, agentTrustProblems, channelWords, FORMAT_VERSIONS, compileWritePolicy, guardsWrites, displayPages, displayTable, isCaptureScene, listSteps, loginCommand as defaultLoginCommand, loginMatchers, mailboxFor, networkHost, pageOrigins, scenePageEntries, planPersonas, resolveClock, resolveEnvironment, resolvePersonas, resolveRunAccess, resolveStepRef, sceneId, templateSceneEntry, templateVideo, timelineVideo, writingHooks, hookStepNames, resolveNamedHook, stepHookList, projectPath } from '@retake/core';
+import { ARTEFACTS_DIR, agentTrustProblems, channelWords, finishRun, parseRunId, startedRun, FORMAT_VERSIONS, compileWritePolicy, guardsWrites, displayPages, displayTable, isCaptureScene, listSteps, loginCommand as defaultLoginCommand, loginMatchers, mailboxFor, networkHost, pageOrigins, scenePageEntries, planPersonas, resolveClock, resolveEnvironment, resolvePersonas, resolveRunAccess, resolveStepRef, sceneId, templateSceneEntry, templateVideo, timelineVideo, writingHooks, hookStepNames, resolveNamedHook, stepHookList, projectPath } from '@retake/core';
 import { reserveRunId, writeJson, ffmpegBin, nodeFileFacts, retakeHome } from '@retake/core/io';
 import type {
   AgentChannel,
@@ -23,7 +23,9 @@ import type {
   RunAccess,
   RunPerf,
   RunPerfCpu,
+  RunEnd,
   RunRecord,
+  RunningRun,
   Scenario,
   TemplateContext,
   TimelineEnvironment,
@@ -362,7 +364,10 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const runsDir = resolve(opts.runsDir ?? projectPath(project.dir, 'runs'));
   // Two runs of one scenario started in the same second (concurrent runs, L1.6) never share a folder: the later one
   // takes the next free second (core reserveRunId). A pre-assigned id (a job's, reserved at submit) reuses its folder.
-  const { id: runId, dir } = opts.runId !== undefined ? { id: opts.runId, dir: join(runsDir, opts.runId) } : await reserveRunId(runsDir, loaded.name);
+  // A pre-assigned id names a folder of runs/: one that is no run id is refused before any folder is made.
+  const given = opts.runId !== undefined ? parseRunId(opts.runId) : undefined;
+  if (given === null) throw new RunnerError(`run id ${JSON.stringify(String(opts.runId).slice(0, 60))} is not a run id (a folder name of runs/: letters, digits, ".", "_" and "-", never a path)`);
+  const { id: runId, dir } = given !== undefined ? { id: given, dir: join(runsDir, given) } : await reserveRunId(runsDir, loaded.name);
   const screenshotsDir = join(dir, 'screenshots');
   const framesDir = join(dir, 'frames');
   await mkdir(screenshotsDir, { recursive: true });
@@ -376,13 +381,13 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
   const total = toRun.length;
   // L1.8: the sandbox of a sandbox environment, with the reset made before the take when there was one (--sandbox).
   const sandbox: RunSandbox | undefined = env.sandbox ? (opts.sandbox?.name === env.name ? { ...opts.sandbox } : { name: env.name, provider: env.sandbox.provider }) : undefined;
-  const record: RunRecord = {
+  // The run's record while it is in flight; its end makes another one (finishRun), which is what the last save writes.
+  const record: RunningRun = startedRun({
     version: FORMAT_VERSIONS.run,
     id: runId,
     project: project.slug,
     scenario: loaded.name,
     mode,
-    status: 'running',
     started_at: new Date().toISOString(),
     dir,
     env: env.name,
@@ -399,7 +404,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       ...(sandbox ? { sandbox } : {}),
     },
     engine: runEngine(),
-  };
+  });
   if (opts.until !== undefined) record.options.until = opts.until;
   if (access.allow_writes) record.options.allow_writes = true;
   if (opts.hideCursor) record.options.cursor = 'hidden';
@@ -1160,13 +1165,12 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
     }
   }
 
-  record.warnings = [...timeline.warnings];
-  record.finished_at = new Date().toISOString();
-  delete record.current;
+  const warnings = [...timeline.warnings];
+  const at = new Date().toISOString();
+  let end: RunEnd;
   if (failure === null) {
-    record.status = 'succeeded';
+    end = { status: 'succeeded', at, warnings };
   } else {
-    record.status = isCancelled(failure) ? 'cancelled' : 'failed';
     const err: RunError = { message: errorMessage(failure) };
     if (failure instanceof StepFailure) {
       err.scene = failure.scene;
@@ -1176,11 +1180,14 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       if (failure.dom) err.dom = failure.dom;
       if (failure.missing) err.missing_targets = failure.missing;
     }
-    record.error = err;
+    end = { status: isCancelled(failure) ? 'cancelled' : 'failed', at, warnings, error: err };
   }
-  emit({ type: 'run_end', run: { ...record } });
+  // The only change of status: the record of the run that ended (the step it was at is dropped).
+  const done = finishRun(record, end);
+  files.finish(done);
+  emit({ type: 'run_end', run: { ...done } });
   await files.close().catch(() => undefined);
-  return secrets.redactRecord(record);
+  return secrets.redactRecord(done);
 }
 
 /**
@@ -1429,7 +1436,7 @@ interface SetupDeps {
   dir: string;
   emit: (e: RunProgress) => void;
   log: (level: LogLevel, message: string) => void;
-  record: RunRecord;
+  record: RunningRun;
   /** Refuses a js hook tab that landed on its persona's sign-in page (L1.6). */
   hookLanding?: (key: string, url: string) => string | null;
   /** The run's cancel (Ctrl-C, SIGTERM, opts.signal): it stops the setup — a running shell command's process group too. */

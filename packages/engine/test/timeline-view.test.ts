@@ -332,7 +332,7 @@ describe('timeline view of the fixture\'s quote (critique B13: measured)', () =>
       await writeFile(join(runDir, 'timeline.json'), JSON.stringify(tl));
       await writeFile(join(runDir, 'scenario.yaml'), readFileSync(join(p, 'scenarios', 'quote.yaml')));
       await writeFile(join(runDir, 'capture.mp4'), 'not read');
-      await writeFile(join(runDir, 'run.json'), JSON.stringify({ version: 1, id, project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T08:00:00.000Z', dir: runDir, env: 'local', options: {}, steps_total: 1, steps_done: 1, screenshots: [], hooks: {}, warnings: [] }));
+      await writeFile(join(runDir, 'run.json'), JSON.stringify({ version: 1, id, project: 'northfield-fixture', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T08:00:00.000Z', finished_at: '2026-10-20T08:01:00.000Z', dir: runDir, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }));
       const e = await createEngine({ root: ws, client: 'ui', autoStartWorker: false });
       clearTimelineViewMemo();
       const t0 = performance.now();

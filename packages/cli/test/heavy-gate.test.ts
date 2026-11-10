@@ -22,11 +22,19 @@ import { heavyGate } from '../src/heavy-gate.js';
 import { memoryIo } from '../src/index.js';
 import { Ui } from '../src/ui.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
 const BIN = join(REPO, 'packages/cli/dist/bin.js');
 const REAL_RUN = '20260101-120000-held';
+
+/** A whole capture of `held` in `dir` — its record, the head of its timeline, its film: what `latest` takes (L7.6a). */
+function wholeCapture(dir: string, id: string): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'run.json'), JSON.stringify(syntheticRunRecord(dir, { id, scenario: 'held', project: 'latest' })));
+  writeFileSync(join(dir, 'timeline.json'), JSON.stringify({ version: 1, run_id: id, project: 'latest', scenario: 'held', mode: 'capture', capture: { file: 'capture.mp4' } }));
+  writeFileSync(join(dir, 'capture.mp4'), 'never read');
+}
 const canEncode = hasTool('ffmpeg') && hasTool('ffprobe');
 
 let ws: string;
@@ -50,7 +58,7 @@ beforeAll(async () => {
   t.project = 'real';
   t.scenario = 'held';
   await writeFile(join(real, 'timeline.json'), JSON.stringify(t));
-  await writeFile(join(real, 'run.json'), JSON.stringify({ version: 1, id: REAL_RUN, status: 'succeeded', mode: 'capture' }));
+  await writeFile(join(real, 'run.json'), JSON.stringify(syntheticRunRecord(real, { id: REAL_RUN, scenario: 'held', project: 'real' })));
   if (canEncode) makeColourCapture(join(real, 'capture.mp4'), 4);
   await writeFile(join(ws, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
   await linkSharedCache(ws);
@@ -58,7 +66,7 @@ beforeAll(async () => {
   const latest = join(ws, 'projects', 'latest');
   await mkdir(join(latest, 'runs', '20260101-120000-held'), { recursive: true });
   await writeFile(join(latest, 'project.yaml'), 'name: Latest\nenvironments:\n  local: {app: "http://app.test"}\n');
-  await writeFile(join(latest, 'runs', '20260101-120000-held', 'timeline.json'), JSON.stringify({ mode: 'capture' }));
+  wholeCapture(join(latest, 'runs', '20260101-120000-held'), '20260101-120000-held');
   await mkdir(join(latest, 'renders'), { recursive: true });
   await writeFile(join(latest, 'renders', 'held-v1.json'), JSON.stringify({ version: 1, id: 'held-v1', status: 'succeeded', scenario: 'held', created_at: '2026-01-01T12:00:00.000Z', plan: {} }));
 });
@@ -236,8 +244,7 @@ describe.skipIf(!existsSync(BIN))('the built CLI waits for a take (L5.14a)', () 
     const latest = join(ws, 'projects', 'latest');
     for (const [args, line, newer] of [
       [['render', 'latest', 'held'], 'rendering run 20260101-120000-held', () => {
-        mkdirSync(join(latest, 'runs', '20260202-120000-held'), { recursive: true });
-        writeFileSync(join(latest, 'runs', '20260202-120000-held', 'timeline.json'), JSON.stringify({ mode: 'capture' }));
+        wholeCapture(join(latest, 'runs', '20260202-120000-held'), '20260202-120000-held');
       }],
       [['export', 'latest', 'latest', '--scenario', 'held'], 'exporting render held-v1', () =>
         writeFileSync(join(latest, 'renders', 'held-v2.json'), JSON.stringify({ version: 1, id: 'held-v2', status: 'succeeded', scenario: 'held', created_at: '2026-02-02T12:00:00.000Z', plan: {} }))],

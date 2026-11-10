@@ -104,9 +104,13 @@ export function bindingWords(b: StepBinding | undefined, hasSource: boolean): st
   return b.moved ? `${words} · moved since this run` : words;
 }
 
-/** The newest capture that finished with its video (the timeline plans the take on it; Render edits it), or undefined. */
-export function timelineRun(v: Pick<View, 'runs'>): string | undefined {
-  return v.runs.find((r) => r.mode === 'capture' && r.status === 'succeeded' && r.pictures === 'video')?.id;
+/**
+ * The take the timeline plans and Render edits, or undefined: the capture the engine names (`capture` — `latest` by
+ * the one rule of the domain: the newest capture that succeeded, with its timeline and its film). The front end holds
+ * no rule of its own, and looks through no list.
+ */
+export function timelineRun(v: Pick<View, 'capture'>): string | undefined {
+  return v.capture?.id;
 }
 
 /** L5.10b: a step's verb on its frame (B32: "Hover", "Wait for", "Drop file"), from its category. */

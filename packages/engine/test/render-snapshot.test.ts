@@ -21,7 +21,7 @@ import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, revie
 import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const SCENARIO = 'snap';
 const RUN = '20260101-120000-snap';
@@ -69,6 +69,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = SCENARIO;
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: SCENARIO, project: 'demo' })));
   await writeFile(join(runDir, 'scenario.yaml'), TEXT);
   await writeFile(join(runDir, 'capture.mp4'), 'never read before the render stage');
   await writeFile(scenarioFile(), TEXT);

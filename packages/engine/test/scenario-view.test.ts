@@ -387,9 +387,13 @@ describe('memo (B1)', () => {
     });
     const a = await views.view(P, 'blocks');
     const reads = runs.reads;
+    // L7.6a: whether a run is a take is read once per succeeded capture, then held (a repeat reads no run folder).
+    const takes = views.stats.takes;
+    // (These captures kept their frames and no film: none is a take.)
+    expect([takes > 0, a.runs.filter((r) => r.take).length, a.runs.filter((r) => r.mode === 'capture' && r.status === 'succeeded').length]).toEqual([true, 0, takes]);
     const b = await views.view(P, 'blocks');
     expect(b).toEqual(a);
-    expect([views.stats.text, views.stats.bind, views.stats.list, blockers, runs.reads]).toEqual([1, 1, 1, 1, reads]);
+    expect([views.stats.text, views.stats.bind, views.stats.list, blockers, runs.reads, views.stats.takes]).toEqual([1, 1, 1, 1, reads, takes]);
     const file = join(projectDir, 'runs', RUNNING, 'run.json');
     const rec = JSON.parse(await readFile(file, 'utf8')) as { steps_done: number };
     for (let i = 0; i < 20; i++) {
@@ -398,7 +402,7 @@ describe('memo (B1)', () => {
       const v = await views.view(P, 'blocks');
       expect(v.running?.steps_done).toBe(i);
     }
-    expect([views.stats.text, views.stats.bind, blockers]).toEqual([1, 1, 1]);
+    expect([views.stats.text, views.stats.bind, blockers, views.stats.takes]).toEqual([1, 1, 1, takes]);
     await writeFile(join(projectDir, 'scenarios', 'blocks.yaml'), `${BLOCKS_YAML}# edited\n`);
     const c = await views.view(P, 'blocks');
     expect([views.stats.text, views.stats.bind, blockers]).toEqual([2, 2, 2]);

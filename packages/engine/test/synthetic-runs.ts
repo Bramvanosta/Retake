@@ -169,7 +169,8 @@ export async function writeRun(projectDir: string, r: SynthRun): Promise<string>
       dir, env: 'local', options: { hooks: r.mode === 'dry' ? 'skip' : 'run', headed: false },
       steps_total: r.steps_total ?? (r.events?.length ?? 0), steps_done: r.events?.length ?? 0, screenshots: [],
       hooks: r.hooks ?? { setup: 'none', teardown: 'none' }, warnings: [],
-      ...(r.error ? { error: r.error } : {}), ...(r.stopped_at ? { stopped_at: r.stopped_at } : {}),
+      // A failed or cancelled record always holds its error (the runner writes one; a record without is no run record).
+      ...(r.error ? { error: r.error } : status === 'failed' || status === 'cancelled' ? { error: { message: status } } : {}), ...(r.stopped_at ? { stopped_at: r.stopped_at } : {}),
     }),
   );
   if (r.snapshot !== undefined) await writeFile(join(dir, 'scenario.yaml'), r.snapshot);

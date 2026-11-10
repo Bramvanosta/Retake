@@ -192,7 +192,7 @@ running: the MCP server keeps working without it.
   the one last opened or selected in the project), the status bar says its state — *Rehearsing · step 3 of 7 · Watch*,
   *Capture paused*, *Last take succeeded · 2 h ago*, *Idle*; its name first off its own screens; *on staging* when the
   tab chose another location — and holds **Rehearse** (no hooks, a screenshot per step), **Capture** (the setup and
-  teardown hooks, the video) and **Render** (the newest finished capture — the timeline's own on the Edit screen —
+  teardown hooks, the video) and **Render** ([the latest capture](editing.md#the-latest-capture) — the timeline's own on the Edit screen —
   with the file as shown), with **Pause** and **Stop** while a run of it is queued or running. *Rehearse* is the
   Studio's word for a **dry run** (`retake run … --dry`, MCP `run_dry`); the engine's own messages may still say "dry
   run". What would stop each is said before any click: one line in the status bar names the gate in a few words — *1

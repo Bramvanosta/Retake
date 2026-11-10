@@ -198,8 +198,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
   const renderJob = renders.loaded.state === 'ready' ? renders.loaded.data.jobs[0] : undefined;
   const fedData = useMemo<FedActions | null>(() => {
     if (!vNow) return null;
-    const cap = timelineRun(vNow);
-    const capRun = cap ? vNow.runs.find((r) => r.id === cap) : undefined;
+    const cap = vNow.capture;
     return {
       hash: vNow.hash,
       ok: vNow.ok,
@@ -207,7 +206,7 @@ export function ScenarioScreen({ slug, name, tab }: { slug: string; name: string
       run_blockers: vNow.run_blockers,
       runs: vNow.runs,
       running: vNow.running,
-      ...(cap ? { capture: { id: cap, ...(capRun?.finished_at ? { finished_at: capRun.finished_at } : {}) } } : {}),
+      ...(cap ? { capture: cap } : {}),
       ...(renderJob ? { render_job: { job: renderJob.id, state: renderJob.state, ...(renderJob.fraction !== undefined ? { fraction: renderJob.fraction } : {}) } } : {}),
       env: sentEnv,
       live,

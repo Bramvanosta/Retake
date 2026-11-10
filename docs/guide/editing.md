@@ -82,9 +82,9 @@ What the planner decides (SPEC §9, `docs/DESIGN-phase2.md` §2.1):
 kind or segment id), `theme` (the caller loads that theme) and `music` (a file, or `false`). `variant` is
 `landscape`, `vertical` or `square`.
 
-`retake plan` prints the plan of a run (`latest` = the newest capture run, of `--scenario` when given) and writes its
-JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and `--square` try another theme,
-frame or the 9:16 / 1:1 variant:
+`retake plan` prints the plan of a run (`latest`: [the latest capture](#the-latest-capture), of `--scenario` when
+given) and writes its JSON with `--out` (or prints it with `--json`); `--theme`, `--frame`, `--vertical` and
+`--square` try another theme, frame or the 9:16 / 1:1 variant:
 
 ```
 $ retake plan northfield-fixture latest --scenario catalogue
@@ -107,6 +107,57 @@ Segments
 
 A component that resolves nowhere is marked `MISSING` in the summary (the warnings list its uses) and rendered with
 the scaffold of its kind as a stand-in.
+
+### The latest capture
+
+`latest` — what `retake render` and `retake still` edit when no `--run` is given, what `retake plan <project> latest`
+and `retake export-capture <project> latest` name, the default `run_id` of the MCP tools `plan_preview` and `render`,
+and the take the Studio's Render, timeline and board show — is one rule: **the newest capture of the scenario that
+succeeded and has its timeline and its film in its run folder.**
+
+- *Newest* follows one order of the run folders, used by every list too: the dated folders Retake makes
+  (`<date>-<time>-<scenario>`) first, newest first, then the folders named by hand.
+- *Of the scenario*: the scenario the run's `run.json` names (its timeline must agree), never the end of the folder's
+  name. A run folder without a `run.json` that reads as a record is never `latest`. (What makes a `run.json` a
+  record is little: an id, a scenario, capture or dry run, a status, and what that status needs — a finished run its
+  end, a failed one its error. A word or a block this version does not know, as a later version may write, never
+  makes a run unreadable.)
+- *With its timeline and its film*: a `timeline.json` as a capture writes it — with its run id and its film's name —
+  and that film as a file of the run folder (one file name: `capture.mp4`). A timeline made by hand without them, or
+  naming its film by a path, is for a run you name.
+- A capture stopped with `--until` succeeded: it is the latest capture, and the command says where it ends.
+- A run folder that is a symbolic link, or whose `run.json`, `timeline.json` or film is one, is never `latest`.
+
+A newer take that is not such a capture is passed over, and the command says so on one line (stderr; `--json` output
+does not change), with a fixed word for each reason — `failed`, `cancelled`, `not finished, or interrupted` (its
+record says queued or running: still filming, or a take whose process died before it closed its record — name it to
+edit what it left), `its film is missing`, `its film is not a file of its folder`, `its timeline is missing`,
+`its timeline does not read`, `its timeline is of another scenario`, `a dry run` (a record that says capture beside a
+timeline that says dry run), `written by a newer Retake`, `its status is not one Retake writes`,
+`its files are links`:
+
+```
+$ retake render northfield-fixture quote
+! run 20261001-100000-quote is used: 1 newer capture of "quote" passed over — 20261002-100000-quote (failed) (name one with --run <id>)
+$ retake render northfield-fixture quote          # after `retake run … --until catalog.1`
+! run 20261002-100000-quote stops at step catalog.1 (`--until`): the capture holds the scenario up to there
+```
+
+At most five runs are named (`…; and 3 more`). Newer run folders whose `run.json` is missing (beside a timeline) or
+does not read as a record are counted on the same line and never named — nothing says which scenario they are of:
+`…; 1 newer run folder without a run.json that reads as a record was not considered (name one with --run <id>)`.
+When nothing can be edited the error counts the reasons
+(`… — 2 captures of it cannot be edited: failed (1), its film is missing (1)`) and the run folders it did not consider
+for want of a readable `run.json`. No text of a run's files is printed as the file has it: the reasons are fixed
+words, and the step of `--until` is said only when `run.json` names it as a scenario does (else `stops early`).
+
+**A run you name** — `--run <id>`, a run folder's path, `run_id` — is edited whatever its record says (a failed take
+with its partial film, a folder assembled by hand — also with a timeline that holds no run id or names no film: the
+film is then `capture.mp4` —, a linked folder): it is refused only when it has no timeline or
+one that does not read (`run <id>: its timeline does not read (timeline.json is not JSON)`), when it is a dry run or
+a run of another scenario than the one asked for, when its film is missing, or when its `run.json` was written by a
+newer Retake. Through MCP a named run must also lie in the project: see
+[Claude and MCP](mcp.md) ("Renders read the project, and nothing else").
 
 ## Tutorial overlays and story cards
 
@@ -185,8 +236,8 @@ is the capture video frozen at its time —, `TableMedia`). A name the run did n
 
 ## Rendering
 
-`retake render <project> <scenario>` plans the latest capture of a scenario (or `--run <id|dir|latest>`) and renders
-the plan with [Remotion](https://www.remotion.dev):
+`retake render <project> <scenario>` plans [the latest capture](#the-latest-capture) of a scenario (or `--run
+<id|dir|latest>`) and renders the plan with [Remotion](https://www.remotion.dev):
 
 ```
 $ retake render northfield-fixture catalogue
@@ -443,7 +494,9 @@ is reported (exit code 1) and the others are still written.
 Script and film with Retake, then edit in Final Cut Pro, Premiere Pro, DaVinci Resolve, After Effects or any
 OpenTimelineIO tool: `retake export-capture <project> <run|latest>` (API `exportCapture({project, runDir, …})` in
 `@retake/runner-web`) turns a capture into a package that drops into those tools; `retake run <project>
-<scenario> --raw` captures and exports in one go.
+<scenario> --raw` captures and exports in one go. `latest` is [the latest capture](#the-latest-capture); a run you
+name exports whatever its record says (a failed take too: the package's manifest says `failed`), from its screencast
+frames when its film is missing.
 
 ```
 retake export-capture northfield-fixture latest --scenario quote                       # MP4 30 fps, cursor as captured

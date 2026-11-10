@@ -17,7 +17,7 @@ import type { ProjectBoardView, RunPoster } from '../project-board.js';
 import type { ScenarioActions, ScenarioView } from '../scenario-view.js';
 import type { EnvResetSubmitRequest, HooksSubmitRequest } from '../jobs/hooks-job.js';
 import type { AuthLoginSubmitRequest } from '../jobs/auth-job.js';
-import type { RenderEditSource, RenderRequest } from '../jobs/render-job.js';
+import type { LatestRunNotice, PassedOverRuns, RenderEditSource, RenderRequest } from '../jobs/render-job.js';
 import type { TimelineViewRequest, TimelineViewResult } from '../timeline-view.js';
 import type { ReviewRequest } from '../jobs/review-job.js';
 import type { ExportRequest } from '../jobs/export-job.js';
@@ -319,11 +319,12 @@ export interface Engine {
     plan(req: RenderRequest): Promise<PlanPreviewView>;
     /**
      * Queue a render (trust `mcp`: planned and checked first; the worker renders with the network guard). Returns at
-     * once with the reserved render id; `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as plan_preview's.
+     * once with the reserved render id; `edit`, `scenario_changed`, `filmed_changes`, `edit_changes` as plan_preview's;
+     * `passed_over`, `until` and `untrusted.passed_over` when the run was picked as the latest capture (as plan_preview's).
      */
     submit(
       req: RenderRequest,
-    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } } } & RenderEditSource>;
+    ): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; worker?: { pid?: number; spawned: boolean; /** L5.16c: the live worker runs another copy of Retake (the lock's text). */ other?: { version: string; engine?: string } }; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice>;
     /** A render's status: its newest job first, then renders/<id>.json. `latest` (of `scenario`) names the newest. */
     status(project: string, renderId: string, o?: { scenario?: string }): Promise<RenderStatusView>;
     /**

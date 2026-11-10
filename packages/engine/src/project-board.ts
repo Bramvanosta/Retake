@@ -30,7 +30,7 @@ import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
-import type { LoadedProject, RunRecord } from '@retake/core';
+import type { LoadedProject, RunStatus } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { fileFacts } from '@retake/core/io';
 import { FINISHED_JOB_STATES } from './jobs/types.js';
@@ -43,7 +43,8 @@ import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
 import { readRenderRecord, renderView, failureWords } from './renders.js';
 import type { ScenarioRenderView } from './renders.js';
-import { readRecord } from './runs.js';
+import { readRecord, runFolderIds, takeVerdict } from './runs.js';
+import type { RunRecordOnDisk } from './runs.js';
 import { capturePicture, stepRef } from './scenario-view.js';
 import type { ViewRunStatus } from './scenario-view.js';
 import { getScenario, validateScenarioText } from './scenarios.js';
@@ -146,7 +147,7 @@ export interface ProjectBoardContext {
   files: Pick<JobFiles, 'record'>;
   project(slug: string): Promise<LoadedProject>;
   /** The run's status with its job overlaid, for a run whose job is not in the board's queue pass (a pass cut short). */
-  overlay(slug: string, run: { id: string; status: RunRecord['status'] }): Promise<ViewRunStatus>;
+  overlay(slug: string, run: { id: string; status: RunStatus }): Promise<ViewRunStatus>;
 }
 
 /** What the board knows of one scenario file (not core's FileFacts port). */
@@ -168,7 +169,7 @@ interface BoardFileFacts {
 
 interface RunEntry {
   sig: string;
-  record: RunRecord | null;
+  record: RunRecordOnDisk | null;
 }
 
 function remember<K, V>(map: Map<K, V>, key: K, value: V, max: number): V {
@@ -202,7 +203,7 @@ function lsigSync(path: string): string {
   }
 }
 
-type Found = { id: string; record: RunRecord };
+type Found = { id: string; record: RunRecordOnDisk };
 /** A scenario's runs as the board groups them. */
 interface RunGroup {
   running?: Found;
@@ -239,6 +240,7 @@ export class ProjectBoards {
   private readonly paths = new Map<string, string>();
   private readonly runs = new Map<string, RunEntry>();
   private readonly pictures = new Map<string, Awaited<ReturnType<typeof runPictures>>>();
+  private readonly takes = new Map<string, boolean>();
   private readonly currents = new Map<string, boolean | null>();
   private readonly posters = new Map<string, RunPoster>();
   private readonly renderRecords = new Map<string, { sig: string; record: RenderRecord | undefined }>();
@@ -283,7 +285,9 @@ export class ProjectBoards {
       if (g.running) {
         const job = runJobs.get(g.running.id);
         // Not in the pass: a take from a terminal (no job) — unless the pass stopped at its cap.
-        const status = job ? (overlaid(g.running.record.status, job) ?? g.running.record.status) : pass.complete ? this.statusOf(g.running.record.status) : await this.ctx.overlay(slug, { id: g.running.id, status: g.running.record.status });
+        // A group's running take is one whose record says queued or running (runGroups).
+        const raw: RunStatus = g.running.record.status === 'queued' ? 'queued' : 'running';
+        const status = job ? (overlaid(raw, job) ?? raw) : pass.complete ? this.statusOf(raw) : await this.ctx.overlay(slug, { id: g.running.id, status: raw });
         const run = this.boardRun(g.running.id, g.running.record, status, job?.id);
         // Its job is not in `jobs`: a take's progress is the page's run_status, never a board read (critique M2).
         if (status === 'queued' || status === 'running') s.running = run;
@@ -465,7 +469,7 @@ export class ProjectBoards {
     return KNOWN.has(raw) ? (raw as ViewRunStatus) : 'unknown';
   }
 
-  private boardRun(id: string, r: RunRecord, status: ViewRunStatus, job: string | undefined): BoardRun {
+  private boardRun(id: string, r: RunRecordOnDisk, status: ViewRunStatus, job: string | undefined): BoardRun {
     let partial: string | undefined;
     if (status === 'cancelled') partial = 'cancelled';
     else if (status === 'interrupted') partial = 'interrupted';
@@ -486,7 +490,7 @@ export class ProjectBoards {
   }
 
   /** run.json of a run: re-checked by its stat (`check`), else held once read (an older finished run). */
-  private async record(projectDir: string, id: string, check: boolean): Promise<RunRecord | null> {
+  private async record(projectDir: string, id: string, check: boolean): Promise<RunRecordOnDisk | null> {
     const file = projectPath(projectDir, 'runs', id, 'run.json');
     const key = `${projectDir}\0${id}`;
     const held = this.runs.get(key);
@@ -506,11 +510,21 @@ export class ProjectBoards {
     return remember(this.pictures, key, await runPictures(projectDir, id, mode), 2048);
   }
 
+  /** Whether a run is a take (core takeOf over the one reader), held while its folder and its timeline keep their signatures. */
+  private async takeOf(projectDir: string, id: string): Promise<boolean> {
+    const dir = projectPath(projectDir, 'runs', id);
+    const key = `${projectDir}\0${id}\0${await lsig(dir)}\0${await lsig(join(dir, 'timeline.json'))}`;
+    if (this.takes.has(key)) return this.takes.get(key)!;
+    // As the board's pictures: only of a run folder that really lies in the project (RunFolder).
+    return remember(this.takes, key, (await takeVerdict(projectDir, id)).usable && (await RunFolder.open(projectDir, id)) !== null, 2048);
+  }
+
   /** One finished run into its scenario's group (newest first: the first of each kind wins). */
-  private async addFinished(p: LoadedProject, g: RunGroup, id: string, r: RunRecord): Promise<void> {
+  private async addFinished(p: LoadedProject, g: RunGroup, id: string, r: RunRecordOnDisk): Promise<void> {
     const status = this.statusOf(r.status);
     if (!g.last) g.last = { id, record: r };
-    if (r.mode === 'capture' && status === 'succeeded' && !g.capture && ['video', 'frames'].includes((await this.picturesOf(p.dir, id, r.mode)) ?? '')) g.capture = { id, record: r };
+    // The scenario's capture is the take a render edits: the one rule, never this file's own (frames without a film are no take).
+    if (r.mode === 'capture' && status === 'succeeded' && !g.capture && (await this.takeOf(p.dir, id))) g.capture = { id, record: r };
     if (r.mode === 'dry' && status === 'succeeded' && !g.dry && r.stopped_at?.reason !== 'until' && !g.capture && (await this.picturesOf(p.dir, id, r.mode)) !== null) g.dry = { id, record: r };
   }
 
@@ -559,11 +573,11 @@ export class ProjectBoards {
     const groups = new Map<string, RunGroup>();
     let ids: string[] = [];
     try {
-      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && isRunId(d.name)).map((d) => d.name);
+      // The one order of runs (core orderRuns): a folder named to sort above the dates is never before a dated run.
+      ids = await runFolderIds(p.dir);
     } catch {
       return groups;
     }
-    ids.sort().reverse();
     // The window is read at once (stats in parallel) and re-checked at every read.
     const window = await Promise.all(ids.slice(0, BOARD_RUNS_WINDOW).map((id) => this.record(p.dir, id, true)));
     for (let i = 0; i < window.length; i++) {

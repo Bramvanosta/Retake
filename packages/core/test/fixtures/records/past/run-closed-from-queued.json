@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "20261020-090000-quote",
+  "project": "northfield-fixture",
+  "scenario": "quote",
+  "mode": "capture",
+  "status": "failed",
+  "started_at": "2026-10-20T07:00:00.000Z",
+  "dir": "/workspace/projects/northfield-fixture/runs/20261020-090000-quote",
+  "env": "local",
+  "options": { "hooks": "run", "headed": false },
+  "steps_total": 25,
+  "steps_done": 0,
+  "screenshots": [],
+  "hooks": { "setup": "none", "teardown": "none" },
+  "warnings": [],
+  "finished_at": "2026-10-20T07:00:02.000Z",
+  "error": { "message": "the worker stopped before the run started" }
+}

@@ -14,10 +14,10 @@
  */
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
-import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, resolveEnvironment, shownText, projectPath } from '@retake/core';
-import { newerRunMessage, ffmpegBin } from '@retake/core/io';
-import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunRecord, Timeline, WorkPolicy } from '@retake/core';
+import { basename, join, resolve } from 'node:path';
+import { RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, displayRows, editDisplayTable, namedRunProblem, resolveEnvironment, shownText, projectPath, takeWords, timelineProblem } from '@retake/core';
+import { ffmpegBin, readNamedRun } from '@retake/core/io';
+import type { BrowserConfig, DisplayEntry, LoadedProject, LoadedTemplate, RawCursorMode, RawFormat, RawFps, RawLayerFormat, RunFolderFacts, Timeline, WorkPolicy } from '@retake/core';
 import type { H264Encoder } from '@retake/core/io';
 import { kitConfigFor } from '../kit/source.js';
 import { clicksCsv, clipClicks, cursorCsv, cursorFrames, cursorJson, cursorTrackOf, type ClipCursorData } from './cursor.js';
@@ -182,21 +182,35 @@ export function rawPackageDir(project: Pick<LoadedProject, 'dir'>, runId: string
   return projectPath(project.dir, 'exports', `${runId}-raw-${s.format}${s.fps}-${s.cursor}`);
 }
 
+/**
+ * The run folder a person named, through the core's one reader and the named run's rule (core take.ts): the refusal
+ * of a run that has no timeline, whose timeline does not read, that is a dry run or whose run.json a newer Retake
+ * wrote — else its timeline and what its record says (`status` and `env`, for the manifest and the display table). The
+ * record's status is not judged: a failed take exports, and its manifest says `failed`.
+ */
+export async function rawExportRun(runDir: string): Promise<{ recorded: Timeline; record: { status?: string; env?: string } | undefined }> {
+  const { facts, timeline: whole } = await readNamedRun(runDir);
+  // The run as its timeline names it (what the sentences and the package have always said), else the folder's name.
+  const run = (facts.timeline.ok ? facts.timeline.value.run_id : undefined) ?? basename(runDir);
+  const problem = namedRunProblem(facts, { trust: 'author', inside: true });
+  // A film that is missing is not the gate's: the clips are made from the run's screencast frames when it kept them
+  // (the video is the fallback, and its absence is said where it is needed).
+  if (problem && problem.why !== 'no-film') throw new RawExportError(takeWords(problem, { run, verb: 'export', dir: runDir }));
+  // The head reads and the whole does not: its lists are not lists.
+  if (!whole.ok) throw new RawExportError(takeWords(timelineProblem(whole) ?? { why: 'no-timeline' }, { run, verb: 'export', dir: runDir }));
+  return { recorded: whole.value, record: recordOf(facts) };
+}
+
+/** What the run's record says, when it reads: a status Retake never writes is still the record's (the manifest names it). */
+function recordOf(facts: RunFolderFacts): { status?: string; env?: string } | undefined {
+  const r = facts.record;
+  return r.ok ? r.value : r.problem === 'unknown-status' ? r.record : undefined;
+}
+
 /** Export a run as a raw package for editors. */
 export async function exportCapture(opts: ExportCaptureOptions): Promise<RawExportResult> {
   const runDir = resolve(opts.runDir);
-  const tlFile = join(runDir, 'timeline.json');
-  if (!existsSync(tlFile)) throw new RawExportError(`${runDir} has no timeline.json (not a run, or the run did not finish)`);
-  const recorded = JSON.parse(await readFile(tlFile, 'utf8')) as Timeline;
-  if (recorded.mode !== 'capture') throw new RawExportError(`run ${recorded.run_id} is a dry run: it has no capture to export`);
-  const newer = newerRunMessage(runDir);
-  if (newer) throw new RawExportError(`run ${recorded.run_id}: ${newer}`);
-  let record: RunRecord | undefined;
-  try {
-    record = JSON.parse(await readFile(join(runDir, 'run.json'), 'utf8')) as RunRecord;
-  } catch {
-    record = undefined;
-  }
+  const { recorded, record } = await rawExportRun(runDir);
   // What the package names (step markers, click targets) as the video shows it (L1.7): URLs through the display table
   // an edit would use, a local one reduced to its path — the real URLs stay in the run's timeline.json.
   const timeline = shownTargets(recorded, exportDisplayTable(opts.project, recorded, record?.env));

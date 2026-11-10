@@ -199,6 +199,7 @@ describe('zod schemas', () => {
       mode: 'capture',
       status: 'succeeded',
       started_at: base.created_at,
+      finished_at: base.created_at,
       dir: '/tmp/runs/r',
       env: 'local',
       options: { hooks: 'run', headed: false },

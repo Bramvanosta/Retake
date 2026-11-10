@@ -11,13 +11,17 @@
  * returns the first frame at or after the time). Both sources therefore give the same picture, the last step's
  * included (its hold ends at the very end of the capture, past the last frame's start).
  */
-import type { RunRecord, Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@retake/core';
-import { ACTION_NAMES, FORMAT_VERSIONS, SCENARIO_COMPARE_MAX_BYTES, newerFormatMessage } from '@retake/core';
+import type { Timeline, TimelineEvent, TimelineScene, TimelineTrack } from '@retake/core';
+import { ACTION_NAMES, SCENARIO_COMPARE_MAX_BYTES, parseRunRecord } from '@retake/core';
+import { parseTimeline } from '@retake/core';
+import { RUN_RECORD_MAX, TIMELINE_MAX } from '@retake/core/io';
 import { RUN_FRAME_NAME_RE, RunFolder, TRACK_FRAMES_RE, TRACK_VIDEO_RE, lsig } from './run-files.js';
+import { listedRecord } from './runs.js';
+import type { RunRecordOnDisk } from './runs.js';
 
 /** run.json and timeline.json larger than this are not read (not files the runner wrote). */
-export const RUN_JSON_MAX = 32 * 1024 * 1024;
-export const TIMELINE_MAX = 64 * 1024 * 1024;
+export const RUN_JSON_MAX = RUN_RECORD_MAX;
+export { TIMELINE_MAX };
 /** A frame index (frames.jsonl: ≈ 33 bytes per frame) larger than this is not read. */
 export const FRAME_INDEX_MAX = 32 * 1024 * 1024;
 /** Runs held in memory at once. */
@@ -120,7 +124,7 @@ export class RunData {
     readonly folder: RunFolder,
     /** Signature of the files read (a change re-reads the run). */
     readonly sig: string,
-    readonly record: RunRecord | undefined,
+    readonly record: RunRecordOnDisk | undefined,
     readonly timeline: Timeline | undefined,
     /** The run's `scenario.yaml` (undefined: missing, a link, too large, unreadable). */
     readonly snapshot: string | undefined,
@@ -234,8 +238,10 @@ export class RunDataCache {
       folder.read('scenario.yaml', SCENARIO_COMPARE_MAX_BYTES),
       folder.list('screenshots'),
     ]);
-    const record = isObj(recordValue) && !newerFormatMessage(recordValue, { file: 'run.json', supported: FORMAT_VERSIONS.run }) ? (recordValue as unknown as RunRecord) : undefined;
-    const timeline = isObj(timelineValue) && Array.isArray(timelineValue.events) ? (timelineValue as unknown as Timeline) : undefined;
+    // The bytes are the confined folder's (RunFolder); what they are is the one parse boundary's to say (core run-record.ts).
+    const record = recordValue === undefined ? undefined : listedRecord(parseRunRecord(recordValue));
+    const read = timelineValue === undefined ? undefined : parseTimeline(timelineValue);
+    const timeline = read?.ok ? read.value : undefined;
     return new RunData(folder, sig, record, timeline, snap.ok ? snap.bytes.toString('utf8') : undefined, new Set(shots ?? []));
   }
 }

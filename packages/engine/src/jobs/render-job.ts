@@ -18,9 +18,9 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, formatRenderId, isRunId, isThemeName, projectPath, projectRef, renderIdOf } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, formatRenderId, isRunId, isThemeName, projectPath, projectRef, renderIdOf, untilStep } from '@retake/core';
 import type { RenderVariant } from '@retake/core';
-import type { EditOverridesInput, LoadedProject, RenderJobInput } from '@retake/core';
+import type { EditOverridesInput, LoadedProject, NotUsable, RenderJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { ENGINE_TRUST } from '../caller.js';
@@ -118,6 +118,40 @@ export function editSourceOf(planned: Pick<PlannedRun, 'edit'>): RenderEditSourc
 }
 
 /**
+ * What `latest` said of the run it picked (core latestTake) — absent members: nothing to say; a run named by its id:
+ * none. `passed_over`: how many newer captures of the scenario it did not take (failed, cancelled, not finished,
+ * without their film…) — a count, which a trusted line may say. `not_considered`: how many newer run folders it met
+ * whose run.json is missing or does not read as a record (nothing says which scenario they are of). `until`: the capture picked was stopped by `--until`:
+ * a render shows the scenario up to there — after this step when run.json names it as a scenario does (a scene id and a
+ * whole number: run.json is a file anyone may write, and only such words are repeated); else `{}`.
+ */
+export interface LatestRunNotice {
+  passed_over?: number;
+  not_considered?: number;
+  until?: { scene?: string; step?: number };
+}
+
+/**
+ * The newer captures `latest` passed over, newest first (at most core PASSED_OVER_MAX; `passed_over` counts them all):
+ * each run's folder name and why, in the rule's closed list of reasons. A folder's name is text anyone who can write
+ * runs/ chose: it is kept under `untrusted`, never said in a trusted line.
+ */
+export type PassedOverRuns = Array<{ run_id: string; why: NotUsable }>;
+
+
+/** What `latest` said of a planned run: the notice, and the runs it passed over (empty: none, or the run was named). */
+export function latestNoticeOf(planned: Pick<PlannedRun, 'run'>): { notice: LatestRunNotice; passed: PassedOverRuns } {
+  const pick = planned.run.latest;
+  if (!pick) return { notice: {}, passed: [] };
+  const count = pick.passed.length + pick.passed_more;
+  return {
+    // Where a capture stopped by `--until` ends, in words that can be repeated (core untilStep), else `{}`.
+    notice: { ...(count > 0 ? { passed_over: count } : {}), ...(pick.without_record > 0 ? { not_considered: pick.without_record } : {}), ...(pick.take?.until ? { until: untilStep(pick.take.until) ?? {} } : {}) },
+    passed: pick.passed.map((p) => ({ run_id: p.run, why: p.why })),
+  };
+}
+
+/**
  * Plan a render request in this process (no browser), through the trust gates of work submitted through MCP. A
  * refusal is EngineError `refused` with the `retake render` command a human runs. The plan's edit comes from today's
  * scenario file when its filmed part is unchanged since the run, else from the run as captured (L5.5, editor planRun):
@@ -192,7 +226,7 @@ export function renderVersionOf(renderId: string, scenario: string): { version: 
 export async function submitRenderJob(
   ctx: SubmitContext,
   req: RenderRequest,
-): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[] } & RenderEditSource> {
+): Promise<{ job: JobRecord; render_id: string; run_id: string; variant: string; duration_s: number; warnings: string[]; untrusted?: { passed_over: PassedOverRuns } } & RenderEditSource & LatestRunNotice> {
   const { project, planned, overrides, source } = await planRenderRequest(ctx.ws, ctx.cli, req);
   if (req.expect_edit_sha256 !== undefined) await checkShownEdit(project, req.scenario, planned, req.expect_edit_sha256);
   const ed = await editor();
@@ -227,6 +261,7 @@ export async function submitRenderJob(
     throw e;
   }
   const plan = planned.plan;
+  const latest = latestNoticeOf(planned);
   return {
     job,
     render_id: renderId,
@@ -235,6 +270,8 @@ export async function submitRenderJob(
     duration_s: Math.round((plan.durationInFrames / plan.fps) * 1000) / 1000,
     warnings: plan.warnings,
     ...source,
+    ...latest.notice,
+    ...(latest.passed.length ? { untrusted: { passed_over: latest.passed } } : {}),
   };
 }
 

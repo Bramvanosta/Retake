@@ -18,7 +18,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, FilmingMarker, JOB_EXIT, createEngine, recordDigest, runJobChild, runWorker, selfIdentity, treeOf, workersDir } from '../src/index.js';
 import type { Engine, JobRecord, ProcessIdentity, RecordedBrowser } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
-import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture } from '../../editor/test/render-helpers.js';
+import { TEMPLATES, hasTool, linkSharedCache, makeColourCapture, syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const canRender = hasTool('ffmpeg') && hasTool('ffprobe');
 const LONG = 400_000;
@@ -104,6 +104,8 @@ beforeAll(async () => {
   t.project = 'demo';
   t.scenario = 'held';
   await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  // A run `latest` takes has its record (L7.6a: a folder without a readable run.json is never the latest capture).
+  await writeFile(join(runDir, 'run.json'), JSON.stringify(syntheticRunRecord(runDir, { id: RUN, scenario: 'held', project: 'demo' })));
   makeColourCapture(join(runDir, 'capture.mp4'), 10);
   await linkSharedCache(root);
   engine = await createEngine({ root, client: 'test', autoStartWorker: false });

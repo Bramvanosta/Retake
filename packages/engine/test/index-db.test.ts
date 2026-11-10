@@ -106,7 +106,9 @@ describe('the workspace index', () => {
       // A run being written: its run.json is re-read while it is unfinished.
       const run = join(project(), 'runs', '20261018-100000-quote');
       await mkdir(run, { recursive: true });
-      const rec = (status: string) => JSON.stringify({ version: 1, id: '20261018-100000-quote', scenario: 'quote', mode: 'capture', status, env: 'local', started_at: '2026-10-18T10:00:00.000Z', steps_total: 3, steps_done: 1 });
+      // A record as the runner writes it (a run.json that is no run record is not a run of the lists: L7.6a).
+      const rec = (status: 'running' | 'succeeded') =>
+        JSON.stringify({ version: 1, id: '20261018-100000-quote', project: P, scenario: 'quote', mode: 'capture', status, started_at: '2026-10-18T10:00:00.000Z', dir: run, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 3, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [], ...(status === 'succeeded' ? { finished_at: '2026-10-18T10:01:00.000Z' } : {}) });
       await writeFile(join(run, 'run.json'), rec('running'));
       expect((await ix.reconcile()).keys).toEqual([`runs:${P}`]);
       expect(ix.search('20261018').map((h) => h.title)).toEqual(['quote · capture · running']);

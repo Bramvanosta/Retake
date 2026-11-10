@@ -97,7 +97,10 @@ export const runList = defineTool({
   annotations: READ,
   async run({ project, scenario, mode, limit }, { engine }) {
     const runs = await engine.runs.list(project, { scenario, mode, limit });
-    const lines = runs.map((r) => (r.newer ? `- ${r.id}: written by a newer Retake` : `- ${r.id} ${r.mode} ${r.status} (${r.steps_done}/${r.steps_total} steps, env ${r.env})`));
+    // A row that is no run of the list says why in fixed words (never a text of the file): a newer format, or no record.
+    const lines = runs.map((r) =>
+      r.newer ? `- ${r.id}: written by a newer Retake` : r.unread ? `- ${r.id}: its run.json does not read as a record` : `- ${r.id} ${r.mode} ${r.status} (${r.steps_done}/${r.steps_total} steps, env ${r.env})`,
+    );
     return {
       summary: runs.length ? `${plural(runs.length, 'run')} of ${project}${scenario ? ` · ${scenario}` : ''}:\n${lines.join('\n')}` : `No run of ${project}${scenario ? ` · ${scenario}` : ''} yet.`,
       data: { project, runs },

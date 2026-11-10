@@ -55,11 +55,9 @@
     "packages/cli/src/commands/components.ts → node:fs",
     "packages/cli/src/commands/doctor.ts → node:child_process",
     "packages/cli/src/commands/doctor.ts → node:fs",
-    "packages/cli/src/commands/export-capture.ts → node:fs/promises",
     "packages/cli/src/commands/init.ts → node:fs",
     "packages/cli/src/commands/init.ts → node:fs/promises",
     "packages/cli/src/commands/mcp.ts → node:fs",
-    "packages/cli/src/commands/plan.ts → node:fs",
     "packages/cli/src/commands/plan.ts → node:fs/promises",
     "packages/cli/src/commands/render.ts → node:fs",
     "packages/cli/src/commands/ui.ts → node:child_process",
@@ -170,6 +168,20 @@
    "reason": "The new-theme grammar without its cap, on purpose: the names inside stale work folders of earlier theme creations, which must be cleaned whatever their length.",
    "entries": [
     "packages/engine/src/brand/create.ts → 1 hand-written id pattern"
+   ]
+  },
+  {
+   "rule": "record-read",
+   "reason": "Prune reads run.json as it always has (any object with a text id and status, links followed, no version check) into a shape of its own: sending it through the reader would change what it keeps and deletes, which is decided in a lot of its own (L7.6 open decisions, prune).",
+   "entries": [
+    "packages/engine/src/prune.ts → 1 own read of a run folder's file"
+   ]
+  },
+  {
+   "rule": "record-read",
+   "reason": "A reserved run is closed from outside on a lenient read of its run.json (its status alone decides): a record the reader refuses must still be closed, or it would say running for ever.",
+   "entries": [
+    "packages/engine/src/jobs/run-job.ts → 1 own read of a run folder's file"
    ]
   }
  ]

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { formatIssues, isAccessError, perfSummary } from '@retake/core';
-import { readJson } from '@retake/core/io';
+import { readTimeline } from '@retake/core/io';
 import type { RunProgress, RunRecord, Timeline } from '@retake/core';
 import { FilmingMarker, RunOptionError, SandboxTakeError, TakeBeside, callerOf, checkAllowWrites, prepareRun, runInProcess, selfIdentity, writesSummary } from '@retake/engine';
 import type { FilmingEvent, FilmingReport, PreparedRun } from '@retake/engine';
@@ -203,11 +203,9 @@ async function printSummary(ui: Ui, r: RunRecord, elapsedMs: number): Promise<vo
   }
   let tl: Timeline | undefined;
   if (r.timeline) {
-    try {
-      tl = await readJson<Timeline>(r.timeline);
-    } catch {
-      /* the timeline is reported below anyway */
-    }
+    // Through the one reader: a timeline that does not read adds no detail (it is reported below anyway).
+    const read = await readTimeline(r.timeline);
+    if (read.ok) tl = read.value;
   }
   if (r.capture) {
     const detail = tl ? ` ${c.dim(`(${tl.capture.duration.toFixed(1)} s, ${tl.capture.width * tl.capture.scale}×${tl.capture.height * tl.capture.scale} @ ${tl.capture.fps} fps)`)}` : '';

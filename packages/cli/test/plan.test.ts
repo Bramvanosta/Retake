@@ -6,12 +6,16 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { scenarioChangedMessage } from '@retake/core';
 import type { EditPlan } from '@retake/editor';
 import { EXIT, main, memoryIo } from '../src/index.js';
+import { syntheticRunRecord } from '../../editor/test/render-helpers.js';
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url));
 const FIXTURES = fileURLToPath(new URL('../../editor/test/fixtures', import.meta.url));
 
 let ws: string;
 let runs: string;
+
+/** The record of a capture of `scenario` that succeeded (run.json's text). */
+const record = (id: string, scenario: string): string => JSON.stringify(syntheticRunRecord(join(runs, id), { id, scenario, project: 'demo' }));
 
 async function retake(...args: string[]) {
   const io = memoryIo();
@@ -33,8 +37,12 @@ beforeAll(async () => {
   ]) {
     await mkdir(join(runs, id));
     await copyFile(join(FIXTURES, `${name}.timeline.json`), join(runs, id, 'timeline.json'));
+    // A whole capture: its record and its film too (L7.6a: `latest` is the newest capture an edit can work on).
+    await writeFile(join(runs, id, 'run.json'), record(id, name));
+    await writeFile(join(runs, id, 'capture.mp4'), 'never read');
   }
   await mkdir(join(runs, '20261011-190000-quote'));
+  await writeFile(join(runs, '20261011-190000-quote', 'run.json'), JSON.stringify({ ...(JSON.parse(record('20261011-190000-quote', 'quote')) as object), mode: 'dry' }));
   const dry = JSON.parse(await readFile(join(FIXTURES, 'quote.timeline.json'), 'utf8')) as { mode: string };
   dry.mode = 'dry';
   await writeFile(join(runs, '20261011-190000-quote', 'timeline.json'), JSON.stringify(dry));
@@ -118,7 +126,7 @@ describe('retake plan', () => {
         'run 20261011-182524-catalogue: this run.json is version 2: it was made for a newer Retake (this one reads version 1) — update Retake',
       );
     } finally {
-      await rm(join(dir, 'run.json'), { force: true });
+      await writeFile(join(dir, 'run.json'), record('20261011-182524-catalogue', 'catalogue'));
     }
   });
 

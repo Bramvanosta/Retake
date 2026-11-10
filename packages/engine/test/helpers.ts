@@ -37,7 +37,8 @@ export async function fixtureWorkspace(dir: string): Promise<void> {
   const cap = join(runs, '20261016-090000-catalogue');
   await mkdir(cap, { recursive: true });
   await writeFile(join(cap, 'capture.mp4'), 'not really a video');
-  await writeFile(join(cap, 'timeline.json'), '{"mode":"capture"}');
+  // The head of a capture's timeline: its run, its scenario (the run record's), its film.
+  await writeFile(join(cap, 'timeline.json'), JSON.stringify({ version: 1, run_id: '20261016-090000-catalogue', project: 'northfield-fixture', scenario: 'catalogue', mode: 'capture', capture: { file: 'capture.mp4' } }));
   await writeFile(
     join(cap, 'run.json'),
     JSON.stringify({
