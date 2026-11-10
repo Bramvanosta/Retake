@@ -92,7 +92,7 @@ describe('the CI workflow (ci.yml)', () => {
     expect(files).toEqual([
       'packages/cli/test/ci-workflow.test.ts',
       'packages/cli/test/e2e.test.ts',
-      ...['acceptance', 'capture-pause', 'clock', 'kit', 'look', 'navigation', 'record-session', 'reliability', 'run'].map((f) => `packages/runner-web/test/${f}.test.ts`),
+      ...['acceptance', 'capture-pause', 'capture-sizes', 'clock', 'kit', 'look', 'navigation', 'record-session', 'reliability', 'run'].map((f) => `packages/runner-web/test/${f}.test.ts`),
     ]);
     for (const f of files.filter((x) => !x.endsWith('ci-workflow.test.ts'))) {
       const text = read(f);

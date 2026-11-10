@@ -195,11 +195,14 @@ describe('the live picture of a run', () => {
             await new Promise((r) => setTimeout(r, 25));
           }
         });
+        // The newest frame handed on is the final state: within half a second on the Mac; a loaded machine's
+        // screencast delivers its last frame later, so it is waited for (never a later frame of another colour).
+        const lastColour = async () => {
+          const last = sink.frames.at(-1)!;
+          return centre(last.data, last.width, last.height);
+        };
         await wait(500);
-        const last = sink.frames.at(-1)!;
-        const [r, g, b] = await centre(last.data, last.width, last.height);
-        expect(b).toBeGreaterThan(200);
-        expect(r + g).toBeLessThan(80);
+        await expect.poll(async () => { const [r, g, b] = await lastColour(); return b > 200 && r + g < 80; }, { timeout: 5000, interval: 100 }).toBe(true);
         await page.evaluate(() => (document.body.style.background = '#ff0000'));
         await wait(400);
       }
