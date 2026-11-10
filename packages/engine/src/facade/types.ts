@@ -2,7 +2,7 @@
  * The engine façade's types: its options, the Engine interface (one member per sub-API) and the views its methods
  * return. engine.ts re-exports each of them (createEngine builds the façade from src/facade/*-api.ts).
  */
-import type { ComponentKind, InspectJobInput, LegacyInfo, RecordAnnotationChange, RunMode } from '@retake/core';
+import type { ComponentKind, InspectJobInput, RecordAnnotationChange, RunMode } from '@retake/core';
 import type { PersonaStateView } from '../auth.js';
 import type { CreateProjectRequest, ProjectSummary, ProjectView } from '../projects.js';
 import type { RunStatusView, RunSummary } from '../runs.js';
@@ -146,12 +146,6 @@ export interface EngineInfo {
   features: string[];
   /** What this installation may do (a parked commercial hook: everything, no limit). */
   entitlements: Entitlements;
-  /**
-   * L5.13: what is left from before the rename and not read — `old_home`: the old home still holds the sign-ins
-   * (`retake doctor` gives the move; `old_home_var` when it is the folder the old home variable names); `old_vars`: old variables set whose `RETAKE_*` twin is not (an MCP client never
-   * shows the CLI's stderr line). Absent when nothing is.
-   */
-  legacy?: LegacyInfo;
 }
 
 export interface AuthStatusItem extends Omit<PersonaStateView, 'detail' | 'at'> {

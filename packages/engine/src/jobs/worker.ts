@@ -29,7 +29,6 @@
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { EngineError } from '../errors.js';
-import { refuseBesideOldHolder } from '../legacy.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { heldFile } from './captures.js';
@@ -47,7 +46,7 @@ import { captureJobRunner } from './worker-slots.js';
 
 export type { WorkerOptions } from './worker-record.js';
 
-/** The workspace a worker serves, opened under the agent policy; undefined (said) when it cannot be, or an old worker holds it. */
+/** The workspace a worker serves, opened under the agent policy; undefined (said) when it cannot be. */
 async function openForWorker(root: string, log: (message: string) => void): Promise<Workspace | undefined> {
   let ws: Workspace;
   try {
@@ -55,12 +54,6 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
     ws = await openWorkspace({ root, agent: true });
   } catch (e) {
     log(`no workspace at ${root}: ${(e as Error).message}`);
-    return undefined;
-  }
-  try {
-    await refuseBesideOldHolder(root, 'this jobs worker');
-  } catch (e) {
-    log(`${(e as Error).message}: exiting (${(e as EngineError).fix ?? ''})`);
     return undefined;
   }
   return ws;

@@ -10,6 +10,9 @@ import { LOOK_PAGE } from './pages.js';
 import { decodePng, startServer } from './helpers.js';
 import type { RgbImage, TestServer } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 /**
  * The cursor and file-chip look (L1.4: R-KIT-06, R-LOOK-23, R-LOOK-24), in two layers: structural checks that carry the
@@ -128,7 +131,7 @@ describe('cursor look (R-KIT-06, R-LOOK-23)', () => {
     return shot(p, CLIP);
   }
 
-  it('arrow-dark: a dark arrow with a white outline and a soft shadow, about 26 px tall', async () => {
+  it.skipIf(!MAC_TIMING)('arrow-dark: a dark arrow with a white outline and a soft shadow, about 26 px tall', async () => {
     const { png, img } = await arrow(dark, darkPage);
     // Interior, 3 px right and 10 px below the hotspot: dark.
     expect(lum(px(img, 13, 20))).toBeLessThan(40);

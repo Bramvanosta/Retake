@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
-import { OLD_WORKSPACE_FILE, PERSON_POLICY, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
+import { PERSON_POLICY, destructiveReason, hookWriteReason, parseProjectYaml, parseSandboxYaml, parseScenario, parseTemplateYaml } from '@retake/core';
 import { composeEnvFile, findWorkspaceRoot, listProjects, listScenarioNames, listTemplates, loadProject, loadProjectTemplate, loadScenario, loadTemplate, loadWorkspaceConfig, newerRunMessage, nodeFileFacts, fileFacts, readScenarioSource, scenarioSinceRun, seedFileRefs, seedHash } from '@retake/core/io';
 import type { HookStep } from '@retake/core';
 
@@ -84,8 +84,6 @@ describe('core loaders and disk probes (characterization)', () => {
     // Workspaces.
     write('ws-bad/retake.yaml', 'version: 1\nprojects_dir: [x]\n');
     broken.badWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-bad')));
-    write(`ws-old/${OLD_WORKSPACE_FILE}`, 'version: 1\n');
-    broken.oldWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-old')));
     write('ws-new/retake.yaml', 'version: 99\n');
     broken.newerWorkspace = await outcome(() => loadWorkspaceConfig(join(tmp, 'ws-new')));
     mkdirSync(join(tmp, 'ws-up', 'projects', 'p', 'scenarios'), { recursive: true });

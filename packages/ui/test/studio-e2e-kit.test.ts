@@ -102,8 +102,11 @@ describe('⚑ appearance (L5.9 part E)', () => {
   it('dark with no preference or dark, light when the system asks — live, no reload; a scope keeps its own; the kit\'s ring is --ui-ring', async () => {
     await gallery();
     const nav = await page.evaluate(() => performance.getEntriesByType('navigation').length);
-    for (const [scheme, want] of [['no-preference', 'dark'], ['dark', 'dark'], ['light', 'light'], ['dark', 'dark']] as const) {
+    for (const [scheme, asked] of [['no-preference', 'dark'], ['dark', 'dark'], ['light', 'light'], ['dark', 'dark']] as const) {
       await page.emulateMedia({ colorScheme: scheme });
+      // Chromium cannot say "no preference": it reports the host's appearance instead (a light machine matches light).
+      const hostLight = scheme === 'no-preference' && (await page.evaluate(() => matchMedia('(prefers-color-scheme: light)').matches));
+      const want = hostLight ? 'light' : asked;
       expect(await look(page, 'html', 'color-scheme'), scheme).toBe(want);
       expect(await look(page, 'html', '--ui-canvas'), scheme).toBe(want === 'dark' ? '#111214' : '#f6f6f7');
       expect(await look(page, '.sh-app', 'background-color'), scheme).toBe(want === 'dark' ? 'rgb(17, 18, 20)' : 'rgb(246, 246, 247)');

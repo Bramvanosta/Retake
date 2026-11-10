@@ -7,6 +7,9 @@ import { runScenario } from '../src/index.js';
 import { ACCEPT_PAGE } from './pages.js';
 import { debugTemplate, ffprobeDuration, frameAt, jpegSize, magentaCentroid, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 const W = 1920;
 const H = 1080;
@@ -103,7 +106,7 @@ describe('acceptance: 1920×1080 capture with the debug cursor', () => {
     expect(menu?.popup_opened).toBe(true);
   });
 
-  it('has no hesitations between steps (< 80 ms)', () => {
+  it.skipIf(!MAC_TIMING)('has no hesitations between steps (< 80 ms)', () => {
     const steps = tl.events.filter((e) => e.step >= 0).sort((a, b) => a.t_start - b.t_start);
     const still = tl.events.find((e) => e.action === 'scene_still')!;
     expect(steps[0].t_start - still.t_end).toBeLessThan(0.08);

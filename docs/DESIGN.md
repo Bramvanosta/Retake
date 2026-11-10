@@ -1156,7 +1156,10 @@ read-only environment and an unusable clock throw before the run folder is made.
   `compose version --short` ≥ 2.17 and `info --format {{.ServerVersion}}` (the daemon) checked once per call;
   every call runs with the CLI's env minus `COMPOSE_*`, output captured, killed on abort. Project ref: `compose.project`
   or `retake-<slug>-<env>-<sha256(realpath(folder))[0:8]>` (≤ 63, sanitised), `--project-directory` = the real
-  folder, `-f` per file, `--ansi never`. `ps()` (`ps --all --format json`: NDJSON or one array; Labels a comma-joined
+  folder — the first compose file's since v0.2.1 (docker compose's own default: the files may live outside
+  sandbox.yaml's folder, and their relative paths resolve next to them; containers made from sandbox.yaml's folder
+  before stay the sandbox's own); under the agent policy docker is started by its checked real path under the name it
+  was found as (`argv0`: OrbStack's `docker` links to a multi-call binary) —, `-f` per file, `--ansi never`. `ps()` (`ps --all --format json`: NDJSON or one array; Labels a comma-joined
   string cut before `,key=`; one-off containers dropped) refuses containers whose `working_dir` label is another
   folder, and every command reads it first (up, down, status, restart, exec — once per call —, logs, followLogs,
   publishedBy). Other projects' publishers: `docker ps --filter publish=<port>… --format {{json .}}` (`parseDockerPs`:
@@ -5533,57 +5536,22 @@ run.json — and its `perf.cpu.retake`, `studio` before; a run recorded earlier 
 `retake/raw-capture`, `.retake-theme.json`). Kept, not old names: the built-in `studio/` component namespace
 (every theme and scenario names it), the comment / agent channel `studio`, the `studio:*` page events, "the Studio"
 for the web app.
-- **The rename is a script** (`scripts/rename-l513.mjs`): ordered, case-aware rules, exact literals per file, the
-  folder renames; deterministic and idempotent (a second run changes nothing), `--dry` lists, `--only <files>` limits
-  it. It rewrites tracked files only (never another session's untracked work), refuses a dirty tree unless
-  `--allow-dirty` (`--only` names the files to rewrite, dirty or not, inside the repository), never follows a link and
-  skips a file that is not valid UTF-8. A branch started before L5.13 runs it on itself before rebasing. A line carrying the `old-name` tag (with a colon)
-  and a region between its begin and end markers (like this section) are never rewritten. The lockfile is rewritten as text (an offline regeneration
-  drops other platforms' entries), the `@retake/*` keys of each importer re-sorted; Cargo.lock's root package moved to
-  its sorted place (`--locked` holds).
-- **An existing installation is told, never migrated** (`packages/core/src/legacy.ts`, the one module that knows the
-  old names; `packages/engine/src/legacy.ts` for the process check). The old home, workspace file, variables and tool
-  folders are never read — only detected, by stats: one stderr line at CLI start (never stdout: MCP over stdio and
-  `ui --supervised` speak there) while `~/.demo-studio` holds `profiles/` or `sessions/` and `~/.retake` holds
-  neither — RETAKE_HOME is tested first, so a chosen home (every test's) never makes it look; the same in
-  engine_info (`legacy.old_home`: a one-line note in the Studio's sidebar, the MCP summary) and in the preflight's
-  failure when a persona was never signed in. With `DEMO_STUDIO_HOME` set (and RETAKE_HOME not) the old home is the
-  folder it names (core `oldHomeDir`: the old build kept that person's sign-ins there; `~/.demo-studio` is then not
-  looked at): the line, the note (`legacy.old_home_var`), the MCP summary and doctor name that folder and the variable
-  — set RETAKE_HOME to it, or move it (L5.13b, the L5.13a leftover). Likewise an old variable set without its `RETAKE_*` twin
-  (`DEMO_STUDIO_HOME`, `_ROOT`…: the tool now runs on another home or workspace): named — never its value — on that
-  stderr line, in `legacy.old_vars` (an MCP client launched with an old registration env never shows stderr) and, for
-  the home, in the preflight's failure. `retake doctor`'s "Before Retake" lines (the home: the move, or the swap
-  `mv ~/.retake ~/.retake.after-upgrade && mv ~/.demo-studio ~/.retake` when the tool recreated `approvals.key`,
-  `mcp-http.token` or `desktop.json`; the old variables by name; the old workspace file; the old tool folders of the
-  workspace and its projects with their pending rollback journals; a workspace or project `.gitignore` that ignores
-  `.demo-studio/` but not `.retake/`, with the line to add). A `studio.yaml` stops the workspace lookup and the load
-  refuses it with the `mv` — only when it is this tool's (next to `projects/` or an old tool folder, or its first 4 KB
-  carry `version:` and a workspace key), and never in the home folder itself (`~/Projects` and the old home sit there
-  on most machines): another tool's file of that name is walked past. The desktop app's "not a workspace" alert names
-  an old `studio.yaml` with its rename. While a Studio or a worker of the old build still holds the workspace (its old
-  `ui.json` / `worker.lock`: a bounded read; a linked file or folder is skipped; a holder counts only with the start
-  time `ps` gives for its pid, as the worker lock's rule — the folder is agent-writable, and a pid alone could name any
-  process of the person), `retake ui`, `retake mcp`, a worker, `retake sandbox up / reset`, a sandbox take
-  (`run --sandbox`, CLI or job), `retake env reset` and a recording refuse to start beside it; the fix says what to stop,
-  or to remove the file when no old Studio or worker runs, and the CLI prints every refusal's fix line. Hooks, components and an MCP registration naming old names are the upgrade guide's grep
-  commands ("Upgrading from Demo Studio").
-- **Safety lists keep the old names.** `.demo-studio/` stays in AGENT_WRITABLE_PATHS (its files — page dumps, drafts —
-  are never run as code: dropping it would have widened trust); a worker a client starts never gets
-  `DEMO_STUDIO_MCP_TOKEN` either. The variables the tool writes for the person's code (`RETAKE_SANDBOX`, `_RUN_ID`,
-  `_ENV`, `_PROJECT_DIR`, `_ALLOWED_HOSTS`: hook and seed shells, process services) are also written under the old
-  names — never read; BL-136 drops them later.
-- **Markers the tool wrote into folders a person keeps** are still recognised: a theme's `.demo-studio-theme.json` /
-  `made_by: demo-studio` (its `--replace`), a raw package's `demo-studio/raw-capture` (a new export to its folder), a
-  session snapshot's `demo_studio` metadata key (the "made on another computer" warning); a component README's generated block is found by its begin marker's prefix, whatever command the comment names. A
-  component importing `@demo-studio/components/kit` is refused with the new specifier in the message (no alias).
+- **The rename was a script** (run once in L5.13; removed in v0.2.1 with everything below).
+- **Nothing of the old name is known any more (v0.2.1; decision, user, 2026-11-10).** L5.13 told an existing
+  installation what to move (one module per package knew the old names: detection by stats, `retake doctor`'s lines,
+  a stderr line, engine_info and the Studio's notes, the refusal of the old workspace file and of a start beside a
+  Studio or worker of the old build), kept the old names in the safety lists, wrote the outgoing variables under
+  both names and still recognised the markers the tool had written (theme provenance, raw-package kind, the snapshot
+  key, the old perf field). All of it is gone: the old home, workspace file, tool folders and variables are simply
+  not seen — no message, no migration, no alias; a theme or a raw package made then is no longer the tool's (its
+  `--replace` is refused like any folder it did not make), and a component importing the old kit specifier gets the
+  ordinary "not allowed" message.
 - **The guard** (`packages/core/test/old-name.test.ts`): no tracked file (nor an untracked one under the source
   folders) holds the old name in any spelling — wrapped across a line too —, the old command (`studio <sub>`, `pnpm
   studio`, `Usage: studio`, `` `studio` `` before "command" / "CLI"), the old workspace file or home; allowed: the
-  rename script, core's and engine's `legacy.ts`, the `legacy*.test.ts` files, and tagged lines / regions in a short
-  list of files (a tag anywhere else fails); file and folder paths are scanned too, and the regex-source spellings
-  (`Demo\s+Studio`). vitest.config.ts gives every run a scratch RETAKE_HOME unless one is set (removed at the end of
-  the run), refuses `~/.retake` and `~/.demo-studio` (through a link too), and drops every `DEMO_STUDIO_*`; core
+  guard itself and tagged lines / regions in a short list of record files (a tag anywhere else fails); file and
+  folder paths are scanned too, and the regex-source spellings. vitest.config.ts gives every run a scratch
+  RETAKE_HOME unless one is set (removed at the end of the run) and refuses `~/.retake` (through a link too); core
   `retake-home.test.ts` is its canary, and also fails a test file that deletes RETAKE_HOME without restoring it.
 - **The previews' bundle** (editor render/preview.ts): a target that is a package scaffold (same id, same folder) is
   bundled once, as the scaffold — flagged, so the bundle guard does not ask which component its kit imports belong to;

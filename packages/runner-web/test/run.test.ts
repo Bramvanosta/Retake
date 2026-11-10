@@ -10,6 +10,9 @@ import type { RunOptions } from '../src/index.js';
 import { DOC_PAGE, DROP_PAGE, DRY_PAGE, SCROLL_PAGE, STRATEGY_PAGE, TABS_PAGE } from './pages.js';
 import { FAST, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let server: TestServer;
 let dir: string;
@@ -445,7 +448,7 @@ describe('dry-run, --until, failures, cancellation', () => {
     expect(rec.warnings.join(' ')).toMatch(/optional/);
   });
 
-  it('an AbortSignal cancels the run and teardown still happens: teardown hooks, then the setup rollbacks (R-RUN-08)', async () => {
+  it.skipIf(!MAC_TIMING)('an AbortSignal cancels the run and teardown still happens: teardown hooks, then the setup rollbacks (R-RUN-08)', async () => {
     const ac = new AbortController();
     setTimeout(() => ac.abort(), 1200);
     const t0 = Date.now();

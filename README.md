@@ -332,7 +332,7 @@ The [guide](docs/guide/README.md) holds the full reference:
 | [The Studio](docs/guide/studio.md) | the web app, screen by screen |
 | [The desktop app](docs/guide/desktop-app.md) | Retake.app, its updates, the desktop shell |
 | [Security model](docs/guide/security.md) | what Retake protects, and how |
-| [Upgrading from before L5.13](docs/guide/upgrading.md) | moving an installation from the tool's earlier name |
+| [Upgrading](docs/guide/upgrading.md) | a new build on a workspace an older one served |
 
 ## Development
 

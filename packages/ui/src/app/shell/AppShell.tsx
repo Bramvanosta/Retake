@@ -491,26 +491,6 @@ export function AppShell({ route, list, children }: { route: Route; list: Loaded
           {claims.browser === 0 && <SourceList label="Studio" groups={openSlug !== null ? projectTree(route, openSlug, open, readmeDirty) : workspaceTree(route, projects)} />}
           <div className="sh-slot-browser" ref={slotRefs.browser} hidden={claims.browser === 0} />
           <div className="sh-browser-foot">
-            {info?.legacy?.old_home && (
-              <p className="sh-foot-line sh-foot-legacy" role="note" data-testid="legacy-home">
-                {/* The old home as the engine names it (core legacyInfo): the old default, or the folder the old home variable named (then set RETAKE_HOME to it, or move it). */}
-                Sign-ins from before the rename are in <Txt className="k-mono" text={info.legacy.old_home} />
-                {info.legacy.old_home_var ? (
-                  <>
-                    , set by <Txt className="k-mono" text={info.legacy.old_home_var} />, and not read: set <span className="k-mono">RETAKE_HOME</span> to it, or move it (<span className="k-mono">retake doctor</span> shows the command).
-                  </>
-                ) : (
-                  <>
-                    {' '}and not read: <span className="k-mono">retake doctor</span> shows the command to move them.
-                  </>
-                )}
-              </p>
-            )}
-            {info?.legacy?.old_vars && (
-              <p className="sh-foot-line sh-foot-legacy" role="note" data-testid="legacy-vars">
-                Variables from before the rename are set but not read: <Txt className="k-mono" text={info.legacy.old_vars.join(', ')} /> — rename them <span className="k-mono">RETAKE_…</span> where they are set (shell profile, the MCP registration&apos;s env).
-              </p>
-            )}
             <p className="sh-foot-line">
               <span className="sh-foot-label">Workspace</span>
               <Txt className="sh-foot-path k-mono" text={info?.root ?? (list.state === 'ready' ? list.data.root : '')} />

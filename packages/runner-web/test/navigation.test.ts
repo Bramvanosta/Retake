@@ -21,6 +21,9 @@ import type { FrameIndexEntry } from '../src/index.js';
 import { FAST, debugTemplate, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
 import { NO_CONTENT_PAGE, latePaintPage, navHomePage } from './pages.js';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let here: TestServer;
 let away: TestServer;
@@ -126,7 +129,7 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
     expect(tl.warnings.filter((w) => /painted nothing|froze/.test(w))).toEqual([]);
   });
 
-  it('no frame inside a held load; every still starts after them; the first frame after one shows the cursor', async () => {
+  it.skipIf(!MAC_TIMING)('no frame inside a held load; every still starts after them; the first frame after one shows the cursor', async () => {
     const frames = await frameIndex(join(runDir, 'frames.jsonl'));
     for (const l of tl.loading ?? []) {
       expect(frames.filter((f) => f.t >= l.t_start && f.t < l.t_end), JSON.stringify(l)).toEqual([]);
@@ -143,7 +146,7 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
     }
   });
 
-  it('capture.mp4 never shows the skeleton or a blank page, its first frame included', () => {
+  it.skipIf(!MAC_TIMING)('capture.mp4 never shows the skeleton or a blank page, its first frame included', () => {
     const frames = decodeSmall(['-i', join(runDir, 'capture.mp4')]);
     expect(frames.length).toBeGreaterThan(30);
     const colours = frames.map(corner);
@@ -166,7 +169,7 @@ describe('full-page loads in the capture (R-ISS-08)', () => {
 });
 
 describe('control: the same navigation recorded without the hold (R-ISS-08)', () => {
-  it('the skeleton is filmed without the hold, never with it', async () => {
+  it.skipIf(!MAC_TIMING)('the skeleton is filmed without the hold, never with it', async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined, { style: 'debug' }) });
     try {
       const page = await session.page('main');

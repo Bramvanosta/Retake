@@ -11,7 +11,7 @@ import { readFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 import type { Message, Plugin } from 'esbuild';
-import { didYouMean, oldKitImportMessage, pathInside } from '@retake/core';
+import { didYouMean, pathInside } from '@retake/core';
 import { KIT_MODULE, kitEntry } from './paths.js';
 import type { ComponentIssue } from './types.js';
 
@@ -216,8 +216,6 @@ export function importProblem(spec: string, resolveDir: string, componentDir: st
     return undefined;
   }
   if ((ALLOWED_IMPORTS as readonly string[]).includes(spec)) return undefined;
-  const renamed = oldKitImportMessage(spec, KIT_MODULE);
-  if (renamed) return renamed;
   const s = didYouMean(spec, ALLOWED_IMPORTS);
   return `import "${spec}" is not allowed${s ? ` (did you mean "${s}"?)` : ''}: a component may import only react, remotion and ${KIT_MODULE}`;
 }

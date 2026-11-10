@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { withOldOutgoingEnv, PERSON_POLICY, workPolicyFrom } from '@retake/core';
+import { PERSON_POLICY, workPolicyFrom } from '@retake/core';
 import type { LoadedProject, LoadedSandbox, SandboxManifest, WorkPolicy } from '@retake/core';
 import {
   BREAKER_STALE_MS,
@@ -217,7 +217,7 @@ describe('take lock', () => {
       `import { TakeLock } from ${JSON.stringify(LOCK_MODULE)};`,
       'const [file, at] = process.argv.slice(1);',
       'while (Date.now() < Number(at)) {}',
-      "try { const l = TakeLock.acquire(file, 'probe', 'sandbox'); console.log('GOT'); const until = Date.now() + 300; while (Date.now() < until) {} l.releaseSync(); }",
+      "try { const l = TakeLock.acquire(file, 'probe', 'sandbox'); const t0 = Date.now(); const until = t0 + 300; while (Date.now() < until) {} const t1 = Date.now(); l.releaseSync(); console.log(`GOT ${t0} ${t1}`); }",
       "catch (e) { console.log(e.code === 'busy' ? 'BUSY' : `ERR ${e.message}`); }",
     ].join('\n');
     const one = (at: number) =>
@@ -232,8 +232,12 @@ describe('take lock', () => {
       await writeFile(file, round % 2 ? '' : JSON.stringify({ pid: 999_999, command: 'run x', since: new Date().toISOString() }));
       const at = Date.now() + 600;
       const outs = await Promise.all([one(at), one(at), one(at), one(at)]);
-      expect(outs.filter((o) => o === 'GOT').length, `round ${round}: ${outs.join(', ')}`).toBe(1);
-      expect(outs.filter((o) => o !== 'GOT' && o !== 'BUSY')).toEqual([]);
+      // Never held twice at once. A command that starts after the holder released (a slow machine starts the four
+      // late) takes the free lock in turn: that is not two takes of the same stale lock.
+      const held = outs.filter((o) => o.startsWith('GOT ')).map((o) => o.split(' ').slice(1).map(Number) as [number, number]).sort((a, b) => a[0] - b[0]);
+      expect(held.length, `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(1);
+      for (let i = 1; i < held.length; i++) expect(held[i]![0], `round ${round}: ${outs.join(', ')}`).toBeGreaterThanOrEqual(held[i - 1]![1]);
+      expect(outs.filter((o) => !o.startsWith('GOT ') && o !== 'BUSY')).toEqual([]);
     }
     expect(existsSync(file)).toBe(false);
     // A breaker left by a command that died while breaking (older than BREAKER_STALE_MS) does not block anyone.
@@ -393,8 +397,7 @@ describe('a service: command and environment', () => {
         TOKEN: 'from-env-1234',
         REGION: 'eu',
         NODE_ENV: 'development',
-        // L5.13: also under its name from before the rename (core legacy.ts; sandbox legacy-env.test.ts names it).
-        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
+        RETAKE_SANDBOX: 'sandbox',
       });
     } finally {
       delete process.env.RETAKE_TEST_SECRET;
@@ -420,7 +423,7 @@ describe('a service: command and environment', () => {
         API_URL: 'http://localhost:4603/api',
         // Its own env still reads the worker's environment.
         TOKEN: 'from-env-1234',
-        ...withOldOutgoingEnv({ RETAKE_SANDBOX: 'sandbox' }),
+        RETAKE_SANDBOX: 'sandbox',
       });
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);

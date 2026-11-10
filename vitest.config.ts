@@ -4,12 +4,9 @@ import { homedir, tmpdir, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// L5.13 (critique H4): a test run never uses the person's own home (~/.retake: their signed-in profiles). RETAKE_HOME
-// is a fresh temp folder unless the shell names one — never ~/.retake nor the home of before L5.13, even through a
-// link (review A M3: pointing RETAKE_HOME at the old home is the obvious workaround of a person who did not move it) —,
-// removed at the end of the run (vitest.teardown.mjs), and variables of the name before L5.13 never reach a test (core
-// test/retake-home.test.ts is the canary).
-for (const k of Object.keys(process.env)) if (k.startsWith('DEMO_STUDIO_')) delete process.env[k]; // old-name: dropped, never read
+// A test run never uses the person's own home (~/.retake: their signed-in profiles). RETAKE_HOME is a fresh temp
+// folder unless the shell names one — never ~/.retake, even through a link —, removed at the end of the run
+// (vitest.teardown.mjs); core test/retake-home.test.ts is the canary.
 if (!process.env.RETAKE_HOME?.trim()) process.env.RETAKE_HOME = process.env.RETAKE_TEST_HOME_MADE = mkdtempSync(join(tmpdir(), 'retake-test-home-'));
 const testHome = resolve(process.env.RETAKE_HOME.trim().replace(/^~(?=$|\/)/, homedir()));
 const real = (p: string) => {
@@ -19,7 +16,7 @@ const real = (p: string) => {
     return p;
   }
 };
-const REAL_HOMES = [join(homedir(), '.retake'), join(homedir(), '.demo-studio')]; // old-name: the home before L5.13 is refused too
+const REAL_HOMES = [join(homedir(), '.retake')];
 if (REAL_HOMES.some((h) => testHome === h || real(testHome) === real(h))) throw new Error(`RETAKE_HOME is ${testHome}, a real Retake home: tests use a scratch one (unset it, or name a temp folder)`);
 // L5.16c fixes: Chromium on macOS finds ~/Library through NSHomeDirectory (the account's home, whatever HOME says) and
 // its crash reporter writes ~/Library/Application Support/Chromium/Crashpad there; CFFIXED_USER_HOME moves that home

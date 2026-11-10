@@ -439,7 +439,8 @@ describe('release.yml: the keys never share a runner with dependency code (revie
     });
     const r = runStep(s, { RUNNER_TEMP: t, SHA256: meta });
     expect(r.status).not.toBe(0);
-    expect(r.stderr).toMatch(/release: \S+ is not the build job's archive: "(?:app\/)?\._[^"]+" \(an AppleDouble name\)/);
+    // The first ._ member tar lists: the planted one (tauri-cli/…/._tauri.js), or one the Mac's own metadata made in app/.
+    expect(r.stderr).toMatch(/release: \S+ is not the build job's archive: "(?:[\w@.-]+\/)*\._[^"/]+" \(an AppleDouble name\)/);
     expect(existsSync(join(t, 'adhoc'))).toBe(false);
   });
 });

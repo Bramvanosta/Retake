@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, withOldOutgoingEnv, projectPath } from '@retake/core';
+import { AGENT_SHELL_GRAMMAR, agentShellCwdProblems, agentShellEnvProblems, agentShellProblems, allowedHosts, bareEnvHint, channelWords, childEnv, childEnvHint, listTemplateTokens, policyChildEnv, sandboxOf, shellHostRefs, projectPath } from '@retake/core';
 import type { ShellHookSpec } from '@retake/core';
 import { nodeFileFacts } from '@retake/core/io';
 import { checkShellHosts } from '../allow-list.js';
@@ -166,14 +166,11 @@ function inheritedEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
 function hookEnv(ctx: HookContext, cmd: ShellCommand): NodeJS.ProcessEnv {
   return {
     ...inheritedEnv(ctx, cmd),
-    // Also under the names from before L5.13, for a script that still reads them (legacy.ts; never read back).
-    ...withOldOutgoingEnv({
-      RETAKE_PROJECT_DIR: ctx.project.dir,
-      RETAKE_ENV: ctx.env.name,
-      ...(ctx.runId ? { RETAKE_RUN_ID: ctx.runId } : {}),
-      // The project's allow-list, so a script can check the hosts it computes itself.
-      RETAKE_ALLOWED_HOSTS: allowedHosts(ctx.project).join(','),
-    }),
+    RETAKE_PROJECT_DIR: ctx.project.dir,
+    RETAKE_ENV: ctx.env.name,
+    ...(ctx.runId ? { RETAKE_RUN_ID: ctx.runId } : {}),
+    // The project's allow-list, so a script can check the hosts it computes itself.
+    RETAKE_ALLOWED_HOSTS: allowedHosts(ctx.project).join(','),
     ...cmd.base,
     ...cmd.env,
   };
@@ -204,7 +201,7 @@ async function sandboxEnv(ctx: HookContext, env: string, own: Record<string, str
       }
     }
   }
-  Object.assign(out, withOldOutgoingEnv({ RETAKE_SANDBOX: env }));
+  out.RETAKE_SANDBOX = env;
   return out;
 }
 

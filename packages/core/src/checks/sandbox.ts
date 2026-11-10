@@ -5,7 +5,7 @@
  * {{account.username}} / {{account.password}}). Given the project, a sandbox page sharing its host and port with a page
  * of a production or read-only environment is an error.
  */
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { parse as parseYamlText } from 'yaml';
 import { sqlSource } from '../destructive.js';
 import { needFiles } from '../file-facts.js';
@@ -139,6 +139,49 @@ export function envFileKeys(text: string): string[] {
 }
 
 /**
+ * What an env file sets, by name (`NAME=value`, `export NAME=value`), as docker compose reads the common forms: a
+ * value in single quotes as it is, one in double quotes with its `\n`, `\"` and `\\` escapes, a bare one trimmed and
+ * cut at an inline ` #` comment. The last line of a name wins. No `${VAR}` expansion: a value is taken as written.
+ */
+export function envFileValues(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*(.*)$/.exec(line);
+    if (!m) continue;
+    const raw = m[2];
+    let value: string;
+    const single = /^'([^']*)'/.exec(raw);
+    const double = /^"((?:[^"\\]|\\.)*)"/.exec(raw);
+    if (single) value = single[1];
+    else if (double) value = double[1].replace(/\\(.)/g, (_, c: string) => (c === 'n' ? '\n' : c === 'r' ? '\r' : c === 't' ? '\t' : c));
+    else value = raw.replace(/\s+#.*$/, '').trim();
+    out[m[1]] = value;
+  }
+  return out;
+}
+
+/** `{{compose_env:NAME}}` as a whole value: an account's username or password read from the sandbox's compose env file. */
+const COMPOSE_ENV_REF = /^\s*\{\{\s*compose_env:([A-Za-z_][A-Za-z0-9_.-]*)\s*\}\}\s*$/;
+
+/** The name a `{{compose_env:NAME}}` value reads from the sandbox's compose env file; undefined for any other value. */
+export function composeEnvRef(value: unknown): string | undefined {
+  return typeof value === 'string' ? COMPOSE_ENV_REF.exec(value)?.[1] : undefined;
+}
+
+/**
+ * The env file of a docker-compose sandbox, absolute (L5.8): `compose.env_file` (relative to sandbox.yaml), else `.env`
+ * next to the first compose file when it exists (`exists`: the caller's look at the disk); undefined for none
+ * (`env_file: false`, no such file, a process sandbox).
+ */
+export function composeEnvFilePath(dir: string, manifest: { provider?: unknown; compose?: { files?: readonly string[]; env_file?: unknown } }, exists: (p: string) => boolean): string | undefined {
+  const c = manifest.compose;
+  if (manifest.provider !== 'docker-compose' || c?.env_file === false) return undefined;
+  if (typeof c?.env_file === 'string') return resolve(dir, c.env_file);
+  const guess = join(dirname(resolve(dir, (c?.files ?? DEFAULT_COMPOSE_FILES)[0])), '.env');
+  return exists(guess) ? guess : undefined;
+}
+
+/**
  * The env file of a docker-compose sandbox (L5.8): a written `env_file` must exist; a `COMPOSE_PROFILES` in it (or in the
  * default `.env` next to the first compose file) is refused — docker compose would read it and start other services
  * than sandbox.yaml says (the shell's COMPOSE_* are left out for the same reason).
@@ -207,6 +250,30 @@ export function weakPasswordReason(password: string): string | null {
     return 'a plain password shorter than 8 characters or made of one word is masked wherever that text appears in the logs (a password "demo" turns every "demo" into ***): use something like "sandbox-pass-4632"';
   }
   return null;
+}
+
+/**
+ * Why `{{compose_env:NAME}}` cannot be read (null when it can): not a docker-compose sandbox, no env file, the name not
+ * set in it. Never the value. Without the sandbox's folder (a text validated alone) only the provider is checked.
+ */
+function composeEnvProblem(manifest: Record<string, unknown>, name: string, ctx: CheckContext): string | null {
+  const dir = ctx.projectDir;
+  const ref = `{{compose_env:${name}}}`;
+  if (manifest.provider !== 'docker-compose') return `${ref} reads the compose env file of a docker-compose sandbox: this one is not (use {{env:VAR}} or {{keychain:service/account}})`;
+  const c = isObj(manifest.compose) ? manifest.compose : undefined;
+  if (c?.env_file === false) return `${ref} reads the sandbox's compose env file, and \`compose.env_file: false\` says there is none`;
+  if (!dir) return null;
+  const facts = needFiles(ctx.files, 'the compose env check');
+  const files = Array.isArray(c?.files) ? c.files.filter((f): f is string => typeof f === 'string') : undefined;
+  const file = composeEnvFilePath(dir, { provider: 'docker-compose', compose: { ...(files?.length ? { files } : {}), env_file: c?.env_file } }, (p) => facts.kind(p) !== undefined);
+  if (!file) return `${ref} reads the sandbox's compose env file, and there is none: write \`compose.env_file\`, or a .env next to the first compose file`;
+  let text: string;
+  try {
+    text = facts.readText(file);
+  } catch {
+    return null; // checkEnvFile says so
+  }
+  return Object.hasOwn(envFileValues(text), name) ? null : `${ref}: ${name} is not set in the sandbox's compose env file (${file})`;
 }
 
 /** A password that is one secret reference ({{env:VAR}} / {{keychain:…}}): not plain text. */
@@ -691,8 +758,12 @@ function checkAccounts(
     for (const field of ['username', 'password'] as const) {
       const v = a[field];
       if (typeof v !== 'string' || !v.includes('{{')) continue;
-      if (!isSecretReference(v)) {
-        ctx.error([...ap, field], `a ${field} is plain text or one {{env:VAR}} / {{keychain:service/account}} reference (it is put into the login steps as is)`);
+      const fromFile = composeEnvRef(v);
+      if (fromFile !== undefined) {
+        const problem = composeEnvProblem(value, fromFile, ctx);
+        if (problem) ctx.error([...ap, field], problem);
+      } else if (!isSecretReference(v)) {
+        ctx.error([...ap, field], `a ${field} is plain text or one {{env:VAR}} / {{keychain:service/account}} / {{compose_env:NAME}} reference (it is put into the login steps as is)`);
       }
     }
     if (typeof a.password === 'string' && !a.password.includes('{{')) {

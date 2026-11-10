@@ -301,14 +301,6 @@
     ]
    ]
   },
-  "oldWorkspace": {
-   "ok": {
-    "root": "<tmp>/ws-old",
-    "projectsDir": "<tmp>/ws-old/projects",
-    "templatesDir": "<tmp>/ws-old/templates",
-    "componentsDir": "<tmp>/ws-old/components"
-   }
-  },
   "newerWorkspace": {
    "error": "ConfigError",
    "message": "workspace config <tmp>/ws-new/retake.yaml has 1 error:\n<tmp>/ws-new/retake.yaml:1:10 error version: this retake.yaml is version 99: it was made for a newer Retake (this one reads version 1) — update Retake",

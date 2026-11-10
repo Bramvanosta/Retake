@@ -1670,35 +1670,6 @@ preview's picture, the native menu's ⌘B and VoiceOver are only reached here. `
    ended screen keeps the text in a read-only field to copy (the Ended screen of a browser tab too); a typo in the
    address (`#/nowhere`) says "Nothing here" with Back to the projects. Dark, light.
 
-<!-- old-name:begin — the upgrade of this Mac from the name before L5.13 -->
-### 14f. The rename on this Mac: upgrading your own installation, the app's new identity (L5.13a)
-
-On your own installation (signed-in profiles in `~/.demo-studio`), with the build from before L5.13 still in place.
-Nothing of the new build moves your files: each step below is yours (docs/guide/upgrading.md).
-
-1. **Before moving anything.** Quit the Demo Studio app, stop `studio ui`, Claude's sessions and the worker. Pull and
-   `pnpm install --frozen-lockfile --offline && pnpm build`. `node packages/cli/dist/bin.js --version` (not `pnpm
-   retake`: pnpm prints its own banner on stdout): one line on stderr says the sign-ins in `~/.demo-studio` are not
-   read, with the `mv` — and one more names any `DEMO_STUDIO_*` you still export without its `RETAKE_*` twin; stdout
-   holds the version only. `pnpm -s retake doctor`: the "Before Retake" lines (the home, any `DEMO_STUDIO_*` you export,
-   the workspace's `studio.yaml` — a FAIL line —, each `.demo-studio/` folder with its `mv`, and each `.gitignore` that
-   ignores `.demo-studio/` but not `.retake/`). `retake ui` on that workspace is refused with the rename command.
-2. **An old Studio still running.** Start the OLD app (or the old `studio ui`) again, then the new `retake ui` /
-   `retake mcp` on the same workspace: both refuse, naming the old pid and what to quit. Quit the old one.
-3. **Move.** Follow the upgrade guide's steps 3–7: the home, `studio.yaml` → `retake.yaml`, the `.demo-studio/` folders, your
-   variables (`grep -rn DEMO_STUDIO_` in your product repository), the kit import of your components, the MCP / plugin
-   registration (`claude mcp remove demo-studio`… then `retake mcp --print-config`). `retake doctor` until no
-   "Before Retake" line is left. `retake auth status`: every persona signed in as before (no new sign-in needed). A
-   take of a project with a sandbox: its first reset re-seeds and re-snapshots once.
-4. **The app.** `pnpm desktop:build`, open `apps/desktop/target/release/bundle/Retake.app` from Finder (delete
-   the old `Demo Studio.app` yourself): the title "Retake", the quit question "Quit Retake?". The first notification
-   asks for permission again (System Settings › Notifications lists "Retake"; remove the old "Demo Studio" entry), and
-   macOS asks again for the local network. The Studio's sidebar shows no note about `~/.demo-studio` once it is moved
-   (before the move, with the app started on the new build: one line naming `~/.demo-studio` and `retake doctor`).
-5. **Claude.** In a new Claude Code session on the workspace: `engine_info` says Retake; the skills are
-   `retake-scenario`, `retake-theme`, `retake-component`; a dry run works with your moved sessions.
-<!-- old-name:end -->
-
 ### 14g. The "two takes" mark: the Dock, Finder, the title bar and the favicon (L5.13b)
 
 By hand (no test sees the Dock, Finder or a real tab's favicon): `pnpm desktop:build`, then the built

@@ -13,7 +13,6 @@ import type { Caller } from './caller.js';
 import { hookRunRecorder } from './store/journal.js';
 import { formatMs, sandboxUpText } from './format.js';
 import type { InterruptPort } from './interrupts.js';
-import { refuseBesideOldHolder } from './legacy.js';
 import type { OpenedWorkspace } from './workspace.js';
 
 /** A run option that cannot be used as given (the CLI reports it as a usage error, exit 2). */
@@ -178,8 +177,6 @@ export interface ExecuteRunOptions {
 
 /** `sandbox: true`: lock, up if needed, health, reset — under the interrupt port (what it started is stopped). */
 async function prepareSandboxTake(project: LoadedProject, env: string, scenario: string, ports: RunPorts, opts: ExecuteRunOptions): Promise<Take> {
-  // L5.13: never beside an old Studio or worker, whose takes lock the old tool folder (engine legacy.ts).
-  await refuseBesideOldHolder(project.root, 'this sandbox take');
   const { openSandbox } = await import('@retake/sandbox');
   const sb = openSandbox(project, env, opts.policy);
   const stop = await ports.interrupts.open({ message: 'interrupted: stopping what this take started…', onQuitSync: () => sb.killStartedSync() });

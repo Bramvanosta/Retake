@@ -41,7 +41,7 @@ accounts:                          # demo accounts the seed creates: the persona
   buyer:
     pages: [shop]
     username: orders@example.com
-    password: buyer-pass-4604      # plain (masked in every log) or {{env:VAR}} / {{keychain:service/account}}
+    password: buyer-pass-4604      # plain (masked in every log), {{env:VAR}}, {{keychain:service/account}} or {{compose_env:NAME}}
     check: {url: "shop:/", expect_text: Demo Cafe}
     login:                         # signs the account in, off camera, whenever its session is missing
       - open: "shop:/sign-in"
@@ -101,7 +101,20 @@ Validation (`retake validate`, and every command: a broken sandbox.yaml stops th
   templated. A health path stays on the service's `url` (`//host/up` and backslashes are refused). A sandbox page on
   the host and port of a page of a production or read-only environment is an error — every loopback host counts as
   the same one (`127.0.0.1:4401`, `[::1]:4401` and `localhost:4401` reach the same server).
-- Paths (compose files, `cwd`, SQL files) are relative to sandbox.yaml; an absolute or `~` path is refused.
+- Paths (compose files, `cwd`, SQL files) are relative to sandbox.yaml; an absolute or `~` path is refused. The
+  compose files may live in another folder than sandbox.yaml (`compose.files: [../../../product/docker/compose.yaml]`,
+  the product's repository): the compose project's folder is the first compose file's, as for `docker compose`
+  itself, so the relative paths *inside* the compose files (a service's `env_file`, a build context, a bind mount)
+  resolve next to them, and the default project name's hash is that folder's.
+- **A password kept in the compose env file**: `password: "{{compose_env:DEMO_BUYER_PASSWORD}}"` (a `username`
+  too) is the value that name has in the sandbox's compose env file (`compose.env_file`, or the `.env` next to the
+  first compose file; docker-compose only) — one source for the product's seed and for the sign-in, no keychain
+  item to copy, and it works in the desktop app, which never sees your shell's variables. Read when the project
+  loads and masked like a plain password; a name the file does not set is an error.
+- **One app, several accounts**: an environment page belongs to at most one account. For two roles of the same app
+  (an owner and an admin on one URL), give the service one page key per account on the same URL —
+  `pages: {admin: "http://admin.localhost:4810", backoffice: "http://admin.localhost:4810"}` — and each account its
+  own (`pages: [admin]`, `pages: [backoffice]`); a scene opens the page of the account it films.
 - Seed steps: `http`, `sql`, `shell`, `exec` — no `js` (there is no browser); they stop at the first failure, are
   never rolled back (a `rollback` is ignored, with a warning) and need no `confirm: true` (a seed rebuilds a local,
   disposable copy). A SQL file that is pg_dump's plain output (`COPY … FROM stdin`, `\connect`) is refused: dump with
@@ -506,7 +519,8 @@ mailbox: {provider: mailpit, url: http://localhost:4925}
 ```
 
 - **The env file reaches every compose command** (`--env-file`): `.env` next to the first compose file, or
-  `compose.env_file` (relative to sandbox.yaml; `false`: none). The names it sets are left out of the environment
+  `compose.env_file` (relative to sandbox.yaml; `false`: none). It is the file docker compose interpolates `${…}`
+  from; a service's own `env_file: .env` is a path of the compose file, resolved next to it. The names it sets are left out of the environment
   docker runs with, like every `COMPOSE_*` variable of the shell: an `APP_VERSION` exported in your shell never
   changes the build a take films. A `COMPOSE_PROFILES` in it is refused (it would start other services than
   sandbox.yaml says). Checked against the real `docker compose config`: the file's tag wins over the shell's

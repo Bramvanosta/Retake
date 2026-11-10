@@ -10,6 +10,21 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.1 (2026-11-10, branch `hotfix/v0.2.1` from the v0.2.0 tag; field feedback of a first real project):**
+- docker under the agent policy (the app, MCP) is started by its checked real path *under the name it was found as*
+  (`argv0`): OrbStack's `docker` is a link to a multi-call binary that refused its own name (`compose.ts`
+  `startedProgram`, `docker.ts` `runDocker`);
+- a docker-compose sandbox's project folder (`--project-directory`, the default name's hash) is the first compose
+  file's — compose files may live in the product's repository; containers made from sandbox.yaml's folder by v0.2.0
+  stay the sandbox's own (`ComposeProjectRef.sandboxDir`);
+- an account's `{{compose_env:NAME}}` username / password reads the sandbox's compose env file (core
+  `checks/sandbox.ts` `envFileValues`, `sandbox.ts` `accountsComposeEnv`; accounts only, docker-compose only);
+- one app, several accounts: documented (one page key per account on the same URL; guide and skill reference);
+- nothing of the name before L5.13 is known any more (the person's decision): no detection, message, migration,
+  safety-list entry or marker — R-REN-02 rewritten, DESIGN "L5.13" says what went.
+Tests: `packages/sandbox/test/compose-folder.test.ts`; checked for real on OrbStack (Compose 5.1.2 found under the
+agent policy). The architecture branches (`claude/arch-l6`, `claude/arch-l7`) touch the same files: merge by hand.
+
 ## What this is
 Retake: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
 professional product video — drive a real web app headless with an in-page cursor, capture it cleanly, then edit it
@@ -43,6 +58,7 @@ automatically with themeable components, and let Claude operate everything throu
     gone, so a missed site does not compile. The Studio front end holds one mirror file
     (`packages/ui/src/app/id-words.ts`), held true by a test. Ratchet check `id-grammar` (six shapes; its blind
     spots are in its title): baseline 84 → 94, the ten entries being grammars that are not ids of the module.
+    (93 after `main` v0.2.1 was merged in: the entry of the deleted `legacy.ts` went.)
   - **Proved equal.** A reviewer ran 8 372 adversarial strings through every old copy (from `HEAD`) and the new
     code: every accept / refuse difference is one of the decisions below or a listed fix; no site accepts what was
     refused; schema issues are the same in code, order and wording. The MCP tool list and the generated schemas are
@@ -243,7 +259,15 @@ automatically with themeable components, and let Claude operate everything throu
   - **T15's rest (2026-11-10, after the series):** a CI on pull requests and main (`.github/workflows/ci.yml`: the
     build, the guards — one version, the import-rules ratchet, requirements tested and cited — and the default suite
     on macOS 15; the shell's rules on the pinned Rust; no secret, no cache, actions pinned like release.yml's;
-    `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144); the shell's Rust pinned in
+    `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144). On the runner (3 cores, no
+    GPU) the tests calibrated on the Mac (capture frame rates, freezes, paint and wait timings) skip:
+    `RETAKE_TEST_SHARED_RUNNER=1`, honoured in the eleven files ci-workflow.test.ts lists (they run with the full suite
+    on the Mac); there a failing test is retried twice (`--retry=2`, the CI only: two browsers drawn without a GPU load
+    its three cores, and each run failed other timing tests — 19, 7, 12); one file at a time instead stalled past two
+    hours. Its first runs also found a focus race of the Studio's Set-up sheet (the focus was placed on the status
+    before the reload: now after it) and three tests tied to the host (the appearance with no preference follows the
+    host in Chromium; the take lock test now checks that no two holds overlap; the AppleDouble refusal may name any
+    `._` member); the shell's Rust pinned in
     `apps/desktop/rust-toolchain.toml` (cargo runs from apps/desktop for the shell, from the repository root for the
     rules crate, which keeps any Rust 1.70+; the release workflow's version held equal by its test); one
     `onlyBuiltDependencies` list (pnpm-workspace.yaml: pnpm 10 never read package.json's); `.gitignore` patterns for
@@ -2423,11 +2447,9 @@ frame).
 
 ## Notes
 Notes from L5.13:
-- Names: a branch from before L5.13 runs `node scripts/rename-l513.mjs` on itself before a rebase (`--dry` lists,
-  `--only <files>` for a few files, `--allow-dirty` for a dirty tree); lines or regions tagged `old-name:` are never
-  rewritten. The old names the code reads live only in `packages/core/src/legacy.ts` / `packages/engine/src/legacy.ts`;
-  tests of them are `legacy*.test.ts`; elsewhere the guard fails.
-- Every brief exports `RETAKE_HOME` (vitest makes a temp one when unset and refuses `~/.retake` / the old home).
+- Names: since v0.2.1 no code knows a name from before L5.13 (the legacy modules, their tests and the rename script
+  are gone); the guard (`core/test/old-name.test.ts`) fails on an old name anywhere but the records' tagged lines.
+- Every brief exports `RETAKE_HOME` (vitest makes a temp one when unset and refuses `~/.retake`).
 - Not old names: the `studio/` namespace, the `studio` comment channel, `studio:*` events, "the Studio", README block
   markers `studio:component-preview`.
 - The main checkout's git-ignored old tool folders stay ignored (`.gitignore` keeps them): optional cleanup.
