@@ -22,8 +22,10 @@ and the decisions already taken. The working agreement itself is in `CLAUDE.md`.
 ## Rules for every sub-agent
 - Work only in the worktree the brief names. Never commit, stage or push; never edit `docs/HANDOFF.md`,
   `docs/ROADMAP.md` or `CLAUDE.md` (the lead does).
-- Run only the test files you add or touch, one at a time, and `npx tsc -b`; never the full suite (the lead runs it once
-  per lot). A flaky real-browser test: rerun the file alone before suspecting your change, and report it.
+- Run only the test files you add or touch, one at a time, and `npx tsc -b`, then `npx tsc -p tsconfig.test.json
+  --noEmit` (the test files' type check: the build does not read them; it needs the build's declarations, so in that
+  order); never the full suite (the lead runs it once per lot). No `@ts-nocheck`, no `@ts-ignore`; a `@ts-expect-error`
+  only over an input that is wrong on purpose, with its reason on the line. A flaky real-browser test: rerun the file alone before suspecting your change, and report it.
 - Every safety or behaviour rule gets a regression test and a mutation check: change the rule in place, run only its
   target test file and see it fail, restore the file exactly (a backup, `cmp`, then `touch` for a fresh mtime) and run
   `npx tsc -b --force`.

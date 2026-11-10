@@ -56,8 +56,9 @@ export default defineConfig({
       // Before '@retake/editor', as for the kit: the planner's own entry (no renderer).
       '@retake/editor/plan': fileURLToPath(new URL('./packages/editor/src/plan-entry.ts', import.meta.url)),
       '@retake/editor': pkg('editor'),
-      // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import).
+      // Before '@retake/review', as for the kit: the thumbnails' own entry (no editor import) and the pure checks'.
       '@retake/review/thumbs': fileURLToPath(new URL('./packages/review/src/thumbs.ts', import.meta.url)),
+      '@retake/review/checks': fileURLToPath(new URL('./packages/review/src/checks-entry.ts', import.meta.url)),
       '@retake/review': pkg('review'),
       // Before '@retake/engine', as for the kit: the operation contract's, the catalogue's and the integrations' own entries.
       '@retake/engine/contract': fileURLToPath(new URL('./packages/engine/src/contract.ts', import.meta.url)),

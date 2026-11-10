@@ -78,7 +78,7 @@ const kept = () => {
 };
 
 /** The app copy run directly; its log lines (the shell's stderr, and its restarted self's: the same pipe). */
-function launch(): { proc: ChildProcess; lines: string[]; wait: (re: RegExp, ms: number) => Promise<string> } {
+function launch(): { proc: ChildProcess; lines: string[]; wait: (re: RegExp, ms: number, n?: number) => Promise<string> } {
   const proc = spawn(join(copy, 'Contents', 'MacOS', BIN_NAME), [], { env: runEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const log = join(base, `app-${++runs}.log`);
   kids.push(proc);

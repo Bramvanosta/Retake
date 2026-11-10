@@ -9,7 +9,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync, utimesSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { RequestListener, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -264,7 +264,7 @@ describe('state file', () => {
 });
 
 /** A local HTTP server on a free port. */
-async function serve(handler: Parameters<typeof createServer>[0]): Promise<{ server: Server; port: number; url: string }> {
+async function serve(handler: RequestListener): Promise<{ server: Server; port: number; url: string }> {
   const server = createServer(handler);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   const port = (server.address() as AddressInfo).port;

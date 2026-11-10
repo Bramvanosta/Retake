@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ACTION_NAMES, CHIP_KINDS, STEP_CATEGORIES, actionCategory, hookSummary, listSteps, parseScenario, parseYaml, plainTarget, scenarioBlocks, stepChips, stripUrlUserinfo, PERSON_POLICY } from '@retake/core';
-import { loadProject, loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
+import { loadProject, loadProjectTemplate, fileFacts } from '@retake/core/io';
 import type { EntryBlock, HookBlock, ScenarioBlocks, SceneBlock, StepBlock } from '@retake/core';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -148,7 +148,7 @@ describe('scenarioBlocks on the fixture scenarios (goldens)', async () => {
     const text = readFileSync(file, 'utf8');
     const { issues, scenario } = parseScenario(text, { files: fileFacts(PERSON_POLICY), file, project, template });
     expect(issues.filter((i) => i.severity === 'error')).toEqual([]);
-    const b = scenarioBlocks(text, { files: nodeFileFacts, issues, hookFiles: { projectDir: project.dir } });
+    const b = scenarioBlocks(text, { issues, hookFiles: { projectDir: project.dir } });
     expect(b.parsed).toBe(true);
     expect(b.issues).toEqual([]);
     expect(b.entries.filter((e) => e.type === 'unknown')).toEqual([]);

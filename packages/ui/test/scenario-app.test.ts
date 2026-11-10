@@ -14,6 +14,9 @@ import { bindingWords, layoutWords, missingWords, runErrorWords } from '../src/a
 
 const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 74, 70]).toString('base64');
 
+/** What every answer names (the loader keys by the run it asked for, not by these). */
+const OF = { project: 'p', run: 'r' };
+
 interface Pending {
   run: string;
   keys: string[];
@@ -40,7 +43,7 @@ function harness(o: { cacheMax?: number } = {}) {
     for (const t of timers.splice(0)) t();
   };
   const flush = () => new Promise((r) => setTimeout(r, 0));
-  const ok = (keys: string[]): ThumbAnswer => ({ thumbs: keys.map((key) => ({ key, mime: 'image/jpeg', base64: JPEG, width: 480, height: 270, from: 'frame' })), missing: [] });
+  const ok = (keys: string[]): ThumbAnswer => ({ ...OF, thumbs: keys.map((key) => ({ key, mime: 'image/jpeg', base64: JPEG, width: 480, height: 270, from: 'frame' })), missing: [] });
   return { loader, calls, tick, flush, ok };
 }
 
@@ -110,6 +113,7 @@ describe('ThumbLoader', () => {
     for (const k of keys(4)) h.loader.setVisible('r', k, true);
     h.tick();
     h.calls[0].resolve({
+      ...OF,
       thumbs: [{ key: 's.0', mime: 'image/jpeg', base64: JPEG, width: 4, height: 3, from: 'screenshot' }],
       missing: [
         { key: 's.1', reason: 'budget' },
@@ -121,7 +125,7 @@ describe('ThumbLoader', () => {
     h.tick();
     expect(h.calls[1].keys).toEqual(['s.1', 's.3']);
     expect(h.loader.get('r', 's.2')).toEqual({ state: 'missing', reason: 'not_reached' });
-    h.calls[1].resolve({ thumbs: [], missing: [{ key: 's.1', reason: 'budget' }, { key: 's.3', reason: 'budget' }] });
+    h.calls[1].resolve({ ...OF, thumbs: [], missing: [{ key: 's.1', reason: 'budget' }, { key: 's.3', reason: 'budget' }] });
     await h.flush();
     h.tick();
     expect(h.calls).toHaveLength(2);
@@ -133,14 +137,16 @@ describe('ThumbLoader', () => {
     for (const k of keys(6)) h.loader.setVisible('r', k, true);
     h.tick();
     h.calls[0].resolve({
+      ...OF,
       thumbs: [
-        { key: 's.0', base64: 'javascript:alert(1)', width: 4, height: 3, from: 'frame' },
-        { key: 's.1', base64: `${JPEG}"><img src=x onerror=alert(1)>`, width: 4, height: 3, from: 'frame' },
-        { key: 's.2', base64: JPEG, width: 100_000, height: 3, from: 'frame' },
-        { key: 's.3', base64: JPEG, width: -1, height: 3, from: 'frame' },
-        { key: 's.4', base64: JPEG, width: 4, height: 3, from: 'frame' },
-        { key: 'other.0', base64: JPEG, width: 4, height: 3, from: 'frame' },
+        { key: 's.0', mime: 'image/jpeg', base64: 'javascript:alert(1)', width: 4, height: 3, from: 'frame' },
+        { key: 's.1', mime: 'image/jpeg', base64: `${JPEG}"><img src=x onerror=alert(1)>`, width: 4, height: 3, from: 'frame' },
+        { key: 's.2', mime: 'image/jpeg', base64: JPEG, width: 100_000, height: 3, from: 'frame' },
+        { key: 's.3', mime: 'image/jpeg', base64: JPEG, width: -1, height: 3, from: 'frame' },
+        { key: 's.4', mime: 'image/jpeg', base64: JPEG, width: 4, height: 3, from: 'frame' },
+        { key: 'other.0', mime: 'image/jpeg', base64: JPEG, width: 4, height: 3, from: 'frame' },
       ],
+      // @ts-expect-error — a hostile answer: a reason the engine never gives
       missing: [{ key: 's.5', reason: '<script>' }],
     });
     await h.flush();

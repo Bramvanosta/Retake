@@ -3,7 +3,7 @@
  * (thresholds) of the checks.
  */
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
-import type { ComponentRegistry } from '@retake/components';
+import type { ComponentRegistry } from '@retake/components/geometry';
 import type { PlanSegment, RenderRecord } from '@retake/editor/plan';
 
 export type Severity = 'error' | 'warning' | 'info';

@@ -113,7 +113,7 @@ describe('rollback journal entries are signed (L5.14)', () => {
       ['refused', expect.stringMatching(/not signed by this Retake home .* look at it, then replay it with --replay-unsigned in a terminal$/)],
     ]);
     expect(await order()).toEqual([]);
-    const asked: number[] = [];
+    const asked: string[] = [];
     const yes = makeContext(makeProject(tmp.dir), { replayUnsigned: (e, file) => (asked.push(`${e.seq} ${file}`), true) });
     const replayed = await rollbackJournals(list, yes.ctx);
     // Most recent first: the one with a secret is refused (never asked about), the other replayed.
@@ -309,7 +309,19 @@ describe('rollback journal entries are signed (L5.14)', () => {
       'cwd: sub',
       'env A: b\\u{1b}[2Jc',
     ]);
-    expect(rollbackActionLines({ kind: 'http', request: { method: 'delete', url: '{{console}}/api/quotes/{{vars.id}}\u202e', headers: { 'x-a': 'b' } }, description: 'd', data: { pages: { console: 'http://127.0.0.1:9' }, vars: { id: 7 } } })).toEqual([
+    expect(
+      rollbackActionLines({
+        kind: 'http',
+        request: {
+          // @ts-expect-error — a journal is read from disk: its entry may hold the method in any case, printed in upper case
+          method: 'delete',
+          url: '{{console}}/api/quotes/{{vars.id}}\u202e',
+          headers: { 'x-a': 'b' },
+        },
+        description: 'd',
+        data: { pages: { console: 'http://127.0.0.1:9' }, vars: { id: 7 } },
+      }),
+    ).toEqual([
       'kind: http',
       'method: DELETE',
       'url: http://127.0.0.1:9/api/quotes/7\\u{202e}',

@@ -156,7 +156,7 @@ describe('/v1/info and the session', () => {
 
 describe('/v1/call/<op>: the allow-list through the MCP tool layer', () => {
   it("every UI op is an MCP tool or one of the Studio's own reads (never an MCP name); any other tool is 404 unknown op and runs nothing", async () => {
-    const names = new Set(TOOLS.map((t) => t.name));
+    const names = new Set<string>(TOOLS.map((t) => t.name));
     for (const op of UI_OPS) expect(names.has(op) !== (OWN_OPS as readonly string[]).includes(op), op).toBe(true);
     expect([...INDEX_OPS]).toEqual(['activity_list', 'search']);
     expect([...OWN_OPS]).toEqual(['activity_list', 'search', 'projects_overview', 'project_board', 'scenario_blocks', 'scenario_actions', 'run_thumbs', 'scenario_forms', 'scenario_run', 'scenario_edit', 'run_pause', 'scenario_sessions', 'sign_in_cancel', 'timeline_view', 'timeline_leave', 'preview_allow', 'scenario_render', 'scenario_renders', 'render_cancel', 'render_review', 'review_image', 'review_export', 'threads_list', 'threads_counts', 'thread_get', 'thread_still', 'render_outline', 'render_frame', 'frame_anchor', 'thread_add', 'thread_reply', 'thread_resolve', 'thread_reopen', 'thread_apply', 'library_view', 'library_images', 'library_render', 'library_component', 'theme_list', 'theme_view', 'theme_edit', 'theme_copy', 'theme_create', 'brand_files', 'site_list', 'theme_preview', 'record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save', 'unsaved_report', 'desktop_answer', 'setup_status', 'setup_cli_install', 'setup_cli_choose', 'setup_cli_remove', 'setup_claude_code_run', 'setup_claude_desktop_add', 'setup_notifications', 'setup_done', 'desktop_update_status', 'desktop_update']);

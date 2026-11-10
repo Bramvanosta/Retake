@@ -15,13 +15,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core';
+import type { OpenedWorkspace } from '../src/index.js';
 import { FileJobQueue, JobsWatch, WorkspaceIndex, ftsQuery, historyFile, indexFile, isCorruptionError, newJobId, processStart, scanSources, diffSources, workspaceChanges } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
 
 let ws: string;
-let cfg: WorkspaceConfig;
+let cfg: OpenedWorkspace;
 const P = 'northfield-fixture';
 const project = () => join(ws, 'projects', P);
 const savedHome = process.env.RETAKE_HOME;
@@ -269,7 +269,7 @@ describe('the workspace index', () => {
       expect(spawnSync('mkfifo', [join(proj, 'renders', 'pipe-v1.json')]).status).toBe(0);
       await mkdir(join(proj, 'runs', '20261018-090000-pipe'), { recursive: true });
       expect(spawnSync('mkfifo', [join(proj, 'runs', '20261018-090000-pipe', 'run.json')]).status).toBe(0);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir) });
       try {
         const done = await Promise.race([ix!.reconcile().then(() => 'reconciled'), new Promise((r) => setTimeout(() => r('blocked on a FIFO'), 5000))]);
         expect(done).toBe('reconciled');
@@ -288,7 +288,7 @@ describe('the workspace index', () => {
     const dir = await mkdtemp(join(tmpdir(), 'studio-index-nosqlite-'));
     try {
       await fixtureWorkspace(dir);
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir), loader: async () => null });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir), loader: async () => null });
       expect(ix).toBeNull();
       await expect(stat(indexFile(dir))).rejects.toThrow();
     } finally {
@@ -413,7 +413,7 @@ describe('the activity feed reads a finished job once (review B L1)', () => {
       };
       for (let i = 0; i < 40; i++) await write(i % 2 ? 'succeeded' : 'failed');
       const queued = await write('queued');
-      const ix = await WorkspaceIndex.open(await loadWorkspaceConfig(dir), { queue: new FileJobQueue(dir) });
+      const ix = await WorkspaceIndex.open({ ...(await loadWorkspaceConfig(dir)), policy: PERSON_POLICY }, { queue: new FileJobQueue(dir) });
       const spy = vi.spyOn(FileJobQueue.prototype, 'stored');
       try {
         expect((await ix!.activity({ limit: 5 }))[0]).toMatchObject({ source: 'queue', job: queued });

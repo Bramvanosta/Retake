@@ -16,9 +16,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { loadWorkspaceConfig } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core';
 import { FILE_FACTS_TTL_MS, FileJobQueue, ProjectBoards, ScenarioViews, openProjectBySlug, reportReads, scanSources } from '@retake/engine';
-import type { BoardScenario, ProjectBoardView } from '@retake/engine';
+import type { BoardScenario, OpenedWorkspace, ProjectBoardView } from '@retake/engine';
 import { OWN_OPS, UI_OPS, startStudioServer } from '../src/index.js';
 import type { StudioServer } from '../src/index.js';
 import { productionState } from '../src/app/board-words.js';
@@ -179,7 +178,7 @@ describe('project_board: cost (critique H1)', () => {
 });
 
 describe('project_board: L5.10a fixes (reviews A and B), on the board and its counters', () => {
-  let wsc: WorkspaceConfig;
+  let wsc: OpenedWorkspace;
   let boards: ProjectBoards;
   let overlays = 0;
   const fresh = () => {

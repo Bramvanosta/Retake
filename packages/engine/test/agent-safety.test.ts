@@ -91,7 +91,7 @@ describe('secrets: a scenario written or run through MCP never names one', () =>
     await writeFile(join(ws, 'projects', 'w', 'scenarios', 'plain.yaml'), leak);
     try {
       const input = sub.job.input as HooksJobInput;
-      const wsc = await openWorkspace({ root: ws });
+      const wsc = await openWorkspace({ root: ws, agent: false });
       const exec = (i: HooksJobInput) => refusal(executeHooksJob({ ws: wsc, cli: 'retake', input: i, signal: new AbortController().signal, event: () => undefined }));
       // Other bytes than submitted: a conflict before they are parsed.
       expect((await exec(input)).code).toBe('conflict');
@@ -167,7 +167,7 @@ describe("navigation: what a scenario opens (its scheme everywhere; agent work: 
     try {
       const input = { ...(sub.job.input as RunJobInput), scenario_sha256: sha256Hex(swapped) };
       const out = await executeRunJob({
-        ws: await openWorkspace({ root: ws }),
+        ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input,
         signal: new AbortController().signal,

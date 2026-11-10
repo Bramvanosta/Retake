@@ -38,18 +38,18 @@ beforeEach(() => {
 
 describe('programs under the agent policy', () => {
   it('a program inside the workspace is refused under any spelling or link; one outside runs', () => {
-    expect(agentProgramProblem(inWs, 'browser.executable', folders, { files })).toMatch(/^browser\.executable \(.*\/ws\/bin\/tool\) lies inside the workspace .*: move the program out of the workspace and point browser\.executable at its new place$/);
-    expect(agentProgramProblem(join(ws, 'projects', '..', 'bin', 'tool'), 'browser.executable', folders, { files })).toMatch(/lies inside the workspace/);
-    expect(agentProgramProblem(join(outside, 'bin', 'link-in'), '$RETAKE_CHROMIUM', folders, { files })).toMatch(/^\$RETAKE_CHROMIUM .* lies inside the workspace/);
-    expect(agentProgramProblem(join(ws, 'bin', 'link-out'), 'browser.executable', folders, { files })).toMatch(/lies inside the workspace/);
-    if (process.platform === 'darwin') expect(agentProgramProblem(inWs.toUpperCase(), 'browser.executable', folders, { files })).toMatch(/lies inside the workspace/);
-    expect(agentProgramProblem(outTool, 'browser.executable', folders, { files })).toBeNull();
-    expect(agentProgramProblem('/usr/bin/true', '$RETAKE_FFMPEG', folders, { files })).toBeNull();
+    expect(agentProgramProblem(inWs, 'browser.executable', folders, { files, path: '' })).toMatch(/^browser\.executable \(.*\/ws\/bin\/tool\) lies inside the workspace .*: move the program out of the workspace and point browser\.executable at its new place$/);
+    expect(agentProgramProblem(join(ws, 'projects', '..', 'bin', 'tool'), 'browser.executable', folders, { files, path: '' })).toMatch(/lies inside the workspace/);
+    expect(agentProgramProblem(join(outside, 'bin', 'link-in'), '$RETAKE_CHROMIUM', folders, { files, path: '' })).toMatch(/^\$RETAKE_CHROMIUM .* lies inside the workspace/);
+    expect(agentProgramProblem(join(ws, 'bin', 'link-out'), 'browser.executable', folders, { files, path: '' })).toMatch(/lies inside the workspace/);
+    if (process.platform === 'darwin') expect(agentProgramProblem(inWs.toUpperCase(), 'browser.executable', folders, { files, path: '' })).toMatch(/lies inside the workspace/);
+    expect(agentProgramProblem(outTool, 'browser.executable', folders, { files, path: '' })).toBeNull();
+    expect(agentProgramProblem('/usr/bin/true', '$RETAKE_FFMPEG', folders, { files, path: '' })).toBeNull();
   });
 
   it('a relative path is refused; a bare command runs unless PATH finds it in the workspace or through a relative folder', () => {
-    expect(agentProgramProblem('bin/tool', '$RETAKE_FFMPEG', folders, { files })).toMatch(/^\$RETAKE_FFMPEG \(bin\/tool\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
-    expect(agentProgramProblem('./tool', 'browser.executable', folders, { files })).toMatch(/is a relative path/);
+    expect(agentProgramProblem('bin/tool', '$RETAKE_FFMPEG', folders, { files, path: '' })).toMatch(/^\$RETAKE_FFMPEG \(bin\/tool\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
+    expect(agentProgramProblem('./tool', 'browser.executable', folders, { files, path: '' })).toMatch(/is a relative path/);
     expect(agentProgramProblem('tool', 'ffmpeg', folders, { files, path: [join(outside, 'bin'), join(ws, 'bin')].join(delimiter) })).toBeNull();
     expect(agentProgramProblem('tool', 'ffmpeg', folders, { files, path: [join(ws, 'bin'), join(outside, 'bin')].join(delimiter) })).toMatch(/^ffmpeg \(tool\) is found on PATH at .*\/ws\/bin\/tool, inside the workspace .*: remove that folder from PATH/);
     expect(agentProgramProblem('tool', 'ffmpeg', folders, { files, path: ['bin', join(outside, 'bin')].join(delimiter), exists: (p) => p.endsWith('/bin/tool') })).toMatch(/is found through the relative PATH folder "bin"/);
@@ -58,29 +58,29 @@ describe('programs under the agent policy', () => {
 
   it('off in a command a person types: programProblem and policyArgsProblems say nothing until the policy of the work turns the agent policy on', () => {
     expect(policy.agentFolders).toBeNull();
-    expect(programProblem(policy, inWs, 'browser.executable', { files })).toBeNull();
+    expect(programProblem(policy, inWs, 'browser.executable', { files, path: '' })).toBeNull();
     expect(policyArgsProblems(policy, ['https://example.com/', '--user-data-dir=/x'])).toEqual([]);
     policy = workPolicyFrom(workspaceFolders({ root: ws, projectsDir: join(ws, 'projects'), templatesDir: join(outside, 'templates') }), policy.ffmpeg);
     expect(policy.agentFolders).toEqual([ws, join(ws, 'projects'), join(outside, 'templates')]);
-    expect(programProblem(policy, inWs, 'browser.executable', { files })).toMatch(/lies inside the workspace/);
+    expect(programProblem(policy, inWs, 'browser.executable', { files, path: '' })).toMatch(/lies inside the workspace/);
     // The workspace's other folders count too (templates_dir outside the root).
-    expect(programProblem(policy, join(outside, 'templates', 'x'), 'browser.executable', { files })).toMatch(/lies inside the workspace/);
+    expect(programProblem(policy, join(outside, 'templates', 'x'), 'browser.executable', { files, path: '' })).toMatch(/lies inside the workspace/);
     expect(policyArgsProblems(policy, ['--hide-scrollbars', 'https://example.com/'])).toEqual([{ index: 1, message: expect.stringMatching(/is not a switch/) }]);
     policy = workPolicyFrom(null, policy.ffmpeg);
-    expect(programProblem(policy, inWs, 'browser.executable', { files })).toBeNull();
+    expect(programProblem(policy, inWs, 'browser.executable', { files, path: '' })).toBeNull();
   });
 
   it('the program to start is the real path that was checked (a link outside, a bare command on PATH); the policy off gives it back as it is', () => {
-    expect(agentProgram(join(outside, 'bin', 'link-out-of-ws'), 'browser.executable', folders, { files })).toEqual({ program: join(outside, 'bin', 'link-out-of-ws'), problem: null });
+    expect(agentProgram(join(outside, 'bin', 'link-out-of-ws'), 'browser.executable', folders, { files, path: '' })).toEqual({ program: join(outside, 'bin', 'link-out-of-ws'), problem: null });
     symlinkSync(outTool, join(outside, 'bin', 'link-to-out'));
-    expect(agentProgram(join(outside, 'bin', 'link-to-out'), 'browser.executable', folders, { files })).toEqual({ program: outTool, problem: null });
+    expect(agentProgram(join(outside, 'bin', 'link-to-out'), 'browser.executable', folders, { files, path: '' })).toEqual({ program: outTool, problem: null });
     expect(agentProgram('link-to-out', 'ffmpeg', folders, { files, path: join(outside, 'bin') })).toEqual({ program: outTool, problem: null });
     expect(agentProgram('no-such-tool-anywhere', 'ffmpeg', folders, { files, path: join(outside, 'bin') })).toEqual({ program: 'no-such-tool-anywhere', problem: null });
-    expect(agentProgram(join(outside, 'bin', 'link-in'), 'browser.executable', folders, { files })).toEqual({ program: join(outside, 'bin', 'link-in'), problem: expect.stringMatching(/lies inside the workspace/) });
-    expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files })).toEqual({ program: join(outside, 'bin', 'link-to-out'), problem: null });
+    expect(agentProgram(join(outside, 'bin', 'link-in'), 'browser.executable', folders, { files, path: '' })).toEqual({ program: join(outside, 'bin', 'link-in'), problem: expect.stringMatching(/lies inside the workspace/) });
+    expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files, path: '' })).toEqual({ program: join(outside, 'bin', 'link-to-out'), problem: null });
     policy = workPolicyFrom(folders, policy.ffmpeg);
-    expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files })).toEqual({ program: outTool, problem: null });
-    expect(policyProgram(policy, inWs, 'browser.executable', { files }).problem).toMatch(/lies inside the workspace/);
+    expect(policyProgram(policy, join(outside, 'bin', 'link-to-out'), 'browser.executable', { files, path: '' })).toEqual({ program: outTool, problem: null });
+    expect(policyProgram(policy, inWs, 'browser.executable', { files, path: '' }).problem).toMatch(/lies inside the workspace/);
   });
 
   it("ffmpeg and ffprobe: retake.yaml's or a variable's inside the workspace is refused under the policy, run by the CLI", async () => {

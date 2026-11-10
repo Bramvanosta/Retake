@@ -6,7 +6,7 @@
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CAMERA_EASINGS, cubicBezier } from '@retake/components';
-import type { LoadedTemplate } from '@retake/core';
+import type { LoadedTemplate, TimelineEvent } from '@retake/core';
 import { PlanError, loadsBesideOtherPages, mapSourceRect, planEdit, planRunTiming, viewOf } from '@retake/editor';
 import type { CardSegment, ClipSegment, EditOverrides, EditPlan } from '@retake/editor';
 import { clip, clips, fixtureProject, plan, seg, studioWorkspace, synthTimeline, template } from './helpers.js';
@@ -392,7 +392,7 @@ describe('idle trims', () => {
 });
 
 describe('held page loads (R-ISS-08)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (loading: Array<{ t_start: number; t_end: number }>, more: { idle?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean } = {}) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
@@ -415,7 +415,7 @@ describe('held page loads (R-ISS-08)', () => {
   });
 
   it('a multi-page run: a load held on one page is cut only where no other page acts (a step, a mark window, the still)', () => {
-    const events = [
+    const events: TimelineEvent[] = [
       { scene: 'n', scene_index: 0, step: -1, action: 'scene_still', t_start: 0, t_end: 1, page: 'a', status: 'ok' as const },
       { scene: 'n', scene_index: 0, step: 0, action: 'press', t_start: 4.6, t_end: 4.8, page: 'a', status: 'ok' as const },
       { scene: 'n', scene_index: 0, step: 1, action: 'click', t_start: 5, t_end: 5.6, t_click: 5.4, page: 'b', mark: 'click-b', status: 'ok' as const },
@@ -491,7 +491,7 @@ describe('held page loads (R-ISS-08)', () => {
 });
 
 describe('freezes of the capture and waits after a click (L5.7, R-FLD-20, R-FLD-26)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (more: { frozen?: Array<{ t_start: number; t_end: number }>; busy?: Array<{ t_start: number; t_end: number }>; idle?: Array<{ t_start: number; t_end: number }>; loading?: Array<{ t_start: number; t_end: number }>; trimIdle?: boolean }) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],
@@ -978,7 +978,7 @@ describe('raw captures (L2.13)', () => {
 export type _Clip = ClipSegment;
 
 describe('off camera: hook steps and offscreen scenes (L5.8, R-FLD-31)', () => {
-  const marked = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
+  const marked: TimelineEvent[] = [{ scene: 'n', scene_index: 0, step: 0, action: 'click', t_start: 4, t_end: 5, mark: 'm', status: 'ok' as const }];
   const run = (offcamera: Array<{ t_start: number; t_end: number }>, more: { trimIdle?: boolean; loading?: Array<{ t_start: number; t_end: number }> } = {}) =>
     planRunTiming({
       clips: [{ scene: 'n', A: 0, B: 300, baseSpeed: 1, events: marked }],

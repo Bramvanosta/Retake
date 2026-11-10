@@ -15,7 +15,7 @@ import { readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeTarget, parseScenario, PERSON_POLICY } from '@retake/core';
-import type { LoadedProject, LoadedScenario, Scenario, TargetSpec } from '@retake/core';
+import type { LoadedProject, LoadedScenario, Scenario, Scene, TargetSpec } from '@retake/core';
 import { INSPECT_BUDGET_MS, kitConfigFor, openSession, runScenario } from '../src/index.js';
 import type { InspectReport, InspectRequest, RunOptions } from '../src/index.js';
 import { FAST, makeProject, startServer, tempDir } from './helpers.js';
@@ -340,7 +340,7 @@ describe('replays', () => {
     before.mutations = await mutations();
   });
 
-  const quoteScenario = (extra: Scenario['scenes'][number]['steps'] = []) =>
+  const quoteScenario = (extra: Scene['steps'] = []) =>
     scenario({
       // A setup hook that would write: an inspection never runs hooks.
       setup: [{ name: 'reset', http: { method: 'POST', url: '{{shop}}/api/reset' } }],

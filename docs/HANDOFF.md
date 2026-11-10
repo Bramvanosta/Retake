@@ -34,6 +34,34 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.4)
+- **L7.4 done (2026-11-10; branch `claude/arch-l7`)** — the first group of the
+  [2026-11-10 action plan](audit/2026-11-10/action-plan.md): U1, U2 in part, U4. Behaviour unchanged.
+  - **The test files are type-checked (U1).** `pnpm typecheck` = the build, then `tsc -p tsconfig.test.json`: every
+    file under `packages/*/test` (478), with the packages' options, nothing emitted, not part of the build; one line
+    in the CI's guards. 312 type errors in 81 test files fixed, in test files only: mostly annotations and narrowing;
+    some were test bugs (arguments in the wrong place, fixtures of a shape the product does not have, a handful of
+    expectations that asserted on such a shape). A guard test reads the configuration as the compiler resolves it
+    (file list = the disk, no exclusion, the packages' strictness, the vitest aliases one for one) and refuses
+    `@ts-nocheck` / `@ts-ignore` in a test file; `@ts-expect-error` is held at its count (29), each with a reason.
+  - **The ratchet (U2): 59 → 84 entries.** R11 — the engine imports the adapter packages as types only outside its
+    loader — enters pinned at 27 pairs (sandbox 11, runner-web 9, hooks 3, review 3, components 1); R4 −1, R6 −1;
+    R12 (the review's pure modules reach the components through their geometry entry) and R13 (a relative import
+    never leaves its package) with no entry. R4 lets a shell be *typed* against a domain entry, values refused. The
+    rules read every import and export declaration, `export * as` included. The engine's context holds the job
+    queue as its port, the file queue's paths beside it.
+  - **Pure entries (U4).** `@retake/review/checks` (checks, spans, timeline, diff, anchor, pixel maths: no file,
+    process or renderer module); `@retake/components/geometry` gains the caption and text-fit helpers.
+  - **Moved to U7:** the eleven operations the Studio shares with MCP (the last R3 entry stays until then) — it is a
+    split, not a move, and `invoke()` would redo it.
+  - **Left.** The check covers `packages/*/test` only (not scripts, vitest's own files, `.js` helpers, fixtures
+    elsewhere) and reads the packages through their built declarations; gated tests are typed, not run; R4 / R6 are
+    far from the audit's targets; R11 sees neither a value reached through another engine file nor
+    `typeof import()`; nothing imports `@retake/review/checks` yet; the CI line has not run on a runner.
+  - **Checked.** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`; every changed test file run alone;
+    a reviewer broke the product under 17 of the fixed test files (20 breaks, 19 red; the one that survived was
+    fixed). **The full suite was not run** (once, at the end of the branch).
+
 ## State (after L7.3)
 - **L7.3 done (2026-11-10; branch `claude/arch-l7`)** — this machine's ffmpeg for a render's frame encode, the
   default on the GPU path only.
@@ -1053,7 +1081,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.4 (U1, U2 without the shared operations, U4), then U3, U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U3, U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

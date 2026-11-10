@@ -12,14 +12,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { STARTER_TEMPLATES_DIR, loadWorkspaceConfig } from '@retake/core/io';
-import type { WorkspaceConfig } from '@retake/core';
+import type { OpenedWorkspace } from '../src/index.js';
 import { FONT_MAX_BYTES, checkImage, fontCopyName, rasterInfo, readBrandFile, scanSvg, sniffFont } from '../src/index.js';
 import { fontFileFace } from '@retake/components';
 import { PERSON_POLICY } from '@retake/core';
 
 let root: string;
 let outside: string;
-let ws: WorkspaceConfig;
+let ws: OpenedWorkspace;
 const T = STARTER_TEMPLATES_DIR;
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"><rect width="120" height="120" fill="#0e7c66"/></svg>';
 

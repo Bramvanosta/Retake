@@ -654,7 +654,7 @@ describe('the compose provider on a fake docker', () => {
     ]);
     const provider = new ComposeProvider({ policy, exec });
     const seen: unknown[] = [];
-    const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ index: r.index, name: r.name, kind: r.kind, phase: r.phase, status: r.status, ...r }) };
+    const ctx = { ...ctxOf(project), recordSeedRun: async (r: { index: number; name?: string; kind?: string; phase: string; status: string }) => void seen.push({ name: r.name, kind: r.kind, ...r }) };
     await expect(runSeed(ctx, provider, { by: 'test', log: () => undefined })).rejects.toMatchObject({ code: 'seed', message: expect.stringContaining('seed step 5/5') });
     expect(seen.map((r) => { const x = r as Record<string, unknown>; return `${x.index} ${x.name} ${x.kind} ${x.phase} ${x.status}`; })).toEqual([
       '0 first shell seed ok',

@@ -53,6 +53,15 @@ const attempt = (f: () => unknown): unknown => {
   }
 };
 
+/**
+ * A row's PATH (name, program, PATH): a bare name gives the PATH it is looked up on; every other row names a path and
+ * needs none. A bare name without one would be looked up in the current folder (an empty PATH entry is `.`) and the
+ * table would characterise this machine, not the policy: refused.
+ */
+const pathOf = (program: string, path: string | undefined): string => {
+  if (path === undefined && program.trim() !== '' && !/[\\/]/.test(program)) throw new Error(`the row for "${program}" is a bare name: give its PATH`);
+  return path ?? '';
+};
 const PROGRAMS: Array<[string, string, string?]> = [
   ['inside', inWs],
   ['inside, another spelling', join(ws, 'projects', '..', 'bin', 'tool')],
@@ -106,7 +115,7 @@ function decide(on: boolean): Record<string, unknown> {
   const policy = at();
   const out: Record<string, unknown> = { folders: shown(policy.agentFolders) };
   for (const [name, program, path] of PROGRAMS) {
-    const o = path === undefined ? { files } : { path, files };
+    const o = { path: pathOf(program, path), files };
     out[`program: ${name}`] = shown({ problem: programProblem(policy, program, 'browser.executable', o), policy: policyProgram(policy, program, '$RETAKE_CHROMIUM', o) });
   }
   out.args = shown(ARGS.map((a) => policyArgsProblems(policy, a)));
@@ -162,12 +171,12 @@ function caseFolded(): Record<string, unknown> {
   ];
   const out: Record<string, unknown> = {};
   for (const [name, program, path] of programs) {
-    const o = path === undefined ? { files } : { path, files };
+    const o = { path: pathOf(program, path), files };
     out[`program: ${name}`] = shown({ problem: programProblem(policy, program, 'browser.executable', o), policy: policyProgram(policy, program, '$RETAKE_CHROMIUM', o) });
   }
   const source = { PATH: [other('WS', 'BIN'), other('Ws', 'projects', 'missing'), other('OUTSIDE', 'bin'), '/usr/bin'].join(delimiter) };
   out.env = shown(childEnv(source, { folders: policy.agentFolders ?? [], files }));
-  out.folders = shown(programProblem(workPolicyFrom([other('WS')]), inWs, 'browser.executable', { files }));
+  out.folders = shown(programProblem(workPolicyFrom([other('WS')]), inWs, 'browser.executable', { files, path: '' }));
   return out;
 }
 

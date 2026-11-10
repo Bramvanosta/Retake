@@ -143,20 +143,20 @@ describe('projects', () => {
     await writeFiles(p.dir, { 'scenarios/catalogue.yaml': SPEC_EXAMPLE });
     p.scenarios = ['catalogue'];
 
-    const loaded = await loadScenario(p, 'catalogue', { files: nodeFileFacts });
+    const loaded = await loadScenario(p, 'catalogue', { files: fileFacts(PERSON_POLICY) });
     expect(loaded.name).toBe('catalogue');
     expect(loaded.text).toBe(SPEC_EXAMPLE);
     expect(loaded.scenario.scenes).toHaveLength(4);
     expect(loaded.issues.every((i) => i.severity === 'warning')).toBe(true);
     expect((await loadProject(p.dir)).scenarios).toEqual(['catalogue']);
-    expect((await loadScenario(p, 'scenarios/catalogue.yaml', { files: nodeFileFacts })).file).toBe(file);
-    await expect(loadScenario(p, 'catalog', { files: nodeFileFacts })).rejects.toThrow(/scenario "catalog" not found .*\(did you mean "catalogue"\?\)/);
+    expect((await loadScenario(p, 'scenarios/catalogue.yaml', { files: fileFacts(PERSON_POLICY) })).file).toBe(file);
+    await expect(loadScenario(p, 'catalog', { files: fileFacts(PERSON_POLICY) })).rejects.toThrow(/scenario "catalog" not found .*\(did you mean "catalogue"\?\)/);
   });
 
   it('loadScenario throws ScenarioError carrying the issues', async () => {
     const p = await createProject(ws.dir, { name: 'Northfield', environments: STAGING });
     await writeFiles(p.dir, { 'scenarios/broken.yaml': 'video: broken\nscenes:\n  - id: a\n    open: /\n    steps: [{wait: soon}]\n' });
-    const err = await loadScenario(p, 'broken', { files: nodeFileFacts }).catch((e: unknown) => e);
+    const err = await loadScenario(p, 'broken', { files: fileFacts(PERSON_POLICY) }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ScenarioError);
     expect((err as ScenarioError).issues).toEqual([
       { severity: 'error', path: ['scenes', 0, 'steps', 0, 'wait'], message: 'expected a number, got "soon"', line: 5, col: 20 },

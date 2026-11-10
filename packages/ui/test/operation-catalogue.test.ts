@@ -18,7 +18,7 @@ describe("the Studio's ops and the operation catalogue", () => {
     expect([...UI_OPS]).toEqual(servedNames('studio'));
     expect(UI_OPS).toHaveLength(76);
     expect(Object.isFrozen(UI_OPS)).toBe(true);
-    const mcp = new Set(TOOLS.map((t) => t.name));
+    const mcp = new Set<string>(TOOLS.map((t) => t.name));
     expect(sorted(UI_OPS.filter((op) => mcp.has(op)))).toEqual(sorted(servedNames('studio').filter((n) => servedBy(catalogueOperation(n)!, 'mcp'))));
     expect(sorted(OWN_OPS)).toEqual(sorted(servedNames('studio').filter((n) => !servedBy(catalogueOperation(n)!, 'mcp'))));
     expect(sorted(stubTools().keys())).toEqual(sorted(UI_OPS));

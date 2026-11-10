@@ -28,7 +28,7 @@ import {
   timelineVideo,
 } from '@retake/core';
 import { COMMENTS_DIR, CommentThreadSchema, TEMPLATE_MEDIA_KINDS, deriveStatus } from '@retake/core';
-import type { CommentThread, Scenario, Template, Timeline, ValidationIssue } from '@retake/core';
+import type { CommentThread, Scenario, Scene, Template, Timeline, ValidationIssue } from '@retake/core';
 import { colOf, errors, lineOf, warnings } from './helpers.js';
 
 type Json = Record<string, any>;
@@ -191,7 +191,7 @@ describe('scenario additions (R-SCN2-01..06)', () => {
     );
     const { scenario, issues } = parseScenario(text);
     expect(issues, formatIssues(issues)).toEqual([]);
-    const step = normalizeStep((scenario!.scenes[0] as { steps: Scenario['scenes'] }).steps[0] as never, 0);
+    const step = normalizeStep((scenario!.scenes[0] as Scene).steps[0], 0);
     expect(step.overlay).toEqual({
       component: 'studio/overlay-callout',
       slots: { text: 'Saved' },

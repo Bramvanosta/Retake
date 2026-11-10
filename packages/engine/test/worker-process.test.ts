@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, PERSON_POLICY } from '@retake/core';
 import { loadProject, loadScenario, reserveRunId, fileFacts } from '@retake/core/io';
 import { hookFingerprint } from '@retake/hooks';
-import type { RunRecord } from '@retake/core';
+import type { RunJobInput, RunRecord } from '@retake/core';
 import { FileJobQueue, createEngine, sha256Hex } from '../src/index.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
@@ -333,8 +333,8 @@ describe.skipIf(!AVAILABLE)('jobs worker in its own process', () => {
     // Signed by the enqueue; a forger without the key writes the same approval without (or with a wrong) signature.
     const jobFile = join(ws, '.retake', 'jobs', job.id, 'job.json');
     const stored = JSON.parse(await readFile(jobFile, 'utf8')) as JobRecord;
-    expect(stored.input.approvals?.[0].sig).toMatch(/^[0-9a-f]{64}$/);
-    stored.input.approvals![0].sig = '0'.repeat(64);
+    expect((stored.input as RunJobInput).approvals?.[0].sig).toMatch(/^[0-9a-f]{64}$/);
+    (stored.input as RunJobInput).approvals![0].sig = '0'.repeat(64);
     await writeFile(jobFile, JSON.stringify(stored));
     const w = startWorker(ws, '--idle-exit', '500');
     const done = await waitFor('the job', finished(job.id));

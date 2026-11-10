@@ -12,7 +12,7 @@ import { newCommentEntryId, newCommentId } from '@retake/core';
 import { createEngine } from '@retake/engine';
 import type { CommentListView, CommentView, Engine } from '@retake/engine';
 import { COMMENTS_LIST_UNTRUSTED_MAX, COMMENT_ENTRIES_SHOWN, TOOLS, okResult } from '../src/index.js';
-import type { ToolContext } from '../src/index.js';
+import type { ToolContext, ToolDef } from '../src/index.js';
 import { workspace } from '../../review/test/helpers.js';
 import type { Workspace } from '../../review/test/helpers.js';
 
@@ -23,9 +23,12 @@ const ids: string[] = [];
 const lastEntry: Record<string, string> = {};
 const savedHome = process.env.RETAKE_HOME;
 
-const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
+const tool = (name: string): ToolDef => TOOLS.find((t) => t.name === name)!;
 const ctx = (): ToolContext => ({ engine, signal: new AbortController().signal });
-const chars = (r: { content: Array<{ text?: string }> }) => r.content.reduce((n, b) => n + (b.text?.length ?? 0), 0);
+type CallResult = ReturnType<typeof okResult>;
+const chars = (r: CallResult) => r.content.reduce((n, b) => n + (b.type === 'text' ? b.text.length : 0), 0);
+/** The text of a result's first block (undefined when it is not a text block: the expectation on it then fails). */
+const text0 = (r: CallResult) => (r.content[0]?.type === 'text' ? r.content[0].text : undefined);
 
 function thread(id: string, i: number) {
   const entries = Array.from({ length: 495 }, (_, k) => ({ id: newCommentEntryId(), kind: 'reply', author: { via: 'cli', name: 'Reviewer One' }, text: `${k} ${'y'.repeat(1990)}`, created_at: '2026-10-19T10:00:00.000Z' }));
@@ -84,13 +87,13 @@ describe('comment tool result sizes', () => {
       expect(t.untrusted.entries.at(-1)?.id).toBe(lastEntry[t.id]);
       expect(t.untrusted.entries[0].text).toMatch(/^485 /);
     }
-    expect(r.content[0].text).toContain(`495 entries (the last ${COMMENT_ENTRIES_SHOWN}): reply cli`);
-    expect(r.content[0].text).toContain(`(the first ${v.threads.length} shown: the next would pass the ${COMMENTS_LIST_UNTRUSTED_MAX}-character budget of one result — narrow with scenario, render, status or a lower limit)`);
+    expect(text0(r)).toContain(`495 entries (the last ${COMMENT_ENTRIES_SHOWN}): reply cli`);
+    expect(text0(r)).toContain(`(the first ${v.threads.length} shown: the next would pass the ${COMMENTS_LIST_UNTRUSTED_MAX}-character budget of one result — narrow with scenario, render, status or a lower limit)`);
     // One thread asked for: it fits whole (its last entries).
     const one = okResult(await tool('comments_list').run(tool('comments_list').input.parse({ project: 'demo', limit: 1 }), ctx()));
     expect((one.structuredContent as { threads: unknown[]; left_out_for_size?: number }).threads).toHaveLength(1);
     expect(one.structuredContent).not.toHaveProperty('left_out_for_size');
-    expect(one.content[0].text).toContain('(the first 1 shown: raise limit for more)');
+    expect(text0(one)).toContain('(the first 1 shown: raise limit for more)');
   }, LONG);
 
   it('comment_reply returns its thread with the last 10 entries', async () => {

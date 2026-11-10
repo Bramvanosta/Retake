@@ -21,7 +21,6 @@
  *
  * Nothing here logs a token, a body or a README.
  */
-import { existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
@@ -294,7 +293,7 @@ export async function startStudioServer(o: StudioServerOptions): Promise<StudioS
     root: o.root,
     client: 'ui',
     autoStartWorker: o.startWorker !== false,
-    workerEnv: studioWorkerEnv(process.env, root, process.execPath, existsSync, folders),
+    workerEnv: studioWorkerEnv(process.env, root, process.execPath, undefined, folders),
     ...(o.workerSpawn ? { workerSpawn: o.workerSpawn } : {}),
     ...(o.workerIdleExitMs !== undefined ? { workerIdleExitMs: o.workerIdleExitMs } : {}),
   });

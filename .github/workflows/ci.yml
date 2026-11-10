@@ -3,7 +3,7 @@
 #    - the pinned Node.js, then pnpm;
 #    - the packages built;
 #    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
-#      cited test title present;
+#      cited test title present, the test files type-checked (tsconfig.test.json);
 #    - Chromium and the headless shell (the revisions the lockfile's playwright-core pins), ffmpeg (Homebrew's);
 #    - the default test suite (`pnpm test`). The gated tests stay opt-in, as on a Mac: slow, captures first,
 #      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed.
@@ -62,6 +62,7 @@ jobs:
           node scripts/audit/rules.mjs . --check
           node scripts/requirements.mjs --untested 1
           node scripts/requirements.mjs --check-cites
+          npx tsc -p tsconfig.test.json
       - name: Chromium and the headless shell
         run: node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
       - name: ffmpeg

@@ -1,18 +1,23 @@
 /**
  * `@retake/components/geometry` — the components without a renderer: where things sit on a frame and the pure pieces of
  * the component contract the edit planner reads. The kit's frame geometry (the fit of a full-frame file, the phone
- * edge of an inset page, the caption band, the safe area, the loupe and step badge, the shortcut plate, the camera
- * easings), layout geometry expressions and anchors, slot filling, theme tokens, CSV tables and the contract's types.
+ * edge of an inset page, the caption band and its line count, the text fit, the safe area, the loupe and step badge,
+ * the shortcut plate, the camera easings), layout geometry expressions and anchors, slot filling, theme tokens, CSV tables and the contract's types.
  *
  * Every module reachable from here imports no package and no Node module at run time (type imports only): the
  * planner (`@retake/editor/plan`) and the review load it without React, Remotion or esbuild, and the compositions'
  * bundles (render and the Studio's player) take it into a browser page (test/geometry-entry.test.ts walks the
- * imports). Components themselves import only `@retake/components/kit`, which exports the same frame helpers.
+ * imports). Pure here means what it imports: `fitText`'s default width measure reads a canvas when the host has one
+ * (`OffscreenCanvas`, a page's `document`) and estimates otherwise; a caller that must not depend on the host passes
+ * its own `TextMeasurer`, as the review does. Components themselves import only `@retake/components/kit`, which
+ * exports the same frame helpers.
  */
 export { AUTO_COVER_MIN_SHARE, autoFit, insetPhoneEdge } from './kit/frame-geometry.js';
 export type { MediaFitMode } from './kit/frame-geometry.js';
-export { captionBandBox } from './kit/devices.js';
+export { CAPTION_BAND_PAD_X, captionBandBox, captionMaxLines } from './kit/devices.js';
 export type { CaptionBandInput } from './kit/devices.js';
+export { estimateTextWidth, fitText } from './kit/fit-text.js';
+export type { TextFont, TextMeasurer } from './kit/fit-text.js';
 export { safeAreaRect } from './kit/style.js';
 export { loupeLens, stepBadgeBox } from './kit/place.js';
 export type { LoupePlacement } from './kit/place.js';

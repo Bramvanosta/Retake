@@ -732,8 +732,8 @@ describe.skipIf(!ENABLED)('phase 3 acceptance through MCP: README â†’ project â†
     const args = { project: PROJECT, scenario: SCENARIO, template: THEME, overrides: { components: { intro: COMPONENT } } };
     const stale = await call('plan_preview', { ...args, run_id: ids.run1 });
     expect(stale.structuredContent).toMatchObject({ scenario_changed: true });
-    expect(stale.content[0].text.split('\n')[1]).toBe(scenarioChangedMessage(SCENARIO, ids.run1!, `run_capture {project: "${PROJECT}", scenario: "${SCENARIO}"}`, [`scene delivery: step delivery.${at} changed`]));
-    expect(stale.content[0].text.split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run (review M1)
+    expect((stale.content[0].text ?? '').split('\n')[1]).toBe(scenarioChangedMessage(SCENARIO, ids.run1!, `run_capture {project: "${PROJECT}", scenario: "${SCENARIO}"}`, [`scene delivery: step delivery.${at} changed`]));
+    expect((stale.content[0].text ?? '').split('\n').at(-1)).toMatch(/^capture first: run_capture \{/); // never "render it" on the old run (review M1)
 
     // So: a new capture, then the render.
     ids.run2 = data<{ id: string }>(await call('run_capture', { project: PROJECT, scenario: SCENARIO })).id;

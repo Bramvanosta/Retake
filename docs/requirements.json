@@ -449,6 +449,46 @@
    "lot": "L7.2"
   },
   {
+   "id": "R-ARCH-14",
+   "source": "Audit 2026-11-10, U1 (C1)",
+   "requirement": "The files under `packages/*/test` are type-checked: `pnpm typecheck` builds the packages and checks them with one root configuration that emits nothing, is not part of the build and resolves to the packages' own strictness; the CI runs it with the repository's guards; no test file switches its own check off.",
+   "status": "done",
+   "evidence": "L7.4: tsconfig.test.json, package.json (typecheck), .github/workflows/ci.yml; 312 errors in 81 test files fixed (test files only, no source change; among them test bugs — wrong arguments, fixtures of a shape the product does not have, a handful of expectations that asserted on such a shape — listed in the lot's notes). Tests: 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > the test configuration emits nothing, is not referenced by the build, and matches every test folder on disk with no exclusion', 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > the compiler resolves it as strictly as the packages: its own options are a short list, none switches a check off, here or in the base configuration', 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > vitest runs only files the check reads: its include patterns stay inside the test folders, TypeScript only', 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > no test file switches its own check off: no file-wide or line-wide ignore, every expected error with its reason, at the count of the day', 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > its paths are the vitest aliases, one for one, roots and sub-paths, each to the same file', 'packages/core/test/test-typecheck.test.ts > the type check of the test files (tsconfig.test.json) > pnpm typecheck builds the packages, then checks the test files', 'packages/cli/test/ci-workflow.test.ts > the CI workflow (ci.yml) > the pinned Node.js first in each job; the guards and the default suite after the build'. Mutations: noCheck, a loosened strict flag and an exclude, in the test configuration and in the base one, a test file in a dot folder, @ts-nocheck, @ts-ignore, a directive without its reason, the CI line neutralised three ways — each red. Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "Scripts, vitest.config.ts, vitest.setup.ts, packages/*/scripts and fixtures outside packages/*/test are not type-checked; .js / .mjs helpers under the test folders are not either; the gated tests (bundle, updater, Docker, Postgres, captures first, slow, headed) are typed, not run; the check reads the packages through their built declarations, so it is only as fresh as the last build (the script and the CI build first); the CI line has not run on a runner yet.",
+   "phase": "5",
+   "lot": "L7.4"
+  },
+  {
+   "id": "R-ARCH-15",
+   "source": "Audit 2026-11-10, U2 (P5)",
+   "requirement": "The engine's context holds the job queue as its port; the file queue's paths are handed beside it.",
+   "status": "done",
+   "evidence": "L7.4: packages/engine/src/facade/context.ts, packages/engine/src/engine.ts. Tests: 'packages/core/test/import-rules.test.ts > the import-rules ratchet > the engine's facade never names the file job queue', 'packages/engine/test/engine-facade.test.ts > the engine façade > keeps its keys and the keys of every sub-API, in order' (the paths handed are that very queue's: a second queue's on the same folder is red; the port's type has no `files` member, held by an expected type error). Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "createEngine still builds the file queue itself (no memory queue can be passed in); the facade test is a word search — a cast spelt another way is left to the type check.",
+   "phase": "5",
+   "lot": "L7.4"
+  },
+  {
+   "id": "R-ARCH-16",
+   "source": "Audit 2026-11-10, U2 (P1, S8)",
+   "requirement": "The engine imports the adapter packages as types only outside its loader, pinned at the count of the day (R11), and the loader holds no static import; a shell may be typed against a domain entry of an adapter package, never import its values nor the package behind it (R4); a relative import never leaves its package (R13); every package is in one layer; the rules read every import and export declaration, a namespace re-export included.",
+   "status": "done",
+   "evidence": "L7.4: scripts/audit/lib.mjs (R4, R11, R13, LAYERS, specifiersOf), scripts/audit/baseline.json (84 entries: R11 27 — sandbox 11, runner-web 9, hooks 3, review/thumbs 3, components 1; R4 -1; R6 -1, a duplicate; R12 and R13 none). Tests: 'packages/core/test/import-rules.test.ts > the import-rules ratchet > the repository holds its baseline: no new violation, no stale entry, every group with a reason', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > flags a value import of an adapter in the engine outside its loader: static, re-export, import(); its types and the domain entries are free', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > a shell may import a domain entry, not the package behind it', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > the scan lists a namespace re-export (export * as ns from), which the compiler's pre-processor does not: every specifier rule sees it', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > the engine's loader only loads on a call: no static import or re-export of a package in lazy.ts', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > every package is in exactly one layer; a relative import never leaves its package; a .cts source is read like the others'. Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "R3 keeps its entry (the Studio's eleven shared operations move with the invoke lot, U7); R4 and R6 are far from S8's targets (R4 50 → 49 imports, R6 27 → 26); R11 does not see a value reached through another engine file, nor `typeof import()`; an import() of a computed name in the engine is R9's hit, not R11's; a .js file in a src folder is not read (the build does not compile one).",
+   "phase": "5",
+   "lot": "L7.4"
+  },
+  {
+   "id": "R-ARCH-17",
+   "source": "Audit 2026-11-10, U4 (D4)",
+   "requirement": "The review package has a pure entry, `@retake/review/checks` (checks, spans, timeline, diff, anchor, pixel maths: no file, process or renderer module); it reaches the components only through `@retake/components/geometry`, which carries the caption and text-fit helpers.",
+   "status": "done",
+   "evidence": "L7.4: packages/review/src/{checks-entry,pixel-maths}.ts, packages/components/src/geometry-entry.ts, scripts/audit/lib.mjs (R7, R12, REVIEW_PURE: one list for the rules and the walk). Tests: 'packages/review/test/checks-entry.test.ts > @retake/review/checks (the pure entry) > reaches the checks and their maths, and nothing that reads a file or runs a process', 'packages/review/test/checks-entry.test.ts > @retake/review/checks (the pure entry) > imports no Node module, no renderer, and only the packages it is meant to', 'packages/review/test/checks-entry.test.ts > @retake/review/checks (the pure entry) > is re-exported by the package root, value for value', 'packages/review/test/checks-entry.test.ts > @retake/review/checks at run time (the built entry, every module it loads traced) > loads no process, image or renderer module at run time, and the components only through their geometry entry', 'packages/components/test/geometry-entry.test.ts > @retake/components/geometry (the renderer-free entry) > reaches only pure modules of this package: no package, no Node module, no React module, nothing of the registry or the compile check', 'packages/core/test/import-rules.test.ts > the import-rules ratchet > flags the components root in a pure module of the review, type or value, not their geometry entry'. Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "Nothing imports the entry yet (the engine's review port and the CLI will); pure means import-pure: fitText's default width measure reads a canvas when the host has one (the review passes its own measurer); the run-time trace needs a build; the report's line formatters stay on the I/O side.",
+   "phase": "5",
+   "lot": "L7.4"
+  },
+  {
    "id": "R-PROJ-01",
    "source": "SPEC §4 layout; DESIGN §0",
    "requirement": "projects/<slug>/ contains README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore for runs/, renders/, review/, frames/.",

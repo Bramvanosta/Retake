@@ -269,9 +269,9 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
 
   it('doctor: one line for the sandbox (no line for its accounts, nor for its pages)', async () => {
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core/io');
+    const { openWorkspace } = await import('../src/workspace.js');
     const probes = { ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) };
-    const checks = (await doctorChecks(probes, await loadWorkspaceConfig(ws), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
+    const checks = (await doctorChecks(probes, await openWorkspace({ root: ws }), { project: PROJECT })).filter((c) => /Sandbox|Persona|Host/.test(c.name));
     expect(checks).toEqual([
       { status: 'ok', name: 'Sandbox sandbox', detail: expect.stringMatching(/^process · up, its service is healthy · seed [0-9a-f]{12}$/) },
       { status: 'ok', name: 'Host local·console', detail: expect.any(String) },
@@ -286,8 +286,8 @@ describe.skipIf(!chromiumAvailable())('retake sandbox and run --sandbox (the fix
     for (const p of ports) expect(await probePort(p)).toBe(false);
     expect((await retake(['sandbox', 'down', PROJECT])).err).toContain('was not running');
     const { doctorChecks, systemProbes } = await import('../src/commands/doctor.js');
-    const { loadWorkspaceConfig } = await import('@retake/core/io');
-    const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await loadWorkspaceConfig(ws), { project: PROJECT });
+    const { openWorkspace } = await import('../src/workspace.js');
+    const checks = await doctorChecks({ ...systemProbes(), head: async () => ({ status: 200, ms: 1 }) }, await openWorkspace({ root: ws }), { project: PROJECT });
     expect(checks.find((c) => c.name === 'Sandbox sandbox')).toEqual({
       status: 'warn',
       name: 'Sandbox sandbox',

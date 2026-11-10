@@ -17,10 +17,10 @@ import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, fileFacts } from '@retake/core/io';
-import type { LoadedProject, WorkspaceConfig } from '@retake/core';
+import type { LoadedProject } from '@retake/core';
 import { runScenario } from '@retake/runner-web';
 import { EngineError, FileJobQueue, historyFile, openProject, openWorkspace, recordScenario, recordsRoot } from '../src/index.js';
-import type { RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
+import type { OpenedWorkspace, RecordOutcome, RecordPorts, RecordRequest } from '../src/index.js';
 import { REPO, fixtureWorkspace } from './helpers.js';
 
 type Page = Parameters<NonNullable<RecordPorts['drive']>>[0];
@@ -33,7 +33,7 @@ interface Fixture {
 const PROJECT = 'northfield-fixture';
 let fixture: Fixture;
 let root: string;
-let ws: WorkspaceConfig;
+let ws: OpenedWorkspace;
 let csv: string;
 const saved = { home: process.env.RETAKE_HOME, max: process.env.RETAKE_RECORD_MAX_MIN, buyer: process.env.NORTHFIELD_BUYER_PASSWORD };
 
@@ -57,7 +57,7 @@ beforeAll(async () => {
   await writeFile(join(projectDir, 'project.yaml'), yaml);
   csv = join(root, 'prices.csv');
   await writeFile(csv, 'lot,price\nA,10\n');
-  ws = await openWorkspace({ root });
+  ws = await openWorkspace({ root, agent: false });
 }, 120_000);
 
 afterAll(async () => {

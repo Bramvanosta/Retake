@@ -176,7 +176,7 @@ beforeAll(async () => {
     const out = await renderStills({ workPolicy: PERSON_POLICY, plan: p, frames: frames.map(([name, frame]) => ({ frame, out: join(tmp, `${name}.png`) })), root: REPO, registry, cacheDir: SHARED_CACHE });
     out.forEach((f, i) => {
       files.set(frames[i][0], f);
-      stills.set(frames[i][0], readImage(f, PERSON_POLICY));
+      stills.set(frames[i][0], readImage(f));
     });
   }
 }, LONG);
@@ -340,7 +340,7 @@ describe.skipIf(!canRender)('reference look scales with unit (synthetic plan, 96
     });
     expect([plan.width, plan.height, plan.unit]).toEqual([960, 540, 0.5]);
     const [file] = await renderStills({ workPolicy: PERSON_POLICY, plan, frames: [{ frame: 20, out: join(ws.root, 'half.png') }], root: ws.root, registry: reg, cacheDir: SHARED_CACHE });
-    const img = readImage(file, PERSON_POLICY);
+    const img = readImage(file);
     const card = solidRect(img, 480, 240, 24);
     expect([card.left, card.right]).toEqual([90, 869]);
     // Top / bottom: the 16:9 capture is 438.75 px tall in the 439 px card, so the edge rows are mixed (±1).

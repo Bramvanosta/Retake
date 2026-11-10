@@ -122,10 +122,10 @@ function timelineOf(): Timeline {
     ],
     events: [
       ev('open', -1, 0, { action: 'scene_still' }),
-      ev('open', 0, 2, { caption: { text: 'Start a quote' }, target: { desc: 'button "New quote"', bbox: { x: 100, y: 50, width: 120, height: 40 } }, point: { x: 160, y: 70 }, end_point: { x: 160, y: 70 } }),
-      ev('open', 1, 4, { action: 'type', target: { desc: 'field "Company"', bbox: { x: 300, y: 200, width: 400, height: 40 } }, end_point: { x: 500, y: 220 } }),
+      ev('open', 0, 2, { caption: { text: 'Start a quote' }, target: { desc: 'button "New quote"', bbox: { x: 100, y: 50, w: 120, h: 40 } }, point: { x: 160, y: 70 }, end_point: { x: 160, y: 70 } }),
+      ev('open', 1, 4, { action: 'type', target: { desc: 'field "Company"', bbox: { x: 300, y: 200, w: 400, h: 40 } }, end_point: { x: 500, y: 220 } }),
       ev('open', 2, 6, { action: 'hold', end_point: { x: 510, y: 230 } }),
-      ev('send', 0, 12, { target: { desc: 'button "Send"', bbox: { x: 900, y: 600, width: 100, height: 40 } }, end_point: { x: 950, y: 620 } }),
+      ev('send', 0, 12, { target: { desc: 'button "Send"', bbox: { x: 900, y: 600, w: 100, h: 40 } }, end_point: { x: 950, y: 620 } }),
     ],
     markers: [],
     pages: [{ id: 'admin', t_start: 0, t_end: 20, url: 'https://admin.example.test/quotes' }],
@@ -181,7 +181,7 @@ describe('replanEdit (L5.5, R-FLD-01): today\'s edit on the take\'s measurements
       '      - hold: 1\n        overlay: {component: studio/overlay-callout, slots: {text: Wait}}\n        camera: {zoom: 1.3}\n',
     );
     const r = replan(now);
-    expect(r.timeline.events[1].overlay).toEqual({ component: 'studio/overlay-callout', slots: { text: 'Here, Acme Bakery' }, params: {}, duration: 2, target: 'button "New quote"', bbox: { x: 100, y: 50, width: 120, height: 40 } });
+    expect(r.timeline.events[1].overlay).toEqual({ component: 'studio/overlay-callout', slots: { text: 'Here, Acme Bakery' }, params: {}, duration: 2, target: 'button "New quote"', bbox: { x: 100, y: 50, w: 120, h: 40 } });
     expect(r.timeline.events[3].overlay).toEqual({ component: 'studio/overlay-callout', slots: { text: 'Wait' }, params: {}, point: { x: 510, y: 230 } });
     expect(r.timeline.events[3].camera).toEqual({ zoom: 1.3, point: { x: 510, y: 230 } });
     expect(r.warnings).toEqual([]);
@@ -197,9 +197,9 @@ describe('replanEdit (L5.5, R-FLD-01): today\'s edit on the take\'s measurements
   it('a measured overlay keeps its box when only its text changes', () => {
     const withOverlay = BASE.replace('      - click: Send\n', '      - click: Send\n        overlay: {component: studio/overlay-callout, slots: {text: Total}, target: {text: Total}}\n');
     const tl = timelineOf();
-    tl.events[4].overlay = { component: 'studio/overlay-callout', slots: { text: 'Total' }, params: {}, target: 'text "Total"', bbox: { x: 10, y: 20, width: 30, height: 40 } };
-    const r = replanEdit({ timeline: tl, now: parse(withOverlay.replace('{text: Total}, target', '{text: The total}, target')), then: parse(withOverlay), project: { frame: 'card' }, ctx: {} });
-    expect(r.timeline.events[4].overlay).toMatchObject({ slots: { text: 'The total' }, bbox: { x: 10, y: 20, width: 30, height: 40 } });
+    tl.events[4].overlay = { component: 'studio/overlay-callout', slots: { text: 'Total' }, params: {}, target: 'text "Total"', bbox: { x: 10, y: 20, w: 30, h: 40 } };
+    const r = replanEdit({ timeline: tl, now: parse(withOverlay.replace('{text: Total}, target', '{text: The total}, target')), then: parse(withOverlay), project: { frame: 'card', template: 'default' }, ctx: {} });
+    expect(r.timeline.events[4].overlay).toMatchObject({ slots: { text: 'The total' }, bbox: { x: 10, y: 20, w: 30, h: 40 } });
     expect(r.warnings).toEqual([]);
   });
 

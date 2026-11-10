@@ -58,7 +58,18 @@ domain        @retake/core (pure) · @retake/components/geometry · @retake/edit
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters
 import the domain and the engine's ports only; shells import the engine's façade and contract only, and never another
 shell; the Studio app imports types only; nothing but the composition roots (CLI entry, MCP entry, Studio server
-entry, worker entry) wires adapters to ports. For the renderer the ratchet holds two lines of it: the engine loads the
+entry, worker entry) wires adapters to ports. A shell may be typed against a *domain entry* of an adapter package
+(`@retake/components/geometry`, `@retake/editor/plan`, `@retake/review/checks`: pure, no adapter code) — its types
+only: a value of one is a hit like any adapter import, since a shell that plans or checks by itself is a second
+orchestration — and never imports the package behind it (R4). The engine imports the adapter packages as types only
+outside its loader (R11: a value import, a re-export or `import()` of runner-web, review, sandbox, hooks or components
+is a hit, pinned at the 27 file → specifier pairs of 2026-11-10 until each has its port; the values of the domain
+entries are free there, all but the editor's, which R9 holds whole; a value reached through another engine file is not
+seen, and the loader itself holds no static import). A relative import never leaves its package (R13, no entry): another
+package is reached by its name, which is what these rules read. The rules read every import and export declaration of a
+file, a namespace re-export (`export * as ns from`) included, and `.cts` sources. The review's pure modules — what `@retake/review/checks` reaches — import the components
+through their geometry entry only, types included (R12, no entry; R7 keeps the same files free of I/O and renderer
+imports; both read one file at a time, the entry's walk test is the transitive proof). For the renderer the ratchet holds two lines of it: the engine loads the
 editor's code in its loader only (R9: a value import, a re-export, `import()` or a made `require` anywhere else is a
 hit, the port's types are free), and the editor's render entries are named in the engine's `render/` folder only, never
 elsewhere in the engine nor in a shell (`render-call`, read from the syntax tree; no entry left in the baseline since

@@ -32,13 +32,13 @@ describe("openWorkspace: retake.yaml's ffmpeg is the process's", () => {
     const a = workspace('a', 'ffmpeg: /x/bin/ffmpeg\n');
     const b = workspace('b', 'version: 1\n');
     // The opened workspace's policy carries it (core WorkPolicy): what every option-less site is given.
-    const wa = await openWorkspace({ root: a });
+    const wa = await openWorkspace({ root: a, agent: false });
     expect(ffmpegBin(wa.policy)).toBe('/x/bin/ffmpeg');
     expect(mediaTools(wa.policy).ffmpegSource).toBe('retake.yaml');
-    const wb = await openWorkspace({ root: b });
+    const wb = await openWorkspace({ root: b, agent: false });
     expect(ffmpegBin(wb.policy)).not.toBe('/x/bin/ffmpeg');
     expect(mediaTools(wb.policy).ffmpegSource).not.toBe('retake.yaml');
-    const again = await openWorkspace({ root: a });
+    const again = await openWorkspace({ root: a, agent: false });
     expect(ffmpegBin(again.policy)).toBe('/x/bin/ffmpeg');
   });
 
@@ -47,10 +47,10 @@ describe("openWorkspace: retake.yaml's ffmpeg is the process's", () => {
     const cwd = process.cwd();
     try {
       process.chdir(tmp);
-      const atServer = await openWorkspace({ root });
+      const atServer = await openWorkspace({ root, agent: false });
       const server = ffmpegBin(atServer.policy);
       process.chdir(root);
-      const atWorker = await openWorkspace({ root });
+      const atWorker = await openWorkspace({ root, agent: false });
       expect(ffmpegBin(atWorker.policy)).toBe(server);
       expect(server).toBe(join(root, 'tools', 'ffmpeg'));
     } finally {
@@ -75,7 +75,7 @@ describe('the worker a client starts: no relative tool variable', () => {
     // The worker refuses the relative value as the server does (core resolveMediaTools, and the agent policy for the
     // browser), so no process runs a cwd-relative file — and the job says what to change instead of running another one.
     expect(() => resolveMediaTools({ env: out })).toThrow(/^\$RETAKE_FFMPEG \(tools\/ffmpeg\) must be an absolute path/);
-    expect(agentProgramProblem(out.RETAKE_CHROMIUM!, '$RETAKE_CHROMIUM', [root], { files: nodeFileFacts })).toMatch(/^\$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
+    expect(agentProgramProblem(out.RETAKE_CHROMIUM!, '$RETAKE_CHROMIUM', [root], { path: '', files: nodeFileFacts })).toMatch(/^\$RETAKE_CHROMIUM \(chrome\/Chromium\) is a relative path — .*: give the absolute path of a program outside the workspace$/);
   });
 });
 

@@ -10,7 +10,7 @@
  */
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import type { Server } from 'node:http';
+import type { RequestListener, Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -57,7 +57,7 @@ function trustedPart(v: unknown): unknown {
   return v;
 }
 
-async function listen(handler: Parameters<typeof createServer>[0]): Promise<{ server: Server; port: number }> {
+async function listen(handler: RequestListener): Promise<{ server: Server; port: number }> {
   const server = createServer(handler);
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
   return { server, port: (server.address() as AddressInfo).port };

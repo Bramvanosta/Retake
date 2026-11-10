@@ -11,7 +11,8 @@ import type { Admission } from '../admission.js';
 import { admits, agentChecks, agentWorkspace, callerOf, refusalChannel } from '../caller.js';
 import type { Caller } from '../caller.js';
 import { CommentIndex } from '../comments.js';
-import type { FileJobQueue } from '../jobs/queue.js';
+import type { JobQueue } from '../jobs/job-queue.js';
+import type { JobFiles } from '../jobs/queue.js';
 import { runBlockers } from '../jobs/run-job.js';
 import type { SubmitContext } from '../jobs/run-job.js';
 import { ensureWorker } from '../jobs/spawn.js';
@@ -47,7 +48,10 @@ export interface EngineContext {
   /** `retake -C <root>`: the commands a human runs name this workspace explicitly. */
   readonly studio: string;
   readonly loginCommand: (p: { project: string; env: string; persona?: string }) => string;
-  readonly queue: FileJobQueue;
+  /** The workspace's job queue, as its port: the facade never names the class behind it. */
+  readonly queue: JobQueue;
+  /** The paths of that queue's files (a job's folder, its log), handed beside it. */
+  readonly jobFiles: JobFiles;
   /** What a job submission is handed: the workspace, the queue, the command line, the client. */
   readonly submitCtx: SubmitContext;
   /** Start the workspace's worker (unless autoStartWorker is false): after a submit or a cancel. */
@@ -71,9 +75,10 @@ function shellQuote(s: string): string {
 
 /**
  * The context of an engine for a client: its caller, its workspace (opened with the caller's agent policy) and the
- * shared parts. `queueOf` builds the workspace's job queue (createEngine, the composition root, builds the file queue).
+ * shared parts. `queueOf` builds the workspace's job queue and names its files (createEngine, the composition root,
+ * builds the file queue): the context holds the queue as its port.
  */
-export async function engineContext(opts: EngineOptions, queueOf: (root: string, cli: string) => FileJobQueue): Promise<EngineContext> {
+export async function engineContext(opts: EngineOptions, queueOf: (root: string, cli: string) => { queue: JobQueue; files: JobFiles }): Promise<EngineContext> {
   const caller = callerOf(opts.client);
   // The agent's checks and wording of this caller (caller.ts).
   const agent = agentChecks(caller);
@@ -87,7 +92,7 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const studio = `retake -C ${shellQuote(ws.root)}`;
   const loginCommand = (p: { project: string; env: string; persona?: string }) => coreLoginCommand(p).replace(/^retake /, `${studio} `);
 
-  const queue = queueOf(ws.root, studio);
+  const { queue, files: jobFiles } = queueOf(ws.root, studio);
   const commentIndex = new CommentIndex();
   const submitCtx = { ws, queue, cli: studio, client: opts.client };
   // The scenario screen's reads (L4.2): runs read once and held in memory, shared by the view and the thumbnails.
@@ -132,7 +137,7 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const boards = new ProjectBoards({
     ws,
     queue,
-    files: queue.files,
+    files: jobFiles,
     project,
     overlay: async (slug, run) => {
       const job = await queue.ofRun(slug, run.id);
@@ -147,5 +152,5 @@ export async function engineContext(opts: EngineOptions, queueOf: (root: string,
   const admitted = admits(caller)
     ? admission({ queue, channel: via, sessions: (t) => sessionsOf(t.project, t.scenario.name, t.scenario.scenario, { ...(t.env !== undefined ? { env: t.env } : {}), mode: 'capture' }) })
     : undefined;
-  return { opts, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
+  return { opts, caller, agent, via, ws, files: fileFacts(ws.policy), scope, project, studio, loginCommand, queue, jobFiles, submitCtx, startWorker, overlaid, sessionsOf, admitted, runData, runThumbs, commentIndex, renderFrames, views, boards };
 }

@@ -105,11 +105,11 @@ describe('templateSceneEntry (R-RUN-16)', () => {
     const scene: Scene = { id: 'login', steps: [{ type: { into: { label: 'Password' }, text: '{{env:RETAKE_TEST_PASSWORD}}' } }] };
     expect(templateSceneEntry(scene, 0, ctx).steps[0]).toEqual({ type: { into: { label: 'Password' }, text: 'S3cret-pw-42' } });
     const viaResolver = templateSceneEntry(
-      { id: 'kc', steps: [{ type: '{{keychain:demo-test/agent}}' }] } as Scene,
+      { id: 'kc', steps: [{ type: { text: '{{keychain:demo-test/agent}}' } }] },
       0,
       { ...ctx, secrets: (ref) => (ref === 'keychain:demo-test/agent' ? 'kc-value-1' : undefined) },
     );
-    expect(viaResolver.steps[0]).toEqual({ type: 'kc-value-1' });
+    expect(viaResolver.steps[0]).toEqual({ type: { text: 'kc-value-1' } });
     const bad: Scene = { id: 'bad', steps: [{ wait: 1 }, { type: { text: '{{vars.nope}}' } }] };
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(TemplateError);
     expect(() => templateSceneEntry(bad, 3, ctx)).toThrow(/^scenes\[3\]\.steps\[1\]\.type\.text: unknown template key \{\{vars\.nope\}\}/);
@@ -149,7 +149,7 @@ describe('display URLs in edit text (L1.7, R-ENV-01)', () => {
     // Multi-page labels and cards.
     const multi: Scene = { id: 'both', pages: { buyer: { page: 'shop', open: '{{shop}}/', label: 'Café · {{shop}}' } }, steps: [{ wait: 1 }] };
     const m = templateSceneEntry(multi, 1, ctx, edit);
-    expect(m.pages!.buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
+    expect((m.pages as Record<string, unknown>).buyer).toMatchObject({ open: 'http://localhost:4402/', label: 'Café · https://shop.example.com' });
     const card: CardScene = { card: { slots: { title: 'Try {{shop}}', url: '{{console}}' } } };
     expect(templateSceneEntry(card, 2, ctx, edit).card).toEqual({ slots: { title: 'Try https://shop.example.com', url: 'http://localhost:4401/app' } });
     // Without an edit context everything reads the real URLs (as before L1.7).

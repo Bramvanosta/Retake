@@ -148,6 +148,7 @@ describe('error kinds: stated by the classes', () => {
 describe('errors from another module copy', () => {
   it('an EngineError of another copy keeps its code, message, fix, details and docs', async () => {
     // A second instance of the module (the query makes it one): its class is not this one.
+    // @ts-expect-error — the query makes a second module instance at run time; the compiler has no file of that name
     const other = (await import('../src/errors.js?another-copy')) as typeof import('../src/errors.js');
     expect(other.EngineError).not.toBe(EngineError);
     const e = new other.EngineError('needs_approval', 'approve it', { fix: 'retake hooks approve x', details: { hooks: ['a'] }, docs: `${DOCS_BASE_URL}docs/guide/security.md` });
@@ -167,6 +168,7 @@ describe('errors from another module copy', () => {
     const mapped = scenarioChangedConflict(new ScenarioChangedError('/p/q.yaml', a, b), 'q changed') as EngineError;
     expect(mapped).toBeInstanceOf(EngineError);
     expect({ code: mapped.code, message: mapped.message, details: mapped.details }).toEqual({ code: 'conflict', message: 'q changed', details: { submitted: a, current: b } });
+    // @ts-expect-error — the query makes a second module instance at run time; the compiler has no file of that name
     const core = (await import('../../core/src/scenario.js?another-copy')) as typeof import('../../core/src/scenario.js');
     expect(core.ScenarioChangedError).not.toBe(ScenarioChangedError);
     expect((scenarioChangedConflict(new core.ScenarioChangedError('/p/q.yaml', a, b), 'q changed') as EngineError).details).toEqual({ submitted: a, current: b });

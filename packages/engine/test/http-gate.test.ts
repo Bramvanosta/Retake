@@ -248,7 +248,7 @@ describe('refuseBrowsers (MCP over HTTP): after Host, before everything else', (
     expect(req({})).toMatchObject({ ok: true, path: '/mcp' });
     expect(req({}, 'DELETE')).toMatchObject({ ok: true });
     expect(req({ 'sec-fetch-mode': 'cors' })).toMatchObject({ ok: true });
-    for (const h of [{ origin: 'http://127.0.0.1:4000' }, { origin: 'null' }, { 'sec-fetch-site': 'none' }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-dest': 'empty' }, { 'sec-fetch-mode': 'navigate' }, { 'sec-fetch-mode': 'no-cors' }, { 'sec-fetch-user': '?1' }, { 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin' }]) {
+    for (const h of [{ origin: 'http://127.0.0.1:4000' }, { origin: 'null' }, { 'sec-fetch-site': 'none' }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-dest': 'empty' }, { 'sec-fetch-mode': 'navigate' }, { 'sec-fetch-mode': 'no-cors' }, { 'sec-fetch-user': '?1' }, { 'sec-fetch-mode': 'cors', 'sec-fetch-site': 'same-origin' }] as Array<Record<string, string>>) {
       expect(req(h), JSON.stringify(h)).toMatchObject({ ok: false, status: 403, code: 'browser' });
     }
     // Host still answers first; without the option, the Studio's rules apply (its own Origin is fine).

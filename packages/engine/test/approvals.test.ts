@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadScenario, fileFacts } from '@retake/core/io';
-import type { HookStep, HooksJobInput, EnvResetJobInput } from '@retake/core';
+import type { HookStep, HooksJobInput, EnvResetJobInput, RunJobInput } from '@retake/core';
 import { hookFingerprint, standaloneJournalFile } from '@retake/hooks';
 import { EXIT, main, memoryIo } from '../../cli/src/index.js';
 import { APPROVAL_FORM_MAX_CHARS, APPROVAL_HOOK_MAX_CHARS, EngineError, approvalFormText, FileJobQueue, createEngine, executeEnvResetJob, executeHooksJob, openProjectBySlug, openWorkspace, sha256Hex, takeApprovals } from '../src/index.js';
@@ -56,7 +56,7 @@ async function refusal(p: Promise<unknown>): Promise<EngineError> {
 
 async function execHooks(input: HooksJobInput, signal = new AbortController().signal) {
   const events: JobEventBody[] = [];
-  const result = await executeHooksJob({ ws: await openWorkspace({ root: ws }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
+  const result = await executeHooksJob({ ws: await openWorkspace({ root: ws, agent: false }), cli: `retake -C ${ws}`, input, signal, event: (e) => events.push(e) });
   return { result, events };
 }
 
@@ -108,7 +108,7 @@ describe('approvals at submit', () => {
     const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'catalogue', { files: fileFacts(PERSON_POLICY) })).scenario;
     const fp = hookFingerprint(sc.setup![1], { phase: 'setup', index: 1, env: 'local' });
     // Signed at enqueue with the Retake home's key (the worker ignores an approval without a valid signature).
-    expect(sub.job.input.approvals).toEqual([{ fingerprint: fp, by: 'human-elicitation', at: expect.any(String), sig: expect.stringMatching(/^[0-9a-f]{64}$/) }]);
+    expect((sub.job.input as RunJobInput).approvals).toEqual([{ fingerprint: fp, by: 'human-elicitation', at: expect.any(String), sig: expect.stringMatching(/^[0-9a-f]{64}$/) }]);
     await engine.runs.cancel('northfield-fixture', sub.run_id);
   });
 
@@ -119,7 +119,7 @@ describe('approvals at submit', () => {
     expect(a.asked[0].items).toEqual([expect.objectContaining({ phase: 'step', index: 1, name: 'queue', kind: 'shell', reason: 'a shell command (runs local code)', description: 'queue: shell "sleep 1.5"' })]);
     const sc = (await loadScenario(await openProjectBySlug(engine.workspace, 'northfield-fixture'), 'off-camera', { files: fileFacts(PERSON_POLICY) })).scenario;
     const entry = (sc.hooks!['cafe-requests-a-quote'] as HookStep[])[1];
-    expect(sub.job.input.approvals?.map((x) => x.fingerprint)).toEqual([hookFingerprint(entry, { phase: 'step', index: 1, env: 'local' })]);
+    expect((sub.job.input as RunJobInput).approvals?.map((x) => x.fingerprint)).toEqual([hookFingerprint(entry, { phase: 'step', index: 1, env: 'local' })]);
     await engine.runs.cancel('northfield-fixture', sub.run_id);
     const none = await refusal(engine.runs.submit({ project: 'northfield-fixture', scenario: 'off-camera', mode: 'capture' }));
     expect(none.code).toBe('needs_approval');
@@ -153,7 +153,7 @@ describe('approvals at submit', () => {
     const a = accept();
     const dry = await engine.hooks.submit({ project: 'northfield-fixture', source: 'catalogue:setup' }, { approver: a });
     expect(dry.job.input).toMatchObject({ kind: 'hooks', dry: true, source: 'catalogue:setup' });
-    expect(dry.job.input.approvals).toBeUndefined();
+    expect((dry.job.input as HooksJobInput).approvals).toBeUndefined();
     expect(a.asked).toEqual([]);
     for (const source of ['/etc/hosts.yaml', '../x.yaml', 'hooks/../../x.yaml', 'scenarios/quote.yaml', 'x:y']) {
       expect((await refusal(engine.hooks.submit({ project: 'northfield-fixture', source }))).code, source).toBe('invalid');
@@ -194,7 +194,7 @@ describe('hooks executed by the worker (trust mcp)', () => {
     expect(result.journal).toEqual({ id: sub.journal_id, pending: 1 });
 
     const reset = await engine.env.reset({ project: 'northfield-fixture', dry: false }, { approver: accept() });
-    const r = await executeEnvResetJob({ ws: await openWorkspace({ root: ws }), cli: 'retake', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
+    const r = await executeEnvResetJob({ ws: await openWorkspace({ root: ws, agent: false }), cli: 'retake', input: reset.job.input as EnvResetJobInput, signal: new AbortController().signal, event: () => undefined });
     expect(r.ok).toBe(true);
     expect(r.rollbacks.find((j) => j.journal === sub.journal_id)?.results.map((x) => x.status)).toEqual(['ok']);
     expect(r.reset?.map((x) => [x.name, x.status])).toEqual([['reset-fixture', 'ok']]);

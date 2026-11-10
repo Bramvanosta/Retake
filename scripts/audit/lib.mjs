@@ -23,7 +23,7 @@ export function loadTs(root) {
 }
 
 /** The files the layer rules read: TypeScript sources, declaration files left out. */
-const isScanned = (name) => /\.(ts|tsx|mts)$/.test(name) && !name.endsWith('.d.ts');
+const isScanned = (name) => /\.(ts|tsx|mts|cts)$/.test(name) && !/\.d\.[cm]?ts$/.test(name);
 /** Every file the compiler can parse as a module: what the seam rule (R10) reads, declaration files included. */
 const isSource = (name) => /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(name);
 
@@ -39,7 +39,8 @@ function walk(dir, out = [], keep = isScanned) {
 
 /**
  * Every source file of every package: `{ pkgs, nameToDir, declared, files: [{ rel, pkg, text, specs }], fileImports }`.
- * `specs` are the module specifiers the compiler's pre-processor finds (static, `import type`, dynamic `import()`).
+ * `specs` are the module specifiers of the file (specifiersOf): what the compiler's pre-processor finds (static,
+ * `import type`, `import()`, `require()`) and every import / export declaration of the syntax tree.
  */
 export function scan(root) {
   const ts = loadTs(root);
@@ -57,8 +58,8 @@ export function scan(root) {
   for (const d of pkgs) {
     for (const f of walk(path.join(pkgsDir, d, 'src'))) {
       const text = fs.readFileSync(f, 'utf8');
-      const specs = ts.preProcessFile(text, true, true).importedFiles.map((x) => x.fileName);
       const rel = path.relative(root, f).split(path.sep).join('/');
+      const specs = specifiersOf(ts, rel, text);
       files.push({ rel, pkg: d, text, specs });
       fileImports[rel] = specs;
     }
@@ -128,6 +129,26 @@ const pkgOf = (f) => f.split('/')[1];
 const retake = (s) => (s.startsWith('@retake/') ? s.slice(8).split('/')[0] : null);
 const SHELLS = ['cli', 'mcp', 'ui'];
 const ADAPTERS = ['runner-web', 'editor', 'review', 'sandbox', 'hooks', 'components'];
+/**
+ * Every package of the repository in its layer (docs/audit/target-architecture.md): a folder of packages/ that is in
+ * none, or in two, fails packages/core/test/import-rules.test.ts — a new package is given its rules on purpose.
+ */
+export const LAYERS = { domain: ['core'], adapters: ADAPTERS, application: ['engine'], shells: SHELLS };
+/**
+ * The domain entries of the adapter packages (docs/audit/target-architecture.md, the domain line): pure modules — no
+ * I/O, no renderer, no adapter code. A shell may import their types only (R4: a value would be the shell doing the
+ * application's work by itself); the engine may import their values (R11), all but the editor's, which R9 holds whole
+ * (`@retake/editor/plan` as a value in the engine outside its loader is an R9 hit). Each is held pure by its own walk
+ * test (components geometry-entry, editor plan-entry, review checks-entry).
+ */
+export const DOMAIN_ENTRIES = ['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks'];
+/**
+ * The review's pure modules (packages/review/src/<name>.ts): what `@retake/review/checks` reaches. R7 keeps each free of
+ * I/O and renderer imports, R12 keeps each on the components' geometry entry; both read one file at a time — the
+ * transitive proof is packages/review/test/checks-entry.test.ts, which walks the entry's imports.
+ */
+export const REVIEW_PURE = ['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types'];
+const reviewPure = (f) => f.startsWith('packages/review/src/') && f.endsWith('.ts') && REVIEW_PURE.includes(f.slice('packages/review/src/'.length, -3));
 /** Core's side that touches the machine (`@retake/core/io`): R1 holds for the rest of core, which never imports it. */
 export const CORE_IO_DIR = 'packages/core/src/io/';
 /** An import of core's io side from the rest of core: `@retake/core/io`, or a relative path to src/io (`./io`) or into it. */
@@ -157,12 +178,15 @@ export const RULES = [
   { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
   { id: 'R2', title: 'adapters never import application or shells', files: (f) => ADAPTERS.includes(pkgOf(f)), bad: (s) => ['engine', 'mcp', 'ui', 'cli'].includes(retake(s)) },
   { id: 'R3', title: 'shells never import another shell (ui→mcp, mcp→ui; cli is the composition root and may)', files: (f) => ['mcp', 'ui'].includes(pkgOf(f)), bad: (s, f) => { const p = retake(s); return !!p && SHELLS.includes(p) && p !== pkgOf(f); } },
-  { id: 'R4', title: 'shells call the application only (no direct adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)) },
+  { id: 'R4', title: 'shells call the application only (no direct adapter import; the types of their domain entries are free — pure, no adapter code — a value of one is a hit like any adapter import)', files: (f) => SHELLS.includes(pkgOf(f)), bad: (s) => ADAPTERS.includes(retake(s)), typeOnlyCheck: (s) => DOMAIN_ENTRIES.includes(s) },
   { id: 'R5', title: 'the Studio front end imports types only from other packages (checked: any @retake value import, re-export, side-effect import or import() in src/app)', files: (f) => f.startsWith('packages/ui/src/app/'), bad: (s) => !!retake(s), typeOnlyCheck: true },
   { id: 'R6', title: 'shells do not touch the file system / processes themselves', files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)), bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) },
-  { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules)', files: (f) => /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) || /packages\/review\/src\/(checks|pixel-checks|spans|timeline|anchor|diff)\.ts$/.test(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
+  { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules; for the review: REVIEW_PURE)', files: (f) => /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) || reviewPure(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
   { id: 'R8', title: 'the review imports the editor only through its planner entry (@retake/editor/plan: loads no renderer, Remotion, React or esbuild)', files: (f) => pkgOf(f) === 'review', bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan' },
   { id: 'R9', title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit, and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`, files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER, bad: (s) => retake(s) === 'editor', typeOnlyCheck: true, loaders: true },
+  { id: 'R11', title: `the engine imports the adapter packages as types only outside its loader (${ENGINE_LOADER}; the editor is R9's): a value import, re-export or import() of runner-web, review, sandbox, hooks or components is a hit; their domain entries are free (the editor's, @retake/editor/plan, is not: R9 holds the editor whole). Not seen: a value reached through another engine file (the loader included) and \`typeof import()\` in a type position, which loads nothing`, files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER, bad: (s) => ADAPTERS.includes(retake(s)) && retake(s) !== 'editor' && !DOMAIN_ENTRIES.includes(s), typeOnlyCheck: true },
+  { id: 'R12', title: "the review's pure modules (REVIEW_PURE) import the components through their geometry entry only (@retake/components/geometry: no renderer, no registry, no compile check), types included", files: reviewPure, bad: (s) => retake(s) === 'components' && s !== '@retake/components/geometry' },
+  { id: 'R13', title: "a relative import never leaves its package (another package is imported by its name, so that the layer rules, which read names, see it: `../../sandbox/dist/index.js` would compile and be invisible to R2, R4 and R11)", files: () => true, bad: (s, f) => s.startsWith('.') && !path.posix.normalize(path.posix.join(path.posix.dirname(f), s)).startsWith(`packages/${pkgOf(f)}/`) },
 ];
 
 export const CHECKS = [
@@ -184,13 +208,51 @@ function parse(ts, rel, text) {
 const literal = (ts, e) => (e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) ? e.text : undefined);
 
 /**
+ * The module specifiers of every import and export declaration of a file, read from its syntax tree: `import … from`,
+ * `import '…'`, `export … from`, `export * from`, `export * as ns from`, `import x = require('…')`, type-only ones
+ * included, in the order written.
+ */
+export function declaredSpecifiers(ts, rel, text) {
+  const out = [];
+  (function visit(n) {
+    if (ts.isImportDeclaration(n) || ts.isExportDeclaration(n)) {
+      const spec = literal(ts, n.moduleSpecifier);
+      if (spec !== undefined) out.push(spec);
+      return;
+    }
+    if (ts.isImportEqualsDeclaration(n)) {
+      const spec = ts.isExternalModuleReference(n.moduleReference) ? literal(ts, n.moduleReference.expression) : undefined;
+      if (spec !== undefined) out.push(spec);
+      return;
+    }
+    n.forEachChild(visit);
+  })(parse(ts, rel, text));
+  return out;
+}
+
+/**
+ * Every module specifier of a file: the compiler's pre-processor's list as it gives it (static, `import type`,
+ * `import()`, `require()`, `typeof import()`), then the declarations it does not list — TypeScript 5.9's pre-processor
+ * misses a namespace re-export (`export * as ns from '…'`), which the syntax tree has.
+ */
+export function specifiersOf(ts, rel, text) {
+  const specs = ts.preProcessFile(text, true, true).importedFiles.map((x) => x.fileName);
+  const listed = new Set(specs);
+  for (const s of declaredSpecifiers(ts, rel, text)) if (!listed.has(s)) { listed.add(s); specs.push(s); }
+  return specs;
+}
+
+/**
  * What a file loads, read from its syntax tree: `values`, the module specifiers it imports or re-exports as values (an
  * `import`, `export … from`, `export *`, side-effect `import '…'`, `import x = require()`, `import()` or `require()` call;
  * not `import type`, `export type` nor an import whose every name is `type`), and `loaders`, its run-time module loaders
- * (`getBuiltinModule()` calls, `import()` of a computed name, a call of a require made with `createRequire`).
+ * (`getBuiltinModule()` calls, `import()` of a computed name, a call of a require made with `createRequire`);
+ * `statics`, the values loaded by a declaration (when the file itself loads, not on a call): everything of `values`
+ * but `import()` and `require()` calls.
  */
 export function moduleUses(ts, rel, text) {
   const values = new Set();
+  const statics = new Set();
   const loaders = new Set();
   const allTypes = (els) => els.length > 0 && els.every((e) => e.isTypeOnly);
   const sf = parse(ts, rel, text);
@@ -211,18 +273,18 @@ export function moduleUses(ts, rel, text) {
       const c = n.importClause;
       const typeOnly = !!c && (c.isTypeOnly || (!c.name && !!c.namedBindings && ts.isNamedImports(c.namedBindings) && allTypes(c.namedBindings.elements)));
       const spec = literal(ts, n.moduleSpecifier);
-      if (spec !== undefined && !typeOnly) values.add(spec);
+      if (spec !== undefined && !typeOnly) { values.add(spec); statics.add(spec); }
       return;
     }
     if (ts.isExportDeclaration(n)) {
       const spec = literal(ts, n.moduleSpecifier);
       const typeOnly = n.isTypeOnly || (!!n.exportClause && ts.isNamedExports(n.exportClause) && allTypes(n.exportClause.elements));
-      if (spec !== undefined && !typeOnly) values.add(spec);
+      if (spec !== undefined && !typeOnly) { values.add(spec); statics.add(spec); }
       return;
     }
     if (ts.isImportEqualsDeclaration(n)) {
       const spec = ts.isExternalModuleReference(n.moduleReference) ? literal(ts, n.moduleReference.expression) : undefined;
-      if (spec !== undefined && !n.isTypeOnly) values.add(spec);
+      if (spec !== undefined && !n.isTypeOnly) { values.add(spec); statics.add(spec); }
       return;
     }
     if (ts.isCallExpression(n)) {
@@ -241,7 +303,7 @@ export function moduleUses(ts, rel, text) {
     }
     n.forEachChild(visit);
   })(sf);
-  return { values, loaders };
+  return { values, statics, loaders };
 }
 
 /**
@@ -273,7 +335,8 @@ export function importsOnly(ts, rel, text, spec, allowed) {
 
 /**
  * Rule hits as `[{ rule, file, spec }]`, one per specifier the pre-processor lists (a file importing a module twice
- * gives the hit twice; ratchetEntries keeps one entry per rule, file and import). The type-only rule (R5) keeps the
+ * gives the hit twice; ratchetEntries keeps one entry per rule, file and import). A type-only rule (`typeOnlyCheck`:
+ * true, or a function saying for which specifiers — R4's domain entries) keeps the
  * specifiers the file loads as values, and the I/O rule of core (R1) adds the file's run-time module loaders, both read
  * from the syntax tree; a file that cannot be read counts as loading every one of its specifiers as a value.
  */
@@ -309,7 +372,7 @@ export function ruleHits(root, fileImports, rules = RULES) {
       if (!r.files(f)) continue;
       for (const s of specs) {
         if (!r.bad(s, f)) continue;
-        if (r.typeOnlyCheck) {
+        if (typeof r.typeOnlyCheck === 'function' ? r.typeOnlyCheck(s, f) : r.typeOnlyCheck) {
           const u = usesOf(f);
           if (u && !u.values.has(s)) continue;
         }

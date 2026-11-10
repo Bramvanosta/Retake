@@ -272,10 +272,10 @@ describe('New theme, the list, events, the route', () => {
     expect(UI_OPS).toContain('theme_list');
     expect(UI_OPS).not.toContain('template_from_site');
     expect((UI_OPS as readonly string[]).filter((op) => /site/.test(op))).toEqual(['site_list']);
-    expect(themeEventAction({ type: 'workspace', projects: [], themes: ['mine'] }, 'p', 'mine')).toBe(true);
-    expect(themeEventAction({ type: 'workspace', projects: [], themes: ['other'] }, 'p', 'mine')).toBe(false);
-    expect(themeEventAction({ type: 'workspace', projects: [], site: true }, 'p')).toBe(true);
-    expect(themeEventAction({ type: 'workspace', projects: ['p'] }, 'p')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['mine'] }, 'p', 'mine')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], themes: ['other'] }, 'p', 'mine')).toBe(false);
+    expect(themeEventAction({ type: 'workspace', projects: [], readme: [], site: true }, 'p')).toBe(true);
+    expect(themeEventAction({ type: 'workspace', projects: ['p'], readme: [] }, 'p')).toBe(true);
     expect(themeEventAction({ type: 'jobs', changed: ['x'] }, 'p')).toBe(false);
     expect(themeEventAction({ type: 'resync' }, 'p', 'mine')).toBe(true);
   });

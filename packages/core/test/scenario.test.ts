@@ -5,7 +5,7 @@ import { rm, symlink, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { SCENARIO_COMPARE_MAX_BYTES, ScenarioChangedError, formatIssues, formatPath, parseScenario, scenarioChangedMessage, validateScenario, PERSON_POLICY } from '@retake/core';
 import { loadScenario, readScenarioSource, scenarioChangedSinceRun, fileFacts } from '@retake/core/io';
-import type { ValidationIssue } from '@retake/core';
+import type { Scene, ValidationIssue } from '@retake/core';
 import { SPEC_EXAMPLE, colOf, errors, fakeProject, lineOf, specProjectDir, tempDir, warnings, writeFiles } from './helpers.js';
 
 /** A staging project whose directory holds the hook files of the SPEC example. */
@@ -696,7 +696,7 @@ describe('loadScenario reads the file once and pins its bytes', () => {
       expect(reads).toEqual([`${dir}/scenarios/quote.yaml`]);
       expect(loaded.sha256).toBe(sha(first));
       expect(loaded.text).toBe(first);
-      expect(loaded.scenario.scenes[0].steps).toEqual([{ hold: 1 }]);
+      expect((loaded.scenario.scenes[0] as Scene).steps).toEqual([{ hold: 1 }]);
       // Without a pin: still one read, its hash returned.
       reads.length = 0;
       const src = await readScenarioSource(p, 'quote', { readFile });

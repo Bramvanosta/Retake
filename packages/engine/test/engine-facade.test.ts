@@ -7,7 +7,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createEngine } from '../src/index.js';
+import { createEngine, FileJobQueue } from '../src/index.js';
 import * as facade from '../src/engine.js';
 
 let ws: string;
@@ -63,7 +63,14 @@ describe('the engine façade', () => {
     // The values of the façade are this workspace's.
     expect(engine.info().root).toBe(engine.root);
     expect(engine.workspace.root).toBe(engine.root);
-    expect(engine.jobFiles).toBe(engine.queue.files);
+    // The queue is handed as its port: the type has no `files` member (the object is still the file queue, which has
+    // one), so its paths are handed beside it — this workspace's jobs folder, and that very queue's own paths, not
+    // those of a second queue on the same folder.
+    // @ts-expect-error — the port has no `files` member: the paths are `engine.jobFiles`
+    void engine.queue.files;
+    expect(engine.jobFiles.dir).toBe(join(engine.root, '.retake', 'jobs'));
+    expect(engine.queue).toBeInstanceOf(FileJobQueue);
+    expect(engine.jobFiles).toBe((engine.queue as FileJobQueue).files);
     expect(engine.cli).toMatch(/^retake -C /);
   });
 

@@ -31,7 +31,7 @@ const CAP = '20261020-100000-blocks';
 const DRY_UNTIL = '20261021-090000-blocks';
 const RUNNING = '20261021-100000-blocks';
 
-const bound = (b: StepBinding | undefined) => (b && 'run_key' in b ? b : undefined);
+const bound = (b: StepBinding | undefined) => (b && 'picture' in b ? b : undefined);
 
 beforeAll(async () => {
   ws = await mkdtemp(join(tmpdir(), 'studio-scenario-view-'));
@@ -428,7 +428,7 @@ describe('memo (B1)', () => {
     const repeat = performance.now() - t;
     console.log(`1,200-step view: first ${Math.round(first)} ms, repeat ${Math.round(repeat)} ms, ${Math.round(JSON.stringify(v).length / 1024)} KB`);
     expect(Object.keys(v.steps).length).toBe(1200);
-    expect(Object.values(v.steps).every((s) => 'run_key' in s && s.picture === 'frame')).toBe(true);
+    expect(Object.values(v.steps).every((s) => 'picture' in s && s.picture === 'frame')).toBe(true);
     expect(repeat).toBeLessThan(first);
   });
 });
@@ -456,6 +456,7 @@ describe('events (B1): scenario files and runs named', () => {
 
   it('the index: an in-place save is its own key; a run that starts, progresses and finishes is named with its scenario', async () => {
     const ix = await WorkspaceIndex.open(engine.workspace, { queue: engine.queue.withOwnMemory() });
+    if (!ix) throw new Error('node:sqlite did not load: no index to watch');
     try {
       // The second pass also watches the run.json of the runs the first found unfinished.
       await ix.reconcile();

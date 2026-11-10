@@ -178,7 +178,7 @@ describe('record jobs: run by the worker', () => {
     expect(r.stats.secrets).toBe(1);
     expect(r.issues.codes).toContain('secret_field');
     expect(r.untrusted.issues.map((i) => i.code)).toContain('secret_field');
-    expect(r.dir).toBe(join(recordsRoot(await openProject(await openWorkspace({ root }), PROJECT)), sub.rec_id));
+    expect(r.dir).toBe(join(recordsRoot(await openProject(await openWorkspace({ root, agent: false }), PROJECT)), sub.rec_id));
 
     const got = await engine.record.get(PROJECT, sub.rec_id);
     expect(got.draft).toContain('text: "{{vars.password_1}}"');
@@ -194,7 +194,7 @@ describe('record jobs: run by the worker', () => {
     const lines = (await readFile(historyFile(root), 'utf8')).trim().split('\n').map((l) => JSON.parse(l) as Record<string, unknown>);
     const mine = lines.filter((l) => (l.record as { id?: string } | undefined)?.id === sub.rec_id);
     expect(mine).toEqual([expect.objectContaining({ job: job.id, kind: 'record', submitted_by: 'test', state: 'succeeded', record: { id: sub.rec_id, steps: r.stats.steps, saved: true }, counted: { captures: 0, dry_runs: 0, renders: 0 } })]);
-    const p = await openProject(await openWorkspace({ root }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
     for (const f of [...(await files(r.dir!)), join(p.dir, 'scenarios', 'lab-job.yaml'), historyFile(root)]) {
       expect((await readFile(f)).includes(sentinel), f).toBe(false);
     }
@@ -227,7 +227,7 @@ describe('record jobs: run by the worker', () => {
     const job = await engine.jobs.get(sub.job.id);
     expect(job.state).toBe('cancelled');
     expect(job.error?.message).toMatch(/nothing was kept/);
-    const p = await openProject(await openWorkspace({ root }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
     expect(existsSync(join(recordsRoot(p), sub.rec_id))).toBe(false);
     expect(existsSync(join(p.dir, 'scenarios', 'discarded.yaml'))).toBe(false);
     expect((await engine.record.get(PROJECT, sub.rec_id)).draft).toBeNull();
@@ -237,7 +237,7 @@ describe('record jobs: run by the worker', () => {
 describe('record jobs: folders and interruptions', () => {
   it('pruning keeps the folder of a queued record job, even the oldest', async () => {
     const sub = await engine.record.submit({ project: PROJECT, page: 'shop' });
-    const p = await openProject(await openWorkspace({ root }), PROJECT);
+    const p = await openProject(await openWorkspace({ root, agent: false }), PROJECT);
     const mine = join(recordsRoot(p), sub.rec_id);
     await mkdir(mine, { recursive: true });
     for (let i = 0; i < RECORD_KEEP + 2; i++) await mkdir(join(recordsRoot(p), newRecordId()), { recursive: true });

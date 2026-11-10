@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
 import { readFile, rm, statfs } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { CursorSample, TimelineEvent } from '@retake/core';
+import type { CursorSample, SceneEntry, TimelineEvent } from '@retake/core';
 import {
   ActivityRecorder,
   CaptureClock,
@@ -116,11 +116,11 @@ describe('CFR schedule as frames arrive (stream.ts)', () => {
   });
 
   it('ffmpeg arguments: VideoToolbox or libx264, JPEG range conversion, the grey thumbnails on stdout', () => {
-    const vt = streamArgs({ out: '/o.mp4', fps: 30, width: 1921, height: 1080, format: 'jpeg', encoder: 'videotoolbox', crf: 16, thumbs: true });
+    const vt = streamArgs({ out: '/o.mp4', fps: 30, width: 1921, height: 1080, format: 'jpeg', encoder: 'videotoolbox', crf: 16, policy: PERSON_POLICY, thumbs: true });
     expect(vt).toEqual(expect.arrayContaining(['-f', 'image2pipe', '-c:v', 'mjpeg', '-i', 'pipe:0', 'h264_videotoolbox', '-q:v', 'pipe:1', 'rawvideo', 'gray']));
     expect(vt.join(' ')).toContain('scale=1922:1080:flags=lanczos:in_range=full:in_color_matrix=bt601');
     expect(vt.join(' ')).toContain(`scale=${THUMB_W}:${THUMB_H}`);
-    const x = streamArgs({ out: '/o.mp4', fps: 30, width: 800, height: 600, format: 'png', encoder: 'libx264', crf: 18, thumbs: false });
+    const x = streamArgs({ out: '/o.mp4', fps: 30, width: 800, height: 600, format: 'png', encoder: 'libx264', crf: 18, policy: PERSON_POLICY, thumbs: false });
     expect(x).toEqual(expect.arrayContaining(['-c:v', 'png', 'libx264', 'veryfast', '-crf', '18']));
     expect(x).not.toContain('pipe:1');
     expect(x.join(' ')).not.toContain('in_range=full');
@@ -408,7 +408,7 @@ describe('capture.prewarm: the pages a scenario opens (R-FLD-27)', () => {
         { id: 'e', page: 'shop', open: '/after-until' },
       ],
     } as never;
-    const template = (e: never) => JSON.parse(JSON.stringify(e).replace('{{vars.slug}}', 'selowa-ridge'));
+    const template = (e: SceneEntry): SceneEntry => JSON.parse(JSON.stringify(e).replace('{{vars.slug}}', 'selowa-ridge'));
     expect(prewarmTargets(scenario, { envPages, capture: { width: 1920, height: 1080 }, template, lastScene: 4 })).toEqual([
       { page: 'shop', url: 'http://localhost:4402/' },
       { page: 'shop', url: 'http://localhost:4402/products/selowa-ridge' },

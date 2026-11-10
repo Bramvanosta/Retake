@@ -14,7 +14,7 @@ const read = (p: string) => readFileSync(join(REPO, p), 'utf8');
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const YAML = createRequire(join(REPO, 'packages', 'core', 'package.json'))('yaml') as { parse: (t: string) => any };
 type Step = { name?: string; uses?: string; run?: string; env?: Record<string, string>; with?: Record<string, unknown> };
-type Job = { steps: Step[]; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };
+type Job = { steps: Step[]; env?: Record<string, string>; permissions?: Record<string, string>; environment?: string; 'runs-on'?: string };
 
 const raw = read('.github/workflows/ci.yml');
 const wf = YAML.parse(raw);
@@ -69,8 +69,12 @@ describe('the CI workflow (ci.yml)', () => {
     expect([...at].sort((a, b) => a - b)).toEqual(at);
     expect(step('checks', 'Dependencies').run).toBe('pnpm install --frozen-lockfile');
     expect(step('checks', 'Build the packages').run).toBe('pnpm build');
-    const guards = step('checks', "The repository's guards").run!;
-    for (const g of ['node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites']) expect(guards).toContain(g);
+    // The guards: these lines and no other, each a command of its own under `set -eu` (no `|| true`, no `#` in front of
+    // one), in a step that is its name and its script (no `if:`, no `continue-on-error`).
+    const guards = step('checks', "The repository's guards");
+    expect(Object.keys(guards).sort()).toEqual(['name', 'run']);
+    expect(guards.run!.trim().split('\n')).toEqual(['set -eu', 'node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites', 'npx tsc -p tsconfig.test.json']);
+    expect(Object.keys(step('checks', 'Build the packages')).sort()).toEqual(['name', 'run']);
     const suite = step('checks', 'The test suite').run!;
     expect(suite).toMatch(/export RETAKE_HOME="\$RUNNER_TEMP\/retake-home"/);
     expect(suite.trim().split('\n').at(-1)).toBe('pnpm test');

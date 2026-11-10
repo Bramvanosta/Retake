@@ -349,7 +349,7 @@ describe('L5.10b fixes B-L4: the step inspector as B32 lays it out', () => {
       await row('a.1').click();
       await form().waitFor(POLL);
       const m = await page.getByTestId('inspector').evaluate((el) => {
-        let pane: HTMLElement | null = el;
+        let pane: Element | null = el;
         while (pane && !/(auto|scroll)/.test(getComputedStyle(pane).overflowY)) pane = pane.parentElement;
         const bottom = Math.min(window.innerHeight, pane ? pane.getBoundingClientRect().bottom : window.innerHeight);
         const top = (q: string) => el.querySelector(q)?.getBoundingClientRect() ?? null;

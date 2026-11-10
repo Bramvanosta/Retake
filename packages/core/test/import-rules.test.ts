@@ -1,12 +1,12 @@
 /**
- * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R10), file cycles, who builds the
+ * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R13), file cycles, who builds the
  * file job queue, and no module-level variable holding the work's policy, held to the committed baseline
  * (scripts/audit/baseline.json).
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
  * The rules are scripts/audit/lib.mjs, shared with the audit scripts (rules.mjs, imports.mjs).
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +18,7 @@ import * as lib from '../../../scripts/audit/lib.mjs';
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
 type Hit = { rule: string; file: string; spec: string };
-const hits = (fileImports: Record<string, string[]>, root = ROOT): string[] => lib.ruleHits(root, fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+const hits = (fileImports: Record<string, readonly string[]>, root = ROOT): string[] => lib.ruleHits(root, fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
 const wiring = (rel: string, text: string): string[] => lib.wiringHits(ROOT, [{ rel, pkg: rel.split('/')[1], text, specs: [] }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
 
 describe('the import-rules ratchet', () => {
@@ -38,11 +38,11 @@ describe('the import-rules ratchet', () => {
     expect(hits({ 'packages/ui/src/server/a.ts': ['@retake/mcp', '@retake/engine'], 'packages/cli/src/a.ts': ['@retake/mcp', '@retake/ui'] })).toEqual(['R3 packages/ui/src/server/a.ts → @retake/mcp']);
     expect(hits({ 'packages/mcp/src/a.ts': ['@retake/editor', '@retake/engine', '@retake/core'] })).toEqual(['R4 packages/mcp/src/a.ts → @retake/editor']);
     expect(hits({ 'packages/mcp/src/tools/a.ts': ['node:fs', 'node:path'], 'packages/mcp/src/a.ts': ['node:fs'], 'packages/cli/src/commands/b.ts': ['child_process'] })).toEqual(['R6 packages/mcp/src/tools/a.ts → node:fs', 'R6 packages/cli/src/commands/b.ts → child_process']);
-    expect(hits({ 'packages/editor/src/plan.ts': ['remotion', 'node:fs', './timing.js'], 'packages/review/src/checks.ts': ['react'], 'packages/editor/src/render/a.ts': ['remotion'] })).toEqual(['R7 packages/editor/src/plan.ts → remotion', 'R7 packages/editor/src/plan.ts → node:fs', 'R7 packages/review/src/checks.ts → react']);
+    expect(hits({ 'packages/editor/src/plan.ts': ['remotion', 'node:fs', './timing.js'], 'packages/review/src/checks.ts': ['react'], 'packages/editor/src/render/a.ts': ['remotion'], 'packages/review/src/pixel-maths.ts': ['node:child_process', './types.js'], 'packages/review/src/pixels.ts': ['node:child_process'] })).toEqual(['R7 packages/editor/src/plan.ts → remotion', 'R7 packages/editor/src/plan.ts → node:fs', 'R7 packages/review/src/checks.ts → react', 'R7 packages/review/src/pixel-maths.ts → node:child_process']);
   });
 
   /** Rule hits of files written into a scratch repository (the specifiers the scan's pre-processor would list). */
-  const hitsOf = (files: Record<string, { text: string; specs: string[] }>): string[] => {
+  const hitsOf = (files: Record<string, { text: string; specs: readonly string[] }>): string[] => {
     const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
     try {
       for (const [rel, { text }] of Object.entries(files)) {
@@ -350,6 +350,267 @@ describe('the import-rules ratchet', () => {
     ]);
     const flagged = hitsOf(files).filter((h) => h.startsWith('R9 ')).map((h) => h.replace(/^R9 packages\/engine\/src\/(.+)\.ts → @retake\/editor.*$/, '$1'));
     expect(flagged.sort()).toEqual(['dynamic', 'plan-value', 'reexport', 'render/editor-renderer', 'value']);
+  });
+
+  it("flags a value import of an adapter in the engine outside its loader: static, re-export, import(); its types and the domain entries are free", () => {
+    const eng = (name: string, text: string, spec: string) => [`packages/engine/src/${name}.ts`, { text, specs: [spec] }] as const;
+    const files = Object.fromEntries([
+      eng('lazy', "export const sandbox = () => import('@retake/sandbox');\n", '@retake/sandbox'),
+      eng('types', "import type { SandboxState } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('named-types', "import { type SandboxState } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('type-position', "let sb: typeof import('@retake/sandbox');\n", '@retake/sandbox'),
+      eng('value', "import { pidAlive } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('mixed', "import { type SandboxState, pidAlive } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('reexport', "export { pidAlive } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('reexport-all', "export * from '@retake/hooks';\n", '@retake/hooks'),
+      eng('dynamic', "const rw = await import('@retake/runner-web');\n", '@retake/runner-web'),
+      eng('reexport-namespace', "export * as hooks from '@retake/hooks';\n", '@retake/hooks'),
+      eng('side-effect', "import '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('require', "const sb = require('@retake/sandbox');\n", '@retake/sandbox'),
+      eng('import-equals', "import sb = require('@retake/sandbox');\n", '@retake/sandbox'),
+      eng('dynamic-template', 'const rw = await import(`@retake/runner-web`);\n', '@retake/runner-web'),
+      eng('reexport-types', "export type { SandboxState } from '@retake/sandbox';\n", '@retake/sandbox'),
+      eng('jobs/thumbs', "import { extractFrames } from '@retake/review/thumbs';\n", '@retake/review/thumbs'),
+      eng('root-of-a-domain-entry', "import { loadRegistry } from '@retake/components';\n", '@retake/components'),
+      // The domain entries are pure: a value of them loads no adapter code.
+      eng('geometry-value', "import { autoFit } from '@retake/components/geometry';\n", '@retake/components/geometry'),
+      eng('checks-value', "import { runChecks } from '@retake/review/checks';\n", '@retake/review/checks'),
+      // The editor is R9's (its planner entry included), core is no adapter, and another package's file is not the engine's.
+      eng('editor-value', "import { renderVideo } from '@retake/editor';\n", '@retake/editor'),
+      eng('plan-value', "import { planEdit } from '@retake/editor/plan';\n", '@retake/editor/plan'),
+      eng('core-value', "import { parseScenario } from '@retake/core';\n", '@retake/core'),
+      ['packages/mcp/src/a.ts', { text: "import { pidAlive } from '@retake/sandbox';\n", specs: ['@retake/sandbox'] }] as const,
+    ]);
+    const all = hitsOf(files);
+    const flagged = all.filter((h) => h.startsWith('R11 ')).map((h) => h.replace(/^R11 packages\/engine\/src\/(.+)\.ts → /, '$1: '));
+    expect(flagged.sort()).toEqual([
+      'dynamic-template: @retake/runner-web',
+      'dynamic: @retake/runner-web',
+      'import-equals: @retake/sandbox',
+      'jobs/thumbs: @retake/review/thumbs',
+      'mixed: @retake/sandbox',
+      'reexport-all: @retake/hooks',
+      'reexport-namespace: @retake/hooks',
+      'reexport: @retake/sandbox',
+      'require: @retake/sandbox',
+      'root-of-a-domain-entry: @retake/components',
+      'side-effect: @retake/sandbox',
+      'value: @retake/sandbox',
+    ]);
+    // The editor's values stay R9's hits, under R9's name only.
+    expect(all.filter((h) => h.includes('editor-value') || h.includes('plan-value')).map((h) => h.split(' ')[0]).sort()).toEqual(['R9', 'R9']);
+    // R11 is a rule of the list, with no loader check of its own (R9 owns the loaders of these files).
+    const r11 = (lib.RULES as { id: string; typeOnlyCheck?: boolean; loaders?: boolean }[]).find((r) => r.id === 'R11')!;
+    expect(r11.typeOnlyCheck).toBe(true);
+    expect(r11.loaders).toBeUndefined();
+    // So R11's cover of a loader that names nothing rests on R9: it checks loaders, on the very files R11 reads.
+    const r9 = (lib.RULES as { id: string; loaders?: boolean; files: (f: string) => boolean }[]).find((r) => r.id === 'R9')!;
+    expect(r9.loaders).toBe(true);
+    for (const file of ['packages/engine/src/a.ts', 'packages/engine/src/jobs/b.ts', 'packages/engine/src/render/c.ts', lib.ENGINE_LOADER as string, 'packages/mcp/src/a.ts']) {
+      expect(r9.files(file), file).toBe((r11 as unknown as { files: (f: string) => boolean }).files(file));
+    }
+    expect(hitsOf({ 'packages/engine/src/computed.ts': { text: "const name = '@retake/' + 'sandbox';\nconst sb = await import(name);\n", specs: [] } })).toEqual(['R9 packages/engine/src/computed.ts → import()']);
+    // A file that cannot be read counts as a value import (the check fails closed).
+    expect(hits({ 'packages/engine/src/gone.ts': ['@retake/hooks'] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('R11 '))).toEqual(['R11 packages/engine/src/gone.ts → @retake/hooks']);
+  });
+
+  it('a shell may import a domain entry, not the package behind it', () => {
+    expect(lib.DOMAIN_ENTRIES).toEqual(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks']);
+    const entries = lib.DOMAIN_ENTRIES as string[];
+    for (const shell of ['packages/ui/src/server/a.ts', 'packages/mcp/src/tools/a.ts', 'packages/cli/src/commands/a.ts']) {
+      const r4 = (text: string, specs: readonly string[]) => hitsOf({ [shell]: { text, specs } }).filter((h) => h.startsWith('R4 ')).map((h) => h.replace(`R4 ${shell} → `, ''));
+      // The allowance is for types: a shell may be typed against a domain entry, in every type-only form.
+      const typed = [
+        ...entries.map((e, i) => `import type { T${i} } from '${e}';`),
+        "import { type A, type B } from '@retake/components/geometry';",
+        "export type { C } from '@retake/review/checks';",
+        "export { type D } from '@retake/editor/plan';",
+        "let p: typeof import('@retake/editor/plan');",
+        "import { parseScenario } from '@retake/core';",
+        "import { createEngine } from '@retake/engine';",
+      ].join('\n');
+      expect(r4(typed, [...entries, '@retake/core', '@retake/engine']), shell).toEqual([]);
+      // A value of a domain entry is the shell doing the application's work by itself: a hit, whatever the form.
+      const values: Record<string, string> = {
+        named: "import { planEdit } from '@retake/editor/plan';",
+        mixed: "import { type EditPlan, planEdit } from '@retake/editor/plan';",
+        default: "import plan from '@retake/editor/plan';",
+        namespace: "import * as plan from '@retake/editor/plan';",
+        'side-effect': "import '@retake/editor/plan';",
+        reexport: "export { planEdit } from '@retake/editor/plan';",
+        'reexport-all': "export * from '@retake/editor/plan';",
+        'reexport-namespace': "export * as plan from '@retake/editor/plan';",
+        dynamic: "const plan = await import('@retake/editor/plan');",
+        require: "const plan = require('@retake/editor/plan');",
+        'import-equals': "import plan = require('@retake/editor/plan');",
+      };
+      for (const [form, text] of Object.entries(values)) expect(r4(`${text}\n`, ['@retake/editor/plan']), `${shell} ${form}`).toEqual(['@retake/editor/plan']);
+      expect(r4("import { autoFit } from '@retake/components/geometry';\nimport { runChecks } from '@retake/review/checks';\n", ['@retake/components/geometry', '@retake/review/checks']), shell).toEqual(['@retake/components/geometry', '@retake/review/checks']);
+      // The package behind an entry stays an adapter import, its types too; a path below an entry is no entry.
+      const behind = ['@retake/components', '@retake/review/thumbs', '@retake/components/kit', '@retake/editor', '@retake/review', '@retake/components/geometry/x'];
+      expect(r4(behind.map((s, i) => `import type { T${i} } from '${s}';`).join('\n'), behind), shell).toEqual(behind);
+      // A file that cannot be read counts as a value import (the check fails closed).
+      expect(hits({ [shell]: [...entries] }, join(tmpdir(), 'retake-import-rules-none')).filter((h) => h.startsWith('R4 '))).toEqual(entries.map((s) => `R4 ${shell} → ${s}`));
+    }
+    // The rule says for which specifiers types are free: the domain entries, nothing else.
+    const rule = (lib.RULES as { id: string; typeOnlyCheck?: unknown }[]).find((r) => r.id === 'R4')!;
+    expect(typeof rule.typeOnlyCheck).toBe('function');
+    const typesFree = rule.typeOnlyCheck as (s: string) => boolean;
+    expect(['@retake/components/geometry', '@retake/editor/plan', '@retake/review/checks', '@retake/components', '@retake/review/thumbs', '@retake/editor', '@retake/sandbox'].filter((s) => typesFree(s))).toEqual(entries);
+    // Every domain entry is a real entry of its package (an exports key with a source), and none is a package root.
+    for (const entry of lib.DOMAIN_ENTRIES as string[]) {
+      const [, pkg, sub] = /^@retake\/([\w-]+)\/([\w-]+)$/.exec(entry)!;
+      const exportsOf = (JSON.parse(readFileSync(join(ROOT, 'packages', pkg!, 'package.json'), 'utf8')) as { exports: Record<string, unknown> }).exports;
+      expect(exportsOf, entry).toHaveProperty([`./${sub}`]);
+    }
+  });
+
+  it('flags the components root in a pure module of the review, type or value, not their geometry entry', () => {
+    // No type-only allowance: the rule reads the specifier, whatever the import's form.
+    expect((lib.RULES as { id: string; typeOnlyCheck?: boolean }[]).find((r) => r.id === 'R12')!.typeOnlyCheck).toBeUndefined();
+    const pure = lib.REVIEW_PURE as string[];
+    expect(pure).toEqual(['checks-entry', 'checks', 'pixel-checks', 'pixel-maths', 'spans', 'timeline', 'anchor', 'diff', 'types']);
+    const files = Object.fromEntries([
+      ...pure.map((n) => [`packages/review/src/${n}.ts`, { text: "import type { ComponentRegistry } from '@retake/components';\nimport { fitText } from '@retake/components/geometry';\n", specs: ['@retake/components', '@retake/components/geometry', '@retake/core', '@retake/editor/plan'] }] as const),
+      ['packages/review/src/a/checks.ts', { text: "import { fitText } from '@retake/components/kit';\n", specs: ['@retake/components/kit'] }] as const,
+      // The I/O side of the review may: it is not what the entry reaches.
+      ['packages/review/src/review.ts', { text: "import { loadRegistry } from '@retake/components';\n", specs: ['@retake/components'] }] as const,
+      ['packages/review/src/pixels.ts', { text: "import { loadRegistry } from '@retake/components';\n", specs: ['@retake/components'] }] as const,
+      ['packages/editor/src/checks.ts', { text: "import { loadRegistry } from '@retake/components';\n", specs: ['@retake/components'] }] as const,
+    ]);
+    expect(hitsOf(files).filter((h) => h.startsWith('R12 ')).sort()).toEqual(pure.map((n) => `R12 packages/review/src/${n}.ts → @retake/components`).sort());
+    expect(hits({ 'packages/review/src/types.ts': ['@retake/components/kit', '@retake/components/geometry/x'] }).filter((h) => h.startsWith('R12 '))).toEqual(['R12 packages/review/src/types.ts → @retake/components/kit', 'R12 packages/review/src/types.ts → @retake/components/geometry/x']);
+    // Every pure module is a file of the review.
+    for (const n of pure) expect(() => readFileSync(join(ROOT, 'packages', 'review', 'src', `${n}.ts`)), n).not.toThrow();
+  });
+
+  it("the engine's facade never names the file job queue", () => {
+    const dir = join(ROOT, 'packages', 'engine', 'src', 'facade');
+    const files = readdirSync(dir).filter((f) => f.endsWith('.ts'));
+    expect(files.length).toBeGreaterThan(5);
+    expect(files).toContain('context.ts');
+    for (const f of files) expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(/\bFileJobQueue\b/);
+    // Nor reads the class's own member off the port under a cast (`(ctx.queue as unknown as { files: … }).files`): the
+    // paths are handed beside the queue (`jobFiles`). A word search: a cast spelt another way is the type check's to refuse.
+    const READS_FILES = /\bqueue\b(?:\s+as\b[^)\n]*)?\s*[)!?]*\s*\.\s*files\b/;
+    for (const f of files) expect(readFileSync(join(dir, f), 'utf8'), f).not.toMatch(READS_FILES);
+    for (const text of ['ctx.queue.files', 'queue!.files', 'queue?.files', '(queue as FileQueue).files', '(ctx.queue as unknown as { files: JobFiles }).files']) expect(text).toMatch(READS_FILES);
+    for (const text of ['const { queue, files: jobFiles } = queueOf(root, cli);', '{ queue, client, scope, files: ctx.files }', 'queueOf: (root) => { queue: JobQueue; files: JobFiles }']) expect(text).not.toMatch(READS_FILES);
+  });
+
+  /** A scratch repository of real files, read by the scan itself: its rule hits (the specifiers are the scan's, not hand-written). */
+  const scannedHits = (files: Record<string, string>): string[] => {
+    const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+    try {
+      for (const [rel, text] of Object.entries(files)) {
+        const pkg = rel.split('/')[1]!;
+        mkdirSync(dirname(join(root, rel)), { recursive: true });
+        writeFileSync(join(root, 'packages', pkg, 'package.json'), `{"name": "@retake/${pkg}"}\n`);
+        writeFileSync(join(root, rel), text);
+      }
+      return lib.ruleHits(root, lib.scan(root).fileImports).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`).sort();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  it("the scan lists a namespace re-export (export * as ns from), which the compiler's pre-processor does not: every specifier rule sees it", () => {
+    const ts = lib.loadTs(ROOT) as typeof import('typescript');
+    // The hole this closes, as it is in the compiler today: the pre-processor lists nothing for the form.
+    const text = "export * as sb from '@retake/hooks';\n";
+    expect(ts.preProcessFile(text, true, true).importedFiles.map((x) => x.fileName)).toEqual([]);
+    expect(lib.specifiersOf(ts, 'a.ts', text)).toEqual(['@retake/hooks']);
+    // The pre-processor's list first and as it gives it, then what only the declarations have, each once.
+    const mixed = "import { a } from './a.js';\nimport type { B } from './b.js';\nexport * as c from './c.js';\nexport * from './d.js';\nconst e = await import('./e.js');\nlet f: typeof import('./f.js');\nimport g = require('./g.js');\nexport * as a2 from './a.js';\nexport type * as h from './h.js';\n";
+    expect([...lib.specifiersOf(ts, 'a.ts', mixed)].sort()).toEqual(['./a.js', './b.js', './c.js', './d.js', './e.js', './f.js', './g.js', './h.js']);
+    expect(lib.declaredSpecifiers(ts, 'a.ts', mixed)).toEqual(['./a.js', './b.js', './c.js', './d.js', './g.js', './a.js', './h.js']);
+    expect(scannedHits({
+      'packages/core/src/x.ts': "export * as fs from 'node:fs';\n",
+      'packages/core/src/y.ts': "export * as io from './io/index.js';\n",
+      'packages/core/src/io/index.ts': 'export const r = 1;\n',
+      'packages/hooks/src/x.ts': "export * as engine from '@retake/engine';\n",
+      'packages/ui/src/server/x.ts': "export * as mcp from '@retake/mcp';\nexport * as plan from '@retake/editor/plan';\nexport * as fs from 'node:fs';\n",
+      'packages/ui/src/app/c.ts': "export * as core from '@retake/core';\n",
+      'packages/ui/src/app/types.ts': "export type * as core from '@retake/core';\n",
+      'packages/editor/src/plan.ts': "export * as r from 'remotion';\n",
+      'packages/review/src/spans.ts': "export * as c from '@retake/components';\nexport * as cp from 'node:child_process';\nexport * as e from '@retake/editor';\n",
+      'packages/engine/src/x.ts': "export * as sb from '@retake/hooks';\nexport * as ed from '@retake/editor';\n",
+      'packages/engine/src/types.ts': "export type * as sb from '@retake/sandbox';\n",
+      'packages/engine/src/lazy.ts': "export * as sb from '@retake/sandbox';\n",
+    })).toEqual([
+      'R1 packages/core/src/x.ts → node:fs',
+      'R1 packages/core/src/y.ts → ./io/index.js',
+      'R11 packages/engine/src/x.ts → @retake/hooks',
+      'R12 packages/review/src/spans.ts → @retake/components',
+      'R2 packages/hooks/src/x.ts → @retake/engine',
+      'R3 packages/ui/src/server/x.ts → @retake/mcp',
+      'R4 packages/ui/src/server/x.ts → @retake/editor/plan',
+      'R5 packages/ui/src/app/c.ts → @retake/core',
+      'R6 packages/ui/src/server/x.ts → node:fs',
+      'R7 packages/editor/src/plan.ts → remotion',
+      'R7 packages/review/src/spans.ts → node:child_process',
+      'R8 packages/review/src/spans.ts → @retake/editor',
+      'R9 packages/engine/src/x.ts → @retake/editor',
+    ]);
+    // A cycle through the form is a cycle too (the file graph reads the same list).
+    const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+    try {
+      mkdirSync(join(root, 'packages', 'core', 'src'), { recursive: true });
+      writeFileSync(join(root, 'packages', 'core', 'package.json'), '{"name": "@retake/core"}\n');
+      writeFileSync(join(root, 'packages', 'core', 'src', 'a.ts'), "export * as b from './b.js';\n");
+      writeFileSync(join(root, 'packages', 'core', 'src', 'b.ts'), "import { x } from './a.js';\nexport const y = x;\n");
+      expect(lib.fileCycles(lib.scan(root).fileImports)).toEqual([['packages/core/src/a.ts', 'packages/core/src/b.ts']]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("the engine's loader only loads on a call: no static import or re-export of a package in lazy.ts", () => {
+    const ts = lib.loadTs(ROOT) as typeof import('typescript');
+    const loader = lib.ENGINE_LOADER as string;
+    const uses = lib.moduleUses(ts, loader, readFileSync(join(ROOT, loader), 'utf8')) as { values: Set<string>; statics: Set<string> };
+    // The file is exempt from R9 and R11 whole: a static `export * from '@retake/sandbox'` there would hand every engine
+    // file the adapter's values through `./lazy.js`, unseen. What it loads, it loads inside a function.
+    expect([...uses.statics]).toEqual([]);
+    expect([...uses.values].sort()).toEqual(['@retake/editor', '@retake/review']);
+    // What `statics` reads, on the forms: a declaration is static, a call is not, a type loads nothing.
+    const staticsOf = (text: string): string[] => [...(lib.moduleUses(ts, loader, text) as { statics: Set<string> }).statics];
+    for (const text of ["export * from '@retake/sandbox';", "export * as sb from '@retake/sandbox';", "export { pidAlive } from '@retake/sandbox';", "import { pidAlive } from '@retake/sandbox';", "import '@retake/sandbox';", "import sb = require('@retake/sandbox');", "import { type S, pidAlive } from '@retake/sandbox';"]) expect(staticsOf(text), text).toEqual(['@retake/sandbox']);
+    for (const text of ["export const sandbox = () => import('@retake/sandbox');", "import type { S } from '@retake/sandbox';", "export type { S } from '@retake/sandbox';", "let s: typeof import('@retake/sandbox');", "const sb = require('@retake/sandbox');"]) expect(staticsOf(text), text).toEqual([]);
+  });
+
+  it('every package is in exactly one layer; a relative import never leaves its package; a .cts source is read like the others', () => {
+    // A new folder of packages/ belongs to no list until someone decides its layer: the rules would not read it.
+    const dirs = readdirSync(join(ROOT, 'packages')).filter((d) => statSync(join(ROOT, 'packages', d)).isDirectory()).sort();
+    const layers = lib.LAYERS as Record<string, string[]>;
+    expect(Object.keys(layers)).toEqual(['domain', 'adapters', 'application', 'shells']);
+    expect(Object.values(layers).flat().sort()).toEqual(dirs);
+    expect(new Set(Object.values(layers).flat()).size).toBe(dirs.length);
+    // The lists are the rules' own: R2 reads the adapters, R4 the shells.
+    const rules = lib.RULES as { id: string; files: (f: string) => boolean }[];
+    for (const p of dirs) {
+      expect(rules.find((r) => r.id === 'R2')!.files(`packages/${p}/src/a.ts`), p).toBe(layers.adapters!.includes(p));
+      expect(rules.find((r) => r.id === 'R4')!.files(`packages/${p}/src/a.ts`), p).toBe(layers.shells!.includes(p));
+    }
+    // R13: another package is reached by its name (what the layer rules read), never by a path.
+    expect(scannedHits({
+      'packages/engine/src/jobs/a.ts': "import { pidAlive } from '../../../sandbox/dist/index.js';\nimport type { S } from '../../../sandbox/src/index.js';\nexport * as hooks from '../../../hooks/src/index.js';\nconst rw = await import('../../../runner-web/dist/index.js');\nimport { b } from '../b.js';\nimport pkg from '../../package.json';\nimport { c } from './c.js';\n",
+      'packages/cli/src/a.ts': "import { s } from '../../../scripts/audit/lib.mjs';\nimport { e } from '../../engine/src/index.js';\nimport { self } from '../../cli/src/b.js';\nimport { near } from '../../cli-tools/x.js';\n",
+      'packages/core/src/a.cts': "import fs = require('node:fs');\nimport up = require('../../hooks/src/x.js');\n",
+      'packages/core/src/types.d.cts': "import fs = require('node:fs');\n",
+    })).toEqual([
+      'R1 packages/core/src/a.cts → node:fs',
+      'R13 packages/cli/src/a.ts → ../../../scripts/audit/lib.mjs',
+      'R13 packages/cli/src/a.ts → ../../cli-tools/x.js',
+      'R13 packages/cli/src/a.ts → ../../engine/src/index.js',
+      'R13 packages/core/src/a.cts → ../../hooks/src/x.js',
+      'R13 packages/engine/src/jobs/a.ts → ../../../hooks/src/index.js',
+      'R13 packages/engine/src/jobs/a.ts → ../../../runner-web/dist/index.js',
+      'R13 packages/engine/src/jobs/a.ts → ../../../sandbox/dist/index.js',
+      'R13 packages/engine/src/jobs/a.ts → ../../../sandbox/src/index.js',
+    ]);
+    // No entry in the baseline: the repository has none.
+    expect((lib.readBaseline(ROOT) as { groups: { rule: string }[] }).groups.filter((g) => g.rule === 'R13')).toEqual([]);
   });
 
   it('flags the file job queue class passed on as a value outside the composition roots, not its use as a type', () => {

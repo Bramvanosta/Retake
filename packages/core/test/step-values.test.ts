@@ -28,7 +28,7 @@ import {
   stepGuard,
   verifyEditText,
 } from '../src/index.js';
-import type { FieldChange, FormField, FormValue, StepEdit } from '../src/index.js';
+import type { ActionName, FieldChange, FormField, FormValue, StepEdit } from '../src/index.js';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCENARIOS = join(ROOT, 'projects', 'northfield-fixture', 'scenarios');
@@ -138,6 +138,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
     let k = 0;
     v.scenes.forEach((sc, entry) => {
       if (typeof sc.id !== 'string' || !Array.isArray(sc.steps)) return;
+      const sceneId = sc.id;
       sc.steps.forEach((raw, index) => {
         const form = stepFormValues(raw);
         if (!form) return;
@@ -148,7 +149,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
           if (cur === undefined) continue;
           const to = newValue(f, cur, n);
           if (to === undefined) continue;
-          const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(f.key, cur, to)] });
+          const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(f.key, cur, to)] });
           const where = nodeLine(text, entry, index, f.key.split('.'));
           expect(changedLines(text, r.text), `${sc.id}.${index} ${f.key}`).toEqual([where.line]);
           expect(stepFormValues((r.intended as Doc).scenes[entry].steps![index])!.values[f.key]).toEqual(to);
@@ -159,7 +160,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
         if (optional.length) {
           const f = optional[k++ % optional.length];
           try {
-            const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(f.key, form.values[f.key], undefined)] });
+            const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(f.key, form.values[f.key], undefined)] });
             const d = lines(text).length - lines(r.text).length;
             expect([0, 1], `${sc.id}.${index} remove ${f.key}`).toContain(d);
             if (d === 0) expect(changedLines(text, r.text)).toHaveLength(1);
@@ -176,7 +177,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
           const key = absent[k++ % absent.length];
           const f = stepFields(form.action).find((x) => x.key === key)!;
           const to = newValue(f, undefined, n)!;
-          const r = applied(text, { kind: 'set_step', at: at(text, sc.id, index), changes: [change(key, undefined, to)] });
+          const r = applied(text, { kind: 'set_step', at: at(text, sceneId, index), changes: [change(key, undefined, to)] });
           const a = lines(text);
           const b = lines(r.text);
           expect(b.length - a.length, `${sc.id}.${index} add ${key}`).toBe(1);
@@ -222,7 +223,7 @@ describe('value edits on every step of the fixture scenarios (goldens)', () => {
       for (const sc of valueOf(readFileSync(join(SCENARIOS, name), 'utf8')).scenes) {
         for (const raw of sc.steps ?? []) {
           const form = stepFormValues(raw);
-          if (!form || !PALETTE_ACTIONS.includes(form.action) || form.yaml_only.length || Object.keys(form.locked).length) continue;
+          if (!form || !(PALETTE_ACTIONS as readonly ActionName[]).includes(form.action) || form.yaml_only.length || Object.keys(form.locked).length) continue;
           if (Object.keys(raw as object).some((k) => k !== form.action)) continue;
           total++;
           const own = Object.fromEntries(Object.entries(form.values).filter(([k]) => k === form.action || k.startsWith(`${form.action}.`)));

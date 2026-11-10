@@ -96,8 +96,8 @@ describe.skipIf(!built)('retake mcp --http (built CLI)', () => {
     const transport = new StreamableHTTPClientTransport(new URL(line.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } });
     await client.connect(transport);
     expect((await client.listTools()).tools).toHaveLength(45);
-    const r = (await client.callTool({ name: 'project_list', arguments: {} })) as { structuredContent: { projects: Array<{ slug: string }> } };
-    expect(r.structuredContent.projects.map((p) => p.slug)).toEqual(['northfield-fixture']);
+    const r = await client.callTool({ name: 'project_list', arguments: {} });
+    expect((r.structuredContent as { projects: Array<{ slug: string }> }).projects.map((p) => p.slug)).toEqual(['northfield-fixture']);
     await transport.terminateSession();
     await client.close();
     const wrong = await fetch(line.url, { method: 'POST', headers: { Authorization: 'Bearer nope', 'Content-Type': 'application/json' }, body: '{}' });

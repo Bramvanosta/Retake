@@ -120,7 +120,7 @@ describe('theme view (L4.7)', () => {
   it('⚑ editable by real path (critique B15): starters, the repository\'s starters, links and hard links are read-only with why', async () => {
     expect((await engine.templates.view('motion')).editable).toEqual({ why: expect.stringMatching(/starter theme shipped with Retake: copy it to edit it/) });
     // The repository as a workspace lists its starters as `workspace` (templates_dir: templates): still not editable.
-    const repoWs = await openWorkspace({ root: REPO });
+    const repoWs = await openWorkspace({ root: REPO, agent: false });
     const rv = await templateView(repoWs, 'editorial');
     expect(rv.source).toBe('workspace');
     expect(rv.editable).toEqual({ why: expect.stringMatching(/shipped with Retake \(its folder lies in the Retake package\)/) });

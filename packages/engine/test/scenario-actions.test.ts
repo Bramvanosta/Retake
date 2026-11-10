@@ -148,7 +148,7 @@ describe('scenarios.actions: the status bar’s read', () => {
 
 describe('memo (critique H2)', () => {
   const views = async () => {
-    const wsc = await openWorkspace({ root: ws });
+    const wsc = await openWorkspace({ root: ws, agent: false });
     let blockers = 0;
     const v = new ScenarioViews({
       ws: wsc,

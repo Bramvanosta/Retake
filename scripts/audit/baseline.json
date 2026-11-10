@@ -3,7 +3,7 @@
  "groups": [
   {
    "rule": "R3",
-   "reason": "The Studio server serves some MCP tools as they are (TOOLS) until those tools are operations of the engine; the operation contract itself comes from @retake/engine/contract.",
+   "reason": "The Studio server serves eleven MCP tools as they are (TOOLS) until they are operations of the engine: they move with the invoke lot (audit 2026-11-10, U7); the operation contract itself comes from @retake/engine/contract.",
    "entries": [
     "packages/ui/src/server/studio.ts → @retake/mcp"
    ]
@@ -42,7 +42,6 @@
    "entries": [
     "packages/ui/src/server/library-ops.ts → @retake/components",
     "packages/ui/src/server/library-watch.ts → @retake/editor",
-    "packages/ui/src/server/ops.ts → @retake/components",
     "packages/ui/src/server/ops.ts → @retake/editor",
     "packages/ui/src/server/player.ts → @retake/editor",
     "packages/ui/src/server/theme-ops.ts → @retake/components",
@@ -87,10 +86,42 @@
     "packages/ui/src/server/run-live.ts → node:fs",
     "packages/ui/src/server/setup-ops.ts → node:child_process",
     "packages/ui/src/server/setup-ops.ts → node:fs",
-    "packages/ui/src/server/studio.ts → node:fs",
     "packages/ui/src/server/supervise.ts → node:fs/promises",
     "packages/ui/src/server/unsaved.ts → node:fs/promises",
     "packages/ui/src/server/worker-env.ts → node:fs"
+   ]
+  },
+  {
+   "rule": "R11",
+   "reason": "P1: the engine still builds these adapters itself; each port (U6) removes entries. 27 file → specifier pairs on 2026-11-10: sandbox 11, runner-web 9, hooks 3, review/thumbs 3, components 1.",
+   "entries": [
+    "packages/engine/src/approvals.ts → @retake/hooks",
+    "packages/engine/src/auth.ts → @retake/runner-web",
+    "packages/engine/src/components.ts → @retake/components",
+    "packages/engine/src/execute-run.ts → @retake/runner-web",
+    "packages/engine/src/execute-run.ts → @retake/sandbox",
+    "packages/engine/src/hooks.ts → @retake/runner-web",
+    "packages/engine/src/jobs/captures.ts → @retake/sandbox",
+    "packages/engine/src/jobs/hooks-job.ts → @retake/hooks",
+    "packages/engine/src/jobs/inspect-job.ts → @retake/runner-web",
+    "packages/engine/src/jobs/job-child.ts → @retake/runner-web",
+    "packages/engine/src/jobs/lock.ts → @retake/sandbox",
+    "packages/engine/src/jobs/proc.ts → @retake/sandbox",
+    "packages/engine/src/jobs/sandbox-job.ts → @retake/sandbox",
+    "packages/engine/src/jobs/signal.ts → @retake/sandbox",
+    "packages/engine/src/jobs/site-job.ts → @retake/runner-web",
+    "packages/engine/src/jobs/worker-recovery.ts → @retake/hooks",
+    "packages/engine/src/jobs/worker.ts → @retake/runner-web",
+    "packages/engine/src/jobs/worker.ts → @retake/sandbox",
+    "packages/engine/src/jobs/yield.ts → @retake/sandbox",
+    "packages/engine/src/login.ts → @retake/runner-web",
+    "packages/engine/src/project-lock.ts → @retake/sandbox",
+    "packages/engine/src/record.ts → @retake/runner-web",
+    "packages/engine/src/record.ts → @retake/sandbox",
+    "packages/engine/src/render-frames.ts → @retake/review/thumbs",
+    "packages/engine/src/reviews.ts → @retake/review/thumbs",
+    "packages/engine/src/run-thumbs.ts → @retake/review/thumbs",
+    "packages/engine/src/sandbox.ts → @retake/sandbox"
    ]
   },
   {

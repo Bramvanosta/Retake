@@ -28,7 +28,7 @@ import type { PlayerBundle } from '../src/player/bundle-player.js';
 import { raw } from './http.js';
 
 const STUDIO_PORT = 4999;
-const BUNDLE: PlayerBundle = { hash: '0123456789abcdef', js: Buffer.from('/* the frame bundle */'), boot: Buffer.from('/* boot */'), components: [], excluded: [], ms: 0 };
+const BUNDLE: PlayerBundle = { hash: '0123456789abcdef', js: Buffer.from('/* the frame bundle */'), boot: Buffer.from('/* boot */'), components: [], excluded: [], held: [], ms: 0 };
 let root: string;
 let dirs: { project: string; run: string; theme: string; outside: string };
 let player: PlayerServer;

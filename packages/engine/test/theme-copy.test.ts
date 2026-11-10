@@ -91,7 +91,7 @@ describe('copy a theme (L4.7)', () => {
     expect(e.code).toBe('refused');
     expect(e.message).toMatch(/holds a symbolic link \(notes.txt\)/);
     expect((await readdir(join(root, 'templates'))).some((n) => n.includes('linky-copy'))).toBe(false);
-    const repoWs = await openWorkspace({ root: REPO });
+    const repoWs = await openWorkspace({ root: REPO, agent: false });
     expect((await failure(copyTheme(repoWs, { from: 'editorial', name: 'never-here' }, { scope: personScope(repoWs.root) }))).message).toMatch(/lies inside the Retake folder/);
   });
 

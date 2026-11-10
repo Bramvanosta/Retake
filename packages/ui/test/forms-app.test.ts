@@ -89,7 +89,7 @@ describe('editAgain: an edit on a newer version ("Apply it to the new version")'
   it('a new step goes after the same step as before (by its guard); moves go as they were (their guard decides)', () => {
     const v0 = view(T0);
     const g = scene(v0).steps[0].guard!;
-    const ins = { kind: 'insert_step' as const, to: { scene: 'a', index: 1 }, after: g, action: 'hold', values: { hold: 1 } };
+    const ins = { kind: 'insert_step' as const, to: { scene: 'a', index: 1 }, after: g, action: 'hold' as const, values: { hold: 1 } };
     const v1 = view(T0.replace('    steps:\n', '    steps:\n      - hold: 2\n'));
     expect(editAgain(ins, null, v1)).toEqual({ op: { ...ins, to: { scene: 'a', index: 2 } } });
     expect(editAgain(ins, null, view(T0.replace('click: One', 'click: Two')))).toEqual({ why: 'the step it was to follow changed or moved' });

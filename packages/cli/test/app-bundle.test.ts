@@ -414,9 +414,9 @@ describe('an app bundle: the plugin marketplace and the preview writes', () => {
     expect(renderBrowser({}, null, () => '/cache/headless_shell')).toEqual({ path: '/cache/headless_shell', source: 'playwright' });
     const missing = renderBrowser({}, app, () => null);
     expect(missing).toMatchObject({ path: null, source: 'none', note: expect.stringMatching(/reinstall Retake/) });
-    expect(() => assertRenderBrowser(missing, app)).toThrow(/headless shell is missing/);
+    expect(() => assertRenderBrowser(missing, PERSON_POLICY, app)).toThrow(/headless shell is missing/);
     // Outside an app too: Remotion never downloads a browser of its own.
-    expect(() => assertRenderBrowser(renderBrowser({}, null, () => null), null)).toThrow(/playwright-core install chromium-headless-shell/);
+    expect(() => assertRenderBrowser(renderBrowser({}, null, () => null), PERSON_POLICY, null)).toThrow(/playwright-core install chromium-headless-shell/);
   });
 
   it("every command's --out inside the app is refused before the command starts (review A L4)", async () => {

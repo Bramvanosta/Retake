@@ -254,7 +254,7 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     const job = await review(queue);
     const logs: string[] = [];
     const worker = work(root, { [job.id]: 'until-file' }, {}, logs);
-    let m: InstanceType<typeof FilmingMarker> | null = null;
+    let m: ReturnType<typeof FilmingMarker.open> = null;
     try {
       await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
       m = FilmingMarker.open({ root: join(base, 'cap-elsewhere'), source: 'cli', owner: await selfIdentity() });

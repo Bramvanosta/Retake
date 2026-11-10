@@ -229,6 +229,7 @@ describe('theme_preview', () => {
       const text = JSON.stringify({ ...spec, ...(spec.scene ? { scene: { ...spec.scene, url: undefined } } : {}) });
       expect(text).not.toContain(ws);
       expect(text).not.toContain(homedir());
+      if (!('plan_url' in d)) throw new Error('no preview');
       const media = d.plan_url.slice(0, d.plan_url.indexOf('/plan/') + 1);
       for (const u of text.match(/https?:\/\/[^"]+/g) ?? []) expect(u.startsWith(media), u).toBe(true);
       if (target === 'clip') expect(spec.scene).toBeDefined();

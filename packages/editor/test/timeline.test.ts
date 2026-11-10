@@ -115,7 +115,7 @@ describe('cuts and their reasons (a synthetic take)', () => {
     });
     t.stalls = [{ t_start: 14, t_end: 15, during: 'move' }];
     t.busy = [{ t_start: 16.3, t_end: 19.5, click: 16.2 }];
-    t.loading = [{ t_start: 21.1, t_end: 22.6, until: 'paint' }];
+    t.loading = [{ t_start: 21.1, t_end: 22.6, until: 'paint', held_frames: 45 }];
     const p = await plan(t);
     const m = timelineOf(p, { timeline: t });
     const c = clips(p)[0];

@@ -306,6 +306,7 @@ describe('the signature, checked in Node before anything is written', () => {
   });
 
   it('a signature made by the pinned Tauri CLI (`signer generate` + `signer sign --app-version`) checks with its public key', async () => {
+    // @ts-expect-error — a build script in plain JavaScript (.mjs): it has no declaration file
     const { tauriCli } = await import('../../../apps/desktop/scripts/bundle.mjs');
     let cliJs: string;
     try {
@@ -604,7 +605,7 @@ describe('the feed under races and failures (review f)', () => {
     attached('0.2.1');
     // A 502 on the first rename, a 429 (Retry-After: 3) on a DELETE, a 403 rate limit with no request left.
     const seen: string[] = [];
-    gh.before = (q) => {
+    gh.before = (q): Canned => {
       const k = `${q.method} ${q.path.replace(/\d+/g, 'N')}`;
       seen.push(k);
       const n = seen.filter((x) => x === k).length;

@@ -23,6 +23,7 @@ import {
   capUntrusted,
   catalogueOperation,
   cliCommandsOf,
+  defineTool,
   facetProblem,
   hintsOf,
   pinArguments,
@@ -31,7 +32,7 @@ import {
   studioPins,
   studioStatus,
 } from '@retake/engine/contract';
-import type { Facets, NotServed, Operation, StudioServe, ToolDef } from '@retake/engine/contract';
+import type { Facets, NotServed, Operation, StudioServe } from '@retake/engine/contract';
 import { ENGINE_ERROR_CODES, EngineError, SUBMIT_RULES } from '../src/index.js';
 
 const why = (v: unknown): string | undefined => (v && typeof v === 'object' && 'why' in v ? (v as NotServed).why : undefined);
@@ -250,14 +251,14 @@ describe('the operation catalogue', () => {
 });
 
 describe('the operation contract', () => {
-  const tool: ToolDef = {
+  const tool = defineTool({
     name: 'probe',
     title: 'Probe',
     description: 'A probe.',
     input: z.object({ project: z.string(), wait_s: z.number().int().min(0).max(25).default(5), mode: z.enum(['headed', 'auto']).default('auto') }).strict(),
     annotations: { readOnlyHint: true },
     run: async (args) => ({ summary: 'ok', data: { args, untrusted: { text: 'x'.repeat(2100) } } }),
-  };
+  });
   const engine = async () => ({}) as never;
 
   it('pinArguments: a pinned argument accepts its one value only, absent or (default) filled in; the others stay', () => {

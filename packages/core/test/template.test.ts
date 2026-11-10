@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ConfigError, DEFAULT_TEMPLATE, TemplateSchema, parseTemplateYaml } from '@retake/core';
-import { listTemplates, loadProjectTemplate, loadTemplate, nodeFileFacts, STARTER_TEMPLATES_DIR } from '@retake/core/io';
+import { ConfigError, DEFAULT_TEMPLATE, PERSON_POLICY, TemplateSchema, parseTemplateYaml } from '@retake/core';
+import { fileFacts, listTemplates, loadProjectTemplate, loadTemplate, STARTER_TEMPLATES_DIR } from '@retake/core/io';
 import { createProject, tempDir, writeFiles } from './helpers.js';
 
 const ASSETS = {
@@ -42,7 +42,7 @@ describe('DEFAULT_TEMPLATE', () => {
 describe('loadTemplate', () => {
   it('applies defaults to a minimal template and resolves assets', async () => {
     await writeFiles(ws.dir, { ...withPrefix('templates/plain', ASSETS), 'templates/plain/template.yaml': '' });
-    const t = await loadTemplate('plain', ws.dir, { files: nodeFileFacts });
+    const t = await loadTemplate('plain', ws.dir, { files: fileFacts(PERSON_POLICY) });
     const dir = join(ws.dir, 'templates/plain');
     expect(t.name).toBe('plain');
     expect(t.dir).toBe(dir);
@@ -67,7 +67,7 @@ describe('loadTemplate', () => {
         'outro: {url: example.com}',
       ].join('\n'),
     });
-    const { template, assets } = await loadTemplate(join(ws.dir, 'templates/editorial'), undefined, { files: nodeFileFacts });
+    const { template, assets } = await loadTemplate(join(ws.dir, 'templates/editorial'), undefined, { files: fileFacts(PERSON_POLICY) });
     expect(template.colors).toEqual({ ...DEFAULT_TEMPLATE.colors, accent: '#8a2332', highlight: '#f0c' });
     expect(template.fonts.body).toEqual(['f/Sans.woff2']);
     expect(template.captions.kicker).toEqual({ ...DEFAULT_TEMPLATE.captions.kicker, size: 17 });
@@ -82,7 +82,7 @@ describe('loadTemplate', () => {
       'templates/broken/template.yaml': 'wordmark: wordmark.svg\n',
       'templates/broken/fonts/Display.ttf': 'x',
     });
-    const err = await loadTemplate('broken', ws.dir, { files: nodeFileFacts }).catch((e: unknown) => e);
+    const err = await loadTemplate('broken', ws.dir, { files: fileFacts(PERSON_POLICY) }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ConfigError);
     expect((err as ConfigError).message).toBe(
       `template "broken" (${join(ws.dir, 'templates/broken')}) is missing 5 asset files: ` +
@@ -95,13 +95,13 @@ describe('loadTemplate', () => {
       ...withPrefix('templates/x', ASSETS),
       'templates/x/template.yaml': 'frame: {style: card, widht: 1500}\nstyle_bias: subtle\nlogo: logo.gif\n',
     });
-    const err = (await loadTemplate('x', ws.dir, { files: nodeFileFacts }).catch((e: unknown) => e)) as ConfigError;
+    const err = (await loadTemplate('x', ws.dir, { files: fileFacts(PERSON_POLICY) }).catch((e: unknown) => e)) as ConfigError;
     expect(err.issues.map((i) => `${i.line}:${i.col} ${i.message}`)).toEqual([
       '1:22 unknown key "widht" (did you mean "width"?)',
       '2:13 expected one of "real", "balanced", "motion", got "subtle"',
       '3:7 expected an image file (.svg, .png, .jpg or .webp) relative to the template dir',
     ]);
-    await expect(loadTemplate('y', ws.dir, { files: nodeFileFacts })).rejects.toThrow(
+    await expect(loadTemplate('y', ws.dir, { files: fileFacts(PERSON_POLICY) })).rejects.toThrow(
       /template "y" not found in .*templates or the starter templates \(did you mean "x"\?\) \(available: default, editorial, motion, x\)/,
     );
   });
@@ -119,11 +119,11 @@ describe('loadTemplate', () => {
       { name: 'motion', dir: join(STARTER_TEMPLATES_DIR, 'motion'), source: 'starter' },
     ]);
     const p = await createProject(ws.dir, { name: 'Northfield' });
-    const t = await loadProjectTemplate(p, undefined, { files: nodeFileFacts });
+    const t = await loadProjectTemplate(p, undefined, { files: fileFacts(PERSON_POLICY) });
     expect(t.name).toBe('default');
     expect(t.template.name).toBe('Neutral');
     await writeFiles(p.dir, { ...withPrefix('brand', ASSETS), 'brand/template.yaml': 'colors: {accent: "#123456"}\n' });
-    const local = await loadProjectTemplate(p, './brand', { files: nodeFileFacts });
+    const local = await loadProjectTemplate(p, './brand', { files: fileFacts(PERSON_POLICY) });
     expect(local.dir).toBe(join(p.dir, 'brand'));
     expect(local.template.colors.accent).toBe('#123456');
   });
@@ -132,15 +132,15 @@ describe('loadTemplate', () => {
     const p = await createProject(ws.dir, { name: 'Northfield' });
     expect(p.config.template).toBe('default');
     expect((await listTemplates(ws.dir)).map((t) => `${t.name}:${t.source}`)).toEqual(['default:starter', 'editorial:starter', 'motion:starter']);
-    const t = await loadProjectTemplate(p, undefined, { files: nodeFileFacts });
+    const t = await loadProjectTemplate(p, undefined, { files: fileFacts(PERSON_POLICY) });
     expect(t.dir).toBe(join(STARTER_TEMPLATES_DIR, 'default'));
-    expect((await loadTemplate('editorial', ws.dir, { files: nodeFileFacts })).dir).toBe(join(STARTER_TEMPLATES_DIR, 'editorial'));
+    expect((await loadTemplate('editorial', ws.dir, { files: fileFacts(PERSON_POLICY) })).dir).toBe(join(STARTER_TEMPLATES_DIR, 'editorial'));
   });
 
   it('a workspace folder named like a starter shadows it, even without a template.yaml', async () => {
     await writeFiles(ws.dir, { 'templates/default/README.md': 'work in progress' });
     expect((await listTemplates(ws.dir)).map((t) => t.name)).toEqual(['editorial', 'motion']);
-    await expect(loadTemplate('default', ws.dir, { files: nodeFileFacts })).rejects.toThrow(/template "default": no template\.yaml in .*templates\/default \(a workspace folder of that name takes precedence/);
+    await expect(loadTemplate('default', ws.dir, { files: fileFacts(PERSON_POLICY) })).rejects.toThrow(/template "default": no template\.yaml in .*templates\/default \(a workspace folder of that name takes precedence/);
   });
 
   it('the repository itself lists its templates once, as its own', async () => {

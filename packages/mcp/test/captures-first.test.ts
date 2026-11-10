@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FileJobQueue, FilmingMarker, createEngine, selfIdentity } from '@retake/engine';
 import type { Engine, JobRecord } from '@retake/engine';
 import { TOOLS } from '../src/index.js';
+import type { ToolDef, ToolOutput } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 let root: string;
@@ -18,7 +19,11 @@ let engine: Engine;
 let queue: FileJobQueue;
 const savedHome = process.env.RETAKE_HOME;
 
-const tool = (name: string, args: Record<string, unknown>) => TOOLS.find((t) => t.name === name)!.run(args as never, { engine, signal: new AbortController().signal });
+/** One tool by its name, called with loose arguments: its answer's data as a plain record (each test reads the keys it expects). */
+const tool = (name: string, args: Record<string, unknown>) => {
+  const t: ToolDef = TOOLS.find((x) => x.name === name)!;
+  return t.run(args, { engine, signal: new AbortController().signal }) as Promise<ToolOutput<Record<string, unknown>>>;
+};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'retake-mcp-captures-'));

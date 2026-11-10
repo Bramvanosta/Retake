@@ -104,6 +104,8 @@ describe('versions and words', () => {
     expect(reviewBadge({ state: 'none' }).words).toBe('not reviewed');
     expect(findingAt({ frame: 96, segment: 'a', step: 0 }, 30)).toBe('at 0:03.2 · segment a · step 1');
     expect(findingFrame({ time: 1.5 }, 30)).toBe(45);
-    expect(findingFrame({ segment: 'a' }, 30)).toBeUndefined();
+    // A finding placed by its segment only (a review finding's `at` carries more than the frame and the time).
+    const bySegment: { frame?: number; segment?: string } = { segment: 'a' };
+    expect(findingFrame(bySegment, 30)).toBeUndefined();
   });
 });

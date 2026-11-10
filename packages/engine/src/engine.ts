@@ -60,12 +60,15 @@ export function agentTrust(client: EngineClient): boolean {
 }
 
 export async function createEngine(opts: EngineOptions): Promise<Engine> {
-  const ctx = await engineContext(opts, (root, cli) => new FileJobQueue(root, cli));
-  const { ws, queue, studio } = ctx;
+  const ctx = await engineContext(opts, (root, cli) => {
+    const queue = new FileJobQueue(root, cli);
+    return { queue, files: queue.files };
+  });
+  const { ws, queue, jobFiles, studio } = ctx;
   return {
     root: ws.root,
     queue,
-    jobFiles: queue.files,
+    jobFiles,
     workspace: ws,
     cli: studio,
     info: infoOf(ctx),

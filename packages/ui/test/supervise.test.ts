@@ -41,7 +41,7 @@ beforeEach(async () => {
 
 const id = () => `j_${String(++n).padStart(26, '0')}`;
 
-async function job(rec: Partial<JobRecord> & { kind: JobKind; input: Record<string, unknown>; state: JobRecord['state'] }, at = id()): Promise<string> {
+async function job(rec: Omit<Partial<JobRecord>, 'input'> & { kind: JobKind; input: Record<string, unknown>; state: JobRecord['state'] }, at = id()): Promise<string> {
   const dir = join(ws, '.retake', 'jobs', at);
   await mkdir(dir, { recursive: true });
   const full = { version: 1, id: at, created_at: new Date().toISOString(), ...rec, input: { version: 1, kind: rec.kind, submitted_by: 'test', ...rec.input } };
@@ -370,7 +370,7 @@ describe('each watcher reads the engine\'s queue with a memory of its own', () =
     await job({ kind: 'render', input: { project: P, scenario: 'quote', render_id: 'quote-v8' }, state: 'queued' });
     const e = engineQueue();
     const logs: string[] = [];
-    const live = await Live.start({ ws: await openWorkspace({ root: ws }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
+    const live = await Live.start({ ws: await openWorkspace({ root: ws, agent: false }), queue: e.queue, pollMs: 60_000, log: (m) => logs.push(m) });
     try {
       expect(logs.filter((m) => /failed|could not/.test(m))).toEqual([]);
       expect({ own: e.own, reads: e.reads }).toEqual({ own: [undefined, undefined], reads: [] });

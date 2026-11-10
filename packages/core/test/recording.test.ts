@@ -487,7 +487,9 @@ describe('draftFromRecording: recorded templates, issue positions', () => {
       scene: 'products',
       step: 3,
     });
-    expect(draftInvalidIssue({ path: ['vars'], message: 'x' }, ['home'], 'w')).toEqual({ severity: 'error', code: 'invalid', message: 'w: run validate on the draft to see why' });
+    // A validation issue as the validator gives it: its message is never read.
+    const bare = { path: ['vars'], message: 'x' };
+    expect(draftInvalidIssue(bare, ['home'], 'w')).toEqual({ severity: 'error', code: 'invalid', message: 'w: run validate on the draft to see why' });
   });
 });
 

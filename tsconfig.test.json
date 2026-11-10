@@ -1,0 +1,51 @@
+// The type check of the test files (`pnpm typecheck`, and the CI's guards): every file under packages/*/test, checked
+// with the base options, emitting nothing. Not part of the build: the root tsconfig.json does not reference it.
+// `paths` are vitest.config.ts's aliases, one for one (packages/core/test/test-typecheck.test.ts compares them); a
+// target inside a referenced package is read through that package's built declarations, so `tsc -b` runs first.
+// No `exclude`: a test file that does not type-check is fixed, not left out.
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false,
+    "jsx": "react-jsx",
+    "paths": {
+      "@retake/core/io": ["./packages/core/src/io/index.ts"],
+      "@retake/core": ["./packages/core/src/index.ts"],
+      "@retake/hooks": ["./packages/hooks/src/index.ts"],
+      "@retake/sandbox": ["./packages/sandbox/src/index.ts"],
+      "@retake/components/kit": ["./packages/components/src/kit/index.ts"],
+      "@retake/components/geometry": ["./packages/components/src/geometry-entry.ts"],
+      "@retake/runner-web": ["./packages/runner-web/src/index.ts"],
+      "@retake/components": ["./packages/components/src/index.ts"],
+      "@retake/editor/plan": ["./packages/editor/src/plan-entry.ts"],
+      "@retake/editor": ["./packages/editor/src/index.ts"],
+      "@retake/review/thumbs": ["./packages/review/src/thumbs.ts"],
+      "@retake/review/checks": ["./packages/review/src/checks-entry.ts"],
+      "@retake/review": ["./packages/review/src/index.ts"],
+      "@retake/engine/contract": ["./packages/engine/src/contract.ts"],
+      "@retake/engine/catalogue": ["./packages/engine/src/catalogue.ts"],
+      "@retake/engine/integrations": ["./packages/engine/src/integrations.ts"],
+      "@retake/engine": ["./packages/engine/src/index.ts"],
+      "@retake/mcp": ["./packages/mcp/src/index.ts"],
+      "@retake/ui": ["./packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/test/**/*.ts", "packages/*/test/**/*.mts", "packages/*/test/**/*.tsx"],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/hooks" },
+    { "path": "packages/sandbox" },
+    { "path": "packages/runner-web" },
+    { "path": "packages/review" },
+    { "path": "packages/engine" },
+    { "path": "packages/components" },
+    { "path": "packages/editor" },
+    { "path": "packages/mcp" },
+    { "path": "packages/ui" },
+    { "path": "packages/cli" }
+  ]
+}

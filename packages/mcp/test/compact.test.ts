@@ -7,9 +7,10 @@ import { describe, expect, it } from 'vitest';
 import type { ReviewView, RunStatusWithJob } from '@retake/engine';
 import { DOCS_BASE_URL, ScenarioError } from '@retake/core';
 import { INSTRUCTIONS, TOOLS, errorResult, okResult } from '../src/index.js';
+import type { ToolDef } from '../src/index.js';
 import { COMPACT_FINDINGS_MAX, COMPACT_WARNINGS_MAX, compactElements, compactReview, compactRunStatus } from '../src/compact.js';
 
-const tool = (name: string) => TOOLS.find((t) => t.name === name)!;
+const tool = (name: string): ToolDef => TOOLS.find((t) => t.name === name)!;
 
 const RUN: RunStatusWithJob = {
   id: '20261026-200205-quote',
@@ -132,8 +133,8 @@ describe('the tools', () => {
   it('run_status, review, review_get, page_inspect and job_status take `detail` (compact by default); job_status waits up to 600 s, the others 25', () => {
     for (const name of ['run_status', 'review', 'review_get', 'page_inspect', 'job_status']) {
       const input = tool(name).input;
-      expect(input.parse({ ...required(name) }).detail, name).toBe('compact');
-      expect(input.parse({ ...required(name), detail: 'full' }).detail, name).toBe('full');
+      expect((input.parse({ ...required(name) }) as { detail?: string }).detail, name).toBe('compact');
+      expect((input.parse({ ...required(name), detail: 'full' }) as { detail?: string }).detail, name).toBe('full');
     }
     expect(tool('job_status').input.safeParse({ job_id: JOB, wait_s: 600 }).success).toBe(true);
     expect(tool('job_status').input.safeParse({ job_id: JOB, wait_s: 601 }).success).toBe(false);

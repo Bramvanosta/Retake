@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { JOB_ID_RE, RunRecordSchema } from '@retake/core';
 import { reserveRunId } from '@retake/core/io';
-import type { RunJobInput } from '@retake/core';
+import type { RunJobInput, Scene } from '@retake/core';
 import {
   EngineError,
   FileJobQueue,
@@ -364,7 +364,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     try {
       const events: unknown[] = [];
       const e = await executeRunJob({
-        ws: await openWorkspace({ root: ws }),
+        ws: await openWorkspace({ root: ws, agent: false }),
         cli: 'retake',
         input: sub.job.input as RunJobInput,
         signal: new AbortController().signal,
@@ -386,7 +386,7 @@ describe('a job runs the scenario bytes it was submitted with', () => {
   });
 
   it('prepareRun reads the file once: the sandbox it picks, the scenario it parses and their hash come from that one read', async () => {
-    const w = await openWorkspace({ root: ws });
+    const w = await openWorkspace({ root: ws, agent: false });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const disk = join(ws, 'projects', 'northfield-fixture', 'scenarios', 'sandbox-quote.yaml');
     const onDisk = await readFile(disk, 'utf8');
@@ -406,11 +406,11 @@ describe('a job runs the scenario bytes it was submitted with', () => {
     expect(prepared.sandboxEnv).toBe('sandbox-docker');
     expect(prepared.scenario.text).toBe(first);
     expect(prepared.scenario.sha256).toBe(sha256Hex(first));
-    expect(prepared.scenario.scenario.scenes[0].steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
+    expect((prepared.scenario.scenario.scenes[0] as Scene).steps).toContainEqual(expect.objectContaining({ hold: 2.5 }));
   });
 
   it('an inspection of a scenario: the hash of the bytes it parsed, a pinned one checked on those bytes', async () => {
-    const w = await openWorkspace({ root: ws });
+    const w = await openWorkspace({ root: ws, agent: false });
     const project = await openProjectBySlug(w, 'northfield-fixture');
     const text = await readFile(file());
     const pinned = await prepareInspect(w, project, { kind: 'scenario', scenario: 'quote' }, undefined);

@@ -13,7 +13,7 @@ import { readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { compileWritePolicy, PERSON_POLICY } from '@retake/core';
-import type { RunRecord, Scenario } from '@retake/core';
+import type { RunRecord, Scenario, SceneEntry } from '@retake/core';
 import { kitConfigFor, openSession, runScenario } from '../src/index.js';
 import { armFileGuard } from '../src/session.js';
 import { openProblem } from '../src/opens.js';
@@ -127,7 +127,7 @@ describe('the rule (pure)', () => {
 
   it('prewarm leaves out a URL the take may not open', () => {
     const scenario = { scenes: [{ id: 'a', page: 'app', open: '/', steps: [{ open: 'http://localhost:10/x' }] }] } as never;
-    const opts = { envPages: { app: 'http://127.0.0.1:9' }, capture: { width: 800, height: 600 }, template: (e: never) => e };
+    const opts = { envPages: { app: 'http://127.0.0.1:9' }, capture: { width: 800, height: 600 }, template: (e: SceneEntry) => e };
     expect(prewarmTargets(scenario, opts).map((t) => t.url)).toEqual(['http://127.0.0.1:9/', 'http://localhost:10/x']);
     expect(prewarmTargets(scenario, { ...opts, mayOpen: (u) => openProblem(u, { origins: ['http://127.0.0.1:9'] }) === null }).map((t) => t.url)).toEqual(['http://127.0.0.1:9/']);
   });

@@ -198,7 +198,7 @@ describe('template_create_from_brand (engine)', () => {
       await mkdir(join(ws, 'brand'));
       await cp(join(T, 'editorial', 'logo.svg'), join(ws, 'brand', 'logo.svg'));
       await writeFile(join(ws, 'retake.yaml'), `templates_dir: ${JSON.stringify(td)}\n`);
-      const e = await refusal(createThemeFromBrand(await loadWorkspaceConfig(ws), input(), { trust: 'mcp', scope: personScope(ws) }));
+      const e = await refusal(createThemeFromBrand({ ...(await loadWorkspaceConfig(ws)), policy: PERSON_POLICY }, input(), { trust: 'mcp', scope: personScope(ws) }));
       expect(e).toMatchObject({ code: 'refused', message: expect.stringMatching(/lies inside the Retake folder/), fix: expect.stringMatching(/RETAKE_ROOT/) });
       await rm(ws, { recursive: true, force: true });
     }

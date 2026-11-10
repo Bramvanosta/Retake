@@ -15,6 +15,7 @@ import { FileJobQueue, createEngine } from '@retake/engine';
 import type { Engine, EngineError } from '@retake/engine';
 import { catalogueOperation } from '@retake/engine/catalogue';
 import { TOOLS, callTool } from '../src/index.js';
+import type { ToolDef } from '../src/index.js';
 import { fixtureWorkspace } from '../../engine/test/helpers.js';
 
 const P = 'northfield-fixture';
@@ -28,9 +29,9 @@ const open = async () => (await queue.list({ states: ['queued', 'running'], limi
 
 /** One tool call as the MCP server makes it: the tool's own argument parse, then the handler on the engine. */
 async function call(name: string, args: Record<string, unknown>): Promise<{ ok: true; data: Record<string, unknown> } | { ok: false; error: EngineError }> {
-  const tool = TOOLS.find((t) => t.name === name)!;
+  const tool: ToolDef = TOOLS.find((t) => t.name === name)!;
   const r = await callTool(tool, async () => engine, args, { signal: new AbortController().signal });
-  return r.ok ? { ok: true, data: r.output.data } : { ok: false, error: r.error };
+  return r.ok ? { ok: true, data: r.output.data as Record<string, unknown> } : { ok: false, error: r.error };
 }
 const refusal = async (name: string, args: Record<string, unknown>) => {
   const r = await call(name, args);
@@ -72,7 +73,8 @@ describe('the admission rules through MCP', () => {
   it('run_dry / run_capture: one run of a scenario at a time — a second call is a conflict naming the run, nothing queued', async () => {
     const first = await call('run_dry', { project: P, scenario: 'twice', wait_s: 0 });
     expect(first.ok).toBe(true);
-    const runId = (first as { data: { id: string } }).data.id;
+    if (!first.ok) throw first.error;
+    const runId = first.data.id as string;
     const before = await open();
     for (const tool of ['run_dry', 'run_capture']) {
       const e = await refusal(tool, { project: P, scenario: 'twice' });

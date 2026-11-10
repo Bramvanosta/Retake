@@ -55,7 +55,7 @@ describe('L7.2 the versioned props of a render bundle', () => {
   /** What the root registers, read off its element tree (the root uses no hook: it is called, not mounted). */
   type Registered = { id: string; defaultProps: Record<string, unknown>; calculateMetadata: (o: { props: unknown }) => unknown };
   const registered = (): Registered[] => {
-    const Root = createRoot({}) as () => ReactElement<{ children: ReactElement<Registered>[] }>;
+    const Root = createRoot({ components: {}, scaffolds: {} }) as () => ReactElement<{ children: ReactElement<Registered>[] }>;
     return Root().props.children.map((c) => c.props);
   };
 

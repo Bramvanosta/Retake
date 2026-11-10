@@ -339,6 +339,7 @@ The [guide](docs/guide/README.md) holds the full reference:
 ```bash
 pnpm install
 pnpm build          # TypeScript project references
+pnpm typecheck      # the build, then the files under packages/*/test type-checked (tsconfig.test.json; the CI runs it)
 pnpm test           # the full vitest suite (build first; the slow, Docker and Postgres suites are opt-in)
 ```
 

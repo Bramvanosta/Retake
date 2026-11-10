@@ -229,7 +229,7 @@ describe.skipIf(!ENABLED)('the Record screen, then its scenario filmed and rende
     const text = await readFile(join(root, 'projects', P, 'scenarios', `${S}.yaml`), 'utf8');
     if (SHOTS) await writeFile(join(SHOTS, `acc-${S}.yaml`), text);
     const doc = parseYaml(text).value as { scenes: Array<{ id: string; steps: Array<Record<string, unknown>> }> };
-    const steps = doc.scenes.flatMap((s) => s.steps.map((st) => ({ scene: s.id, ...st })));
+    const steps = doc.scenes.flatMap((s) => s.steps.map((st): Record<string, unknown> => ({ scene: s.id, ...st })));
     // The caption and the zoom on the Request a quote click, its target the one picked.
     const quoteClick = steps.find((s) => s.caption !== undefined);
     expect(quoteClick, text).toBeDefined();

@@ -120,7 +120,7 @@ describe('retake mcp over stdio', () => {
     for (const t of tools) {
       expect(t.inputSchema.type, t.name).toBe('object');
       expect((t.inputSchema as { additionalProperties?: unknown }).additionalProperties, t.name).toBe(false);
-      expect(t.description.length, t.name).toBeGreaterThan(20);
+      expect((t.description ?? '').length, t.name).toBeGreaterThan(20);
       expect(t.annotations?.readOnlyHint, t.name).toBe(
         !['project_create', 'project_update_readme', 'project_prune', 'scenario_save', 'page_inspect', 'scenario_record', 'run_dry', 'run_capture', 'run_cancel', 'render', 'review', 'export', 'comment_reply', 'comment_resolve', 'template_preview', 'template_from_site', 'template_create_from_brand', 'component_preview', 'component_create', 'job_cancel', 'hooks_run', 'env_reset', 'auth_login', 'sandbox_up', 'sandbox_reset'].includes(t.name),
       );

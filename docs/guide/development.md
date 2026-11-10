@@ -44,7 +44,8 @@ docs/                 SPEC.md (product brief), DESIGN.md and DESIGN-phase2.md (p
 CLAUDE.md             notes for Claude Code sessions (read order, working agreement, commands)
 ```
 
-Development: `pnpm build` (TypeScript project references), `pnpm test` (vitest; the end-to-end tests start the
+Development: `pnpm build` (TypeScript project references), `pnpm typecheck` (the build, then the files under
+`packages/*/test` type-checked with `tsconfig.test.json`: the build does not read them, the CI does), `pnpm test` (vitest; the end-to-end tests start the
 fixture on free ports and skip themselves when Chromium or ffmpeg is missing; some CLI tests run `packages/cli/dist`,
 so build first). Gated tests:
 

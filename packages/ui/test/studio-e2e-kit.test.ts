@@ -252,7 +252,7 @@ describe('the kit\'s keys (L5.9 part E)', () => {
     expect(await bar.locator('[tabindex="0"]:visible').count()).toBe(1);
     // A control that handles a key itself (preventDefault) keeps it: the toolbar does not move on.
     const add = bar.getByRole('button', { name: 'Add a take' });
-    await add.evaluate((el) => el.addEventListener('keydown', (e) => e.key === 'ArrowRight' && e.preventDefault()));
+    await add.evaluate((el) => el.addEventListener('keydown', (e) => e instanceof KeyboardEvent && e.key === 'ArrowRight' && e.preventDefault()));
     await add.focus();
     await page.keyboard.press('ArrowRight');
     expect(await name()).toBe('Add a take');

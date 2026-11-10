@@ -159,7 +159,7 @@ describe.skipIf(!posix)('process provider: the fixture as a sandbox', () => {
       started_at: at,
       finished_at: at,
       status: 'ok',
-      rollback: { kind: 'http', method: 'DELETE', url: `{{console}}/api/quotes/${q.id}` } as NewJournalEntry['rollback'],
+      rollback: { kind: 'http', request: { method: 'DELETE', url: `{{console}}/api/quotes/${q.id}` }, description: 'DELETE quote', data: {} },
     });
     await journal.record(entry('sandbox'));
     await journal.record(entry('local'));

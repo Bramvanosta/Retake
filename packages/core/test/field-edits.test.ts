@@ -20,7 +20,7 @@ type Obj = Record<string, unknown>;
 
 const valueOf = (t: string) => parseYaml(t).value as { scenes: Obj[] } & Obj;
 /** The FieldAt of entry `id` of type `entry` in text `t`. */
-function atOf(t: string, entry: 'scene' | 'card' | 'interstitial', id: string): FieldAt {
+function atOf(t: string, entry: 'scene' | 'card' | 'interstitial', id: string): Extract<FieldAt, { id: string }> {
   const v = valueOf(t);
   const k = v.scenes.findIndex((e, i) => sceneId(e as unknown as Scenario['scenes'][number], i) === id);
   return { entry, id, guard: stepGuard(v.scenes[k]) };

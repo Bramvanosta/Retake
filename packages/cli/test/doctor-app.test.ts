@@ -12,7 +12,7 @@ import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { RETAKE_VERSION } from '@retake/core';
+import { PERSON_POLICY, RETAKE_VERSION } from '@retake/core';
 import { APP_BUNDLE_ID, UPDATES_FILE, readUpdateChecks, writeAppSettings } from '@retake/engine/integrations';
 import type { BundleInfo } from '@retake/core/io';
 import { appChecks, doctorChecks, launchUpdates, updateCheck } from '../src/commands/doctor.js';
@@ -126,7 +126,7 @@ describe('doctor: App location and the retake command', () => {
 });
 
 describe('doctor: the workspace\'s worker of another copy of Retake (critique M6)', () => {
-  const ws = { root: join(base, 'ws'), projectsDir: join(base, 'ws', 'projects'), templatesDir: join(base, 'ws', 'templates'), componentsDir: join(base, 'ws', 'components') };
+  const ws = { root: join(base, 'ws'), projectsDir: join(base, 'ws', 'projects'), templatesDir: join(base, 'ws', 'templates'), componentsDir: join(base, 'ws', 'components'), policy: PERSON_POLICY };
   mkdirSync(ws.projectsDir, { recursive: true });
   const mcpLine = async (worker: Awaited<ReturnType<NonNullable<DoctorProbes['worker']>>>) => {
     const checks = await doctorChecks(

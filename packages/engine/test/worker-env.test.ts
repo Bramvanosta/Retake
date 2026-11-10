@@ -104,9 +104,9 @@ describe('cleanWorkerEnv', () => {
     policy = workPolicyFrom([ws], policy.ffmpeg, policy.render);
     try {
       // What the worker's mediaBin / launchTarget / docker check say of these values (core programProblem).
-      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
-      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { files: nodeFileFacts })).toMatch(/is a relative path/);
-      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { files: nodeFileFacts })).toMatch(/lies inside the workspace/);
+      expect(programProblem(policy, env.RETAKE_FFMPEG!, '$RETAKE_FFMPEG', { path: '', files: nodeFileFacts })).toMatch(/^\$RETAKE_FFMPEG \(.*\/bin\/ffmpeg\) lies inside the workspace .*: move the program out of the workspace and point \$RETAKE_FFMPEG at its new place$/);
+      expect(programProblem(policy, env.RETAKE_FFPROBE!, '$RETAKE_FFPROBE', { path: '', files: nodeFileFacts })).toMatch(/is a relative path/);
+      expect(programProblem(policy, env.RETAKE_DOCKER!, '$RETAKE_DOCKER', { path: '', files: nodeFileFacts })).toMatch(/lies inside the workspace/);
     } finally {
       policy = workPolicyFrom(null, policy.ffmpeg, policy.render);
     }
