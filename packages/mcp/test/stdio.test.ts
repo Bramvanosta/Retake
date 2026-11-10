@@ -4,7 +4,7 @@
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -210,6 +210,28 @@ describe('retake mcp over stdio', () => {
     const ok = await call('project_update_readme', { project: 'acme-demo', markdown: '# Acme', if_match: created.structuredContent?.readme_hash });
     expect(ok.isError).toBeFalsy();
     expect(await readFile(join(ws, 'projects', 'acme-demo', 'README.md'), 'utf8')).toBe('# Acme\n');
+  });
+
+  it('project_create with {url, display} pages and default_env; project_get says when the README’s environments section is out of date (hotfix v0.2.2)', async () => {
+    const created = await call('project_create', {
+      name: 'Display Demo',
+      environments: { local: { app: { url: 'http://localhost:4810', display: 'https://app.example.com' } }, stg: { app: 'https://app.stg.example.com' } },
+      default_env: 'stg',
+    });
+    expect(created.isError).toBeFalsy();
+    expect(created.structuredContent).toMatchObject({ slug: 'display-demo', default_env: 'stg', environments: [{ name: 'local', pages: { app: 'http://localhost:4810' }, display: { app: 'https://app.example.com' } }, { name: 'stg' }] });
+    const dir = join(ws, 'projects', 'display-demo');
+    expect(await readFile(join(dir, 'README.md'), 'utf8')).toContain('- local · app: http://localhost:4810 (shown as https://app.example.com)');
+    expect((created.structuredContent as { readme_environments?: unknown }).readme_environments).toBeUndefined();
+    expect(errorOf(await call('project_create', { name: 'Display Two', environments: { local: { app: 'http://localhost:4811' } }, default_env: 'prod' })).message).toContain('unknown environment "prod"');
+    // The user adds an environment and drops one: the README's section, written at creation, is now wrong.
+    const file = join(dir, 'project.yaml');
+    await writeFile(file, (await readFile(file, 'utf8')).replace(/^ {2}stg:\n {4}app: .*\n/m, '  prd:\n    app: https://app.example.com\n').replace('default_env: stg', 'default_env: prd'));
+    const got = await call('project_get', { project: 'display-demo' });
+    expect(got.isError).toBeFalsy();
+    expect((got.structuredContent as { readme_environments: unknown }).readme_environments).toEqual({ missing: ['- prd · app: https://app.example.com'], gone: ['- stg · app: https://app.stg.example.com'] });
+    expect(got.content[0].text).toContain('README.md › "Environments & links" is out of date');
+    expect(got.content[0].text).toContain('it still lists stg · app: https://app.stg.example.com');
   });
 
   it('run_list and run_status: paths for Claude, page text only under "untrusted"', async () => {

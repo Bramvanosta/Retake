@@ -355,8 +355,8 @@ export interface PlanPersonasOptions {
  * (default: the previous scene's page, else the first environment page), `open: {page}` and `switch_page` move to a
  * page (`previous`: the page shown before, as the run's page history), `new_tab` opens a tab of the page it is on (same
  * persona — a tab of a `persona: none` page is never guarded either), a multi-page scene films each of its `pages`. A
- * page's persona is fixed the first time it is filmed: its `persona` (scene, or `pages.<id>.persona`), else the persona
- * whose `pages` list its environment page, else the legacy `default` persona, else none; `persona: none` written later
+ * page's persona is fixed the first time it is filmed: its `persona` (scene, or `pages.<id>.persona`), else the first
+ * persona declared whose `pages` list its environment page (several may: one app, several roles), else the legacy `default` persona, else none; `persona: none` written later
  * on a page filmed without one leaves it unguarded. A page asked for another persona later is an error (it keeps one
  * for the whole run, like its viewport). A js hook tab takes the persona its page is filmed with, else its default.
  * Skipped scenes and what comes after `--until` are not walked. In an environment without personas nothing is bound

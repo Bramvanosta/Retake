@@ -26,7 +26,7 @@ import { sandboxPaths, shownPath } from './paths.js';
 import type { SandboxPaths } from './paths.js';
 import { ComposeProvider } from './compose.js';
 import { ProcessProvider, tailLines } from './process.js';
-import type { DownResult, Provider, ProviderContext, SandboxLog, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
+import type { DownResult, Provider, ProviderContext, SandboxLog, SandboxProgress, SeedTrust, ServiceLogFile, ServiceStatus, UpResult } from './provider.js';
 import { checkMailbox, checkSeedDatabases, clearMailbox, runSeed, supersede } from './seed.js';
 import { killGroupSync } from './proc.js';
 import { PostgresSnapshot, describeDatabase, snapshotTarget } from './snapshot-postgres.js';
@@ -40,6 +40,8 @@ export const LOG_CAP_BYTES = 20 * 1024 * 1024;
 export interface SandboxCallOptions {
   signal?: AbortSignal;
   log?: SandboxLog;
+  /** The steps of the call as they start, and what each is doing (SandboxProgress). */
+  progress?: SandboxProgress;
   /** Trust `mcp` for the seed steps this call may run (L3.1: a shell step then needs an approval). */
   seedTrust?: SeedTrust;
 }
@@ -159,6 +161,7 @@ export class Sandbox {
       save: () => writeState(this.paths.state, ctx.state),
       log,
       signal: opts.signal,
+      ...(opts.progress ? { progress: opts.progress } : {}),
       ...(opts.seedTrust ? { seedTrust: opts.seedTrust } : {}),
     };
     this.ctx = ctx;
@@ -224,6 +227,7 @@ export class Sandbox {
         if (await snap.repair()) ctx.log('info', `sandbox ${this.env}: database ${snap.target.database} accepted no connections (an interrupted reset): repaired`);
         const valid = !opts.reseed && ctx.state.seed?.hash === hash && recorded?.hash === hash && recorded.database === snap.target.database && (await snap.valid(hash));
         if (valid) {
+          ctx.progress?.step('snapshot', `restoring ${describeDatabase(snap.target)}`);
           const r = await snap.restore(recorded.owner);
           snapshot = { action: 'restored', ms: r.ms, database: snap.target.database };
           ctx.log('info', `sandbox ${this.env}: snapshot of ${describeDatabase(snap.target)} restored in ${r.ms} ms`);
@@ -243,6 +247,7 @@ export class Sandbox {
         superseded = await supersede(this.project.dir, this.env, by, ctx.log);
         if (snap) {
           if (ctx.signal?.aborted) throw interrupted(`sandbox ${this.env} seed`);
+          ctx.progress?.step('snapshot', `taking a snapshot of ${describeDatabase(snap.target)}`);
           const r = await snap.take(hash);
           const state: SnapshotState = { key: snap.target.key, database: snap.target.database, template: snap.target.template, hash, owner: r.owner, taken_at: new Date().toISOString(), ms: r.ms };
           ctx.state.provider_state = { ...(ctx.state.provider_state ?? {}), snapshot: state };
@@ -259,6 +264,7 @@ export class Sandbox {
     if (mailbox === 'not-mailpit') ctx.log('info', `sandbox ${this.env}: an http mailbox has no generic way to be emptied — empty it in a seed step`);
     const restarted: string[] = [];
     for (const name of this.sandbox.manifest.reset?.restart ?? []) {
+      ctx.progress?.step(`restart ${name}`);
       await this.provider.restart(ctx, name);
       restarted.push(name);
     }

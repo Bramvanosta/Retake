@@ -1,7 +1,7 @@
 /** Projects of a workspace for clients outside the CLI: list, view (no secret values, no session paths), create, README. */
 import { realpath } from 'node:fs/promises';
 import { join, relative, isAbsolute } from 'node:path';
-import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { PROJECT_FILE, README_FILE, createProject, environmentAccess, listProjects, readmeEnvironmentsDrift, resolveEnvironment, resolvePersonas } from '@retake/core';
 import type { CreateProjectInput, LoadedProject, ProjectConfig, ValidationIssue, WorkspaceConfig } from '@retake/core';
 import { EngineError } from './errors.js';
 import { checkProjectSlug } from './refs.js';
@@ -122,6 +122,11 @@ export interface ProjectView {
   config: Omit<ProjectConfig, 'auth'>;
   /** Warnings of project.yaml. */
   warnings: ValidationIssue[];
+  /**
+   * README.md › "Environments & links" no longer matches the environments (written when the project was created):
+   * the pages it does not mention, as lines to add, and its lines for environments or pages that are gone.
+   */
+  readme_environments?: { missing: string[]; gone: string[] };
 }
 
 /** "postgres://user:secret@host/db" → "postgres://user:***@host/db" (whatever a user wrote in clear). */
@@ -174,6 +179,12 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
     };
   });
   const { auth: _auth, ...config } = project.config;
+  const drift = readme?.text
+    ? readmeEnvironmentsDrift(
+        readme.text,
+        environments.flatMap((e) => Object.entries(e.pages).map(([page, url]) => ({ env: e.name, page, url: maskUrlCredentials(url), ...(e.display?.[page] ? { display: e.display[page] } : {}) }))),
+      )
+    : null;
   return {
     slug: project.slug,
     name: project.config.name,
@@ -187,21 +198,26 @@ export async function projectView(project: LoadedProject): Promise<ProjectView> 
     environments,
     config: maskUrlCredentials(config),
     warnings: project.issues ?? [],
+    ...(drift ? { readme_environments: drift } : {}),
   };
 }
 
-export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'readme' | 'environments' | 'template'>;
+export type CreateProjectRequest = Pick<CreateProjectInput, 'name' | 'slug' | 'readme' | 'environments' | 'default_env' | 'template'>;
 
 /** README.md, project.yaml, scenarios/, hooks/, assets/ and .gitignore of a new project; refuses an existing slug. */
 export async function createProjectFromRequest(ws: WorkspaceConfig, input: CreateProjectRequest): Promise<LoadedProject> {
   if (input.slug !== undefined) checkProjectSlug(input.slug);
   // Never a page on another project's production or read-only hosts (they would run read-write here).
-  await checkNewProjectHosts(ws, input.environments);
+  const urls = input.environments
+    ? Object.fromEntries(Object.entries(input.environments).map(([env, pages]) => [env, Object.fromEntries(Object.entries(pages ?? {}).map(([k, v]) => [k, typeof v === 'string' ? v : v.url]))]))
+    : undefined;
+  await checkNewProjectHosts(ws, urls);
   const created = await createProject(ws.root, {
     name: input.name,
     ...(input.slug !== undefined ? { slug: input.slug } : {}),
     ...(input.readme !== undefined ? { readme: input.readme } : {}),
     ...(input.environments !== undefined ? { environments: input.environments } : {}),
+    ...(input.default_env !== undefined ? { default_env: input.default_env } : {}),
     ...(input.template !== undefined ? { template: input.template } : {}),
   });
   return openProject(ws, created.dir);

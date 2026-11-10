@@ -109,7 +109,7 @@ export const SKILL_RULES: Record<string, readonly string[]> = {
 };
 
 /** What "## Before you start" says after `engine_info` (review M3: the plugin's values are shared by every folder). */
-export const BEFORE_RULES = ["Compare the workspace root `engine_info` names with this session's working directory: if they differ, stop"] as const;
+export const BEFORE_RULES = ["Compare the workspace root `engine_info` names with this session's folders (its working directory and any folder added to the session): if it is none of them, stop"] as const;
 
 /** What one skill's "## Before you start" adds (review L8). */
 export const SKILL_BEFORE: Record<string, readonly string[]> = {

@@ -110,8 +110,8 @@ same advice if it is not yours. This is checked at start only, the client does n
 |---|---|---|
 | `engine_info` | version, workspace root, features; `started_in` (the folder the client started the server in) and whether it is outside the workspace | — |
 | `project_list` | projects: slug, name, folder, scenarios, environments (a broken one with its error) | — |
-| `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
-| `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
+| `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults; `readme_environments` when the README's "Environments & links" section no longer matches them | — |
+| `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); `environments` pages are a URL or `{url, display}`, `default_env` names the default one; refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
 | `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed takes, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |

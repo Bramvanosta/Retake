@@ -10,6 +10,24 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.2 (2026-11-10, branch `hotfix/v0.2.2` from the v0.2.1 tag; the same field feedback, second part):**
+- sessions kept in IndexedDB (a Firebase sign-in). What was found: the saved *profile* never held the session — an
+  automated login closed its tab right after the last step, before the single-page app had signed in. `auth.ts`
+  `autoLogin` now waits for the steps' requests, then up to 2 s for the page to leave the sign-in page; `login.ts`
+  `refuseSessionThatDidNotHold` fails an `--auto` login of a persona without a `check` whose saved session lands on a
+  sign-in page (the earlier snapshot put back). A `storage_state` persona's snapshot holds IndexedDB
+  (`storageState({indexedDB: true})`; the headed window: `idb-state.ts` `collectIndexedDb`) and `applyStorageState`
+  restores it (`restoreIndexedDb`: Playwright restores it only into contexts it creates, ours are persistent);
+- `select` / `pick` type the option in the list's search field when the open list does not show it
+  (`actions/widgets.ts` `openAndFind`, `AUTO_SEARCH_AFTER_MS`); errors name the search field;
+- `retake sandbox up | reset`: `SandboxProgress` (providers, seed) and the CLI's `steps.ts` `StepDisplay`. `up --build`
+  stays one docker command: the `start` step begins at its first network / volume / container line;
+- several personas may list one page (first declared = default; `persona:` in the scene); a page id still keeps one
+  persona per run (two accounts in one video: a multi-page scene);
+- the skills compare the workspace with every folder of the session; `project_create` takes `{url, display}` and
+  `default_env`; `project_get` reports a stale "Environments & links" section (`readmeEnvironmentsDrift`).
+Not done here: Playwright is still 1.56.1 (RELEASING step 1 skipped for both hotfixes — do it for the next version).
+
 **Hotfix v0.2.1 (2026-11-10, branch `hotfix/v0.2.1` from the v0.2.0 tag; field feedback of a first real project):**
 - docker under the agent policy (the app, MCP) is started by its checked real path *under the name it was found as*
   (`argv0`): OrbStack's `docker` is a link to a multi-call binary that refused its own name (`compose.ts`

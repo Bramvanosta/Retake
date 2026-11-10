@@ -177,7 +177,7 @@ function fakeStage(marks: Record<string, Record<string, number>>): string {
   put(stage, 'engine/dist/bin.js', '');
   mkdirSync(join(stage, 'engine', 'node_modules', 'playwright-core'), { recursive: true });
   for (const d of ['browsers', 'engine/templates', 'plugin']) mkdirSync(join(stage, d), { recursive: true });
-  put(stage, 'bundle.json', JSON.stringify({ v: 1, app: '0.2.1', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' }, sha256: { node: 'stale' } }));
+  put(stage, 'bundle.json', JSON.stringify({ v: 1, app: '0.2.2', ffmpeg: null, paths: { node: 'node/bin/node', engine: 'engine', browsers: 'browsers', ffmpeg: null, templates: 'engine/templates', plugin: 'plugin' }, sha256: { node: 'stale' } }));
   return stage;
 }
 const NODE_ENTRY = [{ id: 'node', kind: 'file', path: 'node/bin/node', entitlements: 'node', dryDLV: false }];

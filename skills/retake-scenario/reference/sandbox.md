@@ -69,6 +69,7 @@ The `.env` next to compose.yaml (or another file named in sandbox.yaml's `compos
 settings, such as `APP_VERSION=2.14.0` for the tag of the compose file's `image:` line. A value the shell sets for the
 same name is ignored there: the file wins, so every take films the same build. The compose files may live in
 the product's repository (`compose.files` relative to sandbox.yaml): their own relative paths resolve next to them.
-One app with several roles: a page belongs to one account, so give the service one page key per
-account on the same URL (`admin` and `backoffice`), each account its own. `docs/guide/sandbox.md` of the Retake repository has the whole
+One app with several roles: each account may list the same page (`pages: [admin]`); the first one declared is the
+page's default and a scene films another with `persona: <account>`. One video showing both: a multi-page scene with a
+page id per account (`pages: {theirs: {page: admin}, ours: {page: admin, persona: staff}}`). `docs/guide/sandbox.md` of the Retake repository has the whole
 format, and a "stage" sandbox for a product shipped as images.

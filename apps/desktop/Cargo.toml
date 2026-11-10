@@ -4,7 +4,7 @@
 # MSRV 1.90 (tauri 2.12's rust-version). Cargo.lock is committed: the build is reproducible.
 [package]
 name = "retake-desktop"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 rust-version = "1.90"
 publish = false

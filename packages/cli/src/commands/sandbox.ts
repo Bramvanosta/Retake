@@ -11,6 +11,7 @@ import { sandboxUpText } from '@retake/engine';
 import { EXIT, UsageError, errorMessage } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import { onInterrupt } from '../interrupt.js';
+import { StepDisplay } from '../steps.js';
 import type { Ui } from '../ui.js';
 import { formatMs, plural } from '../ui.js';
 import { openProject, openWorkspace } from '../workspace.js';
@@ -105,15 +106,19 @@ export async function sandboxUpCommand(ui: Ui, global: GlobalOptions, projectArg
   if (opts.build) composeOnly(sb, '--build', 'its services are programs of this machine');
   const c = ui.c;
   ui.line(`${c.bold(project.slug)} sandbox up ${c.dim(`· ${sb.env} · ${sb.kind}`)}`);
+  const steps = new StepDisplay(ui);
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
+    const res = await interruptible(ui, sb, (signal) => sb.up({ signal, log: uiLog(ui), progress: steps, seed: opts.seed === false ? 'never' : 'auto', build: opts.build }));
+    steps.close();
     ui.line(`  ${c.dim('services')}  ${sandboxUpText(res)} ${c.dim(`(${formatMs(res.ms)})`)}`);
     if (res.reset) ui.line(`  ${c.dim('seed')}      ${resetText(res.reset)}`);
     else if (opts.seed === false) ui.line(`  ${c.dim('seed')}      skipped (--no-seed)`);
     ui.line(`  ${c.dim('pages')}     ${pagesLine(project, sb.env)}`);
+    if (steps.times().length > 1) ui.line(`  ${c.dim('steps')}     ${steps.summary()}`);
     ui.ok(`sandbox ${sb.env} is up — retake run ${project.slug} <scenario> --sandbox${sb.env === sandboxNames(project)[0] ? '' : ` --env ${sb.env}`} resets it before each take`);
     return EXIT.ok;
   } catch (e) {
+    steps.close(false);
     ui.error(errorMessage(e));
     return exitOf(e);
   }
@@ -136,11 +141,14 @@ export async function sandboxDownCommand(ui: Ui, global: GlobalOptions, projectA
 
 export async function sandboxResetCommand(ui: Ui, global: GlobalOptions, projectArg: string, opts: SandboxCommandOptions): Promise<ExitCode> {
   const { project, sb } = await open(global, projectArg, opts.env);
+  const steps = new StepDisplay(ui);
   try {
-    const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), reseed: opts.reseed }));
+    const res = await interruptible(ui, sb, (signal) => sb.reset({ signal, log: uiLog(ui), progress: steps, reseed: opts.reseed }));
+    steps.close();
     ui.ok(`${project.slug} sandbox ${sb.env} reset: ${resetText(res)}`);
     return EXIT.ok;
   } catch (e) {
+    steps.close(false);
     ui.error(errorMessage(e));
     return exitOf(e);
   }

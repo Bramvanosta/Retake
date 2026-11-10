@@ -10,8 +10,8 @@ import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
-import type { Page } from 'playwright-core';
-import { LEGACY_PERSONA, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
+import type { BrowserContext, Page } from 'playwright-core';
+import { LEGACY_PERSONA, loginCommand, writeTextAtomic, resolveCheckUrl, resolveEnvironment, resolvePageUrl, resolvePersonas } from '@retake/core';
 import type { BrowserConfig, LoadedProject, ResolvedPersona, TemplateContext } from '@retake/core';
 import {
   autoLogin,
@@ -32,6 +32,7 @@ import { checkProfileBrowser, launchMajor, recordProfileBrowser } from './profil
 import { kitConfigFor } from './kit/source.js';
 import { launchCredentials, launchOptions, refuseUnsandboxed } from './launch.js';
 import { RunSecrets } from './secrets.js';
+import { collectIndexedDb } from './idb-state.js';
 import { BrowserSession, DEFAULT_BROWSER_ARGS, applyStorageState, launchTarget } from './session.js';
 import type { StorageStateFile } from './session.js';
 import { throwIfAborted } from './util.js';
@@ -207,6 +208,7 @@ export async function signIn(o: SignInOptions): Promise<SignInResult> {
   } else {
     if (snapshot) await writeSnapshot(snapshot, state, meta);
     check = await checkSavedSession({ ...o, log });
+    if (o.mode === 'auto' && check.status === 'unchecked') await refuseSessionThatDidNotHold({ ...o, log }, url, state, { snapshot, saved, master, firstProfile });
   }
   if (check.status !== 'unchecked') await writeStatus(p.statusFile, { status: check.status, by: 'login', ...(check.at ? { at: check.at } : {}), detail: check.detail });
   // The snapshot the persona keeps: the saved one when it was kept, else the new one.
@@ -250,6 +252,38 @@ async function saveUnlessSignedOut(
   }
 }
 
+/**
+ * After an automated login of a persona that declares no `check`: nothing says the steps signed anyone in (a wrong
+ * password, a product still signing in when the tab closed). When the persona has sign-in pages, the page the login
+ * started from is opened the way a run will see the saved session; landing on a sign-in page means the session did not
+ * hold: what was just saved is undone (the session saved before is put back; a first profile is removed) and the login
+ * fails, saying so. Anything else — no sign-in page declared, a page that cannot load — leaves the login as it was.
+ */
+async function refuseSessionThatDidNotHold(
+  o: Pick<SignInOptions, 'project' | 'env' | 'persona' | 'browser' | 'log' | 'signal'>,
+  url: string,
+  state: StorageStateFile,
+  was: { snapshot: string | undefined; saved: SessionSnapshot | null; master: string | undefined; firstProfile: boolean },
+): Promise<void> {
+  const p = o.persona;
+  if (!p.loginPatterns.length) return;
+  const probe = await checkSavedSession({ ...o, persona: { ...p, check: { url } } });
+  if (probe.status !== 'expired') return;
+  if (was.snapshot) {
+    if (was.saved) await writeTextAtomic(was.snapshot, `${JSON.stringify(was.saved, null, 2)}\n`, { mode: 0o600, dirMode: 0o700 }).catch(() => undefined);
+    else await rm(was.snapshot, { force: true }).catch(() => undefined);
+  }
+  if (was.firstProfile && was.master) await rm(was.master, { recursive: true, force: true }).catch(() => undefined);
+  const kept = (state.cookies?.length ?? 0) + (state.origins ?? []).reduce((n, x) => n + (x.localStorage?.length ?? 0) + (x.indexedDB?.length ?? 0), 0);
+  throw new RunnerError(
+    `automated login of ${personaLabel(p)}: the steps ran, but a new browser with the saved session lands on the sign-in page (${probe.at ?? url}) — ` +
+      (kept === 0
+        ? 'nothing was saved (no cookie, no localStorage): the sign-in did not succeed, or the product keeps its session somewhere a browser does not save'
+        : 'the sign-in did not succeed, or its session does not outlive the browser (it lives outside cookies, localStorage and IndexedDB)') +
+      `. Check the account and the steps (end them with a wait_for on something only a signed-in page shows), or sign in by hand: ${loginCommand({ project: o.project.slug, env: o.env.name, ...(p.legacy ? {} : { persona: p.name }) })}`,
+  );
+}
+
 /** The browser of an automated login or of a check: a session (kit, bindings) of one realm, headless. */
 function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser' | 'env'>, log: Log) {
   const capture = o.project.config.capture;
@@ -263,6 +297,15 @@ function sessionOptions(o: Pick<SignInOptions, 'project' | 'browser' | 'env'>, l
     browser: projectBrowser(o.project, o.browser),
     log,
   };
+}
+
+/**
+ * The session of a browser, as its snapshot keeps it. A `storage_state` persona has no profile: its IndexedDB is saved
+ * too (a product may keep its sign-in there — the Firebase SDK does — and nothing else would carry it to a run). A
+ * profile persona's IndexedDB travels in its profile, like its localStorage: a run applies only its snapshot's cookies.
+ */
+async function readState(context: BrowserContext, p: Pick<ResolvedPersona, 'session'>): Promise<StorageStateFile> {
+  return (await context.storageState({ indexedDB: p.session === 'storage_state' })) as StorageStateFile;
 }
 
 /**
@@ -290,7 +333,7 @@ async function autoSession(
     o.onOpen?.(url);
     if (p.check) {
       const first = await checkPersona(context, p, deps);
-      if (first.status === 'valid') return { state: await context.storageState(), stillValid: first };
+      if (first.status === 'valid') return { state: await readState(context, p), stillValid: first };
       if (first.status === 'error') throw new RunnerError(`${personaLabel(p)} could not be checked — ${first.detail}`);
     }
     try {
@@ -311,7 +354,7 @@ async function autoSession(
       if (isCancelled(e) || o.signal?.aborted) throw e;
       throw new RunnerError(`automated login of ${personaLabel(p)} failed: ${secrets.redactText(errorMessage(e))}`);
     }
-    return { state: await context.storageState() };
+    return { state: await readState(context, p) };
   } finally {
     await session.close();
     await profileReleased(pid);
@@ -356,6 +399,9 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
   }
   let cookies: NonNullable<StorageStateFile['cookies']> = await context.cookies().catch(() => []);
   const storage = new Map<string, Array<{ name: string; value: string }>>((applied?.origins ?? []).map((x) => [x.origin, x.localStorage ?? []]));
+  // A `storage_state` persona keeps its IndexedDB in the snapshot too (readState says why).
+  const withIdb = o.persona.session === 'storage_state';
+  const databases = new Map<string, unknown[]>((applied?.origins ?? []).filter((x) => x.indexedDB?.length).map((x) => [x.origin, x.indexedDB!]));
   let open = true;
   const read = async (withStorage: boolean): Promise<void> => {
     if (!open) return;
@@ -368,7 +414,9 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
     for (const page of context.pages()) {
       try {
         const r = await page.evaluate(() => ({ origin: location.origin, items: Object.keys(localStorage).map((name) => ({ name, value: localStorage.getItem(name) ?? '' })) }));
-        if (/^https?:/.test(r.origin)) storage.set(r.origin, r.items);
+        if (!/^https?:/.test(r.origin)) continue;
+        storage.set(r.origin, r.items);
+        if (withIdb) databases.set(r.origin, await collectIndexedDb(page));
       } catch {
         /* a page loading, closed, or without storage (about:blank) */
       }
@@ -417,7 +465,11 @@ async function headedSession(o: SignInOptions, userDataDir: string, url: string,
   }
   throwIfAborted(o.signal);
   if (driveError) throw driveError;
-  return { cookies, origins: [...storage].map(([origin, localStorage]) => ({ origin, localStorage })) };
+  const origins = new Set([...storage.keys(), ...databases.keys()]);
+  return {
+    cookies,
+    origins: [...origins].map((origin) => ({ origin, localStorage: storage.get(origin) ?? [], ...(databases.get(origin)?.length ? { indexedDB: databases.get(origin) } : {}) })),
+  };
 }
 
 /**
