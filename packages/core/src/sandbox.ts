@@ -12,8 +12,8 @@ import { readFile, readdir } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMap, isScalar, parseDocument } from 'yaml';
-import { DEFAULT_COMPOSE_FILES, checkSandbox } from './checks/sandbox.js';
-export { envFileKeys } from './checks/sandbox.js';
+import { checkSandbox, composeEnvFilePath, composeEnvRef, envFileValues } from './checks/sandbox.js';
+export { composeEnvRef, envFileKeys, envFileValues } from './checks/sandbox.js';
 import { normalizeDisplay } from './display.js';
 import { isLoopbackHost } from './hosts.js';
 import { isGlobalAuth } from './auth.js';
@@ -96,14 +96,22 @@ function substituteAccount(v: unknown, account: { username?: string; password?: 
 
 /**
  * The accounts of a sandbox as the auth block of its environment (login steps with their {{account.*}} substituted),
- * and the plain passwords by persona (secret values: masked wherever a run writes).
+ * and the plain passwords by persona (secret values: masked wherever a run writes). `composeEnv`: what the sandbox's
+ * compose env file sets (LoadedSandbox.composeEnv) — a `{{compose_env:NAME}}` username or password is its value there,
+ * and from then on a plain one (demo accounts of a local, disposable copy: one source, masked like the others).
  */
-export function sandboxAuth(manifest: SandboxManifest): { auth?: AuthConfig; secrets: Record<string, string[]> } {
+export function sandboxAuth(manifest: SandboxManifest, composeEnv: Record<string, string> = {}): { auth?: AuthConfig; secrets: Record<string, string[]> } {
   const secrets: Record<string, string[]> = {};
   if (!manifest.accounts && manifest.login_url === undefined) return { secrets };
   const personas: Record<string, PersonaConfig> = {};
   for (const [name, account] of Object.entries(manifest.accounts ?? {})) {
-    const { username, password, ...persona } = account;
+    const { username: writtenUsername, password: writtenPassword, ...persona } = account;
+    const fromFile = (v: string | undefined) => {
+      const name = composeEnvRef(v);
+      return name !== undefined && Object.hasOwn(composeEnv, name) ? composeEnv[name] : v;
+    };
+    const username = fromFile(writtenUsername);
+    const password = fromFile(writtenPassword);
     if (persona.login) persona.login = substituteAccount(persona.login, { username, password }) as PersonaConfig['login'];
     // An account signed in by its mail address receives its mail there (wait_for_email {to: persona:<name>}, L5.6).
     if (persona.email === undefined && username !== undefined && /^[^\s@{}]+@[^\s@{}]+\.[^\s@{}]+$/.test(username)) persona.email = username;
@@ -114,6 +122,31 @@ export function sandboxAuth(manifest: SandboxManifest): { auth?: AuthConfig; sec
     auth: { ...(manifest.login_url !== undefined ? { login_url: manifest.login_url } : {}), ...(manifest.accounts ? { personas } : {}) },
     secrets,
   };
+}
+
+/**
+ * What the accounts' `{{compose_env:NAME}}` references read from the sandbox's compose env file: those names only.
+ * Undefined when no account uses one. Throws SandboxConfigError when the file or a name is missing (never the value).
+ */
+async function accountsComposeEnv(dir: string, manifest: SandboxManifest, env: string, file: string): Promise<Record<string, string> | undefined> {
+  const names = new Set<string>();
+  for (const a of Object.values(manifest.accounts ?? {})) for (const v of [a.username, a.password]) if (composeEnvRef(v) !== undefined) names.add(composeEnvRef(v)!);
+  if (!names.size) return undefined;
+  const envFile = composeEnvFilePath(dir, manifest);
+  const fail = (why: string) => new SandboxConfigError(`sandbox ${env}: ${file}: ${why}`, [], file, env);
+  if (!envFile) throw fail(`{{compose_env:${[...names][0]}}} reads the sandbox's compose env file, and there is none (compose.env_file, or a .env next to the first compose file)`);
+  let values: Record<string, string>;
+  try {
+    values = envFileValues(await readFile(envFile, 'utf8'));
+  } catch (e) {
+    throw fail(`the compose env file ${envFile} cannot be read: ${(e as Error).message}`);
+  }
+  const out: Record<string, string> = {};
+  for (const n of names) {
+    if (!Object.hasOwn(values, n) || values[n] === "") throw fail(`{{compose_env:${n}}}: ${n} is not set (or empty) in the compose env file (${envFile})`);
+    out[n] = values[n];
+  }
+  return out;
 }
 
 /** A sandbox's pages: real URLs and display bases (normalised), in the order its services declare them. */
@@ -149,7 +182,8 @@ export async function loadSandboxes(projectDir: string, config: ProjectConfig): 
     }
     const { manifest, issues } = parseSandboxYaml(text, file, { env, project: { config } });
     if (!manifest) throw new SandboxConfigError(issuesMessage(`sandbox ${env}`, issues, file), issues, file, env);
-    out[env] = { env, file, dir: dirname(file), manifest, issues, secrets: sandboxAuth(manifest).secrets };
+    const composeEnv = await accountsComposeEnv(dirname(file), manifest, env, file);
+    out[env] = { env, file, dir: dirname(file), manifest, issues, ...(composeEnv ? { composeEnv } : {}), secrets: sandboxAuth(manifest, composeEnv).secrets };
   }
   return out;
 }
@@ -179,7 +213,7 @@ export function mergeSandboxes(config: ProjectConfig, sandboxes: Record<string, 
       ...(s.manifest.mailbox ? { mailbox: mailbox as MailboxConfig } : {}),
       ...(s.manifest.databases ? { databases: Object.fromEntries(Object.entries(s.manifest.databases).map(([k, d]) => [k, { url: d.url }])) } : {}),
     };
-    const { auth: block } = sandboxAuth(s.manifest);
+    const { auth: block } = sandboxAuth(s.manifest, s.composeEnv);
     if (block) (auth ??= {})[s.env] = block;
   }
   return { ...config, environments, environment_settings: settings, ...(auth ? { auth } : {}) };
@@ -364,12 +398,7 @@ export function addSandboxEntry(text: string, env: string, file: string): string
  * the environment docker runs with — a shell's value would win over the file's.
  */
 export function composeEnvFile(sandbox: Pick<LoadedSandbox, 'dir' | 'manifest'>): string | undefined {
-  const c = sandbox.manifest.compose;
-  if (sandbox.manifest.provider !== 'docker-compose' || c?.env_file === false) return undefined;
-  if (typeof c?.env_file === 'string') return resolve(sandbox.dir, c.env_file);
-  const first = resolve(sandbox.dir, (c?.files ?? DEFAULT_COMPOSE_FILES)[0]);
-  const guess = join(dirname(first), '.env');
-  return existsSync(guess) ? guess : undefined;
+  return composeEnvFilePath(sandbox.dir, sandbox.manifest);
 }
 
 /**

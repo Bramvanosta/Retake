@@ -27,7 +27,6 @@
 import { realpathSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { sqlSource } from './destructive.js';
-import { OLD_AGENT_WRITABLE_PATHS } from './legacy.js';
 import { LOTTIE_FILE_EXTENSIONS, fileExtension } from './media.js';
 import { listSteps } from './steps.js';
 import { collectSecretRefs } from './templating.js';
@@ -49,10 +48,9 @@ export function channelWords(via: AgentChannel | undefined): string {
 }
 
 /**
- * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`) — with the
- * tool folder's name from before L5.13: its files (page dumps, drafts) are never run as code either (critique H1).
+ * Paths of a project folder an agent can write through MCP, or that runs and the tools write (relative, `/`).
  */
-export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/', ...OLD_AGENT_WRITABLE_PATHS];
+export const AGENT_WRITABLE_PATHS: readonly string[] = ['README.md', 'scenarios/', 'comments/', 'runs/', 'renders/', 'review/', 'exports/', '.retake/'];
 
 /**
  * Whether a project-relative path (`/` or the platform separator) is one an agent can write through MCP. Compared

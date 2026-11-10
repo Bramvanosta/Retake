@@ -2,8 +2,9 @@
  * The docker-compose provider (L1.8): the sandbox's services are the compose files' (`compose.files`, default
  * compose.yaml next to sandbox.yaml), run through the `docker compose` CLI under a project name of their own —
  * `compose.project`, else `retake-<project>-<environment>-<hash of the folder>` (two checkouts of one project never
- * share containers or volumes). Every call names the project, its folder and its files (`-p`, `--project-directory`,
- * `-f`) and its env file (`--env-file`, L5.8: the image versions and settings of `${VAR}`s — the names it sets are left
+ * share containers or volumes). The folder is the first compose file's, as for docker compose itself: the files may
+ * live elsewhere than sandbox.yaml (the product's repository), and their relative paths resolve next to them. Every
+ * call names the project, its folder and its files (`-p`, `--project-directory`, `-f`) and its env file (`--env-file`, L5.8: the image versions and settings of `${VAR}`s — the names it sets are left
  * out of the shell's environment, which would win over it), with `COMPOSE_*` variables of the shell left out, and every
  * command reads the project's containers first (`ps`): containers of that name made from another folder (another
  * checkout sharing a `compose.project`) refuse it.
@@ -28,7 +29,7 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { isIP } from 'node:net';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { DEFAULT_COMPOSE_FILES, composeEnvFile, envFileKeys, interpolateDeep, policyProgram, prefetchSecrets, resolveEnvironment, sandboxNames } from '@retake/core';
 import type { ExecStepSpec, LoadedProject, LoadedSandbox } from '@retake/core';
 import { dockerEnv, dockerReady, findDocker, firstErrorLine, runDocker } from './docker.js';
@@ -69,7 +70,17 @@ export const DOCKER_HELPER = /orbstack|docker|vpnkit|rootlesskit|slirp4netns|lim
 /** The compose project of a sandbox: name, folder (real path), files (absolute), env file. */
 export interface ComposeProjectRef {
   name: string;
+  /**
+   * The compose project's folder (`--project-directory`): the first compose file's, as docker compose itself takes it —
+   * the relative paths of the compose files (a service's `env_file`, a build context, a bind mount) resolve there, and
+   * the files may live in another folder than sandbox.yaml (the product's repository).
+   */
   dir: string;
+  /**
+   * The folder of sandbox.yaml when it is another one: `--project-directory` until v0.2.0, so containers made then
+   * carry it as their folder and are still the sandbox's own.
+   */
+  sandboxDir?: string;
   files: string[];
   /** The env file every command reads (`--env-file`, L5.8: core composeEnvFile), absolute; absent: none. */
   envFile?: string;
@@ -126,9 +137,10 @@ export function composeRecord(state: { provider_state?: Record<string, unknown> 
 
 /** The compose project a sandbox runs as. */
 export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?: Pick<LoadedProject['config'], 'pass_env'> }, sandbox: Pick<LoadedSandbox, 'env' | 'dir' | 'manifest'>): ComposeProjectRef {
-  const dir = realDir(sandbox.dir);
-  const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(dir, f));
-  const envFile = composeEnvFile({ dir, manifest: sandbox.manifest });
+  const sandboxDir = realDir(sandbox.dir);
+  const files = (sandbox.manifest.compose?.files ?? DEFAULT_COMPOSE_FILES).map((f) => resolve(sandboxDir, f));
+  const dir = realDir(dirname(files[0]));
+  const envFile = composeEnvFile({ dir: sandboxDir, manifest: sandbox.manifest });
   let envKeys: string[] = [];
   if (envFile) {
     try {
@@ -141,10 +153,17 @@ export function composeProject(project: Pick<LoadedProject, 'slug'> & { config?:
   return {
     name: sandbox.manifest.compose?.project ?? composeProjectName(project.slug, sandbox.env, dir),
     dir,
+    ...(sandboxDir !== dir ? { sandboxDir } : {}),
     files,
     ...(envFile ? { envFile, envKeys } : {}),
     ...(pass?.length ? { pass: [...pass] } : {}),
   };
+}
+
+/** Is `dir` (a container's `working_dir` label) this compose project's folder — or sandbox.yaml's, which it was until v0.2.0? */
+function ownFolder(ref: ComposeProjectRef, dir: string): boolean {
+  const real = realDir(dir);
+  return real === ref.dir || (ref.sandboxDir !== undefined && real === ref.sandboxDir);
 }
 
 /** `compose --ansi never -p <name> --project-directory <dir> -f <file>… [--env-file <file>]`: the start of every compose call. */
@@ -354,6 +373,24 @@ function indent(text: string, by = '    '): string {
     .join('\n');
 }
 
+/** A program checked by the agent policy: the file to start, and the name to start it under when they differ. */
+interface StartedProgram {
+  program: string;
+  problem: string | null;
+  argv0?: string;
+}
+
+/**
+ * core policyProgram, with the name the program was found under kept as its argv[0] when the policy gives another file
+ * to start (the real path, links followed): a multi-call binary picks its role from that name — OrbStack's `docker`
+ * and `docker-compose` are links to one `docker-tools`, which refuses its own name.
+ */
+export function startedProgram(bin: string, what: string): StartedProgram {
+  const checked = policyProgram(bin, what);
+  const name = basename(bin.trim());
+  return !checked.problem && name && basename(checked.program) !== name ? { ...checked, argv0: name } : checked;
+}
+
 export interface ComposeProviderOptions {
   /** The docker binary (default findDocker(): $RETAKE_DOCKER, PATH, the usual install places). */
   docker?: string;
@@ -390,7 +427,7 @@ export class ComposeProvider implements Provider {
       opts.exec ??
       ((args, o) => {
         const bin = this.program();
-        return bin ? runDocker(bin, args, o) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
+        return bin ? runDocker(bin.program, args, { ...o, ...(bin.argv0 ? { argv0: bin.argv0 } : {}) }) : Promise.resolve({ code: null, stdout: '', stderr: '', ms: 0, error: 'not found' });
       });
     this.listen = opts.listeners ?? listeners;
   }
@@ -400,11 +437,11 @@ export class ComposeProvider implements Provider {
    * MCP client) by the real path that was checked, and refused (SandboxError) when it is a relative path or lies inside
    * the workspace — `$RETAKE_DOCKER` and the PATH's docker alike. Null when there is none.
    */
-  private program(): string | null {
+  private program(): StartedProgram | null {
     if (!this.bin) return null;
-    const checked = policyProgram(this.bin, this.binWhat);
+    const checked = startedProgram(this.bin, this.binWhat);
     if (checked.problem) throw new SandboxError(`docker-compose sandboxes: ${checked.problem}`);
-    return checked.program;
+    return checked;
   }
 
   /** The compose project of this sandbox. */
@@ -423,7 +460,7 @@ export class ComposeProvider implements Provider {
       throw new SandboxError(`${this.where(ctx)}: docker-compose sandboxes need Docker with Compose v2.17 or later: \`docker\` was not found (install Docker Desktop or OrbStack, or set RETAKE_DOCKER)`);
     }
     try {
-      this.ready ??= dockerReady(this.run, this.program() ?? this.bin, ctx.signal);
+      this.ready ??= dockerReady(this.run, this.program()?.program ?? this.bin, ctx.signal);
       return await this.ready;
     } catch (e) {
       this.ready = null;
@@ -481,7 +518,7 @@ export class ComposeProvider implements Provider {
   private checkOwnFolder(ctx: ProviderContext, ref: ComposeProjectRef, ps: readonly PsEntry[]): void {
     for (const e of ps) {
       const wd = e.labels['com.docker.compose.project.working_dir'];
-      if (wd && realDir(wd) !== ref.dir) {
+      if (wd && !ownFolder(ref, wd)) {
         throw new SandboxError(
           `${this.where(ctx)}: compose project ${ref.name} belongs to another folder (${wd}): give this sandbox its own name (compose.project in ${shownPath(ctx.sandbox.file)}), or remove the other one (docker compose -p ${ref.name} down, from that folder)`,
         );
@@ -491,7 +528,7 @@ export class ComposeProvider implements Provider {
 
   /** Is this container one of the sandbox's own: its compose project, made from its folder? */
   private ownContainer(ref: ComposeProjectRef, project: string, dir: string | undefined): boolean {
-    return project === ref.name && !!dir && realDir(dir) === ref.dir;
+    return project === ref.name && !!dir && ownFolder(ref, dir);
   }
 
   /** The compose projects an earlier up of this sandbox used under another name (compose.project changed since). */
@@ -956,15 +993,16 @@ export class ComposeProvider implements Provider {
     // An exec step running in a container: its processes there too (the docker client alone would leave them).
     const exec = this.running;
     this.running = null;
-    const bin = this.bin ? policyProgram(this.bin, this.binWhat) : null;
+    const bin = this.bin ? startedProgram(this.bin, this.binWhat) : null;
+    const argv0 = bin?.argv0 ? { argv0: bin.argv0 } : {};
     if (exec && bin && !bin.problem) {
-      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { env: dockerEnv(process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
+      spawnSync(bin.program, [...composeArgs(exec.ref), 'exec', '-T', exec.service, 'sh', '-c', KILL_EXEC_SCRIPT, 'sh', exec.token, 'KILL'], { ...argv0, env: dockerEnv(process.env, exec.ref.envKeys, exec.ref.pass), timeout: 10_000, stdio: 'ignore' });
     }
     const names = this.started;
     this.started = [];
     if (!names.length || !bin || bin.problem) return;
     const ref = this.lastRef ?? this.ref(ctx);
-    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { env: dockerEnv(process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
+    spawnSync(bin.program, [...composeArgs(ref), 'kill', ...names], { ...argv0, env: dockerEnv(process.env, ref.envKeys, ref.pass), timeout: 10_000, stdio: 'ignore' });
   }
 
   /** Docker keeps the logs: no files (logs() reads them through docker compose logs). */

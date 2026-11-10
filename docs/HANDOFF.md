@@ -10,6 +10,21 @@ release v0.2.0 (the person tags) — only when the user asks.** Branch: **`main`
 "Mac setup" below; the root `CLAUDE.md` sums up the working agreement and the everyday commands). The cloud working
 branch `claude/new-session-pq6jtq`, where phases 1–2 were built, is history.
 
+**Hotfix v0.2.1 (2026-11-10, branch `hotfix/v0.2.1` from the v0.2.0 tag; field feedback of a first real project):**
+- docker under the agent policy (the app, MCP) is started by its checked real path *under the name it was found as*
+  (`argv0`): OrbStack's `docker` is a link to a multi-call binary that refused its own name (`compose.ts`
+  `startedProgram`, `docker.ts` `runDocker`);
+- a docker-compose sandbox's project folder (`--project-directory`, the default name's hash) is the first compose
+  file's — compose files may live in the product's repository; containers made from sandbox.yaml's folder by v0.2.0
+  stay the sandbox's own (`ComposeProjectRef.sandboxDir`);
+- an account's `{{compose_env:NAME}}` username / password reads the sandbox's compose env file (core
+  `checks/sandbox.ts` `envFileValues`, `sandbox.ts` `accountsComposeEnv`; accounts only, docker-compose only);
+- one app, several accounts: documented (one page key per account on the same URL; guide and skill reference);
+- nothing of the name before L5.13 is known any more (the person's decision): no detection, message, migration,
+  safety-list entry or marker — R-REN-02 rewritten, DESIGN "L5.13" says what went.
+Tests: `packages/sandbox/test/compose-folder.test.ts`; checked for real on OrbStack (Compose 5.1.2 found under the
+agent policy). The architecture branches (`claude/arch-l6`, `claude/arch-l7`) touch the same files: merge by hand.
+
 ## What this is
 Retake: a generic, product-agnostic tool (licence-ready in a V2) that turns a written scenario into a
 professional product video — drive a real web app headless with an in-page cursor, capture it cleanly, then edit it
@@ -2199,11 +2214,9 @@ frame).
 
 ## Notes
 Notes from L5.13:
-- Names: a branch from before L5.13 runs `node scripts/rename-l513.mjs` on itself before a rebase (`--dry` lists,
-  `--only <files>` for a few files, `--allow-dirty` for a dirty tree); lines or regions tagged `old-name:` are never
-  rewritten. The old names the code reads live only in `packages/core/src/legacy.ts` / `packages/engine/src/legacy.ts`;
-  tests of them are `legacy*.test.ts`; elsewhere the guard fails.
-- Every brief exports `RETAKE_HOME` (vitest makes a temp one when unset and refuses `~/.retake` / the old home).
+- Names: since v0.2.1 no code knows a name from before L5.13 (the legacy modules, their tests and the rename script
+  are gone); the guard (`core/test/old-name.test.ts`) fails on an old name anywhere but the records' tagged lines.
+- Every brief exports `RETAKE_HOME` (vitest makes a temp one when unset and refuses `~/.retake`).
 - Not old names: the `studio/` namespace, the `studio` comment channel, `studio:*` events, "the Studio", README block
   markers `studio:component-preview`.
 - The main checkout's git-ignored old tool folders stay ignored (`.gitignore` keeps them): optional cleanup.

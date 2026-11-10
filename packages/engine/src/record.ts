@@ -56,7 +56,6 @@ import { FileJobQueue } from './jobs/queue.js';
 import { selfIdentity } from './jobs/proc.js';
 import { lockAlive, readLock } from '@retake/sandbox';
 import { RECORD_UNSAVED_KEEP_MS, readRecordAnnotations, readRecordMeta, recordLockFile, writeRecordMeta } from './record-files.js';
-import { refuseBesideOldHolder } from './legacy.js';
 import { checkScenarioName } from './refs.js';
 import { saveScenarioText } from './scenarios.js';
 
@@ -360,8 +359,6 @@ async function preflight(project: LoadedProject, env: ResolvedEnvironment, perso
 /** Record a scenario (see the module comment). EngineError on a refusal before the window opens, or on a cancel. */
 export async function recordScenario(ws: WorkspaceConfig, project: LoadedProject, req: RecordRequest, ports: RecordPorts = {}): Promise<RecordOutcome> {
   const started = Date.now();
-  // L5.13: never beside an old Studio or worker (engine legacy.ts).
-  await refuseBesideOldHolder(project.root, 'this recording');
   const log = ports.log ?? (() => undefined);
   const start = recordStart(project, req);
   const { env, persona } = start;

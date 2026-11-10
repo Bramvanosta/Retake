@@ -24,10 +24,8 @@ import {
   matchLoginUrl,
   normalizeStep,
   normalizeTarget,
-  oldSignInHints,
   resolveCheckUrl,
   resolvePageUrl,
-  snapshotMachine,
   splitPageOpen,
   urlOriginPath,
   writeTextAtomic,
@@ -339,8 +337,8 @@ export async function prepareSessions(
           opts.failure,
         );
       }
-      // Under its key of today or of before L5.13 (core legacy.ts).
-      const machine = snapshotMachine(snapshot);
+      const meta = (snapshot as { retake?: { machine?: unknown } } | undefined)?.retake;
+      const machine = typeof meta?.machine === 'string' && meta.machine ? meta.machine : undefined;
       if (machine && !isThisHost(machine)) {
         opts.log('warn', `${personaLabel(persona)}: its saved session was made on another computer (${machine}): sessions are tied to one computer — sign in here if the check fails`);
       }
@@ -801,9 +799,6 @@ export async function preflight(session: BrowserSession, prepared: readonly Prep
     }).catch((e: unknown) => deps.log('warn', `${personaLabel(s.persona)}: its status could not be saved: ${errorMessage(e)}`));
   }
   if (failures.length) {
-    // L5.13: never signed in, perhaps only because the sign-ins are left in the home from before the rename (H3), or an
-    // old variable names the home the person chose then (review A M4).
-    if (once) for (const hint of oldSignInHints()) failures.push(`  ${hint}`);
     throw preflightFailure(failures.map((l) => deps.secrets.redactText(l)));
   }
 }

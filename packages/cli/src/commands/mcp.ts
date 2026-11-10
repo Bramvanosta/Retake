@@ -10,8 +10,8 @@
 import { existsSync, statSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { findWorkspaceRoot, oldWorkspaceFileAt } from '@retake/core';
-import { EngineError, refuseBesideOldHolder } from '@retake/engine';
+import { findWorkspaceRoot } from '@retake/core';
+import { EngineError } from '@retake/engine';
 import { EXIT, UsageError, errorText } from '../errors.js';
 import type { ExitCode } from '../errors.js';
 import type { Ui } from '../ui.js';
@@ -116,11 +116,11 @@ function isDir(p: string): boolean {
 
 /**
  * The workspace root `retake mcp` (and `retake ui`) serves: `--root`, $RETAKE_ROOT or the retake.yaml lookup; it
- * must look like one (a workspace file from before L5.13 too: loading it then says to rename it).
+ * must look like one.
  */
 export function workspaceRoot(global: GlobalOptions): string | undefined {
   const root = global.root ? resolve(global.root) : findWorkspaceRoot();
-  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) || oldWorkspaceFileAt(root) ? root : undefined;
+  return existsSync(join(root, 'retake.yaml')) || isDir(join(root, 'projects')) ? root : undefined;
 }
 
 export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommandOptions): Promise<ExitCode> {
@@ -132,7 +132,6 @@ export async function mcpCommand(ui: Ui, global: GlobalOptions, opts: McpCommand
     return EXIT.usage;
   }
   if ((opts.port !== undefined || opts.rotateToken || opts.json) && !opts.http) throw new UsageError('--port, --rotate-token and --json go with --http');
-  if (!opts.printConfig) await refuseBesideOldHolder(root, 'this MCP server');
   if (opts.http) return mcpHttp(ui, root, opts);
   const mcp = await import('@retake/mcp');
   if (opts.printConfig) {

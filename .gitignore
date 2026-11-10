@@ -28,7 +28,3 @@ fixtures/*/public/build/
 apps/desktop/target/
 apps/desktop/core/target/
 apps/desktop/gen/
-# old-name:begin — the tool's state folders from before L5.13 stay ignored (an older checkout keeps them)
-projects/*/.demo-studio/
-.demo-studio/
-# old-name:end

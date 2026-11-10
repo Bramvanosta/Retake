@@ -357,7 +357,7 @@
           "password": {
             "type": "string",
             "minLength": 1,
-            "description": "{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}."
+            "description": "{{account.password}} in its login steps: plain (every sandbox URL is local; masked in logs) or {{env:VAR}} / {{keychain:service/account}}, or {{compose_env:NAME}}: the value NAME has in the sandbox's compose env file (docker-compose)."
           },
           "email": {
             "type": "string",

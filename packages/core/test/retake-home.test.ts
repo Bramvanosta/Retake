@@ -1,7 +1,7 @@
 /**
  * L5.13 (critique H4): the canary of the test environment — vitest.config.ts gives every run a scratch RETAKE_HOME
- * (never the person's ~/.retake, which holds their signed-in profiles) and drops the variables of the name before L5.13.
- * L5.13a reviews: the home of before L5.13 (or a link to a real home) is refused as RETAKE_HOME too (A M3), and no test
+ * (never the person's ~/.retake, which holds their signed-in profiles).
+ * L5.13a reviews: a link to the real home is refused as RETAKE_HOME too (A M3), and no test
  * file leaves RETAKE_HOME unset for the tests after it (A M2: a later `main()` would look at the real home).
  * L5.16 Library hygiene: an MCP server a test starts gets CFFIXED_USER_HOME too — the SDK's stdio transport passes only
  * the variables it is given, and a server without it starts workers whose Chromium writes its crash reporter's
@@ -13,7 +13,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync,
 import { homedir, tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { OLD_DIR, OLD_ENV_PREFIX, oldEnvNames, retakeHome } from '../src/index.js';
+import { retakeHome } from '../src/index.js';
 import { testChildEnv } from './child-env.js';
 
 const REPO = join(import.meta.dirname, '..', '..', '..');
@@ -51,20 +51,17 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(child.stdout).toBe(dir);
   });
 
-  it('a test never runs on the real ~/.retake, and sees no variable of the old name', () => {
+  it('a test never runs on the real ~/.retake', () => {
     expect(process.env.RETAKE_HOME?.trim()).toBeTruthy();
     expect(retakeHome()).not.toBe(join(homedir(), '.retake'));
-    expect(oldEnvNames(process.env)).toEqual([]);
-    expect(Object.keys(process.env).filter((k) => k.startsWith(OLD_ENV_PREFIX))).toEqual([]);
   });
 
-  it('vitest refuses a RETAKE_HOME that is a real home: ~/.retake, the home of before L5.13, or a link to one (review A M3)', () => {
+  it('vitest refuses a RETAKE_HOME that is a real home: ~/.retake, or a link to it (review A M3)', () => {
     const home = mkdtempSync(join(tmpdir(), 'retake-canary-home-'));
     try {
       mkdirSync(join(home, '.retake'));
-      mkdirSync(join(home, OLD_DIR));
-      symlinkSync(join(home, OLD_DIR), join(home, 'linked-home'));
-      for (const named of [join(home, '.retake'), join(home, OLD_DIR), join(home, 'linked-home'), '~/.retake']) {
+      symlinkSync(join(home, '.retake'), join(home, 'linked-home'));
+      for (const named of [join(home, '.retake'), join(home, 'linked-home'), '~/.retake']) {
         // Only the first test of this file: the run must stop at the config, before any test.
         const r = spawnSync(process.execPath, [join(REPO, 'node_modules', 'vitest', 'vitest.mjs'), 'run', 'packages/core/test/retake-home.test.ts', '-t', 'a test never runs on the real'], {
           cwd: REPO,

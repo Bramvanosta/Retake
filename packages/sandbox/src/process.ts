@@ -14,7 +14,7 @@ import type { ChildProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { interpolateDeep, policyChildEnv, prefetchSecrets, resolveEnvironment, withOldOutgoingEnv } from '@retake/core';
+import { interpolateDeep, policyChildEnv, prefetchSecrets, resolveEnvironment } from '@retake/core';
 import type { SandboxService } from '@retake/core';
 import { SandboxError, errorMessage, interrupted } from './errors.js';
 import { healthNow, serviceHealth, waitHealthy } from './health.js';
@@ -66,8 +66,7 @@ export async function serviceEnv(ctx: Pick<ProviderContext, 'project' | 'sandbox
     const pages = resolveEnvironment(ctx.project, ctx.sandbox.env).pages;
     Object.assign(out, interpolateDeep(svc.env, { pages, vars: ctx.project.config.vars ?? {}, secrets: resolver }));
   }
-  // Also under its name from before L5.13: a product's server may still switch on it (legacy.ts, critique H2).
-  Object.assign(out, withOldOutgoingEnv({ RETAKE_SANDBOX: ctx.sandbox.env }));
+  out.RETAKE_SANDBOX = ctx.sandbox.env;
   return out;
 }
 

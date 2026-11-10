@@ -9,8 +9,7 @@ export function perfSummary(p: RunPerf): string {
   if (p.cpu) {
     const chromium = p.cpu.browser + p.cpu.gpu + p.cpu.renderer + p.cpu.chromium_other;
     const per = (x: number) => (x / Math.max(0.001, p.seconds)).toFixed(2);
-    // The tool's own process: `retake`, or `studio` in a run recorded before L5.13a (review B L8).
-    const own = p.cpu.retake ?? (p.cpu as { studio?: number }).studio ?? 0;
+    const own = p.cpu.retake ?? 0;
     parts.push(`${p.cpu.cores.toFixed(2)} cores (Chromium ${per(chromium)}, encoder ${per(p.cpu.encoder)}, retake ${per(own)}${p.cpu.product !== undefined ? `, product ${per(p.cpu.product)}` : ''})`);
   }
   if (p.gpu && !p.gpu.accelerated) parts.push('no GPU');
