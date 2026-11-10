@@ -1,9 +1,14 @@
 /** Workspace and project loading: moved into @retake/engine (L3.1), shared with the MCP server. */
-import { FileJobQueue } from '@retake/engine';
-import type { JobQueueView } from '@retake/engine';
+import { FileJobQueue, openWorkspace as openEngineWorkspace } from '@retake/engine';
+import type { JobQueueView, OpenedWorkspace } from '@retake/engine';
 import type { WorkspaceConfig } from '@retake/core';
 
-export { openWorkspace, openProject } from '@retake/engine';
+export { openProject } from '@retake/engine';
+
+/** The workspace of a command a person types (`--root`, else $RETAKE_ROOT, else the lookup): a person's policy, the agent policy off. */
+export function openWorkspace(global: Pick<GlobalOptions, 'root'>): Promise<OpenedWorkspace> {
+  return openEngineWorkspace({ root: global.root, agent: false });
+}
 
 /**
  * The workspace's job queue, for the CLI's in-process commands (`retake inspect`, `retake record`, `retake theme

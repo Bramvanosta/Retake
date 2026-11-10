@@ -12,7 +12,10 @@
  *   / -1) is never signalled and its job ends `interrupted`;
  * - a record whose kind is not its input's kind ends `failed` on its first claim; the honest job behind it runs and the
  *   worker idles out (no claim / unclaim loop);
- * - a take's setup hooks and its pause hold nothing; it holds while it films (real capture, Chromium).
+ * - a take's setup hooks and its pause hold nothing; it holds while it films (real capture, Chromium);
+ * - the order of the worker's side effects, pinned before runWorker was split into its parts (worker-*.ts): its
+ *   refusals before serving, its first log lines, a job end it writes itself (job.json, events and history, then its
+ *   log line), `once`, the rejection guard, a second signal, held.json and the listeners and lock it leaves behind.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -23,8 +26,8 @@ import { createRequire } from 'node:module';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { APPROVALS_USED_DIR, FileJobQueue, createEngine, heldFile, processStart, readWorkerLock, runWorker, signApprovals } from '../src/index.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { APPROVALS_USED_DIR, FileJobQueue, createEngine, heldFile, historyFile, processStart, readWorkerLock, runWorker, signApprovals } from '../src/index.js';
 import type { JobRecord } from '../src/index.js';
 import { REPO } from './helpers.js';
 
@@ -442,6 +445,167 @@ describe('the heavy slot with a stand-in job process (L5.14a fixes, review B H2)
     expect(existsSync(join(queue.files.job(forged.id), 'fake-started'))).toBe(false);
     expect((await queue.events(forged.id)).map((e) => e.type)).toEqual(['state', 'result']);
     expect((await queue.stored(honest.id))?.state).toBe('succeeded');
+  }, 30_000);
+});
+
+/** The listeners a worker adds to the process (what it must remove once it returns). */
+const listening = () => ({ int: process.listenerCount('SIGINT'), term: process.listenerCount('SIGTERM'), rejection: process.listenerCount('unhandledRejection') });
+
+describe('the order of the worker\'s side effects (characterization of runWorker, before its split)', () => {
+  it('refusals before serving: a workspace that cannot be opened → 1, said, nothing written; a live holder of the lock → 0, said, its lock and the process\'s listeners untouched', async () => {
+    const logs: string[] = [];
+    const broken = join(base, 'broken-workspace');
+    await mkdir(broken, { recursive: true });
+    await writeFile(join(broken, 'retake.yaml'), 'projects_dir: [unclosed\n');
+    expect(await runWorker({ root: broken, idleExitMs: 200, pollMs: 50, log: (m) => logs.push(m) })).toBe(1);
+    expect(logs).toEqual([expect.stringMatching(/^no workspace at .*broken-workspace: /)]);
+    expect(existsSync(join(broken, '.retake'))).toBe(false);
+    const { root, queue } = await workspace('held-lock');
+    const job = await review(queue);
+    const first = work(root, { [job.id]: 'until-file' });
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    const holder = readWorkerLock(root);
+    const before = listening();
+    const second: string[] = [];
+    expect(await runWorker({ root, idleExitMs: 200, pollMs: 50, log: (m) => second.push(m) })).toBe(0);
+    expect(second).toEqual(['another worker serves this workspace: exiting']);
+    expect(listening()).toEqual(before);
+    expect(readWorkerLock(root)).toEqual(holder);
+    await writeFile(join(queue.files.job(job.id), 'fake-finish'), '');
+    expect(await first).toBe(0);
+  }, 30_000);
+
+  it('a job process that writes its own end: serving, then running; no line of the worker\'s own; once idle its lock and every listener it added are gone', async () => {
+    const { root, queue } = await workspace('own-end');
+    const job = await review(queue);
+    const before = listening();
+    const logs: string[] = [];
+    let during: ReturnType<typeof listening> | undefined;
+    const p = work(root, { [job.id]: 'succeed' }, {}, logs);
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    during = listening();
+    expect(await p).toBe(0);
+    expect(during).toEqual({ int: before.int + 1, term: before.term + 1, rejection: before.rejection + 1 });
+    expect(logs[0]).toMatch(new RegExp(`^serving ${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\(build [^)]+\\)$`));
+    expect(logs.filter((l) => l.startsWith(`job ${job.id}:`))).toEqual([expect.stringMatching(new RegExp(`^job ${job.id}: running \\(review\\) in job process \\d+$`))]);
+    expect((await queue.stored(job.id))?.state).toBe('succeeded');
+    // The job process ended it: the history line is its own (the stand-in writes none), the worker writes none.
+    expect(existsSync(historyFile(root))).toBe(false);
+    expect(readWorkerLock(root)).toBeNull();
+    expect(listening()).toEqual(before);
+    expect(existsSync(heldFile(root))).toBe(false);
+  }, 30_000);
+
+  it('a job the worker ends itself: job.json, then its state / result events and its history line, then its log line', async () => {
+    const { root, queue } = await workspace('worker-end');
+    const job = await review(queue);
+    const seen: Array<{ state?: string; events: string[]; history: string[] }> = [];
+    const logs: string[] = [];
+    const log = (m: string) => {
+      logs.push(m);
+      if (m.startsWith(`job ${job.id}: interrupted (`)) {
+        const rec = JSON.parse(readFileSync(queue.files.record(job.id), 'utf8')) as JobRecord;
+        const events = readFileSync(join(queue.files.job(job.id), 'events.jsonl'), 'utf8').trim().split('\n').map((l) => (JSON.parse(l) as { type: string }).type);
+        const history = existsSync(historyFile(root)) ? readFileSync(historyFile(root), 'utf8').trim().split('\n') : [];
+        seen.push({ state: rec.state, events, history });
+      }
+    };
+    expect(await work(root, { [job.id]: 'event-exit1' }, { log })).toBe(0);
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.state).toBe('interrupted');
+    expect(seen[0]!.events).toEqual(['log', 'state', 'result']);
+    expect(seen[0]!.history.map((l) => JSON.parse(l) as Record<string, unknown>)).toEqual([expect.objectContaining({ kind: 'review', state: 'interrupted' })]);
+    // Running, then the clean-ups of a job killed mid-way (a review's leftovers: its project is none here), then its end.
+    expect(logs.filter((l) => l.startsWith(`job ${job.id}:`))).toEqual([
+      expect.stringMatching(/: running \(review\) in job process \d+$/),
+      expect.stringMatching(/: review leftovers not removed \(/),
+      expect.stringMatching(/: interrupted \(interrupted: its job process exited \(code 1\) before it wrote the job's end/),
+    ]);
+  }, 30_000);
+
+  it('`once`: one job, then the worker exits; the next one stays queued, unclaimed, and no worker is started for it', async () => {
+    const { root, queue } = await workspace('once');
+    const a = await review(queue, 'a-v1');
+    const b = await review(queue, 'b-v1');
+    expect(await work(root, {}, { once: true })).toBe(0);
+    expect((await queue.stored(a.id))?.state).toBe('succeeded');
+    expect((await queue.stored(b.id))?.state).toBe('queued');
+    expect(await queue.claimOf(b.id)).toBeUndefined();
+    await new Promise((r) => setTimeout(r, 300));
+    expect(readWorkerLock(root)).toBeNull();
+  }, 30_000);
+
+  it('the rejection guard: an EPIPE is said and ignored, anything else thrown again; it goes with the worker', async () => {
+    const { root, queue } = await workspace('epipe');
+    const job = await review(queue);
+    const before = process.listeners('unhandledRejection');
+    const logs: string[] = [];
+    const p = work(root, { [job.id]: 'until-file' }, {}, logs);
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    const mine = process.listeners('unhandledRejection').filter((l) => !before.includes(l)) as Array<(reason: unknown) => void>;
+    expect(mine).toHaveLength(1);
+    const epipe = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+    expect(() => mine[0]!(epipe)).not.toThrow();
+    expect(logs).toContain('ignored a write to a closed pipe after a render (write EPIPE)');
+    const other = new Error('boom');
+    expect(() => mine[0]!(other)).toThrow(other);
+    await writeFile(join(queue.files.job(job.id), 'fake-finish'), '');
+    expect(await p).toBe(0);
+    expect(process.listeners('unhandledRejection').filter((l) => !before.includes(l))).toEqual([]);
+  }, 30_000);
+
+  it('a second signal quits at once: the job process\'s tree SIGKILLed after its first SIGTERM, the lock released, exit 130 on the next tick', async () => {
+    const { root, queue } = await workspace('second-signal');
+    const job = await review(queue);
+    const before = process.listeners('SIGTERM');
+    const logs: string[] = [];
+    const exits: Array<number | string | null | undefined> = [];
+    const exit = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => void exits.push(code)) as never);
+    try {
+      const p = work(root, { [job.id]: 'ignore-term' }, {}, logs);
+      const run = await waitFor('running', async () => {
+        const j = await queue.stored(job.id);
+        return j?.state === 'running' ? j : undefined;
+      });
+      const mine = process.listeners('SIGTERM').filter((l) => !before.includes(l)) as Array<(s: string) => void>;
+      expect(mine).toHaveLength(1);
+      mine[0]!('SIGTERM');
+      expect(logs).toContain('SIGTERM: stopping');
+      expect(logs).toContain(`SIGTERM: cancelling job ${job.id} in its job process`);
+      expect(readWorkerLock(root)).not.toBeNull();
+      mine[0]!('SIGTERM');
+      expect(readWorkerLock(root)).toBeNull();
+      expect(exits).toEqual([]);
+      await new Promise((r) => setImmediate(r));
+      expect(exits).toEqual([130]);
+      const pid = run.worker!.pid;
+      expect(sent[0]).toEqual([pid, 'SIGTERM']);
+      expect(sent[1]).toEqual([-pid, 'SIGKILL']);
+      // The worker goes on here (its exit is a stand-in): the killed job process ends its job interrupted.
+      expect(await p).toBe(0);
+      expect((await queue.stored(job.id))?.state).toBe('interrupted');
+    } finally {
+      exit.mockRestore();
+    }
+  }, 30_000);
+
+  it('a worker stopped while it holds heavy work: held.json written during the hold, gone once it returned', async () => {
+    const { FilmingMarker, selfIdentity } = await import('../src/index.js');
+    const { root, queue } = await workspace('held-stop');
+    const job = await review(queue);
+    const before = process.listeners('SIGTERM');
+    const p = work(root, { [job.id]: 'term' });
+    await waitFor('running', async () => (await queue.stored(job.id))?.state === 'running');
+    const take = FilmingMarker.open({ root: join(base, 'held-stop-elsewhere'), source: 'cli', owner: await selfIdentity() })!;
+    try {
+      await waitFor('the held file', () => existsSync(heldFile(root)));
+      (process.listeners('SIGTERM').filter((l) => !before.includes(l))[0] as (s: string) => void)('SIGTERM');
+      expect(await p).toBe(0);
+      expect(existsSync(heldFile(root))).toBe(false);
+      expect((await queue.stored(job.id))?.state).toBe('cancelled');
+    } finally {
+      take.closeSync();
+    }
   }, 30_000);
 });
 

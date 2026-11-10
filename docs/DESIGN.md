@@ -1915,8 +1915,13 @@ workers/worker.log      what workers print (stderr), appended
   worker, the job process and the CLI's `workspaceQueue` (its in-process commands read it so that their pruning spares
   the folders of active jobs), plus the adapter's own `withOwnMemory()`; every other module is handed one (the
   ratchet's `queue` rule). `<workspace>/.retake` and its jobs folder are named by `workspace-state.ts`; what an
-  interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`) keeps one record of everything it holds,
-  read and changed by module functions under four section comments: finish, recovery, claim and run.
+  interrupted job says, by `jobs/interrupted.ts`. The worker (`runWorker`, `jobs/worker.ts`) opens the workspace (trust
+  `mcp`, never beside a worker from before the rename), builds the queue and takes the lock, then orchestrates parts
+  that share one record of everything it holds (`jobs/worker-record.ts`), a module each: the process's signals
+  (`worker-signals.ts`), the recovery of what earlier workers left (`worker-recovery.ts`), the loop, its drain and the
+  hand-over (`worker-loop.ts`), the claims of a turn and the capture slot (`worker-slots.ts`, `worker-claim.ts`), the
+  heavy slot (`worker-heavy.ts`: its job process, yield, cancel and end) and the ends the worker writes itself
+  (`worker-finish.ts`).
 - Ids: `j_` + a ULID (sortable). States `queued → running → succeeded | failed | cancelled`, and `interrupted`.
   Readers never write: a `running` job whose worker is gone (pid + `ps` start time, sandbox proc.ts) is derived
   `interrupted` (fix: `retake env reset <project>`); a `queued` job with a cancel marker and no claim is derived
@@ -6257,7 +6262,7 @@ previews and site extractions are background work, a take is not (BL-116). Built
   filming take (`run`, mode `capture`) holds heavy work; the other captures go first and stay one at a time with the
   takes (hooks, resets and sandboxes share the hooks journal) but hold nothing (a 30-min recording window does not
   freeze renders).
-- **Two slots per worker** (jobs/worker.ts): the capture slot runs captures in the worker (unchanged code: the live
+- **Two slots per worker** (jobs/worker-slots.ts, jobs/worker-heavy.ts): the capture slot runs captures in the worker (unchanged code: the live
   channel, the test hooks, the signal rules); the heavy slot runs one heavy job in a **job process**
   (`worker-main --job <id> --kind <kind> --root <ws> --build <stamp> --supervisor <pid> --digest <sha256>`, jobs/job-child.ts), detached
   (a process group of its own), log in worker.log, environment = the worker's. It runs the worker's job code

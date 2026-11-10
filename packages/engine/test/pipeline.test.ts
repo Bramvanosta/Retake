@@ -192,7 +192,7 @@ describe('the in-process functions write one history line each; the pipeline non
 
 describe('the writers of the history', () => {
   /** Where appendHistory is called: the line of a finished job, of a CLI command, of `retake record`. */
-  const WRITERS = ['packages/engine/src/in-process.ts', 'packages/engine/src/jobs/run-job-record.ts', 'packages/engine/src/jobs/worker.ts', 'packages/engine/src/record.ts'];
+  const WRITERS = ['packages/engine/src/in-process.ts', 'packages/engine/src/jobs/run-job-record.ts', 'packages/engine/src/jobs/worker-finish.ts', 'packages/engine/src/record.ts'];
 
   function sources(d: string): string[] {
     return readdirSync(d).flatMap((n) => {

@@ -102,9 +102,8 @@ export interface DockerResult {
   aborted?: boolean;
 }
 
+/** How one docker command runs, as a DockerExec is given it: never the work's policy (its provider's, which runDocker takes besides). */
 export interface DockerRunOptions {
-  /** What the work runs under (core WorkPolicy): the environment docker gets (dockerEnv). */
-  policy?: WorkPolicy;
   timeoutMs?: number;
   signal?: AbortSignal;
   cwd?: string;
@@ -123,7 +122,10 @@ export interface DockerRunOptions {
 /** How docker is run: `args` after the binary. Injectable (tests run the provider on a fake). */
 export type DockerExec = (args: string[], opts?: DockerRunOptions) => Promise<DockerResult>;
 
-/** Run `bin args…` with dockerEnv, output captured (and streamed by line), killed on timeout / abort. */
+/**
+ * Run `bin args…` with dockerEnv, output captured (and streamed by line), killed on timeout / abort. `policy` is what
+ * the work runs under (core WorkPolicy): the environment docker gets.
+ */
 export function runDocker(bin: string, args: string[], opts: DockerRunOptions & { policy: WorkPolicy }): Promise<DockerResult> {
   const t0 = Date.now();
   return new Promise((resolve) => {

@@ -178,7 +178,8 @@ describe('env file of a docker-compose sandbox (L5.8)', () => {
       const calls: string[] = [];
       const real: DockerExec = async (a, o) => {
         const { runDocker, findDocker } = await import('@retake/sandbox');
-        const r = await runDocker(findDocker()!, a, o);
+        // As the provider's own exec runs it: under the provider's policy (a DockerExec is never given one).
+        const r = await runDocker(findDocker()!, a, { ...o, policy });
         if (a.includes('config')) calls.push(r.stdout);
         return r;
       };

@@ -1,4 +1,6 @@
 import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
+// Types only (erased): the module itself is loaded on demand (loadHooksModule); its types check the mirrors below.
+import type { HookApprovalRequest, HookContext, HookResult, Journal } from '@retake/hooks';
 
 /** What a hook's approval is asked about (@retake/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
@@ -73,6 +75,20 @@ export interface HooksModule {
   ): Promise<{ ok: boolean; results: HookResultLike[] }>;
   Journal: { open(file: string): Promise<JournalLike> };
 }
+
+/**
+ * The mirrors above, checked against @retake/hooks by tsc: the module is loaded on demand and cast to HooksModule, so
+ * nothing else compares them. A context the runner builds is one the hooks read (a HookContextLike without the
+ * work's `policy` compiled, and every shell hook of a run failed reading it), a journal's rollbacks take it, and what
+ * the hooks report and ask about reads as the mirrors say.
+ */
+type Assignable<A extends B, B> = [A, B];
+type HooksBridgeChecks = [
+  Assignable<HookContextLike, HookContext>,
+  Assignable<HookResult, HookResultLike>,
+  Assignable<HookApprovalRequest, HookApprovalRequestLike>,
+  Assignable<Journal['rollbackAll'], JournalLike['rollbackAll']>,
+];
 
 /** Loaded on demand: scenarios without hooks never touch the hooks package (or its pg dependency). */
 export async function loadHooksModule(): Promise<HooksModule> {

@@ -125,14 +125,14 @@ export interface PlannedRun {
 }
 
 /** The theme a plan of this run uses: asked, else the overrides', else the run's, else the project's. */
-function themeRef(o: PlanRunOptions, timeline: Timeline): string | LoadedTemplate | undefined {
+function themeRef(o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'>, timeline: Timeline): string | LoadedTemplate | undefined {
   return o.template ?? o.overrides?.theme ?? timeline.video?.template ?? o.project.config.template;
 }
 
 /** Gate 1 (trust `mcp`): what the plan will read, checked before anything is read. Empty: nothing refused. */
 export function preReadProblems(project: LoadedProject, timeline: Timeline, video: Timeline['video'], o: Pick<PlanRunOptions, 'template' | 'overrides' | 'project'>): string[] {
   const problems: string[] = [];
-  const theme = themeRef(o as PlanRunOptions, timeline);
+  const theme = themeRef(o, timeline);
   if (typeof theme === 'string') {
     const where = o.template !== undefined ? 'the theme asked' : o.overrides?.theme !== undefined ? 'the theme of the overrides' : timeline.video?.template !== undefined ? "the run's theme (the scenario's template:)" : 'the theme';
     const p = templateRefProblem(theme, project.config.template, where);

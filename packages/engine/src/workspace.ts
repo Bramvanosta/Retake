@@ -9,9 +9,10 @@ export interface WorkspaceOptions {
   /**
    * This process serves trust `mcp` (core agent-policy.ts): the jobs worker and its job processes, the MCP server, the
    * Studio server — never a command a person types. Its jobs then run no program from inside the workspace and pass
-   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES.
+   * Chromium, in browser.args, only switches of core AGENT_ALLOWED_SWITCHES. Said by every caller (false: a person's
+   * policy, the CLI's), never left to a default.
    */
-  agent?: boolean;
+  agent: boolean;
 }
 
 /** A workspace as a command opened it: its retake.yaml, and the policy its work runs under (core WorkPolicy). */
