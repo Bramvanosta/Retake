@@ -4,8 +4,9 @@
  * - CFFIXED_USER_HOME: the run's scratch one (L5.16 Library hygiene: Chromium's crash reporter writes into the
  *   account's ~/Library without it);
  * - RETAKE_CAPTURES_DIR: the file's own filming-marker folder (vitest.setup.ts, L5.14);
- * - RETAKE_RENDER_GL / RETAKE_RENDER_ENCODER: the render pin of vitest.setup.ts (L5.15: `software` / `libx264`), so the
- *   renders of the server's worker and job processes take the software path as the test process does.
+ * - RETAKE_RENDER_GL / RETAKE_RENDER_ENCODER / RETAKE_RENDER_FFMPEG: the render pin of vitest.setup.ts (L5.15:
+ *   `software` / `libx264`; L7.3: `library`), so the renders of the server's worker and job processes take the software
+ *   path and the rendering library's ffmpeg as the test process does.
  * PATH and HOME are the test process's; `extra` comes last (RETAKE_HOME, the test's own variables, another PATH).
  */
 export function testChildEnv(extra: Record<string, string> = {}): Record<string, string> {
@@ -17,6 +18,7 @@ export function testChildEnv(extra: Record<string, string> = {}): Record<string,
     RETAKE_CAPTURES_DIR: process.env.RETAKE_CAPTURES_DIR ?? '',
     ...pass('RETAKE_RENDER_GL'),
     ...pass('RETAKE_RENDER_ENCODER'),
+    ...pass('RETAKE_RENDER_FFMPEG'),
     ...extra,
   };
 }

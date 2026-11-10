@@ -71,8 +71,11 @@ Renders in tests run on the software path (L5.15): `vitest.setup.ts` sets `RETAK
 suite keeps its times. A test of the GPU path opts in — it passes `settings: {gl: 'auto', encoder: 'auto'}` to the render
 or sets the variables back itself — and compares SSIM (≥ 0.995 on every frame) or structure, **never bytes**: ANGLE and
 VideoToolbox are not frame-identical run to run (`packages/editor/test/render-gpu.test.ts`, darwin only).
-`RETAKE_TEST_RENDER_POLICY=keep` leaves the shell's values (a whole run on the default policy, by hand). Exactly these
-two variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
+`RETAKE_TEST_RENDER_POLICY=keep` leaves the shell's values (a whole run on the default policy, by hand). Since L7.3
+`RETAKE_RENDER_FFMPEG=library` is pinned with them: the suite's frames are encoded by the rendering library's own
+ffmpeg whatever ffmpeg the machine has (the pinned bytes do not depend on it); a test of this machine's ffmpeg at the
+encode passes `settings: {ffmpeg: 'own'}` (`packages/editor/test/render-own-ffmpeg.test.ts`, darwin only). Exactly
+these three variables are pinned (`RETAKE_RENDER_CONCURRENCY` is not). A process a test starts with an environment of its own
 (an MCP server, a CLI command) gets them through `testChildEnv()` (`packages/core/test/child-env.ts`, with the scratch
 `CFFIXED_USER_HOME` and the file's `RETAKE_CAPTURES_DIR`), so the worker and job processes behind it render on the
 software path too; `packages/core/test/retake-home.test.ts` fails on such an environment that lacks them. The app's own

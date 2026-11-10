@@ -316,12 +316,35 @@ Chromium's software raster, libx264 CRF 16, ¾ of the CPUs.
   encoder, its CRF or bitrate and key-frame interval. `retake render` says it on its summary ("h264 VideoToolbox 8M",
   "on the GPU", "in software after a GPU failure") and `retake doctor`'s **Renders** line says what a 1080p render would
   get here.
+- **Which ffmpeg encodes the frames** (L7.3, macOS). On the GPU path: the ffmpeg of this machine (`ffmpeg:` in
+  `retake.yaml`, `$RETAKE_FFMPEG`, the PATH) when it is 5.1 or later, has the `colorspace` filter and the encoder
+  chosen, and runs the frame encode on three test frames first. On the software path, on Linux and inside the desktop
+  app: the rendering library's own, as before — `render: {ffmpeg: own}` asks for this machine's there too (in the
+  desktop app it is not verified). The library's ffmpeg always does the audio and writes the final file, and encodes
+  the frames whenever ours does not qualify (the record says why). What was measured, on one Mac (Apple M4, ffmpeg
+  9.0.2) under load, on one fixture render of a minute at 1080p, in two independent sets of runs: on the GPU path
+  about a fifth less CPU and **no measured gain in render time**; on the software path 10–13 % less CPU, under
+  the threshold set for a default — hence not the default there; files 1.5 % (GPU) to 2 % (software) larger. The
+  picture is the same to the eye and not to the byte: the colour conversion is rounded differently — on that render
+  the worst frame's SSIM against the library's encode is 0.9969 (GPU) and 0.9954 (software), above the 0.995
+  asked, with little margin in software; streams, colour tags, frame count and audio are identical. A render that
+  fails on the GPU path is rendered once more in software (the single fallback above) and follows the rule of that
+  path: under `auto` the library's ffmpeg encodes it. When the failure is our ffmpeg's at the encode — or the
+  hardware encoder's while ours ran it, which cannot be told apart — the second attempt takes the library's whatever
+  the setting, the warnings say so, the record keeps the failure's words as `policy.ffmpeg.failed` (`render_status`:
+  under `untrusted.ffmpeg_failed` only), and that ffmpeg is not taken again until the process ends. The record's
+  `policy.ffmpeg` says what was asked and which ffmpeg encoded (`used: own | library`, its `version`, and a `note`
+  — one of Retake's own sentences — whenever the library's encoded although the setting is not `library`).
+  `render: {ffmpeg: library}` gives back the encode of before everywhere.
 - **The settings** (`render:` in `retake.yaml`, or the variables; see [Workspace](workspace.md#render-settings)):
-  `gl: auto | gpu | software`, `encoder: auto | videotoolbox | libx264`, `concurrency: 1–16`. `render: {gl: software,
-  encoder: libx264}` gives back the renders of before L5.15 exactly.
+  `gl: auto | gpu | software`, `encoder: auto | videotoolbox | libx264`, `concurrency: 1–16`,
+  `ffmpeg: auto | own | library`. `render: {gl: software, encoder: libx264, ffmpeg: library}` gives back the renders
+  of before L5.15 exactly.
 - **What changes in the files**: GPU renders are not byte-identical run to run (the GPU's antialiasing and the hardware
   encoder vary slightly: SSIM ≥ 0.995 on every frame between two renders) and are about twice as large (≈ 24 MB per
-  minute of 1080p instead of ≈ 10 MB). Software renders stay reproducible frame for frame.
+  minute of 1080p instead of ≈ 10 MB). Software renders stay reproducible frame for frame, and — the library's ffmpeg
+  being what encodes them unless `ffmpeg: own` is set — byte for byte what they were (with `own`, a software render is
+  byte-identical run to run on one ffmpeg, and differs from one encoded by the library's).
 
 ### Captures first: a take never waits for a render
 

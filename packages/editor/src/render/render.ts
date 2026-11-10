@@ -25,10 +25,11 @@ import { GUARDED_NO_OTHER_BROWSER, armNetworkGuard, browserProcessInfo, guardedP
 import type { BrowserProcessInfo, NetworkGuard } from './network-guard.js';
 import { planRun } from './plan-run.js';
 import {
-  chooseEncoder,
+  chooseEncode,
+  ownEncodeFailure,
   defaultConcurrency,
   encodingRecord,
-  gpuPathFailure,
+  gpuPathFailureOf,
   openRenderBrowser,
   remotionEncoding,
   renderGpuInfo,
@@ -36,7 +37,8 @@ import {
   rendererWords,
   withGl,
 } from './policy.js';
-import type { RenderEncoder, RenderGl, RenderPolicy, VideotoolboxProbe } from './policy.js';
+import type { ChooseEncodeOptions, EncodeChoice, EncodeFfmpegChoice, RenderEncoder, RenderGl, RenderPolicy, VideotoolboxProbe } from './policy.js';
+import { noteOwnEncodeFailed, rewritePreStitcher } from './encode-tools.js';
 import type { PlanTrust } from './plan-run.js';
 import { rendersDir, reserveVersion, versionLockFile } from './runs.js';
 import { themeContentHash } from './theme-hash.js';
@@ -95,6 +97,10 @@ export interface RenderSeams {
   beforeRender?: (attempt: number, path: { gl: RenderGl; encoder: RenderEncoder }) => void | Promise<void>;
   /** Fail attempt `attempt` with `message` once `frames` frames are rendered (a failure mid-render: progress made, a partial file). */
   failAfter?: { attempt: number; frames: number; message: string };
+  /** This machine's ffmpeg for the frame encode (default: the work's, read from the binary; ./encode-tools.ts). */
+  ownFfmpeg?: ChooseEncodeOptions['own'];
+  /** The frame-encode probe of that ffmpeg (default: the command itself on three frames). */
+  ownEncodes?: ChooseEncodeOptions['ownEncodes'];
 }
 
 /** What a render record says of its policy (types.ts RenderRecord.policy). */
@@ -104,6 +110,13 @@ export interface RenderPathRecord {
   concurrency_source: RenderPolicy['concurrencySource'];
   /** The GPU path failed and the video was rendered again, in software with libx264 (its first error line). */
   fallback?: { reason: string };
+  /**
+   * Which ffmpeg encoded the frames (L7.3): the setting, what was used, our ffmpeg's version when it was looked at,
+   * why the library's encoded although the setting is not `library` (`note`: one of our own sentences — the rule of
+   * `auto` on this path, why ours did not qualify, the second attempt) and what the first attempt failed with while
+   * ours encoded (`failed`: the failure's own words; the video was rendered again with the library's).
+   */
+  ffmpeg?: { asked: RenderPolicy['ffmpeg']['asked']; source: RenderPolicy['ffmpeg']['source']; used: 'own' | 'library'; version?: string; note?: string; failed?: string };
 }
 
 export interface RenderPlanOptions {
@@ -331,11 +344,19 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   let tried: RenderPathRecord | undefined;
   /** The policy attempt 1 rendered with (its concurrency is the fallback's). */
   let first: RenderPolicy | undefined;
+  /** The ffmpeg the current attempt encodes with, and what the first attempt failed with while ours encoded. */
+  let ff: EncodeFfmpegChoice | undefined;
+  let ownFailed: string | undefined;
+  /** The version of our ffmpeg while it encoded the first attempt (the record of a retry keeps it). */
+  let ownVersion: string | undefined;
   const pathOf = (used: RenderGl, encoder: RenderEncoder, renderer?: string): RenderPathRecord => ({
     gl: { asked: policy.gl.asked, source: policy.gl.source, resolved: policy.gl.resolved, used, ...(renderer && used === 'angle' ? { renderer } : {}) },
     encoder: { asked: policy.encoder.asked, source: policy.encoder.source, used: encoder },
     concurrency_source: policy.concurrencySource,
     ...(fallback ? { fallback } : {}),
+    ...(ff
+      ? { ffmpeg: { asked: policy.ffmpeg.asked, source: policy.ffmpeg.source, used: ff.used, ...((ff.version ?? (ownFailed ? ownVersion : undefined)) ? { version: ff.version ?? ownVersion } : {}), ...(ff.note ? { note: ff.note } : {}), ...(ownFailed ? { failed: ownFailed } : {}) } }
+      : {}),
   });
   const attempt = async (asked: RenderPolicy, n: 1 | 2): Promise<RenderPlanResult> => {
     const t0 = performance.now();
@@ -368,11 +389,35 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     const tr = performance.now();
     try {
       if (cancelled(opts.signal)) throw new RenderCancelledError();
+      // Nothing of the attempt before is said of this one until its own choice is made.
+      ff = undefined;
       tried = pathOf(session.gl, encoder, rendererWords(session.gpu));
-      const choice = n === 1 && opts.seams?.encoder ? { encoder: opts.seams.encoder } : await chooseEncoder(p, session.gl, size, opts.seams?.videotoolbox, opts.signal ? { signal: opts.signal } : {});
+      const choice: EncodeChoice =
+        n === 1 && opts.seams?.encoder
+          ? { encoder: opts.seams.encoder, ffmpeg: { used: 'library' } }
+          : await chooseEncode(p, session.gl, size, {
+              workPolicy: opts.workPolicy,
+              // The second attempt follows the setting's rule for the path it runs on (software: `auto` takes the
+              // library's, `own` ours) — unless the first failed while ours encoded: then the library's, whatever was asked.
+              ...(n === 2 && ownFailed !== undefined ? { library: true } : {}),
+              ...(opts.seams?.videotoolbox ? { videotoolbox: opts.seams.videotoolbox } : {}),
+              ...(opts.seams?.ownFfmpeg ? { own: opts.seams.ownFfmpeg } : {}),
+              ...(opts.seams?.ownEncodes ? { ownEncodes: opts.seams.ownEncodes } : {}),
+              ...(opts.signal ? { signal: opts.signal } : {}),
+            });
       encoder = choice.encoder;
+      ff = choice.ffmpeg;
+      if (ff.used === 'own') ownVersion = ff.version;
       tried = pathOf(session.gl, encoder, rendererWords(session.gpu));
-      if ('note' in choice && choice.note) session.warnings.push(choice.note);
+      if (choice.note) session.warnings.push(choice.note);
+      // Asked by name and not used: said. Under `auto` the record's note is enough (a machine without one is ordinary),
+      // unless a program or the system said something about it: those words go here, never into the record.
+      if (ff.used === 'library' && ff.note && !ff.byRule) {
+        const said = ff.detail ? ` — ${ff.detail}` : '';
+        if (p.ffmpeg.asked === 'own') session.warnings.push(`this machine's ffmpeg was asked for the encode (render.ffmpeg: own) and the rendering library's was used: ${ff.note}${said}`);
+        else if (said) session.warnings.push(`this machine's ffmpeg does not encode this render (${ff.note})${said}`);
+      }
+      const own = ff.used === 'own' && ff.binariesDirectory ? ff.binariesDirectory : undefined;
       const inputProps = videoProps(session.served);
       const composition = await selectComposition({
         ...COMMON,
@@ -412,6 +457,9 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
         browserExecutable: session.executable,
         ...(session.chromium.gl ? { chromiumOptions: session.chromium } : {}),
         ...session.remotion,
+        // Our ffmpeg encodes the frames (./encode-tools.ts): the folder that dispatches to it, its arguments rewritten,
+        // and frames over the pipe it reads (no shared-memory capture, which only the library's ffmpeg knows).
+        ...(own ? { binariesDirectory: own, ffmpegOverride: rewritePreStitcher, disableSharedMemoryCapture: true } : {}),
         onProgress: (q) => {
           const f = opts.seams?.failAfter;
           if (f && f.attempt === n && !injected && q.renderedFrames >= f.frames) {
@@ -474,8 +522,13 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
         if (n === 1 && session.gl === 'angle') throw new GpuPathFailed(guardedPageFailed());
         throw new RenderError(`render failed: ${guardedPageFailed()}`);
       }
-      const reason = n === 1 ? gpuPathFailure(e, { gl: session.gl, encoder }) : null;
-      if (reason) throw new GpuPathFailed(reason);
+      const gpu = n === 1 ? gpuPathFailureOf(e, { gl: session.gl, encoder }) : null;
+      // The hardware encoder's signs (its lines, its pipe closing) are also how the ffmpeg that runs it fails: when
+      // ours was encoding, the record says both, and the retry takes the library's.
+      if (gpu) throw new GpuPathFailed(gpu.reason, { gpu: true, own: gpu.sign === 'encoder' && ff?.used === 'own' ? ff.path ?? '' : undefined });
+      // Our ffmpeg failed at the encode: the one retry, with the library's (in software, the path that must work).
+      const ownReason = n === 1 && ff?.used === 'own' ? ownEncodeFailure(e, { ...(ff.version ? { version: ff.version } : {}), ...(ff.binariesDirectory ? { folder: ff.binariesDirectory } : {}) }) : null;
+      if (ownReason) throw new GpuPathFailed(ownReason, { gpu: false, own: ff?.path ?? '' });
       if (e instanceof RenderError) throw e;
       throw new RenderError(`render failed: ${(e as Error).message}`);
     } finally {
@@ -498,24 +551,42 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
   } catch (e) {
     if (!(e instanceof GpuPathFailed)) return failed(e);
     if (cancelled(opts.signal)) throw new RenderCancelledError();
-    fallback = { reason: e.reason };
-    warnings.push(`the render failed on the GPU path (${e.reason}) and was rendered again in software`);
+    if (e.own !== undefined) {
+      // Ours was encoding: not taken again by this process (a render after this one keeps its path, with the library's).
+      ownFailed = e.reason;
+      if (e.own) noteOwnEncodeFailed(e.own);
+    }
+    if (e.gpu) {
+      fallback = { reason: e.reason };
+      warnings.push(`the render failed on the GPU path (${e.reason})${e.own !== undefined ? " while this machine's ffmpeg was encoding" : ''} and was rendered again in software${e.own !== undefined ? " with the rendering library's" : ''}`);
+    } else warnings.push(`the encode failed with this machine's ffmpeg (${e.reason}) and the video was rendered again in software with the rendering library's`);
     retrying = true;
     emit({ stage: 'retrying', progress: 0, overall: high, totalFrames: total, renderedFrames: highFrames });
     try {
       return await attempt(softwarePolicy(first ?? policy), 2);
     } catch (e2) {
       // The software attempt failed too: said with the GPU path's reason (the error is the software attempt's).
-      if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError)) e2.message = `render failed in software, after the GPU path failed (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
+      if (e2 instanceof RenderError && !(e2 instanceof RenderCancelledError)) e2.message = `render failed in software, after ${e.gpu ? 'the GPU path failed' : "this machine's ffmpeg failed at the encode"} (${e.reason}): ${e2.message.replace(/^render failed: /, '')}`;
       return failed(e2);
     }
   }
 }
 
-/** A failure of the GPU path (internal: renderPlan's fallback). */
+/**
+ * What renderPlan's one fallback is taken for (internal): a failure of the GPU path (`gpu`), of our ffmpeg at the
+ * encode, or one that is either (`gpu` with `own`: the hardware encoder's signs while ours ran it). `own` is our
+ * ffmpeg's path when it was encoding ('' when a test gave none).
+ */
 class GpuPathFailed extends Error {
-  constructor(readonly reason: string) {
+  readonly gpu: boolean;
+  readonly own: string | undefined;
+  constructor(
+    readonly reason: string,
+    o: { gpu: boolean; own?: string | undefined } = { gpu: true },
+  ) {
     super(reason);
+    this.gpu = o.gpu;
+    this.own = o.own;
   }
 }
 

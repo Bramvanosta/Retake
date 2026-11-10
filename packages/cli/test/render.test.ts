@@ -48,6 +48,15 @@ describe("the summary's words for the render path (L5.15, review B L6)", () => {
     expect(encodingWords({ encoding: { ...encoding, crf: 16 } })).toBe('h264 crf 16');
     expect(encodingWords({ encoding: { ...encoding } })).toBe('h264 crf 16');
   });
+
+  it("L7.3: a render rendered again after this machine's ffmpeg failed at the encode says so (never the failure's words); one it encoded reads as any other", () => {
+    const ffmpeg = { asked: 'auto', source: 'default' } as const;
+    expect(glWords({ policy: { ...policy('software'), ffmpeg: { ...ffmpeg, used: 'library', version: '7.1.1', failed: 'Unrecognized option — said by a file name' } } })).toBe("in software after this machine's ffmpeg failed at the encode");
+    expect(glWords({ policy: { ...policy('angle'), ffmpeg: { ...ffmpeg, used: 'own', version: '7.1.1' } } })).toBe('on the GPU');
+    expect(glWords({ policy: { ...policy('software'), ffmpeg: { ...ffmpeg, used: 'library', note: 'no ffmpeg found on this machine' } } })).toBe('in software');
+    // The GPU path's own failure keeps its words.
+    expect(glWords({ policy: { ...policy('software', 'WebGL context lost'), ffmpeg: { ...ffmpeg, used: 'library' } } })).toBe('in software after a GPU failure');
+  });
 });
 
 describe.skipIf(!canRender)('retake render / still', () => {

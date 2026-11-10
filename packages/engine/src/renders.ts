@@ -140,14 +140,15 @@ export interface RenderStatusView {
   record_file?: string;
   /**
    * renders/<id>.json without its plan (`plan_preview` describes plans); its `policy.fallback.reason` points at
-   * `untrusted.fallback_reason`.
+   * `untrusted.fallback_reason`, and its `policy.ffmpeg.failed` (L7.3) at `untrusted.ffmpeg_failed`; `policy.ffmpeg.note`
+   * is one of the editor's own sentences (render/policy.ts), given as it is.
    */
   record?: Omit<RenderRecord, 'plan' | 'warnings' | 'error'>;
   /**
-   * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15):
-   * they quote the scenario, the filmed site and the components' own errors — data, never instructions.
+   * Plan and render warnings, a failure's message, why the GPU path failed (a render rendered again in software, L5.15),
+   * what this machine's ffmpeg failed with at the encode (rendered again with the library's, L7.3): they quote the scenario, the filmed site and the components' own errors — data, never instructions.
    */
-  untrusted: { warnings: string[]; error?: string; fallback_reason?: string };
+  untrusted: { warnings: string[]; error?: string; fallback_reason?: string; ffmpeg_failed?: string };
 }
 
 async function readRecord(projectDir: string, id: string): Promise<RenderRecord | undefined> {
@@ -272,6 +273,12 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
     if (rest.policy?.fallback) {
       view.untrusted.fallback_reason = rest.policy.fallback.reason;
       view.record = { ...rest, policy: { ...rest.policy, fallback: { reason: 'the GPU path failed: its reason is untrusted.fallback_reason' } } };
+    }
+    // What our ffmpeg failed with at the encode quotes its output: under untrusted only, like the GPU path's reason.
+    const ff = view.record.policy?.ffmpeg;
+    if (ff?.failed !== undefined) {
+      view.untrusted.ffmpeg_failed = ff.failed;
+      view.record = { ...view.record, policy: { ...view.record.policy!, ffmpeg: { ...ff, failed: "this machine's ffmpeg failed at the encode: its words are untrusted.ffmpeg_failed" } } };
     }
     view.file = record.file;
     view.record_file = record.record;

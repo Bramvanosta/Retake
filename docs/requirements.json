@@ -3929,6 +3929,16 @@
    "lot": "L5.15"
   },
   {
+   "id": "R-RND-15",
+   "source": "Frames analysis 2026-11-10 (L7.3)",
+   "requirement": "A render's frame encode can run on this machine's ffmpeg instead of the rendering library's, without patching the library: setting render.ffmpeg (auto, own, library); auto takes ours on the GPU path only, when it qualifies; every refusal or failure renders with the library's and the record says which ffmpeg encoded.",
+   "status": "done",
+   "evidence": "L7.3: packages/editor/src/render/encode-tools.ts, render/policy.ts, render/render.ts. Tests: packages/cli/test/build-ffmpeg.test.ts, packages/cli/test/doctor-renders.test.ts, packages/cli/test/render.test.ts, packages/core/test/retake-home.test.ts, packages/editor/test/encode-tools.test.ts, packages/editor/test/render-own-ffmpeg.test.ts, packages/editor/test/render-policy.test.ts, packages/engine/test/render-jobs.test.ts. Measured 2026-11-10 on the fixture's 1799-frame 1080p render (one Mac, alternated pairs under load, two independent sets): GPU path about a fifth less CPU (-21 %, -23 %, -18 %), no measured gain in wall time; software path under the threshold (CPU -13 % / -10 %); SSIM worst frame 0.9969 (GPU), 0.9954 (software); streams, colour tags, frame count and decoded audio identical. Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "One machine, one ffmpeg (9.0.2), one fixture, never a calm machine; no gain in render time shown; versions 5.1-8.x pass the probe but were never rendered with; ANGLE with libx264 through ours never measured; the app bundle is not verified (auto keeps the library's there); the plain viewport screenshot was not built.",
+   "phase": "5",
+   "lot": "L7.3"
+  },
+  {
    "id": "R-CMP-01",
    "source": "SPEC §11; DESIGN-phase2 §1",
    "requirement": "Every visual element of the edit (intros, outros, cards, interstitials, captions, layouts, overlays, transitions) is a component; nothing visual is hard-coded in the editor.",

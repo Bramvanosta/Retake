@@ -12,6 +12,14 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- On a Mac, a render on the GPU path (from a terminal, or from the Studio or an MCP client of a checkout) now encodes
+  the video's frames with your own ffmpeg (the one `retake doctor` shows) when it is recent enough and runs the
+  encode. Measured on one Mac under load, on one 1-minute 1080p render: about a fifth less CPU, no measured gain in
+  render time, files 1.5–2 % larger. The picture is the same to the eye (SSIM of the worst frame ≥ 0.995 against the
+  previous encode on that render), not to the byte. Renders on the software path keep the previous encode (the gain
+  measured there is too small for a default), and so do renders in the desktop app (not verified there yet).
+  `render: {ffmpeg: library}` in `retake.yaml` (or `RETAKE_RENDER_FFMPEG=library`) gives back the previous encode
+  everywhere; `ffmpeg: own` asks for your ffmpeg on any path. `retake doctor`'s Renders line names the ffmpeg.
 - The first render or component preview after this update rebuilds its render bundle once, and the Studio draws its
   library previews again once (the files they are built from moved). Pictures are unchanged: compared byte for byte
   on the software render path.

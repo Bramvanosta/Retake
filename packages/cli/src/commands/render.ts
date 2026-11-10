@@ -133,11 +133,15 @@ export function encodingWords(r: Pick<RenderRecord, 'encoding'>): string {
   return e.encoder === 'h264_videotoolbox' ? `h264 VideoToolbox ${e.bitrate ?? ''}`.trimEnd() : `h264 crf ${e.crf ?? 16}`;
 }
 
-/** "on the GPU", "in software", "in software after a GPU failure" (L5.15: what drew the render). */
+/**
+ * "on the GPU", "in software", "in software after a GPU failure" (L5.15: what drew the render), "in software after
+ * this machine's ffmpeg failed at the encode" (L7.3) — never the failure's own words.
+ */
 export function glWords(r: Pick<RenderRecord, 'policy'>): string {
   const p = r.policy;
   if (!p) return 'in software';
   if (p.fallback) return 'in software after a GPU failure';
+  if (p.ffmpeg?.failed !== undefined) return "in software after this machine's ffmpeg failed at the encode";
   return p.gl.used === 'angle' ? 'on the GPU' : 'in software';
 }
 

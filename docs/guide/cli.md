@@ -106,8 +106,10 @@ Global options: `-C, --root <dir>` (workspace), `-v, --verbose` (info/debug mess
   regular user), **Render browser** (the headless shell renders use: a failure when there is none, with the command
   that installs it), **Studio and MCP jobs** (a warning naming each program or `browser.args` entry that jobs of the
   Studio, the desktop app or an MCP client would refuse — see [Workspace](workspace.md)), **Renders** (L5.15: what a 1080p render gets here — the GPU the render
-  browser reports, VideoToolbox, the frames at a time, and the `render:` settings / `RETAKE_RENDER_*` variables set,
-  with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
+  browser reports, VideoToolbox, the frames at a time, the ffmpeg that encodes the frames when it is this machine's
+  (L7.3: on the GPU path, or anywhere with `render.ffmpeg: own`) — or why the rendering library's does when ours was
+  wanted there —, and the `render:` settings / `RETAKE_RENDER_*`
+  variables set, with their source; see [Renders on the GPU](editing.md#renders-on-the-gpu)), ffmpeg and ffprobe (5.1 or later), a display (only needed by `--headed` and `login`),
   the secrets store for `{{keychain:…}}` refs (macOS `security`, Linux `secret-tool`), desktop notifications
   (`osascript`, `notify-send`), Docker (its version, Compose v2.17 or later, a running daemon, the context — found on
   PATH, else where Docker Desktop, OrbStack or Homebrew put it, as the sandboxes look for it: a warning when missing,

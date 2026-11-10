@@ -83,6 +83,8 @@ export interface RendersProbe {
   policy?: {
     gl: { asked: string; resolved: 'angle' | 'software'; source: string };
     encoder: { asked: string; source: string };
+    /** L7.3: which ffmpeg encodes the frames (absent from a probe of before it). */
+    ffmpeg?: { asked: string; source: string };
     concurrency: number;
     concurrencySource: string;
     platform: string;
@@ -94,6 +96,11 @@ export interface RendersProbe {
   videotoolbox?: { ok: boolean; error?: string };
   encoder?: 'h264_videotoolbox' | 'libx264';
   concurrency?: number;
+  /**
+   * L7.3: the ffmpeg that would encode the frames — ours (`own`, its version) or the rendering library's, and why not
+   * ours (`note`) — `byRule` when the library's is simply what the setting gives on this path (`auto` in software).
+   */
+  ffmpeg?: { used: 'own' | 'library'; version?: string; note?: string; byRule?: true };
 }
 
 /** What doctor shows of captures first (L5.14). */
@@ -437,7 +444,7 @@ export function gpuCheck(c: ChromiumProbe, browser: BrowserConfig | undefined): 
   };
 }
 
-const RENDER_VARS: Record<string, string> = { gl: 'RETAKE_RENDER_GL', encoder: 'RETAKE_RENDER_ENCODER', concurrency: 'RETAKE_RENDER_CONCURRENCY' };
+const RENDER_VARS: Record<string, string> = { gl: 'RETAKE_RENDER_GL', encoder: 'RETAKE_RENDER_ENCODER', concurrency: 'RETAKE_RENDER_CONCURRENCY', ffmpeg: 'RETAKE_RENDER_FFMPEG' };
 function settingWhere(source: string, key: string): string {
   return source === 'retake.yaml' ? `retake.yaml render.${key}` : source === 'env' ? `$${RENDER_VARS[key]}` : source;
 }
@@ -446,22 +453,28 @@ function settingWhere(source: string, key: string): string {
  * How renders run here (L5.15, R-RND-13): the GPU path (ANGLE, the render browser's GPU, VideoToolbox) or the software
  * one, the encoder and the frames at a time a 1080p render gets — from the checks a render makes. WARN when `auto`
  * found no GPU or VideoToolbox does not work (renders in software cost ≈ 2.5× the CPU); FAIL when every render would
- * fail (a setting that cannot work here).
+ * fail (a setting that cannot work here). L7.3: the encoder names the ffmpeg that encodes the frames when it is this
+ * machine's ("VideoToolbox H.264 (this machine's ffmpeg 7.1)": `auto` takes it on the GPU path only, `own` on any), and
+ * says why the rendering library's does when ours was wanted there — a WARN only when `render.ffmpeg: own` asked for it
+ * by name (renders work either way). Where `auto` keeps the library's by its rule (the software path, the desktop
+ * app) the line is the one of before.
  */
 export function rendersCheck(r: RendersProbe): DoctorCheck {
   const name = 'Renders';
   const p = r.policy;
   if (!p) return { status: 'fail', name, detail: r.error ?? 'the render settings cannot be read', hint: 'fix retake.yaml render: or the RETAKE_RENDER_* variables' };
-  const set = (['gl', 'encoder', 'concurrency'] as const)
+  const set = (['gl', 'encoder', 'concurrency', 'ffmpeg'] as const)
     .map((k) => {
-      const source = k === 'concurrency' ? p.concurrencySource : p[k].source;
+      const source = k === 'concurrency' ? p.concurrencySource : (p[k]?.source ?? 'default');
       if (source === 'default' || source === 'option') return null;
-      const value = k === 'concurrency' ? p.concurrency : p[k].asked;
+      const value = k === 'concurrency' ? p.concurrency : p[k]?.asked;
       return `${k} ${value} (${settingWhere(source, k)})`;
     })
     .filter((x): x is string => !!x);
   const frames = `${r.concurrency ?? p.concurrency} frames at a time`;
-  const encoder = r.encoder === 'h264_videotoolbox' ? 'VideoToolbox H.264' : 'libx264 CRF 16';
+  const f = r.ffmpeg;
+  const by = f?.used === 'own' ? ` (this machine's ffmpeg${f.version ? ` ${f.version}` : ''})` : f?.note && !f.byRule ? ` (the rendering library's ffmpeg: ${f.note})` : '';
+  const encoder = `${r.encoder === 'h264_videotoolbox' ? 'VideoToolbox H.264' : 'libx264 CRF 16'}${by}`;
   const tail = set.length ? ` · set: ${set.join(', ')}` : '';
   if (r.error) return { status: 'fail', name, detail: `${r.error}${tail}`, hint: 'every render would fail: change retake.yaml render: or the RETAKE_RENDER_* variables' };
   if (r.gl === 'angle') {
@@ -470,7 +483,7 @@ export function rendersCheck(r: RendersProbe): DoctorCheck {
     if (r.videotoolbox && !r.videotoolbox.ok && p.encoder.asked === 'auto') {
       return { status: 'warn', name, detail: `${gpu} · VideoToolbox does not work here (${r.videotoolbox.error ?? 'its probe failed'}): ${encoder} · ${frames}${tail}`, hint: 'renders encode with libx264 (more CPU): a Mac VM often has no media engine' };
     }
-    return { status: 'ok', name, detail: `${gpu} · ${encoder} · ${frames}${tail}` };
+    return ownAsked({ status: 'ok', name, detail: `${gpu} · ${encoder} · ${frames}${tail}` }, r);
   }
   if (p.gl.resolved === 'angle') {
     return {
@@ -481,7 +494,13 @@ export function rendersCheck(r: RendersProbe): DoctorCheck {
     };
   }
   const why = p.gl.asked === 'software' ? '' : ` (no GPU path on ${p.platform})`;
-  return { status: 'ok', name, detail: `software${why} · ${encoder} · ${frames}${tail}` };
+  return ownAsked({ status: 'ok', name, detail: `software${why} · ${encoder} · ${frames}${tail}` }, r);
+}
+
+/** `render.ffmpeg: own` asked by name and the rendering library's ffmpeg encodes: a WARN on a line that was fine (renders work). */
+function ownAsked(check: DoctorCheck, r: RendersProbe): DoctorCheck {
+  if (r.policy?.ffmpeg?.asked !== 'own' || r.ffmpeg?.used !== 'library' || !r.ffmpeg.note) return check;
+  return { ...check, status: 'warn', hint: "render ffmpeg: own is set and this machine's ffmpeg does not encode renders here: they use the rendering library's (set it to auto, or see the ffmpeg line)" };
 }
 
 /** The encoder captures feed during the take (L5.7): the Mac's hardware H.264 encoder through ffmpeg, else libx264. */

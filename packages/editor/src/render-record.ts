@@ -82,6 +82,16 @@ export interface RenderRecord {
     encoder: { asked: 'auto' | 'videotoolbox' | 'libx264'; source: 'option' | 'retake.yaml' | 'env' | 'default'; used: 'libx264' | 'h264_videotoolbox' };
     concurrency_source: 'option' | 'retake.yaml' | 'env' | 'default';
     fallback?: { reason: string };
+    /**
+     * Which ffmpeg encoded the frames (L7.3, editor render/encode-tools.ts): the setting, the one used (`own`: this
+     * machine's; `library`: the rendering library's), our ffmpeg's version when it was looked at, why the library's
+     * encoded although the setting is not `library` (`note`: one of the editor's own sentences — `auto` on the
+     * software path or in the desktop app, why ours did not qualify, the second attempt of a render), and what the
+     * first attempt failed with while ours encoded, the video being rendered again with the library's (`failed`:
+     * untrusted text, like `fallback.reason`; beside `fallback` when the hardware encoder's signs told). Absent before
+     * L7.3 (the library's).
+     */
+    ffmpeg?: { asked: 'auto' | 'own' | 'library'; source: 'option' | 'retake.yaml' | 'env' | 'default'; used: 'own' | 'library'; version?: string; note?: string; failed?: string };
   };
   /** What ffprobe saw in the file (when available). */
   probe?: { duration_s: number; frames?: number; width: number; height: number; fps: number; audio_streams: number; video_codec?: string; audio_codec?: string };

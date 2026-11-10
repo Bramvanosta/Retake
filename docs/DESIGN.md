@@ -1822,6 +1822,38 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   (core error-kind.ts), so the CLI prints them as they are; only a cancelled render is reworded (`editorErrorOf`).
   `packages/cli/test/pipeline-cli.test.ts` holds their stdout, stderr, exit codes, history and journal lines byte for
   byte (fixtures/pipeline-cli.json), times measured by a clock alone normalised.
+- **The encode ffmpeg** (L7.3; editor `render/encode-tools.ts`, `render/policy.ts` `chooseEncode`). The library takes
+  one folder of programs per render (`binariesDirectory`: compositor, ffmpeg, ffprobe, libraries) and no ffmpeg for the
+  frames alone; our ffmpeg cannot run its audio commands. So a render encoded by ours is given a folder made in the
+  Retake home (`encode-tools/<hash of its content: the script and the links>/`, 0700 like its parent, both owned by
+  the account, checked entry by entry on every use; built aside and renamed into place — a rename that cannot take
+  the place of a folder another process made meanwhile, which is then checked and used; a right folder is never
+  removed or moved; folders left aside or whose programs are gone are removed after a day): links to the library's `remotion`, `ffprobe` and libraries, and as `ffmpeg` a `/bin/sh`
+  dispatcher — a call with `-f image2pipe` (the frame encode) → our ffmpeg, any other call → the library's, with its
+  `DYLD_LIBRARY_PATH` set again (macOS drops it when `/bin/sh` starts). `ffmpegOverride` replaces the frame encode's
+  one filter (`zscale…` → `colorspace=space=bt709:ispace=bt470bg:range=tv:irange=pc:…:fast=1:format=yuv420p`; any
+  other command shape throws and the render takes the library's), and `disableSharedMemoryCapture` keeps the frames on
+  the pipe. Setting `render.ffmpeg` / `RETAKE_RENDER_FFMPEG`: `auto` — ours for a render drawn on the GPU (ANGLE), the
+  library's on the software path and inside the app bundle (`autoEncodeFfmpeg`; the app is not verified) —, `own`
+  (ours on any path), `library`. Ours is taken when `ownFfmpeg` accepts it (macOS, ≥ 5.1, the `colorspace` filter, an
+  H.264 encoder; read once per file — path, size, time — and asked again when it did not start) and it runs the frame
+  encode itself with the encoder chosen, on three frames at the render's size (`probeFrameEncode`). Never an error:
+  every refusal renders with the library's and is said (`policy.ffmpeg {asked, source, used, version?, note?,
+  failed?}`; `note` is always one of our own sentences — what a program or the system said goes to the warnings). The
+  one fallback (software, libx264) follows the rule of the path it runs on — `auto`: the library's; `own`: ours —
+  unless the first attempt failed while ours encoded: the library's own words for a frame encode that quit
+  (`ownEncodeFailure`; never the final file's ffmpeg), a program of the folder that could not be started, or the
+  hardware encoder's signs while ours ran it (recorded as `fallback` and `ffmpeg.failed` both). Then the library's
+  encodes the second attempt and ours is not taken again by that process. No library file is edited and no new file
+  names the library (`library.ts compositorDir` is the one access). Measured on the fixture's 1 799-frame 1080p
+  render, one machine (Apple M4, ffmpeg 9.0.2), alternated pairs under load (7–41, never the calm machine the
+  protocol asked for), two independent sets: GPU path CPU −21 % and −23 % (first set, two series), −18 % (second set,
+  eight pairs) — about a fifth; wall time −10 % in the first set and +5 % in the second with overlapping ranges — no
+  measured gain. Software path: CPU −13 % and −10 %, wall −4 % and −3 %: under the threshold asked of a default
+  (−15 % CPU or −5 % wall), hence `auto` keeps the library's there. Files +1.5 % (GPU), +2.0 % (software). SSIM
+  against the library's encode on that render: mean 0.9990 / worst frame 0.9969 (GPU), 0.9988 / 0.9954 (software:
+  0.0004 above the 0.995 asked); streams, tags, frame count and decoded audio identical. The suite pins
+  `RETAKE_RENDER_FFMPEG=library`.
 - **The renderer's seam** (L7.2). The rendering library is named in five files, each with the packages it may name
   (`LIBRARY_SEAMS`, `scripts/audit/lib.mjs`): the editor's node side (`render/library.ts`: the renderer, the bundler,
   the versions in the bundle's key — one *loader* of the library, not an interface over it: the library's own API,

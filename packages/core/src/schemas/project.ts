@@ -3,7 +3,7 @@ import { clockError } from '../clock.js';
 import { displayError } from '../display.js';
 import { hostPatternError } from '../hosts.js';
 import { ENVIRONMENT_ACCESS, RAW_CURSOR_MODES, RAW_FORMATS, RAW_LAYER_FORMATS, SANDBOX_PROVIDERS } from '../types.js';
-import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
+import { RENDER_CONCURRENCY_MAX, RENDER_ENCODER_SETTINGS, RENDER_FFMPEG_SETTINGS, RENDER_GL_SETTINGS } from '../render-settings.js';
 import { requestPatternError } from '../writes.js';
 import { HookStepSchema, NamedHooksSchema } from './hooks.js';
 import { keyedUnion } from './keyed.js';
@@ -242,6 +242,10 @@ export const RenderSettingsSchema = z
       .min(1)
       .max(RENDER_CONCURRENCY_MAX)
       .describe('Frames rendered at a time, 1-16 (retake render --concurrency wins for its command). Default: $RETAKE_RENDER_CONCURRENCY, else 3 on the GPU path and three quarters of the CPUs (at most 8) in software.')
+      .optional(),
+    ffmpeg: z
+      .enum(RENDER_FFMPEG_SETTINGS)
+      .describe('Which ffmpeg encodes the frames of a render: auto (this machine\'s ffmpeg — retake.yaml ffmpeg:, $RETAKE_FFMPEG, PATH — for a render on the GPU path, when it is 5.1 or later and runs the frame encode; the rendering library\'s own otherwise, on the software path and inside the desktop app), own (this machine\'s ffmpeg on any path, in the desktop app too; the library\'s when it does not qualify, with a warning that says why), library (the rendering library\'s own: the renders of before L7.3). macOS only: elsewhere the library\'s. Audio and the final file are always the library\'s. Default: $RETAKE_RENDER_FFMPEG, else auto.')
       .optional(),
   })
   .meta({ id: 'RenderSettings', title: 'Render settings' });

@@ -8,6 +8,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { dirname } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
@@ -19,6 +20,15 @@ export function rendererLibrary(): Promise<typeof import('@remotion/renderer')> 
 /** The bundler package (bundle). */
 export function bundlerLibrary(): Promise<typeof import('@remotion/bundler')> {
   return import('@remotion/bundler');
+}
+
+/**
+ * The folder of the library's own programs (its compositor, ffmpeg, ffprobe and their libraries): what a render uses
+ * when it is given no other. The encode tools (encode-tools.ts, L7.3) link to it.
+ */
+export async function compositorDir(): Promise<string> {
+  const { RenderInternals } = await rendererLibrary();
+  return dirname(RenderInternals.getExecutablePath({ type: 'compositor', binariesDirectory: null, indent: false, logLevel: 'error' }));
 }
 
 /** A browser the library opened (openBrowser): what a render session, a still and a preview draw in. */

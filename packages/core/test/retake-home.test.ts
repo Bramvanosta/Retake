@@ -173,6 +173,13 @@ describe('the test environment (vitest.config.ts)', () => {
     expect(unpinned).toEqual([]);
   });
 
+  it("L7.3: the render pin names the ffmpeg of the frames too — the rendering library's — in this process and in every process started through testChildEnv", () => {
+    if (process.env.RETAKE_TEST_RENDER_POLICY === 'keep') return;
+    expect(process.env.RETAKE_RENDER_FFMPEG).toBe('library');
+    expect(testChildEnv({ RETAKE_HOME: '/scratch/h' })).toMatchObject({ RETAKE_RENDER_FFMPEG: 'library', RETAKE_RENDER_GL: 'software', RETAKE_RENDER_ENCODER: 'libx264' });
+    expect(readFileSync(join(REPO, 'vitest.setup.ts'), 'utf8')).toMatch(/process\.env\.RETAKE_RENDER_FFMPEG = 'library';/);
+  });
+
   it("the run's Library guard (vitest.teardown.mjs): the account's two Chromium files, a change reported, none when untouched", async () => {
     type Guard = {
       libraryFiles(home?: string): string[];

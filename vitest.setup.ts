@@ -14,7 +14,10 @@ if (parent && !process.env.RETAKE_CAPTURES_DIR?.trim()) process.env.RETAKE_CAPTU
 // frame for frame, as Linux renders, at today's suite times. A file that tests the GPU path opts in: it passes
 // `settings` to the render, or sets these variables back (to `auto`) itself, and compares SSIM or structure, never
 // bytes. RETAKE_TEST_RENDER_POLICY=keep leaves the shell's values (a whole run on the default policy, by hand).
+// L7.3: and with the rendering library's own ffmpeg for the frames, whatever ffmpeg the machine has — the pinned bytes
+// of the suite do not depend on it. A file that tests our ffmpeg at the encode passes `settings: { ffmpeg: 'own' }`.
 if (process.env.RETAKE_TEST_RENDER_POLICY !== 'keep') {
   process.env.RETAKE_RENDER_GL = 'software';
   process.env.RETAKE_RENDER_ENCODER = 'libx264';
+  process.env.RETAKE_RENDER_FFMPEG = 'library';
 }

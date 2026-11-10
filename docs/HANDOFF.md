@@ -34,6 +34,37 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.3)
+- **L7.3 done (2026-11-10; branch `claude/arch-l7`)** — this machine's ffmpeg for a render's frame encode, the
+  default on the GPU path only.
+  - **Why a folder.** The rendering library takes one folder of programs per render and no ffmpeg for the frames
+    alone, and our ffmpeg cannot run its audio commands. A render encoded by ours is handed a folder made in the
+    Retake home (`encode-tools/<hash of its content>/`, private to the account, checked on every use, made by
+    several processes at once without one failing): links to the library's compositor, ffprobe and libraries, and a
+    `/bin/sh` dispatcher as `ffmpeg` — the frame encode goes to this machine's ffmpeg with one filter rewritten
+    (`zscale` → `colorspace`), everything else to the library's. The library is not patched for it.
+  - **Setting `render.ffmpeg` / `RETAKE_RENDER_FFMPEG`:** `auto` (ours for a render drawn on the GPU, when it
+    qualifies: ≥ 5.1, the `colorspace` filter, and the frame encode itself run on three frames; the library's on the
+    software path and inside the app bundle), `own` (ours on any path), `library`. Never an error: every refusal
+    renders with the library's and is said in the record (`policy.ffmpeg`). The one software retry follows the rule
+    of the path it runs on, unless the first attempt failed while ours encoded — then the library's, and that ffmpeg
+    is not taken again by the process. `retake doctor`'s Renders line names the ffmpeg.
+  - **Measured** on the fixture's 1 799-frame 1080p render, one Mac (M4, ffmpeg 9.0.2), alternated pairs under load
+    (7 – 41), two independent sets: **GPU path about a fifth less CPU** (−21 %, −23 %, −18 %) and **no measured
+    gain in wall time** (−10 % in one set, +5 % in the other); software path CPU −13 % / −10 %, wall −4 % / −3 %,
+    under the lot's threshold — hence not the default there. Files +1.5 – 2 %. SSIM against the library's encode,
+    worst frame 0.9969 (GPU) and 0.9954 (software); streams, colour tags, frame count, duration and decoded audio
+    identical. Software renders under `auto` stay byte-identical to before.
+  - **Not built:** the plain viewport screenshot. The library hard-codes the capture's clip; it would need the
+    library's patch extended.
+  - **Left.** One machine, one ffmpeg, one fixture, never a calm machine. Versions 5.1 – 8.x pass the three-frame
+    probe but were never rendered with. `auto` means "drawn with ANGLE": ANGLE with libx264 through ours was never
+    measured. The app bundle is not verified (`auto` keeps the library's there; `own` in the app is untried).
+    Replacing a folder found damaged is two renames, not one.
+  - **Checked.** `tsc -b`, the ratchet (59, R10 at none), `test-guard`, `--check-cites`, twelve test files one by
+    one, a real render on each path and two GPU renders at once. The suite pins `RETAKE_RENDER_FFMPEG=library`.
+    **The full suite was not run** (once, at the end of the branch).
+
 ## State (after L7.2)
 - **L7.2 done (2026-11-10; branch `claude/arch-l7`)** — the renderer seam (U12 of the
   [2026-11-10 action plan](audit/2026-11-10/action-plan.md)). Pixels unchanged.
@@ -1022,7 +1053,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.3 (the encoder fed by our ffmpeg, measured), then U1 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: L7.4 (U1, U2 without the shared operations, U4), then U3, U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

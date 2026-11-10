@@ -208,6 +208,28 @@ describe("the engine's needs", () => {
     expect([...filters].filter(([c, f]) => !ENGINE_NEEDS.filters.includes(c) && !compositorOnly[f]?.includes(c))).toEqual([]);
   });
 
+  it("L7.3: what a render's frame encode asks of our ffmpeg — its colour filter, and what its probe makes and reads three frames with — is in ENGINE_NEEDS", () => {
+    const tools = readFileSync(join(ROOT, 'packages/editor/src/render/encode-tools.ts'), 'utf8');
+    const name = /export const OWN_FRAME_FILTER_NAME = '([a-z0-9_]+)';/.exec(tools)?.[1];
+    expect(name).toBe('colorspace');
+    expect(tools).toMatch(new RegExp(`export const OWN_FRAME_FILTER = '${name}=`));
+    expect(ENGINE_NEEDS.filters).toContain(name);
+    // The probe (probeFrameEncode): three `color` frames written as JPEG to the image pipe, then the frame encode on
+    // them, written nowhere.
+    expect(/`(color)=c=gray:s=/.exec(tools)?.[1]).toBe('color');
+    expect(tools).toMatch(/'-c:v', 'mjpeg', .*'-f', 'image2pipe', '-'\]/);
+    expect(tools).toMatch(/'-f', 'image2pipe', .*'-vcodec', 'mjpeg', '-i', '-'/);
+    expect(tools).toMatch(/'-f', 'null', '-'/);
+    expect(ENGINE_NEEDS.filters).toContain('color');
+    expect(ENGINE_NEEDS.encoders).toEqual(expect.arrayContaining(['mjpeg', 'libx264', 'h264_videotoolbox', 'wrapped_avframe']));
+    expect(ENGINE_NEEDS.decoders).toContain('mjpeg');
+    expect(ENGINE_NEEDS.muxers).toEqual(expect.arrayContaining(['image2pipe', 'null']));
+    expect(ENGINE_NEEDS.demuxers).toEqual(expect.arrayContaining(['image2pipe', 'lavfi']));
+    // The library's own probe (`nullsrc`) stays the library's ffmpeg's: ours is never asked for that source.
+    expect(ENGINE_NEEDS.filters).not.toContain('nullsrc');
+    expect(readFileSync(join(ROOT, 'packages/editor/src/render/policy.ts'), 'utf8')).toMatch(/probeFrameEncode\(path, s, frameEncodeCodecArgs\(encoder, s\)\)/);
+  });
+
   it('the muxers of the files it writes (by extension: .m4a needs ipod) and the decoders of the videos a person may bring (core VIDEO_CODECS)', () => {
     const { muxers } = engineArguments();
     expect([...muxers.keys()]).toEqual(expect.arrayContaining(['ipod', 'mp4', 'webm']));

@@ -67,7 +67,10 @@ export const ENGINE_NEEDS = {
   // `ipod`: the .m4a test track (editor render/audio.ts); the others by `-f` or by the extension of the file written.
   muxers: ['mp4', 'mov', 'ipod', 'webm', 'gif', 'image2', 'image2pipe', 'rawvideo', 'null'],
   demuxers: ['mov', 'matroska', 'concat', 'image2', 'image2pipe', 'png_pipe', 'rawvideo', 'lavfi'],
-  filters: ['scale', 'format', 'split', 'select', 'fps', 'palettegen', 'paletteuse', 'color', 'anullsrc', 'aevalsrc', 'null', 'anull'],
+  // `colorspace`: a render's frames encoded by our ffmpeg (L7.3, editor render/encode-tools.ts OWN_FRAME_FILTER). Its
+  // probe (`probeFrameEncode`) makes three JPEG frames from `color` and runs the frame encode on them: `mjpeg`,
+  // `image2pipe` and `null` above.
+  filters: ['scale', 'format', 'split', 'select', 'fps', 'palettegen', 'paletteuse', 'color', 'anullsrc', 'aevalsrc', 'null', 'anull', 'colorspace'],
   protocols: ['file', 'pipe', 'fd'],
 };
 

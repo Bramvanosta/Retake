@@ -92,6 +92,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done**, pending the person's review of the pull request (2026-11-10; no behaviour change beyond the CHANGELOG's [Unreleased]) |
 | L7.1 | A `Renderer` port in the engine (2026-11-10 action plan, U6 first slice): video, stills, previews; the editor's driver and an in-memory adapter under one contract suite; ratchet rules R9 and `render-call` | M | **done** (2026-11-10, branch `claude/arch-l7`; no behaviour change; the full suite runs once at the end of the branch) |
 | L7.2 | The renderer seam (action plan U12): five seam files name the rendering library, ratchet rule R10; composition ids once and versioned render props; built-ins on the kit only; `components preview` on the port | M | **done** (2026-11-10, branch `claude/arch-l7`; previews and a fixture video byte-identical before and after on the software path) |
+| L7.3 | This machine's ffmpeg for a render's frame encode, behind `render.ffmpeg`; measured on a fixture render | S | **done** (2026-11-10, branch `claude/arch-l7`; the default on the GPU path only: about a fifth less CPU, no measured gain in wall time) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1031,6 +1032,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.2 — The renderer seam (M; decided 2026-11-10)
 - **Goal:** the rendering library is reached from a few named files held by a ratchet, so a change of renderer has a known surface; pixels unchanged.
 - **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.2)". Requirement R-ARCH-13. Import-rules ratchet 60 → 59 entries, R10 at none.
+
+### L7.3 — Our ffmpeg for the frame encode (S; decided 2026-11-10)
+- **Goal:** the colour conversion of a render's frames costs less with this machine's ffmpeg than with the rendering library's; use it where a real render shows the gain, keep the library's elsewhere.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.3)". Requirement R-RND-15. The plain viewport screenshot was not built (it needs the library patched).
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.
