@@ -320,7 +320,7 @@ export {
 } from './render-frames.js';
 export type { RenderFrameRequest, RenderFrameView, RenderFramesOptions, RenderOutlineRequest, RenderOutlineView } from './render-frames.js';
 export { DEFAULT_KEEP_RENDERS, formatBytes, pruneKey, pruneProject } from './prune.js';
-export type { PruneItem, PruneRequest, PruneResult } from './prune.js';
+export type { PruneItem, PruneKeptTake, PruneRequest, PruneResult } from './prune.js';
 export type {
   CommentAddRequest,
   CommentAdded,

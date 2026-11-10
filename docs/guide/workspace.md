@@ -261,14 +261,23 @@ failed, cancelled and interrupted takes, dry runs, older captures nothing uses, 
 scenario and variant (`--keep-renders N`), failed renders, the reviews of renders that go — with how much deleting it
 frees; `--yes` deletes it. Always kept: the last good take of each scenario, every take a kept render or a comment
 thread uses, every render a thread was made or resolved on, whatever a queued or running job names; `exports/` is
-never touched. Comment threads that cannot be read are never taken for "no thread": a thread file that is broken, a
+never touched. "The last good take" is three things, and prune keeps each of them: the newest take whose record says
+the capture succeeded, the newest one that can really be edited (its timeline reads and its film is there — a newer
+capture whose `capture.mp4` you removed to save space does not send the one you can still render to the list), and
+the newest such take that was not stopped by `--until` (a short test of the first steps does not displace the
+complete capture). A run folder that is a symbolic link (a take stored on another disk) and a take written by a newer
+Retake are left alone: never deleted, and never counted as a scenario's last capture. When a take stays for one of
+these reasons a line says so (`kept  run  <id>  the last capture that can be edited`; per reason the first five takes
+are named, newest first, then `and N more`; `kept_takes` with `--json` names them all). To free such a take, delete
+its folder by hand. A take whose `run.json` cannot be read as a plain file of at most 32 MB says nothing to prune: it
+is kept and counted, never listed. Comment threads that cannot be read are never taken for "no thread": a thread file that is broken, a
 link or in the wrong folder keeps every render and take of its scenario, a `comments/` folder that cannot be read
 keeps them all, and a warning says so (`threads_unread` with `--json`) — repair or remove what the comment list
 reports, then prune again. Only folders of `runs/` named the way Retake names a take are ever deleted, and the last
 renders of a scenario are counted among the records named `<scenario>-v<N>` only: another record of `renders/` (a video
 written there under a name of its own) takes no render's place, stays with its review and its take when it succeeded,
 and goes only when it failed or was cancelled. Claude has the same as the MCP tool `project_prune`: a dry run unless `dry_run: false`, and then it
-asks you first in an approval form (how many items, how much, the first 20 and how many more) and deletes the items of
+asks you first in an approval form (how many items, how much, what stays, the first 20 and how many more) and deletes the items of
 that approval — all of them — that can still go at that moment — nothing when you decline or the client cannot ask
 ([MCP: Safety](mcp.md)).
 

@@ -1987,8 +1987,8 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
     decide (`readRunFolder`'s `timeline` question, answered by core `takeNeedsTimeline`: a failed take, a dry run or
     another scenario's capture costs its record alone). The engine's confined `RunFolder` keeps its own byte access
     and hands the bytes to the same parsers. The ratchet's `record-read` check counts any value given the type of a
-    run record or a timeline outside these two files, and the two deliberate own reads (prune's, the reserved run's
-    close) as entries with their reasons (its title lists the kinds and what it cannot see).
+    run record or a timeline outside these two files, and the two deliberate own reads (prune's lenient read of a
+    run.json the reader refuses, the reserved run's close) as entries with their reasons (its title lists the kinds and what it cannot see).
   - *Rule 1, a usable capture* (`takeOf(facts)` → a `Take` or one reason of the closed list `NotUsable`): a real
     folder whose name is a run id; a run.json that reads and says a capture that succeeded; a timeline.json whose
     head reads whole (mode, scenario, its run id, its film's name) and names the same scenario; the film it names
@@ -2021,9 +2021,28 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
     given. The CLI names the passed-over runs on stderr; an MCP answer carries their count in its text and their
     names under `untrusted.passed_over` only (a folder of `runs/` is named by whoever can write there), and no
     sentence that reaches it names a run that was not picked.
-  - *Prune* keeps its own read of a run.json and its own "last capture by its record" (`pruneReadRun`,
-    `pruneLastCapture` in engine `prune.ts`) until what it keeps is decided in a lot of its own; the scenario view's
-    picture rule (which run's screenshots a step shows) is also its own.
+  - *Rule 3, the captures prune keeps* (`pruneKeeper()`, L7.7; pure, fed the facts of each dated run folder newest
+    first — `orderRuns` — by engine `prune.ts`, which reads them with `readRunFolder`). Per scenario, as the records
+    name it, three takes stay: `last-capture` — the newest run whose record says a capture that succeeded, whatever
+    its folder still holds (the rule before the lot); `editable` — the newest usable take (rule 1); `complete` — the
+    newest usable take not stopped by `--until`. A linked run folder and a record of a newer format are *left alone*
+    (`PruneAlone`: `linked`, `newer-format`): kept, never the last capture of anything, never listed, nothing behind
+    a link read. `keeper.needsTimeline` is the reader's `timeline` question, answered from the record: a timeline is opened only
+    for a succeeded capture of a scenario whose complete take is not found yet — not for one stopped by `--until`
+    once the scenario's editable take is found —, and prune asks the reader for the film first (`filmFirst`: no
+    regular file in the folder that could be a film, no timeline opened). What is left unbounded: takes that hold a
+    film and a timeline that does not read as a usable one cost a parse each, on every pass. The rule only adds keeps: a run is a
+    candidate exactly when it was one before — which is why prune keeps one own read, `pruneSaid`, for a run.json
+    the reader does not take as a record (a finished run without its end, a linked file): what such a
+    file says of its status still makes the take one prune can delete, and may still make it the last capture by
+    its record (the ratchet's `record-read` entry of `prune.ts`, with this reason). Where that read is stricter than
+    it was, it keeps: a file of a newer format is left alone like any other (`PruneNewer`), one that is no regular
+    file or is over the reader's cap says nothing (the take is kept and counted). `PruneResult.kept_takes`
+    (`{id, why, reason}`, newest first) holds the takes that stay *only* for `editable` or `complete` and every
+    folder left alone, with the fixed words of `pruneKeptWords`; the CLI prints one `kept` line per take (per reason the first five, then a count), the MCP
+    text one line per reason with a count and no folder name. A render renamed by hand is not this rule's subject
+    (it goes with the render records). The scenario view's picture rule (which run's screenshots a step shows)
+    stays its own.
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health

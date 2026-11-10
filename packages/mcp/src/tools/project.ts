@@ -137,6 +137,16 @@ export const projectUpdateReadme = defineTool({
   },
 });
 
+/**
+ * What prune kept beyond its list, one line per reason in the order the reasons are met: the fixed words of the reason
+ * and how many takes — never a folder's name (a folder of runs/ is named by whoever can write there).
+ */
+function keptLines(kept: ReadonlyArray<{ why: string; reason: string }>): string[] {
+  const by = new Map<string, { reason: string; count: number }>();
+  for (const k of kept) by.set(k.why, { reason: k.reason, count: (by.get(k.why)?.count ?? 0) + 1 });
+  return [...by.values()].map((x) => `kept: ${x.reason} — ${plural(x.count, 'take')}`);
+}
+
 /** Annotations of `project_prune`: it deletes takes and renders (with dry_run: false). */
 const PRUNE: ToolAnnotations = { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false };
 
@@ -166,6 +176,8 @@ export const projectPrune = defineTool({
         ...lines,
         ...(r.items.length > 40 ? [`… and ${r.items.length - 40} more (data.items)`] : []),
         `kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')}`,
+        // The takes that stay for a reason the list does not show: the engine's fixed words and a count (their names: data.kept_takes).
+        ...keptLines(r.kept_takes ?? []),
         ...(r.skipped?.length ? [`${plural(r.skipped.length, 'approved item')} kept: something uses ${r.skipped.length === 1 ? 'it' : 'them'} now, or ${r.skipped.length === 1 ? 'it is' : 'they are'} gone (${r.skipped.map((i) => `${i.kind} ${i.id}`).join(', ')})`] : []),
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
         // Comment threads that could not be read: what stayed for it (the engine's sentence: the slug, scenario names, an error code).

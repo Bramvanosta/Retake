@@ -96,6 +96,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.4 | Action plan U1, U2 (in part), U4: the test files type-checked (`pnpm typecheck`, CI), ratchet rules R11 – R13, pure entries `@retake/review/checks` and geometry | M | **done** (2026-11-10, branch `claude/arch-l7`; 312 type errors in 81 test files fixed; ratchet 59 → 84 with R11 pinned at 27) |
 | L7.5 | Action plan U3: one id module in the domain (run, render, job, theme: one grammar each, brands, generators), every copy replaced, ratchet check `id-grammar` | M | **done** (2026-11-10, branch `claude/arch-l7`; old and new code compared on 8 372 strings; the decided changes are all stricter) |
 | L7.6a | Action plan U5, first half: the run record as a union with a tolerant reader, one "usable capture" rule and one "latest run" rule in the domain, ratchet check `record-read` | M–L | **done** (2026-11-10, branch `claude/arch-l7`; 200 crafted projects compared with the code before; prune unchanged) |
+| L7.7 | Prune keeps the capture that can be edited: the newest succeeded take, the newest usable one and the newest complete one; linked folders and newer records left alone | S | **done** (2026-11-11, branch `claude/arch-l7`; it only keeps more, shown on 3 000 generated layouts against the code before and held by the suite) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1051,6 +1052,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.6a — The run record, the take and the two rules (M–L; decided 2026-11-10)
 - **Goal:** "is this capture usable" and "which run is the latest" are each decided once (finding D2); a run record cannot be in an impossible state.
 - **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.6a)". Requirements R-ARCH-19 and R-ARCH-20; R-PRIN-13 updated. Next: prune's rule (decided: keep both), then L7.6b (render records).
+
+### L7.7 — Prune keeps the capture that can be edited (S; decided 2026-11-10)
+- **Goal:** prune never offers the only capture that can still be edited for deletion; it never lists anything it kept before.
+- **Done (2026-11-11, branch `claude/arch-l7`):** see HANDOFF "State (after L7.7)". Requirement R-FLD-28 updated. Renders renamed by hand wait for L7.6b.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

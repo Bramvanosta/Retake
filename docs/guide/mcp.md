@@ -113,7 +113,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety); when comment threads cannot be read, the renders and takes they may name stay and the result says so (`threads_unread`) | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety); when comment threads cannot be read, the renders and takes they may name stay and the result says so (`threads_unread`); the last capture of a scenario that can be edited, the last complete one beside a capture stopped by `--until`, a linked run folder and a take of a newer Retake stay too, and the text says each reason with a count (`kept_takes` names the takes) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -406,7 +406,9 @@ a terminal run in their own process and are not held to these rules.
     a sandbox container: none of them is asked about. From a terminal (`retake sandbox up`) nothing is asked, as before.
 - **Deleting takes and renders needs a human.** `project_prune {dry_run: false}` first lists what would go, then asks
   the user through the same approval form: how many items of which project, how much they free, the count and size of
-  each kind (takes, renders, reviews), the first 20 items (kind, name, why it goes, its size — every hidden character
+  each kind (takes, renders, reviews), what stays (per scenario the last good take, the last one that can still be
+  edited and the last complete one; the last renders; whatever is in use; linked run folders and takes of a newer
+  Retake), the first 20 items (kind, name, why it goes, its size — every hidden character
   written out) and how many more — approving deletes them all, listed or counted — and the terminal command
   `retake prune <project> --yes` instead. When the user approves, it deletes the items of that approval that can still
   go at that moment, each with the files it had when listed (a file added to it since stays): one a job, a comment

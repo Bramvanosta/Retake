@@ -45,7 +45,7 @@ The tests of this lot (L7.6a) mark a row with the decision or the fix that makes
 | F-6 | fixed: a `run.json` that is no record was listed as a row of empty fields (now said as what it is) |
 | F-8 | fixed: a scenario name too long for a run id was filmed into a folder no list shows |
 | U-1 | a capture stopped by `--until` is still `latest`, and says where it ends |
-| P | prune's own rule, unchanged by this lot |
+| P | prune's own rule, unchanged by this lot (L7.7 moved it: `L7.7 P-1` — the newest take that can be edited stays, a linked folder and a newer record are left alone —, `L7.7 U-1` — the newest complete capture stays beside one stopped by `--until`; its layouts: `prune-layouts.ts`) |
 | small point 3.x | a detail confirmed with the decisions (3.1 a linked film, 3.2 `runs/` on another disk, 3.5 a non-record) |
 
 Where a file also holds marks of the lot before (L7.5 used `D-4` and `D-7` for other things in the `ids`

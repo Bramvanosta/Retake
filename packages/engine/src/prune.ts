@@ -1,6 +1,7 @@
 /**
  * Pruning a project's generated folders (L5.7, R-FLD-28): `runs/`, `renders/` and `review/` grow with every take and
- * render (24 GB in three days on the first real use). Kept: the last succeeded capture of each scenario, every take a
+ * render (24 GB in three days on the first real use). Kept: the last succeeded capture of each scenario, the last
+ * capture of it that can be edited and the last complete one (below), every take a
  * kept render or a comment thread uses, the last `keep_renders` succeeded renders of each scenario and variant (and
  * every render a thread was made or resolved on), their reviews, and whatever a queued or running job names. Deleted:
  * failed, cancelled and interrupted takes, dry runs, older captures nothing uses, older and failed renders, reviews of
@@ -13,6 +14,21 @@
  * a render's place, it stays with its review and its take when it succeeded, and goes only when it failed or was
  * cancelled.
  *
+ * The takes (L7.7): the run folders are read by the one reader (core/io readRunFolder: no link followed) and the
+ * captures kept are core's rule 3 (take.ts pruneKeeper). Per scenario prune keeps the newest take whose record says a
+ * capture that succeeded AND the newest take that can really be edited (its timeline reads, its film is there) AND the
+ * newest such take that was not stopped by `--until`: a newer capture that lost its film, or a short test of the first
+ * steps, never sends the capture one can still edit to the list. A run folder that is a symbolic link and a take
+ * written by a newer Retake are left alone: kept, never "the last capture" of a scenario, never listed. The result
+ * names what stayed for one of these reasons (`kept_takes`). Nothing else moved: a run.json the reader does not take
+ * as a record is still read as prune always read it (`pruneSaid`), so a take that could go before can still go —
+ * unless that file turns out to be a record of a newer Retake (left alone, like any other), is no regular file or is
+ * over the reader's cap (it then says nothing: the take is kept and counted).
+ *
+ * Cost: a timeline (megabytes) is opened only when the record asks for it (pruneKeeper needsTimeline) and the folder
+ * holds a file that could be its film (readRunFolder `filmFirst`); a scenario whose takes all have a film and a
+ * timeline that does not read as a usable one still costs one parse per take, on every pass.
+ *
  * What cannot be read is never read as "no thread": when the comment threads cannot be listed, every render and every
  * take stays (a thread may name any of them); when a thread file or a scenario's folder of comments/ does not read as
  * threads (broken, a link, in the wrong place), every render and take of that scenario stays — a scenario named
@@ -20,13 +36,14 @@
  * deletion to the items a person approved (an agent's prune: engine `projects.prune` asks first, approvals.ts
  * `takePruneApproval`).
  */
-import { lstat, readdir, readFile, rm } from 'node:fs/promises';
+import { lstat, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { LoadedProject } from '@retake/core';
+import type { LoadedProject, PruneAlone, PruneKeep, PruneNewer, PruneSaid } from '@retake/core';
+import { RUN_RECORD_MAX, readRunFolder } from '@retake/core/io';
 import { listCommentsAndUnread } from './comments/views.js';
 import { editor } from './lazy.js';
 import { isRenderOfItsScenario } from './refs.js';
-import { isMadeRunId, parseRenderId, projectPath, projectRef, runIdOfScenario } from '@retake/core';
+import { FORMAT_VERSIONS, isMadeRunId, newerFormatMessage, orderRuns, parseRenderId, projectPath, projectRef, pruneKeeper, pruneKeptWords, runIdOfScenario } from '@retake/core';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -70,6 +87,13 @@ export interface PruneResult {
   /** What it frees (or would free). */
   bytes: number;
   kept: { runs: number; renders: number; reviews: number };
+  /**
+   * The takes that stay for a reason the list does not show (L7.7), newest first: a capture kept only because it is the
+   * last one of its scenario that can be edited (`editable`) or the last complete one beside a newer capture stopped by
+   * `--until` (`complete`), and every run folder left alone (`linked`, `newer-format`). `reason`: the fixed words of
+   * the reason (core pruneKeptWords). Absent when there is none.
+   */
+  kept_takes?: PruneKeptTake[];
   /** Paths that could not be removed. */
   problems: string[];
   /** With `only`: the approved items that could not go any more (something uses them now, or they are gone) — kept. */
@@ -85,6 +109,13 @@ export interface PruneResult {
   threads_unread?: string;
 }
 
+/** A take prune kept for a reason of its rule for captures, or left alone: see `PruneResult.kept_takes`. */
+export interface PruneKeptTake {
+  id: string;
+  why: Exclude<PruneKeep, 'last-capture'> | PruneAlone;
+  reason: string;
+}
+
 async function sizeOf(path: string): Promise<number> {
   const st = await lstat(path).catch(() => null);
   if (!st) return 0;
@@ -94,38 +125,29 @@ async function sizeOf(path: string): Promise<number> {
   return n;
 }
 
-/** What prune reads of a run.json: the members its own rule decides on, as the file says them. */
-interface PruneRun {
-  id: string;
-  status: string;
-  mode?: unknown;
-  scenario: string;
-}
-
 /**
- * Prune's own read of a run.json — NOT the one reader of the run folders (core/io readRunRecord), on purpose: what
- * prune keeps and deletes is decided in a lot of its own, and until then it reads as it always has (any JSON object
- * with a text `id` and `status`; a link is followed; the format's version is not looked at). Sending it through the
- * reader would change what it keeps (a linked run folder, a record of a newer Retake).
+ * What a run.json the one reader does not take as a record says all the same — prune's own read, kept on purpose for
+ * that case alone: any JSON object with a text `id` and `status`, a linked run.json followed, as prune always read
+ * every run.json. Without it a take whose record lacks a member (a failed run without its error, a finished one
+ * without its end) or is a link would stop being a take prune can delete: a change nobody decided.
+ *
+ * Where this read is stricter than it was, the take is kept, never listed: a file that is of a newer Retake (the
+ * reader's own version rule, which it could not apply to a file it did not open) is answered as such — left alone —;
+ * one that is no regular file once links are followed (a folder, a pipe, a device: never opened) or is over the
+ * reader's cap (RUN_RECORD_MAX: never read whole) says nothing. Null: the file says nothing (the folder is kept and
+ * counted, as ever).
  */
-async function pruneReadRun(dir: string): Promise<PruneRun | null> {
+async function pruneSaid(dir: string): Promise<PruneSaid | PruneNewer | null> {
+  const file = join(dir, 'run.json');
   try {
-    const r = JSON.parse(await readFile(join(dir, 'run.json'), 'utf8')) as PruneRun | null;
-    return r && typeof r.id === 'string' && typeof r.status === 'string' ? r : null;
+    const st = await stat(file);
+    if (!st.isFile() || st.size > RUN_RECORD_MAX) return null;
+    const r = JSON.parse(await readFile(file, 'utf8')) as ({ scenario?: unknown; mode?: unknown; status?: unknown; id?: unknown } | null);
+    if (newerFormatMessage(r, { file: 'run.json', supported: FORMAT_VERSIONS.run }) !== undefined) return { newer: true, ...(typeof r?.scenario === 'string' ? { scenario: r.scenario } : {}) };
+    return r && typeof r.id === 'string' && typeof r.status === 'string' ? { scenario: r.scenario, mode: r.mode, status: r.status } : null;
   } catch {
     return null;
   }
-}
-
-/**
- * The last capture of each scenario BY ITS RECORD — prune's own rule until that decision, NOT the usable-capture rule
- * (core takeOf): the newest run whose run.json says a capture that succeeded, whether or not its timeline and its film
- * are there. `runs`: oldest first (the last of a scenario wins).
- */
-function pruneLastCapture(runs: readonly PruneRun[]): Map<string, string> {
-  const last = new Map<string, string>();
-  for (const r of runs) if (r.mode === 'capture' && r.status === 'succeeded') last.set(r.scenario, r.id);
-  return last;
 }
 
 const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
@@ -229,31 +251,42 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     items.push({ kind: 'review', id: name, reason: known ? 'review of an older render' : 'review of a deleted render', bytes: await sizeOf(path), paths: [path] });
   }
 
-  // Takes: the last succeeded capture per scenario, and every take a kept render or a thread uses.
+  // Takes: per scenario the last succeeded capture, the last one that can be edited and the last complete one (core's
+  // rule 3), and every take a kept render or a thread uses. Only a take of the shape the tool makes is ever a
+  // candidate (a folder named by hand stays), read newest first by the one reader of the run folders.
   const runsDir = projectPath(project.dir, 'runs');
-  const runs: PruneRun[] = [];
-  const unreadable: string[] = [];
-  for (const name of (await readdir(runsDir).catch(() => [] as string[])).sort()) {
-    // Only a take of the shape the tool makes is ever a candidate (a folder named by hand stays).
-    if (!isMadeRunId(name)) continue;
-    const r = await pruneReadRun(join(runsDir, name));
-    if (r) runs.push({ ...r, id: name });
-    else unreadable.push(name);
+  const keeper = pruneKeeper();
+  for (const name of orderRuns((await readdir(runsDir).catch(() => [] as string[])).filter(isMadeRunId))) {
+    const facts = await readRunFolder(runsDir, name, { timeline: keeper.needsTimeline, filmFirst: true });
+    // A real folder whose run.json is no record for the reader (and is not of a newer Retake): what it says all the same.
+    const lenient = facts.folder === 'dir' && !facts.record.ok && facts.record.problem !== 'newer-format' && facts.record.problem !== 'unknown-status';
+    keeper.add(facts, lenient ? await pruneSaid(join(runsDir, name)) : null);
   }
+  const { runs, alone, unread } = keeper.done();
   const usedRuns = new Set<string>([...threadRuns]);
   for (const r of renders) if (keptRenders.has(r.id)) usedRuns.add(r.run_id);
-  const lastCapture = pruneLastCapture(runs);
-  let runsKept = unreadable.length;
-  for (const r of runs) {
-    const keep = unreadRun(r) || !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || lastCapture.get(r.scenario) === r.id;
-    if (keep) {
+  const keptTakes: PruneKeptTake[] = alone.map((a) => ({ id: a.id, why: a.why, reason: pruneKeptWords(a.why) }));
+  // A folder left alone may be a take an unread thread names (by its id; a newer record by its scenario too): the
+  // sentence about those threads names its scenario, as it did when the folder was a take like any other.
+  for (const a of alone) unreadRun({ id: a.id, scenario: a.scenario as string });
+  let runsKept = alone.length + unread;
+  for (const run of runs) {
+    // (A scenario that is no text — a run.json the reader does not take — is carried as the file holds it, as ever.)
+    const r = { ...run, scenario: run.scenario as string };
+    // What kept a take before the rule looked at what its folder holds …
+    const kept = unreadRun(r) || !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || r.keep.includes('last-capture');
+    // … and what keeps it now beside that: said, when it is the only reason.
+    const why = r.keep.find((k): k is Exclude<PruneKeep, 'last-capture'> => k !== 'last-capture');
+    if (kept || why) {
       runsKept++;
+      if (!kept && why) keptTakes.push({ id: r.id, why, reason: pruneKeptWords(why) });
       continue;
     }
     const path = join(runsDir, r.id);
     const reason = r.mode === 'dry' ? 'dry run' : r.status === 'succeeded' ? 'older capture nothing uses' : `${r.status} take`;
     items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await sizeOf(path), paths: [path] });
   }
+  keptTakes.sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 
   // What stays for the threads that were not read: said with the scenarios something of theirs is here for.
   let threadsUnread = notListed;
@@ -311,6 +344,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     bytes: items.reduce((n, i) => n + i.bytes, 0),
     kept: { runs: runsKept, renders: keptRenders.size, reviews: reviewsKept },
     problems,
+    ...(keptTakes.length ? { kept_takes: keptTakes } : {}),
     ...(skipped ? { skipped, not_asked: notAsked ?? 0 } : {}),
     ...(threadsUnread !== undefined ? { threads_unread: threadsUnread } : {}),
   };

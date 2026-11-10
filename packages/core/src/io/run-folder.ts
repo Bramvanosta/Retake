@@ -4,7 +4,7 @@
  * the facts the rules of core take.ts decide on. A run met in a listing is read without following any symbolic link;
  * a run a person named is read through them (`readNamedRunFolder`), and says which of its files are links.
  */
-import { lstat, readFile, stat } from 'node:fs/promises';
+import { lstat, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { DEFAULT_FILM, isFilmName, parseRunRecord, parseTimeline, parseTimelineHead } from '../run-record.js';
 import type { FileProblem, Read, RunRead, TimelineHead } from '../run-record.js';
@@ -21,6 +21,8 @@ export interface RunFolderFs {
   lstat(path: string): Promise<RunFolderStat>;
   stat(path: string): Promise<RunFolderStat>;
   readFile(path: string): Promise<string>;
+  /** The entries of a folder (asked only with `filmFirst`; one that has none is answered as "may hold a film"). */
+  readdir?(path: string): Promise<Array<{ name: string; isFile(): boolean }>>;
 }
 export interface RunFolderStat {
   isFile(): boolean;
@@ -28,7 +30,7 @@ export interface RunFolderStat {
   isSymbolicLink(): boolean;
   size: number;
 }
-const NODE_FS: RunFolderFs = { lstat, stat, readFile: (path) => readFile(path, 'utf8') };
+const NODE_FS: RunFolderFs = { lstat, stat, readFile: (path) => readFile(path, 'utf8'), readdir: (path) => readdir(path, { withFileTypes: true }) };
 
 export interface ReadFileOptions {
   fs?: RunFolderFs;
@@ -105,17 +107,38 @@ async function kindOf(fs: RunFolderFs, file: string, follow: boolean): Promise<R
 }
 
 /**
+ * The files a runner writes in a run folder beside the film: never a film. (A name missing here costs a timeline read
+ * that could have been spared, nothing else.)
+ */
+const NOT_A_FILM = new Set(['run.json', 'timeline.json', 'frames.jsonl', 'log.jsonl', 'hooks-journal.json', 'scenario.yaml']);
+
+/**
+ * Whether the folder holds a regular file that a timeline could name as its film (a film is one path segment —
+ * isFilmName — and a listing takes only a regular file): any regular file but the runner's other files and the hidden
+ * ones. True when it cannot be told.
+ */
+async function mayHoldFilm(fs: RunFolderFs, dir: string): Promise<boolean> {
+  if (!fs.readdir) return true;
+  try {
+    return (await fs.readdir(dir)).some((e) => e.isFile() && !e.name.startsWith('.') && !NOT_A_FILM.has(e.name));
+  } catch {
+    return true;
+  }
+}
+
+/**
  * The files of a run folder. run.json first; then timeline.json — unless `o.timeline` answers that the record alone
  * decides (core takeNeedsTimeline): the timeline is then not opened (`not-read`, or `missing` when it is not there:
  * megabytes not parsed for a run its record already rules out) and only said to be a link or not, with the film under
- * its usual name. `whole` (asked
+ * its usual name. `o.filmFirst`: neither is it opened when the folder holds no file that could be its film (the run is
+ * no usable take whatever its timeline says). `whole` (asked
  * with `o.whole`): the whole timeline, from the same read and the same parse as its head.
  */
-async function readFiles(dir: string, o: ReadFileOptions & { whole?: boolean; timeline?: (record: RunRead) => boolean }): Promise<FolderFiles & { whole?: Read<Timeline> }> {
+async function readFiles(dir: string, o: ReadFileOptions & { whole?: boolean; timeline?: (record: RunRead) => boolean; filmFirst?: boolean }): Promise<FolderFiles & { whole?: Read<Timeline> }> {
   const fs = o.fs ?? NODE_FS;
   const rec = await readJsonFile(join(dir, 'run.json'), RUN_RECORD_MAX, o);
   const record: RunRead = 'problem' in rec ? rec.problem : parseRunRecord(rec.value);
-  if (o.timeline && !o.timeline(record)) {
+  if ((o.timeline && !o.timeline(record)) || (o.filmFirst && !(await mayHoldFilm(fs, dir)))) {
     // Not opened: said to be there or not, and a link or not (a folder with neither file is no run folder at all).
     const kind = await kindOf(fs, join(dir, 'timeline.json'), false);
     return { record, timeline: { ok: false, problem: kind === 'missing' ? 'missing' : 'not-read' }, film: await kindOf(fs, join(dir, DEFAULT_FILM), false), recordLink: rec.link, timelineLink: kind === 'link' };
@@ -142,8 +165,14 @@ const UNREAD: FolderFiles = {
  * A linked folder is `link` and nothing behind it is read; an entry that is gone or is no folder says so.
  * `o.timeline`: asked with the record once it is read — false: the timeline is not opened (see readFiles); a caller
  * that walks many runs hands core's takeNeedsTimeline, so that only a run that may be the take costs its timeline.
+ * `o.filmFirst`: for a caller that asks only WHETHER a run is a usable take, never why not (prune): a timeline the
+ * record asks for is still not opened when the folder holds no regular file that could be its film (none but the
+ * runner's other files — run.json, timeline.json, its logs and lists — and hidden ones), so the run is no take. The
+ * facts then say `not-read` where they would have said the head and a missing film: the verdict is "not usable"
+ * either way, its reason is not the one a notice would give. (A timeline naming one of those files as its film is
+ * the one take this does not see: it holds no film.)
  */
-export async function readRunFolder(runsDir: string, name: string, o: { fs?: RunFolderFs; timeline?: (record: RunRead) => boolean } = {}): Promise<RunFolderFacts> {
+export async function readRunFolder(runsDir: string, name: string, o: { fs?: RunFolderFs; timeline?: (record: RunRead) => boolean; filmFirst?: boolean } = {}): Promise<RunFolderFacts> {
   const fs = o.fs ?? NODE_FS;
   const dir = join(runsDir, name);
   let folder: RunFolderFacts['folder'];
@@ -154,7 +183,7 @@ export async function readRunFolder(runsDir: string, name: string, o: { fs?: Run
     folder = 'gone';
   }
   if (folder !== 'dir') return { name, folder, ...UNREAD };
-  return { name, folder, ...(await readFiles(dir, { fs, ...(o.timeline ? { timeline: o.timeline } : {}) })) };
+  return { name, folder, ...(await readFiles(dir, { fs, ...(o.timeline ? { timeline: o.timeline } : {}), ...(o.filmFirst ? { filmFirst: true } : {}) })) };
 }
 
 /**

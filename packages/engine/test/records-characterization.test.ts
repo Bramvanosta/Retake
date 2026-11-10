@@ -7,7 +7,8 @@
  * A row marked `D-<n>` is an outcome a decision of the lot changes; `F-<n>` one a fix made on the way changes; `U-1`
  * the row of a capture stopped by `--until` (it stays usable; later parts add a notice); `P` a row of prune, which this
  * lot must leave as it is (what prune keeps is decided in a lot of its own). Until a part moves a row it holds today's
- * answer.
+ * answer. That lot is L7.7: the twelve prune cells it moved say so over their row (`L7.7 P-1` / `L7.7 U-1`; the rule
+ * layout by layout: prune-keeps.test.ts); the renders renamed by hand at the end of this file did not move.
  */
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -160,7 +161,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'run NEW (dry run) | kept 1',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW); P: prune did not move
+  // D-1: the timeline's default is OLD (was the refusal of NEW)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   g: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -168,9 +170,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
-  // D-1: the timeline's default is OLD (was the refusal of NEW); P: prune did not move
+  // D-1: the timeline's default is OLD (was the refusal of NEW)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   gn: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -178,9 +181,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
-  // D-1: the board's capture and the timeline's default are OLD (frames without a film are no take; the board said NEW); P
+  // D-1: the board's capture and the timeline's default are OLD (frames without a film are no take; the board said NEW)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   gf: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -188,7 +192,7 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
   // F-2: Render edits NEW (frames kept and a film: it said OLD)
   h: {
@@ -230,7 +234,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'OLD of [OLD]',
     prune: 'nothing | kept 2',
   },
-  // D-1: Render, the board and the timeline's default are OLD (NEW's timeline does not read; the timeline view threw a parser's message); P: prune did not move
+  // D-1: Render, the board and the timeline's default are OLD (NEW's timeline does not read; the timeline view threw a parser's message)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   l: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -238,9 +243,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
-  // D-6; P: prune must not move
+  // D-6
+  // L7.7 P-1: prune — a take of a newer Retake is left alone and not counted: OLD stays (it listed OLD)
   o: {
     list: 'NEW:newer OLD:succeeded',
     listOf: 'OLD:succeeded',
@@ -249,9 +255,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
-  // D-6; P: prune must not move
+  // D-6
+  // L7.7 P-1: prune — a take of a newer Retake is left alone (it listed NEW)
   of: {
     list: 'NEW:newer OLD:succeeded',
     listOf: 'OLD:succeeded',
@@ -260,7 +267,7 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [OLD]',
-    prune: 'run NEW (failed take) | kept 1',
+    prune: 'nothing | kept 2',
   },
   p: {
     list: 'NEW:succeeded OLD:succeeded',
@@ -343,7 +350,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'NEW of [NEW OLD]',
     prune: 'run OLD (older capture nothing uses) | kept 1',
   },
-  // U-1: stays NEW everywhere; later parts say it stops at a step (no notice today); P: prune must not move
+  // U-1: stays NEW everywhere; later parts say it stops at a step (no notice today)
+  // L7.7 U-1: prune — OLD, the last complete capture, stays (it listed OLD)
   t6: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -351,7 +359,7 @@ const TABLE: Record<string, Row> = {
     render: 'NEW',
     board: 'NEW',
     timeline: 'NEW of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
   // D-1: the timeline's default is OLD (was NEW, whose record still says running)
   t7: {
@@ -373,6 +381,7 @@ const TABLE: Record<string, Row> = {
     prune: 'nothing | kept 1',
   },
   // D-7 (small point 3.1): the timeline's default is OLD (was NEW, refused for its linked film)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   t9: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -380,10 +389,11 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
   // A timeline made by hand, without its run id: no take for `latest` (Render, the board and the timeline's default are
-  // OLD: they were NEW); named, it still plans (the editor's table). P: prune did not move
+  // OLD: they were NEW); named, it still plans (the editor's table)
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   hr: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -391,9 +401,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
   // The same, its capture block naming no film
+  // L7.7 P-1: prune — OLD, the take that can be edited, stays (it listed OLD)
   hf: {
     list: 'NEW:succeeded OLD:succeeded',
     status: 'succeeded',
@@ -401,7 +412,7 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [NEW OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
   // D-8: a record a later version of the same format wrote (words and blocks this build does not know) is a capture
   // like any other, at every site
@@ -414,7 +425,8 @@ const TABLE: Record<string, Row> = {
     timeline: 'NEW of [NEW OLD]',
     prune: 'run OLD (older capture nothing uses) | kept 1',
   },
-  // D-7; P: prune must not move
+  // D-7
+  // L7.7 P-1: prune — a linked folder is never the last capture: OLD stays (it listed OLD)
   k1: {
     list: 'OLD:succeeded',
     status: 'succeeded',
@@ -422,9 +434,10 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [OLD]',
-    prune: 'run OLD (older capture nothing uses) | kept 1',
+    prune: 'nothing | kept 2',
   },
-  // D-7; P: prune must not move
+  // D-7
+  // L7.7 P-1: prune — a linked folder is never listed (it listed NEW)
   k1f: {
     list: 'OLD:succeeded',
     status: 'failed',
@@ -432,7 +445,7 @@ const TABLE: Record<string, Row> = {
     render: 'OLD',
     board: 'OLD',
     timeline: 'OLD of [OLD]',
-    prune: 'run NEW (failed take) | kept 1',
+    prune: 'nothing | kept 2',
   },
   k2: {
     list: 'OLD:succeeded',
@@ -496,7 +509,7 @@ describe('the engine, state by state and site by site', () => {
     expect(await sites.timeline(state('f', 'no-film'))).toBe(
       'invalid: no capture run of scenario "quote" in <root>/projects/s-f-no-film/runs: capture one with `retake run s-f-no-film quote` — 1 capture of it cannot be edited: its film is missing (1)',
     );
-    // Prune reads the records only: OLD without its film is the same list; OLD gone is another.
+    // A failed NEW beside OLD: OLD is the last capture by its record with or without its film (the same list); OLD gone is another.
     expect([await sites.prune(state('c')), await sites.prune(state('c', 'no-film')), await sites.prune(state('c', 'none'))]).toEqual(['run NEW (failed take) | kept 1', 'run NEW (failed take) | kept 1', 'run NEW (failed take) | kept 0']);
   }, 120_000);
 
@@ -698,7 +711,7 @@ describe('the engine\'s other readers of a run folder go through the one parse b
   });
 });
 
-// ── Prune and the renders (P: this lot leaves every row as it is) ───────────
+// ── Prune and the renders (P: L7.6a and L7.7 leave every row as it is; R-1 goes with the render records) ──
 
 describe('prune and renders renamed by hand', () => {
   const render = (b: BuiltState, id: string, run: string, at: string, file = id) => {

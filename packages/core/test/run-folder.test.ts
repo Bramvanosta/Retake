@@ -5,7 +5,7 @@
  * These are the answers every site gives once it uses the rules.
  */
 import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { lstat, readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, readdir as readdirAsync, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -276,6 +276,42 @@ describe('readRunFolder for a walk over many runs: the record first, the timelin
     reads.length = 0;
     await readRunFolder(b.runs, b.new, { fs: counting(reads) });
     expect(reads.sort()).toEqual([`${b.new}/run.json`, `${b.new}/timeline.json`]);
+  });
+
+  it('`filmFirst`: a timeline the record asks for is not opened when the folder holds no file that could be its film; the verdict is "not usable" either way', async () => {
+    const opened = async (b: BuiltState, o: { filmFirst?: boolean } = { filmFirst: true }): Promise<[boolean, string, boolean]> => {
+      const reads: string[] = [];
+      const fs: RunFolderFs = { ...counting(reads), readdir: (p) => readdirAsync(p, { withFileTypes: true }) };
+      const facts = await readRunFolder(b.runs, b.new, { fs, timeline: (record) => takeNeedsTimeline(record), ...o });
+      return [reads.includes(`${b.new}/timeline.json`), problemOf(facts.timeline), takeOf(facts).usable];
+    };
+    // The film is gone (state g), with the files a runner leaves beside it and a hidden one: nothing to open.
+    const g = buildState(root, 'g', { slug: 'film-first-g' });
+    for (const f of ['frames.jsonl', 'log.jsonl', 'hooks-journal.json', 'scenario.yaml', '.DS_Store']) writeFileSync(join(g.runs, g.new, f), '');
+    mkdirSync(join(g.runs, g.new, 'screenshots'));
+    expect(await opened(g)).toEqual([false, 'not-read', false]);
+    // Without the option the timeline is read, as `latest` reads it (its notice says the film is missing).
+    expect(await opened(g, {})).toEqual([true, 'ok', false]);
+    expect(takeOf(await readRunFolder(g.runs, g.new, { timeline: (record) => takeNeedsTimeline(record) }))).toMatchObject({ usable: false, why: 'no-film' });
+    // A film is there, under whatever name: opened, and the take is the one the rule gives without the option.
+    for (const id of ['ctl', 't6', 'h', 't5', 'hf']) {
+      const b = buildState(root, id, { slug: `film-first-${id}` });
+      expect([id, ...(await opened(b))]).toEqual([id, true, 'ok', takeOf(await readRunFolder(b.runs, b.new)).usable]);
+    }
+    const named = buildState(root, 'g', { slug: 'film-first-named' });
+    writeFileSync(join(named.runs, named.new, 'capture-vertical.mp4'), 'film');
+    expect((await opened(named))[0]).toBe(true);
+    // A film that is a link is no file of the folder: not opened, no take (as the rule says of a linked film).
+    const t9 = buildState(root, 't9', { slug: 'film-first-t9' });
+    expect(await opened(t9)).toEqual([false, 'not-read', false]);
+    expect(takeOf(await readRunFolder(t9.runs, t9.new)).usable).toBe(false);
+    // No timeline.json at all is still said as missing; a record that rules the run out is asked nothing more.
+    const gn = buildState(root, 'gn', { slug: 'film-first-gn' });
+    expect(await opened(gn)).toEqual([false, 'missing', false]);
+    // A file system that cannot list a folder: the timeline is opened, as without the option.
+    const reads: string[] = [];
+    await readRunFolder(g.runs, g.new, { fs: counting(reads), timeline: (record) => takeNeedsTimeline(record), filmFirst: true });
+    expect(reads.includes(`${g.new}/timeline.json`)).toBe(true);
   });
 
   it('a link is still said first without the timeline: a linked timeline.json, a linked film under its usual name', async () => {

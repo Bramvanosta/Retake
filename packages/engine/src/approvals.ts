@@ -411,7 +411,7 @@ export function pruneApprovalFormText(req: PruneApprovalRequest): string {
   const items = `${req.count} item${req.count === 1 ? '' : 's'}`;
   return [
     `Retake: the agent asks to delete ${items} from project ${req.project}'s runs/, renders/ and review/, freeing ${formatBytes(req.bytes)}: ${pruneKindsText(req)}.`,
-    `Kept: the last good take of each scenario, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; exports/ is not touched.`,
+    `Kept: the last good take of each scenario, the last one that can still be edited and the last complete one, the last ${req.keep_renders} renders of each scenario and variant, whatever a kept render, a comment thread or a queued or running job uses; a run folder that is a link and a take written by a newer Retake are left alone; exports/ is not touched.`,
     req.more ? `The first ${req.lines.length} of the ${items}:` : `${req.count === 1 ? 'It' : 'They'}:`,
     ...req.lines.map((l) => `- ${l}`),
     ...(req.more ? [`… and ${req.more} more, not listed here (counted in the totals above).`] : []),

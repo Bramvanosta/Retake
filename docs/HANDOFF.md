@@ -49,6 +49,31 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.7)
+- **L7.7 done (2026-11-11; branch `claude/arch-l7`)** — prune keeps the capture that can be edited (decided by the person,
+  2026-11-10: keep both). Per scenario prune keeps the newest take whose record says the capture
+  succeeded, the newest take that can really be edited (core's rule `takeOf`) and the newest such take not stopped by
+  `--until`; a run folder that is a symbolic link is never "the last capture" and never listed; a take written by a
+  newer Retake is left alone, also when its `run.json` is a link or too big for the reader. The rule is core's third,
+  beside the two of L7.6a (`packages/core/src/take.ts` `pruneKeeper`, pure), and prune reads the run folders through
+  the one reader; it keeps its lenient read (`pruneSaid`) for a `run.json` the reader does not take, so that no take
+  that could go before is now left alone — except a file that is no regular file or is over 32 MB, which is no longer
+  read (its take is kept); the ratchet's entry stays (93). The result says what stayed and why (`kept_takes`; `kept`
+  lines in `retake prune`, per reason the first five and then a count; one line per reason with a count through MCP;
+  the approval form of an agent's prune names the keeps). A timeline is opened only when the record asks for it and
+  the folder holds a file that could be its film. **Proved:** against a build of the commit before the lot, 3 000
+  generated run-folder layouts in dry mode (1 800 of the first pass, run again with the same counts, and 1 200 with the
+  states of the fix pass) — the new list is a subset of the old one in every layout and every run that left it is one
+  the decisions keep; the same property is held by the suite on 300 seeded layouts against a frozen copy of the old
+  rule. The MCP tool list, the op table, the generated schemas and the CLI golden are byte-identical. **Left:** a
+  render renamed by hand still protects its take only while it counts among the newest renders (R-1, with L7.6b);
+  prune frees less and has no option to list or free what it kept; a link to nothing in `runs/` can make the
+  unread-threads sentence appear; takes that hold a film and a timeline that does not read cost a whole parse each on
+  every pass (1 s for 60 × 5 MB); `project_prune`'s description does not name the new keeps (a pinned surface: the
+  sentence is ready). **Checked:** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`, each changed test
+  file alone, 45 mutations (44 red, 1 equivalent), dry runs of the built CLI on five crafted projects. **The full
+  suite was not run.**
+
 ## State (after L7.6a)
 - **L7.6a done (2026-11-10; branch `claude/arch-l7`)** — the run record as a union, the take, one "usable capture"
   rule and one "latest run" rule (first half of U5 of the
@@ -1178,7 +1203,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: the prune lot and L7.6b (the rest of U5), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: L7.6b (render records, the rest of U5), then U6 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

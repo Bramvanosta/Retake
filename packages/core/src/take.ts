@@ -1,7 +1,7 @@
 /**
- * The take, and the two rules every reader of a project's runs shares: whether a capture can be edited (`takeOf`), and
- * which run `latest` names (`orderRuns`, `latestTake`). A run named by its id or its folder has its own, older rule
- * (`namedRunProblem`): it works whatever its record says.
+ * The take, and the rules every reader of a project's runs shares: whether a capture can be edited (`takeOf`), which
+ * run `latest` names (`orderRuns`, `latestTake`), and which captures prune keeps (`pruneKeeper`). A run named by its id
+ * or its folder has its own, older rule (`namedRunProblem`): it works whatever its record says.
  *
  * Pure: the rules take facts an adapter read (core/io run-folder.ts), never a path. No I/O, no clock.
  */
@@ -295,6 +295,126 @@ export async function latestTake(ordered: readonly RunId[], scenario: string | u
     else reasons.push({ why: v.why, count: 1 });
   }
   return { passed, passed_more: more, reasons, without_record: withoutRecord, ...(newer && !other ? { only_newer: newer } : {}) };
+}
+
+// ── Rule 3 — the captures prune keeps ──────────────────────────────────────
+
+/**
+ * Why prune keeps a capture, per scenario as the records name it: `last-capture` — the newest run whose record says a
+ * capture that succeeded, whatever its folder still holds; `editable` — the newest usable take (rule 1); `complete` —
+ * the newest usable take that was not stopped by `--until`.
+ */
+export type PruneKeep = 'last-capture' | 'editable' | 'complete';
+
+/**
+ * Why prune leaves a run folder alone — kept, never "the last capture" of a scenario, never listed: `linked` — the
+ * folder is a symbolic link (nothing behind it is read); `newer-format` — its run.json was written by a newer Retake.
+ */
+export type PruneAlone = 'linked' | 'newer-format';
+
+/**
+ * What a run.json says of its run in the file's own words, for a run prune decides on: read by the one reader, or —
+ * for a file the reader does not take as a record — as prune always read it (`scenario` and `mode` are then whatever
+ * the file holds).
+ */
+export interface PruneSaid {
+  scenario: unknown;
+  mode: unknown;
+  status: string;
+}
+
+/**
+ * What prune's own read of a run.json the reader did not take (a link, a file over the reader's cap) found it to be: a
+ * record of a newer Retake — left alone like one the reader met. `scenario`: the one it names, when it is text.
+ */
+export interface PruneNewer {
+  newer: true;
+  scenario?: string;
+}
+
+/** A run prune decides on: what its record says, and what the rule keeps it for (none: nothing of the rule keeps it). */
+export interface PruneRun extends PruneSaid {
+  /** The folder's name. */
+  id: string;
+  keep: PruneKeep[];
+}
+
+/**
+ * What the rule answers, newest first: the runs prune decides on, the folders it leaves alone, and how many folders
+ * hold no run.json that says anything (kept as they always were: counted, never listed).
+ */
+export interface PruneRuns {
+  runs: PruneRun[];
+  /** `scenario`: the scenario a newer record names, when it says one (read leniently, for whoever keeps things per scenario). */
+  alone: Array<{ id: string; why: PruneAlone; scenario?: string }>;
+  unread: number;
+}
+
+/**
+ * Rule 3 — what prune keeps of the captures: per scenario the newest run whose record says a capture that succeeded
+ * AND the newest usable take AND the newest usable take not stopped by `--until` (one run, when it is all three). A
+ * linked folder and a record of a newer Retake are left alone: never the last capture of anything, never a run to
+ * delete. The rule only adds to what the record alone kept: a run is a candidate exactly when it was one before (a
+ * real folder whose run.json says an id and a status), a linked folder and a newer record apart.
+ *
+ * Fed one run folder at a time, NEWEST FIRST (orderRuns): `add` the facts of each — with `said` for a folder whose
+ * run.json the reader does not take as a record (what the file says all the same — or that it is a record of a newer
+ * Retake: left alone too —; null: nothing) —; `needsTimeline` is the reader's question for the next one (core/io
+ * readRunFolder `timeline`), answered from the record: a timeline is opened only for a capture that succeeded of a
+ * scenario whose complete take is not found yet — and, once the scenario's take that can be edited is found, not for
+ * a capture its record says was stopped by `--until` (it can be neither) —, so an older run costs its run.json alone.
+ */
+export function pruneKeeper(): { needsTimeline(record: RunRead): boolean; add(facts: RunFolderFacts, said?: PruneSaid | PruneNewer | null): void; done(): PruneRuns } {
+  const runs: PruneRun[] = [];
+  const alone: PruneRuns['alone'] = [];
+  let unread = 0;
+  // The scenarios whose newest of each kind is found (a scenario: what the record holds there, text or not).
+  const found: Record<PruneKeep, Set<unknown>> = { 'last-capture': new Set(), editable: new Set(), complete: new Set() };
+  return {
+    needsTimeline: (record) =>
+      record.ok &&
+      takeNeedsTimeline(record) &&
+      !found.complete.has(record.value.scenario) &&
+      // Stopped by `--until`: never the complete take, and the one that can be edited is already found.
+      !(found.editable.has(record.value.scenario) && untilOf(record.value) !== undefined),
+    add(facts, lenient) {
+      const id = facts.name;
+      if (facts.folder === 'link') return void alone.push({ id, why: 'linked' });
+      const r = facts.record;
+      if (facts.folder === 'dir' && !r.ok && r.problem === 'newer-format') return void alone.push({ id, why: 'newer-format', ...(r.scenario !== undefined ? { scenario: r.scenario } : {}) });
+      const own = facts.folder !== 'dir' || r.ok || r.problem === 'unknown-status' ? null : (lenient ?? null);
+      // A record of a newer Retake behind a run.json the reader did not open: left alone as well.
+      if (own && 'newer' in own) return void alone.push({ id, why: 'newer-format', ...(own.scenario !== undefined ? { scenario: own.scenario } : {}) });
+      const said: PruneSaid | null = facts.folder !== 'dir' ? null : r.ok ? r.value : r.problem === 'unknown-status' ? r.record : own;
+      if (!said) return void unread++;
+      const keep: PruneKeep[] = [];
+      const first = (why: PruneKeep): void => {
+        if (found[why].has(said.scenario)) return;
+        found[why].add(said.scenario);
+        keep.push(why);
+      };
+      if (said.mode === 'capture' && said.status === 'succeeded') first('last-capture');
+      const verdict = takeOf(facts);
+      if (verdict.usable) {
+        first('editable');
+        if (verdict.take.until === undefined) first('complete');
+      }
+      runs.push({ id, scenario: said.scenario, mode: said.mode, status: said.status, keep });
+    },
+    done: () => ({ runs, alone, unread }),
+  };
+}
+
+const PRUNE_KEPT_WORDS: Record<Exclude<PruneKeep, 'last-capture'> | PruneAlone, string> = {
+  editable: 'the last capture that can be edited',
+  complete: 'the last complete capture (a newer one was stopped by --until)',
+  linked: 'its folder is a link (left alone)',
+  'newer-format': 'written by a newer Retake (left alone)',
+};
+
+/** Why prune kept a take that its list would otherwise hold, or left a folder alone: fixed words, never a text read from a file. */
+export function pruneKeptWords(why: Exclude<PruneKeep, 'last-capture'> | PruneAlone): string {
+  return PRUNE_KEPT_WORDS[why];
 }
 
 const REASON_WORDS: Record<NotUsable, string> = {

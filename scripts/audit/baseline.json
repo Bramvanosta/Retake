@@ -172,7 +172,7 @@
   },
   {
    "rule": "record-read",
-   "reason": "Prune reads run.json as it always has (any object with a text id and status, links followed, no version check) into a shape of its own: sending it through the reader would change what it keeps and deletes, which is decided in a lot of its own (L7.6 open decisions, prune).",
+   "reason": "Prune reads the run folders through the reader (L7.7) and keeps its lenient read for one case: a run.json the reader does not take as a record (a finished run without its end, a failed one without its error, a linked file) is still read as any object with a text id and status, so that a take prune could delete before the lot can still be deleted — leaving such a take alone is a change nobody decided. Where this read is stricter than before it only keeps: a file of a newer format is left alone, one that is no regular file or is over the reader's cap is not read.",
    "entries": [
     "packages/engine/src/prune.ts → 1 own read of a run folder's file"
    ]

@@ -12,6 +12,17 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- `retake prune` and `project_prune` keep the capture you can still edit. Per scenario they now keep the newest take
+  whose record says the capture succeeded **and** the newest take that can really be edited (its timeline reads, its
+  film is there) **and** the newest such take that was not stopped by `--until`. Before, a newer capture whose film
+  had been removed, whose timeline was damaged, or that was a short `--until` test sent the older, complete capture
+  to the list — the only one a render could still use. A run folder that is a symbolic link is no longer taken for a
+  scenario's last capture and is never listed (deleting one only ever removed the link); a take written by a newer
+  Retake is left alone. Prune lists nothing it kept before: it only keeps more, so it can free less — delete such a
+  take by hand when you want its space. The output says what stayed and why (`kept  run  <id>  the last capture that
+  can be edited`, per reason the first five takes and then a count; through MCP one line per reason with a count;
+  `kept_takes` in the result and with `--json`), and the approval form of an agent's prune names these keeps. A
+  `run.json` that is no regular file or is over 32 MB is no longer read by prune: its take is kept.
 - On a Mac, a render on the GPU path (from a terminal, or from the Studio or an MCP client of a checkout) now encodes
   the video's frames with your own ffmpeg (the one `retake doctor` shows) when it is recent enough and runs the
   encode. Measured on one Mac under load, on one 1-minute 1080p render: about a fifth less CPU, no measured gain in
