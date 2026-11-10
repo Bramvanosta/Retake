@@ -36,11 +36,6 @@
     "vitest": "^3.2.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "@remotion/compositor-linux-x64-gnu"
-    ],
     "overrides": {
       "@napi-rs/canvas": "-"
     },

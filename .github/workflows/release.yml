@@ -22,8 +22,8 @@
 #    the update published (scripts/publish-update.mjs, with the job token: the version's platform file, then the
 #    update-feed release's latest.json / rc.json — the only release whose files are replaced once public).
 #
-# No CI workflow runs the tests on pull requests or main yet (BACKLOG BL-144): nothing here checks that the tagged
-# commit's tests passed — run `pnpm build` and `pnpm test` before you tag.
+# The CI workflow (ci.yml) builds and runs the default suite on pull requests and main; this workflow does not wait for
+# it yet (BACKLOG BL-144): see that main's CI run of the commit you tag is green before you tag.
 #
 # What is not configured is skipped and said; a partial set fails the run (scripts/release.mjs CONFIG_SETS):
 #  - the Apple set (all secrets): APPLE_CERTIFICATE (the Developer ID Application certificate's .p12, base64),
@@ -199,8 +199,9 @@ jobs:
       - name: Dependencies
         run: pnpm install --frozen-lockfile
       - name: Rust 1.99.1
-        # The toolchain every local build of the app was made and tested with (Cargo.toml's rust-version, the MSRV, is
-        # 1.90), through the runner image's rustup; cargo builds exactly Cargo.lock (bundle.mjs: --locked).
+        # The toolchain every local build of the app is made with (apps/desktop/rust-toolchain.toml; Cargo.toml's
+        # rust-version, the MSRV, is 1.90), through the runner image's rustup; cargo builds exactly Cargo.lock
+        # (bundle.mjs: --locked).
         run: |
           set -eu
           rustup toolchain install 1.99.1 --profile minimal --target aarch64-apple-darwin

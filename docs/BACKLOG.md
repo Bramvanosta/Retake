@@ -2296,7 +2296,8 @@ and `job_end` lines); what remains:
   a download of our own (or a newer plugin).
 
 ### BL-144 — A CI workflow for pull requests and main
-*S · noted in L5.16e · builds on: L5.16e*
+*S · noted in L5.16e · builds on: L5.16e · partly done (2026-11-10): `.github/workflows/ci.yml` exists (build, guards,
+default suite, the shell's rules); left: the release job waiting for main's green run, `actionlint`*
 
 - The repository has only the release workflow (`.github/workflows/release.yml`, on `v*` tags): nothing runs
   `pnpm build` and the test suite on a pull request or a push to main, so the release job checks that the tagged

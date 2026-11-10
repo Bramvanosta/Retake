@@ -117,6 +117,7 @@ interface StageModule {
   RENDERER_PATCH_MARKS: Record<string, Record<string, number>>;
   rendererPatchProblems(dir: string): string[];
   scrubDeployedEngine(engine: string): void;
+  staleBuildOutputs(repo: string): string[];
 }
 const stageModule = async () => (await import(pathToFileURL(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs')).href)) as StageModule;
 
@@ -311,6 +312,28 @@ describe('the stage never writes the checkout (H1: pnpm deploy hard-links inject
     expect(repoSnapshot(repo)).not.toBe(modified);
     writeFileSync(join(repo, 'packages', 'a', 'notes.txt'), 'x');
     expect(repoSnapshot(repo)).toMatch(/^\?\? packages\/a\/notes\.txt /m);
+  });
+
+  it("a build output whose source is gone is found, and the stage refuses it before it deploys anything", async () => {
+    const { staleBuildOutputs } = await stageModule();
+    const repo = join(tmp, `stale-${Date.now()}`);
+    const put = (rel: string) => {
+      mkdirSync(dirname(join(repo, rel)), { recursive: true });
+      writeFileSync(join(repo, rel), '');
+    };
+    for (const f of ['a/src/index.ts', 'a/src/sub/view.tsx', 'a/src/kit.mts', 'a/src/plain.js']) put(`packages/${f}`);
+    for (const f of ['a/dist/index.js', 'a/dist/index.d.ts', 'a/dist/index.js.map', 'a/dist/sub/view.js', 'a/dist/kit.mjs', 'a/dist/plain.js', 'a/dist/moved.js', 'a/dist/moved.d.ts', 'a/dist/old/gone.cjs', 'b/dist/x.js']) put(`packages/${f}`);
+    put('packages/c/src/only.ts');
+    expect(staleBuildOutputs(repo)).toEqual(['packages/a/dist/moved.js', 'packages/a/dist/old/gone.cjs', 'packages/b/dist/x.js']);
+    rmSync(join(repo, 'packages', 'a', 'dist', 'moved.js'));
+    rmSync(join(repo, 'packages', 'a', 'dist', 'old'), { recursive: true });
+    rmSync(join(repo, 'packages', 'b'), { recursive: true });
+    expect(staleBuildOutputs(repo)).toEqual([]);
+    // The check runs before the engine is deployed (and after the build is known to exist).
+    const js = readFileSync(join(REPO, 'apps', 'desktop', 'scripts', 'bundle.mjs'), 'utf8');
+    const stage = js.slice(js.indexOf('function stageInto('));
+    expect(stage.indexOf('staleBuildOutputs(REPO)')).toBeGreaterThan(stage.indexOf("throw new StageError('run pnpm build first')"));
+    expect(stage.indexOf('staleBuildOutputs(REPO)')).toBeLessThan(stage.indexOf('deployEngine(REPO, engine)'));
   });
 
   it('breakHardLinks keeps bytes and mode; templates / skills are copied from git-tracked files only', async () => {

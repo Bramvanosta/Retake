@@ -1,0 +1,102 @@
+# Checks on every pull request and every push to main (BACKLOG BL-144):
+#  - checks (macOS 15, Apple silicon, the machine Retake is made for):
+#    - the pinned Node.js, then pnpm;
+#    - the packages built;
+#    - the repository's own guards: one version, the import-rules ratchet, every phase-1 requirement tested, every
+#      cited test title present;
+#    - Chromium and the headless shell (the revisions the lockfile's playwright-core pins), ffmpeg (Homebrew's);
+#    - the default test suite (`pnpm test`). The gated tests stay opt-in, as on a Mac: slow, captures first,
+#      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed.
+#  - desktop: the desktop shell's rules crate (apps/desktop/core, `cargo test`), on the Rust of
+#    apps/desktop/rust-toolchain.toml.
+#
+# A pull request's code runs here: no secret, no environment, a read-only token, pull_request only (never
+# pull_request_target), and no cache. Nothing a run fills can reach a release build: release.yml keeps no cache either.
+# Every action is pinned to a commit, the same pins as release.yml (packages/cli/test/ci-workflow.test.ts).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: macos-15
+    timeout-minutes: 120
+    permissions:
+      contents: read
+    env:
+      RETAKE_DISK_WARN: "off"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Node.js, the pinned build
+        # The official tarball of the version apps/desktop/bundle/node.json pins, checked against its sha256 before
+        # anything of it runs (apps/desktop/scripts/ci-node.sh, as in release.yml).
+        run: bash apps/desktop/scripts/ci-node.sh
+      - name: pnpm (corepack, at package.json's packageManager)
+        # Corepack downloads the pinned pnpm and checks it against the sha512 packageManager carries.
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          set -eu
+          corepack enable
+          pnpm --version
+      - name: Dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build the packages
+        run: pnpm build
+      - name: The repository's guards
+        run: |
+          set -eu
+          node scripts/set-version.mjs --check
+          node scripts/audit/rules.mjs . --check
+          node scripts/requirements.mjs --untested 1
+          node scripts/requirements.mjs --check-cites
+      - name: Chromium and the headless shell
+        run: node packages/runner-web/node_modules/playwright-core/cli.js install chromium chromium-headless-shell
+      - name: ffmpeg
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          set -eu
+          command -v ffmpeg >/dev/null || brew install ffmpeg
+          ffmpeg -hide_banner -version | head -1
+      - name: The test suite
+        # A Retake home of the run's own, outside the checkout.
+        run: |
+          set -eu
+          export RETAKE_HOME="$RUNNER_TEMP/retake-home"
+          mkdir -p "$RETAKE_HOME"
+          pnpm test
+
+  desktop:
+    runs-on: macos-15
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Node.js, the pinned build
+        run: bash apps/desktop/scripts/ci-node.sh
+      - name: Rust, apps/desktop/rust-toolchain.toml's
+        run: |
+          set -eu
+          V=$(sed -n 's/^channel = "\(.*\)"$/\1/p' apps/desktop/rust-toolchain.toml)
+          rustup toolchain install "$V" --profile minimal
+          echo "RUSTUP_TOOLCHAIN=$V" >> "$GITHUB_ENV"
+          rustup run "$V" rustc --version
+      - name: The shell's rules
+        run: node apps/desktop/scripts/desktop.mjs test

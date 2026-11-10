@@ -15,6 +15,19 @@ fixtures/*/public/build/
 .retake/
 *.log
 .env
+.env.*
+# signing material never enters the repository (docs/RELEASING.md: certificates, API keys and the updater key live in
+# the release environment's secrets and a password manager)
+*.p12
+*.pfx
+*.p8
+*.cer
+*.pem
+*.key
+*.keychain
+*.keychain-db
+*.mobileprovision
+*.provisionprofile
 # test / capture artefacts
 *.mp4
 *.mov

@@ -83,12 +83,17 @@ automatically with themeable components, and let Claude operate everything throu
     test's `job_cancel` destructive hint had been stale since L6.5; render bundles and the Studio player's bundle
     rebuild once (the geometry files joined their hash); a component README that is a symbolic link out of the
     components folder is refused (CHANGELOG).
-  - **Open:** T15's rest (a CI on pull requests — only release.yml exists —, `rust-toolchain.toml`, one
-    `onlyBuiltDependencies` list — package.json and pnpm-workspace.yaml both hold one —, `.gitignore` patterns for
-    signing material; SECURITY.md and `packageManager` with its hash are in place) and T16 (the next audit's measures, not run: the person asked for no measuring in this series). For the
-    person to decide: the desktop bundle stages each package's `dist` as it is (`pnpm deploy`), so an output whose
-    source was removed (an old `kit/kit.js`) can ship — clean `dist` before staging, or refuse a `.js` without a
-    source.
+  - **T15's rest (2026-11-10, after the series):** a CI on pull requests and main (`.github/workflows/ci.yml`: the
+    build, the guards — one version, the import-rules ratchet, requirements tested and cited — and the default suite
+    on macOS 15; the shell's rules on the pinned Rust; no secret, no cache, actions pinned like release.yml's;
+    `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144); the shell's Rust pinned in
+    `apps/desktop/rust-toolchain.toml` (cargo runs from apps/desktop for the shell, from the repository root for the
+    rules crate, which keeps any Rust 1.70+; the release workflow's version held equal by its test); one
+    `onlyBuiltDependencies` list (pnpm-workspace.yaml: pnpm 10 never read package.json's); `.gitignore` patterns for
+    signing material (`.p12`, `.p8`, `.key`, `.pem`, keychains, profiles, `.env.*`). The app bundle refuses a build
+    output with no source (`staleBuildOutputs`: a `.js` in a package's `dist/` whose `src/` file is gone — `tsc -b`
+    never removes it and `pnpm deploy` would ship it; nine such files sat in this checkout after the series' moves).
+  - **Open:** T16 (the next audit's measures, not run: the person asked for no measuring in this series).
 
 ## State (after L5.18)
 - **L5.18 done (2026-11-09; pending the person's review of the pull request)** — hardening before the first release,
@@ -916,7 +921,7 @@ checks the result):
 4. **The repository** — `git clone -b main <repository URL> retake && cd retake`, then `pnpm install` and
    `pnpm build`. The lockfile already lists the macOS binaries (`@remotion/compositor-darwin-arm64`,
    `@img/sharp-darwin-arm64`, `@esbuild/darwin-arm64`); pnpm 10 runs install scripts only for esbuild and sharp
-   (`onlyBuiltDependencies` in `pnpm-workspace.yaml` / `package.json`).
+   (`onlyBuiltDependencies` in `pnpm-workspace.yaml`, the one list).
 5. **Chromium for playwright-core** — `pnpm --filter @retake/runner-web exec playwright-core install chromium`.
    This downloads the Chromium build pinned by playwright-core 1.56.1 (Chromium 141, revision 1194) **and** its
    headless shell into `~/Library/Caches/ms-playwright/`. How the browsers are found

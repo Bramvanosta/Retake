@@ -16,7 +16,8 @@
  * `--offline` is passed (a machine whose cargo cache lacks a crate: `cargo fetch --locked` once with a network). The
  * build folders are CARGO_TARGET_DIR when set, else apps/desktop/target (the shell) and apps/desktop/core/target (the
  * rules crate, also what desktop-core.test.ts builds) — inside the checkout, git-ignored, one set per checkout or
- * worktree. Rust is never needed by `pnpm build` or `pnpm test`.
+ * worktree. The shell's Rust is apps/desktop/rust-toolchain.toml's (cargo runs from apps/desktop for it). Rust is never
+ * needed by `pnpm build` or `pnpm test`.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -55,7 +56,10 @@ function fail(message, code = 1) {
 
 function cargo(args, manifest = join(APP_DIR, 'Cargo.toml'), dir = target) {
   const env = { ...process.env, CARGO_TARGET_DIR: dir, ...(offline ? { CARGO_NET_OFFLINE: 'true' } : {}) };
-  const r = spawnSync('cargo', [...args, '--locked', ...(offline ? ['--offline'] : []), '--manifest-path', manifest], { stdio: 'inherit', env });
+  // The shell builds from apps/desktop, so its rust-toolchain.toml applies; the rules crate from the repository root
+  // (any Rust 1.70 or later, like desktop-core.test.ts).
+  const cwd = manifest === CORE ? REPO : APP_DIR;
+  const r = spawnSync('cargo', [...args, '--locked', ...(offline ? ['--offline'] : []), '--manifest-path', manifest], { stdio: 'inherit', env, cwd });
   if (r.error && r.error.code === 'ENOENT') fail('the desktop shell needs Rust (cargo on PATH) and the Xcode command line tools: docs/guide/desktop-app.md › Desktop app (macOS)', 2);
   if (r.status !== 0) {
     fail(`cargo ${args[0]} failed${offline ? ' (offline: a crate missing from the cargo cache needs `cargo fetch --locked` once with a network)' : ''}`, r.status ?? 1);

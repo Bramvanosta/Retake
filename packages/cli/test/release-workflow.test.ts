@@ -532,6 +532,10 @@ describe('release.yml: what it runs', () => {
     const [, maj, min] = /rustup toolchain install (\d+)\.(\d+)\.\d+ --profile minimal --target aarch64-apple-darwin\n/.exec(rust)!.map(Number);
     expect(maj! * 1000 + min!).toBeGreaterThanOrEqual(Number(msrv[1]) * 1000 + Number(msrv[2]));
     expect(rust).toMatch(/echo "RUSTUP_TOOLCHAIN=1\.99\.1" >> "\$GITHUB_ENV"/);
+    // The same Rust as a local build of the shell: apps/desktop/rust-toolchain.toml.
+    const channel = /^channel = "([^"]+)"$/m.exec(readFileSync(join(REPO, 'apps', 'desktop', 'rust-toolchain.toml'), 'utf8'))![1];
+    expect(rust).toContain(`rustup toolchain install ${channel} --profile minimal`);
+    expect(rust).toContain(`RUSTUP_TOOLCHAIN=${channel}"`);
   });
 
   it('the build job: Node.js checked first, the browsers checked after their install, ffmpeg built at every run, the app laid out ad hoc by desktop:bundle --app-only; Homebrew never updates itself, pkg-config\'s version said', () => {

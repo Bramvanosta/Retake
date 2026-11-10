@@ -4,7 +4,7 @@ Tasks from the 2026-11-04 audit, for the person to schedule. The ROADMAP's MVP s
 until the person adds it. Sizes follow the ROADMAP (S ≈ 0.3–0.5 M tokens, M ≈ 0.6–1.0 M, L ≈ 1.0–1.6 M). Order is by
 value and risk; "needs" lists prerequisites.
 
-**Status (2026-11-10):** T-SEC done (L5.17, L5.18); T1 – T14 done in the architecture series L6.1 – L6.13 (branch `claude/arch-l6`, HANDOFF "State (after the architecture series)"); open: T15's rest (a CI on pull requests, `rust-toolchain.toml`, one `onlyBuiltDependencies` list, `.gitignore` patterns for signing material) and T16.
+**Status (2026-11-10):** T-SEC done (L5.17, L5.18); T1 – T14 done in the architecture series L6.1 – L6.13 (branch `claude/arch-l6`, HANDOFF "State (after the architecture series)"); T15 done (2026-11-10: the CI on pull requests, `rust-toolchain.toml`, one `onlyBuiltDependencies` list, `.gitignore` patterns for signing material; GitHub's settings are the person's); open: T16.
 
 ## Tasks
 

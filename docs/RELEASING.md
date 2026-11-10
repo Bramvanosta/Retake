@@ -144,7 +144,8 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    re-record `apps/desktop/bundle/browsers.json` for the new revision folders
    (`node apps/desktop/scripts/bundle.mjs browser-digest <Playwright's cache>/chromium-<revision>`, and the headless
    shell's; DESIGN §4p (e)). Every release, even when nothing else changed.
-2. **The version**, everywhere it is written, then the tests (no CI workflow runs them on main yet — BACKLOG BL-144):
+2. **The version**, everywhere it is written, then the tests (the CI workflow, `.github/workflows/ci.yml`, runs them on main too; the release does not wait for
+   it — see that main's run of the commit is green before you tag, BACKLOG BL-144):
    ```sh
    node scripts/set-version.mjs 0.2.1
    node scripts/set-version.mjs --check      # says nothing: every file agrees
@@ -152,7 +153,7 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    ```
 3. **The notes**: a `## [0.2.1] — <date>` section in `CHANGELOG.md` whose first paragraph is written for the person
    about to click Install and Restart (plain text: the update sheet shows it as typed; the release page shows it too).
-4. **Commit on main** and push main.
+4. **Commit on main** and push main; wait for its CI run (`gh run list --branch main --workflow ci.yml`) to be green.
 5. **Tag that commit and push the tag** — the tag is the release:
    ```sh
    git tag v0.2.1
