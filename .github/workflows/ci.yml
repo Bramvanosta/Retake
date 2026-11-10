@@ -9,9 +9,10 @@
 #      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed. The tests calibrated on
 #      the Mac Retake is made for (capture frame rates, freezes, paint and wait timings) skip here:
 #      RETAKE_TEST_SHARED_RUNNER=1 (a runner has fewer cores and no GPU); they run on the Mac with the full suite.
-#      One test file at a time (the Mac runs two: vitest.config.ts): two browsers drawn without a GPU saturate the
-#      runner's three cores, and the timings the suite asserts go with them. A test that still fails is run twice more
-#      before the run fails (--retry=2, here only: on the Mac a test fails the first time).
+#      Two test files at a time, as on the Mac (vitest.config.ts): one at a time ran past two hours and stalled. Two
+#      browsers drawn without a GPU load the runner's three cores, so a timing the suite asserts fails now and then:
+#      a test that fails is run twice more before the run fails (--retry=2, here only: on the Mac a test fails the
+#      first time).
 #  - desktop: the desktop shell's rules crate (apps/desktop/core, `cargo test`), on the Rust of
 #    apps/desktop/rust-toolchain.toml.
 #
@@ -35,7 +36,7 @@ concurrency:
 jobs:
   checks:
     runs-on: macos-15
-    timeout-minutes: 150
+    timeout-minutes: 120
     permissions:
       contents: read
     env:
@@ -84,7 +85,7 @@ jobs:
           set -eu
           export RETAKE_HOME="$RUNNER_TEMP/retake-home"
           mkdir -p "$RETAKE_HOME"
-          pnpm test --poolOptions.forks.maxForks=1 --retry=2
+          pnpm test --retry=2
 
   desktop:
     runs-on: macos-15

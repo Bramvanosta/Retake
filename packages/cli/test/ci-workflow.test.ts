@@ -74,8 +74,9 @@ describe('the CI workflow (ci.yml)', () => {
     for (const g of ['node scripts/set-version.mjs --check', 'node scripts/audit/rules.mjs . --check', 'node scripts/requirements.mjs --untested 1', 'node scripts/requirements.mjs --check-cites']) expect(guards).toContain(g);
     const suite = step('checks', 'The test suite').run!;
     expect(suite).toMatch(/export RETAKE_HOME="\$RUNNER_TEMP\/retake-home"/);
-    // One file at a time on the runner (vitest.config.ts runs two on the Mac), a failing test run twice more.
-    expect(suite.trim().split('\n').at(-1)).toBe('pnpm test --poolOptions.forks.maxForks=1 --retry=2');
+    // Two files at a time, as on the Mac (vitest.config.ts); a failing test run twice more, on the runner only.
+    expect(suite.trim().split('\n').at(-1)).toBe('pnpm test --retry=2');
+    expect(read('vitest.config.ts')).not.toMatch(/retry/);
     expect(read('vitest.config.ts')).toContain('poolOptions: { forks: { maxForks: 2 } }');
     // No gated test turned on (they stay opt-in, as on a Mac); the Mac-calibrated timings off.
     expect([...code.matchAll(/RETAKE_TEST_[A-Z_]+/g)].map((m) => m[0])).toEqual(['RETAKE_TEST_SHARED_RUNNER']);
