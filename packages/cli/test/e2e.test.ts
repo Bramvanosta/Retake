@@ -16,6 +16,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RunRecordSchema, TimelineSchema } from '@retake/core';
 import type { RunProgress, RunRecord, Timeline, TimelineEvent } from '@retake/core';
 import { EXIT, VERSION, main, memoryIo } from '../src/index.js';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 const execFileP = promisify(execFile);
 const REPO = fileURLToPath(new URL('../../../', import.meta.url));
@@ -155,7 +158,7 @@ describe.skipIf(!AVAILABLE)('retake run (fixture product, headless capture)', ()
     expect(tl.cursor.length).toBeGreaterThan(10);
     // A freeze during a click ripple only is the known dialog-close stall with the frame rate limiter on (R-ISS-12).
     const rippleOnly = (w: string): boolean => w.startsWith('the capture froze') && !w.includes('cursor moving');
-    expect(tl.warnings.filter((w) => !w.includes('captured below') && !rippleOnly(w))).toEqual([]);
+    if (MAC_TIMING) expect(tl.warnings.filter((w) => !w.includes('captured below') && !rippleOnly(w))).toEqual([]);
 
     // Events: in order, inside the capture, no hesitation between steps, clicks inside their targets.
     const steps = tl.events.filter((e) => e.step >= 0);

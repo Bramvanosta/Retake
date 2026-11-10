@@ -39,6 +39,10 @@ release — for the person about to click Install and Restart.
   there is one.
 - `retake doctor` and `retake list` say "theme" where they said "template" (the check names stay).
 
+### Fixed
+- The Studio's Set-up sheet: after Install or Uninstall of the `retake` command, the keyboard focus lands on the
+  command's next action once the sheet shows the new status, instead of being lost when the status came back late.
+
 ## [0.2.0] — 2026-11-03
 
 The first installable version: Retake as a macOS app with everything inside — its own Node.js, browsers, ffmpeg and

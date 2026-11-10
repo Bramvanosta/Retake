@@ -16,6 +16,9 @@ import { kitConfigFor, openSession, runScenario, useRealTime } from '../src/inde
 import type { CursorEffectPayload } from '../src/index.js';
 import { FAST, makeProject, makeScenario, readTimeline, tempDir } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let server: Server;
 let A = '';
@@ -122,7 +125,7 @@ describe('the clock in a session (R-ENV-05)', () => {
     }
   });
 
-  it('the product\'s own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)', async () => {
+  it.skipIf(!MAC_TIMING)('the product\'s own timers, animation frames and performance stay real (T1: a faked rAF / timer slowed them down)', async () => {
     const session = await openSession({ policy: PERSON_POLICY, width: 800, height: 600, scale: 1, kit: kitConfigFor(undefined) });
     try {
       const page = await session.page('main');

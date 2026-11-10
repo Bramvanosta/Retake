@@ -3,6 +3,7 @@
  * may reach (no secret, no environment, a read-only token, no cache), every action pinned like release.yml's, the
  * pinned Node.js first, the guards and the default suite after the build, the shell's Rust from its toolchain file.
  */
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -74,15 +75,29 @@ describe('the CI workflow (ci.yml)', () => {
     const suite = step('checks', 'The test suite').run!;
     expect(suite).toMatch(/export RETAKE_HOME="\$RUNNER_TEMP\/retake-home"/);
     expect(suite.trim().split('\n').at(-1)).toBe('pnpm test');
-    // No gated test turned on: they stay opt-in, as on a Mac.
-    expect(code).not.toMatch(/RETAKE_TEST_[A-Z_]+/);
-    expect(jobs.checks!.env).toEqual({ RETAKE_DISK_WARN: 'off' });
+    // No gated test turned on (they stay opt-in, as on a Mac); the Mac-calibrated timings off.
+    expect([...code.matchAll(/RETAKE_TEST_[A-Z_]+/g)].map((m) => m[0])).toEqual(['RETAKE_TEST_SHARED_RUNNER']);
+    expect(jobs.checks!.env).toEqual({ RETAKE_DISK_WARN: 'off', RETAKE_TEST_SHARED_RUNNER: '1' });
     // Every script the workflow names exists.
     for (const [p] of raw.matchAll(/(?:apps\/desktop\/)?scripts\/[\w/.-]+\.(?:mjs|sh)|packages\/[\w-]+\/node_modules\/[\w-]+\/[\w.-]+\.js/g)) {
       if (p.includes('/node_modules/')) {
         const [, pkg, dep] = /^packages\/([\w-]+)\/node_modules\/([\w-]+)\//.exec(p)!;
         expect(JSON.parse(read(`packages/${pkg}/package.json`)).dependencies, p).toHaveProperty(dep!);
       } else expect(() => read(p), p).not.toThrow();
+    }
+  });
+
+  it('RETAKE_TEST_SHARED_RUNNER skips Mac-calibrated timings only, in the files listed here (a new one is a decision)', () => {
+    const files = execFileSync('git', ['grep', '-l', 'RETAKE_TEST_SHARED_RUNNER', '--', 'packages'], { cwd: REPO, encoding: 'utf8' }).trim().split('\n').sort();
+    expect(files).toEqual([
+      'packages/cli/test/ci-workflow.test.ts',
+      'packages/cli/test/e2e.test.ts',
+      ...['acceptance', 'capture-pause', 'clock', 'kit', 'look', 'navigation', 'record-session', 'reliability', 'run'].map((f) => `packages/runner-web/test/${f}.test.ts`),
+    ]);
+    for (const f of files.filter((x) => !x.endsWith('ci-workflow.test.ts'))) {
+      const text = read(f);
+      expect(text.match(/RETAKE_TEST_SHARED_RUNNER/g), f).toHaveLength(2);
+      expect(text, f).toContain("const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';");
     }
   });
 

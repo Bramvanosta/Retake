@@ -7,6 +7,9 @@ import { CURSOR_DIALOG_PAGE, CURSOR_FORM_PAGE, CURSOR_PAGE, FRAME_PAGE, NO_CONTE
 import { startServer } from './helpers.js';
 import type { TestServer } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 let server: TestServer;
 /** Another origin (another port) serving the frame page: its content must stay out of reach. */
@@ -313,7 +316,7 @@ describe('cursor overlay', () => {
     expect(await page.evaluate(() => document.querySelector('retake-cursor')?.isConnected === true)).toBe(true);
   });
 
-  it('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
+  it.skipIf(!MAC_TIMING)('a cursor carried to a new document is drawn once the page painted content of its own, or when revealed (R-ISS-08)', async () => {
     await page.goto(`${server.url}/overlay-a.html`);
     await page.mouse.move(300, 260);
     await page.waitForTimeout(50);

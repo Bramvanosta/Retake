@@ -24,6 +24,9 @@ import type { FrameIndexEntry, RunOptions, ScreencastRecorder } from '../src/ind
 import { FAST, ffprobeDuration, makeProject, makeScenario, readTimeline, startServer, tempDir } from './helpers.js';
 import type { TestServer } from './helpers.js';
 import { PERSON_POLICY } from '@retake/core';
+// Calibrated on the Mac Retake is made for (frame rates, freezes, paint and wait timings): skipped on a shared CI
+// runner, where ci.yml sets RETAKE_TEST_SHARED_RUNNER=1 (fewer cores, no GPU).
+const MAC_TIMING = process.env.RETAKE_TEST_SHARED_RUNNER !== '1';
 
 const SHOTS = process.env.RETAKE_PAUSE_SHOTS;
 const FPS = 30;
@@ -362,7 +365,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(gap(paused) - gap(plain), `paused ${gap(paused)} s, unpaused ${gap(plain)} s`).toBeLessThan(0.8);
   });
 
-  it('no frame inside the pause; the first fresh frame lands at the pause instant (no gap at the cut); frame times in order', () => {
+  it.skipIf(!MAC_TIMING)('no frame inside the pause; the first fresh frame lands at the pause instant (no gap at the cut); frame times in order', () => {
     // In the order the recorder received them (file numbers, every one present): capture time never goes back — no
     // frame painted before the pause closed is stamped after a fresh one.
     expect(frames.map((f) => Number.parseInt(f.file, 10))).toEqual(frames.map((_, i) => i + 1));
@@ -378,7 +381,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(after.t - P, `first frame after the pause instant at ${after.t}`).toBeLessThan(0.1);
   });
 
-  it('capture.mp4 has no run of repeated frames for the pause (the board moves all the time; held loads aside)', () => {
+  it.skipIf(!MAC_TIMING)('capture.mp4 has no run of repeated frames for the pause (the board moves all the time; held loads aside)', () => {
     const v = grayFrames(join(paused.rec.dir, 'capture.mp4'));
     const loads = paused.tl.loading ?? [];
     const runs = repeatedRuns(v).filter(([i, n]) => {
@@ -401,7 +404,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
     expect(paused.tl.warnings.filter((w) => /froze|choppy/.test(w))).toEqual([]);
   });
 
-  it('the page loads held before and after the pause are where the frames show them (B1)', () => {
+  it.skipIf(!MAC_TIMING)('the page loads held before and after the pause are where the frames show them (B1)', () => {
     const loads = heldLoads(paused.tl);
     expect(loads, JSON.stringify(paused.tl.loading)).toHaveLength(2);
     const ev = (step: number) => paused.tl.events.find((e) => e.scene === 'board' && e.step === step)!;
@@ -428,7 +431,7 @@ describe('a capture paused between steps (real Chromium, an animated board)', ()
 });
 
 describe('other capture pauses', () => {
-  it('a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause', async () => {
+  it.skipIf(!MAC_TIMING)('a multi-page scene pauses both tracks: each video as long as the take, no frame inside the pause', async () => {
     const gate = { requested: false };
     const rec = await runScenario({ policy: PERSON_POLICY,
       project: makeProject(dir, { app: server.url }),

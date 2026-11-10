@@ -89,8 +89,8 @@ export function SetupSheet({ route }: { route: Route }) {
   /** The Claude Desktop step is in view: the status reads the process list then (at most every 5 s, server-side). */
   const desktopInView = useRef(false);
 
-  const load = useCallback((processes = desktopInView.current) => {
-    setupStatus(processes ? { processes: true } : {}).then(
+  const load = useCallback((processes = desktopInView.current): Promise<void> => {
+    return setupStatus(processes ? { processes: true } : {}).then(
       (s) => {
         setSt(s);
         setLoadError(null);
@@ -197,16 +197,16 @@ export function SetupSheet({ route }: { route: Route }) {
         setBusy(null);
         setConfirm(null);
         setSaid(ok ? ok(d) : null);
-        back();
-        load();
+        // The focus is placed once the sheet shows the new status (an Uninstall gone, an Install back), not on the
+        // buttons of the status before it, which the reload may remove.
+        void load().then(back);
       },
       (e: unknown) => {
         setBusy(null);
         const reason = e instanceof CallError ? (e.error.details?.reason as string | undefined) : undefined;
         if (reason === 'needs_replace' || reason === 'other_app') setConfirm(step === 'desktop' ? 'desktop-replace' : null);
         setSaid({ step, state: 'fail', text: errorText(e) });
-        back();
-        load();
+        void load().then(back);
       },
     );
   };

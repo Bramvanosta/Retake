@@ -6,7 +6,9 @@
 #      cited test title present;
 #    - Chromium and the headless shell (the revisions the lockfile's playwright-core pins), ffmpeg (Homebrew's);
 #    - the default test suite (`pnpm test`). The gated tests stay opt-in, as on a Mac: slow, captures first,
-#      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed.
+#      installed Chrome, desktop app, app bundle, updater, Postgres, Docker, old Node, headed. The tests calibrated on
+#      the Mac Retake is made for (capture frame rates, freezes, paint and wait timings) skip here:
+#      RETAKE_TEST_SHARED_RUNNER=1 (a runner has fewer cores and no GPU); they run on the Mac with the full suite.
 #  - desktop: the desktop shell's rules crate (apps/desktop/core, `cargo test`), on the Rust of
 #    apps/desktop/rust-toolchain.toml.
 #
@@ -35,6 +37,7 @@ jobs:
       contents: read
     env:
       RETAKE_DISK_WARN: "off"
+      RETAKE_TEST_SHARED_RUNNER: "1"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:

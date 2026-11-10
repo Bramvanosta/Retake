@@ -86,7 +86,13 @@ automatically with themeable components, and let Claude operate everything throu
   - **T15's rest (2026-11-10, after the series):** a CI on pull requests and main (`.github/workflows/ci.yml`: the
     build, the guards — one version, the import-rules ratchet, requirements tested and cited — and the default suite
     on macOS 15; the shell's rules on the pinned Rust; no secret, no cache, actions pinned like release.yml's;
-    `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144); the shell's Rust pinned in
+    `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144). On the runner (3 cores, no
+    GPU) the tests calibrated on the Mac (capture frame rates, freezes, paint and wait timings) skip:
+    `RETAKE_TEST_SHARED_RUNNER=1`, honoured in the ten files ci-workflow.test.ts lists (they run with the full suite on
+    the Mac). Its first runs also found a focus race of the Studio's Set-up sheet (the focus was placed on the status
+    before the reload: now after it) and three tests tied to the host (the appearance with no preference follows the
+    host in Chromium; the take lock test now checks that no two holds overlap; the AppleDouble refusal may name any
+    `._` member); the shell's Rust pinned in
     `apps/desktop/rust-toolchain.toml` (cargo runs from apps/desktop for the shell, from the repository root for the
     rules crate, which keeps any Rust 1.70+; the release workflow's version held equal by its test); one
     `onlyBuiltDependencies` list (pnpm-workspace.yaml: pnpm 10 never read package.json's); `.gitignore` patterns for
