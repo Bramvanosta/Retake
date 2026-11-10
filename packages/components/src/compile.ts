@@ -29,7 +29,11 @@ const IDENT = /^[A-Za-z_$][\w$]*$/;
 
 let stubCache: Promise<Map<string, string[] | null>> | undefined;
 
-/** Export names of the real react / remotion modules (null when a module cannot be loaded here). */
+/**
+ * Export names of the real react / remotion modules (null when a module cannot be loaded here). The names come from
+ * the list, so the import-rules ratchet (R10) cannot read this load of the library: it is listed there by hand
+ * (LIBRARY_COMPUTED_READS, scripts/audit/lib.mjs).
+ */
 function moduleExports(): Promise<Map<string, string[] | null>> {
   stubCache ??= (async () => {
     const out = new Map<string, string[] | null>();

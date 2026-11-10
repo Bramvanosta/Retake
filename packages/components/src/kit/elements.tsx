@@ -3,7 +3,7 @@
  * They read everything from the theme tokens and size everything with `unit`.
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { Img } from 'remotion';
+import { Img } from './renderer.js';
 import type { ThemeTokens } from '../types.js';
 import { fitText } from './fit-text.js';
 import { fontMetrics } from './metrics.js';

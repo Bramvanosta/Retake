@@ -76,9 +76,11 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
       expect(said(res.browser.source)).toBe(true);
       expect(res.browser.path === null || said(res.browser.path)).toBe(true);
       expect(Array.isArray(res.warnings)).toBe(true);
-      expect(said(res.path.gl.used)).toBe(true);
-      expect(said(res.path.encoder.used)).toBe(true);
-      expect(res.encoding.encoder).toBe(res.path.encoder.used);
+      expect(said(res.renderPath.gl.used)).toBe(true);
+      expect(said(res.renderPath.encoder.used)).toBe(true);
+      expect(res.encoding.encoder).toBe(res.renderPath.encoder.used);
+      // The port's own name: a result names no `path` (the word is a file's, on a system error).
+      expect(Object.hasOwn(res, 'path')).toBe(false);
       // Progress: the port's stages only, never back, the frames of the whole plan.
       expect(seen.length).toBeGreaterThan(0);
       for (const p of seen) expect(STAGES).toContain(p.stage);
@@ -138,9 +140,12 @@ export function rendererContract(adapter: string, make: (name: string) => Promis
       expect(failure.diskFull).toBeUndefined();
       // What a failure may say beside its message has the port's shape (RendererFailure).
       expect(failure.renderWarnings === undefined || (Array.isArray(failure.renderWarnings) && failure.renderWarnings.every((w) => typeof w === 'string'))).toBe(true);
-      // `path` is the policy only when it is an object: a system error names a file under the same name, as a string.
-      const policy: unknown = failure.path;
-      expect(policy === null || typeof policy !== 'object' || (said(failure.path?.gl.used) && said(failure.path?.encoder.used))).toBe(true);
+      // The render path has its own name (`renderPath`), and is one only as an object; `path`, when the failure has
+      // one, is a system error's file (a string), never a render path.
+      const tried: unknown = failure.renderPath;
+      expect(tried === undefined || (typeof tried === 'object' && tried !== null && said(failure.renderPath?.gl.used) && said(failure.renderPath?.encoder.used))).toBe(true);
+      const file: unknown = (failure as { path?: unknown }).path;
+      expect(file === undefined || typeof file === 'string').toBe(true);
       expect(await readFile(blocker, 'utf8')).toBe('in the way');
     }, t);
 

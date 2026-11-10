@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
-import { biasMotion, clamp, easing, roundTo } from '@retake/components/kit';
+import { biasMotion, clamp, easing, roundTo, useCurrentFrame } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 const ease = easing('easeInOut');

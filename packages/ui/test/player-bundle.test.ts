@@ -176,6 +176,21 @@ describe('the preview bundle', () => {
     }
   }, 120_000);
 
+  it('L7.2: a workspace component importing the renderer library directly, beside the kit, still bundles for the player', async () => {
+    await addCard(
+      'two-frames',
+      `import { AbsoluteFill, useCurrentFrame } from 'remotion';
+import { useCurrentFrame as kitFrame } from '@retake/components/kit';
+export default function C() { return <AbsoluteFill>{useCurrentFrame() === kitFrame() ? 'TWO-FRAMES-SAME' : 'TWO-FRAMES-OTHER'}</AbsoluteFill>; }
+`,
+    );
+    const components = await playerComponents(await loadComponentRegistry({ root: ws }));
+    const b = await buildPlayerBundle(components);
+    expect(b.excluded.map((e) => e.id)).not.toContain('acme/two-frames');
+    expect(b.components).toContain('acme/two-frames');
+    expect(b.js.toString('utf8')).toContain('TWO-FRAMES-SAME');
+  }, 120_000);
+
   it('⚑ lint: nothing in src/app or src/player loosens the frame sandbox', async () => {
     const SRC = join(import.meta.dirname, '..', 'src');
     const files: string[] = [];

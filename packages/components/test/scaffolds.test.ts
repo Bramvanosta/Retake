@@ -12,7 +12,8 @@ import ts from 'typescript';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { COMPONENT_KINDS } from '@retake/core';
 import type { ComponentKind } from '@retake/core';
-import { KIT_MODULE, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@retake/components';
+import { KIT_MODULE, LIBRARY_DIR, PACKAGE_DIR, applyParamDefaults, parseManifest, scaffoldDir, stripComments } from '@retake/components';
+import { kitExports } from '../src/compile.js';
 import type { ComponentManifest, ComponentProps, ThemeTokens } from '@retake/components';
 import { DARK, LIGHT } from './helpers.js';
 
@@ -210,6 +211,30 @@ function moduleSpecifiers(src: string): string[] {
   return out;
 }
 
+/** Every name `@retake/components/kit` exports (sorted): the public surface a workspace component may import. */
+const KIT_PUBLIC_NAMES = [
+  'AUTO_COVER_MIN_SHARE', 'AbsoluteFill', 'AppIcon', 'Background', 'CAMERA_EASINGS', 'CAPTION_BAND_INSET',
+  'CAPTION_BAND_MIN_SCREEN', 'CAPTION_BAND_PAD_X', 'CapText', 'DEFAULT_ZOOM_EASE', 'EASINGS', 'EASING_CURVES',
+  'ESTIMATED_METRICS', 'FORMAT_SCALE', 'FitText', 'ICON_NAMES', 'ICON_SHAPES', 'Icon', 'ImageFile', 'Img',
+  'InsetCard', 'InsetPhone', 'KEY_GLYPHS', 'LOUPE_MIN_SCALE', 'LOUPE_ORDER', 'Logo', 'LottieFile',
+  'NOTIFICATION_INSET', 'NOTIFICATION_STYLES', 'NOTIFICATION_WIDTH', 'NotificationCard', 'PANE_BAR',
+  'PANE_LABEL_ROW', 'PHONE_DISPLAY_ASPECT', 'PIP_BAR', 'PaneLabel', 'PhoneDevice', 'Picture', 'STEP_BADGE_ORDER',
+  'SYSTEM_COLORS', 'SafeArea', 'Sequence', 'StatusGlyphs', 'VideoFile', 'WORDMARK_TEXT_SCALE', 'WindowBar',
+  'Wordmark', 'activeIndex', 'addressParts', 'autoFit', 'backgroundCss', 'backgroundSample', 'balanceLines',
+  'barTones', 'biasMotion', 'capOffset', 'capTextLayout', 'captionBandBox', 'captionMaxLines', 'cardShadow',
+  'clamp', 'clearOf', 'contrastRatio', 'cssFontFamily', 'cubicBezier', 'darkLight', 'deviceTones', 'easing',
+  'estimateTextWidth', 'fade', 'fadeIn', 'fadeOut', 'figureAt', 'filePartGain', 'fitText', 'fontMetrics',
+  'formatClock', 'formatFigure', 'formatMetrics', 'insetPhoneEdge', 'isDarkBackground', 'isDarkColor',
+  'layoutNotification', 'lerp', 'liftToContrast', 'lottieFrames', 'loupeLens', 'luminance', 'measureText',
+  'mediaBackground', 'mediaLength', 'mixColors', 'nightTone', 'notificationArea', 'notificationBox',
+  'notificationMotion', 'notificationTones', 'parseColor01', 'parseFigure', 'parseNumber', 'parseShortcut',
+  'phoneCardGeometry', 'pictureAspect', 'placeBeside', 'progress', 'qrEncode', 'qrMatrix', 'qrPath',
+  'qrVersionFor', 'random', 'readableOn', 'recolorLottie', 'rise', 'roundTo', 'safeAreaRect', 'scaleRect',
+  'shortcutPlateBox', 'shortcutPlateLayout', 'shortcutPlateMetrics', 'shortcutText', 'splitKeys', 'stagger',
+  'stepBadgeBox', 'textStyleCss', 'themeColorMap', 'themeEasing', 'toFrames', 'toSeconds', 'useCurrentFrame',
+  'useLottieData', 'useVideoConfig', 'videoPartFrames', 'wallpaperCss', 'withAlpha', 'wrapText',
+];
+
 describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer stays replaceable)', () => {
   it('no scaffold file imports remotion (or anything but react and the kit): renderer primitives come from the kit', () => {
     expect(moduleSpecifiers("import { useCurrentFrame } from 'remotion';\nimport type { X } from \"remotion\";\n// import 'y'\nexport * from 'z';")).toEqual([
@@ -227,6 +252,35 @@ describe('scaffolds import only react and the kit (BACKLOG L3.7: the renderer st
         expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `${kind}/${file}`).toEqual([]);
       }
     }
+  });
+
+  it('L7.2: no built-in component imports the renderer library either — every file of the library imports react and the kit only', () => {
+    const ids = readdirSync(join(LIBRARY_DIR, 'studio')).filter((n) => !n.startsWith('.'));
+    expect(ids.length).toBe(41);
+    for (const id of ids) {
+      const dir = join(LIBRARY_DIR, 'studio', id);
+      const files = readdirSync(dir).filter((f) => ['.ts', '.tsx', '.js', '.jsx', '.mjs'].includes(extname(f)));
+      expect(files, id).toContain('index.tsx');
+      for (const file of files) {
+        const specs = moduleSpecifiers(readFileSync(join(dir, file), 'utf8'));
+        expect(specs.length, `${id}/${file}`).toBeGreaterThan(0);
+        expect(specs.filter((s) => s !== 'react' && s !== KIT_MODULE), `studio/${id}/${file}`).toEqual([]);
+      }
+    }
+  });
+
+  it("L7.2: the kit names the renderer library in one file (kit/renderer.ts), and its public names are the same as before: that file's own list is not re-exported", async () => {
+    const kitDir = join(PACKAGE_DIR, 'src', 'kit');
+    const naming = readdirSync(kitDir)
+      .filter((f) => ['.ts', '.tsx'].includes(extname(f)))
+      .filter((f) => moduleSpecifiers(readFileSync(join(kitDir, f), 'utf8')).some((s) => s === 'remotion' || s.startsWith('remotion/') || s.startsWith('@remotion/')));
+    expect(naming).toEqual(['renderer.ts']);
+    const index = stripComments(readFileSync(join(kitDir, 'index.ts'), 'utf8'));
+    expect(index).toContain("export { AbsoluteFill, Img, Sequence, random, useCurrentFrame, useVideoConfig } from './renderer.js';");
+    expect(index).not.toMatch(/export \* from '\.\/renderer\.js'/);
+    const names = await kitExports();
+    expect(names).toEqual(KIT_PUBLIC_NAMES);
+    for (const own of ['Loop', 'OffthreadVideo', 'cancelRender', 'continueRender', 'delayRender', 'Lottie']) expect(names, own).not.toContain(own);
   });
 });
 

@@ -6,16 +6,15 @@
  * scene as its backdrop. Everything comes from the spec (../preview.ts builds it), so the preview is deterministic.
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { AbsoluteFill, Img, Sequence, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, Sequence, useCurrentFrame } from './host.js';
 import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components';
+import type { PreviewProps } from './contract.js';
 import { useThemeFonts } from './fonts.js';
 import { useModules } from './modules.js';
 import type { ComponentPreviewSpec, PreviewScene, PreviewUse } from './preview-types.js';
 
-export interface ComponentPreviewProps extends Record<string, unknown> {
-  preview: ComponentPreviewSpec | null;
-}
+export type ComponentPreviewProps = PreviewProps;
 
 const fill: CSSProperties = { position: 'absolute', inset: 0 };
 

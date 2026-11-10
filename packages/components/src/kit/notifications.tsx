@@ -8,7 +8,7 @@
  * looks are neutral system mock-ups (no OS brand marks).
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { Img } from 'remotion';
+import { Img } from './renderer.js';
 import type { LayoutRects, ThemeTokens } from '../types.js';
 import { Logo } from './elements.js';
 import { fitText } from './fit-text.js';

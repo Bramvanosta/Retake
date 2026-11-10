@@ -7,10 +7,13 @@ import { readFileSync, readdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { basename, dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadComponentRegistry, scaffoldDir } from '@retake/components';
 import type { ComponentRegistry } from '@retake/components';
+import { libraryVersions } from '../src/render/library.js';
+import { COMPOSITIONS, PREVIEW_COMPOSITION, VIDEO_COMPOSITIONS } from '../src/remotion/contract.js';
 import {
   COMPOSITION_DEPS,
   COMPOSITION_IDS,
@@ -118,7 +121,8 @@ describe('generated bundle sources', () => {
       seen.add(file);
       expect(files, `${file} is imported by the composition but not hashed`).toContain(file);
       const src = readFileSync(file, 'utf8');
-      for (const m of src.matchAll(/^import (?!type)[^;]*? from '(\.{1,2}\/[^']+)\.js';/gm)) {
+      // Value imports and re-exports (`export … from`): both pull the module into the bundle.
+      for (const m of src.matchAll(/^(?:import|export) (?!type)[^;]*? from '(\.{1,2}\/[^']+)\.js';/gm)) {
         const base = join(dirname(file), m[1]);
         const target = ['.ts', '.tsx'].map((e) => base + e).find((p) => files.includes(p) || readdirSync(dirname(p)).includes(p.split('/').pop()!));
         expect(target, `${file} imports ${m[1]}`).toBeDefined();
@@ -126,11 +130,39 @@ describe('generated bundle sources', () => {
       }
     };
     visit(root);
+    // L7.2: the props contract and the library's host are composition files, so a change of either moves every
+    // bundle key — the reason a props version can never meet a stale bundle.
+    expect(files).toContain(join(EDITOR_DIR, 'src', 'remotion', 'contract.ts'));
+    expect(files).toContain(join(EDITOR_DIR, 'src', 'remotion', 'host.ts'));
     expect(COMPOSITION_DEPS).toEqual(['layout', 'util', 'plan-types', 'panes']);
-    // The Node side names the compositions the root registers.
-    const rootSrc = readFileSync(root, 'utf8');
-    expect(rootSrc).toContain(`landscape: '${COMPOSITION_IDS.landscape}'`);
-    expect(rootSrc).toContain(`vertical: '${COMPOSITION_IDS.vertical}'`);
+  });
+
+  it('the composition ids are written once, in the contract: the Node side and the root both take them from it', () => {
+    expect(COMPOSITION_IDS).toBe(VIDEO_COMPOSITIONS);
+    expect(COMPOSITION_IDS).toEqual({ landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare' });
+    expect(PREVIEW_COMPOSITION).toBe('ComponentPreview');
+    expect(COMPOSITIONS).toEqual({ ...COMPOSITION_IDS, preview: PREVIEW_COMPOSITION });
+    const ids = Object.values(COMPOSITIONS);
+    const dir = join(EDITOR_DIR, 'src');
+    const spelled: string[] = [];
+    for (const rel of ['remotion', 'render']) {
+      for (const name of readdirSync(join(dir, rel))) {
+        if (!/\.tsx?$/.test(name) || (rel === 'remotion' && name === 'contract.ts')) continue;
+        const src = readFileSync(join(dir, rel, name), 'utf8');
+        for (const id of ids) if (new RegExp(`['"\`]${id}['"\`]`).test(src)) spelled.push(`${rel}/${name}: ${id}`);
+      }
+    }
+    expect(spelled, 'a composition id spelled outside remotion/contract.ts').toEqual([]);
+    const rootSrc = readFileSync(join(dir, 'remotion', 'Root.tsx'), 'utf8');
+    for (const key of ['landscape', 'vertical', 'square', 'preview']) expect(rootSrc).toContain(`id={COMPOSITIONS.${key}}`);
+    expect(rootSrc).toContain("from './contract.js'");
+  });
+
+  it('the library versions in every bundle key keep their form: "<remotion> <@remotion/bundler>", read from the packages the editor resolves', () => {
+    const req = createRequire(join(EDITOR_DIR, 'src', 'render', 'library.ts'));
+    const version = (name: string) => (JSON.parse(readFileSync(req.resolve(`${name}/package.json`), 'utf8')) as { version: string }).version;
+    expect(libraryVersions()).toBe(`${version('remotion')} ${version('@remotion/bundler')}`);
+    expect(libraryVersions()).toMatch(/^\d+\.\d+\.\d+\S* \d+\.\d+\.\d+\S*$/);
   });
 
   it('the geometry entry the composition imports its frame helpers from is hashed with the modules beside it that it loads', () => {

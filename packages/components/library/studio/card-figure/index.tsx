@@ -1,4 +1,3 @@
-import { useCurrentFrame } from 'remotion';
 import {
   Background,
   CapText,
@@ -13,6 +12,7 @@ import {
   progress,
   readableOn,
   roundTo,
+  useCurrentFrame,
   withAlpha,
 } from '@retake/components/kit';
 import type { ComponentProps, TextMedia, ThemeTokens } from '@retake/components/kit';

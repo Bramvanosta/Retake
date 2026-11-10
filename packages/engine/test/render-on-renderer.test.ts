@@ -196,7 +196,7 @@ describe('work in process on the renderer its caller hands', () => {
     const path = { gl: { asked: 'angle', source: 'option', resolved: 'angle', used: 'angle' }, encoder: { asked: 'auto', source: 'default', used: 'h264_videotoolbox' }, concurrency_source: 'default' };
     const failing = new MemoryRenderer({
       duringVideo: () => {
-        throw Object.assign(new Error('the renderer lost its GPU'), { path, renderWarnings: ['seen before it failed'] });
+        throw Object.assign(new Error('the renderer lost its GPU'), { renderPath: path, renderWarnings: ['seen before it failed'] });
       },
     });
     const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO }).catch((e: unknown) => e)) as Error & { record: RenderRecord };

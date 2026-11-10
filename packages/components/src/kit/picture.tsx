@@ -3,7 +3,7 @@
  * (studio/card-before-after). Deterministic: the frame is the video at `video.time_s` whatever the composition frame.
  */
 import type { CSSProperties, ReactNode } from 'react';
-import { Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from 'remotion';
+import { Img, OffthreadVideo, Sequence, useCurrentFrame, useVideoConfig } from './renderer.js';
 import type { PictureMedia } from '../types.js';
 
 /**

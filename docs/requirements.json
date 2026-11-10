@@ -434,9 +434,19 @@
    "requirement": "The engine renders through a port it owns (video, stills, previews): the renderer is chosen at the edges, an in-memory adapter passes the same contract as the product's, and a ratchet keeps the editor's render entries out of the rest of the engine and of the shells.",
    "status": "done",
    "evidence": "L7.1: packages/engine/src/render/ (renderer.ts, work.ts, editor-renderer.ts, memory-renderer.ts), packages/editor/src/render/driver.ts. Tests: packages/engine/test/renderer.test.ts and renderer-editor.test.ts (one contract suite, renderer-contract.ts, on both adapters), render-on-renderer.test.ts (a render job with no browser, ffmpeg or ffprobe; cancel and failure end states), editor-renderer.test.ts, packages/editor/test/render-driver.test.ts, packages/core/test/import-rules.test.ts (R9, render-call). Targeted files only; the full suite runs at the end of the branch.",
-   "gap": "The port still names adapter concepts and borrows editor types (L7.2); the product adapter's preview side is not run by the contract suite; the CLI's components preview still calls the editor (one baseline entry).",
+   "gap": "The port still names adapter concepts and three of its types are the editor's (RenderProgress, BundleComponent, ComponentPreviewSpec); the product adapter's preview side is not run by the contract suite.",
    "phase": "5",
    "lot": "L7.1"
+  },
+  {
+   "id": "R-ARCH-13",
+   "source": "Audit 2026-11-10, U12",
+   "requirement": "The rendering library is named in its seam files only, held by a ratchet rule; composition ids are declared once; the props a render hands the compositions are a versioned contract; built-in components import the kit only, and workspace components keep working unchanged.",
+   "status": "done",
+   "evidence": "L7.2: packages/editor/src/render/library.ts, packages/editor/src/remotion/{host,contract}.ts, packages/components/src/kit/renderer.ts, rule R10 in scripts/audit/lib.mjs. Tests: packages/core/test/import-rules.test.ts (R10 cases), packages/editor/test/props-contract.test.ts, render-units.test.ts, preview-user-component.test.ts, packages/components/test/{scaffolds,kit,previews}.test.ts, packages/ui/test/player-bundle.test.ts. Pixel A/B of 2026-11-10 on the software path: 49/49 component previews, a 1799-frame fixture video (frames and audio) and a still byte-identical before and after. Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "Byte identity measured on the software path only; the node-side seam is a loader, not an interface; the Studio player is a seam of its own and does not read the props contract; the version refusal is tested on calculateMetadata, not by a real render.",
+   "phase": "5",
+   "lot": "L7.2"
   },
   {
    "id": "R-PROJ-01",

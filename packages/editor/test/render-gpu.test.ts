@@ -35,6 +35,7 @@ import {
   REMOTION_PREVIEW_BACKEND,
   RenderCancelledError,
   RenderError,
+  createRenderer,
   defaultConcurrency,
   planRun,
   probeRenderPath,
@@ -436,6 +437,26 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     });
     expect(err!.record!.warnings).toContain('the render failed on the GPU path (GPU process exited unexpectedly: exit_code=15) and was rendered again in software');
     expect(existsSync(join(ws.root, 'both.mp4'))).toBe(false);
+  }, LONG);
+
+  it("L7.2: the driver's failure says what it tried as `renderPath`, never as `path` (the name a system error gives a file)", async () => {
+    const failed = await createRenderer({
+      cacheDir: SHARED_CACHE,
+      seams: {
+        beforeRender: () => {
+          throw new Error('Timeout (90000ms) exceeded rendering the component at frame 3');
+        },
+      },
+    })
+      .video({ workPolicy: PERSON_POLICY, plan: await reachingPlan(), out: join(ws.root, 'driver-failure.mp4'), root: ws.root, frameRange: [0, 5], settings: GPU })
+      .then(
+        () => null,
+        (e: unknown) => e as RenderError & { renderPath?: unknown },
+      );
+    expect(failed).toBeInstanceOf(RenderError);
+    expect(failed!.renderPath).toMatchObject({ gl: { asked: 'auto' }, encoder: { asked: 'auto' } });
+    expect(Object.prototype.hasOwnProperty.call(failed, 'path')).toBe(false);
+    expect(existsSync(join(ws.root, 'driver-failure.mp4'))).toBe(false);
   }, LONG);
 
   it('a page of a guarded GPU render fails: our one software retry, guarded and reported; Remotion never opens a browser of its own (B gets nothing, none outlives it)', async () => {

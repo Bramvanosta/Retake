@@ -61,8 +61,14 @@ shell; the Studio app imports types only; nothing but the composition roots (CLI
 entry, worker entry) wires adapters to ports. For the renderer the ratchet holds two lines of it: the engine loads the
 editor's code in its loader only (R9: a value import, a re-export, `import()` or a made `require` anywhere else is a
 hit, the port's types are free), and the editor's render entries are named in the engine's `render/` folder only, never
-elsewhere in the engine nor in a shell (`render-call`, read from the syntax tree; one entry left in the baseline, the
-CLI's `components preview`). What the check cannot read is a key only known at run time (`ed[name]`).
+elsewhere in the engine nor in a shell (`render-call`, read from the syntax tree; no entry left in the baseline since
+L7.2). What the check cannot read is a key only known at run time (`ed[name]`). Under the adapter, the rendering
+library itself is named in five seam files only, each with the packages it may name (R10, no entry; the built-in
+components and the scaffolds are read too; a seam file that hands the library on is imported from its own folder
+only): it cannot see a specifier computed at run time nor the library's name in a data string, and it reads no test,
+script, fixture or app. This fixes where the library is *named*, not an interface over it: the node side's seam is
+one loader, the library's API is still called in the editor's `render/{render,preview,policy,bundle}.ts`, and the
+Studio player's frame also reads a global the library sets.
 
 ## Path (no big-bang)
 1. **Guard rails** — the ratchet test at today's counts, a glossary, one containment function, error kinds carried by

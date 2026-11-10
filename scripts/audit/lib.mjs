@@ -22,12 +22,17 @@ export function loadTs(root) {
   }
 }
 
-function walk(dir, out = []) {
+/** The files the layer rules read: TypeScript sources, declaration files left out. */
+const isScanned = (name) => /\.(ts|tsx|mts)$/.test(name) && !name.endsWith('.d.ts');
+/** Every file the compiler can parse as a module: what the seam rule (R10) reads, declaration files included. */
+const isSource = (name) => /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/.test(name);
+
+function walk(dir, out = [], keep = isScanned) {
   if (!fs.existsSync(dir)) return out;
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== 'dist') walk(p, out); }
-    else if (/\.(ts|tsx|mts)$/.test(e.name) && !e.name.endsWith('.d.ts')) out.push(p);
+    if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== 'dist') walk(p, out, keep); }
+    else if (keep(e.name)) out.push(p);
   }
   return out;
 }
@@ -162,6 +167,7 @@ export const RULES = [
 
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
+  { id: 'R10', title: 'the rendering library (`remotion`, `@remotion/*`) is named in its seam files only (LIBRARY_SEAMS: each with the packages it may load or resolve; the built-in components and the scaffolds name it nowhere): a static, type or dynamic import, a re-export, a require, a `resolve()` of its path, a seam file re-exported wholesale by another file, or a seam file that hands the library on imported from outside its folder (LIBRARY_SEAM_IMPORTERS). Not seen: a specifier computed at run time (LIBRARY_COMPUTED_READS), a require reached under another name, the library\'s name inside a data string, what a seam file itself exports, and tests, scripts, fixtures and apps' },
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
@@ -171,7 +177,8 @@ export const CHECKS = [
 ];
 
 function parse(ts, rel, text) {
-  return ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, rel.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  // A .js / .mjs / .cjs file is read as TSX too: JSX is legal there for a bundler, and its imports parse the same.
+  return ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, /\.(ts|mts|cts)$/.test(rel) ? ts.ScriptKind.TS : ts.ScriptKind.TSX);
 }
 
 const literal = (ts, e) => (e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) ? e.text : undefined);
@@ -565,13 +572,137 @@ export function layoutHits(root, files) {
   return out;
 }
 
+/** A specifier of the rendering library: the package, a path into it, or one of its scoped packages. */
+const LIBRARY_SPEC = /^remotion($|\/)|^@remotion\//;
+/**
+ * The seam files of the rendering library, each with the library packages it may `load` (import, re-export, require,
+ * type against) and those whose path it may only `resolve` (a version read). Widening this list is a design change:
+ * packages/core/test/import-rules.test.ts pins it.
+ */
+export const LIBRARY_SEAMS = {
+  'packages/editor/src/render/library.ts': { load: ['@remotion/renderer', '@remotion/bundler'], resolve: ['remotion'] },
+  'packages/editor/src/remotion/host.ts': { load: ['remotion'], resolve: [] },
+  'packages/components/src/kit/renderer.ts': { load: ['remotion', '@remotion/lottie'], resolve: [] },
+  'packages/ui/src/player/frame-main.tsx': { load: ['@remotion/player'], resolve: [] },
+  'packages/ui/src/player/bundle-player.ts': { load: [], resolve: ['@remotion/player'] },
+};
+/**
+ * The seam files that hand the library on (its loaders, its names), each with the one folder whose files may import
+ * it: a file elsewhere importing or re-exporting one would use the library under another name. The two player files
+ * are not here: they hand nothing of the library on (the frame is a bundle entry, the other reads a version).
+ */
+export const LIBRARY_SEAM_IMPORTERS = {
+  'packages/editor/src/render/library.ts': 'packages/editor/src/render',
+  'packages/editor/src/remotion/host.ts': 'packages/editor/src/remotion',
+  'packages/components/src/kit/renderer.ts': 'packages/components/src/kit',
+};
+/**
+ * The reaches of the library the rule cannot see because their specifier is computed, by file: known, and pinned with
+ * the seams so the lists say what the code does. The test checks each is still there as described.
+ */
+export const LIBRARY_COMPUTED_READS = {
+  'packages/components/src/compile.ts': 'moduleExports(): `import(name)` for each name of STUBBED (react, its JSX runtimes and remotion), to list the export names the compile check stubs',
+};
+/** Folders outside `packages/<name>/src` the seam rule reads too: the built-in components and the scaffolds, which name the library nowhere. */
+export const LIBRARY_FREE_DIRS = ['packages/components/library', 'packages/components/scaffolds'];
+
+/**
+ * What the seam rule reads beside the scan's files, as `[{ rel, text }]`: every source of LIBRARY_FREE_DIRS (nested
+ * folders, `.js` / `.jsx` / `.mjs` / `.cjs` / `.cts` and declaration files too), and the files of `packages/<name>/src`
+ * the scan leaves out (the same extensions).
+ */
+export function libraryFreeSources(root) {
+  const pkgsDir = path.join(root, 'packages');
+  const unscanned = fs.existsSync(pkgsDir)
+    ? fs.readdirSync(pkgsDir).flatMap((d) => walk(path.join(pkgsDir, d, 'src'), [], (name) => isSource(name) && !isScanned(name)))
+    : [];
+  return [...LIBRARY_FREE_DIRS.flatMap((d) => walk(path.join(root, d), [], isSource)), ...unscanned]
+    .map((f) => ({ rel: path.relative(root, f).split(path.sep).join('/'), text: fs.readFileSync(f, 'utf8') }));
+}
+
+/**
+ * R10, read from the syntax tree of every file given (`[{ rel, text }]`: the scan's files plus libraryFreeSources):
+ * the rendering library named outside the seam file allowed to name that package. A hit is
+ * - a module specifier of the library in an `import` (also `import type`: typing against the library is coupling), an
+ *   `export … from`, `export *`, `import x = require()`, a type `import('…')`, a dynamic `import()`, or a call of
+ *   `require` or of a require made with `createRequire` — spec: the specifier;
+ * - a string argument of `require.resolve()`, `import.meta.resolve()` or the `.resolve()` of a made require naming the
+ *   library — spec: `resolve(<specifier>)`;
+ * - a relative import or re-export, in any of the forms above, of a seam file that hands the library on, from a file
+ *   outside the seam's folder (LIBRARY_SEAM_IMPORTERS) — spec: `seam <file>`;
+ * - `export * from` (or `export * as x from`) a seam file, in a file that is not a seam and is not already a hit of
+ *   the line above — spec: `export * from <seam>`: the seam's names would leave under another file's name, and a later
+ *   name of the library with them.
+ * Specifiers are read as the compiler cooks them, so an escaped spelling (`'remotion'`) is the same name.
+ * What it cannot see, by construction: a specifier computed at run time (`import(name)`, `'remo' + 'tion'`,
+ * `` resolve(`${name}/package.json`) ``: LIBRARY_COMPUTED_READS lists the one the code has); a require reached under
+ * another name (`createRequire as cr`, `const { resolve } = require`, `require['resolve']`); `declare module 'remotion'`
+ * and `/// <reference types>`; the library's name inside a data string (the lists of imports a component may use, the
+ * bundles' externals, the generated bundle entry, the player frame's read of a global the library sets, cache keys,
+ * messages); a named re-export of one seam binding through a file of the seam's folder (how the kit's index hands on
+ * its six public names, by design: a new one is a visible line there), and what a seam file itself exports; a seam
+ * file reached through a package specifier rather than a relative path; and anything outside the files given — tests,
+ * scripts/, fixtures/, apps/, workspace components (which may import the library; the bundlers' own lists rule that).
+ */
+export function seamHits(root, files) {
+  const ts = loadTs(root);
+  const hits = [];
+  const pkgName = (s) => s.split('/').slice(0, s.startsWith('@') ? 2 : 1).join('/');
+  /** The seam file a relative specifier of `rel` points at, if any. */
+  const seamAt = (rel, spec) => {
+    if (!spec?.startsWith('.')) return undefined;
+    const to = path.posix.normalize(path.posix.join(path.posix.dirname(rel), spec));
+    const bare = to.replace(/\.(js|jsx|mjs)$/, '');
+    return [to, ...['.ts', '.tsx', '/index.ts', '/index.tsx'].map((x) => bare + x)].find((t) => Object.hasOwn(LIBRARY_SEAMS, t));
+  };
+  for (const { rel, text } of files) {
+    const seam = Object.hasOwn(LIBRARY_SEAMS, rel) ? LIBRARY_SEAMS[rel] : undefined;
+    const sf = parse(ts, rel, text);
+    const found = new Set();
+    const loads = (s) => {
+      if (s === undefined) return;
+      if (LIBRARY_SPEC.test(s) && !seam?.load.includes(pkgName(s))) found.add(s);
+      const target = seamAt(rel, s);
+      if (target && target !== rel && Object.hasOwn(LIBRARY_SEAM_IMPORTERS, target) && path.posix.dirname(rel) !== LIBRARY_SEAM_IMPORTERS[target]) found.add(`seam ${target}`);
+    };
+    const resolves = (s) => { if (s !== undefined && LIBRARY_SPEC.test(s) && !seam?.resolve.includes(pkgName(s)) && !seam?.load.includes(pkgName(s))) found.add(`resolve(${s})`); };
+    const inner = (e) => { while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression; return e; };
+    const makesRequire = (e) => { e = inner(e); return !!e && ts.isCallExpression(e) && ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire')); };
+    const requires = new Set(['require']);
+    (function collect(n) {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && makesRequire(n.initializer)) requires.add(n.name.text);
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && makesRequire(n.right)) requires.add(n.left.text);
+      n.forEachChild(collect);
+    })(sf);
+    const isRequire = (e) => { e = inner(e); return !!e && ((ts.isIdentifier(e) && requires.has(e.text)) || makesRequire(e)); };
+    (function visit(n) {
+      if (ts.isImportDeclaration(n)) loads(literal(ts, n.moduleSpecifier));
+      else if (ts.isExportDeclaration(n)) {
+        const spec = literal(ts, n.moduleSpecifier);
+        loads(spec);
+        const target = seam ? undefined : seamAt(rel, spec);
+        if (target && !found.has(`seam ${target}`) && (!n.exportClause || ts.isNamespaceExport(n.exportClause))) found.add(`export * from ${target}`);
+      } else if (ts.isImportEqualsDeclaration(n)) { if (ts.isExternalModuleReference(n.moduleReference)) loads(literal(ts, n.moduleReference.expression)); }
+      else if (ts.isImportTypeNode(n)) { if (ts.isLiteralTypeNode(n.argument)) loads(literal(ts, n.argument.literal)); }
+      else if (ts.isCallExpression(n)) {
+        const callee = inner(n.expression);
+        if (callee.kind === ts.SyntaxKind.ImportKeyword || isRequire(callee)) loads(literal(ts, n.arguments[0]));
+        else if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'resolve' && (isRequire(callee.expression) || (ts.isMetaProperty(inner(callee.expression)) && inner(callee.expression).name.text === 'meta'))) resolves(literal(ts, n.arguments[0]));
+      }
+      n.forEachChild(visit);
+    })(sf);
+    for (const spec of found) hits.push({ rule: 'R10', file: rel, spec });
+  }
+  return hits;
+}
+
 /**
  * One ratchet entry per (rule, file, import): the strings the baseline holds, sorted. A cycle gives one entry per file
  * and one with the number of imports inside it, so a new import between files already in a cycle fails too.
  */
 export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
-  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files)]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
+  for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)])]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
   const graph = fileGraph(scanned.fileImports);
   for (const c of cycles(graph).map((x) => x.sort())) {

@@ -24,7 +24,9 @@ deterministic (no Math.random/Date); no network; may import only `react`, `remot
 `@retake/components/kit` (shared helpers: fades/rises/stagger, easing presets, fitText, Logo, Wordmark,
 background renderer, safe-area helpers; L3.7: also the renderer primitives `useCurrentFrame`, `useVideoConfig`, `Img`,
 `AbsoluteFill`, `Sequence`, `random`, re-exported from remotion in `kit/renderer.ts`, which the scaffolds import instead
-of `remotion`). Text slots must never overflow: fitText shrinks within bounds.
+of `remotion`; L7.2: the built-in components import `react` and the kit only, `kit/renderer.ts` is the one file of the
+kit that names the library — the kit's public names are pinned by a test — and a workspace component may still import
+`remotion`). Text slots must never overflow: fitText shrinks within bounds.
 
 ### 1.2 Built-in library (`packages/components/library/studio/*`), theme-agnostic
 | id | kind | notes |

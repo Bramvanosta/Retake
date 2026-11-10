@@ -22,7 +22,10 @@ export class RenderError extends Error {
   get errorDocs(): string {
     return GUIDE.editing;
   }
-  /** A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`). */
+  /**
+   * A failed render (renderPlan): the path it tried — the GPU path, its fallback and why (the record's `policy`).
+   * The `Renderer` port and this package's driver call it `renderPath`: planDriver (render.ts) maps the name.
+   */
   path?: RenderRecord['policy'];
   /** A failed render (renderPlan): its warnings so far (a fallback's, a guard's blocked origins). */
   renderWarnings?: string[];

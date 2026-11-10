@@ -1,5 +1,5 @@
 /**
- * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R9), file cycles, who builds the
+ * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R10), file cycles, who builds the
  * file job queue, and no module-level variable holding the work's policy, held to the committed baseline
  * (scripts/audit/baseline.json).
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
@@ -379,6 +379,206 @@ describe('the import-rules ratchet', () => {
     expect(wiring('packages/core/src/a.ts', "const PERSON: WorkPolicy = Object.freeze({ agentFolders: null });\nexport function f(policy: WorkPolicy) {\n  let ffmpeg = policy.ffmpeg;\n  return ffmpeg;\n}\nclass C { policy: WorkPolicy | null = null }")).toEqual([]);
     expect(wiring('packages/hooks/src/a.ts', 'let cached: string | undefined;\nlet seq = 0;')).toEqual([]);
     expect(wiring('packages/cli/src/commands/doctor.ts', 'let renderPolicyFn: (() => string) | undefined;')).toEqual([]);
+  });
+
+  describe('R10: the rendering library is named in its seam files only', () => {
+    const seam = (rel: string, text: string): string[] => lib.seamHits(ROOT, [{ rel, text }]).map((h: Hit) => `${h.rule} ${h.file} → ${h.spec}`);
+    const EDITOR = 'packages/editor/src/render/other.ts';
+    const HOST = 'packages/editor/src/remotion/host.ts';
+    const KIT = 'packages/components/src/kit/renderer.ts';
+    const LIBRARY = 'packages/editor/src/render/library.ts';
+
+    it('1. a static import in a file that is no seam', () => {
+      expect(seam(EDITOR, "import { interpolate } from 'remotion';\nimport { z } from 'zod';")).toEqual([`R10 ${EDITOR} → remotion`]);
+      expect(seam('packages/ui/src/app/a.tsx', "import { Player } from '@remotion/player';")).toEqual(['R10 packages/ui/src/app/a.tsx → @remotion/player']);
+      expect(seam(EDITOR, "import '@remotion/renderer';")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+    });
+
+    it('2. a type-only import: typing against the library is coupling too', () => {
+      expect(seam(EDITOR, "import type { RenderMediaOptions } from '@remotion/renderer';")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+      expect(seam(EDITOR, "import { type Codec } from '@remotion/renderer';")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+      expect(seam(EDITOR, "export type R = typeof import('@remotion/bundler');")).toEqual([`R10 ${EDITOR} → @remotion/bundler`]);
+    });
+
+    it('3. a dynamic import()', () => {
+      expect(seam(EDITOR, "export const load = () => import('@remotion/renderer');")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+      expect(seam(EDITOR, 'export const load = () => import(`remotion`);')).toEqual([`R10 ${EDITOR} → remotion`]);
+    });
+
+    it('4. a require, also one made with createRequire', () => {
+      expect(seam(EDITOR, "import { createRequire } from 'node:module';\nconst req = createRequire(import.meta.url);\nexport const r = req('remotion');")).toEqual([`R10 ${EDITOR} → remotion`]);
+      expect(seam(EDITOR, "import { createRequire } from 'node:module';\nexport const r = createRequire(import.meta.url)('@remotion/renderer');")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+      expect(seam(EDITOR, "export const r = require('remotion');\nimport b = require('@remotion/bundler');")).toEqual([`R10 ${EDITOR} → remotion`, `R10 ${EDITOR} → @remotion/bundler`]);
+    });
+
+    it('5. a path into the library', () => {
+      expect(seam(EDITOR, "import { NoReactInternals } from 'remotion/no-react';")).toEqual([`R10 ${EDITOR} → remotion/no-react`]);
+      expect(seam(EDITOR, "import x from '@remotion/renderer/client';")).toEqual([`R10 ${EDITOR} → @remotion/renderer/client`]);
+      // Another package whose name only starts the same way is not the library.
+      expect(seam(EDITOR, "import x from 'remotion-extras';\nimport y from '@remotionx/a';")).toEqual([]);
+    });
+
+    it('6. a seam file naming a package of the library that is not its own', () => {
+      expect(seam(HOST, "export { AbsoluteFill } from 'remotion';\nexport { Lottie } from '@remotion/lottie';")).toEqual([`R10 ${HOST} → @remotion/lottie`]);
+      expect(seam(KIT, "export { AbsoluteFill } from 'remotion';\nexport { Lottie } from '@remotion/lottie';\nimport { renderMedia } from '@remotion/renderer';")).toEqual([`R10 ${KIT} → @remotion/renderer`]);
+      expect(seam(LIBRARY, "export const a = () => import('@remotion/renderer');\nexport const b = () => import('@remotion/bundler');\nimport { Img } from 'remotion';")).toEqual([`R10 ${LIBRARY} → remotion`]);
+      expect(seam('packages/ui/src/player/frame-main.tsx', "import { Player } from '@remotion/player';\nimport type { PlayerRef } from '@remotion/player';\nimport { Img } from 'remotion';")).toEqual(['R10 packages/ui/src/player/frame-main.tsx → remotion']);
+    });
+
+    it('7. a seam file re-exported wholesale by a file that is no seam', () => {
+      const index = 'packages/components/src/kit/index.ts';
+      expect(seam(index, "export * from './renderer.js';")).toEqual([`R10 ${index} → export * from ${KIT}`]);
+      expect(seam(index, "export * as r from './renderer.js';")).toEqual([`R10 ${index} → export * from ${KIT}`]);
+      expect(seam('packages/editor/src/render/index.ts', "export * from './library.js';")).toEqual([`R10 packages/editor/src/render/index.ts → export * from ${LIBRARY}`]);
+      expect(seam('packages/editor/src/remotion/all.ts', "export * from './host.js';")).toEqual([`R10 packages/editor/src/remotion/all.ts → export * from ${HOST}`]);
+      // The specifier's extension is the compiled one or the source's: the same file.
+      expect(seam('packages/ui/src/player/boot.ts', "export * from './frame-main.jsx';")).toEqual(['R10 packages/ui/src/player/boot.ts → export * from packages/ui/src/player/frame-main.tsx']);
+      expect(seam('packages/ui/src/player/boot.ts', "export * from './frame-main.tsx';\nexport * from './frame-main';")).toEqual(['R10 packages/ui/src/player/boot.ts → export * from packages/ui/src/player/frame-main.tsx']);
+      // Names handed on one by one are a visible line each (how the kit's index works), and another file is no seam.
+      expect(seam(index, "export { AbsoluteFill, Img } from './renderer.js';\nexport * from './elements.js';")).toEqual([]);
+    });
+
+    it('8. a re-export of the library itself', () => {
+      expect(seam(EDITOR, "export { interpolate } from 'remotion';")).toEqual([`R10 ${EDITOR} → remotion`]);
+      expect(seam(EDITOR, "export * from 'remotion';\nexport type { Codec } from '@remotion/renderer';")).toEqual([`R10 ${EDITOR} → remotion`, `R10 ${EDITOR} → @remotion/renderer`]);
+    });
+
+    /** The ratchet's R10 entries of a scratch repository (so the second file list is read the way the ratchet reads it). */
+    const entriesOf = (files: Record<string, string>): string[] => {
+      const root = mkdtempSync(join(tmpdir(), 'retake-import-rules-'));
+      try {
+        mkdirSync(join(root, 'packages/components/src'), { recursive: true });
+        writeFileSync(join(root, 'packages/components/package.json'), '{"name":"@retake/components"}');
+        for (const [rel, text] of Object.entries(files)) {
+          mkdirSync(dirname(join(root, rel)), { recursive: true });
+          writeFileSync(join(root, rel), text);
+        }
+        return lib.ratchetEntries(root).filter((e: string) => e.startsWith('R10 '));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    };
+
+    it('9. a built-in component naming the library (the ratchet reads the library folder too)', () => {
+      const card = 'packages/components/library/studio/card-x/index.tsx';
+      expect(entriesOf({ [card]: "import { useCurrentFrame } from 'remotion';\nimport { Title } from '@retake/components/kit';" })).toEqual([`R10 ${card} → remotion`]);
+      expect(entriesOf({ [card]: "import { Title, useCurrentFrame } from '@retake/components/kit';" })).toEqual([]);
+    });
+
+    it('10. a scaffold naming the library', () => {
+      const scaffold = 'packages/components/scaffolds/card/index.tsx';
+      expect(entriesOf({ [scaffold]: "import { Lottie } from '@remotion/lottie';" })).toEqual([`R10 ${scaffold} → @remotion/lottie`]);
+      // The real folders are read: every built-in and every scaffold.
+      const real = lib.libraryFreeSources(ROOT).map((f: { rel: string }) => f.rel);
+      expect(real.filter((f: string) => f.startsWith('packages/components/library/studio/')).length).toBeGreaterThanOrEqual(41);
+      expect(real.filter((f: string) => f.startsWith('packages/components/scaffolds/')).length).toBeGreaterThanOrEqual(8);
+    });
+
+    it("11. the library's path resolved outside the file allowed to", () => {
+      expect(seam(EDITOR, "export const p = require.resolve('remotion/package.json');")).toEqual([`R10 ${EDITOR} → resolve(remotion/package.json)`]);
+      expect(seam(EDITOR, "export const p = import.meta.resolve('@remotion/bundler');")).toEqual([`R10 ${EDITOR} → resolve(@remotion/bundler)`]);
+      expect(seam(EDITOR, "import { createRequire } from 'node:module';\nconst req = createRequire(import.meta.url);\nexport const p = req.resolve('@remotion/player/package.json');")).toEqual([`R10 ${EDITOR} → resolve(@remotion/player/package.json)`]);
+      const player = 'packages/ui/src/player/bundle-player.ts';
+      expect(seam(player, "export const p = require.resolve('@remotion/player/package.json');")).toEqual([]);
+      // Resolving is all that file may do with it.
+      expect(seam(player, "import { Player } from '@remotion/player';")).toEqual([`R10 ${player} → @remotion/player`]);
+      expect(seam(player, "export const p = require.resolve('remotion/package.json');")).toEqual([`R10 ${player} → resolve(remotion/package.json)`]);
+    });
+
+    it('12. the seam files and what each may name are this list, no more (a new seam is a change here)', () => {
+      expect(lib.LIBRARY_SEAMS).toEqual({
+        'packages/editor/src/render/library.ts': { load: ['@remotion/renderer', '@remotion/bundler'], resolve: ['remotion'] },
+        'packages/editor/src/remotion/host.ts': { load: ['remotion'], resolve: [] },
+        'packages/components/src/kit/renderer.ts': { load: ['remotion', '@remotion/lottie'], resolve: [] },
+        'packages/ui/src/player/frame-main.tsx': { load: ['@remotion/player'], resolve: [] },
+        'packages/ui/src/player/bundle-player.ts': { load: [], resolve: ['@remotion/player'] },
+      });
+      expect(lib.LIBRARY_SEAM_IMPORTERS).toEqual({
+        'packages/editor/src/render/library.ts': 'packages/editor/src/render',
+        'packages/editor/src/remotion/host.ts': 'packages/editor/src/remotion',
+        'packages/components/src/kit/renderer.ts': 'packages/components/src/kit',
+      });
+      expect(Object.keys(lib.LIBRARY_COMPUTED_READS)).toEqual(['packages/components/src/compile.ts']);
+      expect(lib.LIBRARY_FREE_DIRS).toEqual(['packages/components/library', 'packages/components/scaffolds']);
+      // Every seam exists, and the repository has no R10 entry: the baseline starts empty for this rule.
+      for (const f of Object.keys(lib.LIBRARY_SEAMS)) expect(readFileSync(join(ROOT, f), 'utf8').length, f).toBeGreaterThan(0);
+      expect(lib.ratchetEntries(ROOT).filter((e: string) => e.startsWith('R10 '))).toEqual([]);
+      expect((lib.readBaseline(ROOT).groups as { rule: string }[]).filter((g) => g.rule === 'R10')).toEqual([]);
+      expect(lib.CHECKS.map((c: { id: string }) => c.id)).toContain('R10');
+    });
+
+    it('13. a seam file that hands the library on, imported or re-exported from outside its folder', () => {
+      const planner = 'packages/editor/src/planner/a.ts';
+      const index = 'packages/editor/src/index.ts';
+      expect(seam(planner, "import { Composition } from '../remotion/host.js';")).toEqual([`R10 ${planner} → seam ${HOST}`]);
+      expect(seam(planner, "import type { LibraryBrowser } from '../render/library.js';")).toEqual([`R10 ${planner} → seam ${LIBRARY}`]);
+      expect(seam(index, "export { Composition } from './remotion/host.js';")).toEqual([`R10 ${index} → seam ${HOST}`]);
+      expect(seam(index, "import * as host from './remotion/host.js';\nexport { host };")).toEqual([`R10 ${index} → seam ${HOST}`]);
+      expect(seam(index, "export { rendererLibrary } from './render/library.js';")).toEqual([`R10 ${index} → seam ${LIBRARY}`]);
+      expect(seam(index, "export const load = () => import('./render/library.js');\nexport type L = typeof import('./render/library.js');")).toEqual([`R10 ${index} → seam ${LIBRARY}`]);
+      // Wholesale from outside the folder: one hit, this one.
+      expect(seam(index, "export * from './remotion/host.js';\nexport * as l from './render/library.js';")).toEqual([`R10 ${index} → seam ${HOST}`, `R10 ${index} → seam ${LIBRARY}`]);
+      expect(seam('packages/components/src/compile.ts', "import { Img } from './kit/renderer.js';")).toEqual([`R10 packages/components/src/compile.ts → seam ${KIT}`]);
+      expect(seam('packages/components/library/studio/card-x/index.tsx', "import { Loop } from '../../../src/kit/renderer.js';")).toEqual([`R10 packages/components/library/studio/card-x/index.tsx → seam ${KIT}`]);
+      // A nested folder is not the seam's folder; another spelling of the file is the same file.
+      expect(seam('packages/editor/src/render/deep/a.ts', "import { rendererLibrary } from '../library.js';")).toEqual([`R10 packages/editor/src/render/deep/a.ts → seam ${LIBRARY}`]);
+      expect(seam(planner, "import { Composition } from '../remotion/host.ts';\nimport { x } from '../remotion/host';")).toEqual([`R10 ${planner} → seam ${HOST}`]);
+      expect(seam('packages/components/src/kit/index.ts', "export * from './renderer.ts';")).toEqual([`R10 packages/components/src/kit/index.ts → export * from ${KIT}`]);
+      // The seam's own folder is where it is used, and a file of the same name elsewhere is no seam.
+      expect(seam('packages/editor/src/remotion/Root.tsx', "import { Composition } from './host.js';")).toEqual([]);
+      expect(seam('packages/editor/src/render/bundle.ts', "import { bundlerLibrary } from './library.js';")).toEqual([]);
+      expect(seam('packages/components/src/kit/media.tsx', "import { Loop } from './renderer.js';")).toEqual([]);
+      expect(seam('packages/engine/src/index.ts', "export { x } from './library.js';\nexport type { Renderer } from './render/renderer.js';")).toEqual([]);
+      // The player's two seam files hand nothing of the library on: importing them is not ruled.
+      expect(seam('packages/ui/src/server/player.ts', "import { bundlePlayer } from '../player/bundle-player.js';")).toEqual([]);
+    });
+
+    it('14. a spelling that hides the name from a text search, and files that are not .ts', () => {
+      // An escaped specifier is the same name once the compiler has read it.
+      expect(seam(EDITOR, "import x from '\\u0072emotion';")).toEqual([`R10 ${EDITOR} → remotion`]);
+      expect(seam(EDITOR, "export const load = () => import('@\\x72emotion/renderer');")).toEqual([`R10 ${EDITOR} → @remotion/renderer`]);
+      // Plain JavaScript, JSX in it, a declaration file.
+      expect(seam('packages/editor/src/render/a.mjs', "import { renderMedia } from '@remotion/renderer';")).toEqual(['R10 packages/editor/src/render/a.mjs → @remotion/renderer']);
+      expect(seam('packages/components/library/studio/card-x/part.jsx', "import { Img } from 'remotion';\nexport const A = () => <Img src=\"a.png\" />;")).toEqual(['R10 packages/components/library/studio/card-x/part.jsx → remotion']);
+      expect(seam('packages/editor/src/render/a.d.ts', "import type { Codec } from '@remotion/renderer';\nexport declare const c: Codec;")).toEqual(['R10 packages/editor/src/render/a.d.ts → @remotion/renderer']);
+      // The ratchet reads them where they live: a nested folder of a built-in, a scaffold's .js, a .d.ts and a .mjs under src.
+      const nested = 'packages/components/library/studio/card-x/parts/a.jsx';
+      const scaffoldJs = 'packages/components/scaffolds/card/helper.js';
+      const dts = 'packages/components/src/kit/extra.d.ts';
+      const mjs = 'packages/components/src/tool.mjs';
+      expect(
+        entriesOf({
+          [nested]: "import { Img } from 'remotion';",
+          [scaffoldJs]: "const { Lottie } = require('@remotion/lottie');",
+          [dts]: "export type P = import('remotion').SequenceProps;",
+          [mjs]: "export { interpolate } from 'remotion';",
+        }),
+      ).toEqual([`R10 ${nested} → remotion`, `R10 ${scaffoldJs} → @remotion/lottie`, `R10 ${dts} → remotion`, `R10 ${mjs} → remotion`].sort());
+    });
+
+    it('the computed reads it lists are still in the code as described', () => {
+      // compile.ts loads react and the library by a name taken from a list: no literal the rule could read.
+      const compile = readFileSync(join(ROOT, 'packages/components/src/compile.ts'), 'utf8');
+      expect(compile).toMatch(/const STUBBED = \[[^\]]*'remotion'[^\]]*\] as const;/);
+      expect(compile).toMatch(/for \(const name of STUBBED\) \{[\s\S]{0,80}await import\(name\)/);
+      expect(seam('packages/components/src/compile.ts', compile)).toEqual([]);
+      // library.ts no longer has one: its two version reads are literals, allowed by its own entry.
+      const library = readFileSync(join(ROOT, LIBRARY), 'utf8');
+      expect(library).toContain("require.resolve('remotion/package.json')");
+      expect(library).toContain("require.resolve('@remotion/bundler/package.json')");
+      expect(library).not.toMatch(/resolve\(`/);
+      expect(seam(LIBRARY, library)).toEqual([]);
+      // Resolving `remotion` is all that file may do with it, and no other seam may.
+      expect(seam(LIBRARY, "export const a = () => import('remotion');")).toEqual([`R10 ${LIBRARY} → remotion`]);
+      expect(seam(HOST, "export const p = require.resolve('@remotion/renderer/package.json');")).toEqual([`R10 ${HOST} → resolve(@remotion/renderer/package.json)`]);
+    });
+
+    it('says what it does not see: a computed specifier and a name inside a data string are no hit', () => {
+      expect(seam(EDITOR, "const name = 'remotion';\nexport const a = () => import(name);\nexport const ALLOWED = ['react', 'remotion'];\nexport const entry = \"import { registerRoot } from 'remotion';\";\nexport const v = (n: string) => require.resolve(`${n}/package.json`);\n// import x from 'remotion'")).toEqual([]);
+      // Nor a require under another name, a module declaration, or a name put together.
+      expect(seam(EDITOR, "import { createRequire as cr } from 'node:module';\nexport const a = cr(import.meta.url)('remotion');\nconst { resolve } = require;\nexport const b = resolve('remotion');\nexport const c = () => import('remo' + 'tion');")).toEqual([]);
+      expect(seam('packages/editor/src/render/a.d.ts', "declare module 'remotion' {\n  export const x: number;\n}")).toEqual([]);
+    });
   });
 
   it('rules.mjs --check without a root checks the current folder', () => {

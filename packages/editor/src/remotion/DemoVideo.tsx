@@ -8,7 +8,7 @@
  */
 import { useMemo } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Html5Audio, OffthreadVideo, Sequence, useCurrentFrame } from './host.js';
 import { Logo, Wordmark, backgroundCss } from '@retake/components/kit';
 import type { ComponentProps, ThemeTokens } from '@retake/components';
 import type { CardSegment, ClipSegment, EditPlan, OverlayUse, PlanSegment, ResolvedComponent } from '../plan-types.js';
@@ -16,15 +16,14 @@ import { viewOf } from '../layout.js';
 import type { SourceView } from '../layout.js';
 import { layoutPaneRectsAt, paneSource, paneViewOf } from '../panes.js';
 import type { PlanSource } from '../plan-types.js';
+import type { VideoProps } from './contract.js';
 import { useThemeFonts } from './fonts.js';
 import { brandmarkRect, insetHole, layoutRects, mapUseRect, overlayBoxAt, musicPlayGain, musicVolumeAt, loupePlacement, overlayAvoid, overlayRects, overlayTargets, shortcutSlot, srcFrameAt, trackBoxAt, trackKeysAt, transitionWindows, urlAt } from './frames.js';
 import type { TransitionWindow } from './frames.js';
 import { pickComponent, useModules } from './modules.js';
 import { usePreviewMode } from './preview-mode.js';
 
-export interface DemoVideoProps extends Record<string, unknown> {
-  plan: EditPlan | null;
-}
+export type DemoVideoProps = VideoProps;
 
 const fill: CSSProperties = { position: 'absolute', inset: 0 };
 

@@ -91,6 +91,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L5.18 | Hardening before the first release, the rest: one flag for the processes that serve agents, the programs, browser switches and environment their jobs get, the production guard's addresses, the Studio's token and link, MCP over HTTP's port | M | **done**, pending the person's review of the pull request (2026-11-09; next: the first release v0.2.0) |
 | L6.1 – L6.13 | Architecture series after the 2026-11-04 audit (action plan T1 – T14): the import-rules ratchet and glossary, the job queue port, one operation catalogue, admission and one caller in the engine, one project store and journal, the CLI on the engine's pipeline, a pure core with its I/O apart and the work policy passed explicitly, the planner apart from the renderer, the in-page kit from modules, the Studio's typed data layer, the worker in parts | L+, in 13 lots | **done**, pending the person's review of the pull request (2026-11-10; no behaviour change beyond the CHANGELOG's [Unreleased]) |
 | L7.1 | A `Renderer` port in the engine (2026-11-10 action plan, U6 first slice): video, stills, previews; the editor's driver and an in-memory adapter under one contract suite; ratchet rules R9 and `render-call` | M | **done** (2026-11-10, branch `claude/arch-l7`; no behaviour change; the full suite runs once at the end of the branch) |
+| L7.2 | The renderer seam (action plan U12): five seam files name the rendering library, ratchet rule R10; composition ids once and versioned render props; built-ins on the kit only; `components preview` on the port | M | **done** (2026-11-10, branch `claude/arch-l7`; previews and a fixture video byte-identical before and after on the software path) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1026,6 +1027,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.1 — A `Renderer` port in the engine (M; decided 2026-11-10)
 - **Goal:** the engine renders through a port it owns, so that the renderer seam (L7.2) and any later change of renderer start from one place; the existing behaviour is kept.
 - **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.1)". Requirement R-ARCH-12. Import-rules ratchet 59 → 60 entries (one `render-call` entry for L7.2). Next on the branch: L7.2, L7.3, then U1 – U16.
+
+### L7.2 — The renderer seam (M; decided 2026-11-10)
+- **Goal:** the rendering library is reached from a few named files held by a ratchet, so a change of renderer has a known surface; pixels unchanged.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.2)". Requirement R-ARCH-13. Import-rules ratchet 60 → 59 entries, R10 at none.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

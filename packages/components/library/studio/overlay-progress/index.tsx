@@ -1,5 +1,4 @@
-import { useCurrentFrame } from 'remotion';
-import { CapText, backgroundSample, biasMotion, capTextLayout, clamp, fadeOut, liftToContrast, mixColors, progress, readableOn, roundTo, withAlpha } from '@retake/components/kit';
+import { CapText, backgroundSample, biasMotion, capTextLayout, clamp, fadeOut, liftToContrast, mixColors, progress, readableOn, roundTo, useCurrentFrame, withAlpha } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { position: 'top' | 'bottom'; thickness: number; gap: number; margin: number; labels: boolean };

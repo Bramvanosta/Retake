@@ -5,7 +5,8 @@
  * engine builds the driver. Types only.
  *
  * A driver's failure is read by what it says, never by its class: its kind (core `errorKindOf`: `cancelled`), and the
- * fields `path`, `renderWarnings` and `diskFull` when it has them.
+ * fields `renderPath`, `renderWarnings` and `diskFull` when it has them (`renderPath` is this package's
+ * `RenderError.path` under the port's name: the driver maps it, render.ts planDriver).
  */
 import type { RenderSettings, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
@@ -47,7 +48,8 @@ export interface DriverVideoResult {
   bundle_ms: number;
   render_ms: number;
   warnings: string[];
-  path: NonNullable<RenderRecord['policy']>;
+  /** The render path asked, resolved and used: the port's name for what renderPlan answers as `path`. */
+  renderPath: NonNullable<RenderRecord['policy']>;
   encoding: Pick<RenderRecord['encoding'], 'encoder' | 'crf' | 'bitrate' | 'gop'>;
   /** What ffprobe saw in the file written, when it ran. */
   probe?: RenderRecord['probe'];

@@ -1822,6 +1822,35 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   (core error-kind.ts), so the CLI prints them as they are; only a cancelled render is reworded (`editorErrorOf`).
   `packages/cli/test/pipeline-cli.test.ts` holds their stdout, stderr, exit codes, history and journal lines byte for
   byte (fixtures/pipeline-cli.json), times measured by a clock alone normalised.
+- **The renderer's seam** (L7.2). The rendering library is named in five files, each with the packages it may name
+  (`LIBRARY_SEAMS`, `scripts/audit/lib.mjs`): the editor's node side (`render/library.ts`: the renderer, the bundler,
+  the versions in the bundle's key — one *loader* of the library, not an interface over it: the library's own API,
+  `renderMedia`, `renderStill`, `selectComposition`, `openBrowser`, `bundle` and their options, is still called in
+  `render/{render,preview,policy,bundle}.ts`, so a change of renderer edits those four files too), the editor's
+  bundle side (`remotion/host.ts`: what the compositions use), the
+  kit's (`kit/renderer.ts`), and the Studio player's frame and its version read. Ratchet rule R10 holds it, with no
+  entry: any import (types too), re-export, `require`, `resolve()` of the library's path elsewhere is a hit, and so are
+  a seam file re-exported wholesale and a seam file that hands the library on (the first three) imported from outside
+  its own folder (`LIBRARY_SEAM_IMPORTERS`); the built-in components and the scaffolds are read too (nested folders,
+  `.js` / `.jsx` / `.mjs` and declaration files as well) and name it nowhere. What R10 cannot see: a specifier
+  computed at run time (one in the code, listed as `LIBRARY_COMPUTED_READS`: the components' compile check loads
+  `react` and `remotion` by name from a list, to stub their exports), a require reached under another name,
+  `declare module`, the library's name inside a data string (the lists of imports a component may use, the bundles'
+  externals, the generated bundle entry — which keeps its literal `import { registerRoot } from 'remotion'` —, the
+  player frame's read of a global the library sets, `window.remotion_delayRenderHandles`, cache keys), a named
+  re-export of one seam binding through a file of the seam's folder, what a seam file itself exports, and tests,
+  scripts, fixtures and apps. A workspace component may import the library: that is the product's
+  rule, not a gap. The props a render hands its compositions are a contract (`remotion/contract.ts`, pure): the
+  composition ids are written there once, `videoProps(plan)` / `previewProps(spec)` stamp a version (`PROPS_VERSION`)
+  and `readVideoProps` / `readPreviewProps` — the only readers, in the root's `calculateMetadata` — refuse another
+  one with a message saying to rebuild the bundle. The contract covers renders (a video, a still, a component
+  preview: each selects its composition first, which is where `calculateMetadata` runs); the Studio player mounts
+  the compositions directly, with its own protocol and its own bundle, and does not pass the reader. The version is insurance, not a mechanism in use: node code and bundle are
+  built from one tree and the bundle's key hashes these files, so a mismatch needs a stale or hand-kept bundle; the
+  compositions' default props (no payload) carry no version and are not checked. The port says `renderPath` for what
+  a failed render tried (`software`, `gpu`…), never `path`; the editor maps it at its boundary. Beside the plan
+  and the render record (the editor's planner entry), three types of the port are still the editor's, imported as
+  types: `RenderProgress`, `BundleComponent`, `ComponentPreviewSpec`.
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
   `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).

@@ -4,7 +4,7 @@
  * fails is a warning and the text draws in the fallback font; a render stops (cancelRender).
  */
 import { useEffect, useState } from 'react';
-import { cancelRender, continueRender, delayRender } from 'remotion';
+import { cancelRender, continueRender, delayRender } from './host.js';
 import type { ThemeFontFace } from '@retake/components';
 import { usePreviewMode } from './preview-mode.js';
 

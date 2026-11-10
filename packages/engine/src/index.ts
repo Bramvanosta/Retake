@@ -92,6 +92,8 @@ export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, rev
 export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
 // The renderer port, and the product's renderer for a composition root (a shell's command run in process).
 export { editorRenderer } from './render/editor-renderer.js';
+// Component previews on a handed renderer (a shell's `components preview` and `components create`).
+export { previewsWork } from './render/work.js';
 export type { OnRenderer } from './render/work.js';
 export type {
   PreviewBundle,

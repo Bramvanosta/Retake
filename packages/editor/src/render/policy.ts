@@ -19,6 +19,8 @@
 import { availableParallelism, cpus as osCpus } from 'node:os';
 import { RENDER_CONCURRENCY_MAX, RenderSettingsError, gpuInfoOf, renderSettingsFromEnv, sandboxSwitchOff } from '@retake/core';
 import type { GpuInfo, RenderEncoderSetting, RenderGlSetting, RenderSettings, SystemInfoReply, WorkPolicy } from '@retake/core';
+import { rendererLibrary } from './library.js';
+import type { RenderBrowserHandle } from './library.js';
 import { RenderCancelledError, RenderError, isDiskFullError } from './types.js';
 
 /** How the render browser draws: ANGLE (the GPU: Metal on macOS) or Chromium's software raster (no `--use-gl`). */
@@ -206,7 +208,7 @@ async function runProbe(s: FrameSize, binariesDirectory: string | null): Promise
     '-f', 'null', '-',
   ];
   try {
-    const { RenderInternals } = await import('@remotion/renderer');
+    const { RenderInternals } = await rendererLibrary();
     const res = await RenderInternals.callFf({ bin: 'ffmpeg', args, indent: false, logLevel: 'error', binariesDirectory, cancelSignal: undefined, options: { reject: false, timeout: 15_000, stdin: 'ignore' } });
     if (res.exitCode === 0) return { ok: true };
     const line = String(res.stderr ?? '').split('\n').map((l) => l.trim()).find((l) => l && !/^Try\b/.test(l));
@@ -271,7 +273,7 @@ function untilCancelled<T>(p: Promise<T>, signal?: AbortSignal): Promise<T> {
 // ── The GPU check ─────────────────────────────────────────────────────────────
 
 /** The render browser's GPU status (CDP SystemInfo.getInfo on its connection), undefined when it does not say. */
-export async function renderGpuInfo(browser: { connection: unknown }): Promise<GpuInfo | undefined> {
+export async function renderGpuInfo(browser: RenderBrowserHandle): Promise<GpuInfo | undefined> {
   const conn = browser.connection as { send(method: string, params?: unknown): Promise<unknown> };
   try {
     const r = (await conn.send('SystemInfo.getInfo')) as { value?: unknown };
@@ -288,7 +290,7 @@ export async function renderGpuInfo(browser: { connection: unknown }): Promise<G
  * switches (its debugging port) are its own. Empty elsewhere (Linux renders run as Remotion starts them) and when the
  * browser does not report its command line.
  */
-export async function renderSandboxOff(browser: { connection: unknown }, platform: NodeJS.Platform = process.platform): Promise<string[]> {
+export async function renderSandboxOff(browser: RenderBrowserHandle, platform: NodeJS.Platform = process.platform): Promise<string[]> {
   if (platform !== 'darwin') return [];
   const conn = browser.connection as { send(method: string, params?: unknown): Promise<unknown> };
   try {
@@ -327,7 +329,7 @@ export interface PolicyBrowser<B> {
  * (CDP SystemInfo); none under `auto` → closed and opened again in software, `gpu` → kept, with a warning. The caller
  * reports the browser (`onBrowser`) and arms its network guard after this, on the browser that will render.
  */
-export async function openRenderBrowser<B extends { connection: unknown; close(o: { silent: boolean }): Promise<unknown> }>(o: {
+export async function openRenderBrowser<B extends RenderBrowserHandle & { close(o: { silent: boolean }): Promise<unknown> }>(o: {
   policy: RenderPolicy;
   launch: (chromium: { gl?: 'angle' }) => Promise<B>;
   gpuInfo?: (browser: B) => Promise<GpuInfo | undefined>;
@@ -435,7 +437,7 @@ export interface RenderPathProbe {
  * The render path of this machine as a 1080p30 render would take it — the same checks, nothing written: the policy,
  * the render browser opened as renders open it (ANGLE: its GPU), and the VideoToolbox probe. Never throws.
  */
-export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b: { connection: unknown }) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe }): Promise<RenderPathProbe> {
+export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b: RenderBrowserHandle) => Promise<GpuInfo | undefined>; videotoolbox?: VideotoolboxProbe }): Promise<RenderPathProbe> {
   let policy: RenderPolicy;
   try {
     policy = renderPolicy(o.workPolicy);
@@ -446,7 +448,7 @@ export async function probeRenderPath(o: { workPolicy: WorkPolicy; gpuInfo?: (b:
   if (policy.gl.resolved === 'angle') {
     try {
       const { renderBrowser } = await import('./browser.js');
-      const { openBrowser } = await import('@remotion/renderer');
+      const { openBrowser } = await rendererLibrary();
       const b = renderBrowser();
       if (!b.path) out.browserError = 'no render browser to open (see the Render browser line)';
       else {

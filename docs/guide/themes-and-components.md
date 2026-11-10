@@ -282,7 +282,8 @@ size everything in 1920-wide design px times `props.unit` (2 for 4K, 0.5 for pre
 refused too), `Date`, timers or network; import
 only `react`, `remotion`, `@retake/components/kit` and the component's own files — the renderer primitives
 (`useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random`) through the kit, like the scaffolds,
-and `remotion` directly only for what the kit does not re-export (`interpolate`, `spring`…). Props: `theme`, `slots`,
+and `remotion` directly only for what the kit does not re-export (`interpolate`, `spring`…). The built-in components
+import `react` and the kit only; a component of your workspace may keep importing `remotion`. Props: `theme`, `slots`,
 `params` (defaults applied), `unit`, `width`, `height`, `fps`, `durationInFrames`, `variant`, and per kind `screen`
 (layout: the capture; interstitial: the last frame; transition: the wrapped segment), `rects` (layout: its evaluated
 geometry in output px — `screen` = where the capture pixels go, `frame`, `display` = the declared screen rect when the
@@ -303,7 +304,7 @@ url), `cursor.ripple_color`, `style_bias`, `captions` (kicker and line text styl
 
 | Helper | What it does |
 |---|---|
-| `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random` | the renderer primitives, re-exported from remotion (`kit/renderer.ts`, the one place a renderer change touches for your components; remotion's attribution and licence terms unchanged) |
+| `useCurrentFrame`, `useVideoConfig`, `Img`, `AbsoluteFill`, `Sequence`, `random` | the renderer primitives, re-exported from remotion (`kit/renderer.ts`: the kit's one file that names the library, and the one place a renderer change touches for your components; remotion's attribution and licence terms unchanged) |
 | `easing(name \| bezier \| fn)`, `EASINGS`, `cubicBezier`, `themeEasing(theme)` | curves: `linear`, `ease`, `easeIn`, `easeOut`, `easeInOut`, `standard`, `entrance`, `exit`, `gentle`; the template's `zoom_ease` |
 | `progress`, `fadeIn`, `fadeOut`, `fade`, `rise`, `stagger`, `activeIndex` | frame-driven animation (frame + fps, seconds, design px × unit) |
 | `fitText`, `wrapText`, `balanceLines`, `measureText`, `<FitText>` | the largest font size ≤ max that fits a width (and height / line count), balanced lines, cut with "…" below the minimum: text never overflows. Measured with a canvas in the browser, a deterministic estimate in Node |

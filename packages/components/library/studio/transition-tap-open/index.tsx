@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
-import { biasMotion, clamp, darkLight, easing, lerp, nightTone, roundTo, withAlpha } from '@retake/components/kit';
+import { biasMotion, clamp, darkLight, easing, lerp, nightTone, roundTo, useCurrentFrame, withAlpha } from '@retake/components/kit';
 import type { ComponentProps } from '@retake/components/kit';
 
 type Params = { duration: number; radius: number; touch: boolean; kind: 'crossfade' };

@@ -34,6 +34,40 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.2)
+- **L7.2 done (2026-11-10; branch `claude/arch-l7`)** — the renderer seam (U12 of the
+  [2026-11-10 action plan](audit/2026-11-10/action-plan.md)). Pixels unchanged.
+  - **Five seam files name the rendering library** (`LIBRARY_SEAMS` in `scripts/audit/lib.mjs`, each with the
+    packages it may load or resolve): the editor's node side (`packages/editor/src/render/library.ts` — one *loader*
+    of the library; its API is still called in `render/{render,preview,policy,bundle}.ts`), its bundle side
+    (`packages/editor/src/remotion/host.ts`), the kit's (`packages/components/src/kit/renderer.ts`), the Studio
+    player's frame and its version read. The generated entry keeps its literal `registerRoot` import.
+  - **Ratchet rule R10**, its own check, no entry: the library named elsewhere, a seam re-exported wholesale, a
+    handing seam imported from outside its folder (`LIBRARY_SEAM_IMPORTERS`); it reads the built-ins and the
+    scaffolds too, every source extension. Blind spots are written in the rule (a specifier only known at run time,
+    an aliased `createRequire`, `declare module`); the one computed load in the code, the compile check's stub
+    builder, is listed by hand (`LIBRARY_COMPUTED_READS`).
+  - **The props a render hands the compositions are a versioned contract** with one pure reader
+    (`packages/editor/src/remotion/contract.ts`), where the composition ids are written once. The refusal is tested
+    on each composition's `calculateMetadata`, not by a real render. It covers renders only: the Studio player
+    mounts the compositions with its own protocol.
+  - **Components.** The 41 built-ins import `react` and the kit only (33 changed one import line: their
+    `preview.json` `source_hash` moved, no `preview.png` did). The kit's public names are the same 135, pinned.
+    Workspace components may still import the library (a real preview proves one library instance; the player
+    bundles one).
+  - **The port.** The CLI's `components preview` renders through `Renderer` (`previewsWork`): baseline 60 → 59,
+    `render-call` empty. The port says `renderPath`; the editor's names and every persisted or JSON field stay.
+  - **Pixel A/B, software path, same machine:** 49 / 49 previews, a 1799-frame video (frames and audio) and a still
+    byte-identical before and after; a reviewer re-rendered three previews from fresh bundles, five more after the
+    fix pass. The GPU path was not compared.
+  - **Seen by a user:** every workspace re-bundles once and the Studio redraws its library previews once (CHANGELOG);
+    no format constant was bumped.
+  - **Left.** Three types of the port are still the editor's (`RenderProgress`, `BundleComponent`,
+    `ComponentPreviewSpec`: moving them breaks the planner entry's test); the node-side seam is a loader, not an
+    interface; the Studio player is a seam of its own, not behind the port.
+  - **Checked.** `tsc -b`, the ratchet, `test-guard`, `--check-cites`, the lot's test files one by one. **The full
+    suite was not run** (once, at the end of the branch).
+
 ## State (after L7.1)
 - **L7.1 done (2026-11-10; branch `claude/arch-l7`, on top of `claude/arch-l6`, to be rebased on `main` once that
   series is merged)** — the first slice of U6 of the [2026-11-10 action plan](audit/2026-11-10/action-plan.md): the
@@ -988,7 +1022,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: L7.2 (the renderer seam: one module reaches the renderer library, composition ids once, versioned typed props, the built-in components on the kit only; every component preview compared before and after), then L7.3 (the encoder fed by our ffmpeg, measured), then U1 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: L7.3 (the encoder fed by our ffmpeg, measured), then U1 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

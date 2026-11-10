@@ -45,6 +45,7 @@ import {
 import type { ComponentManifest, ComponentRegistry, JsonSchemaNode, PreviewMeta } from '@retake/components';
 import { buildComponentPreview, loadPreviewSamples } from '../preview.js';
 import type { BuiltPreview, ComponentPreviewSpec, PreviewSamples } from '../preview.js';
+import { PREVIEW_COMPOSITION, previewProps } from '../remotion/contract.js';
 import { startAssetServer } from './asset-server.js';
 import { assertRenderBrowser, renderBrowser } from './browser.js';
 import { ensureBundle, registryBundleComponents, scaffoldComponents } from './bundle.js';
@@ -57,6 +58,8 @@ import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
 import { errorKindOf } from '@retake/core';
 import { handedDriver } from './driver-guard.js';
+import { rendererLibrary } from './library.js';
+import type { RenderBrowserHandle } from './library.js';
 import type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, RenderDriver } from './driver-types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
@@ -71,8 +74,8 @@ export async function loadPreviewTheme(nameOrDir: string, root: string, files: W
   return loadTemplate(nameOrDir, root, { files });
 }
 
-/** Composition id of component previews (see ../remotion/Root.tsx). */
-export const PREVIEW_COMPOSITION = 'ComponentPreview';
+/** Composition id of component previews (written once, in ../remotion/contract.ts). */
+export { PREVIEW_COMPOSITION };
 
 /**
  * The looping previews of the Studio library (R-UI-06b): GIF 640×360 at 15 fps (every second frame of the 30 fps
@@ -122,7 +125,7 @@ export interface PreviewBackend {
     /** What the work runs under (core WorkPolicy). */
     workPolicy: WorkPolicy;
     /** Tests: the browser's GPU status. */
-    gpuInfo?: (browser: { connection: unknown }) => Promise<GpuInfo | undefined>;
+    gpuInfo?: (browser: RenderBrowserHandle) => Promise<GpuInfo | undefined>;
   }): Promise<PreviewRenderer>;
 }
 
@@ -337,7 +340,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
   async open(o) {
     const browser = renderBrowser();
     const browserExe = assertRenderBrowser(browser, o.workPolicy);
-    const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await import('@remotion/renderer');
+    const { openBrowser, renderMedia, renderStill, selectComposition, makeCancelSignal } = await rendererLibrary();
     const policy = renderPolicy(o.workPolicy, o.settings);
     guardEncoderPipe();
     let opened: Awaited<ReturnType<typeof openRenderBrowser<Awaited<ReturnType<typeof openBrowser>>>>>;
@@ -388,7 +391,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
         ...common,
         serveUrl: o.serveUrl,
         id: PREVIEW_COMPOSITION,
-        inputProps: { preview: spec },
+        inputProps: previewProps(spec),
         puppeteerInstance: puppeteer,
         browserExecutable: executable,
         ...(remotion.port !== undefined ? { port: remotion.port } : {}),
@@ -405,7 +408,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
           imageFormat: 'png',
           scale,
           overwrite: true,
-          inputProps: { preview: spec },
+          inputProps: previewProps(spec),
           puppeteerInstance: puppeteer,
           browserExecutable: executable,
           ...remotion,
@@ -428,7 +431,7 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
             frameRange: g.frames,
             outputLocation: out,
             overwrite: true,
-            inputProps: { preview: spec },
+            inputProps: previewProps(spec),
             cancelSignal,
             puppeteerInstance: puppeteer,
             browserExecutable: executable,

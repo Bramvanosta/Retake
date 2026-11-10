@@ -12,6 +12,9 @@ release — for the person about to click Install and Restart.
   terminal, the Studio or Claude), when and how it ended — never a value or a secret. `retake journal` lists it.
 
 ### Changed
+- The first render or component preview after this update rebuilds its render bundle once, and the Studio draws its
+  library previews again once (the files they are built from moved). Pictures are unchanged: compared byte for byte
+  on the software render path.
 - The README block `retake components preview` (and `retake components create`) writes into a component of your
   workspace's components folder is an entry of the workspace journal too, written on the README as it was read.
 - A component README that is a symbolic link out of the components folder is now refused, like every other authored

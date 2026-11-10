@@ -1,7 +1,7 @@
 /**
  * The render driver handed to the use cases (no Remotion, no browser, no ffmpeg / ffprobe): renderVideo writes its
  * record from what a driver answers and reads a driver's failure by what it says — its kind (a cancel that is not this
- * package's class is still recorded `cancelled`), its `path` and `renderWarnings`, `diskFull` —, renderStill goes
+ * package's class is still recorded `cancelled`), its `renderPath` and `renderWarnings`, `diskFull` —, renderStill goes
  * through the driver's stills, and a preview session renders on a driver's previews. Which driver renders is read
  * from the `renderer` key (render/driver-guard.ts): a key that holds nothing is refused, never replaced by this
  * package's own driver, and the own driver's options (`cacheDir`, `seams`, a preview `backend`) are refused beside it.
@@ -43,7 +43,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const PATH: DriverVideoResult['path'] = { gl: { asked: 'auto', source: 'default', resolved: 'software', used: 'software' }, encoder: { asked: 'auto', source: 'default', used: 'libx264' }, concurrency_source: 'default' };
+const PATH: DriverVideoResult['renderPath'] = { gl: { asked: 'auto', source: 'default', resolved: 'software', used: 'software' }, encoder: { asked: 'auto', source: 'default', used: 'libx264' }, concurrency_source: 'default' };
 
 /** A driver that writes a marker and answers `result`, or rejects with what `fail` gives. */
 function driver(o: { fail?: () => unknown; probe?: DriverVideoResult['probe'] } = {}): RenderDriver & { videos: DriverVideoRequest[]; stillFrames: number[] } {
@@ -59,7 +59,7 @@ function driver(o: { fail?: () => unknown; probe?: DriverVideoResult['probe'] } 
       if (o.fail) throw o.fail();
       await mkdir(dirname(req.out), { recursive: true });
       await writeFile(req.out, 'marker');
-      return { file: req.out, size_bytes: 6, concurrency: 3, bundle: { hash: 'h', cached: true, ms: 7 }, browser: { path: null, source: 'none' }, bundle_ms: 7, render_ms: 9, warnings: ['a driver warning'], path: PATH, encoding: { encoder: 'libx264', crf: 16 }, ...(o.probe ? { probe: o.probe } : {}) };
+      return { file: req.out, size_bytes: 6, concurrency: 3, bundle: { hash: 'h', cached: true, ms: 7 }, browser: { path: null, source: 'none' }, bundle_ms: 7, render_ms: 9, warnings: ['a driver warning'], renderPath: PATH, encoding: { encoder: 'libx264', crf: 16 }, ...(o.probe ? { probe: o.probe } : {}) };
     },
     async stills(req) {
       for (const f of req.frames) {
@@ -138,7 +138,7 @@ describe('renderVideo on a driver handed to it', () => {
 
   it('a driver\'s failure keeps the path it tried and its warnings, whatever its class', async () => {
     const path = { ...PATH, fallback: { reason: 'the GPU went away' } };
-    const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('the encoder stopped'), { path, renderWarnings: ['blocked: example.com'] }) }) }).catch((x: unknown) => x);
+    const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('the encoder stopped'), { renderPath: path, renderWarnings: ['blocked: example.com'] }) }) }).catch((x: unknown) => x);
     expect(e).toBeInstanceOf(RenderError);
     expect(e).not.toBeInstanceOf(RenderCancelledError);
     expect((e as Error).message).toBe('the encoder stopped');
@@ -146,6 +146,17 @@ describe('renderVideo on a driver handed to it', () => {
     expect(record.status).toBe('failed');
     expect(record.policy).toEqual(path);
     expect(record.warnings).toContain('blocked: example.com');
+  });
+
+  it('a failure\'s `path` is never read as a render path: a system error\'s file, or an object under that name, leaves the record without a policy', async () => {
+    for (const path of ['/somewhere/video.mp4', { ...PATH }]) {
+      const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('ENOTDIR: not a directory'), { code: 'ENOTDIR', path }) }) }).catch((x: unknown) => x);
+      expect(e).toBeInstanceOf(RenderError);
+      expect(((e as RenderError).record as RenderRecord).policy).toBeUndefined();
+    }
+    // …and a `renderPath` that is not an object is not one either.
+    const e = await renderVideo({ workPolicy: PERSON_POLICY, project, root, run: RUN_ID, renderer: driver({ fail: () => Object.assign(new Error('odd'), { renderPath: 'software' }) }) }).catch((x: unknown) => x);
+    expect(((e as RenderError).record as RenderRecord).policy).toBeUndefined();
   });
 });
 

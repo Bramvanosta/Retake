@@ -65,8 +65,8 @@ export interface RenderVideoResult {
   bundle_ms: number;
   render_ms: number;
   warnings: string[];
-  /** The policy asked, resolved and used (the record's `policy`). */
-  path: NonNullable<RenderRecord['policy']>;
+  /** The render path asked, resolved and used (the record's `policy`). */
+  renderPath: NonNullable<RenderRecord['policy']>;
   /** The encoder's part of the record's `encoding`. */
   encoding: Pick<RenderRecord['encoding'], 'encoder' | 'crf' | 'bitrate' | 'gop'>;
   /** What the file written holds, when the renderer measured it (the record's `probe`). */
@@ -131,10 +131,10 @@ export interface Renderer {
 /** What a renderer's failure may say beside its message and its kind. */
 export interface RendererFailure extends Error {
   /**
-   * The policy the failed render was on (the record's `policy`). Read as such only when it is an object: a system
-   * error (ENOENT, ENOTDIR…) names a file under the same field, as a string.
+   * The render path the failed render was on (the record's `policy`). Its own name on purpose: a system error
+   * (ENOENT, ENOTDIR…) names a file under `path`, as a string, and that is never read as a render path.
    */
-  path?: RenderRecord['policy'];
+  renderPath?: RenderRecord['policy'];
   /** Warnings gathered before it failed. */
   renderWarnings?: string[];
   /** The disk was full. */

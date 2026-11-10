@@ -9,9 +9,9 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
-import { Img, Loop, OffthreadVideo, Sequence, cancelRender, continueRender, delayRender, useCurrentFrame, useVideoConfig } from 'remotion';
-import { Lottie } from '@remotion/lottie';
-import type { LottieAnimationData } from '@remotion/lottie';
+import { Img, Loop, OffthreadVideo, Sequence, cancelRender, continueRender, delayRender, useCurrentFrame, useVideoConfig } from './renderer.js';
+import { Lottie } from './renderer.js';
+import type { LottieAnimationData } from './renderer.js';
 import type { LottieMedia, PictureMedia, ThemeTokens, VideoMedia } from '../types.js';
 import { backgroundCss, nightTone } from './style.js';
 import type { MediaFitMode } from './frame-geometry.js';

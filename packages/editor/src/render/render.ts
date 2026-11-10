@@ -40,6 +40,7 @@ import type { RenderEncoder, RenderGl, RenderPolicy, VideotoolboxProbe } from '.
 import type { PlanTrust } from './plan-run.js';
 import { rendersDir, reserveVersion, versionLockFile } from './runs.js';
 import { themeContentHash } from './theme-hash.js';
+import { VIDEO_COMPOSITIONS, videoProps } from '../remotion/contract.js';
 import { playsSound } from '../remotion/frames.js';
 import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
@@ -47,6 +48,8 @@ import type { RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
 import { errorKindOf } from '@retake/core';
 import { handedDriver } from './driver-guard.js';
+import { rendererLibrary } from './library.js';
+import type { LibraryBrowser, RenderBrowserHandle } from './library.js';
 import type { RenderDriver } from './driver-types.js';
 
 export { probeMedia } from './probe.js';
@@ -55,8 +58,8 @@ export { probeMedia } from './probe.js';
 export const RENDER_ENCODING = { codec: 'h264', pixel_format: 'yuv420p' } as const;
 /** JPEG quality of the frames Remotion captures before encoding (high: captures are full of small text). */
 export const FRAME_JPEG_QUALITY = 95;
-/** Composition ids by variant (see ../remotion/Root.tsx). */
-export const COMPOSITION_IDS = { landscape: 'DemoVideo', vertical: 'DemoVertical', square: 'DemoSquare' } as const;
+/** Composition ids by variant (written once, in ../remotion/contract.ts). */
+export const COMPOSITION_IDS = VIDEO_COMPOSITIONS;
 /** File name suffix of each variant's renders (`<scenario>-v<N><suffix>.mp4`). */
 export const VARIANT_SUFFIX = { landscape: '', vertical: '-vertical', square: '-square' } as const;
 
@@ -83,7 +86,7 @@ export function guardEncoderPipe(): void {
 /** Seams of the render path, for tests only (a GPU that is not there, a GPU path that fails). */
 export interface RenderSeams {
   /** The render browser's GPU status (default: CDP SystemInfo.getInfo, ./policy.ts renderGpuInfo). */
-  gpuInfo?: (browser: { connection: unknown }) => Promise<GpuInfo | undefined>;
+  gpuInfo?: (browser: RenderBrowserHandle) => Promise<GpuInfo | undefined>;
   /** The VideoToolbox probe (default: the compositor's ffmpeg at the render's size). */
   videotoolbox?: VideotoolboxProbe;
   /** The encoder of the first attempt, past the choice (a hardware encoder failing for real: an oversize session). */
@@ -152,18 +155,13 @@ function cancelled(signal?: AbortSignal): boolean {
   return signal?.aborted === true;
 }
 
-/** Lazy: @remotion/renderer pulls in a lot (keep `retake plan` fast). */
-async function remotionRenderer() {
-  return import('@remotion/renderer');
-}
-
 interface Session {
   serveUrl: string;
   bundle: RenderBundle;
   browser: RenderBrowser;
   served: EditPlan;
   close: () => Promise<void>;
-  puppeteer: Awaited<ReturnType<Awaited<ReturnType<typeof remotionRenderer>>['openBrowser']>>;
+  puppeteer: LibraryBrowser;
   warnings: string[];
   /** Options every Remotion call of a guarded session takes: the bundle server's port and the download check. */
   remotion: { port?: number; onDownload?: (src: string) => undefined };
@@ -223,7 +221,7 @@ async function openSession(opts: {
     throw new RenderError(`files of the plan are missing: ${missing.join(', ')}`);
   }
   const served = resolvePlanAssets(opts.plan, (_url, file) => server.urlFor(file));
-  const { openBrowser } = await remotionRenderer();
+  const { openBrowser } = await rendererLibrary();
   let opened: Awaited<ReturnType<typeof openRenderBrowser<Session['puppeteer']>>>;
   try {
     opened = await openRenderBrowser({
@@ -361,7 +359,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
     const p = session.policy;
     if (n === 1) first = p;
     const partial = join(dirname(out), `.${basename(out, '.mp4')}.partial-${randomBytes(4).toString('hex')}.mp4`);
-    const { renderMedia, selectComposition, makeCancelSignal } = await remotionRenderer();
+    const { renderMedia, selectComposition, makeCancelSignal } = await rendererLibrary();
     const { cancelSignal, cancel } = makeCancelSignal();
     const onAbort = () => cancel();
     let injected: Error | undefined;
@@ -375,7 +373,7 @@ export async function renderPlan(opts: RenderPlanOptions): Promise<RenderPlanRes
       encoder = choice.encoder;
       tried = pathOf(session.gl, encoder, rendererWords(session.gpu));
       if ('note' in choice && choice.note) session.warnings.push(choice.note);
-      const inputProps = { plan: session.served };
+      const inputProps = videoProps(session.served);
       const composition = await selectComposition({
         ...COMMON,
         serveUrl: session.serveUrl,
@@ -600,6 +598,21 @@ export interface RenderVideoOptions {
 }
 
 /**
+ * renderPlan's failure as a driver's: what it tried leaves `path` (this package's name, RenderError.path) for
+ * `renderPath` (the driver's and the port's) — the one place the two names meet. Anything else passes as it is: a
+ * system error's `path` is a file, a string, and stays one.
+ */
+function driverFailure(e: unknown): unknown {
+  // The error is renamed in place, not copied: it is renderPlan's own, thrown to this one catch (nobody else holds
+  // it), and the same object keeps its class, stack, record and warnings.
+  if (e instanceof RenderError && e.path && typeof e.path === 'object') {
+    (e as RenderError & { renderPath?: RenderRecord['policy'] }).renderPath = e.path;
+    delete e.path;
+  }
+  return e;
+}
+
+/**
  * The video and stills of this package's render driver (./driver.ts adds the previews): renderPlan and the probe of
  * the file it wrote, renderStills. `cacheDir` and `seams` are the driver's own, no request names them.
  */
@@ -621,6 +634,8 @@ export function planDriver(o: { cacheDir?: string; seams?: RenderSeams } = {}): 
         ...(req.onProcess ? { onBrowser: req.onProcess } : {}),
         ...(req.settings ? { settings: req.settings } : {}),
         ...(o.seams ? { seams: o.seams } : {}),
+      }).catch((e: unknown) => {
+        throw driverFailure(e);
       });
       const probe = await probeMedia(res.file, req.workPolicy);
       return {
@@ -632,7 +647,7 @@ export function planDriver(o: { cacheDir?: string; seams?: RenderSeams } = {}): 
         bundle_ms: res.bundle_ms,
         render_ms: res.render_ms,
         warnings: res.warnings,
-        path: res.path,
+        renderPath: res.path,
         encoding: res.encoding,
         ...(probe ? { probe } : {}),
       };
@@ -792,7 +807,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     record.size_bytes = res.size_bytes;
     record.concurrency = res.concurrency;
     record.encoding = { ...record.encoding, ...res.encoding };
-    record.policy = res.path;
+    record.policy = res.renderPath;
     record.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
     record.browser = { path: res.browser.path, source: res.browser.source };
     record.warnings.push(...res.warnings);
@@ -811,12 +826,12 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   } catch (e) {
     // The driver's failure, read by what it says (its kind, its fields), never by its class: another driver's counts too.
     const cancelled = errorKindOf(e) === 'cancelled';
-    const said = (e ?? {}) as { path?: RenderRecord['policy']; renderWarnings?: unknown };
+    const said = (e ?? {}) as { renderPath?: RenderRecord['policy']; renderWarnings?: unknown };
     const record = base();
     record.status = cancelled ? 'cancelled' : 'failed';
     record.error = (e as Error).message;
     // What was tried (the GPU path, its fallback and why) and the warnings so far (review B L1).
-    if (said.path && typeof said.path === 'object') record.policy = said.path;
+    if (said.renderPath && typeof said.renderPath === 'object') record.policy = said.renderPath;
     if (Array.isArray(said.renderWarnings)) record.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
     record.finished_at = new Date().toISOString();
     record.timings.total_ms = Math.round(performance.now() - t0);
@@ -909,8 +924,8 @@ export async function renderStills(opts: RenderStillsOptions): Promise<string[]>
     ...(opts.seams ? { seams: opts.seams } : {}),
   });
   try {
-    const { renderStill: still, selectComposition } = await remotionRenderer();
-    const inputProps = { plan: session.served };
+    const { renderStill: still, selectComposition } = await rendererLibrary();
+    const inputProps = videoProps(session.served);
     const composition = await selectComposition({
       ...COMMON,
       serveUrl: session.serveUrl,

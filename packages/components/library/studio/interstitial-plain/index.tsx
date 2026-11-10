@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCurrentFrame } from 'remotion';
-import { Background, CapText, biasMotion, capTextLayout, darkLight, nightTone, progress, readableOn, roundTo, withAlpha, formatMetrics } from '@retake/components/kit';
+import { Background, CapText, biasMotion, capTextLayout, darkLight, nightTone, progress, readableOn, roundTo, useCurrentFrame, withAlpha, formatMetrics } from '@retake/components/kit';
 import type { ComponentProps, ThemeTokens } from '@retake/components/kit';
 
 type Params = { tone: 'dark' | 'paper'; dim: number };

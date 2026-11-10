@@ -14,9 +14,9 @@ import {
   validateComponentDir,
 } from '@retake/components';
 import type { ComponentInfo, ComponentIssue, ComponentRegistry, JsonSchemaNode, RegistryNotice } from '@retake/components';
-import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';
+import { loadPreviewTheme } from '@retake/editor';
 import type { PreviewComponentTarget, RenderedPreview, PreviewReadmeWriter } from '@retake/editor';
-import { componentWriter, personScope, fileWriter, ProjectStore } from '@retake/engine';
+import { componentWriter, editorRenderer, personScope, previewsWork, fileWriter, ProjectStore } from '@retake/engine';
 import type { OpenedWorkspace } from '@retake/engine';
 import { CliError, EXIT } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -208,7 +208,8 @@ export async function componentsCreateCommand(ui: Ui, global: GlobalOptions, id:
   if (opts.preview !== false) {
     try {
       const template = await loadPreviewTheme(opts.theme ?? PREVIEW_THEME, ws.root, fileFacts(ws.policy));
-      [preview] = await renderComponentPreviews({
+      [preview] = await previewsWork({
+        renderer: editorRenderer(),
         workPolicy: ws.policy,
         readmes: componentReadmes(ws),
         root: ws.root,
@@ -322,7 +323,8 @@ export async function componentsPreviewCommand(ui: Ui, global: GlobalOptions, ar
   const template = await loadPreviewTheme(themeName, ws.root, fileFacts(ws.policy));
   if (!opts.json) ui.line(c.dim(`rendering ${plural(targets.length, 'preview')} with the ${template.name} theme…`));
   const t0 = performance.now();
-  const done = await renderComponentPreviews({
+  const done = await previewsWork({
+    renderer: editorRenderer(),
     workPolicy: ws.policy,
     readmes: componentReadmes(ws),
     root: ws.root,

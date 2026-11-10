@@ -98,7 +98,7 @@ export class MemoryRenderer implements Renderer {
       bundle_ms: 0,
       render_ms: Date.now() - started,
       warnings: [...(this.#o.warnings ?? [])],
-      path: {
+      renderPath: {
         gl: { asked: 'software', source: 'option', resolved: 'software', used: 'software' },
         encoder: { asked: 'libx264', source: 'option', used: 'libx264' },
         concurrency_source: req.concurrency === undefined ? 'default' : 'option',

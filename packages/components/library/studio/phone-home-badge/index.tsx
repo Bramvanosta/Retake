@@ -1,8 +1,8 @@
-import { Img, useCurrentFrame } from 'remotion';
 import {
   AppIcon,
   Background,
   CapText,
+  Img,
   PhoneDevice,
   SYSTEM_COLORS,
   backgroundSample,
@@ -17,6 +17,7 @@ import {
   progress,
   readableOn,
   roundTo,
+  useCurrentFrame,
   wallpaperCss,
   withAlpha,
 } from '@retake/components/kit';
