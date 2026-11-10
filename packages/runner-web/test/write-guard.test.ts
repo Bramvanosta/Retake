@@ -133,6 +133,7 @@ async function guarded(o: { env?: ResolvedEnvironment; mocks?: WriteMockSpec[]; 
   const seen: GuardedWrite[] = [];
   const sockets: string[] = [];
   const session = await openSession({
+    policy: PERSON_POLICY,
     width: 800,
     height: 600,
     scale: 1,

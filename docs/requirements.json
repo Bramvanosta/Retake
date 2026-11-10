@@ -493,7 +493,7 @@
    "source": "SPEC §4 project.yaml",
    "requirement": "`template` selects the theme; validate checks its assets; run takes the cursor colours from it.",
    "status": "done",
-   "evidence": "cli/src/commands/validate.ts:60-73; run.ts (cli):265; kit/source.ts:251-262",
+   "evidence": "cli/src/commands/validate.ts:60-73; run.ts (cli):265; kit/source.ts kitConfigFor, kitSource",
    "gap": "",
    "phase": "1",
    "lot": "P1"
@@ -543,7 +543,7 @@
    "source": "SPEC §5 cursor",
    "requirement": "Template cursor.style and cursor.ripple_color drive the in-page cursor.",
    "status": "done",
-   "evidence": "kit/source.ts:251-262; kit/page/config.ts config; unit 'the kit source is a self-contained script'",
+   "evidence": "kit/source.ts kitSource, kitConfigFor; kit/page/config.ts config; unit 'the kit source is a self-contained script'",
    "gap": "",
    "phase": "1",
    "lot": "P1"
@@ -2453,7 +2453,7 @@
    "source": "choreography Cursor; look.md",
    "requirement": "Arrow path 'M4 2 L4 19 …', fill #111, white stroke 1.4 with round joins, drop-shadow(0 2px 3px rgba(0,0,0,.35)), ~26 px, hotspot (4,2).",
    "status": "done",
-   "evidence": "kit/page/config.ts config, kit/page/cursor-look.ts lookCss; kit/source.ts:246 DEFAULT_CURSOR_SIZE 26; packages/runner-web/test/look.test.ts 'arrow-dark: a dark arrow with a white outline and a soft shadow, about 26 px tall' (L1.4: dark fill, white outline, 17 × 23 px box, soft shadow, golden image)",
+   "evidence": "kit/page/config.ts config, kit/page/cursor-look.ts lookCss; kit/source.ts DEFAULT_CURSOR_SIZE 26; packages/runner-web/test/look.test.ts 'arrow-dark: a dark arrow with a white outline and a soft shadow, about 26 px tall' (L1.4: dark fill, white outline, 17 × 23 px box, soft shadow, golden image)",
    "gap": "",
    "phase": "1",
    "lot": "P1"

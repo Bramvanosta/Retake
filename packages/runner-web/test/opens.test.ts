@@ -227,6 +227,7 @@ describe("the browser's own guard against file: (real browser)", () => {
     try {
       for (const readOnly of [false, true]) {
         const session = await openSession({
+          policy: PERSON_POLICY,
           width: 800,
           height: 600,
           scale: 1,

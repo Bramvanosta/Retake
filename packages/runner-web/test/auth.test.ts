@@ -186,7 +186,7 @@ describe('preflight (R-AUTH-03) and per-run copies (R-AUTH-07)', () => {
 
   it('a master held by a running browser (the login window) is refused before anything runs; its lock is seen as live', async () => {
     await master('buyer');
-    const held = await chromium.launchPersistentContext(files('buyer').profileDir, { headless: true, ...launchTarget() });
+    const held = await chromium.launchPersistentContext(files('buyer').profileDir, { headless: true, ...launchTarget({}, { policy: PERSON_POLICY }) });
     try {
       // Chromium's lock is a dangling symbolic link "<host>-<pid>": existsSync says false, lstat sees it.
       expect(existsSync(join(files('buyer').profileDir, 'SingletonLock'))).toBe(false);

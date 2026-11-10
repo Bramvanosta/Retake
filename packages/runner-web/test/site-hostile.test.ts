@@ -47,7 +47,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
   const NO_DNS = '--host-resolver-rules=MAP * ~NOTFOUND';
 
   it('the init script: both throw, and cannot be put back', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: [...DEFAULT_BROWSER_ARGS, NO_DNS] });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: [...DEFAULT_BROWSER_ARGS, NO_DNS] });
     try {
       const plain = await securePage(await browser.newContext());
       expect(await plain.evaluate('[typeof SharedWorker, typeof fetchLater]')).toEqual(['function', 'function']);
@@ -66,7 +66,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
   });
 
   it('the Blink switch of siteBrowserArgs: neither exists at all', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: siteBrowserArgs(9) });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: siteBrowserArgs(9) });
     try {
       const page = await securePage(await browser.newContext());
       expect(await page.evaluate('[typeof SharedWorker, typeof fetchLater]')).toEqual(['undefined', 'undefined']);
@@ -78,7 +78,7 @@ describe('shared workers and fetchLater are removed by each layer alone (no netw
 
 describe('the page reader cuts what the page controls (no network: a page set in place)', () => {
   it('family names to 200 characters, candidate URLs (data: and https) to their caps', async () => {
-    const browser = await chromium.launch({ ...launchTarget(undefined), headless: true, args: DEFAULT_BROWSER_ARGS });
+    const browser = await chromium.launch({ ...launchTarget(undefined, { policy: PERSON_POLICY }), headless: true, args: DEFAULT_BROWSER_ARGS });
     try {
       const page = await browser.newPage();
       await page.route('**/*', (r) => r.abort());

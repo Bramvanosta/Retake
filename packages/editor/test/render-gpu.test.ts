@@ -308,6 +308,7 @@ describe.skipIf(!canRender)('the GPU path on this Mac', () => {
     const attempts: Array<{ n: number; gl: string; encoder: string }> = [];
     hits = [];
     const res = await renderPlan({
+      workPolicy: PERSON_POLICY,
       plan,
       out: join(ws.root, 'fallback.mp4'),
       root: ws.root,

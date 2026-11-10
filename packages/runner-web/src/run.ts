@@ -691,6 +691,7 @@ export async function runScenario(opts: RunOptions): Promise<RunRecord> {
       };
     } else if (hasHooks) {
       const deps: SetupDeps = {
+        policy: opts.policy,
         rt,
         session,
         project,
@@ -1413,6 +1414,8 @@ async function prefetchSecrets(
 }
 
 interface SetupDeps {
+  /** What the run runs under (RunOptions.policy): its hooks get it too. */
+  policy: WorkPolicy;
   /** A read-only run: the js hook tabs stop writes (never mocked) and report them. */
   writes?: { policy: WritePolicy; onWrite?: (w: GuardedWrite) => void };
   rt: Runtime;
@@ -1632,6 +1635,7 @@ async function openHooks(d: SetupDeps): Promise<HooksState> {
   d.template.hooks = saved;
   const ctx: HookContextLike = {
     project: d.project,
+    policy: d.policy,
     env: d.env,
     vars: Object.fromEntries(Object.entries(d.template.vars ?? {}).map(([k, v]) => [k, String(v)])),
     runId: d.runId,

@@ -5,14 +5,16 @@
  * crashing it (render-gpu.test.ts). Args: <workspace root> <out.mp4> <cacheDir> <auto|force-videotoolbox>.
  * Prints one JSON line: {ok, error?, warnings, path, encoding, guarded: the unhandled-rejection handlers the render left}.
  */
+import { PERSON_POLICY } from '@retake/core';
 import { loadProject } from '@retake/core/io';
 import { planRun, renderPlan } from '@retake/editor';
 
 const [root, out, cacheDir, mode] = process.argv.slice(2);
 const project = await loadProject('demo', root);
-const planned = await planRun({ project, run: 'latest', root, overrides: { scale: 3 } });
+const planned = await planRun({ workPolicy: PERSON_POLICY, project, run: 'latest', root, overrides: { scale: 3 } });
 try {
   const res = await renderPlan({
+    workPolicy: PERSON_POLICY,
     plan: planned.plan,
     out,
     root,

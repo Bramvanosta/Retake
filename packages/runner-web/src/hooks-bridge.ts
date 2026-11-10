@@ -1,4 +1,4 @@
-import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment } from '@retake/core';
+import type { AgentChannel, HookAccess, HookStep, HookTrust, LoadedProject, ResolvedEnvironment, WorkPolicy } from '@retake/core';
 
 /** What a hook's approval is asked about (@retake/hooks HookApprovalRequest, structurally). */
 export interface HookApprovalRequestLike {
@@ -16,6 +16,8 @@ import { RunnerError, errorMessage } from './errors.js';
 /** The part of @retake/hooks the runner uses (docs/DESIGN.md §2). */
 export interface HookContextLike {
   project: LoadedProject;
+  /** What the run runs under (RunOptions.policy): a shell hook's environment and PATH under the agent policy. */
+  policy: WorkPolicy;
   env: ResolvedEnvironment;
   vars: Record<string, string>;
   runId?: string;

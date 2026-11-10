@@ -141,10 +141,10 @@ describe('raw export (R-RAW-01…04)', () => {
     expect(c.cuts[0]).toMatchObject({ reason: 'navigation', after_step: 2 });
     expect(c.cuts[0].wait_step).toBeUndefined();
     expect(runs.hidden.tl.loading?.some((l) => l.until === 'paint' && l.t_end - l.t_start > 1)).toBe(true);
-    const p = await probeVideo(join(none.dir, c.file), { count: true });
+    const p = await probeVideo(join(none.dir, c.file), { count: true, policy: PERSON_POLICY });
     expect(p).toMatchObject({ codec: 'h264', profile: 'High', pix_fmt: 'yuv420p', width: 800, height: 600, fps: 30, frames: c.frames, timecode: '00:00:00:00' });
     // The selects file is the sequence (one clip here).
-    expect((await probeVideo(join(none.dir, m.selects!.file), { count: true })).frames).toBe(m.sequence.frames);
+    expect((await probeVideo(join(none.dir, m.selects!.file), { count: true, policy: PERSON_POLICY })).frames).toBe(m.sequence.frames);
     const frames = decode(join(none.dir, c.file), 800, 600);
     expect(frames.length).toBe(c.frames);
     const colours = frames.map((f) => px(f, 800, 700, 500));
@@ -187,9 +187,9 @@ describe('raw export (R-RAW-01…04)', () => {
     const m = layer.manifest;
     expect(m.settings).toMatchObject({ format: 'prores', fps: 60, cursor: 'layer', layer: 'prores' });
     const c = m.clips[0];
-    const p = await probeVideo(join(layer.dir, c.file), { count: true });
+    const p = await probeVideo(join(layer.dir, c.file), { count: true, policy: PERSON_POLICY });
     expect(p).toMatchObject({ codec: 'prores', profile: 'HQ', pix_fmt: 'yuv422p10le', fps: 60, frames: c.frames });
-    const lp = await probeVideo(join(layer.dir, c.layer!.file), { count: true });
+    const lp = await probeVideo(join(layer.dir, c.layer!.file), { count: true, policy: PERSON_POLICY });
     expect(lp).toMatchObject({ codec: 'prores', profile: '4444', fps: 60, frames: c.frames, timecode: c.timecode });
     expect(lp.pix_fmt).toMatch(/^yuva444p/);
     // The manifest gives the pixel format ffprobe reads back, and its codec label names none to contradict it.
@@ -243,7 +243,7 @@ describe('raw export (R-RAW-01…04)', () => {
     // Transparent away from the cursor.
     expect(out[k * n + (590 * 800 + (cursor.clips[0].samples[k].x > 400 ? 10 : 790)) * 4 + 3]).toBe(0);
     // No timecode in WebM: out of the FCPXML (Final Cut Pro cannot read it), from media time 0 in the OTIO; the README says so.
-    const probe = await probeVideo(join(webm.dir, c.layer!.file));
+    const probe = await probeVideo(join(webm.dir, c.layer!.file), { policy: PERSON_POLICY });
     expect(probe.timecode).toBeUndefined();
     expect(await readFile(join(webm.dir, webm.manifest.markers.fcpxml), 'utf8')).not.toContain('-cursor');
     const otio = JSON.parse(await readFile(join(webm.dir, webm.manifest.markers.otio), 'utf8')) as { tracks: { children: Array<{ name: string; children: Array<{ source_range: { start_time: { value: number } }; media_references: { DEFAULT_MEDIA: { target_url: string; available_range: { start_time: { value: number } } } } }> }> } };

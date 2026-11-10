@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PERSON_POLICY } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import { probeVideo } from '../src/ffmpeg.js';
 import { findPrevious, findRender } from '../src/load.js';
@@ -110,14 +111,14 @@ describe.skipIf(!hasFfmpeg)('probeVideo', () => {
   afterAll(async () => rm(dir, { recursive: true, force: true }));
 
   it('reads the size, rate, length and frame count of the video stream', async () => {
-    const info = await probeVideo(join(dir, 'clip.mp4'));
+    const info = await probeVideo(join(dir, 'clip.mp4'), PERSON_POLICY);
     expect(info).toMatchObject({ width: 64, height: 36, fps: 29.97, frames: 15 });
     expect(info.duration_s).toBeGreaterThan(0.4);
     expect(info.duration_s).toBeLessThan(0.7);
   });
 
   it('refuses a file ffprobe cannot read, and a missing one', async () => {
-    await expect(probeVideo(join(dir, 'not-a-video.mp4'))).rejects.toThrow(`cannot read the video ${join(dir, 'not-a-video.mp4')} (ffprobe failed: is ffmpeg installed and the file a video?)`);
-    await expect(probeVideo(join(dir, 'missing.mp4'))).rejects.toThrow(/ffprobe failed/);
+    await expect(probeVideo(join(dir, 'not-a-video.mp4'), PERSON_POLICY)).rejects.toThrow(`cannot read the video ${join(dir, 'not-a-video.mp4')} (ffprobe failed: is ffmpeg installed and the file a video?)`);
+    await expect(probeVideo(join(dir, 'missing.mp4'), PERSON_POLICY)).rejects.toThrow(/ffprobe failed/);
   });
 });

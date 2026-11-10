@@ -249,6 +249,7 @@ describe('blank tabs, non-click navigations and cancelling a held load (R-ISS-08
     const ac = new AbortController();
     let abortedAt = 0;
     const rec = await runScenario({
+      policy: PERSON_POLICY,
       project,
       scenario,
       mode: 'capture',
