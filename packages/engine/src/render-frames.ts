@@ -26,7 +26,7 @@ import { closeSync, constants as fsConstants, fstatSync, lstatSync, openSync } f
 import { lstat, realpath } from 'node:fs/promises';
 import type { Stats } from 'node:fs';
 import { join } from 'node:path';
-import { RENDER_ID_RE, SLUG_RE, projectPath, PROJECT_DIRS, projectRef } from '@retake/core';
+import { isRenderId, projectPath, PROJECT_DIRS, projectRef, renderIdOf } from '@retake/core';
 import { ffprobeBin } from '@retake/core/io';
 import type { LoadedProject, WorkPolicy } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
@@ -248,11 +248,11 @@ export class RenderFrames {
 
   /** The record (shape, succeeded, files in the project, created_at as given) and its video opened (see the module comment). */
   private async open(project: LoadedProject, renderId: string, createdAt: string | undefined): Promise<Opened> {
-    if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId) || renderId.length > 200) {
+    if (!isRenderId(renderId)) {
       throw new EngineError('invalid', `invalid render id "${String(renderId).slice(0, 80)}": <scenario>-v<N> (the renders list names them)`, { details: { argument: 'render_id' } });
     }
     const record = await renderForWork(project, renderId);
-    if (!recordShapeOk(record) || !SLUG_RE.test(record.scenario) || !record.id.startsWith(`${record.scenario}-v`)) {
+    if (!recordShapeOk(record) || renderIdOf(record.id, record.scenario) === null) {
       throw new EngineError('refused', `${projectRef('renders', `${renderId}.json`)} has an id, scenario, created_at or variant the tool never writes: not used`);
     }
     if (createdAt !== undefined && createdAt !== record.created_at) {

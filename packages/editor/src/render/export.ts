@@ -10,7 +10,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
-import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, missingOrInvalid, projectPath } from '@retake/core';
+import { DEFAULT_EXPORT_FORMAT_NAMES, EXPORT_FORMAT_NAMES, insideFolder, GUIDE, isRenderId, missingOrInvalid, projectPath } from '@retake/core';
 import { ffmpegBin, h264CodecArgs, h264Encoder, loadProject, nodeFileFacts } from '@retake/core/io';
 import type { LoadedProject, ErrorKind, WorkPolicy } from '@retake/core';
 import type { H264Encoder } from '@retake/core/io';
@@ -273,7 +273,7 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
   const root = resolve(opts.root ?? project.root);
   const trust = opts.trust ?? 'author';
-  if (trust === 'mcp' && !/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(opts.render)) throw new ExportError(`render "${opts.render}": through MCP a render is named by its id`);
+  if (trust === 'mcp' && !isRenderId(opts.render)) throw new ExportError(`render "${opts.render}": through MCP a render is named by its id`);
   const record = trust === 'mcp' ? await readRecord(join(rendersDir(project), `${opts.render}.json`)) : await findRenderRecord(project, opts.render, opts.scenario);
   if (trust === 'mcp') {
     const problem = recordPathProblem(project.dir, record);

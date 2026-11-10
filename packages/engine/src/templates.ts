@@ -10,9 +10,9 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { COMPONENT_KINDS, TEMPLATE_FILE, TEMPLATE_NAME_RE, insideFolder, isTemplatePath } from '@retake/core';
+import { COMPONENT_KINDS, TEMPLATE_FILE, insideFolder, isNewThemeName, isTemplatePath, isThemeName } from '@retake/core';
 import { listTemplates, loadProjectTemplate, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { ComponentKind, LoadedProject, LoadedTemplate, WorkFileFacts } from '@retake/core';
+import type { ComponentKind, LoadedProject, LoadedTemplate, NewThemeName, ThemeName, WorkFileFacts } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import { workspaceRegistry } from './components.js';
 import { EngineError, toEngineError } from './errors.js';
@@ -24,9 +24,18 @@ import type { OpenedWorkspace } from './workspace.js';
 /** Longest template.yaml text a detail returns. */
 const YAML_MAX = 20_000;
 
-export function checkTemplateName(name: string): string {
-  if (typeof name !== 'string' || !TEMPLATE_NAME_RE.test(name) || name.length > 100) {
+/** `name` as the name of a theme that exists, as a request names one (core `isThemeName`), or the refusal. */
+export function checkTemplateName(name: string): ThemeName {
+  if (!isThemeName(name)) {
     throw new EngineError('invalid', `invalid theme "${String(name)}": a theme name (template_list names them), never a path`);
+  }
+  return name;
+}
+
+/** `name` as a name a new theme may take (core `isNewThemeName`), or the refusal: what a copy and a theme made from a brand both ask. */
+export function checkNewThemeName(name: unknown): NewThemeName {
+  if (!isNewThemeName(name)) {
+    throw new EngineError('invalid', `invalid theme name "${String(name).slice(0, 80)}": lower-case letters, digits and dashes (e.g. my-brand)`);
   }
   return name;
 }

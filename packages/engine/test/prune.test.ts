@@ -8,7 +8,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { LoadedProject } from '@retake/core';
@@ -370,6 +370,288 @@ describe('an agent\'s prune asks the person first (projects.prune under agent tr
       expect(await w.left()).toEqual(['20261020-140000-quote']);
     } finally {
       await rm(w.root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('comment threads that cannot be listed (L7.5)', () => {
+  it('every render and every take stays, the result says why, and nothing of them is deleted', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'ds-prune-threads-'));
+    const comments = join(d, 'comments');
+    try {
+      const p = { slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') } as unknown as LoadedProject;
+      const take = async (id: string, mode: 'capture' | 'dry', status: string) => {
+        await mkdir(join(d, 'runs', id), { recursive: true });
+        await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode, status, started_at: '2026-10-20T10:00:00.000Z' }));
+      };
+      const made = async (id: string, runId: string, status: string, at: string) => {
+        await writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: 'quote', run_id: runId, status, created_at: at, variant: 'landscape', plan: { fps: 30 } }));
+      };
+      await mkdir(join(d, 'renders'), { recursive: true });
+      await take('20261020-100000-quote', 'capture', 'succeeded'); // only quote-v1 uses it
+      await take('20261020-110000-quote', 'dry', 'succeeded');
+      await take('20261020-120000-quote', 'capture', 'succeeded'); // the last good take
+      await made('quote-v1', '20261020-100000-quote', 'succeeded', '2026-10-20T10:30:00.000Z');
+      await made('quote-v2', '20261020-120000-quote', 'succeeded', '2026-10-20T12:30:00.000Z');
+      await made('quote-v3', '20261020-120000-quote', 'failed', '2026-10-20T12:40:00.000Z');
+      for (const r of ['quote-v1', 'gone-v1']) await mkdir(join(d, 'review', r), { recursive: true });
+      await mkdir(join(comments, 'quote'), { recursive: true });
+      const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id}`);
+      const all = ['run 20261020-100000-quote', 'run 20261020-110000-quote', 'render quote-v1', 'render quote-v3', 'review gone-v1', 'review quote-v1'];
+
+      // The threads are listed (there is none): the older render, the failed one, their takes and reviews can go.
+      const listed = await pruneProject(p, { keep_renders: 1 });
+      expect(ids(listed)).toEqual(all);
+      expect(listed.threads_unread).toBeUndefined();
+
+      // comments/ cannot be read: a thread may name any render and any take.
+      await chmod(comments, 0o000);
+      const unread = await pruneProject(p, { keep_renders: 1 });
+      expect(ids(unread)).toEqual(['review gone-v1']);
+      expect(unread.threads_unread).toBe('the comment threads of p cannot be listed (EACCES): every render and take is kept (make comments/ of the project readable, then prune again)');
+      expect(unread.kept).toEqual({ runs: 3, renders: 3, reviews: 1 });
+      const deleted = await pruneProject(p, { keep_renders: 1, dry_run: false });
+      expect(ids(deleted)).toEqual(['review gone-v1']);
+      expect(deleted.threads_unread).toBe(unread.threads_unread);
+      expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-100000-quote', '20261020-110000-quote', '20261020-120000-quote']);
+      expect((await readdir(join(d, 'renders'))).sort()).toEqual(['quote-v1.json', 'quote-v2.json', 'quote-v3.json']);
+      expect((await readdir(join(d, 'review'))).sort()).toEqual(['quote-v1']);
+      // An approved list made before does not delete them either.
+      const only = new Map(listed.items.map((i) => [`${i.kind}:${i.id}`, i.paths]));
+      const approved = await pruneProject(p, { keep_renders: 1, dry_run: false, only });
+      expect(ids(approved)).toEqual([]);
+      expect((await readdir(join(d, 'renders'))).sort()).toEqual(['quote-v1.json', 'quote-v2.json', 'quote-v3.json']);
+
+      // Readable again: what could go goes.
+      await chmod(comments, 0o755);
+      const again = await pruneProject(p, { keep_renders: 1 });
+      expect(ids(again)).toEqual(all.filter((x) => x !== 'review gone-v1'));
+      expect(again.threads_unread).toBeUndefined();
+    } finally {
+      await chmod(comments, 0o755).catch(() => undefined);
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('comment threads that do not read as threads (L7.5)', () => {
+  const ID = 'c_01K8AB1CDE2FGH3JKM4NPQ5RST';
+  const OTHER = 'c_01K8AB1CDE2FGH3JKM4NPQ5RSV';
+  const SOME = 'some comment threads of p cannot be read (the comment list says which): every render and take ';
+  /** A project of two scenarios, each with an older take and render that can go, a failed render and a newer pair that stays. */
+  async function twoScenarios(): Promise<{ d: string; p: LoadedProject; all: string[] }> {
+    const d = await mkdtemp(join(tmpdir(), 'ds-prune-unread-'));
+    const p = { slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') } as unknown as LoadedProject;
+    await mkdir(join(d, 'renders'), { recursive: true });
+    for (const s of ['quote', 'catalogue']) {
+      for (const [stamp, mode] of [['20261020-100000', 'capture'], ['20261020-110000', 'dry'], ['20261020-120000', 'capture']] as const) {
+        await mkdir(join(d, 'runs', `${stamp}-${s}`), { recursive: true });
+        await writeFile(join(d, 'runs', `${stamp}-${s}`, 'run.json'), JSON.stringify({ version: 1, id: `${stamp}-${s}`, project: 'p', scenario: s, mode, status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }));
+      }
+      const made = (id: string, runId: string, status: string, at: string) => writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario: s, run_id: runId, status, created_at: at, variant: 'landscape', plan: { fps: 30 } }));
+      await made(`${s}-v1`, `20261020-100000-${s}`, 'succeeded', '2026-10-20T10:30:00.000Z');
+      await made(`${s}-v2`, `20261020-120000-${s}`, 'succeeded', '2026-10-20T12:30:00.000Z');
+      await made(`${s}-v3`, `20261020-120000-${s}`, 'failed', '2026-10-20T12:40:00.000Z');
+    }
+    const of = (s: string) => [`run 20261020-100000-${s}`, `run 20261020-110000-${s}`, `render ${s}-v1`, `render ${s}-v3`];
+    return { d, p, all: [...of('catalogue'), ...of('quote')].sort() };
+  }
+  const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id}`).sort();
+  const thread = (scenario: string, id = ID) => JSON.stringify({ version: 1, id, scenario, render: { id: `${scenario}-v9`, created_at: '2026-10-20T09:30:00.000Z', run_id: `20261020-090000-${scenario}`, variant: 'landscape', fps: 30, frames: 300, width: 1920, height: 1080 }, frame: 10, time_s: 0.33, text: 'A comment', author: { via: 'cli', name: 'Reviewer' }, created_at: '2026-10-20T10:00:00.000Z', anchor: { segment: 'intro', kind: 'intro' }, entries: [] });
+
+  it('a thread file that is broken, a link or under another id keeps every render and take of its scenario; the other scenario is pruned as before', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      const folder = join(d, 'comments', 'quote');
+      await mkdir(folder, { recursive: true });
+      const ofCatalogue = all.filter((x) => x.includes('catalogue'));
+      const cases: Array<[string, () => Promise<void>]> = [
+        ['not JSON', () => writeFile(join(folder, `${ID}.json`), '{"version": 1, ')],
+        ['not a thread', () => writeFile(join(folder, `${ID}.json`), '{"version": 1}')],
+        ['a symbolic link', async () => { await writeFile(join(d, 'elsewhere.json'), thread('quote')); await symlink(join(d, 'elsewhere.json'), join(folder, `${ID}.json`)); }],
+        ['another id', () => writeFile(join(folder, `${ID}.json`), thread('quote', OTHER))],
+      ];
+      // Nothing unread yet: everything that can go is listed.
+      expect([ids(await pruneProject(p, { keep_renders: 1 })), (await pruneProject(p, { keep_renders: 1 })).threads_unread]).toEqual([all, undefined]);
+      for (const [what, write] of cases) {
+        await write();
+        const r = await pruneProject(p, { keep_renders: 1 });
+        expect([what, ids(r), r.threads_unread]).toEqual([what, ofCatalogue, `${SOME}of quote is kept`]);
+        expect(r.kept, what).toEqual({ runs: 4, renders: 4, reviews: 0 });
+        await rm(join(folder, `${ID}.json`));
+      }
+      // A deletion keeps them too, and an approval made before the file broke does not delete them.
+      const only = new Map((await pruneProject(p, { keep_renders: 1 })).items.map((i) => [`${i.kind}:${i.id}`, i.paths]));
+      await cases[0][1]();
+      const approved = await pruneProject(p, { keep_renders: 1, dry_run: false, only });
+      expect([ids(approved), approved.threads_unread]).toEqual([ofCatalogue, `${SOME}of quote is kept`]);
+      expect((await readdir(join(d, 'renders'))).sort()).toEqual(['catalogue-v2.json', 'quote-v1.json', 'quote-v2.json', 'quote-v3.json']);
+      expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-100000-quote', '20261020-110000-quote', '20261020-120000-catalogue', '20261020-120000-quote']);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+
+  it('a thread in another scenario\'s folder keeps both scenarios; a scenario folder that is a link keeps its scenario', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      await mkdir(join(d, 'comments', 'quote'), { recursive: true });
+      await writeFile(join(d, 'comments', 'quote', `${ID}.json`), thread('catalogue'));
+      const misplaced = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(misplaced), misplaced.threads_unread]).toEqual([[], `${SOME}of catalogue, quote is kept`]);
+      await rm(join(d, 'comments'), { recursive: true });
+      // comments/catalogue is a link to a folder elsewhere (which may hold threads): not followed, not "no thread".
+      await mkdir(join(d, 'comments'), { recursive: true });
+      await mkdir(join(d, 'elsewhere'));
+      await symlink(join(d, 'elsewhere'), join(d, 'comments', 'catalogue'));
+      const linked = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(linked), linked.threads_unread]).toEqual([all.filter((x) => x.includes('quote')), `${SOME}of catalogue is kept`]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+
+  it('more thread files than a listing reads: the rest may name anything, so every render and take stays', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      await mkdir(join(d, 'comments', 'quote'), { recursive: true });
+      const digits = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+      const id = (n: number) => `c_01K8AB1CDE2FGH3JKM4NPQ${digits[Math.floor(n / 1024) % 32]}${digits[Math.floor(n / 32) % 32]}${digits[n % 32]}0`;
+      for (let n = 0; n < 2000; n++) await writeFile(join(d, 'comments', 'quote', `${id(n)}.json`), thread('quote', id(n)));
+      // Exactly as many as a listing reads: all read, and they name no render or take that is there.
+      const read = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(read), read.threads_unread]).toEqual([all, undefined]);
+      await writeFile(join(d, 'comments', 'quote', `${id(2000)}.json`), thread('quote', id(2000)));
+      const over = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(over), over.threads_unread]).toEqual([[], `${SOME}is kept`]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('comments/ itself a link: every render and take stays; what holds no thread — a stray file, a temp file, a name that is no scenario — keeps nothing', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      // No thread can be in these: prune works as without them.
+      await mkdir(join(d, 'comments', 'quote'), { recursive: true });
+      await writeFile(join(d, 'comments', '.DS_Store'), 'x');
+      await mkdir(join(d, 'comments', 'not a scenario'));
+      await writeFile(join(d, 'comments', 'not a scenario', `${ID}.json`), '{');
+      await writeFile(join(d, 'comments', 'quote', `.${ID}.json.tmp`), '{');
+      await writeFile(join(d, 'comments', 'quote', 'notes.txt'), 'x');
+      const stray = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(stray), stray.threads_unread]).toEqual([all, undefined]);
+      // comments/ is a link: nothing of it is read, so nothing is known.
+      await rm(join(d, 'comments'), { recursive: true });
+      await mkdir(join(d, 'elsewhere'));
+      await symlink(join(d, 'elsewhere'), join(d, 'comments'));
+      const linked = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(linked), linked.threads_unread, linked.kept]).toEqual([[], `${SOME}is kept`, { runs: 6, renders: 6, reviews: 0 }]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+
+  it('a take or a record is of an unread scenario by the scenario its record names or by the one its id names', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      const take = async (id: string, scenario: string) => {
+        await mkdir(join(d, 'runs', id), { recursive: true });
+        await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario, mode: 'capture', status: 'failed', started_at: '2026-10-20T10:00:00.000Z' }));
+      };
+      const failed = (id: string, scenario: string) => writeFile(join(d, 'renders', `${id}.json`), JSON.stringify({ version: 1, id, scenario, run_id: '20261020-120000-quote', status: 'failed', created_at: '2026-10-20T13:00:00.000Z', variant: 'landscape', plan: { fps: 30 } }));
+      // Each names quote on one side only: by its id, or by its record.
+      await take('20261020-130000-quote', 'other'); // a take: its id
+      await take('20261020-131500-other', 'quote'); // a take: its record
+      await failed('quote-v9', 'other'); // a record: its id
+      await failed('other-v9', 'quote'); // a record: its record
+      // …and these name it on neither.
+      await take('20261020-133000-other', 'other');
+      await failed('other-v8', 'other');
+      const mixed = ['render other-v9', 'render quote-v9', 'run 20261020-130000-quote', 'run 20261020-131500-other'];
+      const neither = ['render other-v8', 'run 20261020-133000-other'];
+      // Every thread read: all six can go.
+      expect(ids(await pruneProject(p, { keep_renders: 1 }))).toEqual([...all, ...mixed, ...neither].sort());
+      // A thread of quote that does not read: the four stay, with everything of quote.
+      await mkdir(join(d, 'comments', 'quote'), { recursive: true });
+      await writeFile(join(d, 'comments', 'quote', `${ID}.json`), '{');
+      const r = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(r), r.threads_unread]).toEqual([[...all.filter((x) => x.includes('catalogue')), ...neither].sort(), `${SOME}of quote is kept`]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+
+  it('a folder of comments/ that differs from its scenario by case keeps the renders and the takes alike; a folder nothing here is of is not named', async () => {
+    const { d, p, all } = await twoScenarios();
+    try {
+      // comments/Quote/ (what a disk that ignores case may hold for quote), with a file that does not read.
+      await mkdir(join(d, 'comments', 'Quote'), { recursive: true });
+      await writeFile(join(d, 'comments', 'Quote', `${ID}.json`), '{');
+      const r = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(r), r.threads_unread, r.kept]).toEqual([all.filter((x) => x.includes('catalogue')), `${SOME}of Quote is kept`, { runs: 4, renders: 4, reviews: 0 }]);
+      // A scenario with unread threads and no render or take here: nothing stays for it, so it is not named.
+      await mkdir(join(d, 'comments', 'ghost'), { recursive: true });
+      await writeFile(join(d, 'comments', 'ghost', `${ID}.json`), '{');
+      expect((await pruneProject(p, { keep_renders: 1 })).threads_unread).toBe(`${SOME}of Quote is kept`);
+      await rm(join(d, 'comments', 'Quote'), { recursive: true });
+      const ghost = await pruneProject(p, { keep_renders: 1 });
+      expect([ids(ghost), ghost.threads_unread]).toEqual([all, undefined]);
+    } finally {
+      await rm(d, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('the last renders of a scenario are counted among its renders only (L7.5)', () => {
+  const p0 = (d: string) => ({ slug: 'p', dir: d, root: d, config: { name: 'P', environments: {} }, readme: null, scenarios: [], file: join(d, 'project.yaml') }) as unknown as LoadedProject;
+  const ids = (r: Awaited<ReturnType<typeof pruneProject>>) => r.items.map((i) => `${i.kind} ${i.id} — ${i.reason}`).sort();
+  const LONG = `${'q'.repeat(198)}-v1`; // 201 characters: one more than a render id holds
+
+  it('a record that is no render of its scenario takes no render\'s place; it stays when it succeeded and goes when it failed', async () => {
+    const d = await mkdtemp(join(tmpdir(), 'ds-prune-count-'));
+    try {
+      const p = p0(d);
+      await mkdir(join(d, 'renders'), { recursive: true });
+      const take = async (id: string) => {
+        await mkdir(join(d, 'runs', id), { recursive: true });
+        await writeFile(join(d, 'runs', id, 'run.json'), JSON.stringify({ version: 1, id, project: 'p', scenario: 'quote', mode: 'capture', status: 'succeeded', started_at: '2026-10-20T10:00:00.000Z' }));
+      };
+      const made = (id: string, o: { scenario?: string; status?: string; at: string; run?: string }) =>
+        writeFile(join(d, 'renders', `${id.length > 200 ? 'long' : id}.json`), JSON.stringify({ version: 1, id, scenario: o.scenario ?? 'quote', run_id: o.run ?? '20261020-120000-quote', status: o.status ?? 'succeeded', created_at: o.at, variant: 'landscape', plan: { fps: 30 } }));
+      await take('20261020-080000-quote'); // only `final` uses it
+      await take('20261020-120000-quote'); // the last good take
+      for (const n of [1, 2, 3, 4]) await made(`quote-v${n}`, { at: `2026-10-20T1${n}:00:00.000Z` });
+      // Without anything else: the last three stay, the first goes.
+      const before = await pruneProject(p);
+      expect([ids(before), before.kept.renders]).toEqual([['render quote-v1 — older render', 'run 20261020-080000-quote — older capture nothing uses'], 3]);
+
+      // Newer records that are renders of quote nowhere: a version past the highest, a name past 200 characters,
+      // another scenario's name, a video written here under a name of its own.
+      for (const n of [0, 1, 2, 3, 4]) await made(`quote-v100000${n}`, { at: `2026-10-21T1${n}:00:00.000Z` });
+      await made(LONG, { at: '2026-10-21T20:00:00.000Z' });
+      await made('other-v1', { at: '2026-10-21T21:00:00.000Z' });
+      await made('final', { at: '2026-10-21T22:00:00.000Z', run: '20261020-080000-quote' });
+      await mkdir(join(d, 'review', 'final'), { recursive: true });
+      const r = await pruneProject(p);
+      // The same three renders stay and the same one goes; the eight others stay beside them, with the take and
+      // the review of one of them.
+      expect(ids(r)).toEqual(['render quote-v1 — older render']);
+      expect(r.kept).toEqual({ runs: 2, renders: 11, reviews: 1 });
+      expect(r.threads_unread).toBeUndefined();
+      // The same with one render kept: no other record is "the last one".
+      expect(ids(await pruneProject(p, { keep_renders: 1 }))).toEqual(['render quote-v1 — older render', 'render quote-v2 — older render', 'render quote-v3 — older render']);
+
+      // Such a record that failed or was cancelled goes, as a render that failed does.
+      await made('quote-v1000009', { at: '2026-10-22T10:00:00.000Z', status: 'failed' });
+      await made('draft', { at: '2026-10-22T11:00:00.000Z', status: 'cancelled' });
+      expect(ids(await pruneProject(p))).toEqual(['render draft — cancelled render', 'render quote-v1 — older render', 'render quote-v1000009 — failed render']);
+      const done = await pruneProject(p, { dry_run: false });
+      expect(done.problems).toEqual([]);
+      expect((await readdir(join(d, 'renders'))).sort()).toEqual(['final.json', 'long.json', 'other-v1.json', 'quote-v1000000.json', 'quote-v1000001.json', 'quote-v1000002.json', 'quote-v1000003.json', 'quote-v1000004.json', 'quote-v2.json', 'quote-v3.json', 'quote-v4.json']);
+      expect((await readdir(join(d, 'runs'))).sort()).toEqual(['20261020-080000-quote', '20261020-120000-quote']);
+    } finally {
+      await rm(d, { recursive: true, force: true });
     }
   });
 });

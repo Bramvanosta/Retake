@@ -78,7 +78,8 @@ declares about its licence) and `.retake-theme.json` (inputs and the sha256 of e
   the style word after the file name's last `-` or `_` (`Brand-SemiBold.woff2` → 600; none → 400), with a warning —
   give `{file, weight}` to set it. What a font says about itself (family, copyright, licence) is printed without
   control or bidirectional characters and escaped in `LICENSES.md` (never a link or an image there).
-- **Names**: lower-case letters, digits and `-`; never a starter's name (`default`, `editorial`, `motion`, in any case)
+- **Names**: lower-case letters, digits and `-`, at most 60 characters (the same for a copy made in the Studio; a theme
+  that exists under a longer name keeps working, and can be copied from); never a starter's name (`default`, `editorial`, `motion`, in any case)
   nor a folder that already exists in `templates/`. `--replace` (MCP `replace: true`) replaces a theme Retake made
   only while none of its files changed and none was added — once you edit it, it is yours; through MCP only a theme
   made through MCP is replaced (never one you made with `retake theme create`). Refused when the

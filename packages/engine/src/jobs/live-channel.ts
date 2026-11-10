@@ -28,7 +28,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Socket } from 'node:net';
 import { chmod, rename, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
-import { RUN_ID_RE } from '../refs.js';
+import { isRunId } from '@retake/core';
 import { readPlainRange } from '../run-files.js';
 import type { LiveFrame, LiveSink } from '@retake/runner-web';
 import { checkRequest } from '../http/gate.js';
@@ -152,7 +152,7 @@ async function writePrivate(file: string, text: string): Promise<void> {
  * sink receives go to the open streams; `wanted` is true while a stream is open.
  */
 export async function openLiveChannel(o: { files: Pick<JobFiles, 'live'>; jobId: string; runId: string; worker: ProcessIdentity }): Promise<LiveChannel> {
-  if (!RUN_ID_RE.test(o.runId) || o.runId.length > 200) throw new Error(`invalid run id "${o.runId}"`);
+  if (!isRunId(o.runId)) throw new Error(`invalid run id "${o.runId}"`);
   const file = o.files.live(o.jobId);
   const token = newSecret();
   const streams = new Set<Stream>();
@@ -288,9 +288,7 @@ export async function readLiveChannel(queue: Pick<JobQueueView, 'claimOf'>, file
     typeof v !== 'object' ||
     v.v !== LIVE_FILE_VERSION ||
     v.job !== jobId ||
-    typeof v.run !== 'string' ||
-    !RUN_ID_RE.test(v.run) ||
-    v.run.length > 200 ||
+    !isRunId(v.run) ||
     !Number.isInteger(v.port) ||
     (v.port as number) < 1 ||
     (v.port as number) > 65535 ||

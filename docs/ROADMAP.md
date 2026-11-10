@@ -94,6 +94,7 @@ Architecture decisions (local-first, desktop-first; flat files as source of trut
 | L7.2 | The renderer seam (action plan U12): five seam files name the rendering library, ratchet rule R10; composition ids once and versioned render props; built-ins on the kit only; `components preview` on the port | M | **done** (2026-11-10, branch `claude/arch-l7`; previews and a fixture video byte-identical before and after on the software path) |
 | L7.3 | This machine's ffmpeg for a render's frame encode, behind `render.ffmpeg`; measured on a fixture render | S | **done** (2026-11-10, branch `claude/arch-l7`; the default on the GPU path only: about a fifth less CPU, no measured gain in wall time) |
 | L7.4 | Action plan U1, U2 (in part), U4: the test files type-checked (`pnpm typecheck`, CI), ratchet rules R11 – R13, pure entries `@retake/review/checks` and geometry | M | **done** (2026-11-10, branch `claude/arch-l7`; 312 type errors in 81 test files fixed; ratchet 59 → 84 with R11 pinned at 27) |
+| L7.5 | Action plan U3: one id module in the domain (run, render, job, theme: one grammar each, brands, generators), every copy replaced, ratchet check `id-grammar` | M | **done** (2026-11-10, branch `claude/arch-l7`; old and new code compared on 8 372 strings; the decided changes are all stricter) |
 | L6 | V2 and later (the requirements' lot L6; the architecture series above took the numbers L6.1 – L6.13) — everything outside the locked MVP is in `docs/BACKLOG.md` (unprioritised: collaboration, cloud runners, AI, marketplace, outputs, component candidates, licensing, packaging) | — | later |
 
 ## Lots
@@ -1041,6 +1042,10 @@ before tagging v0.2.0, in two lots — L5.17, then L5.18 for the rest — with t
 ### L7.4 — Guard rails: type-checked tests, ratchet, pure entries (M; decided 2026-11-10)
 - **Goal:** the guard rails the rest of the 2026-11-10 action plan relies on (U1, U2, U4); behaviour unchanged.
 - **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.4)". Requirements R-ARCH-14 – R-ARCH-17. The Studio's operations shared with MCP (the last R3 entry) move with U7.
+
+### L7.5 — One id module in the domain (M; decided 2026-11-10)
+- **Goal:** the grammar of each id is written once (finding D3); behaviour unchanged but for the decided, stricter changes.
+- **Done (2026-11-10, branch `claude/arch-l7`):** see HANDOFF "State (after L7.5)". Requirements R-ARCH-18 and R-RND-16; R-MCP-10 and R-FLD-28 completed.
 
 ### L6.1 – L6.13 — Architecture series (decided 2026-11-09)
 - **Goal:** the code and architecture tasks of the 2026-11-04 audit (`docs/audit/action-plan.md` T1 – T14), so that new features land on a clean codebase while the tool is in alpha; the existing behaviour is kept, nothing is measured.

@@ -4,7 +4,7 @@
  */
 import { spawn, execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -241,6 +241,16 @@ describe('retake mcp over stdio', () => {
     expect((r.structuredContent as { dry_run: boolean }).dry_run).toBe(true);
     expect(existsSync(join(ws, 'projects', 'northfield-fixture', 'runs', '20261017-120000-quote', 'run.json'))).toBe(true);
     expect(errorOf(await call('project_prune', { project: 'northfield-fixture', keep_renders: 0 })).code).toBe('invalid');
+    // L7.5: a thread file that does not read is not "no thread" — what it may name stays, and the text says so.
+    const folder = join(ws, 'projects', 'northfield-fixture', 'comments', 'quote');
+    await mkdir(folder, { recursive: true });
+    await writeFile(join(folder, 'c_01K8AB1CDE2FGH3JKM4NPQ5RST.json'), '{');
+    const unread = await call('project_prune', { project: 'northfield-fixture' });
+    const sentence = 'some comment threads of northfield-fixture cannot be read (the comment list says which): every render and take of quote is kept';
+    expect(unread.content[0].text.split('\n')).toEqual(['nothing to prune in northfield-fixture', 'kept: 2 takes, 0 renders, 0 reviews', sentence]);
+    expect((unread.structuredContent as { threads_unread?: string }).threads_unread).toBe(sentence);
+    await rm(join(ws, 'projects', 'northfield-fixture', 'comments'), { recursive: true });
+    expect((await call('project_prune', { project: 'northfield-fixture' })).structuredContent).not.toHaveProperty('threads_unread');
   });
 
   it('runs whose hooks need a human are refused with the command, before anything is queued; a CLI run is not cancelled here', async () => {

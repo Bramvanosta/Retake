@@ -31,11 +31,17 @@ import { randomBytes } from 'node:crypto';
 import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { JOB_ID_RE } from '@retake/core';
+import type { JobId } from '@retake/core';
 import { readPlainFile } from '@retake/core/io';
 import { jobsDir } from '../workspace-state.js';
 import type { JobFileRead, TakeHold } from './job-queue.js';
 import { StoredJobQueue, checkJobId } from './queue-core.js';
 import type { JobEntries } from './queue-core.js';
+
+/** <jobs>/<id>, for JobFiles: from a checked job id only (never a client's text). */
+function jobFolder(dir: string, id: JobId): string {
+  return join(dir, id);
+}
 
 /** The file queue's paths: a job's folder and the files the code beside the queue reads or writes itself. */
 export class JobFiles {
@@ -44,7 +50,7 @@ export class JobFiles {
 
   /** <jobs>/<id>: refused for anything but a job id (never a path). */
   job(id: string): string {
-    return join(this.dir, checkJobId(id));
+    return jobFolder(this.dir, checkJobId(id));
   }
 
   /** <job>/job.json: the job's record (the Project board memoises it by this file's stat). */

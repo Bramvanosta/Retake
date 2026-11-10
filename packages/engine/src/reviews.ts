@@ -11,7 +11,7 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
-import { COMPONENT_ID_RE, RENDER_ID_RE, insideFolder, projectPath } from '@retake/core';
+import { COMPONENT_ID_RE, insideFolder, isRenderId, projectPath } from '@retake/core';
 import { readPlainFile, nodeFileFacts } from '@retake/core/io';
 import { EngineError } from './errors.js';
 import { openProjectBySlug } from './projects.js';
@@ -208,7 +208,7 @@ export async function reviewGet(ws: OpenedWorkspace, queue: JobQueueView, slug: 
   if (report.environment) view.untrusted.environment = report.environment;
   const diff = report.diff as Record<string, unknown> | undefined;
   if (diff) {
-    const previous = typeof diff.previous === 'string' && RENDER_ID_RE.test(diff.previous) ? diff.previous : 'unknown';
+    const previous = isRenderId(diff.previous) ? diff.previous : 'unknown';
     if (previous === 'unknown') view.untrusted.diff_previous = diff.previous;
     const d = diff.duration_s as Record<string, unknown> | undefined;
     view.diff = {
@@ -290,7 +290,7 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
  */
 export async function reviewImage(ws: OpenedWorkspace, slug: string, renderId: string, image: string): Promise<ReviewImageView> {
   checkProjectSlug(slug);
-  if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId) || renderId.length > 200) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
+  if (!isRenderId(renderId)) throw new EngineError('invalid', `invalid render id "${String(renderId)}": <scenario>-v<N>`);
   if (typeof image !== 'string' || !REVIEW_IMAGE_RE.test(image)) throw new EngineError('invalid', `invalid image "${String(image).slice(0, 100)}": a contact sheet of the review (render_review lists them), never a path`);
   const project = await openProjectBySlug(ws, slug);
   const dir = projectPath(project.dir, 'review', renderId);

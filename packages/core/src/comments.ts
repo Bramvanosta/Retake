@@ -15,11 +15,11 @@ import { parse as parseYamlText } from 'yaml';
 import { z } from 'zod';
 import { BIDI_CONTROL_CHARS, INVISIBLE_FORMAT_CHARS, printableText } from './printable.js';
 import { canonicalJson } from './canonical-json.js';
-import { ulid } from './ids.js';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, renderIdOf } from './id-grammar.js';
+import { newUlidId, zRenderId, zRunId } from './ids.js';
 import { hunkOrderProblem, hunkStats } from './line-diff.js';
 import type { LineHunk } from './line-diff.js';
 import { firstHiddenChar, hiddenCharName } from './scenario-edit.js';
-import { RENDER_ID_RE, RUN_FOLDER_RE } from './jobs.js';
 import { COMPONENT_ID_RE, SLUG_RE } from './schemas/primitives.js';
 import { normalizeStep } from './steps.js';
 import { parseYaml } from './validation/yaml-source.js';
@@ -28,19 +28,14 @@ import type { FrameCommentAnchor } from './types.js';
 
 export const COMMENT_THREAD_VERSION = 1;
 
-/** A thread id, the file name comments/<scenario>/<id>.json: "c_" + 26 Crockford base32 characters (a ULID). */
-export const COMMENT_ID_RE = /^c_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** An entry id of a thread: "r_" + 26 Crockford base32 characters (a ULID). */
-export const COMMENT_ENTRY_ID_RE = /^r_[0-9A-HJKMNP-TV-Z]{26}$/;
-
 /** A new thread id (unique across machines, sortable by creation time). */
 export function newCommentId(now?: number): string {
-  return `c_${ulid(now)}`;
+  return newUlidId('comment', now);
 }
 
 /** A new entry id. */
 export function newCommentEntryId(now?: number): string {
-  return `r_${ulid(now)}`;
+  return newUlidId('entry', now);
 }
 
 /** Longest comment, reply and note text (= the MCP's cap on an untrusted string: a text reaches the model whole). */
@@ -273,10 +268,10 @@ void anchorSchemaMatches;
 
 /** The render a thread was made on, as it was then: tells a reused render id (renders/ cleaned) from that render. */
 export const CommentRenderSchema = z.strictObject({
-  id: z.string().max(200).regex(RENDER_ID_RE, 'a render id (<scenario>-v<N>[-vertical|-square])'),
+  id: zRenderId('a render id (<scenario>-v<N>[-vertical|-square])'),
   /** The render record's `created_at`. */
   created_at: isoDate,
-  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name'),
+  run_id: zRunId('a run folder name'),
   variant: z.enum(['landscape', 'vertical', 'square']),
   fps: z.number().positive().max(240),
   frames: z.number().int().min(1),
@@ -385,7 +380,7 @@ export const CommentEntrySchema = z
     text: storedText(COMMENT_TEXT_MAX),
     created_at: isoDate,
     /** A resolution: the render that answers the comment, with its record's `created_at` (render ids can be reused). */
-    render_id: z.string().max(200).regex(RENDER_ID_RE, 'a render id').optional(),
+    render_id: zRenderId('a render id').optional(),
     render_created_at: isoDate.optional(),
     /** A reply's proposed change of the thread's scenario file (L4.6). */
     proposal: CommentProposalSchema.optional(),
@@ -435,7 +430,7 @@ export const CommentThreadSchema = z
   })
   .superRefine((t, ctx) => {
     if (t.frame >= t.render.frames) ctx.addIssue({ code: 'custom', path: ['frame'], message: `frame ${t.frame} is past the render's last frame (${t.render.frames - 1})` });
-    if (!new RegExp(`^${t.scenario}-v\\d+(?:-vertical|-square)?$`).test(t.render.id)) {
+    if (renderIdOf(t.render.id, t.scenario) === null) {
       ctx.addIssue({ code: 'custom', path: ['render', 'id'], message: `render ${t.render.id} is not a render of scenario ${t.scenario}` });
     }
     const seen = new Set<string>();

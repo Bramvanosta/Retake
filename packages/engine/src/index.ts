@@ -21,7 +21,7 @@ export { personaState, personaStateView, projectPersonaStates, scenarioPersonaSt
 export type { LoginCommandOf, PersonaState, PersonaStateView } from './auth.js';
 export { ENGINE_ERROR_CODES, EngineError, toEngineError } from './errors.js';
 export type { EngineErrorCode } from './errors.js';
-export { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
+export { checkProjectSlug, checkRunId, checkScenarioName } from './refs.js';
 export { LocalStorage, READ_TEXT_MAX_BYTES, checkRef, sha256Hex } from './storage.js';
 export type { Storage, StoredKind, StoredRef, WriteResult } from './storage.js';
 export { ProjectStore, fileWriter, personScope } from './store/project-store.js';
@@ -202,7 +202,6 @@ export {
   cleanupInterruptedRender,
   executeRenderJob,
   killRecordedBrowser,
-  parseRenderId,
   planRenderRequest,
   releaseRenderLock,
   removePartials,

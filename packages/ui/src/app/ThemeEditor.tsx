@@ -31,7 +31,8 @@ import { themeCopy, themeEdit, themePreview, themeView } from './data/themes.js'
 import { Txt } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
-import { copyName, okId, themeNameProblem } from './library-words.js';
+import { NEW_THEME_NAME_MAX } from './id-words.js';
+import { NEW_THEME_NAME_HINT, copyName, okId, themeNameProblem } from './library-words.js';
 import { PreviewFrame } from './PreviewFrame.js';
 import type { PreviewConnection } from '../player/parent.js';
 import type { FrameMessage } from '../player/protocol.js';
@@ -411,7 +412,7 @@ function CopyToEdit({ slug, theme, why, taken }: { slug: string; theme: string; 
         }}
         content={
           <>
-            <TextField label="Name of the copy" value={name} onChange={(x) => setName(x.trim())} unsaved={null} mono maxLength={100} autoComplete="off" spellCheck={false} testId="theme-copy-name" error={problem ?? undefined} />
+            <TextField label="Name of the copy" value={name} onChange={(x) => setName(x.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="theme-copy-name" error={problem ?? undefined} />
             {state.error && (
               <p className="tm-failure" role="status">
                 <Txt text={state.error} />

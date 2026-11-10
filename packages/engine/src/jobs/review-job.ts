@@ -8,7 +8,7 @@
  * stops the review between its stages and kills ffmpeg; the previous review of the render stays as it was. No image
  * data goes into job.json: review_get makes thumbnails when it is read. The review package is imported lazily.
  */
-import { JOB_INPUT_VERSION, RENDER_ID_RE, projectPath } from '@retake/core';
+import { JOB_INPUT_VERSION, isRenderId, projectPath } from '@retake/core';
 import type { ReviewJobInput } from '@retake/core';
 import type { ReviewProgress } from '@retake/review';
 import { EngineError } from '../errors.js';
@@ -46,7 +46,7 @@ export async function submitReviewJob(ctx: SubmitContext, req: ReviewRequest): P
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
   const fps = req.fps ?? 1;
   if (fps !== 1 && fps !== 2) throw new EngineError('invalid', `fps ${String(fps)}: the contact sheet takes 1 or 2 frames per second`);
-  if (req.previous !== undefined && req.previous !== false && (typeof req.previous !== 'string' || !RENDER_ID_RE.test(req.previous))) {
+  if (req.previous !== undefined && req.previous !== false && !isRenderId(req.previous)) {
     throw new EngineError('invalid', `invalid previous "${String(req.previous)}": a render id, or false for no comparison`);
   }
   const project = await openProjectBySlug(ctx.ws, req.project);

@@ -29,7 +29,7 @@
 import { lstatSync } from 'node:fs';
 import { readdir, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, TEMPLATE_NAME_RE, filmedChanges, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
+import { SCENARIO_COMPARE_MAX_BYTES, SLUG_RE, filmedChanges, isRunId, isThemeName, parseRenderId, scenarioBlocks, scenarioTextChanged, projectPath } from '@retake/core';
 import type { LoadedProject, RunRecord } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { fileFacts } from '@retake/core/io';
@@ -38,7 +38,6 @@ import type { JobRecord } from './jobs/types.js';
 import { jobProject } from './jobs/queue-core.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import type { JobFiles } from './jobs/queue.js';
-import { RUN_ID_RE } from './refs.js';
 import { RunDataCache, errorScreenshotName, runPictures, stepScreenshotName } from './run-data.js';
 import { RunFolder, lsig } from './run-files.js';
 import type { ThumbSource } from './run-thumbs.js';
@@ -193,8 +192,6 @@ async function pool<T, R>(items: readonly T[], n: number, fn: (t: T) => Promise<
   return out;
 }
 
-const RENDER_FILE_RE = /^(.+)-v\d+(?:-(vertical|square))?\.json$/;
-
 /** A stat signature without awaiting (thousands of job.json per board read: review A-M3). */
 function lsigSync(path: string): string {
   try {
@@ -225,12 +222,15 @@ const overlaid = (status: string, job: JobRecord): ViewRunStatus | undefined =>
 
 /**
  * The theme name a render of today's file records (editor plan-run themeRef → the template folder's name): a name as it
- * is, a path its folder's name; undefined when that is not a theme name.
+ * is, a path its folder's name; undefined when that is not a theme's name (core isThemeName — the one rule for a theme
+ * that exists). The same test as a render view's `theme` (renders.ts renderView): the two are compared to tell whether
+ * a render shows today's file, so a name one side drops and the other keeps would make a render of another theme look
+ * current.
  */
 function themeName(p: LoadedProject, ref: string | undefined): string | undefined {
   if (typeof ref !== 'string' || ref === '' || ref.length > 200) return undefined;
   const name = SLUG_RE.test(ref) ? ref : basename(resolve(p.dir, ref));
-  return TEMPLATE_NAME_RE.test(name) ? name : undefined;
+  return isThemeName(name) ? name : undefined;
 }
 
 /** The project boards of one engine (memos apart from the scenario views'). */
@@ -350,7 +350,7 @@ export class ProjectBoards {
     const hit = this.posters.get(key);
     if (hit) return hit;
     this.stats.posters++;
-    const run = RUN_ID_RE.test(runId) ? await this.runData.get(p.dir, runId) : null;
+    const run = isRunId(runId) ? await this.runData.get(p.dir, runId) : null;
     let found: string | null = null;
     let seconds: number | undefined;
     if (run) {
@@ -559,7 +559,7 @@ export class ProjectBoards {
     const groups = new Map<string, RunGroup>();
     let ids: string[] = [];
     try {
-      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
+      ids = (await readdir(projectPath(p.dir, 'runs'), { withFileTypes: true })).filter((d) => d.isDirectory() && isRunId(d.name)).map((d) => d.name);
     } catch {
       return groups;
     }
@@ -654,8 +654,9 @@ export class ProjectBoards {
     const files = await readdir(projectPath(p.dir, 'renders')).catch(() => [] as string[]);
     await Promise.all(
       files.map(async (f) => {
-        const m = RENDER_FILE_RE.exec(f);
-        if (!m || !names.has(m[1])) return;
+        // renders/<render id>.json of one of the scenarios; the record is filed under the scenario its name gives.
+        const scenario = f.endsWith('.json') ? parseRenderId(f.slice(0, -5))?.scenario : undefined;
+        if (scenario === undefined || !names.has(scenario)) return;
         const key = `${p.dir}\0${f}`;
         const sig = await lsig(projectPath(p.dir, 'renders', f));
         let held = this.renderRecords.get(key);
@@ -664,9 +665,9 @@ export class ProjectBoards {
           remember(this.renderRecords, key, held, 4096);
         }
         if (held.record) {
-          const list = out.get(m[1]) ?? [];
+          const list = out.get(scenario) ?? [];
           list.push(held.record);
-          out.set(m[1], list);
+          out.set(scenario, list);
         }
       }),
     );

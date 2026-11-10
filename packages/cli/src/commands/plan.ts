@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, resolve } from 'node:path';
-import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, parseScenario, runIdMatchesScenario, scenarioChangedMessage, projectPath } from '@retake/core';
+import { COMPONENT_ID_RE, FRAME_STYLE_LAYOUTS, MULTI_PAGE_LAYOUTS, parseScenario, runIdOfScenario, scenarioChangedMessage, projectPath } from '@retake/core';
 import { loadProjectTemplate, newerRunMessage, readJson, writeJson, fileFacts } from '@retake/core/io';
 import type { LoadedProject, Scenario, Timeline } from '@retake/core';
 import { loadComponentRegistry } from '@retake/components';
@@ -57,7 +57,7 @@ export function resolveRun(project: LoadedProject, arg: string, scenario?: strin
       ids = [];
     }
     const candidates = ids
-      .filter((id) => (scenario ? runIdMatchesScenario(id, scenario) : true))
+      .filter((id) => (scenario ? runIdOfScenario(id, scenario) : true))
       .filter((id) => hasCaptureTimeline(join(runsDir, id)))
       .sort()
       .reverse();

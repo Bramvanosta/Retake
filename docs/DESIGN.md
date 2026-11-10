@@ -1884,7 +1884,8 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   and the render record (the editor's planner entry), three types of the port are still the editor's, imported as
   types: `RenderProgress`, `BundleComponent`, `ComponentPreviewSpec`.
 - **Names, never paths.** Every input is a slug or an id (`checkProjectSlug` = core `PROJECT_SLUG_RE`,
-  `checkScenarioName` = `SLUG_RE`, `checkRunId` = `RUN_ID_RE`), checked before core sees it (core's loaders also take
+  `checkScenarioName` = `SLUG_RE`, `checkRunId` = core `parseRunId`: the ids of the domain have one grammar each, in
+  `packages/core/src/id-grammar.ts`), checked before core sees it (core's loaders also take
   absolute and cwd-relative paths, which only the CLI may use).
 - **`if_match`** (sha256 hex of the file's bytes): an existing file needs the hash its read returned — a mismatch, or
   none, is `conflict` with `details.current`; `null` (or none) creates a file that must not exist, by `link()` (atomic
@@ -1921,6 +1922,28 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   `WORKSPACE_JOURNAL_FILE`; the import-rules ratchet counts a layout path spelt by hand anywhere else — a string or
   template naming `.retake`, `history.jsonl`, `journal.jsonl` or `<layout folder>/…`, or a layout folder as a node:path
   `join` / `resolve` argument (`layout` entries of scripts/audit/baseline.json, each file with its count).
+- **Ids** (L7.5, core `id-grammar.ts` — pure — and `ids.ts` — the generators and the schema helpers): one grammar each
+  for the run id (`RUN_ID_RE`, at most 200 characters: `isRunId`, `parseRunId`; the dated shape the tool makes:
+  `runIdStamp`, `isMadeRunId`, `runIdOfScenario`, `formatRunId`, `newRunId`), the render id (`RENDER_ID_RE`, at most 200
+  characters, a version of at most `RENDER_VERSION_MAX` = 999999: `parseRenderId`, `isRenderId`, `renderIdOf`,
+  `renderSuffix`, `formatRenderId`, `renderFileVersionOf`, `renderLockName`, `RENDER_VARIANT_SUFFIX`), the ULID ids
+  (`ULID_PREFIXES`: job, preview, inspection, site, recording, comment thread and entry, capture marker; `newUlidId`,
+  `ulidFileRe`, `ulidTime`, `isJobId`, `parseJobId`) and theme names — two rules, each written once: `isThemeName`, a
+  theme that exists (any case, at most 100: what a request names, and what the board, a render's `theme` and the
+  Studio's sentences read a theme folder's name by, a folder named by a path included), and `isNewThemeName`
+  (lower-case, at most 60). A cap or a bound is in the predicate, never in a pattern's source (the sources are
+  published as JSON-schema patterns); schemas use `zRunId`, `zRenderId`, `zThemeName`, `zNewThemeName`, each of which
+  refuses what its predicate refuses (`zRenderId` holds the version's bound in a refinement). A value that
+  passed a predicate or a parse carries a branded type (`RunId`, `RenderId`, `JobId`, `ThemeName`, `NewThemeName`);
+  generators and formatters return plain strings, and no brand is cast outside the module. Two private path builders
+  take a brand — the run folder `RunFolder.open` opens (engine `run-files.ts`) and a job's folder (`jobs/queue.ts`) —
+  and so does the name check of a new theme (`templates.ts` `checkNewThemeName`, `brand/create.ts` `checkNewName`);
+  every other path is built from a string its site checked or listed, and records and job inputs still type their ids
+  as strings. One definition says which record of `renders/` is a render of its scenario (engine `refs.ts`
+  `isRenderOfItsScenario`): `latest` and prune's count read it. The Studio front end,
+  which imports types only, has one mirror (`packages/ui/src/app/id-words.ts`, pinned by `ui/test/id-words.test.ts`).
+  The ratchet's `id-grammar` check counts an id pattern written by hand anywhere else in `packages/*/src`, and a capped
+  grammar tested without its cap (its title lists the six kinds and what it cannot see).
 - **Views.** `ProjectView` leaves out `auth` (persona names, pages and whether they have login steps, per environment)
   and masks a password written in a URL (`maskUrlCredentials`). `RunStatusView` / `SandboxStatusView` /
   `AuthStatusItem` keep text the filmed site or a service controls (step error message, warnings, health

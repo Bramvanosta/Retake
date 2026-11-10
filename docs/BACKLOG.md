@@ -2458,6 +2458,12 @@ a Mac shared with other accounts:
   "port busy" answer instead of the rotate-token advice. A challenge (the listener proves it holds the token without
   sending it) would close this; within one account, that program could read the token file anyway.
 
+### BL-163 — The project board compares a path theme by its identity
+The board compares a scenario's theme with its renders' by name. When the theme is a folder named by a path whose
+name is not a theme name (another character than letters, digits, `_` and `-`, or more than 100 characters), or whose
+reference is longer than 200 characters, no theme is compared and the row shows the newest render of today's file
+and take. The row and the render need the theme's identity, not its name. *From:* L7.5.
+
 ## Guard-rails for planned lots (no new scope)
 
 Cheap rules to apply when these lots start, so the backlog above is not blocked later.

@@ -5,7 +5,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { open, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, isAbsolute, join, resolve } from 'node:path';
-import { RUN_FOLDER_RE, parseScenario, runIdMatchesScenario, projectPath } from '@retake/core';
+import { RENDER_VERSION_MAX, isRunId, parseScenario, projectPath, projectRef, renderFileVersionOf, renderLockName, renderSuffix, runIdOfScenario, runIdStamp } from '@retake/core';
 import { newerRunMessage } from '@retake/core/io';
 import type { LoadedProject, Scenario } from '@retake/core';
 import { readRenderRecords } from '../render-record.js';
@@ -26,15 +26,13 @@ function hasCaptureTimeline(dir: string): boolean {
   }
 }
 
-/** A run id the runner makes: `<yyyymmdd>-<hhmmss>-<scenario>`. */
-const DATED_RUN_ID_RE = /^\d{8}-\d{6}-/;
-
 /**
- * `latest` order: dated run ids first, newest first (they sort chronologically), then any other folder name. A folder
+ * `latest` order: dated run ids first (the stamp the runner writes, core runIdStamp), newest first (they sort
+ * chronologically), then any other folder name. A folder
  * named to sort above every date (`zz…-quote`: runs/ is writable by an agent) is never preferred to a real capture.
  */
 function latestFirst(a: string, b: string): number {
-  return Number(DATED_RUN_ID_RE.test(b)) - Number(DATED_RUN_ID_RE.test(a)) || (a < b ? 1 : a > b ? -1 : 0);
+  return Number(runIdStamp(b) !== null) - Number(runIdStamp(a) !== null) || (a < b ? 1 : a > b ? -1 : 0);
 }
 
 /**
@@ -60,8 +58,8 @@ function locateRun(project: LoadedProject, arg: string, scenario?: string): RunR
       ids = [];
     }
     const candidates = ids
-      .filter((id) => RUN_FOLDER_RE.test(id) && id.length <= 200)
-      .filter((id) => (scenario ? runIdMatchesScenario(id, scenario) : true))
+      .filter((id) => isRunId(id))
+      .filter((id) => (scenario ? runIdOfScenario(id, scenario) : true))
       .filter((id) => hasCaptureTimeline(join(runsDir, id)))
       .sort(latestFirst);
     if (candidates.length === 0) {
@@ -102,37 +100,58 @@ export function rendersDir(project: Pick<LoadedProject, 'dir'>): string {
   return projectPath(project.dir, 'renders');
 }
 
-function escapeRe(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-/** Versions already taken (sorted, unique) by `<name>-v<N>[-vertical|-square].{mp4,json}` and pending `.<name>-v<N>.lock` files. */
-export function takenVersions(dir: string, name: string): number[] {
+/** The files of `dir` that take a version of `name` (core renderFileVersionOf), in name order. */
+function versionFiles(dir: string, name: string): Array<{ file: string; version: number }> {
   let files: string[];
   try {
     files = readdirSync(dir);
   } catch {
     return [];
   }
-  const re = new RegExp(`^\\.?${escapeRe(name)}-v(\\d+)(?:-vertical|-square)?\\.(?:mp4|json|lock)$`);
-  const versions = files.map((f) => re.exec(f)?.[1]).filter((v): v is string => v !== undefined).map(Number);
-  return [...new Set(versions)].sort((a, b) => a - b);
+  const taken: Array<{ file: string; version: number }> = [];
+  const versionOf = renderFileVersionOf(name);
+  for (const file of files.sort()) {
+    const version = versionOf(file);
+    if (version !== null) taken.push({ file, version });
+  }
+  return taken;
 }
 
-/** The next free version of `name` in `dir`: 1 + the highest version on disk (renders, records and pending locks). */
+/** Versions already taken (sorted, unique) by `<name>-v<N>[-vertical|-square].{mp4,json}` and pending `.<name>-v<N>.lock` files. */
+export function takenVersions(dir: string, name: string): number[] {
+  return [...new Set(versionFiles(dir, name).map((t) => t.version))].sort((a, b) => a - b);
+}
+
+/**
+ * The next free version of `name` in `dir`: 1 + the highest version on disk (renders, records and pending locks), at
+ * most RENDER_VERSION_MAX. When a file already claims that version or more — whatever number its digits read as —
+ * nothing is handed out: the refusal names the file, so that two renders never get the same id.
+ */
 export function nextVersion(dir: string, name: string): number {
-  return Math.max(0, ...takenVersions(dir, name)) + 1;
+  let top: { file: string; version: number } | undefined;
+  for (const t of versionFiles(dir, name)) if (!top || t.version > top.version) top = t;
+  if (!top) return 1;
+  if (!(top.version < RENDER_VERSION_MAX)) {
+    const written = renderSuffix(top.file.slice(0, top.file.lastIndexOf('.')))?.digits ?? String(top.version);
+    throw new RenderError(
+      `${projectRef('renders')}/ holds ${top.file}, which claims version ${written} of ${name}: the highest version is ${RENDER_VERSION_MAX}. Remove or rename that file, then render again.`,
+    );
+  }
+  return top.version + 1;
 }
 
-/** The lock file that reserves version `version` of `name` in `dir` (`.<name>-v<N>.lock`). */
+/**
+ * The lock file that reserves version `version` of `name` in `dir` (`.<name>-v<N>.lock`); a RangeError for a version
+ * that is not a whole number from 0 to RENDER_VERSION_MAX (core renderLockName).
+ */
 export function versionLockFile(dir: string, name: string, version: number): string {
-  return join(dir, `.${name}-v${version}.lock`);
+  return join(dir, renderLockName(name, version));
 }
 
 /**
  * Reserve the next free version (an exclusive `.<name>-v<N>.lock` file, so two renders of the same scenario never
  * pick the same N). `release()` removes the lock. `owner`: what the lock says holds it (default this process's pid;
- * a render job submitted through MCP: `job <id>`).
+ * a render job submitted through MCP: `job <id>`). Refused as nextVersion refuses (no lock is written).
  */
 export async function reserveVersion(dir: string, name: string, owner = String(process.pid)): Promise<{ version: number; release: () => Promise<void> }> {
   for (let attempt = 0; attempt < 1000; attempt++) {

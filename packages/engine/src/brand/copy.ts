@@ -12,14 +12,14 @@
  */
 import { lstat, mkdir, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
+import { RETAKE_VERSION, TEMPLATE_FILE, insideFolder, parseTemplateYaml, parseYaml, setMapPath, StepEditError } from '@retake/core';
 import { loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import { workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import { ProjectStore } from '../store/project-store.js';
 import type { StoreScope } from '../store/project-store.js';
-import { checkTemplateName, themeAssetProblems } from '../templates.js';
+import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { PACKAGE_ROOT, THEME_PROVENANCE_FILE, checkNewName, removeStale } from './create.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
@@ -76,10 +76,7 @@ function renamedText(text: string, name: string, from: string): string {
 /** Copy a listed theme into a new workspace theme `name` (see the header). */
 export async function copyTheme(ws: OpenedWorkspace, req: { from: string; name: string }, o: { now?: Date; scope: StoreScope }): Promise<ThemeCopied> {
   const from = checkTemplateName(req?.from);
-  const name = req?.name;
-  if (typeof name !== 'string' || !THEME_NAME_RE.test(name) || name.length > 64) {
-    throw new EngineError('invalid', `invalid theme name "${String(name).slice(0, 80)}": lower-case letters, digits and dashes (e.g. my-brand)`);
-  }
+  const name = checkNewThemeName(req?.name);
   const now = o.now ?? new Date();
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {

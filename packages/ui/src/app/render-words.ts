@@ -6,15 +6,13 @@
  */
 import type { HeldWork, JobYield, RenderReviewSummary, ScenarioRenderJobView, ScenarioRenderView, ScenarioRendersView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
+import { renderVersionWords } from './id-words.js';
 
 /** Why Render is off on a proposal's preview (Edit and the status bar say it the same, in every state of Edit). */
 export const PROPOSAL_RENDER = 'Previewing a proposal: apply it (Apply and re-render renders it)';
 
-/** "v3" of "quote-v3", "v3 vertical" of "quote-v3-vertical" (the id itself when it is not one). */
-export function versionWords(renderId: string): string {
-  const m = /-v(\d+)(?:-(vertical|square))?$/.exec(renderId);
-  return m ? `v${m[1]}${m[2] ? ` ${m[2]}` : ''}` : renderId;
-}
+/** "v3" of "quote-v3", "v3 vertical" of "quote-v3-vertical" (the id itself when it is not one): id-words.ts renderVersionWords, under the name the render screens use. */
+export const versionWords = renderVersionWords;
 
 /** The render's stages (editor RenderStage) and the review's (review package), as the job's progress names them. */
 const PHASES: Record<string, string> = {

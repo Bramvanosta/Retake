@@ -7,7 +7,8 @@
 import { z } from 'zod';
 import { PROJECT_SLUG_RE } from './project.js';
 import { inspectPathProblem, INSPECT_PATH_MAX } from './inspect.js';
-import { RECORD_ID_RE } from './recording.js';
+import { INSPECT_ID_RE, PREVIEW_ID_RE, RECORD_ID_RE, SITE_ID_RE } from './id-grammar.js';
+import { zRenderId, zRunId, zThemeName } from './ids.js';
 import { siteUrlProblem } from './site.js';
 import { COMPONENT_ID_RE, ComponentRefSchema, FrameSpecSchema, KEY_RE, SLUG_RE, TargetSpecSchema, TransitionSchema, TutorialSwitchSchema } from './schemas/primitives.js';
 
@@ -66,10 +67,6 @@ export function isFilming(input: unknown): boolean {
 export const JOB_CLIENTS = ['mcp', 'cli', 'test', 'ui'] as const;
 export type JobClient = (typeof JOB_CLIENTS)[number];
 
-/** "j_" + 26 Crockford base32 characters (10 of time, 16 random): sortable by creation. */
-export const JOB_ID_RE = /^j_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** A folder name of runs/ ("20261017-142233-quote"). */
-export const RUN_FOLDER_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 /** An environment name of project.yaml: a name, never a path. */
 export const ENV_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
@@ -79,21 +76,6 @@ export const ENV_NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  */
 export const HOOKS_SOURCE_RE = /^(?:reset|[A-Za-z0-9][A-Za-z0-9_-]*:(?:setup|teardown)|hooks\/[A-Za-z0-9][A-Za-z0-9_-]*\.ya?ml)$/;
 
-/** The body of SLUG_RE (a scenario name), to build ids made of one. */
-const SLUG_BODY = SLUG_RE.source.replace(/^\^/, '').replace(/\$$/, '');
-/**
- * A render id, the base name of renders/<id>.mp4 and .json: "<scenario>-v<N>", plus "-vertical" / "-square" for those
- * variants. Built from SLUG_RE: a scenario name may hold upper-case letters and "_".
- */
-export const RENDER_ID_RE = new RegExp(`^${SLUG_BODY}-v\\d+(?:-vertical|-square)?$`);
-/** A theme (template) name: a folder of the workspace's templates_dir or a starter template, never a path. */
-export const TEMPLATE_NAME_RE = SLUG_RE;
-/** A preview id, the folder <workspace>/.retake/previews/<id>/: "p_" + 26 Crockford base32 characters. */
-export const PREVIEW_ID_RE = /^p_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** An inspection id, the folder <project>/.retake/inspect/<id>/: "i_" + 26 Crockford base32 characters. */
-export const INSPECT_ID_RE = /^i_[0-9A-HJKMNP-TV-Z]{26}$/;
-/** A site extraction id, the folder <workspace>/.retake/site/<id>/: "s_" + 26 Crockford base32 characters. */
-export const SITE_ID_RE = /^s_[0-9A-HJKMNP-TV-Z]{26}$/;
 /** Targets an inspection checks, at most; elements it lists, at most. */
 export const INSPECT_JOB_TARGETS_MAX = 20;
 export const INSPECT_JOB_LIMIT_MAX = 300;
@@ -123,7 +105,7 @@ const approvals = z.array(JobApprovalSchema).max(200).optional();
 const projectSlug = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug, never a path');
 const envName = z.string().max(100).regex(ENV_NAME_RE, 'an environment name, never a path');
 /** A journal id of <project>/.retake/journals/ (reserved at submit: `hooks-<label>` / `env-reset` run ids). */
-const journalId = z.string().max(200).regex(RUN_FOLDER_RE, 'a journal id, never a path');
+const journalId = zRunId('a journal id, never a path');
 
 export const RunJobInputSchema = z.strictObject({
   version: z.literal(JOB_INPUT_VERSION),
@@ -139,7 +121,7 @@ export const RunJobInputSchema = z.strictObject({
   /** Reset the sandbox environment to its seed before the take. */
   sandbox: z.boolean().optional(),
   /** Reserved at submit (core reserveRunId): runs/<run_id>/run.json says `queued` until the worker starts it. */
-  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name, never a path'),
+  run_id: zRunId('a run folder name, never a path'),
   submitted_by: z.enum(JOB_CLIENTS),
   approvals,
 });
@@ -263,8 +245,8 @@ export const EditOverridesInputSchema = z.strictObject({
 export type EditOverridesInput = z.output<typeof EditOverridesInputSchema>;
 
 const scenarioName = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
-export const templateNameSchema = z.string().max(100).regex(TEMPLATE_NAME_RE, 'a theme (template) name, never a path');
-export const renderIdSchema = z.string().max(200).regex(RENDER_ID_RE, 'a render id such as quote-v3 (renders/<id>.json), never a path');
+export const templateNameSchema = zThemeName('a theme (template) name, never a path');
+export const renderIdSchema = zRenderId('a render id such as quote-v3 (renders/<id>.json), never a path');
 
 /**
  * A render (L3.2): plan the run's capture with the theme and overrides, then render it with Remotion in the worker
@@ -278,7 +260,7 @@ export const RenderJobInputSchema = z.strictObject({
   project: projectSlug,
   scenario: scenarioName,
   /** The capture run rendered (resolved at submit: never `latest`). */
-  run_id: z.string().max(200).regex(RUN_FOLDER_RE, 'a run folder name, never a path'),
+  run_id: zRunId('a run folder name, never a path'),
   /** sha256 of the run's timeline.json at submit. */
   timeline_sha256: sha256,
   /** L5.5: sha256 of the scenario file the edit was planned from at submit (absent: the run as captured). */

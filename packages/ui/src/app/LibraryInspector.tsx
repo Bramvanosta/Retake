@@ -23,7 +23,8 @@ import { themeCopy, themeEdit, themeView } from './data/themes.js';
 import { APP_NAME } from './brand.js';
 import { Txt, plural } from './bits.js';
 import { DefaultTag, PictureBox, SourceTag, useLibrary } from './LibraryCards.js';
-import { canPlay, copyName, isKind, kindHeading, kindsOf, okTheme, setDefaultPlan, setDefaultWords, themeNameProblem } from './library-words.js';
+import { NEW_THEME_NAME_MAX } from './id-words.js';
+import { NEW_THEME_NAME_HINT, canPlay, copyName, isKind, kindHeading, kindsOf, okTheme, setDefaultPlan, setDefaultWords, themeNameProblem } from './library-words.js';
 import type { SetDefaultPlan } from './library-words.js';
 import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
@@ -213,7 +214,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
           if (id === 'copy') void copyThenWrite();
           else setSt({ s: 'idle' });
         }}
-        content={<TextField label="Name of the copy" value={copyAs} onChange={(v) => setCopyAs(v.trim())} unsaved={null} mono maxLength={100} autoComplete="off" spellCheck={false} testId="lib-set-copy-name" error={copyProblem ?? undefined} />}
+        content={<TextField label="Name of the copy" value={copyAs} onChange={(v) => setCopyAs(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="lib-set-copy-name" error={copyProblem ?? undefined} />}
       >
         {copying ? (
           <>

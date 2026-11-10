@@ -16,6 +16,7 @@ import {
   commentTextProblem,
   newCommentEntryId,
   statePath,
+  ulidFileRe,
 } from '@retake/core';
 import type { CommentAuthor, CommentEntry, CommentThread, LoadedProject } from '@retake/core';
 import type { TakeLock } from '@retake/sandbox';
@@ -42,7 +43,8 @@ export const MCP_AUTHOR_NAME = 'agent';
 /** A scenario snapshot or a timeline larger than this is not read for an anchor. */
 export const RUN_FILE_MAX_BYTES = 64 * 1024 * 1024;
 
-export const THREAD_FILE_RE = /^c_[0-9A-HJKMNP-TV-Z]{26}\.json$/;
+/** The name of a thread file: its id + ".json". */
+export const THREAD_FILE_RE = ulidFileRe('comment', 'json');
 export const VARIANTS: readonly string[] = ['landscape', 'vertical', 'square'];
 
 /** `comments/<scenario>/<id>.json`, the thread's project-relative ref. */
@@ -145,7 +147,8 @@ export interface ThreadFile {
   path: string;
 }
 
-export type ReadResult = { ok: true; thread: CommentThread; hash: string } | { ok: false; problem: string };
+/** A thread file that is not read as a thread: why; `scenario`, the scenario a well-formed thread in the wrong place names. */
+export type ReadResult = { ok: true; thread: CommentThread; hash: string } | { ok: false; problem: string; scenario?: string };
 
 /** Read and check one thread file (its folders and the file itself real, not links; name = id; folder = scenario). */
 export async function readThread(projectDir: string, f: ThreadFile): Promise<ReadResult> {
@@ -176,8 +179,8 @@ export async function readThread(projectDir: string, f: ThreadFile): Promise<Rea
     return { ok: false, problem: `${f.ref} is not a valid thread: ${where.join(', ')}` };
   }
   const thread = parsed.data;
-  if (thread.id !== f.id) return { ok: false, problem: `${f.ref} holds another thread's id (the file name must be its id)` };
-  if (thread.scenario !== f.scenario) return { ok: false, problem: `${f.ref} holds a thread of another scenario (the folder must be its scenario)` };
+  if (thread.id !== f.id) return { ok: false, problem: `${f.ref} holds another thread's id (the file name must be its id)`, scenario: thread.scenario };
+  if (thread.scenario !== f.scenario) return { ok: false, problem: `${f.ref} holds a thread of another scenario (the folder must be its scenario)`, scenario: thread.scenario };
   return { ok: true, thread, hash };
 }
 

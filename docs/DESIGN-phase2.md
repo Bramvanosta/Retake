@@ -421,7 +421,7 @@ motion) declare `brand` (fictional) and an explicit `components` map consistent 
 ### 1.10 Themes from brand inputs (L3.5)
 `template_create_from_brand` (MCP, trust `mcp`) and `retake theme create` (trust `author`) share
 `createThemeFromBrand(ws, input, {trust})` (engine `brand/create.ts`). Input: core `BrandInputSchema` (`brand.ts`) —
-`name` (`THEME_NAME_RE`, lower-case, ≤ 60), `base` (a theme name, default `editorial`), `colors {accent, text?, paper?,
+`name` (core `isNewThemeName`: `NEW_THEME_NAME_RE`, lower-case, ≤ `NEW_THEME_NAME_MAX` = 60), `base` (a theme name, default `editorial`), `colors {accent, text?, paper?,
 muted?, dark?}` (hex only, `normalizeHex`), `background` (hex = solid, or `{type: radial|linear, from, to}`), `adjust`
 (default true), `logo`, `wordmark?`, `fonts {display?, body?[1..4]}` (a ref or `{file, weight?, italic?}`), `brand
 {name?, url?}`, `replace?`. A file ref is workspace-relative (`brandRefSyntaxProblem`: never absolute, `~`, a drive
@@ -891,7 +891,7 @@ scenario}`, else the edit re-planned with its changes; `plan_preview`'s last lin
 render` print the filmed change as a warning on stderr (`retake render`: the edit re-planned as info; `--json` stays
 parseable). Not repeated by `render_status` or the job result: it matters before a render. The Studio's scenario view
 says `notice: 'changed'` with `filmed_changes` (a filmed change), `edit_changed` (only the edit), or `cannot_tell`.
-Editor `findRun` `latest` considers only folder names that are run ids (`RUN_FOLDER_RE`, ≤ 200 characters) and prefers
+Editor `findRun` `latest` considers only folder names that are run ids (core `isRunId`: `RUN_ID_RE`, ≤ 200 characters) and prefers
 dated ids (`<yyyymmdd>-<hhmmss>-…`): runs/ is writable by an agent and the id reaches trusted summaries; engine
 `planRenderRequest` refuses a planned run id of another shape, and the `render` tool returns the `run_id` it renders.
 Not compared: project.yaml (environments, project vars) — a change there is neither reported nor re-planned beyond the

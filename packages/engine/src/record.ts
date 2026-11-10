@@ -40,6 +40,7 @@ import {
   draftInvalidIssue,
   inspectPathProblem,
   isPageOrigin,
+  newUlidId,
   parseScenario,
   parseYaml,
   resolveEnvironment,
@@ -55,7 +56,6 @@ import { callerOf, submittedInStudio } from './caller.js';
 import { EngineError, toEngineError } from './errors.js';
 import { appendHistory } from './history.js';
 import { pageOfUrl } from './jobs/inspect-job.js';
-import { newJobId } from './jobs/ids.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { selfIdentity } from './jobs/proc.js';
 import { lockAlive, readLock } from '@retake/sandbox';
@@ -82,7 +82,7 @@ export function recordDir(project: LoadedProject, id: string): string {
 }
 
 export function newRecordId(): string {
-  return `rec_${newJobId().slice(2)}`;
+  return newUlidId('record');
 }
 
 /** The recordings of a project whose `record` job is queued or running (their folders are in use or reserved). */

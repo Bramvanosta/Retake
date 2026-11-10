@@ -18,7 +18,6 @@ export {
   COMPOSITION_IDS,
   FRAME_JPEG_QUALITY,
   RENDER_ENCODING,
-  VARIANT_SUFFIX,
   defaultConcurrency,
   guardEncoderPipe,
   probeMedia,

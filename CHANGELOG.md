@@ -46,6 +46,38 @@ release — for the person about to click Install and Restart.
   write or host refused on a read-only environment or by the allow-list, an agent's render refused, an export error,
   an unusable hooks source, a cancelled review, a full disk during a render.
 - `retake new --theme` names the starter theme (`--template` still works).
+- A new theme's name holds at most 60 characters, whatever makes it: `retake theme create`, a copy in the Studio (its
+  name fields stop there and say the rule under the field, and the name it proposes for a copy fits),
+  `template_create_from_brand`. A copy accepted 64 before. A theme that exists under a longer name keeps working:
+  listed, opened, edited, previewed, rendered with, copied from (up to 100 characters).
+- One rule says what a theme's name is where a theme is read by its name: letters, digits, `_` and `-`, at most 100
+  characters. A theme a project names by a path still loads and renders whatever its folder is called; the project
+  board, a render's theme in the lists and the Studio's sentence about a proposal name that theme only when its
+  folder's name is one (the sentence quoted a folder name with a dot and stopped at 64 characters before).
+- A render's version is at most 999999. When a file of `renders/` already claims that version or more for a scenario,
+  a new render or plan of that scenario is refused with the file's name ("Remove or rename that file, then render
+  again") — two renders never get the same id. A name with a higher version is not a render id any more: such a file
+  is not listed, reviewed, commented or exported, a tool refuses it as it refuses any other name that is no render
+  id, and `latest` never names it.
+- `retake prune` and `project_prune` never read "threads that cannot be read" as "no thread". When a comment thread
+  file is broken, a link or in the wrong folder, or a scenario's folder of `comments/` is a link, every render and take
+  of that scenario stays (a folder of `comments/` that differs from its scenario by case only counts for it); when
+  `comments/` cannot be read at all, or holds more thread files than a listing reads, every render and take stays.
+  The result says so (a warning line, `threads_unread` in `--json` and in the tool's data), and reviews of renders
+  that are gone can still go.
+- `retake prune` counts the last renders of a scenario among its renders only: the records named `<scenario>-v<N>` as
+  Retake names them. Another record of `renders/` — a video written there under a name of its own, a name past 200
+  characters or with a version past 999999 — never takes a render's place: it stays, with its review and its take,
+  when it succeeded, and goes only when it failed or was cancelled. A record whose id is empty or starts with a dot is
+  never a prune item.
+- An id longer than 200 characters is not a run id or a render id anywhere: a run folder or a render record with such
+  a name is not listed (it could not be opened before either); prune never deletes such a run folder, and treats such
+  a record as it treats any record that is no render (above).
+- `retake render … --run latest`, `retake plan` and a render's `latest` no longer take a run folder named
+  `<date>-<time>-` with nothing after it, or with a line break in its name, for a run of the scenario its name ends in.
+- A comment and a frame of a render are refused when the record's id is not exactly `<its scenario>-v<N>` (a
+  hand-edited record: `quote-v2-v1` filed under scenario `quote`). A comment thread file that does not read as a
+  thread, whatever it holds, is reported by the comment list, and the other threads are listed.
 - An MCP tool's error names the guide page about it (`docs`, its web address as of this version's release tag) when
   there is one.
 - `retake doctor` and `retake list` say "theme" where they said "template" (the check names stay).

@@ -18,15 +18,15 @@
 import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { historyFile } from '../history.js';
-import { projectPath } from '@retake/core';
+import { SLUG_RE, projectPath } from '@retake/core';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export type SourceKind = 'project' | 'readme' | 'runs' | 'renders' | 'scenario' | 'comments' | 'history';
 
 /** Scenario folders of comments/ watched per project, at most. */
 export const COMMENT_SOURCE_MAX_FOLDERS = 200;
-/** A scenario folder name of comments/ (core SLUG_RE). */
-const COMMENT_FOLDER_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+/** A scenario folder name of comments/: a scenario name. */
+const COMMENT_FOLDER_RE = SLUG_RE;
 
 /** A scenario file name (scenarios/<name>.yaml or .yml). */
 const SCENARIO_FILE_RE = /^([A-Za-z0-9][A-Za-z0-9_-]*)\.ya?ml$/;

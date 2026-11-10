@@ -25,7 +25,7 @@
 import { spawn } from 'node:child_process';
 import { constants as fsConstants, closeSync, fstatSync, openSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, RENDER_ID_RE, canonicalJson, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, canonicalJson, isRenderId, isTemplatePath, locateAnchorStep, parseScenario, parseYaml, scenarioBlocks, stepGuard, projectPath, scenarioRef } from '@retake/core';
 import { listTemplates, readPlainFile, ffprobeBin, fileFacts } from '@retake/core/io';
 import type { FieldAt, FieldValue, LoadedProject, WorkPolicy } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
@@ -406,7 +406,7 @@ function themeHash(ed: Awaited<ReturnType<typeof editor>>, dir: string): string 
 function renderMatcher(projectDir: string, planSha: string, themeSha: string): (renderId: string, createdAt: string) => boolean {
   const seen = new Map<string, boolean>();
   return (renderId, createdAt) => {
-    if (typeof renderId !== 'string' || !RENDER_ID_RE.test(renderId)) return false;
+    if (!isRenderId(renderId)) return false;
     const key = `${renderId}|${createdAt}`;
     let same = seen.get(key);
     if (same === undefined) {

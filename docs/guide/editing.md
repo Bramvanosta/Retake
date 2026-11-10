@@ -200,7 +200,7 @@ $ retake render northfield-fixture catalogue
   `--square`) and its **RenderRecord**
   `renders/<scenario>-v<N>.json`: id, project, scenario, run id and directory, theme, overrides, variant, status,
   duration, frames, fps, size, file size, encoding, the render policy (`policy`: below), what ffprobe saw in the file,
-  bundle hash, browser, timings, warnings and the whole plan. N is the next free version of the scenario (both variants share the counter); `--out`
+  bundle hash, browser, timings, warnings and the whole plan. N is the next free version of the scenario (both variants share the counter), at most 999999: when a file of `renders/` already claims that version or more for the scenario, the render is refused with the file's name instead of reusing an id; `--out`
   writes elsewhere. The video is encoded under a temporary name and renamed when complete: a failed or cancelled
   render (Ctrl-C, or an `AbortSignal` through the API) leaves nothing under the final names.
 - **Encoding**: H.264, `yuv420p` limited-range BT.709 (tagged), `+faststart` (moov first), and always an audio track:

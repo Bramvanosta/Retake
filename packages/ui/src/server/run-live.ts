@@ -36,13 +36,12 @@ import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import type { ServerResponse } from 'node:http';
 import { z } from 'zod';
-import { JOB_STATES, PROJECT_SLUG_RE } from '@retake/core';
+import { JOB_STATES, PROJECT_SLUG_RE, SLUG_RE, zRunId } from '@retake/core';
 import type { JobState } from '@retake/core';
 import {
   ERROR_STATUS,
   EngineError,
   FINISHED_JOB_STATES,
-  RUN_ID_RE,
   RunFolder,
   openLiveFeed,
   openProjectBySlug,
@@ -82,7 +81,7 @@ const END_GRACE_MS = 10_000;
 const POLL_READ_MAX = 8 * LIVE_READ_CHUNK;
 
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug, never a path');
-const runId = z.string().max(200).regex(RUN_ID_RE, 'a run id, never a path');
+const runId = zRunId('a run id, never a path');
 const offset = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 
 /** The body of `POST /v1/live`. */
@@ -435,7 +434,8 @@ export function mergeByTime(a: LiveItem[], b: LiveItem[]): LiveItem[] {
   while (j < y.length) out.push(y[j++].it);
   return out;
 }
-const PAGE_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/;
+/** A page id a frame may name: the grammar of a scenario's names (core SLUG_RE), at most 100 characters. */
+const isPageId = (v: string): boolean => v.length <= 100 && SLUG_RE.test(v);
 
 /** One page's stream of one run. */
 class RunStream {
@@ -630,7 +630,7 @@ class FrameFeed {
   private onFrame(f: LiveFeedFrame): void {
     if (this.ac.signal.aborted) return;
     const h = f.header;
-    const text = sse('frame', { seq: h.seq, w: h.w, h: h.h, at: h.at, ...(h.page !== undefined && PAGE_RE.test(h.page) ? { page: h.page } : {}), jpeg: f.data.toString('base64') });
+    const text = sse('frame', { seq: h.seq, w: h.w, h: h.h, at: h.at, ...(h.page !== undefined && isPageId(h.page) ? { page: h.page } : {}), jpeg: f.data.toString('base64') });
     if (this.state !== 'live') this.set('live');
     this.latest = text;
     for (const s of this.subs) s.frame(text);

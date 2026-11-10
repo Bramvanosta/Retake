@@ -1,6 +1,6 @@
 import { realpathSync } from 'node:fs';
 import { z } from 'zod';
-import { newVarName, pathInside, sandboxAdvice, sandboxAdviceText } from '@retake/core';
+import { newVarName, pathInside, sandboxAdvice, sandboxAdviceText, zThemeName } from '@retake/core';
 import { engineLocation } from '@retake/core/io';
 import { README_MAX_CHARS, formatBytes, heldWork, heldWorkWords, otherCopy } from '@retake/engine';
 import { envName, ifMatch, projectSlug } from '../schema.js';
@@ -108,7 +108,7 @@ export const projectCreate = defineTool({
     slug: projectSlug.optional().describe('Folder name (default: from the name).'),
     readme: z.string().max(README_MAX_CHARS).optional().describe('Full README.md content (default: a skeleton).'),
     environments: z.record(envName, pageMap).optional().describe('Environment name → its pages, e.g. {"staging": {"app": "https://app.staging.example.com"}}.'),
-    template: z.string().min(1).max(100).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/, 'a theme name of the workspace or a starter theme (never a path)').optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
+    template: zThemeName('a theme name of the workspace or a starter theme (never a path)', { nonEmpty: true }).optional().describe('Theme name (a workspace theme or a starter theme); default "default".'),
   }),
   annotations: WRITE_FILES,
   async run(args, { engine }) {
@@ -168,6 +168,8 @@ export const projectPrune = defineTool({
         `kept: ${plural(r.kept.runs, 'take')}, ${plural(r.kept.renders, 'render')}, ${plural(r.kept.reviews, 'review')}`,
         ...(r.skipped?.length ? [`${plural(r.skipped.length, 'approved item')} kept: something uses ${r.skipped.length === 1 ? 'it' : 'them'} now, or ${r.skipped.length === 1 ? 'it is' : 'they are'} gone (${r.skipped.map((i) => `${i.kind} ${i.id}`).join(', ')})`] : []),
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
+        // Comment threads that could not be read: what stayed for it (the engine's sentence: the slug, scenario names, an error code).
+        ...(r.threads_unread ? [r.threads_unread] : []),
         ...r.problems.map((p) => `could not delete ${p}`),
       ].join('\n'),
       data: r,

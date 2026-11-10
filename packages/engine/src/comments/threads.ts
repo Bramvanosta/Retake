@@ -7,7 +7,6 @@ import {
   COMMENT_ENTRIES_MAX,
   COMMENT_THREAD_VERSION,
   CommentThreadSchema,
-  RENDER_ID_RE,
   SLUG_RE,
   deriveStatus,
   isIsoUtcDate,
@@ -18,6 +17,7 @@ import {
   trustedAnchor,
   projectPath,
   projectRef,
+  renderIdOf,
 } from '@retake/core';
 import type {
   CommentAuthor,
@@ -172,7 +172,7 @@ export async function prepareComment(project: LoadedProject, req: CommentPrepare
   }
   const record = await renderForWork(project, req.render, req.scenario !== undefined ? { scenario: req.scenario } : {});
   if (req.scenario !== undefined && record.scenario !== req.scenario) throw argError('render', `render ${record.id} is a render of ${record.scenario}, not of ${req.scenario}`);
-  if (!RENDER_ID_RE.test(record.id) || !SLUG_RE.test(record.scenario) || !record.id.startsWith(`${record.scenario}-v`)) {
+  if (renderIdOf(record.id, record.scenario) === null) {
     throw new EngineError('invalid', `render ${record.id} has no <scenario>-v<N> id (written with --out?): only renders of renders/ take comments`);
   }
   if (!recordShapeOk(record)) throw new EngineError('refused', `${projectRef('renders', `${record.id}.json`)} has a scenario, created_at or variant the tool never writes: not used`);

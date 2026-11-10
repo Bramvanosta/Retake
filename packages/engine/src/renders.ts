@@ -8,13 +8,13 @@
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
-import { RENDER_ID_RE, TEMPLATE_NAME_RE, canonicalJson, projectPath } from '@retake/core';
+import { canonicalJson, formatRenderId, isRenderId, isRunId, isThemeName, projectPath, renderIdOf } from '@retake/core';
 import { readPlainFile } from '@retake/core/io';
 import type { LoadedProject } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError } from './errors.js';
 import { firstErrorLine, openProjectBySlug } from './projects.js';
-import { RUN_ID_RE, checkProjectSlug, checkScenarioName } from './refs.js';
+import { checkProjectSlug, checkScenarioName, isRenderOfItsScenario } from './refs.js';
 import { planRenderRequest } from './jobs/render-job.js';
 import { editor } from './lazy.js';
 import type { RenderRequest } from './jobs/render-job.js';
@@ -97,7 +97,7 @@ export async function planPreview(ws: OpenedWorkspace, cli: string, req: RenderR
       ...('scene' in g && typeof g.scene === 'string' ? { scene: g.scene } : {}),
     })),
     ...(plan.music ? { music: { file: plan.music.file ?? '', ...(plan.music.volume !== undefined ? { volume: plan.music.volume } : {}) } } : {}),
-    next_render_id: `${scenario}-v${next}${ed.VARIANT_SUFFIX[plan.variant]}`,
+    next_render_id: formatRenderId(scenario, next, plan.variant),
     ...source,
     untrusted: {
       captions: plan.captions.map((c) => ({ from_s: s3(c.from, plan.fps), to_s: s3(c.to, plan.fps), scene: c.scene, text: c.text, ...(c.kicker ? { kicker: c.kicker } : {}) })),
@@ -170,11 +170,11 @@ export async function renderForWork(project: LoadedProject, renderIdArg: string,
   const ed = await editor();
   let id = renderIdArg;
   if (renderIdArg === 'latest') {
-    const all = (await ed.listRenders(project)).filter((r) => r.status === 'succeeded' && (scenario === undefined || r.scenario === scenario));
+    const all = (await ed.listRenders(project)).filter((r) => r.status === 'succeeded' && isRenderOfItsScenario(r) && (scenario === undefined || r.scenario === scenario));
     const last = all[all.length - 1];
     if (!last) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet: render makes one`);
     id = last.id;
-  } else if (typeof renderIdArg !== 'string' || !RENDER_ID_RE.test(renderIdArg) || renderIdArg.length > 200) {
+  } else if (!isRenderId(renderIdArg)) {
     throw new EngineError('invalid', `invalid render id "${String(renderIdArg)}": <scenario>-v<N> (render returns it), or "latest"`);
   }
   const record = await readRecord(project.dir, id);
@@ -186,13 +186,16 @@ export async function renderForWork(project: LoadedProject, renderIdArg: string,
   return record;
 }
 
-/** The render id `latest` names: the newest render (record or job) of the project, of `scenario` when given. */
+/**
+ * The render id `latest` names: the newest render (record or job) of the project, of `scenario` when given — among the
+ * renders of their scenario only (isRenderOfItsScenario), so the id is one the by-id call takes.
+ */
 async function latestRenderId(projectDir: string, queue: JobQueueView, slug: string, scenario?: string): Promise<string | undefined> {
   const ed = await editor();
   const candidates: Array<{ id: string; at: string }> = [];
-  for (const r of await ed.listRenders(projectDir)) if (scenario === undefined || r.scenario === scenario) candidates.push({ id: r.id, at: r.created_at });
+  for (const r of await ed.listRenders(projectDir)) if (isRenderOfItsScenario(r) && (scenario === undefined || r.scenario === scenario)) candidates.push({ id: r.id, at: r.created_at });
   for (const j of await queue.list({ project: slug, kinds: ['render'], limit: 200 })) {
-    if (j.input.kind === 'render' && (scenario === undefined || j.input.scenario === scenario)) candidates.push({ id: j.input.render_id, at: j.created_at });
+    if (j.input.kind === 'render' && isRenderOfItsScenario({ id: j.input.render_id, scenario: j.input.scenario }) && (scenario === undefined || j.input.scenario === scenario)) candidates.push({ id: j.input.render_id, at: j.created_at });
   }
   candidates.sort((a, b) => b.at.localeCompare(a.at));
   return candidates[0]?.id;
@@ -208,7 +211,7 @@ export async function renderStatus(ws: OpenedWorkspace, queue: JobQueueView, slu
     const id = await latestRenderId(project.dir, queue, slug, scenario);
     if (!id) throw new EngineError('not_found', `no render of ${slug}${scenario ? ` · ${scenario}` : ''} yet: render starts one`);
     renderId = id;
-  } else if (typeof renderIdArg !== 'string' || !RENDER_ID_RE.test(renderIdArg) || renderIdArg.length > 200) {
+  } else if (!isRenderId(renderIdArg)) {
     throw new EngineError('invalid', `invalid render id "${String(renderIdArg)}": <scenario>-v<N> (render returns it), or "latest"`);
   }
   const job = await queue.ofRender(slug, renderId);
@@ -401,7 +404,6 @@ function readJsonPlain(file: string): Record<string, unknown> | undefined {
 }
 
 const n0 = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** report.json read and summed up, by path, while its stat holds (L5.10a fixes, review A-L3: every board read). */
 const REPORT_MEMO_MAX = 512;
@@ -446,7 +448,7 @@ function reportSummary(projectDir: string, id: string, since: string): { summary
 /** renders/<file> as a render record of its own id (version 1, a creation time), or undefined. */
 export function readRenderRecord(projectDir: string, file: string): RenderRecord | undefined {
   const r = readJsonPlain(projectPath(projectDir, 'renders', file)) as unknown as RenderRecord | undefined;
-  return r && r.version === 1 && r.id === file.slice(0, -5) && RENDER_ID_RE.test(r.id) && typeof r.created_at === 'string' ? r : undefined;
+  return r && r.version === 1 && r.id === file.slice(0, -5) && isRenderId(r.id) && typeof r.created_at === 'string' ? r : undefined;
 }
 
 const OVERRIDE_KEY = /^[a-z][a-z_]{0,39}$/;
@@ -474,8 +476,9 @@ export function renderView(projectDir: string, r: RenderRecord, renderJobs: read
     render_id: r.id,
     status,
     created_at: r.created_at,
-    run_id: typeof r.run_id === 'string' && RUN_ID_RE.test(r.run_id) ? r.run_id : 'unknown',
-    theme: typeof r.template === 'string' && TEMPLATE_NAME_RE.test(r.template) ? r.template : 'unknown',
+    run_id: isRunId(r.run_id) ? r.run_id : 'unknown',
+    // The record's theme, by its folder's name (the board compares it with today's: project-board.ts themeName, the same test).
+    theme: isThemeName(r.template) ? r.template : 'unknown',
     variant: r.variant === 'vertical' || r.variant === 'square' ? r.variant : 'landscape',
     duration_s: n0(r.duration_s),
     width: n0(r.width),
@@ -499,8 +502,7 @@ export async function scenarioRenders(ws: OpenedWorkspace, queue: JobQueueView, 
   const reviewJobs = await queue.list({ project: slug, kinds: ['review'], states: ['queued', 'running'], limit: 50 });
 
   // Records: renders/<scenario>-v<N>[-variant].json only (named by the file first: other scenarios' records are not read).
-  const nameRe = new RegExp(`^${escapeRe(scenario)}-v\\d+(?:-vertical|-square)?\\.json$`);
-  const files = (await readdir(projectPath(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => nameRe.test(f));
+  const files = (await readdir(projectPath(project.dir, 'renders')).catch(() => [] as string[])).filter((f) => f.endsWith('.json') && renderIdOf(f.slice(0, -5), scenario) !== null);
   const records: RenderRecord[] = [];
   for (const f of files) {
     const r = readRenderRecord(project.dir, f);

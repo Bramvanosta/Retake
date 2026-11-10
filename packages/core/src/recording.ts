@@ -21,9 +21,6 @@ import type { RecordAnnotations, RecordInsert } from './record-annotations.js';
 
 export const RECORDING_VERSION = 1;
 
-/** "rec_" + 26 Crockford base32 characters (10 of time, 16 random): the folder of one recording. */
-export const RECORD_ID_RE = /^rec_[0-9A-HJKMNP-TV-Z]{26}$/;
-
 /** The kinds of secret-class fields: a draft names its placeholder after the kind (`{{vars.password_1}}`). */
 export const SECRET_FIELD_KINDS = ['password', 'one_time_code', 'card_number', 'card_code', 'card_expiry', 'iban', 'national_id', 'pin', 'api_key', 'secret'] as const;
 export type SecretFieldKind = (typeof SECRET_FIELD_KINDS)[number];

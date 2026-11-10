@@ -81,6 +81,17 @@ script, fixture or app. This fixes where the library is *named*, not an interfac
 one loader, the library's API is still called in the editor's `render/{render,preview,policy,bundle}.ts`, and the
 Studio player's frame also reads a global the library sets.
 
+The ids of the domain — run, render, the ULID ids, theme names — have one grammar each in core (`id-grammar.ts`,
+`ids.ts`; the Studio front end keeps one pinned mirror), and the ratchet's `id-grammar` check counts a pattern written
+by hand anywhere else in `packages/*/src`: a date stamp, a version suffix, the ULID class or alphabet, a template that
+builds or tests an id, a second suffix table, the run-folder or a theme-name grammar spelt whole (as a regular
+expression or as a string), a capped grammar tested without its cap or handed to a schema (10 files in the baseline,
+in four groups, each with its reason: other names of the same shape at their definition — 5 files —, the mirrors of
+the scenario name and the project slug in the Studio front end — 3 —, the export formats' file suffixes — 1 —, one
+deliberate use — 1). It cannot see a grammar spelt another way, a pattern put together
+from pieces, a parser written with string methods, a grammar reached under another name, nor anything outside
+`packages/*/src`.
+
 ## Path (no big-bang)
 1. **Guard rails** — the ratchet test at today's counts, a glossary, one containment function, error kinds carried by
    the error classes. Small, safe, and they stop new drift.

@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { HISTORY_FILE, PROJECT_DIRS, STATE_DIR, WORKSPACE_JOURNAL_FILE } from '../src/layout.js';
+import { ULID_PREFIXES } from '../src/id-grammar.js';
 // @ts-expect-error — a plain .mjs script without types
 import * as lib from '../../../scripts/audit/lib.mjs';
 
@@ -895,6 +896,172 @@ describe('the import-rules ratchet', () => {
     for (const e of entries) expect(e).toMatch(/^layout packages\/[\w-]+\/src\/\S+ → \d+ hand-written layout paths?$/);
     // The engine, the hooks and the sandbox spell no layout path by hand any more (only messages of the catalogue).
     expect(entries.filter((e: string) => /packages\/(hooks|sandbox|runner-web|cli)\//.test(e) || (/packages\/engine\//.test(e) && !e.includes('catalogue.ts')))).toEqual([]);
+  });
+
+  describe('id-grammar: the id grammars are written in their homes only', () => {
+    type IdHit = { file: string; count: number; lines: number[]; kinds: number[] };
+    const found = (rel: string, lines: string[]): IdHit[] => lib.idGrammarHits(ROOT, [{ rel, pkg: rel.split('/')[1], text: lines.join('\n'), specs: [] }]);
+    /** The kind found on each line of a synthetic file (0: no hit), in line order. */
+    const kinds = (lines: string[], rel = 'packages/engine/src/a.ts'): number[] => {
+      const h = found(rel, lines)[0];
+      return lines.map((_, i) => (h ? h.kinds[h.lines.indexOf(i + 1)] ?? 0 : 0));
+    };
+    // Source text of the cases is written with String.raw: a backslash here is a backslash of the file read.
+    const R = String.raw;
+
+    it('1. a date stamp, a version suffix or the ULID character class, in a regular expression, a string or a template', () => {
+      expect(kinds([
+        R`const A = /^\d{8}-\d{6}-[a-z0-9][a-z0-9-]*$/;`,
+        R`const B = /^\d{8}-\d{6}-/.test(id);`,
+        R`const C = /-v(\d+)(?:-(vertical|square))?$/;`,
+        R`const D = id.replace(/-v\d+(?:-vertical|-square)?$/, '');`,
+        R`const E = /^j_[0-9A-HJKMNP-TV-Z]{26}$/;`,
+        R`const F = new RegExp('^' + name + '-v\\d+$');`,
+        'const G = new RegExp(`^${scenario}-v\\\\d+(?:-vertical|-square)?$`);',
+        R`const H = RegExp('^\\d{8}-\\d{6}-(.+)$');`,
+        R`const I = '-v(\\d+)';`, // a source held in a variable: the string itself is seen
+        'const J = `^c_[0-9A-HJKMNP-TV-Z]{26}\\\\.${ext}$`;',
+        // The suffix whatever follows its digit, in a named or a non-capturing group too.
+        R`const K = /-v(\d{1,6})(?:-(vertical|square))?$/;`,
+        R`const L = /-v(?<n>\d+)$/;`,
+        R`const M = /-v(?:\d{1,6})$/;`,
+        R`const N = /-v\d$/;`,
+        R`const O = new RegExp('-v(\\d{1,6})$');`,
+      ])).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+      // Not these: -v before something else than a digit class.
+      expect(kinds([R`const P = /-v[a-z]+$/;`, R`const Q = /-vertical$/;`, "const S = ['-v', 'error'];"])).toEqual([0, 0, 0]);
+    });
+
+    it('2. the ULID alphabet as a string', () => {
+      expect(kinds(["const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';", 'const T = `0123456789ABCDEFGHJKMNPQRSTVWXYZ${x}`;', "const HEX = '0123456789ABCDEF';"])).toEqual([2, 2, 0]);
+    });
+
+    it('3. a regular expression or a string that is the run-folder grammar or a theme-name grammar, with or without a final {0,N}', () => {
+      expect(kinds([
+        R`const A = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;`,
+        R`const B = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;`,
+        R`const C = /^[a-z0-9][a-z0-9-]*$/;`,
+        R`const D = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;`,
+        R`const E = /^[a-z0-9][a-z0-9-]{0,99}$/i;`,
+        // Not these: another class, another quantifier, a longer pattern.
+        R`const F = /^[a-z][a-z_]{0,39}$/;`,
+        R`const G = /^[A-Za-z0-9][A-Za-z0-9_-]{1,63}$/;`,
+        R`const H = /^[a-z0-9][a-z0-9-]*\.json$/;`,
+      ])).toEqual([3, 3, 3, 3, 3, 0, 0, 0]);
+      // The same grammar as a string — what `new RegExp` is given, or a source held in a variable — is seen too.
+      expect(kinds([
+        "const A = new RegExp('^[A-Za-z0-9][A-Za-z0-9._-]*$');",
+        "const B = RegExp('^[A-Za-z0-9][A-Za-z0-9_-]*$');",
+        'const C = new RegExp(`^[a-z0-9][a-z0-9-]*$`);',
+        "const D = '^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$';",
+        // Not these: a part of the grammar, a sentence that quotes it.
+        "const E = '[a-z0-9-]';",
+        "const F = 'a name matches ^[a-z0-9][a-z0-9-]*$ only';",
+      ])).toEqual([3, 3, 3, 3, 0, 0]);
+    });
+
+    it('4. a template that builds or tests an id: a part ending in -v (before a substitution, or last), a ULID prefix before a substitution', () => {
+      expect(kinds([
+        'const a = `${scenario}-v${version}${suffix}`;',
+        'const b = join(dir, `.${name}-v${version}.lock`);',
+        'const c = id.startsWith(`${scenario}-v`);', // the critique's missed shape: nothing after -v
+        'const d = `j_${ulid()}`;',
+        'const e = `rec_${newJobId().slice(2)}`;',
+        'const f = `k_${ulid()}.json`;',
+        ...['p_', 'i_', 's_', 'c_', 'r_'].map((x) => `const g = \`${x}\${ulid()}\`;`),
+        // Not these: a prefix that is no id's, a ULID prefix that is not the head, -v inside a part.
+        'const h = `x_${n}`;',
+        'const i = `${a}j_${n}`;',
+        'const j = `${a}-vertical-${n}`;',
+        "const k = ['-v', 'error'];", // a program's flag: a string, not a template
+      ])).toEqual([4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 0, 0, 5, 0]);
+      // The prefixes the check knows are the module's.
+      expect([...lib.ID_ULID_PREFIXES].sort()).toEqual(Object.values(ULID_PREFIXES).sort());
+    });
+
+    it('5. a string or a template part that starts with -vertical or -square: a second suffix table', () => {
+      expect(kinds([
+        "const SUFFIX = { landscape: '', vertical: '-vertical', square: '-square' };",
+        "const f = '-vertical.mp4';",
+        'const g = `${id}-square.mp4`;',
+        "const h = 'vertical'; const i = 'a-vertical';",
+      ])).toEqual([5, 5, 5, 0]);
+      // (Line 1 holds two strings: both are counted.)
+      expect(found('packages/engine/src/a.ts', ["const SUFFIX = { landscape: '', vertical: '-vertical', square: '-square' };"])[0].count).toBe(2);
+    });
+
+    it('6. a capped grammar used without its cap: .test() and .exec() on it, or the grammar handed to a string method or to a schema', () => {
+      expect(kinds([
+        'if (RUN_ID_RE.test(name)) ok();',
+        'const m = RENDER_ID_RE.exec(id);',
+        'const t = ANY_THEME_NAME_RE.test(x) && x.length <= 100;', // the cap beside it is still a copy of the rule
+        'const n = NEW_THEME_NAME_RE.test(m[1]);',
+        'const o = core.RUN_ID_RE.test(name);',
+        'const p = name.match(RENDER_ID_RE);',
+        "const q = name.replace(RUN_ID_RE, '');",
+        // A schema written by hand from the grammar, with or without the cap beside it: the z… helpers hold it.
+        'const s = z.string().regex(RUN_ID_RE, msg);',
+        'const t2 = z.string().max(RUN_ID_MAX).regex(RUN_ID_RE, msg);',
+        'const t3 = z.string().min(1).regex(core.ANY_THEME_NAME_RE, msg).optional();',
+        // Not these: an uncapped id's grammar (tested, or in a schema), a schema helper, the grammar's source read.
+        'const r = JOB_ID_RE.test(id) || SITE_ID_RE.test(id);',
+        'const v = z.string().max(40).regex(JOB_ID_RE, msg);',
+        'const w = zRunId(msg).optional();',
+        'const u = RENDER_ID_RE.source;',
+      ])).toEqual([6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 0, 0, 0]);
+      expect([...lib.ID_CAPPED_GRAMMARS]).toEqual(['RUN_ID_RE', 'RENDER_ID_RE', 'ANY_THEME_NAME_RE', 'NEW_THEME_NAME_RE']);
+    });
+
+    it('the homes and the one mirror are free, and they are this list, no more; a module specifier is not read', () => {
+      const all = [R`const A = /^\d{8}-\d{6}-/;`, 'const b = `${s}-v${n}`;', "const c = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';", 'RUN_ID_RE.test(x);'];
+      expect(lib.ID_HOMES).toEqual(['packages/core/src/id-grammar.ts', 'packages/core/src/ids.ts']);
+      expect(lib.ID_MIRRORS).toEqual(['packages/ui/src/app/id-words.ts']);
+      for (const rel of [...lib.ID_HOMES, ...lib.ID_MIRRORS]) expect(found(rel, all), rel).toEqual([]);
+      expect(found('packages/core/src/jobs.ts', all).map((h) => [h.count, h.kinds])).toEqual([[4, [1, 4, 2, 6]]]);
+      expect(found('packages/ui/src/app/route.ts', all)[0].count).toBe(4);
+      // The homes and the mirror exist, and the module's grammars are where the check says.
+      for (const rel of [...lib.ID_HOMES, ...lib.ID_MIRRORS]) expect(statSync(join(ROOT, rel)).isFile(), rel).toBe(true);
+      expect(readFileSync(join(ROOT, lib.ID_HOMES[0]), 'utf8')).toContain('export const RUN_ID_RE = ');
+      expect(found('packages/engine/src/a.ts', ["import x from './-vertical.js';", "export { y } from '-square';", "const z = await import('-vertical');"])).toEqual([]);
+    });
+
+    it('says what it does not see: another spelling, a pattern made of pieces, a parser by hand, a grammar under another name', () => {
+      expect(kinds([
+        R`const A = /^[0-9]{8}-[0-9]{6}-/;`, // the stamp spelt another way
+        R`const B = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;`, // the class in another order
+        "const c = scenario + '-v' + version;", // put together by +
+        "const d = new RegExp(scenario + '-v' + DIGITS);",
+        "const e = id.startsWith('j_') ? id.slice(2) : null;", // a parser by hand
+        "const f = id.split('-');",
+        'const RE = RUN_ID_RE; const g = RE.test(name);', // under another name
+        'const h = ok(RUN_ID_RE, name);', // handed to a helper
+        'const i = RUN_ID.test(name);', // the mirror's pattern without its cap
+      ])).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0]);
+      // …and nothing outside packages/*/src is scanned (tests, scripts, fixtures, the desktop shell).
+      expect(lib.scan(ROOT).files.every((f: { rel: string }) => /^packages\/[\w-]+\/src\//.test(f.rel))).toBe(true);
+    });
+
+    it('the repository: no stamp, suffix, alphabet or id template outside the homes; each file left has its count and a reason', () => {
+      const scanned = lib.scan(ROOT);
+      const today: string[] = lib.ratchetEntries(ROOT, scanned);
+      const hits: IdHit[] = lib.idGrammarHits(ROOT, scanned.files);
+      // Kinds 1, 2 and 4 are gone from every package; what is left spells another name's grammar (3: at its
+      // definition, or mirrored in the Studio front end), the export formats' file suffixes (5) or one grammar used
+      // without its cap on purpose (6).
+      expect(hits.flatMap((h) => h.kinds.map((k, i) => (k === 3 || k === 5 || k === 6 ? '' : `${h.file}:${h.lines[i]} kind ${k}`))).filter(Boolean)).toEqual([]);
+      expect(hits.filter((h) => h.kinds.includes(5)).map((h) => h.file)).toEqual(['packages/editor/src/render/export.ts']);
+      expect(hits.filter((h) => h.kinds.includes(6)).map((h) => h.file)).toEqual(['packages/engine/src/brand/create.ts']);
+      expect(hits.filter((h) => h.kinds.includes(3)).map((h) => h.file)).toEqual(['packages/core/src/jobs.ts', 'packages/core/src/project.ts', 'packages/core/src/schemas/primitives.ts', 'packages/engine/src/reviews.ts', 'packages/engine/src/run-files.ts', 'packages/ui/src/app/record-words.ts', 'packages/ui/src/app/review-words.ts', 'packages/ui/src/app/unsaved-report.ts']);
+      const entries = today.filter((e: string) => e.startsWith('id-grammar '));
+      expect(entries).toEqual(hits.map((h) => `id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`).sort());
+      // One more pattern in a file is a new entry (and its old count a stale one).
+      const more = lib.compareBaseline([...today.filter((e: string) => !e.includes('engine/src/brand/create.ts')), 'id-grammar packages/engine/src/brand/create.ts → 2 hand-written id patterns', 'id-grammar packages/engine/src/jobs/signing.ts → 1 hand-written id pattern'], lib.readBaseline(ROOT));
+      expect(more.added).toEqual(['id-grammar packages/engine/src/brand/create.ts → 2 hand-written id patterns', 'id-grammar packages/engine/src/jobs/signing.ts → 1 hand-written id pattern']);
+      expect(more.stale).toEqual(['id-grammar packages/engine/src/brand/create.ts → 1 hand-written id pattern']);
+      // The check's title says what it reads and what it does not.
+      const title = lib.CHECKS.find((c: { id: string }) => c.id === 'id-grammar')?.title ?? '';
+      for (const word of ['ID_HOMES', 'ID_MIRRORS', 'Not seen', 'another way', 'pieces', 'another name', 'outside packages/*/src']) expect(title, word).toContain(word);
+    });
   });
 
   it('fails on a new entry, a stale entry, a group without a reason, and says how to update the baseline', () => {

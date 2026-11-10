@@ -10,8 +10,8 @@
  * jobFile. Readers never write: what a dead worker cannot write is derived when reading (queue.ts says how the next
  * worker persists it).
  */
-import { JOB_ID_RE, JobInputSchema, isFilming, jobClass } from '@retake/core';
-import type { JobInput } from '@retake/core';
+import { JobInputSchema, isFilming, jobClass, parseJobId } from '@retake/core';
+import type { JobId, JobInput } from '@retake/core';
 import { EngineError } from '../errors.js';
 import { newJobId } from './ids.js';
 import { isAlive } from './proc.js';
@@ -23,9 +23,10 @@ import { interrupted } from './interrupted.js';
 import type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, TakeHold, YieldMark } from './job-queue.js';
 
 /** A job's id, checked (never a path): the id itself, else `invalid`. */
-export function checkJobId(id: string): string {
-  if (!JOB_ID_RE.test(id)) throw new EngineError('invalid', `invalid job id "${id}": j_ followed by 26 characters (job_list names them)`);
-  return id;
+export function checkJobId(id: string): JobId {
+  const job = parseJobId(id);
+  if (job === null) throw new EngineError('invalid', `invalid job id "${id}": j_ followed by 26 characters (job_list names them)`);
+  return job;
 }
 
 /**

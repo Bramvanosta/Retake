@@ -26,7 +26,7 @@
 import { closeSync, lstatSync, openSync, readSync } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { BRAND_IMAGE_MAX_BYTES, JOB_INPUT_VERSION, SITE_ID_RE, TEMPLATE_FILE, insideFolder, normalizeHost, parseSiteUrl, parseYaml, realPathOf, resolveEnvironment, siteApprovalFingerprint, siteThemeName, unsafeTestResolve, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
+import { BRAND_IMAGE_MAX_BYTES, JOB_INPUT_VERSION, SITE_ID_RE, TEMPLATE_FILE, insideFolder, newUlidId, normalizeHost, parseSiteUrl, parseYaml, realPathOf, resolveEnvironment, siteApprovalFingerprint, siteThemeName, unsafeTestResolve, statePath, STATE_DIR, STATE_DIRS } from '@retake/core';
 import { listProjects, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
 import type { JobApproval, LoadedProject, SiteJobInput, SiteUrl, TemplateFile } from '@retake/core';
 import type { SiteReport } from '@retake/runner-web';
@@ -36,7 +36,6 @@ import { components } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { protectedHostOf, workspaceProtectedHosts } from '../protected-hosts.js';
 import { openProject } from '../workspace.js';
-import { newJobId } from './ids.js';
 import type { JobQueueView } from './job-queue.js';
 import type { SubmitContext } from './run-job.js';
 import { verifiedApprovals } from './signing.js';
@@ -63,7 +62,7 @@ export function siteDir(ws: OpenedWorkspace, id: string): string {
 }
 
 export function newSiteId(): string {
-  return `s_${newJobId().slice(2)}`;
+  return newUlidId('site');
 }
 
 /**

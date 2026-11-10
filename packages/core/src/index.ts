@@ -63,6 +63,7 @@ export { DEFAULT_COMPOSE_FILES, SNAPSHOT_DATABASE_MAX, checkSandbox, unmaskedPas
 export type { SandboxCheckOptions } from './checks/sandbox.js';
 export { RESERVED_PAGE_KEYS } from './checks/project.js';
 export * from './jobs.js';
+export * from './id-grammar.js';
 export * from './ids.js';
 export * from './comments.js';
 export * from './line-diff.js';

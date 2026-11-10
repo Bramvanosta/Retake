@@ -21,7 +21,7 @@ Back to the [guide](guide/README.md) · the layers these words live in: [target 
 | persona | Cast (the sidebar group; its rows and fields: Persona) | an account a video is filmed as, signed in once; its saved browser state is its **session** | — |
 | dry run | Rehearse | a scenario played without video: a screenshot per step, irreversible steps not executed, hooks skipped by default | `--dry`, `run_dry`, the run mode `dry` |
 | capture | Capture (in the Shoot mode) | a scenario played and filmed, with its setup and teardown hooks: `capture.mp4` + `timeline.json` | `run_capture`, `retake run` |
-| run | Run (in the Shoot mode) | the record of one dry run or capture: `runs/<id>/` with its `run.json`, named by its run id | — |
+| run | Run (in the Shoot mode) | the record of one dry run or capture: `runs/<id>/` with its `run.json`, named by its run id (the folder's name; the grammars of the run id, the render id, the job id and theme names are in core `id-grammar.ts`) | — |
 | take | Take (*Prepare a take*) | the filming moment of a capture: the time the browser films on this Mac; one take at a time per Mac, renders wait for it | — |
 | edit plan | Edit | the planned cut of a capture (segments, components, captions, speeds, zooms) that a render follows | — |
 | render | Render | a finished video made from a capture with a theme: `renders/<scenario>-v<N>.mp4` + `.json` | — |

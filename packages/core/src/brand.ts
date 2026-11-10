@@ -8,12 +8,8 @@
  * or `site:<site_id>/<candidate>`, a logo candidate of a site extraction (template_from_site: a PNG the worker made).
  */
 import { z } from 'zod';
-import { PROJECT_SLUG_RE } from './project.js';
-import { SITE_ID_RE, TEMPLATE_NAME_RE } from './jobs.js';
-
-/** A new theme's name: lower-case (compared without case with the starters and the folders of templates_dir). */
-export const THEME_NAME_RE = PROJECT_SLUG_RE;
-export const THEME_NAME_MAX = 60;
+import { SITE_ID_RE } from './id-grammar.js';
+import { zNewThemeName, zThemeName } from './ids.js';
 
 /** `#rgb` or `#rrggbb` (normalised to lower-case `#rrggbb` by normalizeHex). */
 export const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
@@ -111,12 +107,9 @@ export type BrandBackground = z.output<typeof BrandBackgroundSchema>;
 function brandInputSchema(ref: z.ZodType<string, string>) {
   const fontRef = fontRefOf(ref);
   return z.strictObject({
-    name: z
-      .string()
-      .max(THEME_NAME_MAX)
-      .regex(THEME_NAME_RE, 'a new theme name: lower-case letters, digits and "-" (e.g. acme), never a path')
+    name: zNewThemeName('a new theme name: lower-case letters, digits and "-" (e.g. acme), never a path')
       .describe('Name of the new theme (its folder in templates/): lower-case, not a starter\'s or an existing folder\'s.'),
-    base: z.string().max(100).regex(TEMPLATE_NAME_RE, 'a theme name').optional().describe('Theme whose components, frame, captions, motion and durations are kept (default editorial).'),
+    base: zThemeName('a theme name').optional().describe('Theme whose components, frame, captions, motion and durations are kept (default editorial).'),
     colors: BrandColorsSchema,
     background: BrandBackgroundSchema.optional().describe('A hex (solid) or {type: radial | linear, from, to} (default derived from the paper).'),
     adjust: z.boolean().optional().describe('Lift derived and given colours (never the accent) that miss a contrast threshold, each change reported (default true).'),

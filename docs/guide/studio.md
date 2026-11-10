@@ -442,7 +442,7 @@ running: the MCP server keeps working without it.
   library) lists every theme — your workspace's, the starters, the project's own theme folder — with its colours, where
   it comes from, what uses it and whether the Studio edits it: a starter (or anything shipped with Retake, or a
   project's own folder theme) is read-only, and **Copy to edit…** copies a listed one into your workspace first (a sheet
-  asks the copy's name; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
+  asks the copy's name — lower-case letters, digits and `-`, at most 60 characters; Return in it copies). A theme's editor (`#/p/<project>/themes/<theme>`) changes its brand (name, URL and the outro's URL as shown —
   `example.com/path`, no `https://` —, the outro's tagline; the logo
   and wordmark among the theme folder's own image files — add one there to pick it), colours (picker or hex, with the
   contrast checks; the cursor ripple can follow the accent), background (solid, radial or linear), type pair (the

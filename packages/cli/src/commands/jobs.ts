@@ -4,7 +4,7 @@
  * that session is gone. `retake run` and the other commands run inline and are not jobs.
  */
 import { resolve } from 'node:path';
-import { JOB_ID_RE, JOB_STATES } from '@retake/core';
+import { JOB_STATES, isJobId } from '@retake/core';
 import type { JobState } from '@retake/core';
 import { EngineError, FINISHED_JOB_STATES, createEngine, jobProject, yieldWords } from '@retake/engine';
 import type { Engine, JobRecord } from '@retake/engine';
@@ -31,7 +31,7 @@ async function engineOf(global: GlobalOptions): Promise<Engine> {
 }
 
 function checkId(id: string): void {
-  if (!JOB_ID_RE.test(id)) throw new UsageError(`"${id}" is not a job id (j_ followed by 26 characters: retake jobs lists them)`);
+  if (!isJobId(id)) throw new UsageError(`"${id}" is not a job id (j_ followed by 26 characters: retake jobs lists them)`);
 }
 
 /** A job's own errors (not found…) as CLI errors with the same message. */

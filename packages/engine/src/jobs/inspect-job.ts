@@ -23,6 +23,7 @@ import {
   inspectPathProblem,
   inspectScenario,
   isPageOrigin,
+  newUlidId,
   pageOrigins,
   resolveEnvironment,
   statePath,
@@ -39,7 +40,6 @@ import { openProjectBySlug } from '../projects.js';
 import { checkWorkspaceProtection } from '../protected-hosts.js';
 import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
-import { newJobId } from './ids.js';
 import type { JobQueueView } from './job-queue.js';
 import { review } from './review-job.js';
 import type { SubmitContext } from './run-job.js';
@@ -79,7 +79,7 @@ export function inspectDir(project: LoadedProject, id: string): string {
 }
 
 export function newInspectId(): string {
-  return `i_${newJobId().slice(2)}`;
+  return newUlidId('inspect');
 }
 
 /** The inspections of a project whose job is queued or running (their folders are in use). */

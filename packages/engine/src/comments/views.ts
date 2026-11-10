@@ -3,10 +3,10 @@ import { open, readdir, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   COMMENTS_DIR,
-  RENDER_ID_RE,
   SLUG_RE,
   deriveStatus,
   isIsoUtcDate,
+  isRenderId,
   locateAnchorStep,
   hunkStats,
   proposalStates,
@@ -119,7 +119,7 @@ export function timecodeOf(seconds: number): string {
 
 /** A render record's fields a message may quote, of the tool's own shape (a hand-edited record is not used). */
 export function recordShapeOk(r: RenderRecord): boolean {
-  return typeof r.id === 'string' && RENDER_ID_RE.test(r.id) && typeof r.scenario === 'string' && SLUG_RE.test(r.scenario) && isIsoUtcDate(r.created_at) && VARIANTS.includes(r.variant);
+  return isRenderId(r.id) && typeof r.scenario === 'string' && SLUG_RE.test(r.scenario) && isIsoUtcDate(r.created_at) && VARIANTS.includes(r.variant);
 }
 
 /** The project's render records (read once per call): those whose id, scenario, created_at and variant are of the tool's shape. */
@@ -281,8 +281,26 @@ export interface CommentListView {
   problems: string[];
 }
 
+/**
+ * What a listing met that may hold a thread and did not read as one: a thread file that is broken, a link or in the
+ * wrong place, a scenario folder that is a link — by scenario — or `all`, when which scenarios are concerned cannot be
+ * told (comments/ itself is not read, or holds more thread files than a listing reads). Not counted: what holds no
+ * thread (an entry of comments/ whose name is no scenario name, a file whose name is no thread id).
+ * For a reader that must not take "not read" for "no thread" (prune).
+ */
+export interface CommentsUnread {
+  all: boolean;
+  /** Scenario names (each a scenario name's grammar), sorted. */
+  scenarios: string[];
+}
+
 /** The threads of a project (see CommentListRequest). */
 export async function listComments(project: LoadedProject, req: CommentListRequest = {}): Promise<CommentListView> {
+  return (await listCommentsAndUnread(project, req)).list;
+}
+
+/** `listComments`, with what the listing could not read as threads (CommentsUnread). */
+export async function listCommentsAndUnread(project: LoadedProject, req: CommentListRequest = {}): Promise<{ list: CommentListView; unread: CommentsUnread }> {
   const status = req.status ?? 'open';
   if (!['open', 'resolved', 'all'].includes(status)) throw argError('status', `status "${String(status)}": open, resolved or all`);
   if (req.scenario !== undefined) checkScenarioName(req.scenario);
@@ -295,7 +313,7 @@ export async function listComments(project: LoadedProject, req: CommentListReque
       onRender = renders.filter((r) => r.status === 'succeeded' && (scenario === undefined || r.scenario === scenario)).sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1);
       if (!onRender) throw new EngineError('not_found', `no finished render of ${project.slug}${scenario ? ` · ${scenario}` : ''} yet`);
     } else {
-      if (typeof req.render !== 'string' || !RENDER_ID_RE.test(req.render) || req.render.length > 200) {
+      if (!isRenderId(req.render)) {
         throw argError('render', `invalid render id "${String(req.render).slice(0, 80)}": <scenario>-v<N>, or "latest"`);
       }
       onRender = renders.find((r) => r.id === req.render);
@@ -306,6 +324,8 @@ export async function listComments(project: LoadedProject, req: CommentListReque
   }
 
   const problems: string[] = [];
+  let unreadAll = false;
+  const unreadOf = new Set<string>();
   const root = join(project.dir, COMMENTS_DIR);
   const rootState = await realDir(root);
   const files: ThreadFile[] = [];
@@ -323,6 +343,7 @@ export async function listComments(project: LoadedProject, req: CommentListReque
       }
       if (d.isSymbolicLink()) {
         problems.push(`${COMMENTS_DIR}/${d.name}/ is a symbolic link: skipped`);
+        unreadOf.add(d.name);
         continue;
       }
       if (!d.isDirectory()) continue;
@@ -332,18 +353,23 @@ export async function listComments(project: LoadedProject, req: CommentListReque
         const ref = `${COMMENTS_DIR}/${d.name}/${f.name}`;
         if (f.isSymbolicLink()) {
           problems.push(`${ref} is a symbolic link: skipped`);
+          unreadOf.add(d.name);
           continue;
         }
         if (!f.isFile()) continue;
         if (files.length >= COMMENT_LIST_MAX_FILES) {
           problems.push(`more than ${COMMENT_LIST_MAX_FILES} thread files: the rest were not read`);
+          unreadAll = true;
           break;
         }
         files.push({ scenario: d.name, id: f.name.slice(0, -'.json'.length), ref, path: join(root, d.name, f.name) });
       }
     }
     if (skippedNames) problems.push(`${COMMENTS_DIR}/ holds ${skippedNames} ${skippedNames === 1 ? 'entry' : 'entries'} whose name is not a scenario name: skipped`);
-  } else if (rootState !== 'missing') problems.push(`${COMMENTS_DIR}/ is ${rootState}: not read`);
+  } else if (rootState !== 'missing') {
+    problems.push(`${COMMENTS_DIR}/ is ${rootState}: not read`);
+    unreadAll = true;
+  }
 
   const views: CommentView[] = [];
   const texts: TextCache = new Map();
@@ -351,6 +377,9 @@ export async function listComments(project: LoadedProject, req: CommentListReque
     const r = await readThread(project.dir, f);
     if (!r.ok) {
       problems.push(r.problem);
+      unreadOf.add(f.scenario);
+      // A well-formed thread in another scenario's folder, or under another id: its own scenario's too.
+      if (r.scenario !== undefined && SLUG_RE.test(r.scenario) && r.scenario.length <= 100) unreadOf.add(r.scenario);
       continue;
     }
     if (onRender && (r.thread.render.id !== onRender.id || r.thread.render.created_at !== onRender.created_at)) continue;
@@ -366,7 +395,10 @@ export async function listComments(project: LoadedProject, req: CommentListReque
       a.created_at.localeCompare(b.created_at) ||
       a.id.localeCompare(b.id),
   );
-  return { project: project.slug, threads: req.limit !== undefined ? views.slice(0, req.limit) : views, total: views.length, problems };
+  return {
+    list: { project: project.slug, threads: req.limit !== undefined ? views.slice(0, req.limit) : views, total: views.length, problems },
+    unread: { all: unreadAll, scenarios: [...unreadOf].sort() },
+  };
 }
 
 /** One thread's view. */

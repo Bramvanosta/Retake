@@ -138,6 +138,40 @@
     "packages/ui/src/app/RecordScreen.tsx → 1 hand-written layout path",
     "packages/ui/src/app/TimelineScreen.tsx → 1 hand-written layout path"
    ]
+  },
+  {
+   "rule": "id-grammar",
+   "reason": "Other names with a grammar of the same shape, each written at its definition and out of the id module: a scenario name (SLUG_RE), a project slug (PROJECT_SLUG_RE), an environment name, a run-folder segment, a review file id.",
+   "entries": [
+    "packages/core/src/jobs.ts → 1 hand-written id pattern",
+    "packages/core/src/project.ts → 1 hand-written id pattern",
+    "packages/core/src/schemas/primitives.ts → 1 hand-written id pattern",
+    "packages/engine/src/reviews.ts → 1 hand-written id pattern",
+    "packages/engine/src/run-files.ts → 1 hand-written id pattern"
+   ]
+  },
+  {
+   "rule": "id-grammar",
+   "reason": "Hand-written mirrors of the scenario-name and project-slug grammars in the Studio front end, which imports types only: not ids of the module; one home for those two names in the app is later work.",
+   "entries": [
+    "packages/ui/src/app/record-words.ts → 1 hand-written id pattern",
+    "packages/ui/src/app/review-words.ts → 1 hand-written id pattern",
+    "packages/ui/src/app/unsaved-report.ts → 2 hand-written id patterns"
+   ]
+  },
+  {
+   "rule": "id-grammar",
+   "reason": "The file suffixes of the export formats (`<render id>-vertical.mp4`, `-square.mp4`), not the variant suffix of a render id.",
+   "entries": [
+    "packages/editor/src/render/export.ts → 2 hand-written id patterns"
+   ]
+  },
+  {
+   "rule": "id-grammar",
+   "reason": "The new-theme grammar without its cap, on purpose: the names inside stale work folders of earlier theme creations, which must be cleaned whatever their length.",
+   "entries": [
+    "packages/engine/src/brand/create.ts → 1 hand-written id pattern"
+   ]
   }
  ]
 }

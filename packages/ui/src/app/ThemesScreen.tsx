@@ -22,7 +22,8 @@ import { Txt, When, plural } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
 import { LibraryBrowser } from './LibraryBrowser.js';
-import { copyName, themeNameProblem } from './library-words.js';
+import { NEW_THEME_NAME_MAX } from './id-words.js';
+import { NEW_THEME_NAME_HINT, copyName, themeNameProblem } from './library-words.js';
 import { hrefTo } from './route.js';
 import { SessionEnded } from './session.js';
 import { ShellSlot } from './shell/slots.js';
@@ -208,7 +209,7 @@ function RowCopy({ slug, from, taken, onCancel }: { slug: string; from: string |
       onAction={(id) => (id === 'copy' ? void go() : onCancel())}
       content={
         <>
-          <TextField label="Name of the copy" value={name} onChange={(v) => setName(v.trim())} unsaved={null} mono maxLength={100} autoComplete="off" spellCheck={false} testId="theme-row-copy-name" error={problem ?? undefined} />
+          <TextField label="Name of the copy" value={name} onChange={(v) => setName(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="theme-row-copy-name" error={problem ?? undefined} />
           {error && (
             <p className="tm-failure" role="status">
               <Txt text={error} />
@@ -312,7 +313,7 @@ function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: str
         <div className="tm-panel-body">
           <p className="tm-quiet">Made as Claude makes one (template_create_from_brand): files of this workspace, never an existing theme replaced.</p>
           <div className="tm-new-grid">
-            <TextField label="Name" value={f.name} onChange={(v) => set('name')(v.trim())} unsaved={null} mono maxLength={100} autoComplete="off" spellCheck={false} testId="new-name" />
+            <TextField label="Name" value={f.name} onChange={(v) => set('name')(v.trim())} unsaved={null} mono maxLength={NEW_THEME_NAME_MAX} hint={NEW_THEME_NAME_HINT} autoComplete="off" spellCheck={false} testId="new-name" />
             <Select label="Base (components, layout, motion)" value={f.base} onChange={set('base')} testId="new-base" options={themes.map((t) => ({ value: t, label: t }))} />
             <FormColor label="Accent" value={f.accent} set={set('accent')} testId="new-accent" />
             <FormColor label="Text" value={f.text} set={set('text')} optional testId="new-text" />

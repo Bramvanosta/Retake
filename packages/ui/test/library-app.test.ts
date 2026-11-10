@@ -13,16 +13,15 @@
  *   component asked, imageDataUrl) — a mismatched or non-image answer is never shown.
  */
 import { describe, expect, it } from 'vitest';
-import { COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_NAME_RE } from '@retake/core';
+import { ANY_THEME_NAME_RE, COMPONENT_ID_RE as CORE_ID_RE, COMPONENT_KINDS, NEW_THEME_NAME_RE, PROJECT_SLUG_RE } from '@retake/core';
 import type { LibraryImagesAnswer, LibraryItem } from '../src/index.js';
+import { ANY_THEME_NAME, PROJECT_SLUG } from '../src/app/id-words.js';
 import { IMAGES_KEYS_MAX, LibraryImages, RENDER_CHUNK_MAX, RENDER_DEBOUNCE_MS, RenderPump, nextChunk } from '../src/app/library-load.js';
 import type { RenderRequest } from '../src/app/library-load.js';
 import {
   COMPONENT_ID_RE,
   KIND_ORDER,
-  NAME_RE,
   SOURCE_WORDS,
-  THEME_RE,
   alsoServing,
   alsoServingWords,
   cleanWords,
@@ -66,8 +65,8 @@ function items(n: number, o: Partial<LibraryItem> = {}): LibraryItem[] {
 describe('mirrors, filters, groups, words', () => {
   it('the id and name patterns are core\'s; the kinds are core\'s, in its order', () => {
     expect(COMPONENT_ID_RE.source).toBe(CORE_ID_RE.source);
-    for (const re of [PROJECT_SLUG_RE, THEME_NAME_RE]) expect(NAME_RE.source).toBe(re.source);
-    expect(THEME_RE.source).toBe(TEMPLATE_NAME_RE.source);
+    for (const re of [PROJECT_SLUG_RE, NEW_THEME_NAME_RE]) expect(PROJECT_SLUG.source).toBe(re.source);
+    expect(ANY_THEME_NAME.source).toBe(ANY_THEME_NAME_RE.source);
     expect([...KIND_ORDER]).toEqual([...COMPONENT_KINDS]);
   });
 

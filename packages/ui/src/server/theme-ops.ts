@@ -30,7 +30,7 @@
  */
 import { homedir } from 'node:os';
 import { z } from 'zod';
-import { BrandInputSchema, COMPONENT_ID_RE, COMPONENT_KINDS, HEX_COLOR_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, THEME_NAME_RE, isTemplateMediaRef } from '@retake/core';
+import { BrandInputSchema, COMPONENT_ID_RE, COMPONENT_KINDS, HEX_COLOR_RE, PROJECT_SLUG_RE, THEME_EDIT_MAX_CHARS, THEME_FIELD_PATHS, isTemplateMediaRef, zNewThemeName, zThemeName } from '@retake/core';
 import type { ComponentKind, LoadedTemplate } from '@retake/core';
 import { EngineError, checkSiteUrl, firstErrorLine, memoRegistry, openProjectBySlug, siteCommandLine, siteHostConflicts, themeAssetProblems, themeEditList, themeForWork } from '@retake/engine';
 import type { Engine, SiteList, ThemeEditList, ThemeEditResult, ThemeEditView } from '@retake/engine';
@@ -48,8 +48,9 @@ const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true,
 const WRITE = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
 
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
-const theme = z.string().max(100).regex(TEMPLATE_NAME_RE, 'a theme name (the themes list names them), never a path');
-const newName = z.string().max(100).regex(THEME_NAME_RE, 'a new theme name: lower-case letters, digits and "-", never a path');
+const theme = zThemeName('a theme name (the themes list names them), never a path');
+/** A NEW theme's name: at most 60 characters, whatever creates it; a theme that exists under a longer name is named with `theme`. */
+const newName = zNewThemeName('a new theme name: lower-case letters, digits and "-", never a path');
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/, 'a sha256 (64 lower-case hex characters)');
 const hex = z.string().regex(HEX_COLOR_RE, 'a hex colour: #rgb or #rrggbb');
 const componentId = z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name", never a path');

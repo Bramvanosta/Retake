@@ -8,7 +8,7 @@
  * and an inspection have theirs already (executeRun in execute-run.ts, runInspection in jobs/inspect-job.ts). None
  * writes the history: the worker writes a job's line, in-process.ts the CLI's.
  */
-import { projectPath } from '@retake/core';
+import { RENDER_VARIANT_SUFFIX, projectPath } from '@retake/core';
 import type { LoadedProject } from '@retake/core';
 import type {
   EditOverrides,
@@ -59,8 +59,7 @@ export async function findRenderOf(project: LoadedProject, arg: string, scenario
 
 /** Where a still of `scenario` goes by default: renders/stills/<scenario><variant suffix>-f<frame, 5 digits>.png. */
 export async function defaultStillFile(project: Pick<LoadedProject, 'dir'>, scenario: string, variant: PlannedRun['plan']['variant'], frame: number): Promise<string> {
-  const { VARIANT_SUFFIX } = await editor();
-  return projectPath(project.dir, 'renders', 'stills', `${scenario}${VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
+  return projectPath(project.dir, 'renders', 'stills', `${scenario}${RENDER_VARIANT_SUFFIX[variant]}-f${String(frame).padStart(5, '0')}.png`);
 }
 
 /**

@@ -16,7 +16,8 @@ import type { ThemeCreateInput, ThemeEditInput } from './data/themes.js';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
 import { visibleControls } from './bits.js';
 import type { StudioEvent } from './events.js';
-import { KIND_ORDER, KIND_WORDS, isKind, okId, okName, okTheme } from './library-words.js';
+import { NEW_THEME_NAME, okNewThemeName } from './id-words.js';
+import { KIND_ORDER, KIND_WORDS, NEW_THEME_TOO_LONG, isKind, okId, okTheme } from './library-words.js';
 import type { Kind } from './library-words.js';
 
 /** core HEX_COLOR_RE (mirrored: the app imports no runtime code from core; a test pins them equal). */
@@ -469,7 +470,8 @@ export function freeThemeName(base: 'site-theme' | 'my-theme', taken: Iterable<s
 /** Why the form cannot be sent (null: it can). */
 export function newThemeProblem(f: NewThemeForm, taken: Iterable<string>): string | null {
   if (!f.name) return 'Give the theme a name.';
-  if (!okName(f.name)) return 'A theme name is lower-case letters, digits and "-", starting with a letter or a digit.';
+  if (!NEW_THEME_NAME.test(f.name)) return 'A theme name is lower-case letters, digits and "-", starting with a letter or a digit.';
+  if (!okNewThemeName(f.name)) return NEW_THEME_TOO_LONG;
   if (new Set(taken).has(f.name)) return 'A theme of that name exists.';
   if (!okTheme(f.base)) return 'Pick a base theme.';
   for (const [k, v] of [['accent', f.accent], ['text', f.text], ['paper', f.paper], ['muted', f.muted]] as const) if (v !== '' && !okHex(v)) return `The ${k} colour is a hex value: #rgb or #rrggbb.`;

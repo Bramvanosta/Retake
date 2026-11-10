@@ -66,4 +66,39 @@ describe('retake prune', () => {
     expect((await retake('prune', 'northfield-fixture')).err).toMatch(/nothing to prune in northfield-fixture/);
     expect((await retake('prune', 'northfield-fixture', '--keep-renders', '0')).code).toBe(EXIT.usage);
   });
+
+  it('comment threads that cannot be read: what they may name stays, and a warning says so, with or without something to prune (L7.5)', async () => {
+    const project = join(ws, 'projects', 'northfield-fixture');
+    const dry = join(runs, '20261018-090000-quote');
+    await mkdir(dry, { recursive: true });
+    await writeFile(join(dry, 'run.json'), JSON.stringify({ id: '20261018-090000-quote', project: 'northfield-fixture', scenario: 'quote', mode: 'dry', status: 'succeeded', started_at: '2026-10-18T07:00:00.000Z', dir: dry, env: 'local', options: { hooks: 'skip', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'none', teardown: 'none' }, warnings: [] }));
+    expect((await retake('prune', 'northfield-fixture')).err).toMatch(/would delete +run +20261018-090000-quote +dry run/);
+    // A thread file of quote that is not JSON: the dry run of quote stays.
+    await mkdir(join(project, 'comments', 'quote'), { recursive: true });
+    await writeFile(join(project, 'comments', 'quote', 'c_01K8AB1CDE2FGH3JKM4NPQ5RST.json'), '{');
+    const sentence = 'some comment threads of northfield-fixture cannot be read (the comment list says which): every render and take of quote is kept';
+    const nothing = await retake('prune', 'northfield-fixture');
+    expect(nothing.code, nothing.err).toBe(EXIT.ok);
+    expect(nothing.err).toMatch(/nothing to prune in northfield-fixture/);
+    expect(nothing.err).toContain(`! ${sentence}`);
+    // With something else to prune (an older capture of catalogue): listed, and the warning still shown; --yes keeps quote's.
+    const old = join(runs, '20261014-090000-catalogue');
+    await mkdir(old, { recursive: true });
+    await writeFile(join(old, 'run.json'), JSON.stringify({ id: '20261014-090000-catalogue', project: 'northfield-fixture', scenario: 'catalogue', mode: 'capture', status: 'succeeded', started_at: '2026-10-14T07:00:00.000Z', dir: old, env: 'local', options: { hooks: 'run', headed: false }, steps_total: 1, steps_done: 1, screenshots: [], hooks: { setup: 'ok', teardown: 'ok' }, warnings: [] }));
+    const some = await retake('prune', 'northfield-fixture');
+    expect(some.err).toMatch(/would delete +run +20261014-090000-catalogue/);
+    expect(some.err).not.toMatch(/20261018-090000-quote/);
+    expect(some.err).toContain(`! ${sentence}`);
+    const json = JSON.parse((await retake('prune', 'northfield-fixture', '--json')).out) as { threads_unread?: string };
+    expect(json.threads_unread).toBe(sentence);
+    const yes = await retake('prune', 'northfield-fixture', '--yes');
+    expect(yes.code, yes.err).toBe(EXIT.ok);
+    expect(yes.err).toContain(`! ${sentence}`);
+    expect([existsSync(old), existsSync(dry)]).toEqual([false, true]);
+    // The file removed: no warning, and the dry run can go.
+    await rm(join(project, 'comments'), { recursive: true });
+    const after = await retake('prune', 'northfield-fixture');
+    expect(after.err).not.toContain('cannot be read');
+    expect(after.err).toMatch(/would delete +run +20261018-090000-quote/);
+  });
 });

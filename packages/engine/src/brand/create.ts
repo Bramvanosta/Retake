@@ -6,7 +6,7 @@
  * nobody changed since (every file's sha256 as written, no file added); through MCP (trust `mcp`) only a theme made
  * through MCP is replaced, never one a human made with `retake theme create`.
  *
- * Names: lower-case (core THEME_NAME_RE), never a starter's (compared without case: on macOS `Default/` would shadow
+ * Names: lower-case (core NEW_THEME_NAME_RE), never a starter's (compared without case: on macOS `Default/` would shadow
  * the starter `default` for every project), never an existing folder's (a `readdir` compared without case, entries of
  * any type, links included — an empty folder or a dangling link counts). Refused when templates_dir lies anywhere
  * inside the Retake package (the repository as a workspace: the new theme would land among the committed
@@ -17,16 +17,16 @@
  */
 import { lstat, mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { basename, dirname, extname, join, relative, sep } from 'node:path';
-import { AuthorBrandInputSchema, BrandInputSchema, OLD_MADE_BY, OLD_THEME_PROVENANCE_FILE, RETAKE_VERSION, TEMPLATE_FILE, THEME_NAME_RE, fontRefFile, insideFolder, parseTemplateYaml, parseYaml, printableText, siteRef } from '@retake/core';
+import { AuthorBrandInputSchema, BrandInputSchema, OLD_MADE_BY, OLD_THEME_PROVENANCE_FILE, NEW_THEME_NAME_RE, RETAKE_VERSION, TEMPLATE_FILE, fontRefFile, insideFolder, parseTemplateYaml, parseYaml, printableText, siteRef } from '@retake/core';
 import { STARTER_TEMPLATES_DIR, loadTemplate, nodeFileFacts, fileFacts } from '@retake/core/io';
-import type { BrandFontRef, BrandInput, TemplateFile } from '@retake/core';
+import type { BrandFontRef, BrandInput, NewThemeName, TemplateFile } from '@retake/core';
 import type { Palette } from '@retake/components';
 import { components, workspaceRegistry } from '../components.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { sha256Hex } from '../storage.js';
 import { ProjectStore } from '../store/project-store.js';
 import type { StoreScope } from '../store/project-store.js';
-import { checkTemplateName, themeAssetProblems } from '../templates.js';
+import { checkNewThemeName, checkTemplateName, themeAssetProblems } from '../templates.js';
 import { BRAND_TOTAL_MAX_BYTES, checkImage, fontCopyName, readBrandFile, sniffFont, standardWeight } from './files.js';
 import type { BrandTrust, FontInfo, ImageInfo, ResolvedBrandFile } from './files.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -191,7 +191,8 @@ function madeByTool(prov: Partial<Provenance> | null | undefined): boolean {
 export async function removeStale(templatesDir: string, now: number): Promise<void> {
   for (const e of await entries(templatesDir)) {
     const m = WORK_DIR_RE.exec(e);
-    if (!m || !THEME_NAME_RE.test(m[1])) continue;
+    // The grammar alone, no cap: a work folder left by a longer name of an earlier build is still this tool's.
+    if (!m || !NEW_THEME_NAME_RE.test(m[1])) continue;
     const p = join(templatesDir, e);
     try {
       const st = await lstat(p);
@@ -207,8 +208,12 @@ export async function removeStale(templatesDir: string, now: number): Promise<vo
   }
 }
 
-/** The name checks: lower-case, not a starter's, not an existing folder's (unless `replace` of an unchanged tool-made one). */
-export async function checkNewName(templatesDir: string, name: string, replace: boolean, trust: BrandTrust): Promise<{ existing: boolean }> {
+/**
+ * The name checks of a new theme's folder: not a starter's, not an existing folder's (unless `replace` of an unchanged
+ * tool-made one). `name` passed core `isNewThemeName` (its type says so; templates.ts checkNewThemeName gives it). The
+ * folder itself is made by the store from the same checked string, whose parameter is a plain string.
+ */
+export async function checkNewName(templatesDir: string, name: NewThemeName, replace: boolean, trust: BrandTrust): Promise<{ existing: boolean }> {
   const lower = name.toLowerCase();
   const starters = (await entries(STARTER_TEMPLATES_DIR)).filter((e) => !e.startsWith('.'));
   const starter = starters.find((s) => s.toLowerCase() === lower);
@@ -371,7 +376,8 @@ export async function createThemeFromBrand(ws: OpenedWorkspace, raw: unknown, o:
   const input = parseInput(raw, o.trust);
   const now = o.now ?? new Date();
   const date = now.toISOString().slice(0, 10);
-  const { name } = input;
+  // The input schema holds the same rule: the check gives the name its type.
+  const name = checkNewThemeName(input.name);
   const replace = input.replace === true;
   const templatesDir = ws.templatesDir;
   if (insideFolder(PACKAGE_ROOT, templatesDir, nodeFileFacts)) {

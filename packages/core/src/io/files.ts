@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { newRunId } from '../util.js';
+import { newRunId } from '../ids.js';
 
 /**
  * Reserve a new run folder of `scenario` under `runsDir` (created): `newRunId`, and when that folder exists (two runs of

@@ -34,6 +34,43 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.5)
+- **L7.5 done (2026-11-10; branch `claude/arch-l7`)** — one id module in the domain (U3 of the
+  [2026-11-10 action plan](audit/2026-11-10/action-plan.md), finding D3).
+  - **The module.** `packages/core/src/id-grammar.ts` (pure: one grammar each for the run id, the render id, the
+    job and other ULID ids, the theme name) and `ids.ts` (brands, `is` / `parse` / `format`, generators with an
+    injected clock and randomness, schema helpers). Every copy in the packages is replaced and the old names are
+    gone, so a missed site does not compile. The Studio front end holds one mirror file
+    (`packages/ui/src/app/id-words.ts`), held true by a test. Ratchet check `id-grammar` (six shapes; its blind
+    spots are in its title): baseline 84 → 94, the ten entries being grammars that are not ids of the module.
+  - **Proved equal.** A reviewer ran 8 372 adversarial strings through every old copy (from `HEAD`) and the new
+    code: every accept / refuse difference is one of the decisions below or a listed fix; no site accepts what was
+    refused; schema issues are the same in code, order and wording. The MCP tool list and the generated schemas are
+    byte-identical; the Studio's op table differs by one line.
+  - **Decided changes (the person, 2026-11-10), all stricter:** the 200 / 100 length caps are part of the id
+    everywhere; a **new** theme name has at most 60 characters wherever it is asked (a theme that exists under a
+    longer name, up to 100, keeps working; the Studio's four fields say the rule under the field); an agent's export
+    names a real render id; comments and frames need a record whose id is exactly `<its scenario>-v<N>`; a render
+    version is at most 999 999 — a file of `renders/` claiming that or more blocks new renders of its scenario with
+    a sentence naming it (kind `invalid`), and two renders never share an id; `runIdOfScenario` no longer answers
+    yes for a stamped id with an empty rest.
+  - **Fixed on the way (the working agreement now: an obvious bug met is fixed, pinned and listed):** prune takes no
+    path from a record id that is empty or starts with a dot; what cannot be read is never read as "no thread" —
+    prune keeps renders and takes when threads cannot be listed or read, and says so (`threads_unread`, a CLI
+    warning, a line of the tool's text); prune counts a scenario's last renders among its renders only; `latest`
+    never names a record the by-id calls refuse; a broken thread file is reported by the comment list instead of
+    failing it; the Studio's proposed copy name fits the cap. Twelve in all, in the lot's notes.
+  - **Left.** Brands are labels on what was parsed: records, job inputs, shell arguments and the app still type
+    ids as strings (U5 – U7). The scenario name, the project slug and the component id are not in the module. The
+    CLI's `plan latest` and its `latest` for a review or an export keep their own rules. `newRunId` has no length
+    cap. **A known step back on an edge:** for a theme a project names by a path whose folder name has 101 – 200
+    characters, the board compares no theme (before the lot it compared up to 200), so the row can show a render
+    made with another theme as current — BACKLOG BL-163. A succeeded record of `renders/` that is no render is never
+    pruned. One unreadable thread file freezes prune for its project until it is repaired (said on every run).
+  - **Checked.** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`; each changed test file alone; the
+    Studio's fields looked at in a browser (New theme and one copy field, dark and light). **The full suite was not
+    run** (once, at the end of the branch); no real render or export was run for this lot.
+
 ## State (after L7.4)
 - **L7.4 done (2026-11-10; branch `claude/arch-l7`)** — the first group of the
   [2026-11-10 action plan](audit/2026-11-10/action-plan.md): U1, U2 in part, U4. Behaviour unchanged.
@@ -1081,7 +1118,7 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
-**On `claude/arch-l7`: U3, U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+**On `claude/arch-l7`: U5 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
 
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 

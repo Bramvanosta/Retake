@@ -26,7 +26,7 @@
  * characters per string by the server: every stored text is at most that by construction).
  */
 import { z } from 'zod';
-import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, parseYaml } from '@retake/core';
+import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, SLUG_RE, isIsoUtcDate, isTemplatePath, isThemeName, parseYaml, zRenderId } from '@retake/core';
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@retake/engine';
 import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
@@ -48,7 +48,7 @@ const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (proj
 const scenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
 const commentId = z.string().max(40).regex(COMMENT_ID_RE, 'a comment id (c_…, threads_list names them), never a path');
 const entryId = z.string().max(40).regex(COMMENT_ENTRY_ID_RE, 'an entry id of the thread (r_…)');
-const renderId = z.string().max(200).regex(RENDER_ID_RE, 'a render id (scenario_renders lists them), never a path');
+const renderId = zRenderId('a render id (scenario_renders lists them), never a path');
 const createdAt = z.string().max(40).refine((s) => isIsoUtcDate(s), "the render's created_at as the page read it (an ISO 8601 UTC date)");
 const frame = z.number().int().min(0).max(10_000_000).describe('An output frame of the render (0-based).');
 const ifMatch = z.string().regex(/^[0-9a-f]{64}$/, 'the thread hash the page showed (thread_get / threads_list `hash`)');
@@ -196,7 +196,6 @@ export interface ProposalOffer {
 }
 
 const LATER = 'apply it, then render it from your terminal or ask Claude';
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
 /** The first line of Apply's refusal, at most 300 characters (the engine's words, project-relative). */
 function blockedWords(blocked: string): string {
@@ -245,7 +244,9 @@ export function proposalOffer(p: CommentProposalView, f: OfferFacts): ProposalOf
   if (f.render.overrides.length) return no(`The commented render used options beyond the files' (${f.render.overrides.join(', ')}): ${LATER}`);
   if ('missing' in f.files_theme) return no(`${f.files_theme.missing}: ${LATER}`);
   if (f.render.template !== f.files_theme.name) {
-    const named = NAME_RE.test(f.render.template) && NAME_RE.test(f.files_theme.name);
+    // The two themes are quoted by name when each is a theme's name (core isThemeName: the rule the board and a
+    // render's `theme` read a theme folder's name by); a folder named otherwise by a path is "another theme".
+    const named = isThemeName(f.render.template) && isThemeName(f.files_theme.name);
     return no(`The commented render used ${named ? `the theme ${f.render.template}, not the files' ${f.files_theme.name}` : "another theme than the files'"}: ${LATER}`);
   }
   return { apply: true, preview: true, apply_render: true };

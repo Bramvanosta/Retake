@@ -198,6 +198,7 @@ export const CHECKS = [
   { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
   { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
+  { id: 'id-grammar', title: 'the grammars of the run id, the render id, the ULID ids and the theme names are written in their two homes only (ID_HOMES; the Studio front end has one mirror, ID_MIRRORS), in packages/*/src (entries: each file and how many id patterns it writes by hand — (1) a regular expression, string or template holding the date stamp `\\d{8}-\\d{6}`, the version suffix `-v\\d` / `-v(\\d` (whatever follows the digit: `+`, `{1,6}`; a named or a non-capturing group) or the ULID character class; (2) a string holding the ULID alphabet; (3) a regular expression, or a string (what `new RegExp` is given), that is the run-folder grammar or a theme-name grammar, a final `{0,N}` read as `*`; (4) a template with a text part ending in `-v`, or starting with a ULID prefix before a substitution; (5) a string or template part starting with `-vertical` or `-square`; (6) a capped grammar used without its cap: `.test()` / `.exec()` on RUN_ID_RE, RENDER_ID_RE, ANY_THEME_NAME_RE or NEW_THEME_NAME_RE, or one of them handed to `.match()` / `.matchAll()` / `.search()` / `.replace()` / `.split()`, or to the `.regex()` of a schema — with or without a `.max()` beside it: the `z…` helpers of ids.ts hold the cap). Not seen: a grammar spelt another way (`[0-9]{8}`, a character class in another order), a pattern put together from pieces or by `+` (`s + \'-v\' + n`), a capped grammar reached under another name or handed to a helper, a parser made of `.startsWith(\'j_\')` / `.slice(2)` / `.split(\'-\')`, the mirror\'s patterns used without their caps, and everything outside packages/*/src (tests, scripts, fixtures, the desktop shell, docs)' },
 ];
 
 function parse(ts, rel, text) {
@@ -635,6 +636,67 @@ export function layoutHits(root, files) {
   return out;
 }
 
+/** Where the id grammars are written (packages/core/src): the pure grammar, and the generators with the schema helpers. */
+export const ID_HOMES = ['packages/core/src/id-grammar.ts', 'packages/core/src/ids.ts'];
+/** The one copy allowed outside: the Studio front end imports types only (R5); packages/ui/test/id-words.test.ts pins it to the homes. */
+export const ID_MIRRORS = ['packages/ui/src/app/id-words.ts'];
+/** The grammars a length cap belongs to: tested through `is…` / `parse…` / the `z…` helpers, never alone. */
+export const ID_CAPPED_GRAMMARS = ['RUN_ID_RE', 'RENDER_ID_RE', 'ANY_THEME_NAME_RE', 'NEW_THEME_NAME_RE'];
+/** The prefixes of the ULID ids (core ULID_PREFIXES; the import-rules test checks they agree). */
+export const ID_ULID_PREFIXES = ['j_', 'p_', 'i_', 's_', 'rec_', 'c_', 'r_', 'k_'];
+const ID_FINGERPRINTS = [/\\d\{8\}-\\d\{6\}/, /-v\(?(?:\?(?:<\w+>|:))?\\d/, /0-9A-HJKMNP-TV-Z/];
+const ID_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const ID_WHOLE_GRAMMARS = new Set(['^[A-Za-z0-9][A-Za-z0-9._-]*$', '^[A-Za-z0-9][A-Za-z0-9_-]*$', '^[a-z0-9][a-z0-9-]*$']);
+const ID_SUFFIXES = ['-vertical', '-square'];
+const ID_MATCHERS = new Set(['match', 'matchAll', 'search', 'replace', 'replaceAll', 'split']);
+
+/**
+ * The id patterns written by hand, read from the syntax tree, outside ID_HOMES and ID_MIRRORS — the six kinds of the
+ * `id-grammar` check's title. A module specifier is not read; a node is counted once, whatever kinds it shows.
+ * `[{ file, count, lines, kinds }]` (the line and the kind of each hit, in line order), files with none left out.
+ */
+export function idGrammarHits(root, files) {
+  const ts = loadTs(root);
+  const out = [];
+  const fingerprint = (t) => ID_FINGERPRINTS.some((re) => re.test(t));
+  const suffix = (t) => ID_SUFFIXES.some((x) => t.startsWith(x));
+  const whole = (t) => ID_WHOLE_GRAMMARS.has(t.replace(/\{0,\d+\}\$$/, '*$'));
+  const cappedName = (e) => (ts.isIdentifier(e) ? ID_CAPPED_GRAMMARS.includes(e.text) : ts.isPropertyAccessExpression(e) && ID_CAPPED_GRAMMARS.includes(e.name.text));
+  for (const { rel, text } of files) {
+    if (ID_HOMES.includes(rel) || ID_MIRRORS.includes(rel)) continue;
+    const sf = parse(ts, rel, text);
+    const isSpecifier = (n) => n.parent && (ts.isImportDeclaration(n.parent) || ts.isExportDeclaration(n.parent) || ts.isExternalModuleReference(n.parent) || (ts.isCallExpression(n.parent) && n.parent.expression.kind === ts.SyntaxKind.ImportKeyword) || (ts.isLiteralTypeNode(n.parent) && ts.isImportTypeNode(n.parent.parent)));
+    const hit = new Map(); // node → kind (the first that matched)
+    const add = (n, kind) => { if (!hit.has(n)) hit.set(n, kind); };
+    (function visit(n) {
+      if (ts.isRegularExpressionLiteral(n)) {
+        const source = n.text.slice(1, n.text.lastIndexOf('/'));
+        if (fingerprint(source)) add(n, 1);
+        else if (whole(source)) add(n, 3);
+      } else if ((ts.isStringLiteral(n) || ts.isNoSubstitutionTemplateLiteral(n)) && !isSpecifier(n)) {
+        if (fingerprint(n.text)) add(n, 1);
+        else if (n.text.includes(ID_ALPHABET)) add(n, 2);
+        else if (whole(n.text)) add(n, 3);
+        else if (suffix(n.text)) add(n, 5);
+      } else if (ts.isTemplateExpression(n)) {
+        const parts = [n.head.text, ...n.templateSpans.map((sp) => sp.literal.text)];
+        if (parts.some(fingerprint)) add(n, 1);
+        else if (parts.some((t) => t.includes(ID_ALPHABET))) add(n, 2);
+        else if (parts.some((t) => t.endsWith('-v')) || ID_ULID_PREFIXES.includes(n.head.text)) add(n, 4);
+        else if (parts.some(suffix)) add(n, 5);
+      } else if (ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression)) {
+        const method = n.expression.name.text;
+        if ((method === 'test' || method === 'exec') && cappedName(n.expression.expression)) add(n, 6);
+        else if ((ID_MATCHERS.has(method) || method === 'regex') && n.arguments.some(cappedName)) add(n, 6);
+      }
+      n.forEachChild(visit);
+    })(sf);
+    const found = [...hit].map(([n, kind]) => ({ line: sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1, kind })).sort((x, y) => x.line - y.line || x.kind - y.kind);
+    if (found.length) out.push({ file: rel, count: found.length, lines: found.map((f) => f.line), kinds: found.map((f) => f.kind) });
+  }
+  return out;
+}
+
 /** A specifier of the rendering library: the package, a path into it, or one of its scoped packages. */
 const LIBRARY_SPEC = /^remotion($|\/)|^@remotion\//;
 /**
@@ -767,6 +829,7 @@ export function ratchetEntries(root, scanned = scan(root)) {
   const set = new Set();
   for (const h of [...ruleHits(root, scanned.fileImports), ...wiringHits(root, scanned.files), ...seamHits(root, [...scanned.files, ...libraryFreeSources(root)])]) set.add(`${h.rule} ${h.file} → ${h.spec}`);
   for (const h of layoutHits(root, scanned.files)) set.add(`layout ${h.file} → ${h.count} hand-written layout path${h.count === 1 ? '' : 's'}`);
+  for (const h of idGrammarHits(root, scanned.files)) set.add(`id-grammar ${h.file} → ${h.count} hand-written id pattern${h.count === 1 ? '' : 's'}`);
   const graph = fileGraph(scanned.fileImports);
   for (const c of cycles(graph).map((x) => x.sort())) {
     for (const f of c) set.add(`cycle ${f} → cycle of ${c[0]}`);

@@ -20,7 +20,7 @@
  *   the engine accepts only a theme the workspace lists.
  */
 import { isDeepStrictEqual } from 'node:util';
-import { TEMPLATE_NAME_RE } from './jobs.js';
+import { isThemeName } from './id-grammar.js';
 import { setMapPath } from './map-edits.js';
 import { editValueProblem } from './scenario-edit.js';
 import { StepEditError, stepGuard } from './step-edits.js';
@@ -105,7 +105,7 @@ export function fieldValueProblem(field: string, to: unknown): string | null {
   }
   if (kind === 'component' && !COMPONENT_ID_RE.test(to)) return `${field} takes a component "namespace/name"`;
   // L4.7 (critique B1): a theme of the workspace by its name (templates.list) — never a path; the engine checks it is listed.
-  if (kind === 'theme' && (!TEMPLATE_NAME_RE.test(to) || to.length > 100)) return `${field} takes a theme name (the themes list names them), never a path`;
+  if (kind === 'theme' && !isThemeName(to)) return `${field} takes a theme name (the themes list names them), never a path`;
   return null;
 }
 

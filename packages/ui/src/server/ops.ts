@@ -59,9 +59,9 @@
  */
 import { z } from 'zod';
 import { basename, dirname } from 'node:path';
-import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, RENDER_ID_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms } from '@retake/core';
+import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_RE, FIELD_PATHS, JOB_ID_RE, PALETTE_ACTIONS, PROJECT_SLUG_RE, SCENARIO_EDIT_MAX_CHARS, SLUG_RE, stepForms, zRenderId, zRunId } from '@retake/core';
 import type { ActionName } from '@retake/core';
-import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
+import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
 import type { Engine, EnvironmentView, RenderEditSource, SessionToConfirm, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
 import { defineTool } from '@retake/engine/contract';
 import { PreviewLeases } from './preview-leases.js';
@@ -97,7 +97,7 @@ const SearchInput = z.strictObject({
 });
 
 const scenario = z.string().max(100).regex(SLUG_RE, 'a scenario name (scenarios/<name>.yaml), never a path');
-const run = z.string().max(200).regex(RUN_ID_RE, 'a run id (scenario_blocks lists them), never a path');
+const run = zRunId('a run id (scenario_blocks lists them), never a path');
 const env = z.string().max(100).regex(SLUG_RE, 'an environment name of the project');
 
 const BlocksInput = z.strictObject({
@@ -645,7 +645,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
   return [view, leave, allow] as const;
 }
 
-const renderId = z.string().max(200).regex(RENDER_ID_RE, 'a render id (scenario_renders lists them), never a path');
+const renderId = zRenderId('a render id (scenario_renders lists them), never a path');
 const RenderInput = z.strictObject({
   project,
   name: scenario.describe('The scenario: scenarios/<name>.yaml of the project.'),

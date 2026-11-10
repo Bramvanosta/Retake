@@ -14,6 +14,7 @@
 import type { RenderReviewSummary, ReviewFindingView } from '@retake/engine';
 import type { StudioEvent } from './events.js';
 import type { MarkState } from './ui-kit/index.js';
+import { RUN_ID, RUN_ID_MAX } from './id-words.js';
 import { reviewBadge, versionWords } from './render-words.js';
 
 export interface CheckFamily {
@@ -92,15 +93,13 @@ export const NOTHING_ELSE = 'Nothing else found.';
 
 /** A project slug (core PROJECT_SLUG_RE). */
 const PROJECT_SLUG = /^[a-z0-9][a-z0-9-]*$/;
-/** A run id (engine RUN_ID_RE): letters, digits, dots, underscores and dashes, never starting with a dot or a dash. */
-const RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
  * The raw capture's export, as a command to copy (`retake export-capture <project> <run>`): null unless the slug and the
  * run id pass their rules (≤ 200 characters each) — a value with a space, a quote or a `;` never becomes a command.
  */
 export function rawExportCommand(slug: string, runId: string): string | null {
-  if (slug.length > 200 || runId.length > 200 || !PROJECT_SLUG.test(slug) || !RUN_ID.test(runId)) return null;
+  if (slug.length > 200 || runId.length > RUN_ID_MAX || !PROJECT_SLUG.test(slug) || !RUN_ID.test(runId)) return null;
   return `retake export-capture ${slug} ${runId}`;
 }
 

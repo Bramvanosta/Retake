@@ -113,7 +113,7 @@ same advice if it is not yours. This is checked at start only, the client does n
 | `project_get` | README + `readme_hash`, scenarios, environments (pages, display URLs, production / access, sandbox, persona names) and project.yaml with its defaults | — |
 | `project_create` | a project folder (README, project.yaml, scenarios/, hooks/, assets/, .gitignore); refuses an existing slug | new files only |
 | `project_update_readme` | replaces README.md; `if_match` = `readme_hash` once it exists | README.md |
-| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety) | `runs/`, `renders/`, `review/` (deleted) |
+| `project_prune` | what `runs/`, `renders/` and `review/` hold that nothing needs (failed captures, dry runs, older captures and renders: `retake prune`), with the bytes it frees; `dry_run` (default true) only lists; `dry_run: false` (annotated destructive, only when the user asked to free space) asks the user first and deletes the items of that approval that can still go (see Safety); when comment threads cannot be read, the renders and takes they may name stay and the result says so (`threads_unread`) | `runs/`, `renders/`, `review/` (deleted) |
 | `scenario_get` | a scenario's YAML and its sha256 `hash` | — |
 | `scenario_validate` | issues of YAML text (line / col), nothing saved | — |
 | `scenario_save` | validates, then writes `scenarios/<name>.yaml`; refuses errors; overwriting needs `if_match` (the hash `scenario_get` gave; a conflict names the current one); a new one takes `if_match: null` | the scenario |
@@ -440,8 +440,9 @@ a terminal run in their own process and are not held to these rules.
   project.yaml. Component code is JavaScript run by the render's
   Chromium: edit it yourself, or let Claude Code edit it with its own file tools under your permissions; previews and
   renders through MCP still run it behind the network guard.
-- Tools take **slugs and ids only** — a project slug, a scenario name, a run id, a render id, a theme name, a component
-  id, an export format — never a file path except the brand files of `template_create_from_brand` (relative to the
+- Tools take **slugs and ids only** — a project slug, a scenario name, a run id (a folder name of `runs/`, at most 200
+  characters), a render id (`<scenario>-v<N>`, N at most 999999, with `-vertical` / `-square`), a theme name (at most
+  100 characters; a new theme's: lower-case, at most 60), a component id, an export format — never a file path except the brand files of `template_create_from_brand` (relative to the
   workspace root, checked as above, or a `site:` candidate) and the one URL of `template_from_site` (approved by you) (and no output folder: renders, reviews, exports and previews go to their fixed folders): a path, `..` or
   an unknown argument is refused before anything is read. The server only touches its workspace.
 - **No secret in what Claude writes or runs.** A scenario saved, validated or run through MCP may not contain

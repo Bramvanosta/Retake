@@ -23,13 +23,12 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SLUG_RE, environmentAccess, filmedChanges, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
+import { SLUG_RE, environmentAccess, filmedChanges, isRunId, parseScenario, matchRunSteps, movedSteps, resolveEnvironment, sceneStepFingerprints, scenarioBlocks, scenarioTextChanged, stripUrlUserinfo, projectPath } from '@retake/core';
 import { loadProjectTemplate, fileFacts, nodeFileFacts } from '@retake/core/io';
 import type { AgentChannel, LoadedProject, RunRecord, ScenarioBlocks, ScenarioIdentity, SceneBlock, TimelineEvent, TimelineScene, ValidationIssue, WorkFileFacts } from '@retake/core';
 import { readdir } from 'node:fs/promises';
 import { EngineError } from './errors.js';
 import type { RunBlocker } from './jobs/run-job.js';
-import { RUN_ID_RE } from './refs.js';
 import { errorScreenshotName, fileSlug, stepScreenshotName } from './run-data.js';
 import type { RunData, RunDataCache } from './run-data.js';
 import { RUN_JSON_MAX, runPictures } from './run-data.js';
@@ -320,7 +319,7 @@ export class ScenarioViews {
   constructor(private readonly ctx: ScenarioViewContext) {}
 
   async view(slug: string, name: string, o: { run?: string; env?: string } = {}): Promise<ScenarioView> {
-    if (o.run !== undefined && !RUN_ID_RE.test(o.run)) throw new EngineError('invalid', `"${o.run.slice(0, 60)}" is not a run id`);
+    if (o.run !== undefined && !isRunId(o.run)) throw new EngineError('invalid', `"${String(o.run).slice(0, 60)}" is not a run id`);
     const p = await this.ctx.project(slug);
     const file = await getScenario(p, name);
     const text = await this.textLayer(p, slug, name, file, o.env);
@@ -540,7 +539,7 @@ export class ScenarioViews {
     const dir = projectPath(p.dir, 'runs');
     let names: string[] = [];
     try {
-      names = (await readdir(dir)).filter((n) => RUN_ID_RE.test(n)).sort().reverse().slice(0, 8);
+      names = (await readdir(dir)).filter((n) => isRunId(n)).sort().reverse().slice(0, 8);
     } catch {
       return '-';
     }

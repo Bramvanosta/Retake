@@ -4,8 +4,7 @@
  * id, checked here before the engine (and core, which also accepts paths) sees it.
  */
 import { z } from 'zod';
-import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, RENDER_ID_RE, SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
-import { RUN_ID_RE } from '@retake/engine';
+import { COMPONENT_ID_RE, EditOverridesInputSchema, PROJECT_SLUG_RE, SLUG_RE, zRenderId, zRunId, zThemeName } from '@retake/core';
 
 /** Problems named per argument: the operation contract's (callTool reports them). */
 export { argumentProblems } from '@retake/engine/contract';
@@ -22,22 +21,13 @@ export const scenarioName = z
   .regex(SLUG_RE, 'a scenario name: letters, digits, "-" or "_" (scenarios/<name>.yaml), never a path')
   .describe('Scenario name: the file scenarios/<name>.yaml of the project.');
 
-export const runId = z
-  .string()
-  .max(200)
-  .regex(RUN_ID_RE, 'a run id such as 20261017-142233-quote (run_list names them), never a path')
+export const runId = zRunId('a run id such as 20261017-142233-quote (run_list names them), never a path')
   .describe('Run id (a folder of runs/, from run_list).');
 
-export const renderId = z
-  .string()
-  .max(200)
-  .regex(RENDER_ID_RE, 'a render id such as quote-v3 or quote-v3-vertical (render returns it), never a path')
+export const renderId = zRenderId('a render id such as quote-v3 or quote-v3-vertical (render returns it), never a path')
   .describe('Render id (renders/<id>.mp4): what render returned.');
 
-export const templateName = z
-  .string()
-  .max(100)
-  .regex(TEMPLATE_NAME_RE, 'a theme name such as editorial (a folder of templates/), never a path')
+export const templateName = zThemeName('a theme name such as editorial (a folder of templates/), never a path')
   .describe("Theme (template) name for this render instead of the run's, e.g. editorial or motion.");
 
 export const componentId = z

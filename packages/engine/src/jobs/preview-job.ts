@@ -19,7 +19,7 @@
  */
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { JOB_INPUT_VERSION, PreviewJobInputSchema, statePath } from '@retake/core';
+import { JOB_INPUT_VERSION, PreviewJobInputSchema, newUlidId, statePath } from '@retake/core';
 import type { ComponentKind, LoadedTemplate, PreviewJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, LoopItem, PreviewBackend, PreviewComponentTarget, RenderedLoopItem } from '@retake/editor';
@@ -49,7 +49,6 @@ import type { LibraryKeyContext, LibraryPreviewKind, LibraryStatesView } from '.
 import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
-import { newJobId } from './ids.js';
 import { withPreviewBackend } from '../render/editor-renderer.js';
 import { diskFullWork, loopsWork, previewsWork } from '../render/work.js';
 import type { Renderer } from '../render/renderer.js';
@@ -187,7 +186,7 @@ async function preparePreview(ws: OpenedWorkspace, req: Pick<PreviewJobInput, 'p
 
 /** Check and queue a `preview` job (images in .retake/previews/<preview_id>/). */
 export async function submitPreviewJob(ctx: SubmitContext, req: PreviewRequest): Promise<{ job: JobRecord; preview_id: string; theme: string; targets: string[]; skipped: ComponentKind[] }> {
-  const previewId = `p_${newJobId().slice(2)}`;
+  const previewId = newUlidId('preview');
   const input: PreviewJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'preview',

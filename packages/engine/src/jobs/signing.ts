@@ -17,7 +17,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { canonicalJson } from '@retake/core';
+import { ULID_PREFIXES, canonicalJson, isJobId, ulidTime } from '@retake/core';
 import { HOME_KEY_FILE, homeKey, homeKeyFile, homeSign, homeSigned, readHomeKey, retakeHome } from '@retake/core/io';
 import type { JobApproval, JobInput } from '@retake/core';
 
@@ -82,9 +82,6 @@ export function recordDigest(rec: { id: string; input: unknown }): string {
   return createHash('sha256').update(canonicalJson({ id: rec.id, input: rec.input })).digest('hex');
 }
 
-const JOB_ID_RE = /^j_[0-9A-HJKMNP-TV-Z]{26}$/;
-const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-
 /** `<RETAKE_HOME>/approvals-used`. */
 export function approvalsUsedDir(env: NodeJS.ProcessEnv = process.env): string {
   return join(retakeHome(env), APPROVALS_USED_DIR);
@@ -93,10 +90,7 @@ const usedDir = approvalsUsedDir;
 
 /** The time of a job id (`j_` + a ULID: its first 10 characters), or NaN. */
 function idTime(id: string): number {
-  if (!JOB_ID_RE.test(id)) return NaN;
-  let t = 0;
-  for (const ch of id.slice(2, 12)) t = t * 32 + CROCKFORD.indexOf(ch);
-  return t;
+  return isJobId(id) ? ulidTime(id.slice(ULID_PREFIXES.job.length)) : NaN;
 }
 
 /**
@@ -122,7 +116,7 @@ export async function consumeApprovals(rec: { id: string; input: JobInput }, env
 
 /** Give a claim's approvals back (the worker gave the job back to the queue unrun: another build). */
 export async function restoreApprovals(id: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
-  if (!JOB_ID_RE.test(id)) return;
+  if (!isJobId(id)) return;
   await rm(join(usedDir(env), id), { force: true });
 }
 
@@ -136,7 +130,7 @@ export async function pruneUsedApprovals(env: NodeJS.ProcessEnv = process.env, n
     return;
   }
   for (const name of names) {
-    if (!JOB_ID_RE.test(name)) continue;
+    if (!isJobId(name)) continue;
     const file = join(dir, name);
     const st = await stat(file).catch(() => undefined);
     if (st && now - st.mtimeMs > APPROVALS_USED_KEEP_MS) await rm(file, { force: true }).catch(() => undefined);

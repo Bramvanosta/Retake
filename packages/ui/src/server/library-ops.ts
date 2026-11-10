@@ -31,7 +31,7 @@
 import { lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, TEMPLATE_NAME_RE } from '@retake/core';
+import { COMPONENT_ID_RE, LIBRARY_JOB_MAX, LIBRARY_PREVIEW_KEY_RE, PROJECT_SLUG_RE, zThemeName } from '@retake/core';
 import { readPlainFile, fileFacts } from '@retake/core/io';
 import { EngineError, libraryCacheDir, memoRegistry, openProjectBySlug, readLibraryImage, themeForWork } from '@retake/engine';
 import type { Engine, LibraryStatesView, TemplateSummary } from '@retake/engine';
@@ -56,7 +56,7 @@ const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const GIF_MAGIC = Buffer.from('GIF89a', 'latin1');
 
 const project = z.string().max(100).regex(PROJECT_SLUG_RE, 'a project slug (project_list names them), never a path');
-const theme = z.string().max(100).regex(TEMPLATE_NAME_RE, 'a theme name (library_view lists them), never a path');
+const theme = zThemeName('a theme name (library_view lists them), never a path');
 const component = z.string().max(120).regex(COMPONENT_ID_RE, 'a component id "namespace/name" (library_view lists them), never a path');
 const key = z.string().regex(LIBRARY_PREVIEW_KEY_RE, 'a library preview key (32 hex characters, library_view gives them)');
 

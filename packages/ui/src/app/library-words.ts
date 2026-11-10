@@ -12,6 +12,7 @@ import type { LibraryItem } from '../server/library-ops.js';
 import type { ThemeEditInput } from './data/themes.js';
 import type { StudioEvent } from './events.js';
 import { APP_NAME } from './brand.js';
+import { ANY_THEME_NAME, ANY_THEME_NAME_MAX, NEW_THEME_NAME, NEW_THEME_NAME_MAX, PROJECT_SLUG, okNewThemeName } from './id-words.js';
 
 /** The kinds in the library's order (core COMPONENT_KINDS). */
 export const KIND_ORDER = ['intro', 'outro', 'card', 'interstitial', 'caption', 'layout', 'overlay', 'transition'] as const;
@@ -33,18 +34,16 @@ export const isKind = (k: unknown): k is Kind => typeof k === 'string' && (KIND_
 
 /** core COMPONENT_ID_RE (mirrored: the app imports no runtime code from core; a test pins them equal). */
 export const COMPONENT_ID_RE = /^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9-]*$/;
-/** core PROJECT_SLUG_RE = THEME_NAME_RE: a project slug, a NEW theme's name (mirrored, pinned equal by a test). */
-export const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
-/** core TEMPLATE_NAME_RE (= SLUG_RE): any listed theme's name (mirrored, pinned equal by a test). */
-export const THEME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 /** Longest component id (the server's cap). */
 export const COMPONENT_ID_MAX = 120;
-/** Longest project slug or theme name (the server's cap). */
+/** Longest project slug (the server's cap). A theme that exists: ANY_THEME_NAME_MAX; a NEW theme's name: NEW_THEME_NAME_MAX. */
 export const NAME_MAX = 100;
 
 export const okId = (id: unknown): id is string => typeof id === 'string' && id.length <= COMPONENT_ID_MAX && COMPONENT_ID_RE.test(id);
-export const okName = (n: unknown): n is string => typeof n === 'string' && n.length <= NAME_MAX && NAME_RE.test(n);
-export const okTheme = (n: unknown): n is string => typeof n === 'string' && n.length <= NAME_MAX && THEME_RE.test(n);
+/** A project slug (at most 100 characters). Not the test of a new theme's name: okNewThemeName (id-words.ts). */
+export const okName = (n: unknown): n is string => typeof n === 'string' && n.length <= NAME_MAX && PROJECT_SLUG.test(n);
+/** The name of a theme that exists (at most 100 characters), whatever made it. */
+export const okTheme = (n: unknown): n is string => typeof n === 'string' && n.length <= ANY_THEME_NAME_MAX && ANY_THEME_NAME.test(n);
 
 export type SourceFilter = 'all' | 'builtin' | 'workspace';
 
@@ -195,12 +194,20 @@ export function setDefaultPlan(view: Pick<ThemeEditView, 'editable' | 'component
   };
 }
 
-/** A free theme name for the copy of `theme` ("<theme>-copy", "-copy-2"…), within the name rules. */
+/** The longest "-copy-<n>" a proposed name ends in ("-copy-999"). */
+const COPY_TAIL = 9;
+
+/**
+ * A free theme name for the copy of `theme` ("<theme>-copy", "-copy-2"…), within the rules of a new theme's name: the
+ * source is any listed theme (up to 100 characters, capitals and "_" lowered and dashed), cut so that the proposal
+ * never passes NEW_THEME_NAME_MAX.
+ */
 export function copyName(theme: string, taken: Iterable<string>): string {
   const names = new Set(taken);
-  // A new theme's name is lower-case (THEME_NAME_RE): a listed name with capitals or "_" is lowered and dashed.
+  // The SOURCE is tested as a listed theme and by the lower-case grammar only, never by the new name's cap: a theme
+  // of 80 characters is a fine source, its copy's name is cut.
   const lowered = okTheme(theme) ? theme.toLowerCase().replace(/_/g, '-') : '';
-  const base = (okName(lowered) ? lowered : 'theme').slice(0, NAME_MAX - 8);
+  const base = (NEW_THEME_NAME.test(lowered) ? lowered : 'theme').slice(0, NEW_THEME_NAME_MAX - COPY_TAIL);
   for (let n = 1; n < 1000; n++) {
     const name = n === 1 ? `${base}-copy` : `${base}-copy-${n}`;
     if (!names.has(name)) return name;
@@ -208,10 +215,19 @@ export function copyName(theme: string, taken: Iterable<string>): string {
   return `${base}-copy-x`;
 }
 
+/** What a form says of a new theme's name that passes the grammar and is too long. */
+export const NEW_THEME_TOO_LONG = `At most ${NEW_THEME_NAME_MAX} characters.`;
+/**
+ * What every field that takes a new theme's name says under it, before anything is typed: the field stops at the
+ * limit, so the rule is said where it is met (the kit ties a hint to its field for assistive technology).
+ */
+export const NEW_THEME_NAME_HINT = `Lower-case letters, digits and "-", at most ${NEW_THEME_NAME_MAX} characters.`;
+
 /** Why a new theme name cannot be used (null: it can). */
 export function themeNameProblem(name: string, taken: Iterable<string>): string | null {
   if (!name) return 'Give the copy a name.';
-  if (!okName(name)) return 'Lower-case letters, digits and "-" only, starting with a letter or a digit.';
+  if (!NEW_THEME_NAME.test(name)) return 'Lower-case letters, digits and "-" only, starting with a letter or a digit.';
+  if (!okNewThemeName(name)) return NEW_THEME_TOO_LONG;
   if (new Set(taken).has(name)) return 'A theme of that name exists.';
   return null;
 }

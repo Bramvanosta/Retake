@@ -5,10 +5,10 @@
  */
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { isAbsolute, join, sep } from 'node:path';
-import { newerFormatMessage, FORMAT_VERSIONS, relativeInside, projectPath, projectRef } from '@retake/core';
+import { newerFormatMessage, FORMAT_VERSIONS, isRunId, relativeInside, projectPath, projectRef } from '@retake/core';
 import type { LoadedProject, MissingTarget, RunMode, RunPerf, RunRecord, RunStatus } from '@retake/core';
 import { EngineError } from './errors.js';
-import { RUN_ID_RE, checkRunId } from './refs.js';
+import { checkRunId } from './refs.js';
 import { LocalStorage } from './storage.js';
 import type { StoredRef } from './storage.js';
 
@@ -72,7 +72,7 @@ export async function listRuns(project: LoadedProject, opts: { scenario?: string
   const runsDir = projectPath(project.dir, 'runs');
   let ids: string[];
   try {
-    ids = (await readdir(runsDir, { withFileTypes: true })).filter((d) => d.isDirectory() && RUN_ID_RE.test(d.name)).map((d) => d.name);
+    ids = (await readdir(runsDir, { withFileTypes: true })).filter((d) => d.isDirectory() && isRunId(d.name)).map((d) => d.name);
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
     throw e;

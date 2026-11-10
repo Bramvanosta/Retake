@@ -1,4 +1,4 @@
-import { AUTH_KEYS, PERSONA_NONE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core';
+import { AUTH_KEYS, PERSONA_NONE, SLUG_RE, loginPatternForm, resolveEnvironment, resolvePersonas } from '@retake/core';
 import { checkNewProject, listProjects, listTemplates, retakeHome } from '@retake/core/io';
 import type { AuthConfig, LoadedProject, PersonaConfig, ProjectConfig, WorkPolicy } from '@retake/core';
 import { personScope, writeNewProject } from '@retake/engine';
@@ -71,7 +71,8 @@ export async function newCommand(ui: Ui, global: GlobalOptions, slug: string, op
   return code;
 }
 
-const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+/** A name the questions take for an environment or a persona: letters, digits, "-" and "_" (core SLUG_RE). */
+const NAME_RE = SLUG_RE;
 
 /** The questions of `retake new` on a terminal: environments, then the personas of each one. */
 async function askSetup(ui: Ui): Promise<{ environments: ProjectConfig['environments']; auth?: Record<string, AuthConfig> }> {

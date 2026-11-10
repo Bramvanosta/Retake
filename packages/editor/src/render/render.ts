@@ -48,7 +48,7 @@ import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
 import type { RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
-import { errorKindOf } from '@retake/core';
+import { errorKindOf, formatRenderId } from '@retake/core';
 import { handedDriver } from './driver-guard.js';
 import { rendererLibrary } from './library.js';
 import type { LibraryBrowser, RenderBrowserHandle } from './library.js';
@@ -62,8 +62,6 @@ export const RENDER_ENCODING = { codec: 'h264', pixel_format: 'yuv420p' } as con
 export const FRAME_JPEG_QUALITY = 95;
 /** Composition ids by variant (written once, in ../remotion/contract.ts). */
 export const COMPOSITION_IDS = VIDEO_COMPOSITIONS;
-/** File name suffix of each variant's renders (`<scenario>-v<N><suffix>.mp4`). */
-export const VARIANT_SUFFIX = { landscape: '', vertical: '-vertical', square: '-square' } as const;
 
 /** The software path's default concurrency (./policy.ts; the GPU path's is GPU_CONCURRENCY). */
 export { defaultConcurrency };
@@ -762,7 +760,16 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
   const dir = rendersDir(project);
   // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
-  const reservedRelease = () => (opts.reserved ? rm(versionLockFile(dir, opts.reserved.scenario, opts.reserved.version), { force: true }) : Promise.resolve());
+  // A version no reservation hands out (core renderLockName) has no lock: nothing is planned or rendered under it.
+  let reservedLock: string | undefined;
+  if (opts.reserved) {
+    try {
+      reservedLock = versionLockFile(dir, opts.reserved.scenario, opts.reserved.version);
+    } catch (e) {
+      throw new RenderError(`the reserved render version of ${opts.reserved.scenario} cannot be used: ${(e as Error).message}`);
+    }
+  }
+  const reservedRelease = () => (reservedLock ? rm(reservedLock, { force: true }) : Promise.resolve());
   let planned: Awaited<ReturnType<typeof planRun>>;
   let handed: Pick<RenderDriver, 'video'> | undefined;
   try {
@@ -800,14 +807,13 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   emit({ stage: 'planning', progress: 1, overall: 0 });
 
   const scenario = timeline.scenario;
-  const suffix = VARIANT_SUFFIX[plan.variant];
   let file: string;
   let version: number | undefined;
   let release = async () => undefined as void;
   if (opts.reserved) {
     version = opts.reserved.version;
     release = reservedRelease;
-    file = join(dir, `${scenario}-v${version}${suffix}.mp4`);
+    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
   } else if (opts.out) {
     file = resolve(opts.out);
     if (extname(file).toLowerCase() !== '.mp4') throw new RenderError(`--out must name an .mp4 file: ${file}`);
@@ -816,7 +822,7 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     const r = await reserveVersion(dir, scenario);
     version = r.version;
     release = r.release;
-    file = join(dir, `${scenario}-v${version}${suffix}.mp4`);
+    file = join(dir, `${formatRenderId(scenario, version, plan.variant)}.mp4`);
   }
   const recordFile = file.replace(/\.mp4$/i, '.json');
   const id = basename(file, extname(file));

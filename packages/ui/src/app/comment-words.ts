@@ -12,6 +12,7 @@
  */
 import type { FrameCommentAnchor } from '@retake/core';
 import type { KeyTarget } from './timeline-words.js';
+import { renderVersionWords } from './id-words.js';
 
 export type Via = 'cli' | 'studio' | 'mcp';
 
@@ -62,11 +63,8 @@ export function proposalWords(state: string): string {
   }
 }
 
-/** "v3", "v3 vertical" of a render id (the id itself when it is not one). */
-export function renderWords(renderId: string): string {
-  const m = /-v(\d+)(?:-(vertical|square))?$/.exec(renderId);
-  return m ? `v${m[1]}${m[2] ? ` ${m[2]}` : ''}` : renderId;
-}
+/** "v3", "v3 vertical" of a render id (the id itself when it is not one): id-words.ts renderVersionWords, under the name the comment screens use. */
+export const renderWords = renderVersionWords;
 
 // ── Regions ─────────────────────────────────────────────────────────────────
 

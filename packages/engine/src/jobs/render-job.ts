@@ -18,14 +18,15 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, TEMPLATE_NAME_RE, projectPath, projectRef } from '@retake/core';
+import { EditOverridesInputSchema, JOB_INPUT_VERSION, SCENARIO_EDIT_MAX_CHARS, formatRenderId, isRunId, isThemeName, projectPath, projectRef, renderIdOf } from '@retake/core';
+import type { RenderVariant } from '@retake/core';
 import type { EditOverridesInput, LoadedProject, RenderJobInput } from '@retake/core';
 import type { ComponentRegistry } from '@retake/components';
 import type { BrowserProcessInfo, EditOverrides, PlannedRun, RenderProgress } from '@retake/editor';
 import { ENGINE_TRUST } from '../caller.js';
 import { EngineError, toEngineError } from '../errors.js';
 import { openProjectBySlug } from '../projects.js';
-import { RUN_ID_RE, checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
+import { checkProjectSlug, checkRunId, checkScenarioName } from '../refs.js';
 import { sha256Hex } from '../storage.js';
 import { isAlive } from './proc.js';
 import { signalablePid } from './signal.js';
@@ -76,7 +77,7 @@ export function checkRenderRequest(req: RenderRequest): EditOverridesInput {
   checkProjectSlug(req.project);
   checkScenarioName(req.scenario);
   if (req.run_id !== undefined) checkRunId(req.run_id);
-  if (req.template !== undefined && (typeof req.template !== 'string' || !TEMPLATE_NAME_RE.test(req.template) || req.template.length > 100)) {
+  if (req.template !== undefined && !isThemeName(req.template)) {
     throw new EngineError('invalid', `invalid theme "${String(req.template)}": a theme name (template_list names them), never a path`);
   }
   if (req.review !== undefined && !(req.review && typeof req.review === 'object' && (req.review.fps === 1 || req.review.fps === 2) && Object.keys(req.review).length === 1)) {
@@ -147,7 +148,7 @@ export async function planRenderRequest(
       ...(o.editText !== undefined ? { editText: o.editText } : {}),
     });
     // The run id reaches trusted summaries: `latest` picks only run ids (editor findRun); never one of another shape.
-    if (!RUN_ID_RE.test(planned.run.id) || planned.run.id.length > 200) {
+    if (!isRunId(planned.run.id)) {
       throw new EngineError('invalid', 'the run picked is not a run id of runs/ (letters, digits, ".", "_", "-"): pass run_id (run_list names the runs)');
     }
     return { project, planned, overrides, source: editSourceOf(planned) };
@@ -180,11 +181,11 @@ async function checkShownEdit(project: LoadedProject, scenario: string, planned:
   }
 }
 
-/** The version and variant a render id names ("quote-v3-vertical" → 3, vertical). */
-export function parseRenderId(renderId: string, scenario: string): { version: number; variant: 'landscape' | 'vertical' | 'square' } {
-  const m = /-v(\d+)(-vertical|-square)?$/.exec(renderId);
-  if (!m || renderId.slice(0, m.index) !== scenario) throw new EngineError('invalid', `render id ${renderId} is not a render of scenario ${scenario}`);
-  return { version: Number(m[1]), variant: m[2] === '-vertical' ? 'vertical' : m[2] === '-square' ? 'square' : 'landscape' };
+/** The version and variant of a render id of `scenario` ("quote-v3-vertical" → 3, vertical); any other text is refused. */
+export function renderVersionOf(renderId: string, scenario: string): { version: number; variant: RenderVariant } {
+  const r = renderIdOf(renderId, scenario);
+  if (!r) throw new EngineError('invalid', `render id ${renderId} is not a render of scenario ${scenario}`);
+  return { version: r.version, variant: r.variant };
 }
 
 /** Check, plan, reserve the render id and queue a `render` job. */
@@ -200,7 +201,7 @@ export async function submitRenderJob(
   const dir = ed.rendersDir(project);
   await mkdir(dir, { recursive: true });
   const { version, release } = await ed.reserveVersion(dir, scenario, `submitted by ${ctx.client} (pid ${process.pid})`);
-  const renderId = `${scenario}-v${version}${ed.VARIANT_SUFFIX[planned.plan.variant]}`;
+  const renderId = formatRenderId(scenario, version, planned.plan.variant);
   const input: RenderJobInput = {
     version: JOB_INPUT_VERSION,
     kind: 'render',
@@ -241,7 +242,7 @@ export async function submitRenderJob(
 export async function releaseRenderLock(ws: OpenedWorkspace, input: Pick<RenderJobInput, 'project' | 'scenario' | 'render_id'>): Promise<void> {
   const project = await openProjectBySlug(ws, input.project);
   const ed = await editor();
-  const { version } = parseRenderId(input.render_id, input.scenario);
+  const { version } = renderVersionOf(input.render_id, input.scenario);
   await rm(ed.versionLockFile(ed.rendersDir(project), input.scenario, version), { force: true });
 }
 
@@ -381,7 +382,7 @@ export async function reviewInline(
 export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJobResult> {
   const { input } = ctx;
   const project = await openProjectBySlug(ctx.ws, input.project);
-  const { version, variant } = parseRenderId(input.render_id, input.scenario);
+  const { version, variant } = renderVersionOf(input.render_id, input.scenario);
   try {
     const sha = sha256Hex(await readFile(projectPath(project.dir, 'runs', input.run_id, 'timeline.json')));
     if (sha !== input.timeline_sha256) {

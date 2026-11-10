@@ -5,15 +5,28 @@
  * every render a thread was made or resolved on), their reviews, and whatever a queued or running job names. Deleted:
  * failed, cancelled and interrupted takes, dry runs, older captures nothing uses, older and failed renders, reviews of
  * renders that are gone. A dry run (the default) deletes nothing and says what would go and how much it frees.
- * `exports/` is never touched. `only` limits a deletion to the items a person approved (an agent's prune: engine
- * `projects.prune` asks first, approvals.ts `takePruneApproval`).
+ * `exports/` is never touched.
+ *
+ * A scenario's last renders are counted among its renders only: the records whose id is `<their scenario>-v<N>`, as
+ * the tool names them (refs.ts isRenderOfItsScenario — what `latest` picks). Any other record of renders/ (a video
+ * written there under another name, a name past the id's length or version) is no render of the count: it never takes
+ * a render's place, it stays with its review and its take when it succeeded, and goes only when it failed or was
+ * cancelled.
+ *
+ * What cannot be read is never read as "no thread": when the comment threads cannot be listed, every render and every
+ * take stays (a thread may name any of them); when a thread file or a scenario's folder of comments/ does not read as
+ * threads (broken, a link, in the wrong place), every render and take of that scenario stays — a scenario named
+ * without regard to case, as a folder of comments/ may be. The result says so (`threads_unread`). `only` limits a
+ * deletion to the items a person approved (an agent's prune: engine `projects.prune` asks first, approvals.ts
+ * `takePruneApproval`).
  */
 import { lstat, readdir, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { LoadedProject, RunRecord } from '@retake/core';
-import { listComments } from './comments/views.js';
+import { listCommentsAndUnread } from './comments/views.js';
 import { editor } from './lazy.js';
-import { projectPath } from '@retake/core';
+import { isRenderOfItsScenario } from './refs.js';
+import { isMadeRunId, parseRenderId, projectPath, projectRef, runIdOfScenario } from '@retake/core';
 
 /** Renders kept per scenario and variant (and their reviews). */
 export const DEFAULT_KEEP_RENDERS = 3;
@@ -63,6 +76,13 @@ export interface PruneResult {
   skipped?: Array<{ kind: PruneItem['kind']; id: string }>;
   /** With `only`: how many items can go now that were not approved — kept. */
   not_asked?: number;
+  /**
+   * Set when comment threads could not be read and something stays for it: which, and what. The threads cannot be
+   * listed at all: no render and no take is an item — a thread may name any of them —, whatever `keep_renders` says.
+   * Some thread files or scenario folders do not read as threads: no render and no take of their scenarios is an item
+   * (the scenarios named are those a render or a take of the project is of).
+   */
+  threads_unread?: string;
 }
 
 async function sizeOf(path: string): Promise<number> {
@@ -84,7 +104,6 @@ async function readRun(dir: string): Promise<RunRecord | null> {
 }
 
 const FINISHED = new Set(['succeeded', 'failed', 'cancelled', 'interrupted']);
-const RUN_ID_RE = /^\d{8}-\d{6}-[a-z0-9][a-z0-9-]*$/;
 
 /** See the module comment. */
 export async function pruneProject(project: LoadedProject, req: PruneRequest = {}): Promise<PruneResult> {
@@ -97,16 +116,45 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   // Comment threads: the render each was made (or resolved) on, and that render's take.
   const threadRenders = new Set<string>();
   const threadRuns = new Set<string>();
+  // Every render and take stays (the threads are not listed), or those of these scenarios (some threads are not read).
+  let keepAll = false;
+  let notListed: string | undefined;
+  const keepOf: string[] = [];
   try {
-    const list = await listComments(project, { status: 'all' });
+    const { list, unread } = await listCommentsAndUnread(project, { status: 'all' });
     for (const t of list.threads) {
       threadRenders.add(t.render_id);
       threadRuns.add(t.run_id);
       if (t.resolution?.render_id) threadRenders.add(t.resolution.render_id);
     }
-  } catch {
-    /* no threads */
+    // Not "no thread" either: a file or a folder that does not read as threads may hold one of its scenario.
+    if (unread.all) keepAll = true;
+    else keepOf.push(...unread.scenarios);
+  } catch (e) {
+    // Not "no threads": what a thread could keep is unknown, so every render and every take stays.
+    const why = (e as NodeJS.ErrnoException | null)?.code;
+    keepAll = true;
+    notListed = `the comment threads of ${project.slug} cannot be listed${typeof why === 'string' && /^[A-Z0-9_]{1,40}$/.test(why) ? ` (${why})` : ''}: every render and take is kept (make ${projectRef('comments')}/ of the project readable, then prune again)`;
   }
+  /**
+   * Whether an unread thread may name this render or take: one of a scenario whose threads are not all read — by the
+   * scenario its record names or by the one its id names, without regard to case (a folder of comments/ on a disk that
+   * ignores case may differ from its scenario by case only). `held`: the unread scenarios something stays for.
+   */
+  const held = new Set<string>();
+  const unreadBy = (...is: Array<(s: string) => boolean>): boolean => {
+    let any = keepAll;
+    for (const s of keepOf) {
+      if (is.some((f) => f(s))) {
+        held.add(s);
+        any = true;
+      }
+    }
+    return any;
+  };
+  const sameName = (a: unknown, s: string): boolean => typeof a === 'string' && a.toLowerCase() === s.toLowerCase();
+  const unreadRender = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => sameName(parseRenderId(r.id)?.scenario, s));
+  const unreadRun = (r: { id: string; scenario: string }) => unreadBy((s) => sameName(r.scenario, s), (s) => runIdOfScenario(r.id, s));
 
   // Renders: the last `keepRenders` succeeded of each scenario and variant, and those a thread names.
   const ed = await editor();
@@ -116,6 +164,11 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   const keptRenders = new Set<string>();
   const groups = new Map<string, typeof renders>();
   for (const r of renders) {
+    // Counted: the renders of their scenario only. Another record that succeeded stays, in nobody's count.
+    if (!isRenderOfItsScenario(r)) {
+      if (r.status === 'succeeded') keptRenders.add(r.id);
+      continue;
+    }
     const key = `${r.scenario} ${r.variant}`;
     let g = groups.get(key);
     if (!g) groups.set(key, (g = []));
@@ -125,9 +178,11 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     const ok = g.filter((r) => r.status === 'succeeded').sort((a, b) => a.created_at.localeCompare(b.created_at));
     for (const r of ok.slice(-keepRenders)) keptRenders.add(r.id);
   }
-  for (const r of renders) if (threadRenders.has(r.id) || busy(r.id)) keptRenders.add(r.id);
+  for (const r of renders) if (unreadRender(r) || threadRenders.has(r.id) || busy(r.id)) keptRenders.add(r.id);
   for (const r of renders) {
     if (keptRenders.has(r.id)) continue;
+    // A record's files are named after its id: an id that is empty or starts with a dot names no render's files.
+    if (r.id === '' || r.id.startsWith('.')) continue;
     const paths = rendersFiles.filter((f) => f === `${r.id}.json` || f.startsWith(`${r.id}.`)).map((f) => join(rendersDir, f));
     let bytes = 0;
     for (const p of paths) bytes += await sizeOf(p);
@@ -154,7 +209,8 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   const runs: RunRecord[] = [];
   const unreadable: string[] = [];
   for (const name of (await readdir(runsDir).catch(() => [] as string[])).sort()) {
-    if (!RUN_ID_RE.test(name)) continue;
+    // Only a take of the shape the tool makes is ever a candidate (a folder named by hand stays).
+    if (!isMadeRunId(name)) continue;
     const r = await readRun(join(runsDir, name));
     if (r) runs.push({ ...r, id: name });
     else unreadable.push(name);
@@ -165,7 +221,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
   for (const r of runs) if (r.mode === 'capture' && r.status === 'succeeded') lastCapture.set(r.scenario, r.id);
   let runsKept = unreadable.length;
   for (const r of runs) {
-    const keep = !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || lastCapture.get(r.scenario) === r.id;
+    const keep = unreadRun(r) || !FINISHED.has(r.status) || busy(r.id) || usedRuns.has(r.id) || lastCapture.get(r.scenario) === r.id;
     if (keep) {
       runsKept++;
       continue;
@@ -173,6 +229,15 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     const path = join(runsDir, r.id);
     const reason = r.mode === 'dry' ? 'dry run' : r.status === 'succeeded' ? 'older capture nothing uses' : `${r.status} take`;
     items.push({ kind: 'run', id: r.id, scenario: r.scenario, reason, bytes: await sizeOf(path), paths: [path] });
+  }
+
+  // What stays for the threads that were not read: said with the scenarios something of theirs is here for.
+  let threadsUnread = notListed;
+  if (threadsUnread === undefined && keepAll) threadsUnread = `some comment threads of ${project.slug} cannot be read (the comment list says which): every render and take is kept`;
+  else if (threadsUnread === undefined && held.size) {
+    const names = keepOf.filter((s) => held.has(s));
+    const named = names.slice(0, 5).join(', ') + (names.length > 5 ? ` and ${names.length - 5} more` : '');
+    threadsUnread = `some comment threads of ${project.slug} cannot be read (the comment list says which): every render and take of ${named} is kept`;
   }
 
   // Only what a person approved, of what can still go now.
@@ -223,6 +288,7 @@ export async function pruneProject(project: LoadedProject, req: PruneRequest = {
     kept: { runs: runsKept, renders: keptRenders.size, reviews: reviewsKept },
     problems,
     ...(skipped ? { skipped, not_asked: notAsked ?? 0 } : {}),
+    ...(threadsUnread !== undefined ? { threads_unread: threadsUnread } : {}),
   };
 }
 

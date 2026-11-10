@@ -29,7 +29,7 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, writeSync } from 'node:fs';
 import { readdir, rm } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
-import { ulid } from '@retake/core';
+import { newUlidId, ulidFileRe } from '@retake/core';
 import { readPlainFile, retakeHome } from '@retake/core/io';
 import type { ProcessIdentity } from './proc.js';
 import { processStart } from './proc.js';
@@ -46,7 +46,8 @@ export const MARKER_VERSION = 1;
 /** A marker is a few dozen bytes: a larger file is not one (never read whole). */
 export const MARKER_MAX_BYTES = 4096;
 
-export const MARKER_NAME_RE = /^k_[0-9A-HJKMNP-TV-Z]{26}\.json$/;
+/** The name of a marker file: `k_` + a ULID + ".json". */
+export const MARKER_NAME_RE = ulidFileRe('marker', 'json');
 const WS_ID_RE = /^[0-9a-f]{32}$/;
 
 export interface MarkerRecord {
@@ -184,7 +185,7 @@ export class FilmingMarker {
     if (!dir) return null;
     const owner = opts.owner;
     const rec: MarkerRecord = { v: MARKER_VERSION, pid: owner.pid, ...(owner.started_at ? { started_at: owner.started_at } : {}), ws: workspaceCaptureId(opts.root), source: opts.source };
-    const name = `k_${ulid()}.json`;
+    const name = `${newUlidId('marker')}.json`;
     try {
       writeWhole(dir, name, rec);
     } catch {
