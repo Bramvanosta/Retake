@@ -26,6 +26,7 @@ import { serveStdio } from './server.js';
 import { INSTRUCTIONS, TOOLS, protocolTool } from './tool-set.js';
 
 export { INSTRUCTIONS, TOOLS, protocolTool } from './tool-set.js';
+export type { McpTools } from './tool-set.js';
 export { DEFAULT_MCP_HTTP_PORT, MCP_HTTP_BODY_MAX, MCP_HTTP_PATH, startMcpHttpServer } from './http.js';
 export type { McpHttpOptions, McpHttpServer } from './http.js';
 export { PORT_LOOKUP_TIMEOUT_MS, listenersAreOurs, lsofPortListeners, portHolder } from './port-holder.js';

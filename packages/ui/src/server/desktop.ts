@@ -19,7 +19,7 @@
  */
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
 
 /** The quit question's id (desktop_core guard_flow `id_ok`): 22 base64url characters. */
 export const QUIT_ID_RE = /^[A-Za-z0-9_-]{22}$/;
@@ -96,8 +96,8 @@ export class DesktopPipe {
 }
 
 /** The own op `desktop_answer` on `pipe`. */
-export function desktopOps(pipe: DesktopPipe): ToolDef[] {
-  const op: ToolDef<typeof DesktopAnswerInput> = {
+export function desktopOps(pipe: DesktopPipe) {
+  const op = defineTool({
     name: 'desktop_answer',
     title: 'Answer the desktop app',
     description: "The window's quit question: shown (the sheet is on screen) or the person's answer. The desktop app's own server only.",
@@ -111,8 +111,8 @@ export function desktopOps(pipe: DesktopPipe): ToolDef[] {
       const sent = pipe.shown(a.id);
       return { summary: sent ? 'shown' : 'shown (not sent: too many this minute)', data: { ok: true } };
     },
-  };
-  return [op as unknown as ToolDef];
+  });
+  return [op];
 }
 
 export const DESKTOP_OPS = ['desktop_answer'] as const;

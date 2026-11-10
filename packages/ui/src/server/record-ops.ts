@@ -35,7 +35,7 @@ import { z } from 'zod';
 import { JOB_ID_RE, PROJECT_SLUG_RE, RECORD_ID_RE, RecordAnnotationChangeSchema, SLUG_RE, resolveRunAccess } from '@retake/core';
 import { RECORD_LIST_MAX, defaultRecordName, openProjectBySlug, recordMaxMs, recordStart } from '@retake/engine';
 import type { AuthStatusItem, Engine, RecordListItem, RecordState, RecordView } from '@retake/engine';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
 import { pathFree } from './comment-ops.js';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
@@ -313,12 +313,13 @@ export interface RecordStartAnswer {
 }
 
 /** The Record screen's ops (see the module comment). `chain`: the server's scenario chain (record_save writes a scenario). */
-export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
+export function recordOps(o: { chain?: OpChain } = {}) {
   const chain = o.chain ?? opChain();
   const root = (engine: Engine) => engine.workspace.root;
-  const out = <T>(engine: Engine, data: T) => recordPathFree(data, root(engine)) as Record<string, unknown>;
+  // recordPathFree keeps an answer's shape (each string path-free, each other value as it was): the answer's own type.
+  const out = <T>(engine: Engine, data: T) => recordPathFree(data, root(engine)) as T;
 
-  const options: ToolDef<typeof OptionsInput> = {
+  const options = defineTool({
     name: 'record_options',
     title: 'Recording: start form',
     description: "What the Record screen's start form shows: environments, pages, personas with their stored sessions, defaults, warnings, the recording open in the workspace and the project's recent recordings.",
@@ -331,9 +332,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
         data: out(engine, r),
       };
     },
-  };
+  });
 
-  const start: ToolDef<typeof StartInput> = {
+  const start = defineTool({
     name: 'record_start',
     title: 'Recording: open the window',
     description: 'Queue a recording: a headed window opens on this machine at a page of the environment, for the person to click in. Page and path only, the environment\'s own access, the check replay always on; refused while another recording is open in the workspace.',
@@ -363,9 +364,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
       };
       return { summary: `recording ${sub.rec_id} queued (job ${sub.job.id}): a window opens at ${sub.page} ${sub.path} (env ${sub.env}${sub.persona ? `, as ${sub.persona}` : ', signed out'})`, data: out(engine, data) };
     },
-  };
+  });
 
-  const view: ToolDef<typeof ViewInput> = {
+  const view = defineTool({
     name: 'record_view',
     title: 'Recording: live view',
     description: "A recording's state and live draft (rows, target alternatives, inserts, issues, writes, the check), the actions the screen may offer, and `version` for a cheap re-read.",
@@ -375,9 +376,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const v = recordViewAnswer(await engine.record.view(a.project, a.rec_id, { ...(a.job ? { job: a.job } : {}), ...(a.since ? { since: a.since } : {}) }));
       return { summary: viewSummary(v), data: out(engine, v) };
     },
-  };
+  });
 
-  const annotate: ToolDef<typeof AnnotateInput> = {
+  const annotate = defineTool({
     name: 'record_annotate',
     title: 'Recording: arrange the draft',
     description: 'One change to a Studio recording\'s draft at the revision the view returned: choose a target alternative, insert (hold, wait, caption, mark, camera) after a step or at the end, or remove an insert.',
@@ -391,9 +392,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
         data: out(engine, { rev: r.rev, ...(r.insert_id !== undefined ? { insert_id: r.insert_id } : {}), view: v }),
       };
     },
-  };
+  });
 
-  const stop: ToolDef<typeof StopInput> = {
+  const stop = defineTool({
     name: 'record_stop',
     title: 'Recording: stop and keep',
     description: 'Stop a recording and keep it: before the window opened it is cancelled; while it is open the window closes as if the person closed it, then the draft is made and checked.',
@@ -404,9 +405,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const v = recordViewAnswer(r.view);
       return { summary: `${a.rec_id}: ${r.action === 'stopping' ? 'stopping (the window closes, then the draft and the check)' : r.action === 'cancelled' ? 'cancelled before the window opened' : 'nothing to stop'}`, data: out(engine, { action: r.action, view: v }) };
     },
-  };
+  });
 
-  const discard: ToolDef<typeof StopInput> = {
+  const discard = defineTool({
     name: 'record_discard',
     title: 'Recording: discard',
     description: 'Discard a recording started from the Studio: its folder is removed (an open window is cancelled first; during the draft or the check, once its job is over). A scenario saved from it is never touched.',
@@ -416,9 +417,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const r = await engine.record.discard(a.project, a.rec_id, a.job ? { job: a.job } : {});
       return { summary: `${a.rec_id}: ${r.state === 'discarded' ? 'discarded' : 'being discarded (its job is cancelled; the folder goes once it is over)'}`, data: out(engine, r) };
     },
-  };
+  });
 
-  const save: ToolDef<typeof SaveInput> = {
+  const save = defineTool({
     name: 'record_save',
     title: 'Recording: save as a scenario',
     description: 'Save a finished Studio recording\'s draft as a NEW scenarios/<name>.yaml (a taken name is refused, never overwritten) — only the draft the person saw (`draft`) — under the rules a scenario saved from the Studio follows.',
@@ -428,9 +429,9 @@ export function recordOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const r = await chain(scenarioKey(a.project, a.name), () => engine.record.save(a.project, a.rec_id, { name: a.name, rev: a.rev, draft: a.draft }));
       return { summary: `${a.rec_id}: saved as ${r.file} (hash ${r.hash})${r.warnings ? ` with ${plural(r.warnings, 'warning')}` : ''}`, data: out(engine, r) };
     },
-  };
+  });
 
-  return [options, start, view, annotate, stop, discard, save] as unknown as ToolDef[];
+  return [options, start, view, annotate, stop, discard, save] as const;
 }
 
 export const RECORD_OPS = ['record_options', 'record_start', 'record_view', 'record_annotate', 'record_stop', 'record_discard', 'record_save'] as const;

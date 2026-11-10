@@ -17,7 +17,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { renderFrame, useRenderOutline } from './data/comments.js';
+import { renderFrame, useRenderOutline } from './data/renders.js';
 import type { FrameAnswer, Outline } from './data/ops.js';
 import { Txt } from './bits.js';
 import { FrameRequests, frameTime, newSessionId, parseTimecode, pointIn, regionOfDrag, renderWords, timeExample, viewerKey } from './comment-words.js';

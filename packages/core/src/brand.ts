@@ -82,7 +82,7 @@ export const brandFileRefSchema = z
 
 export const hexColorSchema = z.string().regex(HEX_COLOR_RE, 'a hex colour: #rgb or #rrggbb (no names, rgb() or hsl())');
 
-const fontRefOf = (ref: z.ZodType<string>) =>
+const fontRefOf = (ref: z.ZodType<string, string>) =>
   z.union([
     ref,
     z.strictObject({
@@ -108,7 +108,7 @@ export const BrandBackgroundSchema = z.union([
 ]);
 export type BrandBackground = z.output<typeof BrandBackgroundSchema>;
 
-function brandInputSchema(ref: z.ZodType<string>) {
+function brandInputSchema(ref: z.ZodType<string, string>) {
   const fontRef = fontRefOf(ref);
   return z.strictObject({
     name: z

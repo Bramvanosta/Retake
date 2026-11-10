@@ -3,7 +3,6 @@ import { HOOKS_SOURCE_RE } from '@retake/core';
 import type { Engine, HookResultView, JobRecord } from '@retake/engine';
 import { envName, projectSlug } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { HOOK_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { waitJob, waitS } from './run.js';
@@ -45,10 +44,10 @@ export function hooksJobSummary(job: JobRecord): string {
   return lines.join('\n');
 }
 
-async function jobOutput(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext, intro: string): Promise<ToolOutput> {
+async function jobOutput(engine: Engine, job: JobRecord, seconds: number, ctx: ToolContext, intro: string) {
   await waitJob(engine, job, seconds, ctx);
   const now = await engine.jobs.get(job.id);
-  return { summary: `${intro}\n${hooksJobSummary(now)}`, data: now as unknown as Record<string, unknown> };
+  return { summary: `${intro}\n${hooksJobSummary(now)}`, data: now };
 }
 
 const dryInput = z
@@ -97,4 +96,4 @@ export const envReset = defineTool({
   },
 });
 
-export const HOOK_TOOLS: ToolDef[] = [hooksRun, envReset];
+export const HOOK_TOOLS = [hooksRun, envReset] as const satisfies readonly ToolDef[];

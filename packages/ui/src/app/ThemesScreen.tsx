@@ -237,8 +237,9 @@ function FormColor({ label, value, set, optional, testId }: { label: string; val
  */
 function NewTheme({ slug, initial, taken, themes, onClose, onMade }: { slug: string; initial: NewThemeForm; taken: string[]; themes: string[]; onClose: () => void; onMade: () => void }) {
   const [f, setF] = useState<NewThemeForm>(initial);
-  const [images, setImages] = useState<BrandFiles | null>(null);
-  const [fontFiles, setFontFiles] = useState<BrandFiles | null>(null);
+  // What the form reads of brand_files (a failed read shows an empty list).
+  const [images, setImages] = useState<Pick<BrandFiles, 'files' | 'truncated'> | null>(null);
+  const [fontFiles, setFontFiles] = useState<Pick<BrandFiles, 'files' | 'truncated'> | null>(null);
   const [state, setState] = useState<{ busy?: boolean; error?: string; made?: ThemeCreated }>({});
   const headId = useId();
   // L5.2b (review B L7): a form changed and not made yet is unsaved text the desktop app's quit question names.

@@ -19,9 +19,12 @@ export function untrustedError(job: JobRecord): boolean {
   return !!job.error && job.state !== 'interrupted' && PRODUCT_TEXT_KINDS.has(job.input.kind);
 }
 
+/** A job as a tool returns it (jobData): its record, with an error message that can quote the product under `untrusted.error`. */
+export type JobData = JobRecord & { untrusted?: { error: string } };
+
 /** A job as a tool returns it: an error message that can quote the product moved to `untrusted.error`. */
-export function jobData(job: JobRecord): Record<string, unknown> {
-  if (!untrustedError(job)) return job as unknown as Record<string, unknown>;
+export function jobData(job: JobRecord): JobData {
+  if (!untrustedError(job)) return job;
   return { ...job, error: { ...job.error!, message: 'the message is in "untrusted.error"' }, untrusted: { error: job.error!.message } };
 }
 

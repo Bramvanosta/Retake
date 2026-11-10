@@ -9,6 +9,7 @@
  */
 import type { ThemeEditView } from '@retake/engine';
 import type { LibraryItem } from '../server/library-ops.js';
+import type { ThemeEditInput } from './data/themes.js';
 import type { StudioEvent } from './events.js';
 import { APP_NAME } from './brand.js';
 
@@ -163,14 +164,8 @@ export function libraryEventAction(e: StudioEvent, slug: string, o: { busy: bool
   return (Array.isArray(e.themes) && e.themes.length > 0) || (Array.isArray(e.components) && e.components.length > 0) || (Array.isArray(e.projects) && e.projects.includes(slug));
 }
 
-/** theme_edit's `set_component` edit (the server pins its shape). */
-export interface SetComponentEdit {
-  kind: 'set_component';
-  component: string;
-  from?: string | null;
-  id: string;
-  params: 'drop';
-}
+/** theme_edit's `set_component` edit (its input's), as the Library sets a default: a component always, its params dropped. */
+export type SetComponentEdit = Extract<ThemeEditInput, { kind: 'set_component' }> & { readonly id: string; readonly params: 'drop' };
 
 export type SetDefaultPlan =
   | { edit: SetComponentEdit; replaces: string | null; drops: string[] }

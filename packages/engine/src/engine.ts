@@ -31,6 +31,7 @@ export { ENGINE_API_VERSION } from './facade/info.js';
 export type {
   AuthStatus,
   AuthStatusItem,
+  CompactRunStatus,
   Engine,
   EngineInfo,
   EngineOptions,

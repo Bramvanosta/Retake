@@ -9,7 +9,7 @@
  */
 import { z } from 'zod';
 import { perfSummary } from '@retake/core';
-import type { ReviewView, RunStatusWithJob } from '@retake/engine';
+import type { CompactRunStatus, ReviewView, RunStatusWithJob } from '@retake/engine';
 
 export const detail = z
   .enum(['compact', 'full'])
@@ -28,7 +28,7 @@ export const COMPACT_MESSAGE_MAX = 400;
 const cut = (s: string, max = COMPACT_MESSAGE_MAX) => (s.length > max ? `${s.slice(0, max)}… (${s.length - max} more characters)` : s);
 
 /** A run's status, compact: no per-step screenshot list, no hashes, the take's cost as one line. */
-export function compactRunStatus(r: RunStatusWithJob): Record<string, unknown> {
+export function compactRunStatus(r: RunStatusWithJob): CompactRunStatus {
   const out = (name: string) => r.outputs.find((o) => o.ref.endsWith(`/${name}`))?.path;
   const hooks = Object.fromEntries(Object.entries(r.hooks).filter(([, v]) => v !== undefined && v !== 'none'));
   const warnings = r.untrusted.warnings;

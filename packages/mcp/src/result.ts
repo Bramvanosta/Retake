@@ -84,7 +84,8 @@ export function okResult(out: ToolOutput): CallResult {
       // One line (L5.8): the indentation of pretty-printed JSON was ≈ 40 % of a large result.
       { type: 'text', text: JSON.stringify(data) },
     ],
-    structuredContent: data,
+    // The protocol's structured content is a JSON object: what every tool's data is (ToolOutput's `object`).
+    structuredContent: data as Record<string, unknown>,
   };
 }
 

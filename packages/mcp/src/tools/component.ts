@@ -25,7 +25,7 @@ export const componentList = defineTool({
         ...lines,
         ...(v.notices.length ? [`${plural(v.notices.length, 'registry notice')}: ${v.notices.map((n) => n.message).join('; ')}`] : []),
       ].join('\n'),
-      data: v as unknown as Record<string, unknown>,
+      data: v,
     };
   },
 });
@@ -48,7 +48,7 @@ export const componentGet = defineTool({
         ...(c.preview ? [`preview: ${c.preview} (${c.preview_status})`] : []),
         ...(c.overrides_builtin ? ['it replaces the built-in component of the same id'] : []),
       ].join('\n'),
-      data: c as unknown as Record<string, unknown>,
+      data: c,
     };
   },
 });
@@ -68,7 +68,7 @@ export const componentValidate = defineTool({
         ...v.issues.slice(0, 20).map((i) => `${i.severity} ${(i as { file?: string }).file ?? ''}${i.line ? `:${i.line}${i.col ? `:${i.col}` : ''}` : ''} ${i.message}`),
         ...(v.issues.length > 20 ? [`… ${v.issues.length - 20} more in "issues"`] : []),
       ].join('\n'),
-      data: v as unknown as Record<string, unknown>,
+      data: v,
     };
   },
 });
@@ -121,9 +121,9 @@ export const componentCreate = defineTool({
         `created ${c.kind} component ${c.id} in ${c.dir} (validated): ${c.files.map((f) => f.slice(c.dir.length + 1)).join(', ')}`,
         `next: the code is edited outside this server (the user, or your own file tools with the user's permission); then component_validate {component: "${c.id}"} and component_preview {project, component: "${c.id}"}`,
       ].join('\n'),
-      data: c as unknown as Record<string, unknown>,
+      data: c,
     };
   },
 });
 
-export const COMPONENT_TOOLS: ToolDef[] = [componentList, componentGet, componentValidate, componentPreview, componentCreate];
+export const COMPONENT_TOOLS = [componentList, componentGet, componentValidate, componentPreview, componentCreate] as const satisfies readonly ToolDef[];

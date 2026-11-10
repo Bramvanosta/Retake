@@ -3,7 +3,6 @@ import { SLUG_RE, perfSummary } from '@retake/core';
 import type { Engine, JobRecord, RunStatusWithJob } from '@retake/engine';
 import { envName, projectSlug, runId, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { CANCEL, READ, RUN_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { compactRunStatus, detail } from '../compact.js';
@@ -80,9 +79,9 @@ export function runStatusSummary(r: RunStatusWithJob, project: string): string {
   return lines.join('\n');
 }
 
-async function runOutput(engine: Engine, project: string, id: string, extra: string[] = [], mode: Detail = 'compact'): Promise<ToolOutput> {
+async function runOutput(engine: Engine, project: string, id: string, extra: string[] = [], mode: Detail = 'compact') {
   const r = await engine.runs.status(project, id);
-  return { summary: [...extra, runStatusSummary(r, project)].join('\n'), data: mode === 'full' ? (r as unknown as Record<string, unknown>) : compactRunStatus(r) };
+  return { summary: [...extra, runStatusSummary(r, project)].join('\n'), data: mode === 'full' ? r : compactRunStatus(r) };
 }
 
 export const runList = defineTool({
@@ -190,8 +189,8 @@ export const runCancel = defineTool({
         : job.state === 'running' || job.state === 'queued'
           ? 'cancel requested: it stops at its next step, then its teardown and rollbacks run'
           : `already ${job.state}: nothing to cancel`;
-    return { summary: [`run ${run_id} (job ${job.id}): ${what}.`, runStatusSummary(r, project)].join('\n'), data: r as unknown as Record<string, unknown> };
+    return { summary: [`run ${run_id} (job ${job.id}): ${what}.`, runStatusSummary(r, project)].join('\n'), data: r };
   },
 });
 
-export const RUN_TOOLS: ToolDef[] = [runList, runStatus, runDry, runCapture, runCancel];
+export const RUN_TOOLS = [runList, runStatus, runDry, runCapture, runCancel] as const satisfies readonly ToolDef[];

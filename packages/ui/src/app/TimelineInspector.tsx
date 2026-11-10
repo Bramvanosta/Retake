@@ -149,8 +149,7 @@ export function useSwitchEditor(slug: string, name: string, v: SwitchView, reloa
   const send = useCallback(
     (edit: SwitchEdit, c?: Choice) => {
       run(
-        // The switch's own type is wider than the input's (a field as a string): the server checks the rest.
-        edit as unknown as ScenarioEdit,
+        edit,
         (r, shown) => {
           history.current.push({ label: r.label, before: shown.text!, hashBefore: shown.hash!, after: null, hashAfter: r.hash });
           return `${c ? `${switchEditWords(edit, c)}.` : `${r.label}.`} Saved: ⌘Z undoes. ${SWITCH_CHANGE_WORDS}`;

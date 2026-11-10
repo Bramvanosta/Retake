@@ -88,6 +88,43 @@ export interface RunStatusWithJob extends Omit<RunStatusView, 'status'> {
   job?: RunJobView;
 }
 
+/**
+ * A run's status as run_status answers it by default (`detail: "compact"`, L5.8; the MCP server's compactRunStatus):
+ * no per-step screenshot list, no hashes, the take's cost as one line. Shared by the MCP tool that writes it and the
+ * Studio, which serves that tool and reads this answer.
+ */
+export interface CompactRunStatus {
+  id: string;
+  project: string;
+  scenario: RunStatusWithJob['scenario'];
+  mode: RunStatusWithJob['mode'];
+  env: RunStatusWithJob['env'];
+  status: RunStatusWithJob['status'];
+  finished: boolean;
+  steps_done: number;
+  steps_total: number;
+  /** The duration so far, to a tenth of a second. */
+  duration_s?: number;
+  current?: RunStatusWithJob['current'];
+  paused?: RunStatusWithJob['paused'];
+  stopped_at?: RunStatusWithJob['stopped_at'];
+  /** The hook phases that ran (those `none` or absent left out). */
+  hooks?: Partial<RunStatusWithJob['hooks']>;
+  error?: { scene?: string; step?: number; action?: string; screenshot?: string; dom?: string };
+  optional_failures?: Array<{ scene: string; step: number; action: string; screenshot?: string }>;
+  /** The take's cost and smoothness, one line (core perfSummary). */
+  perf?: string;
+  files: { dir: string; capture?: string; timeline?: string; screenshots?: { dir: string; count: number } };
+  job?: Pick<RunJobView, 'id' | 'state' | 'queue' | 'cancel_requested_at' | 'pause_requested_at' | 'error'>;
+  untrusted: {
+    error_message?: string;
+    missing_targets?: NonNullable<RunStatusWithJob['untrusted']['missing_targets']>;
+    optional_errors?: string[];
+    warnings?: string[];
+    warnings_total?: number;
+  };
+}
+
 export interface WaitOptions {
   /** Return after this long even when the job has not finished. */
   timeoutMs: number;

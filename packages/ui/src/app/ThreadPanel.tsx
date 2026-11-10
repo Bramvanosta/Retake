@@ -14,6 +14,7 @@ import type { ThreadAnswer } from '../server/comment-ops.js';
 import { CallError, errorText } from './api.js';
 import { threadWrite, useThreadGet, useThreadStill } from './data/comments.js';
 import type { ThreadPanelArgs, ThreadPanelWrite } from './data/comments.js';
+import type { OpArgs } from './data/client.js';
 import { Txt, When, plural } from './bits.js';
 import { CHANNEL_NOTE, COMMENT_TEXT_MAX, anchorChips, channelWords, entryWords, proposalWords, regionWords, renderWords, statusWords } from './comment-words.js';
 import type { Chip } from './comment-words.js';
@@ -203,9 +204,10 @@ function ThreadActions({ slug, name, th, renders, reload }: { slug: string; name
   const newer = th.newer_renders.filter((r) => renders.some((x) => x.render_id === r));
   const [answer, setAnswer] = useState<string>(newer[0] ?? '');
   const [write, setWrite] = useState<Write>({ kind: 'idle' });
-  const send = (what: string, op: ThreadPanelWrite, args: ThreadPanelArgs, done: string, clear: () => void) => {
+  const send = <K extends ThreadPanelWrite>(what: string, op: K, args: ThreadPanelArgs<K>, done: string, clear: () => void) => {
     setWrite({ kind: 'sending', what });
-    threadWrite(op, { project: slug, comment_id: th.id, ...args })
+    // The op's arguments: the thread's two, then the write's own (ThreadPanelArgs<K>: the op's arguments without those two).
+    threadWrite(op, { project: slug, comment_id: th.id, ...args } as OpArgs<K>)
       .then(
         () => {
           clear();

@@ -19,7 +19,8 @@
  */
 import { z } from 'zod';
 import { EngineError } from '@retake/engine';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
+import type { ToolOutput } from '@retake/engine/contract';
 import type { DesktopPipe } from './desktop.js';
 
 export const UPDATE_STATES = ['off', 'idle', 'checking', 'available', 'downloading', 'waiting', 'installing', 'failed'] as const;
@@ -118,16 +119,38 @@ export function installable(l: UpdateLine | undefined): boolean {
 
 const READ = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 
+export type UpdateFailure = (typeof UPDATE_FAILURES)[number];
+export type UpdateOffReason = (typeof UPDATE_OFF_REASONS)[number];
+
+/**
+ * What desktop_update_status answers (the Studio's update sheet reads it: app/shell/update.ts): the shell's last line
+ * without its `type`, the notes under `untrusted`, and whether Install and Restart is live — or why there is none.
+ */
+export interface UpdateStatus {
+  available: boolean;
+  reason?: 'not_supervised' | UpdateOffReason;
+  state?: 'unknown' | UpdateStateName;
+  current?: string;
+  version?: string | null;
+  jobs?: number;
+  failure?: UpdateFailure;
+  checked?: number | null;
+  /** A failure the shell may try again (Install and Restart stays live). */
+  retry?: boolean;
+  installable?: boolean;
+  untrusted?: { notes?: string };
+}
+
 /** The Studio's update ops on `pipe` (the shell's pipe) and `state` (its last line). */
-export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }): ToolDef[] {
+export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }) {
   const { pipe, state } = o;
-  const status: ToolDef = {
+  const status = defineTool({
     name: 'desktop_update_status',
     title: 'Updates of the desktop app',
     description: "The desktop app's update: off, up to date, available (its version and notes), downloading, waiting for jobs, installing, failed. The desktop app's own server only.",
     input: z.strictObject({}),
     annotations: READ,
-    async run() {
+    async run(): Promise<ToolOutput<UpdateStatus>> {
       if (!pipe.supervised) return { summary: 'updates: not the desktop app\'s server', data: { available: false, reason: 'not_supervised' } };
       const l = state.last;
       if (!l) return { summary: 'updates: nothing said yet', data: { available: true, state: 'unknown' } };
@@ -139,9 +162,9 @@ export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }): ToolDef
       }
       return { summary: `updates: ${l.state}`, data: { available: true, ...fields, installable: installable(l) } };
     },
-  };
+  });
   const ClickInput = z.strictObject({ action: z.enum(UPDATE_ACTIONS).describe('install: Install and Restart; later: not now (stops waiting for jobs).') });
-  const click: ToolDef<typeof ClickInput> = {
+  const click = defineTool({
     name: 'desktop_update',
     title: 'Install the update, or later',
     description: "Install and Restart (the desktop app downloads and checks the update, waits for this workspace's jobs, asks about unsaved text, then restarts) or Later. The desktop app's own server only; the person's click.",
@@ -154,6 +177,6 @@ export function updateOps(o: { pipe: DesktopPipe; state: UpdateState }): ToolDef
       pipe.update(a.action);
       return { summary: a.action === 'install' ? 'install asked' : 'later', data: { ok: true } };
     },
-  };
-  return [status, click as unknown as ToolDef];
+  });
+  return [status, click];
 }

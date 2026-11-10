@@ -60,4 +60,4 @@ export const exportTool = defineTool({
   },
 });
 
-export const EXPORT_TOOLS: ToolDef[] = [exportTool];
+export const EXPORT_TOOLS = [exportTool] as const satisfies readonly ToolDef[];

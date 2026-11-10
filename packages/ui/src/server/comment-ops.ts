@@ -30,7 +30,7 @@ import { COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMMENT_TEXT_MAX, PROJECT_SLUG_RE, 
 import { loadProjectTemplate, fileFacts } from '@retake/core/io';
 import { EngineError, openProjectBySlug, renderForWork, withoutPaths } from '@retake/engine';
 import type { CommentEntryView, CommentProposalView, CommentView, Engine } from '@retake/engine';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
 import { opChain, scenarioKey } from './op-chain.js';
 import type { OpChain } from './op-chain.js';
 
@@ -320,12 +320,12 @@ export interface ThreadsListAnswer {
 }
 
 /** commentOps: the shared chain is the one scenario_edit and scenario_render use (critique B5). */
-export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
+export function commentOps(o: { chain?: OpChain } = {}) {
   const chain = o.chain ?? opChain();
   const threadKey = (slug: string, id: string) => `thread\0${slug}\0${id}`;
   const root = (engine: Engine) => engine.workspace.root;
 
-  const list: ToolDef<typeof ListInput> = {
+  const list = defineTool({
     name: 'threads_list',
     title: "A scenario's comment threads",
     description: "A scenario's frame comment threads (open, resolved or all), open first: where each points, its state and its newest proposal's; the comment's first words as untrusted data.",
@@ -338,10 +338,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       ]);
       const counts = c.scenarios[a.name] ?? { open: 0, resolved: 0 };
       const data: ThreadsListAnswer = { project: a.project, scenario: a.name, threads: v.threads.map(threadItem), total: v.total, counts, problems: v.problems.length };
-      return { summary: `${a.name}: ${plural(data.threads.length, 'thread')} (${counts.open} open, ${counts.resolved} resolved)`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${a.name}: ${plural(data.threads.length, 'thread')} (${counts.open} open, ${counts.resolved} resolved)`, data: data };
     },
-  };
-  const counts: ToolDef<typeof CountsInput> = {
+  });
+  const counts = defineTool({
     name: 'threads_counts',
     title: 'Comment counts',
     description: 'Open and resolved frame comment threads per scenario, from the thread files alone (no render, no view).',
@@ -350,10 +350,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
     async run(a, { engine }) {
       const c = await engine.comments.counts(a.project, a.name ? { scenario: a.name } : {});
       const open = Object.values(c.scenarios).reduce((n, s) => n + s.open, 0);
-      return { summary: `${a.project}${a.name ? `/${a.name}` : ''}: ${open} open`, data: c as unknown as Record<string, unknown> };
+      return { summary: `${a.project}${a.name ? `/${a.name}` : ''}: ${open} open`, data: c };
     },
-  };
-  const get: ToolDef<typeof GetInput> = {
+  });
+  const get = defineTool({
     name: 'thread_get',
     title: 'A comment thread',
     description: "One frame comment thread without any path: where it points, its entries (texts as untrusted data), and its newest proposal as the canonical diff of what Apply writes, with what may be offered for it.",
@@ -371,10 +371,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
         data.proposal = { ...p, offer: proposalOffer(p, decides ? await offerFacts(engine, a.project, v) : UNREAD) };
       }
       const pr = data.proposal ? `, proposal ${data.proposal.state}` : '';
-      return { summary: `${v.id} on ${v.render_id} at ${v.timecode}: ${v.status}, ${plural(v.entries.length, 'entry')}${pr}`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${v.id} on ${v.render_id} at ${v.timecode}: ${v.status}, ${plural(v.entries.length, 'entry')}${pr}`, data: data };
     },
-  };
-  const still: ToolDef<typeof StillInput> = {
+  });
+  const still = defineTool({
     name: 'thread_still',
     title: "A thread's still",
     description: "The still made when a thread was written (its region outlined) as a base64 JPEG (≤ 1280 px): what it showed when its render is gone.",
@@ -386,8 +386,8 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const t = await engine.thumbnail(v.still, 1280);
       return { summary: `still of ${v.id} (${t.width}×${t.height})`, data: { comment_id: v.id, mime: 'image/jpeg', base64: t.base64, width: t.width, height: t.height } };
     },
-  };
-  const outline: ToolDef<typeof OutlineInput> = {
+  });
+  const outline = defineTool({
     name: 'render_outline',
     title: "A render's frames",
     description: "A succeeded render's frames, fps, size, markers (names as untrusted data) and the threads made on it as it is now.",
@@ -395,10 +395,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
     annotations: READ,
     async run(a, { engine }) {
       const v = await engine.renders.outline(a.project, { render_id: a.render_id, ...(a.created_at ? { created_at: a.created_at } : {}) });
-      return { summary: `${v.render_id}: ${plural(v.frames, 'frame')} at ${v.fps} fps, ${plural(v.pins.length, 'thread')}`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${v.render_id}: ${plural(v.frames, 'frame')} at ${v.fps} fps, ${plural(v.pins.length, 'thread')}`, data: v };
     },
-  };
-  const frameOp: ToolDef<typeof FrameInput> = {
+  });
+  const frameOp = defineTool({
     name: 'render_frame',
     title: 'A frame of a render',
     description: "One output frame of a succeeded render as a base64 JPEG (≤ 1280 px), at the video's own fps; the page's newest request of a render wins.",
@@ -406,10 +406,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
     annotations: READ,
     async run(a, { engine, signal }) {
       const v = await engine.renders.frame(a.project, { render_id: a.render_id, created_at: a.created_at, frame: a.frame }, { session: a.session, ...(signal ? { signal } : {}) });
-      return { summary: `${v.render_id} frame ${v.frame} (${v.timecode})`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${v.render_id} frame ${v.frame} (${v.timecode})`, data: v };
     },
-  };
-  const anchor: ToolDef<typeof AnchorInput> = {
+  });
+  const anchor = defineTool({
     name: 'frame_anchor',
     title: 'Where a frame comment points',
     description: "The anchor a comment on that frame (and region) would store — the same engine code as thread_add — and where its step is in today's file; nothing written.",
@@ -417,10 +417,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
     annotations: READ,
     async run(a, { engine }) {
       const v = await engine.comments.anchorAt(a.project, { render: a.render_id, render_created_at: a.created_at, frame: a.frame, ...(a.region ? { region: a.region } : {}) });
-      return { summary: `${v.render_id} frame ${v.frame}: ${v.anchor.kind} ${v.anchor.segment}`, data: { ...v, warnings: v.warnings.map((w) => pathFree(w, root(engine))) } as unknown as Record<string, unknown> };
+      return { summary: `${v.render_id} frame ${v.frame}: ${v.anchor.kind} ${v.anchor.segment}`, data: { ...v, warnings: v.warnings.map((w) => pathFree(w, root(engine))) } };
     },
-  };
-  const add: ToolDef<typeof AddInput> = {
+  });
+  const add = defineTool({
     name: 'thread_add',
     title: 'Comment a frame',
     description: 'A new thread on one frame of the render the page showed (its id and created_at), optionally a region: written as the channel studio, its still made after it.',
@@ -431,9 +431,9 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const data = { thread: threadAnswer(r.thread), warnings: r.warnings.map((w) => pathFree(w, root(engine))) };
       return { summary: `${r.thread.id} on ${r.thread.render_id} at ${r.thread.timecode}${r.warnings.length ? ` with ${plural(r.warnings.length, 'warning')}` : ''}`, data };
     },
-  };
+  });
   const written = (r: { thread: CommentView; entry: string; hash: string }) => ({ thread: threadAnswer(r.thread), entry: r.entry, hash: r.hash });
-  const reply: ToolDef<typeof ReplyInput> = {
+  const reply = defineTool({
     name: 'thread_reply',
     title: 'Reply to a thread',
     description: 'A reply on a thread, written as the channel studio (never a proposal: proposals are Claude\'s).',
@@ -443,8 +443,8 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const r = await chain(threadKey(a.project, a.comment_id), () => engine.comments.reply(a.project, a.comment_id, a.text));
       return { summary: `${a.comment_id}: reply ${r.entry}`, data: written(r) };
     },
-  };
-  const resolve: ToolDef<typeof ResolveInput> = {
+  });
+  const resolve = defineTool({
     name: 'thread_resolve',
     title: 'Resolve a thread',
     description: 'Resolve an open thread on the version the page showed (if_match), with a note and optionally the render that answers it.',
@@ -456,8 +456,8 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       );
       return { summary: `${a.comment_id}: resolved`, data: written(r) };
     },
-  };
-  const reopen: ToolDef<typeof ReopenInput> = {
+  });
+  const reopen = defineTool({
     name: 'thread_reopen',
     title: 'Reopen a thread',
     description: 'Reopen a resolved thread on the version the page showed (if_match).',
@@ -467,8 +467,8 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
       const r = await chain(threadKey(a.project, a.comment_id), () => engine.comments.reopen(a.project, a.comment_id, a.note, { if_match: a.if_match }));
       return { summary: `${a.comment_id}: reopened`, data: written(r) };
     },
-  };
-  const apply: ToolDef<typeof ApplyInput> = {
+  });
+  const apply = defineTool({
     name: 'thread_apply',
     title: "Apply Claude's proposal",
     description: "Apply a thread's newest proposal (pending, or undone) on the version the page showed (if_match): the text rebuilt and checked, written by the Studio's own write path; `previous` is what Undo apply restores (scenario_edit restore).",
@@ -487,10 +487,10 @@ export function commentOps(o: { chain?: OpChain } = {}): ToolDef[] {
         warnings: r.warnings,
         problems: r.problems.map((p) => pathFree(p, root(engine))),
       };
-      return { summary: `${r.label}: ${data.scenario.file} (hash ${r.scenario.hash})${r.problems.length ? ` — ${r.problems.length} problem` : ''}`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${r.label}: ${data.scenario.file} (hash ${r.scenario.hash})${r.problems.length ? ` — ${r.problems.length} problem` : ''}`, data: data };
     },
-  };
-  return [list, counts, get, still, outline, frameOp, anchor, add, reply, resolve, reopen, apply] as unknown as ToolDef[];
+  });
+  return [list, counts, get, still, outline, frameOp, anchor, add, reply, resolve, reopen, apply] as const;
 }
 
 /** The names of the comment ops (the Studio's own, never an MCP tool's name). */

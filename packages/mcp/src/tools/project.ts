@@ -91,7 +91,7 @@ export const projectGet = defineTool({
             ]
           : []),
       ].join('\n'),
-      data: { ...(p as unknown as Record<string, unknown>), ...(advice ? { sandbox_advice: advice } : {}) },
+      data: { ...p, ...(advice ? { sandbox_advice: advice } : {}) },
     };
   },
 });
@@ -115,7 +115,7 @@ export const projectCreate = defineTool({
     const p = await engine.projects.create(args);
     return {
       summary: `Created project ${p.slug} in ${p.dir}. Next: fill README.md (project_update_readme with if_match ${p.readme_hash}), then write scenarios (scenario_validate, scenario_save).`,
-      data: p as unknown as Record<string, unknown>,
+      data: p,
     };
   },
 });
@@ -170,9 +170,9 @@ export const projectPrune = defineTool({
         ...(r.not_asked ? [`${plural(r.not_asked, 'item')} that can go now ${r.not_asked === 1 ? 'was' : 'were'} not in the approval: kept`] : []),
         ...r.problems.map((p) => `could not delete ${p}`),
       ].join('\n'),
-      data: r as unknown as Record<string, unknown>,
+      data: r,
     };
   },
 });
 
-export const PROJECT_TOOLS: ToolDef[] = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme, projectPrune];
+export const PROJECT_TOOLS = [engineInfo, projectList, projectGet, projectCreate, projectUpdateReadme, projectPrune] as const satisfies readonly ToolDef[];

@@ -99,6 +99,8 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
     );
   };
   const label = `Sign in ${persona}`;
+  // The panel's job is the auth_login job it started: its result is a sign-in's.
+  const signIn = job?.result?.kind === 'auth_login' ? job.result : undefined;
   return (
     <div className="sp-sign-in" data-testid="sign-in">
       {!open && (
@@ -124,12 +126,12 @@ export function SignIn({ slug, persona, env, onDone }: { slug: string; persona: 
               )}
             </p>
           )}
-          {job.state === 'succeeded' && <p>{shown(job.result?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[job.result?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>}
+          {job.state === 'succeeded' && <p>{shown(signIn?.signed_in ? 'Signed in: the session works now.' : `Not signed in: the session is ${STORED_WORDS[signIn?.status ?? '']?.[0] ?? 'not valid'}.`)}</p>}
           {job.state === 'cancelled' && (
             <p>
-              {job.result?.profile_kept
+              {signIn?.profile_kept
                 ? 'Stopped: the saved session was not updated, but what the window changed stays in this persona’s browser profile (the next run starts from it).'
-                : job.result?.interrupted
+                : signIn?.interrupted
                   ? 'Stopped: nothing was saved.'
                   : 'Stopped: the saved session was not updated.'}
             </p>

@@ -133,7 +133,7 @@ export interface CallOptions {
   keepalive?: boolean;
 }
 
-/** An op's arguments (generated from the Studio's op table: data/studio-ops.gen.ts) and its result (data/ops.ts). */
+/** An op's arguments and its result (StudioOps, data/ops.ts: derived from the Studio's op table). */
 export type OpArgs<K extends StudioOp> = StudioOps[K]['args'];
 export type OpResult<K extends StudioOp> = StudioOps[K]['result'];
 /** A call's parameters after the op: its arguments — optional when the op needs none — and the options. */

@@ -63,7 +63,7 @@ import { ACTION_DESCRIPTIONS, COMMENT_ENTRY_ID_RE, COMMENT_ID_RE, COMPONENT_ID_R
 import type { ActionName } from '@retake/core';
 import { EXPORTS_OPEN_MAX, EngineError, REVIEW_IMAGE_RE, RUN_ID_RE, RUN_KEY_RE, RUN_THUMBS_MAX_KEYS, firstErrorLine, sessionsToConfirm } from '@retake/engine';
 import type { Engine, EnvironmentView, RenderEditSource, SessionToConfirm, ReviewFindingView, ReviewView, RunListItem, ScenarioSessions, TimelineView } from '@retake/engine';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
 import { PreviewLeases } from './preview-leases.js';
 import type { PreviewHeld } from './preview-leases.js';
 import type { Live } from './live.js';
@@ -189,7 +189,8 @@ const FieldAtInput = z.union([
   }),
 ]);
 /** Every path of core FIELD_PATHS (each an edit value); which entry takes which is checked below, before any read. */
-const FIELD_NAMES = [...new Set(Object.values(FIELD_PATHS).flat())] as [string, ...string[]];
+type FieldName = (typeof FIELD_PATHS)[keyof typeof FIELD_PATHS][number];
+const FIELD_NAMES = [...new Set(Object.values(FIELD_PATHS).flat())] as [FieldName, ...FieldName[]];
 /** A timeline switch's value: a frame, a transition, a component id, a speed or duration, the intro / outro switch. */
 const switchValue = z.union([z.string().max(200, 'at most 200 characters'), z.number().finite(), z.boolean()]);
 const SetFieldInput = z
@@ -237,7 +238,7 @@ const EditInput = z.strictObject({
           .regex(/^[0-9a-f]{16}$/, "the guard of the step before that place, as scenario_blocks gave it")
           .nullable()
           .describe('The guard of the step just before that place (null at the start of the scene).'),
-        action: z.enum(PALETTE_ACTIONS as unknown as [ActionName, ...ActionName[]]).describe('An action of the palette.'),
+        action: z.enum(PALETTE_ACTIONS).describe('An action of the palette.'),
         values: z.record(fieldKey, fieldValue).describe("The new step's form values (scenario_forms names the fields).").refine((v) => Object.keys(v).length <= 40, 'at most 40 values'),
       }),
       SetFieldInput,
@@ -259,8 +260,8 @@ export interface ProjectOverview {
 }
 
 /** projects_overview: engine reads (project_get's environments, run_list's newest run) for every project at once. */
-export function overviewOp(): ToolDef {
-  const op: ToolDef<typeof OverviewInput> = {
+export function overviewOp() {
+  const op = defineTool({
     name: 'projects_overview',
     title: 'Projects overview',
     description: "Every project's environments (production / read-only / sandbox flags) and last run, for the Projects screen.",
@@ -281,8 +282,8 @@ export function overviewOp(): ToolDef {
       );
       return { summary: plural(projects.length, 'project'), data: { projects } };
     },
-  };
-  return op as unknown as ToolDef;
+  });
+  return op;
 }
 
 const BoardInput = z.strictObject({ project });
@@ -292,8 +293,8 @@ const BoardInput = z.strictObject({ project });
  * capture "current", render and review, render job, length, poster), path-free, the video titles under `untrusted`.
  * Its memos are the board's own: reading it never evicts the open scenario screen's view (critique H1).
  */
-export function boardOp(): ToolDef {
-  const op: ToolDef<typeof BoardInput> = {
+export function boardOp() {
+  const op = defineTool({
     name: 'project_board',
     title: 'Project board',
     description: "Every scenario of a project for the Studio's Project screen: file facts, running and last take, capture, render and review, length and poster.",
@@ -301,15 +302,15 @@ export function boardOp(): ToolDef {
     annotations: READ,
     async run(a, { engine }) {
       const v = await engine.projects.board(a.project);
-      return { summary: `${a.project}: ${plural(v.scenarios.length, 'scenario')}${v.truncated ? ` of ${v.truncated.total}` : ''}`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${a.project}: ${plural(v.scenarios.length, 'scenario')}${v.truncated ? ` of ${v.truncated.total}` : ''}`, data: v };
     },
-  };
-  return op as unknown as ToolDef;
+  });
+  return op;
 }
 
 /** activity_list and search, served from `live`'s index. */
-export function indexOps(live: Live): ToolDef[] {
-  const activity: ToolDef<typeof ActivityInput> = {
+export function indexOps(live: Live) {
+  const activity = defineTool({
     name: 'activity_list',
     title: 'Recent activity',
     description: 'Unfinished jobs (live from the queue) then finished jobs and CLI commands (history), newest first.',
@@ -320,8 +321,8 @@ export function indexOps(live: Live): ToolDef[] {
       const open = items.filter((i) => i.source === 'queue').length;
       return { summary: `${plural(items.length, 'entry')} (${open} unfinished)`, data: { items } };
     },
-  };
-  const search: ToolDef<typeof SearchInput> = {
+  });
+  const search = defineTool({
     name: 'search',
     title: 'Search the workspace',
     description: 'Projects, scenarios, runs and renders matching every word (as a prefix), best first.',
@@ -331,13 +332,13 @@ export function indexOps(live: Live): ToolDef[] {
       const hits = (await live.freshIndex()).search(a.q, { ...(a.project ? { project: a.project } : {}), limit: a.limit ?? 20 });
       return { summary: plural(hits.length, 'hit'), data: { q: a.q, hits } };
     },
-  };
-  return [activity, search] as unknown as ToolDef[];
+  });
+  return [activity, search] as const;
 }
 
 /** scenario_blocks and run_thumbs: the scenario screen's reads (engine scenarios.view, runs.thumbs). */
-export function scenarioOps(): ToolDef[] {
-  const blocks: ToolDef<typeof BlocksInput> = {
+export function scenarioOps() {
+  const blocks = defineTool({
     name: 'scenario_blocks',
     title: 'Scenario as blocks',
     description: "A scenario's text, blocks, issues and run blockers, its runs, and each step bound to the source run's pictures.",
@@ -349,10 +350,10 @@ export function scenarioOps(): ToolDef[] {
       // The inspector's edit hints: what each action of this file does (the scenario language's own descriptions).
       const hints: Partial<Record<ActionName, string>> = {};
       for (const e of v.blocks.entries) if (e.type === 'scene') for (const s of e.steps) if (s.action) hints[s.action] = ACTION_DESCRIPTIONS[s.action];
-      return { summary: `${a.name}: ${plural(v.blocks.step_count, 'step')}, ${plural(v.issues.length, 'issue')}, ${src}`, data: { ...v, hints } as unknown as Record<string, unknown> };
+      return { summary: `${a.name}: ${plural(v.blocks.step_count, 'step')}, ${plural(v.issues.length, 'issue')}, ${src}`, data: { ...v, hints } };
     },
-  };
-  const actions: ToolDef<typeof ActionsInput> = {
+  });
+  const actions = defineTool({
     name: 'scenario_actions',
     title: 'Scenario actions',
     description: "What the Studio's status bar acts on for a scenario: its hash, what would stop a rehearsal or a capture on the location, its runs, the capture a render edits, a render running.",
@@ -361,10 +362,10 @@ export function scenarioOps(): ToolDef[] {
     async run(a, { engine }) {
       const v = await engine.scenarios.actions(a.project, a.name, { ...(a.env ? { env: a.env } : {}) });
       const blocked = v.run_blockers.dry.length + v.run_blockers.capture.length;
-      return { summary: `${a.name}: ${v.running ? `a run ${v.running.status}` : 'no run going'}, ${plural(blocked, 'blocker')}`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${a.name}: ${v.running ? `a run ${v.running.status}` : 'no run going'}, ${plural(blocked, 'blocker')}`, data: v };
     },
-  };
-  const thumbs: ToolDef<typeof ThumbsInput> = {
+  });
+  const thumbs = defineTool({
     name: 'run_thumbs',
     title: 'Thumbnails of run steps',
     description: "JPEG thumbnails (base64, ≤ 480 px) of a run's steps: dry-run screenshots, error screenshots, the frame at a capture step's end.",
@@ -372,10 +373,10 @@ export function scenarioOps(): ToolDef[] {
     annotations: READ,
     async run(a, { engine, signal }) {
       const t = await engine.runs.thumbs(a.project, a.run, a.keys, { signal });
-      return { summary: `${plural(t.thumbs.length, 'thumbnail')} of ${a.run}${t.missing.length ? `, ${t.missing.length} without one` : ''}`, data: t as unknown as Record<string, unknown> };
+      return { summary: `${plural(t.thumbs.length, 'thumbnail')} of ${a.run}${t.missing.length ? `, ${t.missing.length} without one` : ''}`, data: t };
     },
-  };
-  const forms: ToolDef<typeof FormsInput> = {
+  });
+  const forms = defineTool({
     name: 'scenario_forms',
     title: 'Step forms',
     description: "The inspector's and the palette's forms: each action's fields (from the scenario language's schemas), the modifiers, the palette's actions.",
@@ -383,10 +384,10 @@ export function scenarioOps(): ToolDef[] {
     annotations: READ,
     async run() {
       const f = stepForms();
-      return { summary: `${plural(f.actions.length, 'action')}, ${plural(f.palette.length, 'palette action')}`, data: f as unknown as Record<string, unknown> };
+      return { summary: `${plural(f.actions.length, 'action')}, ${plural(f.palette.length, 'palette action')}`, data: f };
     },
-  };
-  return [blocks, actions, thumbs, forms] as unknown as ToolDef[];
+  });
+  return [blocks, actions, thumbs, forms] as const;
 }
 
 /** What scenario_run answers: the run reserved and its job (the screen follows it with run_status and the events). */
@@ -406,8 +407,8 @@ export interface ScenarioRunAnswer {
  * scenario_run: the scenario screen's Dry run / Capture, arguments pinned. The engine's admission rules (one run of a
  * scenario at a time, the sessions acknowledgement of a capture) are its own, for the Studio and MCP alike.
  */
-export function runOps(): ToolDef[] {
-  const run: ToolDef<typeof RunInput> = {
+export function runOps() {
+  const run = defineTool({
     name: 'scenario_run',
     title: 'Run a scenario from the Studio',
     description: 'Queue a dry run or a capture of a scenario: default hooks, no sandbox reset, no until; refused (with the retake run command) when a hook needs a person.',
@@ -424,10 +425,10 @@ export function runOps(): ToolDef[] {
       });
       const { other, ...worker } = sub.worker ?? { spawned: false };
       const data: ScenarioRunAnswer = { run_id: sub.run_id, job: sub.job.id, state: sub.job.state, mode: a.mode, warnings: sub.warnings, ...(sub.worker ? { worker } : {}), ...(other ? { untrusted: { other_copy: other } } : {}) };
-      return { summary: `${a.mode === 'dry' ? 'rehearsal' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
+      return { summary: `${a.mode === 'dry' ? 'rehearsal' : 'capture'} ${sub.run_id} queued (job ${sub.job.id})`, data: data };
     },
-  };
-  return [run] as unknown as ToolDef[];
+  });
+  return [run] as const;
 }
 
 /** The personas a capture's `sessions_ack` must name, and what the capture does with them: the engine's rule. */
@@ -438,8 +439,8 @@ const statusWords = (st: { status: string; paused?: { scene: string; step: numbe
   st.paused ? `paused before step ${st.paused.step + 1} of ${st.paused.scene}` : st.job?.pause_requested_at ? `${st.status}, pausing before its next step` : st.status;
 
 /** run_pause, scenario_sessions and sign_in_cancel: the Run screen's controls and the Sessions panel (L4.4). */
-export function liveOps(): ToolDef[] {
-  const pause: ToolDef<typeof PauseInput> = {
+export function liveOps() {
+  const pause = defineTool({
     name: 'run_pause',
     title: 'Pause or resume a run',
     description: 'Pause a running run of a job before its next step (a capture does not film the pause), or resume it.',
@@ -447,10 +448,10 @@ export function liveOps(): ToolDef[] {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     async run(a, { engine }) {
       const st = await engine.runs.pause(a.project, a.run_id, a.paused);
-      return { summary: `${a.run_id}: ${statusWords(st)}`, data: st as unknown as Record<string, unknown> };
+      return { summary: `${a.run_id}: ${statusWords(st)}`, data: st };
     },
-  };
-  const sessions: ToolDef<typeof SessionsInput> = {
+  });
+  const sessions = defineTool({
     name: 'scenario_sessions',
     title: 'Sessions a scenario needs',
     description: "The personas a run of a scenario signs in on an environment, with their stored state (no browser), whether every run signs them in by itself, and those a capture must confirm (`confirm`).",
@@ -460,11 +461,11 @@ export function liveOps(): ToolDef[] {
       const s = await scenarioSessions(engine, a);
       return {
         summary: `${a.name} on ${s.env}: ${plural(s.personas.length, 'persona')}${s.confirm.length ? `, ${s.confirm.length} to confirm for a capture` : ''}`,
-        data: s as unknown as Record<string, unknown>,
+        data: s,
       };
     },
-  };
-  const cancel: ToolDef<typeof SignInCancelInput> = {
+  });
+  const cancel = defineTool({
     name: 'sign_in_cancel',
     title: 'Stop a sign-in',
     description: "Stop a sign-in job (its window closes; no session file or status is written — a persona's existing browser profile keeps what the window changed). Any other job is refused.",
@@ -474,8 +475,8 @@ export function liveOps(): ToolDef[] {
       const rec = await engine.auth.cancelSignIn(a.job);
       return { summary: `sign-in ${rec.id}: ${rec.state}${rec.cancel_requested_at && rec.state === 'running' ? ' (stopping)' : ''}`, data: { id: rec.id, kind: rec.kind, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) } };
     },
-  };
-  return [pause, sessions, cancel] as unknown as ToolDef[];
+  });
+  return [pause, sessions, cancel] as const;
 }
 
 async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>): Promise<ScenarioSessions & { confirm: SessionToConfirm[] }> {
@@ -493,9 +494,9 @@ async function scenarioSessions(engine: Engine, a: z.infer<typeof SessionsInput>
  * timeline inspector's `set_field` (SetFieldInput: strict, a field of core FIELD_PATHS that the entry takes, checked
  * before any read). Not an MCP tool: Claude edits a scenario with scenario_save.
  */
-export function editOps(oneAtATime: OpChain = opChain()): ToolDef[] {
+export function editOps(oneAtATime: OpChain = opChain()) {
   // L4.6: the Studio passes the chain thread_apply and scenario_render share (critique B5).
-  const edit: ToolDef<typeof EditInput> = {
+  const edit = defineTool({
     name: 'scenario_edit',
     title: 'Edit a scenario from the Studio',
     description: "Apply one edit (the YAML view's text, undo / redo's exact earlier version, a step moved, deleted, duplicated, changed by its form or added from the palette, a timeline switch of an edit value) to a scenario, on the version the screen showed.",
@@ -507,11 +508,11 @@ export function editOps(oneAtATime: OpChain = opChain()): ToolDef[] {
       const { path: _path, ...data } = r as typeof r & { path?: string };
       return {
         summary: `${r.label}: ${r.file} (hash ${r.hash})${r.warnings.length ? ` with ${plural(r.warnings.length, 'warning')}` : ''}`,
-        data: data as unknown as Record<string, unknown>,
+        data,
       };
     },
-  };
-  return [edit] as unknown as ToolDef[];
+  });
+  return [edit] as const;
 }
 
 /** A timeline page's lease (random, made by the page): the preview's capability of the project lives while one is held. */
@@ -536,7 +537,7 @@ const PreviewAllowInput = z.strictObject({
 });
 
 /** The file's text while switches can be written (the engine gives it beside the view): what undo restores (L4.5 part D). */
-interface TimelineText {
+export interface TimelineText {
   text?: string;
 }
 
@@ -564,7 +565,7 @@ export type TimelineViewAnswer =
  * does not run until `preview_allow` (review A H1 c: the Studio's in-memory allow-list, by folder content hash).
  * Not MCP tools: Claude reads plan_preview.
  */
-export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry>; leases?: PreviewLeases }): ToolDef[] {
+export function timelineOps(o: { player: () => PlayerServer; forbid: () => readonly string[]; allow?: PreviewAllowList; registry?: () => Promise<ComponentRegistry>; leases?: PreviewLeases }) {
   // L4.7: the theme editor's preview pages hold leases of the same set (theme-ops.ts), so timeline_leave ends theirs too.
   const leases = o.leases ?? new PreviewLeases((p) => o.player().release(p));
   /** The workspace components a plan uses that are not allowed (empty without an allow-list: every one runs). */
@@ -575,7 +576,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
     const { workspaceComponents } = await import('../player/bundle-player.js');
     return (await workspaceComponents(await o.registry())).filter((c) => used.has(c.id) && !o.allow!.has(c.id, c.hash));
   };
-  const view: ToolDef<typeof TimelineInput> = {
+  const view = defineTool({
     name: 'timeline_view',
     title: "A scenario's timeline",
     description: "A capture of a scenario as the timeline shows it: its tracks, comment pins, the inspector's choices, the capture's codec, and the preview's capability URLs.",
@@ -589,7 +590,7 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       const r = await engine.timeline.view({ project: a.project, scenario: a.name, ...(a.run ? { run_id: a.run } : {}), ...(a.proposal ? { proposal: a.proposal } : {}) });
       if (!('view' in r)) {
         const data: TimelineViewAnswer = { blocked: r.blocked, ...(r.run_id ? { run_id: r.run_id } : {}) };
-        return { summary: `${a.name}: the take cannot be previewed from the Studio (${plural(r.blocked.problems.length, 'problem')})`, data: data as unknown as Record<string, unknown> };
+        return { summary: `${a.name}: the take cannot be previewed from the Studio (${plural(r.blocked.problems.length, 'problem')})`, data: data };
       }
       const v = r.view;
       // The file's text, for undo (L4.5 part D: L4.3's `restore` of the exact bytes) — as scenario_blocks gives it.
@@ -604,15 +605,15 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
         // Each project its own capability (review A L3): a page of one project never holds URLs of another's files.
         const p = await o.player().publish(r, { forbid: o.forbid(), scope: a.project });
         const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, frame_url: p.frame_url, plan_url: p.plan_url };
-        return { summary: head, data: data as unknown as Record<string, unknown> };
+        return { summary: head, data: data };
       } catch (e) {
         // The tracks still show; the preview says why it cannot (the player's words: asset ids, never a path).
         const data: TimelineViewAnswer = { ...v, ...text, ...heldPart, preview_error: firstErrorLine(e instanceof Error ? e.message : String(e)) };
-        return { summary: `${head}, no preview`, data: data as unknown as Record<string, unknown> };
+        return { summary: `${head}, no preview`, data: data };
       }
     },
-  };
-  const leave: ToolDef<typeof TimelineLeaveInput> = {
+  });
+  const leave = defineTool({
     name: 'timeline_leave',
     title: 'Leave a timeline',
     description: "A timeline page left: its lease ends; once no page holds one, the project's preview URLs answer 404 (the next view gets new ones).",
@@ -624,8 +625,8 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       leases.prune();
       return { summary: revoked ? `${a.project}: preview URLs revoked` : `${a.project}: ${plural(others, 'other page')} still on a timeline or a theme preview`, data: { project: a.project, revoked } };
     },
-  };
-  const allow: ToolDef<typeof PreviewAllowInput> = {
+  });
+  const allow = defineTool({
     name: 'preview_allow',
     title: 'Allow a workspace component in the preview',
     description: 'The person allows one workspace component, at the folder hash shown, to run in the sandboxed preview for this Studio session (in memory only).',
@@ -640,8 +641,8 @@ export function timelineOps(o: { player: () => PlayerServer; forbid: () => reado
       if (!o.allow.allow(a.id, a.hash)) throw new EngineError('refused', 'too many components were allowed in this session: restart the Studio');
       return { summary: `${a.id} (${a.hash}) runs in the preview until the Studio stops`, data: { id: a.id, hash: a.hash, allowed: true } };
     },
-  };
-  return [view, leave, allow] as unknown as ToolDef[];
+  });
+  return [view, leave, allow] as const;
 }
 
 const renderId = z.string().max(200).regex(RENDER_ID_RE, 'a render id (scenario_renders lists them), never a path');
@@ -759,9 +760,9 @@ export function reviewAnswer(v: ReviewView): RenderReviewAnswer {
  * - `review_image`: one contact sheet as a base64 JPEG (≤ 1600 px, ≤ 2,000,000 characters), by its file name in the
  *   review folder, read without following a link (engine reviews.image).
  */
-export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
+export function renderOps(oneAtATime: OpChain = opChain()) {
   // The Studio passes the chain thread_apply and scenario_edit share.
-  const render: ToolDef<typeof RenderInput> = {
+  const render = defineTool({
     name: 'scenario_render',
     title: 'Render a scenario from the Studio',
     description: "Queue a render of the capture shown, with the theme and options of the files, reviewed after it; refused (409) when the file changed since it was shown or a render of the scenario is already queued or running.",
@@ -786,10 +787,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
         ...(sub.worker ? { worker: { ...(sub.worker.pid !== undefined ? { pid: sub.worker.pid } : {}), spawned: sub.worker.spawned } } : {}),
         untrusted: { warnings: sub.warnings, ...(sub.worker?.other ? { other_copy: sub.worker.other } : {}) },
       };
-      return { summary: `render ${sub.render_id} queued (job ${sub.job.id})`, data: data as unknown as Record<string, unknown> };
+      return { summary: `render ${sub.render_id} queued (job ${sub.job.id})`, data: data };
     },
-  };
-  const renders: ToolDef<typeof RendersInput> = {
+  });
+  const renders = defineTool({
     name: 'scenario_renders',
     title: "A scenario's renders",
     description: "A scenario's render queue (queued, running with its progress, reviewing) and its renders, newest first, each with its review's verdict.",
@@ -797,10 +798,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
     annotations: READ,
     async run(a, { engine }) {
       const v = await engine.renders.ofScenario(a.project, a.name);
-      return { summary: `${a.name}: ${plural(v.renders.length, 'render')}, ${v.jobs.length} queued or running`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${a.name}: ${plural(v.renders.length, 'render')}, ${v.jobs.length} queued or running`, data: v };
     },
-  };
-  const cancel: ToolDef<typeof RenderCancelInput> = {
+  });
+  const cancel = defineTool({
     name: 'render_cancel',
     title: 'Cancel a render',
     description: 'Cancel a render or review job of this project (a cancel during the inline review keeps the render). Any other job is refused.',
@@ -819,8 +820,8 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
         data: { id: rec.id, kind: rec.kind, render_id: id, state: rec.state, ...(rec.cancel_requested_at ? { cancel_requested_at: rec.cancel_requested_at } : {}) },
       };
     },
-  };
-  const review: ToolDef<typeof RenderReviewInput> = {
+  });
+  const review = defineTool({
     name: 'render_review',
     title: "A render's review",
     description: "A render's review without any path: verdict, counts, findings (messages as untrusted data), durations, and its contact sheets by name.",
@@ -830,10 +831,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
       // Every image the review kept (contact sheets, scene sheets, key frames, the diff), within REVIEW_IMAGES_MAX.
       const v = reviewAnswer(await engine.reviews.get(a.project, a.render_id, { images: 'all' }));
       const verdict = v.counts ? `${plural(v.counts.error, 'error')}, ${plural(v.counts.warning, 'warning')}` : v.status;
-      return { summary: `review of ${a.render_id}: ${verdict}`, data: v as unknown as Record<string, unknown> };
+      return { summary: `review of ${a.render_id}: ${verdict}`, data: v };
     },
-  };
-  const image: ToolDef<typeof ReviewImageInput> = {
+  });
+  const image = defineTool({
     name: 'review_image',
     title: 'A contact sheet of a review',
     description: "One contact sheet of a render's review as a base64 JPEG (≤ 1600 px), by its name (render_review lists them).",
@@ -841,10 +842,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
     annotations: READ,
     async run(a, { engine }) {
       const v = await engine.reviews.image(a.project, a.render_id, a.image);
-      return { summary: `${a.image} of ${a.render_id} (${v.width}×${v.height})`, data: v as unknown as Record<string, unknown> };
+      return { summary: `${a.image} of ${a.render_id} (${v.width}×${v.height})`, data: v };
     },
-  };
-  const exportOp: ToolDef<typeof ReviewExportInput> = {
+  });
+  const exportOp = defineTool({
     name: 'review_export',
     title: 'Export a render as MP4 from the Studio',
     description:
@@ -855,10 +856,10 @@ export function renderOps(oneAtATime: OpChain = opChain()): ToolDef[] {
       // One export of a render at a time, at most two of the workspace: the engine's export_cap rule.
       const sub = await engine.exports.submit({ project: a.project, render_id: a.render_id, formats: [...REVIEW_EXPORT_FORMATS] });
       const data: ReviewExportAnswer = { render_id: sub.render_id, job: sub.job.id, state: sub.job.state, formats: [...sub.formats], where: `the project's exports folder, under ${sub.render_id}` };
-      return { summary: `export of ${sub.render_id} queued (job ${sub.job.id}): ${sub.formats.join(', ')}`, data: data as unknown as Record<string, unknown> };
+      return { summary: `export of ${sub.render_id} queued (job ${sub.job.id}): ${sub.formats.join(', ')}`, data: data };
     },
-  };
-  return [render, renders, cancel, review, image, exportOp] as unknown as ToolDef[];
+  });
+  return [render, renders, cancel, review, image, exportOp] as const;
 }
 
 /** The names of the Studio's own ops (not MCP tools). */

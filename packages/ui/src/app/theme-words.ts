@@ -12,7 +12,7 @@
  * (library-words.ts); every other string from the server is shown through `Txt`.
  */
 import type { ThemeEditView } from '@retake/engine';
-import type { ThemeCreateInput } from './data/themes.js';
+import type { ThemeCreateInput, ThemeEditInput } from './data/themes.js';
 import type { SiteListAnswer, ThemeListAnswer } from '../server/theme-ops.js';
 import { visibleControls } from './bits.js';
 import type { StudioEvent } from './events.js';
@@ -77,32 +77,13 @@ export const CHECK_WORDS: Record<string, string> = {
 
 /** theme_edit's edits as the page sends them (the server pins each shape). */
 export type FieldValue = string | number | string[];
-export interface SetFieldEdit {
-  kind: 'set_field';
-  field: string;
-  from?: FieldValue;
-  to?: FieldValue;
-  ripple?: boolean;
-}
-export type Background = { type: 'solid'; color: string } | { type: 'radial' | 'linear'; from: string; to: string };
-export interface SetBackgroundEdit {
-  kind: 'set_background';
-  from?: Record<string, string | number>;
-  to: Background;
-}
-export interface SetComponentEdit {
-  kind: 'set_component';
-  component: Kind;
-  from?: string | null;
-  id: string | null;
-  params: 'keep' | 'drop';
-}
-export interface RestoreEdit {
-  kind: 'restore';
-  text: string;
-  text_hash: string;
-}
-export type ThemeEdit = SetFieldEdit | SetBackgroundEdit | SetComponentEdit | RestoreEdit;
+/** An edit of a theme (theme_edit's `edit`: its input, as the page sends it). */
+export type ThemeEdit = ThemeEditInput;
+export type SetFieldEdit = Extract<ThemeEdit, { kind: 'set_field' }>;
+export type Background = SetBackgroundEdit['to'];
+export type SetBackgroundEdit = Extract<ThemeEdit, { kind: 'set_background' }>;
+export type SetComponentEdit = Extract<ThemeEdit, { kind: 'set_component' }>;
+export type RestoreEdit = Extract<ThemeEdit, { kind: 'restore' }>;
 
 type View = Pick<ThemeEditView, 'editable' | 'fields' | 'components' | 'background' | 'fonts' | 'images' | 'yaml' | 'sha256'>;
 
@@ -132,7 +113,8 @@ export function fieldEdit(view: Pick<ThemeEditView, 'fields' | 'editable'>, fiel
     const p = textProblem(field, to);
     if (p) return { why: p };
   }
-  return { edit: { kind: 'set_field', field, ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}), ...(o.ripple ? { ripple: true } : {}) } };
+  // The editor's fields are theme_view's (core THEME_FIELD_PATHS; the view types them as strings): the server checks it.
+  return { edit: { kind: 'set_field', field: field as SetFieldEdit['field'], ...(from !== undefined ? { from } : {}), ...(to !== undefined ? { to } : {}), ...(o.ripple ? { ripple: true } : {}) } };
 }
 
 /** Why a zoom value cannot be written (null: it can). */
@@ -499,10 +481,12 @@ export function newThemeProblem(f: NewThemeForm, taken: Iterable<string>): strin
 
 /** theme_create's input from the form (empty fields left out: the base theme's or derived). */
 export function createInput(f: NewThemeForm): ThemeCreateInput {
-  const colors: ThemeCreateInput['colors'] = { accent: f.accent.toLowerCase() };
-  if (f.text) colors.text = f.text.toLowerCase();
-  if (f.paper) colors.paper = f.paper.toLowerCase();
-  if (f.muted) colors.muted = f.muted.toLowerCase();
+  const colors: ThemeCreateInput['colors'] = {
+    accent: f.accent.toLowerCase(),
+    ...(f.text ? { text: f.text.toLowerCase() } : {}),
+    ...(f.paper ? { paper: f.paper.toLowerCase() } : {}),
+    ...(f.muted ? { muted: f.muted.toLowerCase() } : {}),
+  };
   const fonts = { ...(f.display ? { display: f.display } : {}), ...(f.body ? { body: [f.body] } : {}) };
   const brand = { ...(f.brandName.trim() ? { name: f.brandName.trim() } : {}), ...(f.brandUrl.trim() ? { url: f.brandUrl.trim() } : {}) };
   return {

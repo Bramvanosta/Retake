@@ -45,10 +45,12 @@ import {
 } from '@retake/engine';
 import type { Engine, EngineErrorCode, RouteSpec, SqliteLoader, WorkerSpawnFn } from '@retake/engine';
 import { servedNames, studioPins, studioStatus } from '@retake/engine/catalogue';
-import type { OperationName } from '@retake/engine/catalogue';
+import type { OperationName, StudioOpName, StudioPinsOf } from '@retake/engine/catalogue';
 import { callTool, capUntrusted, pinArguments } from '@retake/engine/contract';
-import type { ToolDef } from '@retake/engine/contract';
+import type { PinnedTool, ToolDef, ToolsByName } from '@retake/engine/contract';
+import type { z } from 'zod';
 import { TOOLS } from '@retake/mcp';
+import type { McpTools } from '@retake/mcp';
 import { buildUi } from '../bundle.js';
 import type { UiAsset } from '../bundle.js';
 import { PlayerBundles } from '../player/bundle-player.js';
@@ -204,14 +206,14 @@ export interface StudioServer {
  * which never take an MCP tool's name).
  */
 export function uiTools(own: readonly ToolDef[] = []): Map<string, ToolDef> {
-  const mcp = new Map(TOOLS.map((t) => [t.name, t]));
-  const mine = new Map(own.map((t) => [t.name, t]));
+  const mcp = new Map<string, ToolDef>(TOOLS.map((t) => [t.name, t]));
+  const mine = new Map<string, ToolDef>(own.map((t) => [t.name, t]));
   for (const name of mine.keys()) if (mcp.has(name)) throw new Error(`UI op ${name} would shadow the MCP tool of that name`);
   return new Map(UI_OPS.map((op) => {
     const t = mcp.get(op) ?? mine.get(op);
     if (!t) throw new Error(`UI op ${op} is not a tool`);
     const pins = studioPins(op);
-    return [op, pins.length ? pinArguments(t, pins) : t];
+    return [op, pins.length ? pinArguments(t as ToolDef<z.ZodObject>, pins) : t];
   }));
 }
 
@@ -234,8 +236,13 @@ export interface StudioToolDeps {
 
 /** The ops of one Studio server: the MCP tools of the allow-list and the Studio's own ops, each by name (uiTools). */
 export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
+  return uiTools(ownOps(d));
+}
+
+/** The Studio's own ops (ops.ts and the other *-ops.ts modules), each with its types (OwnOps). */
+function ownOps(d: StudioToolDeps) {
   const { chain, leases } = d;
-  return uiTools([
+  return [
     ...indexOps(d.live),
     overviewOp(),
     boardOp(),
@@ -253,8 +260,23 @@ export function studioTools(d: StudioToolDeps): Map<string, ToolDef> {
     ...desktopOps(d.desktop),
     ...setupOps({ pipe: d.desktop, state: d.setupState, ctx: d.setupContext, workspace: d.workspace }),
     ...updateOps({ pipe: d.desktop, state: d.updateState }),
-  ]);
+  ] as const;
 }
+
+/** The Studio's own ops by name, as types. */
+type OwnOps = ToolsByName<ReturnType<typeof ownOps>[number]>;
+/** The definition of an op the Studio serves: the MCP tool of that name, else its own op. */
+type ToolOf<K extends StudioOpName> = K extends keyof McpTools ? McpTools[K] : K extends keyof OwnOps ? OwnOps[K] : never;
+/**
+ * Every op the Studio serves as `/v1/call/<op>` runs it — the MCP tool or its own op, the Studio's pinned arguments
+ * applied (as uiTools builds them) — by name, as types: the app's StudioOps (src/app/data/ops.ts) is derived from it
+ * (each op's arguments `ToolArgs`, its answer `ToolData`). Types only: the server's table is studioTools.
+ */
+export type StudioTools = { [K in StudioOpName]: PinnedTool<ToolOf<K>, StudioPinsOf<K>> };
+/** An op the catalogue says the Studio serves without a tool of that name: none (a compile-time check, as uiTools's at start). */
+type Toolless = { [K in StudioOpName]: [ToolOf<K>] extends [never] ? K : never }[StudioOpName];
+export type EveryStudioOpHasATool = NoneOf<Toolless>;
+type NoneOf<T extends never> = T;
 
 function route(path: string, assets: Map<string, UiAsset>): RouteSpec | undefined {
   if (assets.has(path)) return STATIC;

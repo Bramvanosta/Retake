@@ -28,7 +28,6 @@ import type { Loaded } from './api.js';
 import { previewAllow, timelineLeave } from './data/edit.js';
 import { scenarioBlocks, scenarioEdit } from './data/scenarios.js';
 import { themeCopy, themeEdit, themePreview, themeView } from './data/themes.js';
-import type { ThemeEditInput } from './data/themes.js';
 import { Txt } from './bits.js';
 import { useUnsavedMark } from './drafts.js';
 import { useEvents } from './events.js';
@@ -192,7 +191,7 @@ export function ThemeEditor({ slug, theme, list }: { slug: string; theme: string
     const before = v.yaml !== null ? { text: v.yaml, sha256: v.sha256 } : null;
     const step = mode === 'undo' ? history.current.undoStep() : mode === 'redo' ? history.current.redoStep() : null;
     try {
-      const r = await themeEdit({ theme, if_match: step ? step.if_match : v.sha256, edit: (step ? step.edit : edit) as ThemeEditInput });
+      const r = await themeEdit({ theme, if_match: step ? step.if_match : v.sha256, edit: step ? step.edit : edit });
       const nv = await load();
       if (mode === 'undo') history.current.undone();
       else if (mode === 'redo') history.current.redone();

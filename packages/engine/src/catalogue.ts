@@ -289,6 +289,15 @@ const ENTRIES = [
 /** The name of an operation of the catalogue. */
 export type OperationName = (typeof ENTRIES)[number]['name'];
 
+/** An entry of the catalogue, as written (its literal types: names, pins). */
+type Entry = (typeof ENTRIES)[number];
+/** The entries the Studio serves (its `studio` facet a serve, not a reason). */
+type StudioEntry = Exclude<Entry, { readonly studio: NotServed }>;
+/** The name of an operation the Studio serves: the type of `servedNames('studio')`'s names (UI_OPS). */
+export type StudioOpName = StudioEntry['name'];
+/** The arguments the Studio pins on one of its operations, as the catalogue writes them (`readonly []` when none). */
+export type StudioPinsOf<K extends StudioOpName> = Extract<StudioEntry, { readonly name: K }>['studio'] extends { readonly pins: infer P extends readonly ArgumentPin[] } ? P : readonly [];
+
 /** Every operation, MCP tools first (in the order tools/list gives them), then the Studio's own ops, then the CLI's own. */
 export const CATALOGUE: readonly (Operation & { readonly name: OperationName })[] = ENTRIES;
 

@@ -20,7 +20,6 @@ import type { LibraryComponentAnswer, LibraryItem, LibraryViewAnswer } from '../
 import { CallError, errorText } from './api.js';
 import type { Loaded } from './api.js';
 import { themeCopy, themeEdit, themeView } from './data/themes.js';
-import type { ThemeEditInput } from './data/themes.js';
 import { APP_NAME } from './brand.js';
 import { Txt, plural } from './bits.js';
 import { DefaultTag, PictureBox, SourceTag, useLibrary } from './LibraryCards.js';
@@ -67,7 +66,7 @@ function SetDefault({ item, view }: { item: LibraryItem; view: LibraryViewAnswer
       return;
     }
     setSt({ s: 'busy', what: 'Writing the theme…' });
-    const result = await themeEdit({ theme: target, if_match: tv.sha256, edit: plan.edit as ThemeEditInput });
+    const result = await themeEdit({ theme: target, if_match: tv.sha256, edit: plan.edit });
     setSt({ s: 'done', theme: target, before: tv, result, ...(copied ? { copied } : {}) });
     if (copied) location.hash = hrefTo({ name: 'library', slug: lib.slug, theme: copied, component: item.component });
     else lib.reload();

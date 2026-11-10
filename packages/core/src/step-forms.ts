@@ -65,7 +65,7 @@ export interface StepForms {
 }
 
 /** The actions of the palette (critique C3): those whose required values fit the form fields. */
-export const PALETTE_ACTIONS: readonly ActionName[] = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify', 'hook'];
+export const PALETTE_ACTIONS = ['open', 'click', 'double_click', 'hover', 'type', 'press', 'select', 'wait', 'wait_for', 'hold', 'screenshot', 'scroll', 'menu', 'date', 'notify', 'hook'] as const satisfies readonly ActionName[];
 
 /** Actions without a form: code, custom events, cursor points (the YAML view). */
 const NO_FORM: ReadonlySet<ActionName> = new Set<ActionName>(['eval', 'emit', 'cursor']);
@@ -194,7 +194,7 @@ function actionForm(action: ActionName): ActionForm {
     else if (f.kind === 'text') defaults[f.key] = '';
     else if (f.kind === 'enum' && f.options?.length) defaults[f.key] = f.options[0];
   }
-  return { action, description: ACTION_DESCRIPTIONS[action], fields: out.fields, yaml_only: out.yaml_only, palette: PALETTE_ACTIONS.includes(action), defaults };
+  return { action, description: ACTION_DESCRIPTIONS[action], fields: out.fields, yaml_only: out.yaml_only, palette: (PALETTE_ACTIONS as readonly ActionName[]).includes(action), defaults };
 }
 
 function modifierFields(): FormField[] {

@@ -14,7 +14,7 @@ import { INSPECT_JOB_LIMIT_MAX, INSPECT_JOB_TARGETS_MAX, InspectTargetSchema } f
 import type { Engine, InspectJobResult, JobRecord } from '@retake/engine';
 import { envName, projectSlug, scenarioName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolImage, ToolOutput } from '../result.js';
+import type { ToolImage } from '../result.js';
 import { RUN_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { jobErrorLine, jobLine } from './job-lines.js';
@@ -64,7 +64,7 @@ function capElements(data: Record<string, unknown>, elements: unknown[], max = I
  * An inspect job as a tool shows it: the summary (counts, status, page key; what to do next), the data with the page's
  * text under `untrusted`, and the marked screenshot. A job not finished yet: how to follow it.
  */
-export async function inspectOutput(engine: Engine, job: JobRecord, head: string[] = [], level: Detail = 'compact'): Promise<ToolOutput> {
+export async function inspectOutput(engine: Engine, job: JobRecord, head: string[] = [], level: Detail = 'compact') {
   const input = job.input;
   if (input.kind !== 'inspect') throw new Error(`job ${job.id} is not an inspection`);
   const lines = [...head, jobLine(job)];
@@ -166,7 +166,7 @@ export async function inspectOutput(engine: Engine, job: JobRecord, head: string
  * mark, where it is, its action and the step hint to copy (flags only when set); the popups, the checked targets, the
  * files. inspect.json keeps everything (detail: "full" returns it).
  */
-function compactInspectOutput(job: JobRecord, base: Record<string, unknown>, report: InspectReport, marked: string | null | undefined, lines: string[]): ToolOutput {
+function compactInspectOutput(job: JobRecord, base: Record<string, unknown>, report: InspectReport, marked: string | null | undefined, lines: string[]) {
   const { elements, left_out } = compactElements(report.elements as unknown as Array<Record<string, unknown>>);
   const c = report.counts;
   if (left_out) lines.push(`${plural(left_out, 'element')} out of view (below the fold, not in a dialog or menu) left out: scroll to them in a step, or page_inspect {within} / detail: "full" lists them.`);
@@ -241,4 +241,4 @@ export const pageInspect = defineTool({
   },
 });
 
-export const INSPECT_TOOLS: ToolDef[] = [pageInspect];
+export const INSPECT_TOOLS = [pageInspect] as const satisfies readonly ToolDef[];

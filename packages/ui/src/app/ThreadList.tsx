@@ -71,7 +71,7 @@ function ThreadRow({ t, slug, name, current }: { t: ThreadItem; slug: string; na
 /** Memoised (review A-L2): a frame step of the viewer re-renders the screen, never this list (its props are stable). */
 export const ThreadList = memo(function ThreadList(p: { slug: string; name: string; filter: Filter; setFilter: (f: Filter) => void; onlyRender: boolean; setOnlyRender: (b: boolean) => void; render: string | null; current?: string; tick: number }) {
   const only = p.onlyRender && p.render !== null;
-  const args = { project: p.slug, name: p.name, status: p.filter, ...(only ? { render: p.render! } : {}) };
+  const args = { project: p.slug, name: p.name, status: p.filter, ...(p.onlyRender && p.render !== null ? { render: p.render } : {}) };
   const [loaded, reload] = useThreadsList(args, `${p.slug}\0${p.name}\0${p.filter}\0${only ? p.render : ''}`);
   const first = useRef(true);
   useEffect(() => {

@@ -4,6 +4,7 @@
  * startMcpServer) and over HTTP (http.ts).
  */
 import { callTool } from '@retake/engine/contract';
+import type { ToolsByName } from '@retake/engine/contract';
 import type { Engine } from '@retake/engine';
 import { elicitationApprover } from './approval.js';
 import { inputJsonSchema } from './schema.js';
@@ -25,8 +26,26 @@ import { INSPECT_TOOLS } from './tools/inspect.js';
 import { AUTHORING_TOOLS } from './tools/authoring.js';
 import { COMMENT_TOOLS } from './tools/comments.js';
 
-/** Every tool of the server, in the order tools/list gives them. */
-export const TOOLS: readonly ToolDef[] = [...PROJECT_TOOLS, ...SCENARIO_TOOLS, ...INSPECT_TOOLS, ...AUTHORING_TOOLS, ...RUN_TOOLS, ...RENDER_TOOLS, ...REVIEW_TOOLS, ...EXPORT_TOOLS, ...COMMENT_TOOLS, ...THEME_TOOLS, ...COMPONENT_TOOLS, ...JOB_TOOLS, ...HOOK_TOOLS, ...ENVIRONMENT_TOOLS];
+/** Every tool of the server, in the order tools/list gives them (each with its input, answer and name types). */
+export const TOOLS: readonly [
+  ...typeof PROJECT_TOOLS,
+  ...typeof SCENARIO_TOOLS,
+  ...typeof INSPECT_TOOLS,
+  ...typeof AUTHORING_TOOLS,
+  ...typeof RUN_TOOLS,
+  ...typeof RENDER_TOOLS,
+  ...typeof REVIEW_TOOLS,
+  ...typeof EXPORT_TOOLS,
+  ...typeof COMMENT_TOOLS,
+  ...typeof THEME_TOOLS,
+  ...typeof COMPONENT_TOOLS,
+  ...typeof JOB_TOOLS,
+  ...typeof HOOK_TOOLS,
+  ...typeof ENVIRONMENT_TOOLS,
+] = [...PROJECT_TOOLS, ...SCENARIO_TOOLS, ...INSPECT_TOOLS, ...AUTHORING_TOOLS, ...RUN_TOOLS, ...RENDER_TOOLS, ...REVIEW_TOOLS, ...EXPORT_TOOLS, ...COMMENT_TOOLS, ...THEME_TOOLS, ...COMPONENT_TOOLS, ...JOB_TOOLS, ...HOOK_TOOLS, ...ENVIRONMENT_TOOLS];
+
+/** The server's tools by name, as types (a tool's arguments and answer: ToolArgs / ToolData of its entry). */
+export type McpTools = ToolsByName<(typeof TOOLS)[number]>;
 
 export const INSTRUCTIONS = [
   'Retake turns YAML scenarios into product videos captured from a real web app.',

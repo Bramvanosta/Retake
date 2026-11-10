@@ -148,14 +148,40 @@ function dataFunctions(): Map<string, DataFn> {
     const text = readFileSync(join(APP, 'data', f), 'utf8');
     for (const m of text.matchAll(/^export const (\w+) = (?:op|readHook)\('([a-z_]+)'\);$/gm)) out.set(m[1], { op: m[2], ops: [m[2]] });
     const aliases = new Map([...text.matchAll(/^export type (\w+) = ((?:'[a-z_]+'(?: \| )?)+);$/gm)].map((m) => [m[1], m[2]]));
-    for (const m of text.matchAll(/^export function (\w+)\(name: ([^,]+), /gm)) {
-      const union = aliases.get(m[2]) ?? m[2];
+    // L6.12–L6.13 fixes: generic over the op (`<K extends …>(name: K, …)`); `keyof typeof <TABLE>` names a table's keys.
+    const tables = new Map([...text.matchAll(/^const (\w+) = \{ ([^}]+) \};$/gm)].map((m) => [m[1], [...m[2].matchAll(/(\w+): /g)].map((x) => `'${x[1]}'`).join(' | ')]));
+    for (const [k, v] of [...text.matchAll(/^export type (\w+) = keyof typeof (\w+);$/gm)].map((m) => [m[1], tables.get(m[2]) ?? ''] as const)) aliases.set(k, v);
+    for (const m of text.matchAll(/^export function (\w+)(?:<\w+ extends ([^>]+)>)?\(name: ([^,]+), /gm)) {
+      const type = m[2] ?? m[3];
+      const union = aliases.get(type) ?? type;
       out.set(m[1], { op: null, ops: [...union.matchAll(/'([a-z_]+)'/g)].map((x) => x[1]) });
     }
   }
   return out;
 }
 const DATA_FNS = dataFunctions();
+
+/** The data modules' sources but the client's and the op map's (which make no call of their own): [file, text]. */
+function dataSources(): Array<[string, string]> {
+  return readdirSync(join(APP, 'data'))
+    .filter((x) => /\.ts$/.test(x) && x !== 'client.ts' && x !== 'ops.ts')
+    .map((f) => [f, readFileSync(join(APP, 'data', f), 'utf8')]);
+}
+
+/** Every value those modules export, by name (its file): a re-export of values counts as one. */
+function dataValueExports(sources: Array<[string, string]>): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const [f, text] of sources) {
+    const src = ts.createSourceFile(f, text, ts.ScriptTarget.Latest, true);
+    for (const st of src.statements) {
+      const exported = ts.canHaveModifiers(st) && ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (exported && ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) out.set(d.name.getText(src), f);
+      if (exported && (ts.isFunctionDeclaration(st) || ts.isClassDeclaration(st) || ts.isEnumDeclaration(st)) && st.name) out.set(st.name.text, f);
+      if (ts.isExportDeclaration(st) && !st.isTypeOnly) out.set(`(re-export in ${f})`, f);
+    }
+  }
+  return out;
+}
 const isDataModule = (spec: string) => /(^|\/)data\/[a-z-]+\.js$/.test(spec);
 
 /** The data functions a source imports from a data module (by their own names). */
@@ -424,7 +450,7 @@ describe('the comment writes name nobody (L4.6 part D1)', () => {
     const sources = await appSources();
     const screen = code(sources.find(([f]) => f === 'ThreadPanel.tsx')![1]);
     for (const op of ['thread_reply', 'thread_resolve', 'thread_reopen']) expect(screen).toContain(`'${op}'`);
-    const HELPER = /threadWrite\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \}\)/g;
+    const HELPER = /threadWrite\(op, \{ project: slug, comment_id: th\.id, \.\.\.args \} as OpArgs<K>\)/g;
     expect(screen.match(HELPER)?.length).toBe(1);
     expect(sources.filter(([f, text]) => (code(text).match(HELPER) ?? []).length > 0 || /\bsend\('[A-Za-z]+', 'thread_/.test(code(text))).map(([f]) => f)).toEqual(['ThreadPanel.tsx']);
     for (const c of calls) expect(NAMED.test(c.args), `${c.f}: ${c.op} sends ${c.args}`).toBe(false);
@@ -450,6 +476,8 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     expect(args).toBe(1);
     const timeline = code(files.find(([f]) => f === 'TimelineScreen.tsx')![1]);
     expect(timeline).toMatch(/useTimelineView\(args,/);
+    // L6.12–L6.13 fixes (L7): that read is timeline_view's (the one op whose `proposal` it is).
+    expect(DATA_FNS.get('useTimelineView')).toEqual({ op: 'timeline_view', ops: ['timeline_view'] });
     // thread_apply sends the reply and the proposal's hash shown, nothing else (L5.12b: ProposalCard.tsx, M1: the one call
     // of the app — no other file applies).
     const panel = code(files.find(([f]) => f === 'ProposalCard.tsx')![1]);
@@ -457,7 +485,7 @@ describe('the page makes no proposal (L4.6 part D2)', () => {
     expect(applies.map((c) => c.args)).toEqual(['({ project: slug, comment_id: threadId, entry_id: entryId, if_match: ifMatch })']);
     const everywhere = files.flatMap(([f, text]) => threadCalls(code(text)).filter((c) => c.op === 'thread_apply').map(() => f));
     expect(everywhere).toEqual(['ProposalCard.tsx']);
-    // L6.13: data/ names it once (its function) and in the op map (the generated arguments, the declared result).
+    // L6.13: data/ names it once (its function); its arguments and result are derived from the op table (data/ops.ts).
     expect(files.filter(([f, text]) => !f.startsWith('data/') && /thread_apply|threadApply/.test(code(text))).map(([f]) => f)).toEqual(['ProposalCard.tsx']);
     expect(files.filter(([f, text]) => f.startsWith('data/') && /\bop\('thread_apply'\)/.test(text)).map(([f]) => f)).toEqual(['data/comments.ts']);
   });
@@ -2379,8 +2407,9 @@ describe('L5.12b: Comments, the proposal, the README, the palette', () => {
     const panel = files.find(([f]) => f === 'ThreadPanel.tsx')![1];
     expect(sendOps(panel).sort()).toEqual(['thread_reopen', 'thread_reply', 'thread_resolve']);
     // A call with an op that is not a literal: the thread's helper, the project reads' loader and (L6.13) the data layer's
-    // own — its client and the two data functions whose op is an argument — no other.
-    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'data/client.ts', 'data/comments.ts', 'data/projects.ts', 'project-data.ts']);
+    // own — its client and the thread writes' data function (L6.12–L6.13 fixes: projectRead calls its reads' own op
+    // functions) — no other.
+    expect(files.flatMap(([f, text]) => (nonLiteralCalls(text) > 0 ? [f] : [])).sort()).toEqual(['ThreadPanel.tsx', 'data/client.ts', 'data/comments.ts', 'project-data.ts']);
     expect(nonLiteralCalls(panel)).toBe(1);
     // The mutation (review A-M1): a resolve planted in the list fails its allow-list.
     const list = files.find(([f]) => f === 'ThreadList.tsx')![1];
@@ -2621,6 +2650,20 @@ describe('L5.12c: the Library, the Themes list and the theme editor', () => {
     expect(apiImportFindings('X.tsx', "const m = import('./api.js');")).toEqual(['X.tsx: a dynamic import of the api']);
     // What stays allowed: a call, a member named call of something else, an object key.
     expect(apiImportFindings('X.tsx', "import { call, useCall } from './api.js';\ncall<T>('theme_view', {});\nuseCall('x', {}, 'k');\nfn.call(null);\nconst o = { call: 1 };")).toEqual([]);
+  });
+
+  it('⚑ L6.12–L6.13 fixes (L7): every value a data module exports is a data function the op lints know (DATA_FNS: `op(…)` / `readHook(…)` of its op, or a helper whose op is its argument) — none escapes them', () => {
+    const sources = dataSources();
+    expect(sources.map(([f]) => f)).toEqual(expect.arrayContaining(['comments.ts', 'projects.ts', 'themes.ts']));
+    const values = dataValueExports(sources);
+    expect(values.size).toBeGreaterThan(60);
+    expect([...values.keys()].filter((n) => !DATA_FNS.has(n))).toEqual([]);
+    // The helpers whose op is an argument: each with the ops it takes.
+    expect(DATA_FNS.get('threadWrite')).toEqual({ op: null, ops: ['thread_reply', 'thread_resolve', 'thread_reopen'] });
+    expect(DATA_FNS.get('projectRead')).toEqual({ op: null, ops: ['project_get', 'project_board', 'auth_status'] });
+    // The mutations: a data function the lints would not see (a wrapper of its own, a re-export, a class).
+    const planted: Array<[string, string]> = [...sources, ['planted.ts', "import { call } from '../api.js';\nexport const sneaky = (a: object) => call('theme_edit', a);\nexport { themeEdit as edit } from './themes.js';\nexport class Client {}\n"]];
+    expect([...dataValueExports(planted).keys()].filter((n) => !DATA_FNS.has(n))).toEqual(['sneaky', '(re-export in planted.ts)', 'Client']);
   });
 
   it('⚑ L5.12c fixes (review A-L5): the colour constants of theme-words.ts (an export whose value holds a colour literal) are imported only where theme data is shown — the gallery\'s sample, the New theme form, the colour fields\' fallback', async () => {

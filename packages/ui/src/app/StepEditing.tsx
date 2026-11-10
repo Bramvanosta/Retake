@@ -157,8 +157,7 @@ export function useStepEditor(slug: string, name: string, v: View | null, yamlDr
     (op: StepEditOp) => {
       if (!enabled) return;
       setConflict(null);
-      // The step ops' own type is wider than the input's (an action as a string): the server checks the rest.
-      run(op as unknown as ScenarioEdit, (r, shown) => {
+      run(op, (r, shown) => {
         history.current.push({ label: r.label, before: shown.text, hashBefore: shown.hash, after: null, hashAfter: r.hash });
         // A form's change says which kind it is (L5.5): a move, a delete, a copy or a new step is always filmed.
         return `${r.label}. Saved.${op.kind === 'set_step' ? ` ${CHANGE_WORDS[r.change ?? 'filmed']}` : ''}`;

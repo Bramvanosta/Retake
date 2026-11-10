@@ -1,5 +1,6 @@
 /**
- * L6.13: Renders and the Review report: a render, the render list, Cancel, the review, its contact sheets, the export.
+ * L6.13: Renders and the Review report: a render, the render list, Cancel, the review, its contact sheets, the export,
+ * and a render's frames and outline (the review's frame and the comments' viewer).
  * Each op once, typed by StudioOps (data/ops.ts).
  */
 import { op, readHook } from './client.js';
@@ -10,3 +11,5 @@ export const renderCancel = op('render_cancel');
 export const useRenderReview = readHook('render_review');
 export const reviewImage = op('review_image');
 export const reviewExport = op('review_export');
+export const useRenderOutline = readHook('render_outline');
+export const renderFrame = op('render_frame');

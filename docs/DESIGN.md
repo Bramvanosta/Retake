@@ -2271,8 +2271,10 @@ the person points it at. `project_get` keeps opening a project whose README.md c
 
 **`callTool(t, engine, args, ctx) → {ok, output} | {ok: false, error: EngineError}`** (`@retake/engine/contract`, an
 `exports` sub-path of the engine; moved from the MCP package) — the zod parse (problems per argument) and the handler,
-SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef` / `ToolContext` /
-`ToolOutput`, `capUntrusted` and `pinArguments`, and the **operation catalogue** (`catalogue.ts`, also its own
+SDK-free; `protocolTool` and the Studio server both use it. The same entry holds `ToolDef<S, D, N>` (input schema,
+answer data, name — kept, not erased: `defineTool` infers them; `ToolArgs`, `ToolData`, `ToolsByName` read them) /
+`ToolContext` / `ToolOutput<D>`, `capUntrusted` and `pinArguments` (typed by its pins: `PinnedTool`), and the
+**operation catalogue** (`catalogue.ts`, also its own
 browser-safe entry `@retake/engine/catalogue`: it imports nothing at run time): every operation once (122: the 45 MCP
 tools, the Studio's 65 own ops, 12 operations only the CLI serves), its facets — the effect (`read`, `write`,
 `destructive`), whether MCP and the Studio queue it as a job, whose code it runs (`none`, `project`: hooks and sandbox
@@ -2369,19 +2371,27 @@ package it takes only the tools it serves as they are and the Set-up sheet's reg
   (below); `drafts.ts` (unsaved README text per project for this tab, `beforeunload` guard); `events.ts` (part 3,
   below); `Activity.tsx` (`ActivityPanel`, `SearchBox`: hits link to their project through `hrefTo`).
 - The data layer (L6.12 – L6.13): `api.ts` `call` / `useCall` are typed by `StudioOps` (`src/app/data/ops.ts`) — every
-  op the Studio serves (UI_OPS), its arguments generated from the Studio's op table (`data/studio-ops.gen.ts`: each
-  op's zod input as `/v1/call/<op>` parses it, the Studio's pinned arguments included — the server's tables erase
-  their types, so the client is generated, held byte for byte to its generator by `test/studio-ops.test.ts`;
-  `RETAKE_WRITE_SNAPSHOTS=1` after an intended change of an input) and its result declared there (the engine's or the
-  server's type where the op answers exactly that, else the app's own; `unknown` for an op the app never reads). An op
-  the Studio does not serve, an argument its input refuses or a result read as another type is a compile error (a
-  check file compiled with the app's options, and its mutations). Only `src/app/data/` imports `call` / `useCall`: one
-  module per feature (`projects`, `scenarios`, `shoot`, `edit`, `renders`, `comments`, `library`, `themes`, `record`,
-  `desktop`) names each op once — `themeEdit = op('theme_edit')`, `useThemeList = readHook('theme_list')` — and the
-  screens import those (same requests on the wire). `test/feature-boundaries.test.ts` walks the app's imports: data/
-  imports nothing of the app but api.ts and itself, the kit nothing but its foundations (bits, route), the kit and the
-  shell are reached through their public modules (`ui-kit/index`; the shell, its slots, command bus, announcer and
-  modes); exceptions listed with a reason, ratchet-style (new and stale both fail).
+  op the Studio serves (UI_OPS: the catalogue's `StudioOpName`), its arguments and its result derived from the
+  Studio's op table at the type level (L6.12–L6.13 fixes): the operation contract keeps each operation's types
+  (`ToolDef<S, D, N>`: its zod input, the data its handler answers, its name; `defineTool` infers them, the answer as
+  the union of the handler's returns), the MCP tools (`McpTools`) and the Studio's own ops are tables by name, and
+  server `studio.ts` `StudioTools` is each op as `/v1/call/<op>` runs it (the Studio's pins applied: `PinnedTool`).
+  An op's arguments are its input's `z.input` (read-only all the way down), its result its `ToolData` — no generated
+  file, no hand-written result: `Narrowed` lists the ops the app holds narrower, each with its reason (run_status:
+  never `detail: "full"`, so the compact `CompactRunStatus` of the engine), and a result the handler cannot infer
+  precisely is declared on the server where it is written (`SetupStatus`, `UpdateStatus`: the compiler holds the
+  handler to it). `data/ops.ts` imports types only (the engine's, the server's op table). An op the Studio does not
+  serve, an argument its input refuses or a result read as another type is a compile error (a check file compiled
+  with the app's options, and its mutations: test/studio-ops.test.ts). Only `src/app/data/` imports `call` /
+  `useCall`: one module per feature (`projects`, `scenarios`, `shoot`, `edit`, `renders`, `comments`, `library`,
+  `themes`, `record`, `desktop`) names each op once — `themeEdit = op('theme_edit')`, `useThemeList =
+  readHook('theme_list')`; an op that takes no argument is called and read without them (`engineInfo()`,
+  `useEngineInfo('info')`) — and the screens import those (same requests on the wire). `test/feature-boundaries.test.ts`
+  walks the app's imports: data/ imports nothing of the app but api.ts and itself (and, types only, the server's op
+  table), the kit nothing but its foundations (bits, route), the kit and the shell are reached through their public
+  modules (`ui-kit/index`; the shell, its slots, command bus, announcer and modes); outside the app it imports types
+  only (the server's answers above all), save the browser-safe modules listed with their reason (`mark`,
+  `player/parent`); exceptions listed with a reason, ratchet-style (new and stale both fail).
 - README editor: a textarea with `maxLength` 200,000 (the tool's cap) and a counter; save (button, Cmd/Ctrl+S) →
   `project_update_readme {markdown, if_match: the hash the text was based on}` — `markdown` with a final line break and
   the file's own line breaks (the textarea works in LF; `drafts.ts` remembers CR LF or LF from the text loaded, so

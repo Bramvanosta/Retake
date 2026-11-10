@@ -13,18 +13,13 @@
  *   (critique B1): the scenario's theme (`template`) is one too — its default is the project's theme.
  */
 import type { TimelineView } from '@retake/engine';
+import type { ScenarioEdit } from './data/scenarios.js';
 
 export type Choice = TimelineView['choices']['video'][number];
 export type SwitchValue = string | number | boolean;
 
 /** The edit a switch sends (scenario_edit `set_field`). */
-export interface SwitchEdit {
-  kind: 'set_field';
-  at: Choice['at'];
-  field: string;
-  from?: SwitchValue;
-  to?: SwitchValue;
-}
+export type SwitchEdit = Extract<ScenarioEdit, { kind: 'set_field' }>;
 
 /** One radio button of a switch. */
 export interface SwitchOption {
@@ -146,7 +141,8 @@ export function switchOptions(c: Choice, inherited?: string): SwitchOption[] {
 
 /** The edit a pick sends: `from` what the inspector showed, `to` the value (none for the theme's default). */
 export function switchEdit(c: Choice, value: SwitchValue | null): SwitchEdit {
-  return { kind: 'set_field', at: c.at, field: c.field, ...(c.current !== undefined ? { from: c.current } : {}), ...(value !== null ? { to: value } : {}) };
+  // The view's choices name fields of set_field only (core FIELD_PATHS; timeline_view types them as strings).
+  return { kind: 'set_field', at: c.at, field: c.field as SwitchEdit['field'], ...(c.current !== undefined ? { from: c.current } : {}), ...(value !== null ? { to: value } : {}) };
 }
 
 /** Whether a value is in a number switch's range (speed, duration). */

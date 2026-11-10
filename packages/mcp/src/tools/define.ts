@@ -1,12 +1,11 @@
-import type { z } from 'zod';
-import type { ToolAnnotations, ToolDef } from '@retake/engine/contract';
+import type { ToolAnnotations } from '@retake/engine/contract';
 
-/** A tool of the server is an operation of the contract (@retake/engine/contract): its definition lives there. */
+/**
+ * A tool of the server is an operation of the contract (@retake/engine/contract): its definition lives there, and
+ * `defineTool` keeps its input, answer and name types (a tool table is typed by them: tool-set.ts TOOLS).
+ */
 export type { ToolContext, ToolDef } from '@retake/engine/contract';
-
-export function defineTool<S extends z.ZodType>(t: ToolDef<S>): ToolDef {
-  return t as unknown as ToolDef;
-}
+export { defineTool } from '@retake/engine/contract';
 
 export const READ: ToolAnnotations = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 /** Writes authored files of the workspace (never deletes; overwrites need if_match). */

@@ -13,6 +13,10 @@
  *
  * A part's style sheet (ui-kit/kit.css, shell/shell.css) is public: the entry imports each.
  *
+ * Outside the app (the rest of src/: the server, the player, the mark), the app imports types only — the server's
+ * answers and op table (`import type`: none of the server's code reaches the page) — save the few browser-safe
+ * modules listed in OUTSIDE_VALUES, each with its reason.
+ *
  * Exceptions are listed with a reason each, ratchet-style: a new crossing fails, and so does a listed one that is gone.
  */
 import { readFileSync, readdirSync } from 'node:fs';
@@ -30,6 +34,16 @@ const SHELL_PUBLIC = new Set(['shell/AppShell', 'shell/slots', 'shell/command-bu
 /** The API's functions only data/ may import (`request` is api.ts's own; a namespace or default import reaches them all). */
 const API_CALLS = new Set(['call', 'useCall', 'request']);
 
+/**
+ * The modules outside the app (src/-relative) the app may import values from, each with its reason; every other
+ * import outside the app is type-only (the server's above all). Ratchet-style: a value import of another fails, a
+ * listed one no longer imported fails.
+ */
+const OUTSIDE_VALUES: Record<string, string> = {
+  mark: "the mark's drawing (MARK, MARK_GRID): its one source, pure — no DOM, no file — shared with the favicon and the desktop icon",
+  'player/parent': "the preview frame's channel (connectPreview): the page's half of the player's protocol, browser-safe",
+};
+
 /** Today's crossings, each with its reason (a crossing not listed fails, a listed one that is gone fails). */
 const EXCEPTIONS: Record<string, string> = {
   'ui-kit/fields.tsx -> drafts': "the kit's fields show the tab's unsaved mark (useUnsavedMark): the drafts store is the one source of it",
@@ -41,36 +55,51 @@ const partOf = (mod: string): Part => (mod.startsWith('data/') ? 'data' : mod.st
 interface Import {
   /** The app module imported (app-relative, no extension), or null for a package or a module outside the app. */
   module: string | null;
+  /** A module of src/ outside the app (src-relative, no extension: `server/ops`, `mark`), else null. */
+  outside: string | null;
   spec: string;
   /** The names it takes (`*` a namespace import, `default`, `…` a re-export of everything). */
   names: string[];
+  /** Types only: `import type` / `export type`, or every name taken marked `type` (it brings no code to the page). */
+  typeOnly: boolean;
 }
 
 /** Every import of a source: import declarations (type-only too), re-exports, dynamic imports. */
 export function importsOf(file: string, text: string): Import[] {
   const src = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const path = (spec: string): string | null => (spec.startsWith('.') ? posix.normalize(posix.join(posix.dirname(file), spec)).replace(/\.js$/, '') : null);
   const resolve = (spec: string): string | null => {
-    if (!spec.startsWith('.')) return null;
-    const p = posix.normalize(posix.join(posix.dirname(file), spec)).replace(/\.js$/, '');
-    return p.startsWith('../') ? null : p;
+    const p = path(spec);
+    return p === null || p.startsWith('../') ? null : p;
   };
+  // The app is src/app/: one `../` out of it is src/ (a module of the package), more is outside the package.
+  const outside = (spec: string): string | null => {
+    const p = path(spec);
+    return p !== null && p.startsWith('../') && !p.startsWith('../../') ? p.slice(3) : null;
+  };
+  const at = (spec: string) => ({ module: resolve(spec), outside: outside(spec), spec });
   const out: Import[] = [];
   for (const st of src.statements) {
     if (ts.isImportDeclaration(st) && ts.isStringLiteral(st.moduleSpecifier)) {
       const c = st.importClause;
       const names: string[] = [];
+      let typeOnly = !!c?.isTypeOnly;
       if (c?.name) names.push('default');
       if (c?.namedBindings && ts.isNamespaceImport(c.namedBindings)) names.push('*');
-      if (c?.namedBindings && ts.isNamedImports(c.namedBindings)) for (const e of c.namedBindings.elements) names.push((e.propertyName ?? e.name).text);
-      out.push({ module: resolve(st.moduleSpecifier.text), spec: st.moduleSpecifier.text, names });
+      if (c?.namedBindings && ts.isNamedImports(c.namedBindings)) {
+        for (const e of c.namedBindings.elements) names.push((e.propertyName ?? e.name).text);
+        if (!c.name && c.namedBindings.elements.length && c.namedBindings.elements.every((e) => e.isTypeOnly)) typeOnly = true;
+      }
+      out.push({ ...at(st.moduleSpecifier.text), names, typeOnly: typeOnly && !!c });
     }
     if (ts.isExportDeclaration(st) && st.moduleSpecifier && ts.isStringLiteral(st.moduleSpecifier)) {
       const names = st.exportClause && ts.isNamedExports(st.exportClause) ? st.exportClause.elements.map((e) => (e.propertyName ?? e.name).text) : ['…'];
-      out.push({ module: resolve(st.moduleSpecifier.text), spec: st.moduleSpecifier.text, names });
+      const typeOnly = st.isTypeOnly || (!!st.exportClause && ts.isNamedExports(st.exportClause) && st.exportClause.elements.length > 0 && st.exportClause.elements.every((e) => e.isTypeOnly));
+      out.push({ ...at(st.moduleSpecifier.text), names, typeOnly });
     }
   }
   const visit = (n: ts.Node) => {
-    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteral(n.arguments[0])) out.push({ module: resolve(n.arguments[0].text), spec: n.arguments[0].text, names: ['*'] });
+    if (ts.isCallExpression(n) && n.expression.kind === ts.SyntaxKind.ImportKeyword && n.arguments[0] && ts.isStringLiteral(n.arguments[0])) out.push({ ...at(n.arguments[0].text), names: ['*'], typeOnly: false });
     ts.forEachChild(n, visit);
   };
   visit(src);
@@ -83,6 +112,8 @@ export function findings(file: string, text: string): string[] {
   const part = partOf(from);
   const out: string[] = [];
   for (const i of importsOf(file, text)) {
+    // Outside the app: the server's types only; a value of another module only when OUTSIDE_VALUES lists it.
+    if (i.outside !== null && !i.typeOnly && (i.outside.startsWith('server/') || !(i.outside in OUTSIDE_VALUES))) out.push(`${file} -> ${i.outside}: value`);
     if (i.module === null) continue;
     const to = partOf(i.module);
     if (i.module === 'api' && part !== 'data' && from !== 'api') {
@@ -113,12 +144,13 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
   it('only data/ imports the API\'s call / useCall (request is api.ts\'s own); data/ holds a module per feature, each importing only api.ts and data/', () => {
     const files = appSources();
     const data = files.filter(([f]) => f.startsWith('data/')).map(([f]) => f);
-    expect(data).toEqual(['data/client.ts', 'data/comments.ts', 'data/desktop.ts', 'data/edit.ts', 'data/library.ts', 'data/ops.ts', 'data/projects.ts', 'data/record.ts', 'data/renders.ts', 'data/scenarios.ts', 'data/shoot.ts', 'data/studio-ops.gen.ts', 'data/themes.ts']);
+    expect(data).toEqual(['data/client.ts', 'data/comments.ts', 'data/desktop.ts', 'data/edit.ts', 'data/library.ts', 'data/ops.ts', 'data/projects.ts', 'data/record.ts', 'data/renders.ts', 'data/scenarios.ts', 'data/shoot.ts', 'data/themes.ts']);
     const api = files.flatMap(([f, text]) => findings(f, text)).filter((x) => x.includes(' -> api: '));
     expect(api).toEqual([]);
-    // Who imports call / useCall at all: the client, and the two data functions whose op is an argument.
+    // Who imports call / useCall at all: the client, and the data function whose op is an argument (threadWrite;
+    // projectRead goes through the op functions of its three reads).
     const importers = files.filter(([f, text]) => importsOf(f, text).some((i) => i.module === 'api' && i.names.some((n) => API_CALLS.has(n)))).map(([f]) => f);
-    expect(importers).toEqual(['data/client.ts', 'data/comments.ts', 'data/projects.ts']);
+    expect(importers).toEqual(['data/client.ts', 'data/comments.ts']);
     // request is not exported (api.ts's own: the session's token, the connection state).
     expect(readFileSync(join(APP, 'api.ts'), 'utf8')).toMatch(/^async function request</m);
     // The mutations: a screen calling the API itself, by name, by a namespace, by a re-export; a dynamic import.
@@ -129,6 +161,30 @@ describe('L6.13: the Studio app\'s feature boundaries', () => {
     expect(findings('Renders.tsx', "const m = await import('./api.js');")).toEqual(['Renders.tsx -> api: *']);
     // What stays allowed outside data/: the API's other names (errors, the connection, the session, the stream).
     expect(findings('Renders.tsx', "import { CallError, errorText, useConnection } from './api.js';\nimport type { Loaded } from './api.js';")).toEqual([]);
+  });
+
+  it('outside the app the app imports types only (the server\'s answers and op table: `import type`), save the browser-safe modules listed with their reason', () => {
+    const files = appSources();
+    const outside = files.flatMap(([f, text]) => importsOf(f, text).filter((i) => i.outside !== null).map((i) => ({ f, ...i })));
+    // The walk sees the server's types (the screens' answers, the op table data/ops.ts derives StudioOps from).
+    expect(outside.filter((i) => i.outside!.startsWith('server/')).length).toBeGreaterThan(15);
+    expect(outside.some((i) => i.f === 'data/ops.ts' && i.outside === 'server/studio' && i.typeOnly)).toBe(true);
+    const values = outside.filter((i) => !i.typeOnly);
+    expect(values.filter((i) => i.outside!.startsWith('server/')).map((i) => `${i.f} -> ${i.outside}`)).toEqual([]);
+    const used = [...new Set(values.map((i) => i.outside!))].sort();
+    expect(used, 'a value import outside the app: list it in OUTSIDE_VALUES with its reason, or import its types only').toEqual(Object.keys(OUTSIDE_VALUES).sort());
+    for (const [m, why] of Object.entries(OUTSIDE_VALUES)) expect(why.length, m).toBeGreaterThan(20);
+    // The mutations: a value import of the server (named, mixed with a type, default, namespace, re-export, dynamic);
+    // a value of a module not listed; what stays allowed — `import type`, every name marked `type`, a listed module.
+    expect(findings('ReviewScreen.tsx', "import { reviewAnswer } from '../server/ops.js';")).toEqual(['ReviewScreen.tsx -> server/ops: value']);
+    expect(findings('ReviewScreen.tsx', "import { type RenderReviewAnswer, reviewAnswer } from '../server/ops.js';")).toEqual(['ReviewScreen.tsx -> server/ops: value']);
+    expect(findings('data/ops.ts', "import * as studio from '../../server/studio.js';")).toEqual(['data/ops.ts -> server/studio: value']);
+    expect(findings('bits.ts', "export { UI_OPS } from '../server/studio.js';")).toEqual(['bits.ts -> server/studio: value']);
+    expect(findings('Renders.tsx', "const m = await import('../server/ops.js');")).toEqual(['Renders.tsx -> server/ops: value']);
+    expect(findings('Renders.tsx', "import { buildUi } from '../bundle.js';")).toEqual(['Renders.tsx -> bundle: value']);
+    expect(findings('ReviewScreen.tsx', "import type { RenderReviewAnswer } from '../server/ops.js';\nimport { type ThreadAnswer } from '../server/comment-ops.js';\nexport type { ThemeListAnswer } from '../server/theme-ops.js';")).toEqual([]);
+    expect(findings('ui-kit/AppMark.tsx', "import { MARK } from '../../mark.js';")).toEqual([]);
+    expect(findings('PreviewFrame.tsx', "import { connectPreview } from '../player/parent.js';\nimport type { FrameMessage } from '../player/protocol.js';")).toEqual([]);
   });
 
   it('the parts import each other only through their public faces: data/ nothing but api.ts, the kit nothing but its foundations, the kit and the shell reached through their public modules (today\'s exceptions listed, each with its reason)', () => {

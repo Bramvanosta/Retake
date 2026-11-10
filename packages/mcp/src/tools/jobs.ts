@@ -117,4 +117,4 @@ export const jobCancel = defineTool({
   },
 });
 
-export const JOB_TOOLS: ToolDef[] = [jobList, jobStatus, jobCancel];
+export const JOB_TOOLS = [jobList, jobStatus, jobCancel] as const satisfies readonly ToolDef[];

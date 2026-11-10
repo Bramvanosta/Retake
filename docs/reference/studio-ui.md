@@ -242,15 +242,18 @@ LinkButton `id`, `labelledBy`, `tabIndex`; the token `--ui-pressed` (a pressed t
 ## The data layer (`packages/ui/src/app/data/`)
 
 The screens never call the API themselves (L6.13): each feature's data module names its ops once and the screens import
-those — `projects` (Welcome, the Project screen, Lately, the search, the README), `scenarios` (the storyboard's reads,
-the YAML check, `scenario_edit`), `shoot` (the status bar's actions, a run's controls, the Cast's sessions), `edit`
-(the timeline, its preview leases), `renders` (a render, the list, the review, the export), `comments` (threads, a
-frame's anchor and pictures, the proposal), `library`, `themes`, `record`, `desktop` (the quit answer, the update, the
-Set-up sheet, the unsaved reports). Each function is typed by `StudioOps` (`data/ops.ts`: the arguments generated
-from the Studio's op table, the results the app's types), so a wrong op, argument or result does not compile. The
-app's parts: `data/` (imports api.ts only), `ui-kit/` (the kit and its foundations bits / route only), `shell/`
-(reached through itself, its slots, command bus, announcer and modes), and the screens at the root —
-`test/feature-boundaries.test.ts` holds the boundaries (DESIGN §4c).
+those — `projects` (Welcome, the Project screen, Lately, the search, the README, the project's three shared reads),
+`scenarios` (the storyboard's reads, the YAML check, `scenario_edit`), `shoot` (the status bar's actions, a run's
+controls, the Cast's sessions), `edit` (the timeline, its preview leases), `renders` (a render, the list, the review,
+the export, a render's frames and outline — the review's frame and the comments' viewer), `comments` (threads, a
+frame's anchor, a thread's picture, the proposal), `library`, `themes`, `record`, `desktop` (the quit answer, the
+update, the Set-up sheet, the unsaved reports). Each function is typed by `StudioOps` (`data/ops.ts`: arguments and
+results derived from the Studio's op table, types only), so a wrong op, argument or result does not compile; an op that
+takes no argument is called and read without them. The app's parts: `data/` (imports api.ts and data/ only — and, types
+only, the server's op table), `ui-kit/` (the kit and its foundations bits / route only), `shell/` (reached through
+itself, its slots, command bus, announcer and modes), and the screens at the root; outside the app, types only (the
+server's answers) but the mark and the preview frame's channel — `test/feature-boundaries.test.ts` holds the boundaries
+(DESIGN §4c).
 
 ## The screens (from the canvas)
 

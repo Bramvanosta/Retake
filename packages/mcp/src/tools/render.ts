@@ -4,7 +4,6 @@ import { yieldWords } from '@retake/engine';
 import type { Engine, RenderStatusView } from '@retake/engine';
 import { editOverrides, projectSlug, renderId, runId, scenarioName, templateName } from '../schema.js';
 import { plural } from '../result.js';
-import type { ToolOutput } from '../result.js';
 import { READ, RENDER_JOB, defineTool } from './define.js';
 import type { ToolContext, ToolDef } from './define.js';
 import { WAIT_MAX_S, waitJob, waitS } from './run.js';
@@ -46,9 +45,9 @@ export function renderStatusSummary(r: RenderStatusView): string {
   return lines.join('\n');
 }
 
-async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}): Promise<ToolOutput> {
+async function statusOutput(engine: Engine, project: string, id: string, extra: string[] = [], extraData: Record<string, unknown> = {}) {
   const r = await engine.renders.status(project, id);
-  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...(r as unknown as Record<string, unknown>), ...extraData } };
+  return { summary: [...extra, renderStatusSummary(r)].join('\n'), data: { ...r, ...extraData } };
 }
 
 /**
@@ -87,7 +86,7 @@ export const planPreview = defineTool({
           ? `capture first: run_capture {project: "${project}", scenario: "${scenario}"}; then render {project: "${project}", scenario: "${scenario}"${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}}`
           : `render it: render {project: "${project}", scenario: "${scenario}"${run_id ? `, run_id: "${run_id}"` : ''}${template ? `, template: "${template}"` : ''}${overrides ? ', overrides: …' : ''}} → ${p.next_render_id} (if no other render takes it first)`,
       ].join('\n'),
-      data: p as unknown as Record<string, unknown>,
+      data: p,
     };
   },
 });
@@ -144,4 +143,4 @@ export const renderStatus = defineTool({
   },
 });
 
-export const RENDER_TOOLS: ToolDef[] = [planPreview, render, renderStatus];
+export const RENDER_TOOLS = [planPreview, render, renderStatus] as const satisfies readonly ToolDef[];

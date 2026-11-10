@@ -69,7 +69,8 @@ import {
   zshPathLine,
 } from '@retake/engine/integrations';
 import type { ClaudeStep, InstallLocation } from '@retake/engine/integrations';
-import type { ToolDef } from '@retake/engine/contract';
+import { defineTool } from '@retake/engine/contract';
+import type { ToolOutput } from '@retake/engine/contract';
 import { parseShellLine } from './shell-line.js';
 import type { DesktopPipe } from './desktop.js';
 
@@ -252,17 +253,60 @@ async function readRunning(ctx: SetupContext, state: SetupState): Promise<boolea
 }
 
 /** The Studio's setup ops. `ctx` is read on each call (tests swap it). */
-export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => SetupContext; workspace: string }): ToolDef[] {
+/** The retake command's part of setup_status: the folder shown, its link's state, and where the shell finds it. */
+export interface CliStatus {
+  dir: string;
+  default_dir: string;
+  link: string;
+  launcher: string;
+  state: 'absent' | 'ours' | 'other_app' | 'foreign';
+  target?: string;
+  dangling?: boolean;
+  what?: string;
+  chosen: boolean;
+  chosen_error?: string;
+  /** The shell's folder panel: up (`open`), or no folder came back (`cancelled`: cancelled, or another question was up). */
+  panel?: 'open' | 'cancelled';
+  /** This app's command (the link the app recorded, else the default folder's), when it runs this app. */
+  installed: string | null;
+  on_path: boolean;
+  first: string | null;
+  first_is_this: boolean;
+  path_line: string;
+  profile: string;
+}
+
+/** What setup_status answers (the Studio's Set-up sheet reads it: app/shell/setup.ts), or why there is no set-up. */
+export interface SetupStatus {
+  available: boolean;
+  reason?: 'not_supervised' | 'not_bundled';
+  version?: string;
+  seen?: boolean;
+  location?: InstallLocation;
+  location_words?: string;
+  workspace?: string;
+  home?: string;
+  home_from_env?: boolean;
+  app?: string;
+  cli?: CliStatus;
+  claude_code?: { claude: string | null; candidates: string[]; config_dir: string; lines: string[]; plugin: boolean };
+  /** `running`: true / false, null when the process list could not be read, absent until it was read. */
+  claude_desktop?: { file: string; folder: boolean; state: 'create' | 'add' | 'same' | 'replace' | 'unreadable'; entry: string; running?: boolean | null; backups: string };
+  notifications?: 'on' | 'off' | 'unknown';
+  untrusted?: { desktop_current?: string; desktop_problem?: string };
+}
+
+export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => SetupContext; workspace: string }) {
   const { pipe, state, workspace } = o;
   const homeOf = (ctx: SetupContext) => retakeHome(ctx.env);
 
-  const status: ToolDef = {
+  const status = defineTool({
     name: 'setup_status',
     title: 'Set-up of the installed app',
     description: 'The installed app\'s set-up: where it runs from, the retake command, Claude Code and Claude Desktop, notifications. The desktop app\'s own server only.',
     input: z.strictObject({ processes: z.boolean().default(false).describe('Read the process list too (is Claude Desktop running?), at most every 5 s.') }),
     annotations: READ_ANN,
-    async run(a: { processes: boolean }) {
+    async run(a: { processes: boolean }): Promise<ToolOutput<SetupStatus>> {
       const ctx = o.ctx();
       if (!pipe.supervised) return { summary: 'set-up: not the desktop app\'s server', data: { available: false, reason: 'not_supervised' } };
       const b = appBundle(ctx);
@@ -298,7 +342,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       // `ps` only when asked (the step in view, the window focused), at most every PS_EVERY_MS.
       if (a.processes && (!state.ps || state.now() - state.ps.at >= PS_EVERY_MS)) await readRunning(ctx, state);
       const running = state.ps?.running;
-      const untrusted: Record<string, unknown> = {};
+      const untrusted: NonNullable<SetupStatus['untrusted']> = {};
       if (current !== undefined) untrusted.desktop_current = JSON.stringify({ mcpServers: { retake: current } }, null, 2);
       if (problem) untrusted.desktop_problem = problem;
       return {
@@ -353,9 +397,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
         },
       };
     },
-  };
+  });
 
-  const install: ToolDef = {
+  const install = defineTool({
     name: 'setup_cli_install',
     title: 'Install the retake command',
     description: 'Link the retake command to this app (the default folder, or the folder chosen in the app\'s panel). The desktop app\'s own server only.',
@@ -384,9 +428,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       writeAppSettings(home, { cli: { path: r.path, at: new Date().toISOString() } });
       return { summary: `retake command ${r.result}: ${r.path}`, data: { ok: true, path: r.path, result: r.result } };
     },
-  };
+  });
 
-  const choose: ToolDef = {
+  const choose = defineTool({
     name: 'setup_cli_choose',
     title: 'Choose the command\'s folder',
     description: 'Ask the desktop app to show its folder panel (the folder never comes from the page). The desktop app\'s own server only.',
@@ -398,9 +442,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       pipe.setup('cli_folder');
       return { summary: 'the folder panel is open in the app', data: { ok: true } };
     },
-  };
+  });
 
-  const remove: ToolDef = {
+  const remove = defineTool({
     name: 'setup_cli_remove',
     title: 'Uninstall the retake command',
     description: 'Remove the retake command\'s link when it points into a Retake app (anything else is left). The desktop app\'s own server only.',
@@ -423,9 +467,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       writeAppSettings(home, { cli: null });
       return { summary: `retake command ${r}: ${link}`, data: { ok: true, path: link, result: r } };
     },
-  };
+  });
 
-  const claudeRun: ToolDef = {
+  const claudeRun = defineTool({
     name: 'setup_claude_code_run',
     title: 'Register with Claude Code',
     description: 'Run the plugin route\'s two lines with the claude found in a fixed list (no shell). The desktop app\'s own server only.',
@@ -452,9 +496,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
         data: { ok: r.ok, timed_out: r.timedOut, claude, untrusted: { steps: r.steps.map((s) => ({ line: ['claude', ...s.argv].join(' '), code: s.code, output: s.output, ms: s.ms })) } },
       };
     },
-  };
+  });
 
-  const desktopAdd: ToolDef = {
+  const desktopAdd = defineTool({
     name: 'setup_claude_desktop_add',
     title: 'Add to Claude Desktop',
     description: 'Merge the retake entry into Claude Desktop\'s config (a backup first; a different entry needs replace). The desktop app\'s own server only.',
@@ -476,9 +520,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       }
       return { summary: r.kind === 'same' ? 'Claude Desktop already has this entry' : `added to Claude Desktop (${r.file})`, data: { ok: true, kind: r.kind, file: r.file, ...(r.backup ? { backup: r.backup } : {}) } };
     },
-  };
+  });
 
-  const notifications: ToolDef = {
+  const notifications = defineTool({
     name: 'setup_notifications',
     title: 'Allow notifications',
     description: 'Ask the desktop app to request the notification permission. The desktop app\'s own server only.',
@@ -489,9 +533,9 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       pipe.setup('notifications');
       return { summary: 'the app asks macOS for the notification permission', data: { ok: true } };
     },
-  };
+  });
 
-  const done: ToolDef = {
+  const done = defineTool({
     name: 'setup_done',
     title: 'Close the set-up',
     description: 'Remember that the person closed the Set-up sheet of this version. The desktop app\'s own server only.',
@@ -503,7 +547,7 @@ export function setupOps(o: { pipe: DesktopPipe; state: SetupState; ctx: () => S
       writeAppSettings(homeOf(ctx), { setup_seen: RETAKE_VERSION });
       return { summary: 'set-up closed', data: { ok: true } };
     },
-  };
+  });
 
   return [status, install, choose, remove, claudeRun, desktopAdd, notifications, done];
 }
