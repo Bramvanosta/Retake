@@ -144,8 +144,9 @@ stays green; delete that file on `update-feed`, then re-run the newest version's
    re-record `apps/desktop/bundle/browsers.json` for the new revision folders
    (`node apps/desktop/scripts/bundle.mjs browser-digest <Playwright's cache>/chromium-<revision>`, and the headless
    shell's; DESIGN §4p (e)). Every release, even when nothing else changed.
-2. **The version**, everywhere it is written, then the tests (the CI workflow, `.github/workflows/ci.yml`, runs them on main too; the release does not wait for
-   it — see that main's run of the commit is green before you tag, BACKLOG BL-144):
+2. **The version**, everywhere it is written, then the tests, on the Mac (the CI workflow, `.github/workflows/ci.yml`, builds
+   and checks the guards on main but runs no test, BACKLOG BL-163; the release does not wait for it — see that main's run
+   of the commit is green before you tag, BACKLOG BL-144):
    ```sh
    node scripts/set-version.mjs 0.2.1
    node scripts/set-version.mjs --check      # says nothing: every file agrees

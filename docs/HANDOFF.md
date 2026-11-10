@@ -117,7 +117,7 @@ automatically with themeable components, and let Claude operate everything throu
     CLI's `plan latest` and its `latest` for a review or an export keep their own rules. `newRunId` has no length
     cap. **A known step back on an edge:** for a theme a project names by a path whose folder name has 101 – 200
     characters, the board compares no theme (before the lot it compared up to 200), so the row can show a render
-    made with another theme as current — BACKLOG BL-163. A succeeded record of `renders/` that is no render is never
+    made with another theme as current — BACKLOG BL-164. A succeeded record of `renders/` that is no render is never
     pruned. One unreadable thread file freezes prune for its project until it is repaired (said on every run).
   - **Checked.** `pnpm typecheck`, the ratchet, `test-guard`, `--check-cites`; each changed test file alone; the
     Studio's fields looked at in a browser (New theme and one copy field, dark and light). **The full suite was not
@@ -293,14 +293,14 @@ automatically with themeable components, and let Claude operate everything throu
     rebuild once (the geometry files joined their hash); a component README that is a symbolic link out of the
     components folder is refused (CHANGELOG).
   - **T15's rest (2026-11-10, after the series):** a CI on pull requests and main (`.github/workflows/ci.yml`: the
-    build, the guards — one version, the import-rules ratchet, requirements tested and cited — and the default suite
-    on macOS 15; the shell's rules on the pinned Rust; no secret, no cache, actions pinned like release.yml's;
+    build and the guards — one version, the import-rules ratchet, requirements tested and cited — on macOS 15; the
+    shell's rules on the pinned Rust; no secret, no cache, actions pinned like release.yml's;
     `packages/cli/test/ci-workflow.test.ts`) — the release does not wait for it yet (BL-144). On the runner (3 cores, no
     GPU) the tests calibrated on the Mac (capture frame rates, freezes, paint and wait timings) skip:
     `RETAKE_TEST_SHARED_RUNNER=1`, honoured in the eleven files ci-workflow.test.ts lists (they run with the full suite
-    on the Mac); there a failing test is retried twice (`--retry=2`, the CI only: two browsers drawn without a GPU load
-    its three cores, and each run failed other timing tests — 19, 7, 12); one file at a time instead stalled past two
-    hours. Its first runs also found a focus race of the Studio's Set-up sheet (the focus was placed on the status
+    on the Mac). The suite then left the CI: about 50 minutes on the runner, and each run failed other timing tests
+    (19, 7, 12; still 4 with two retries); one file at a time stalled past two hours. It runs on the Mac before a
+    merge or a tag until it is faster and steadier (BL-163). Its first runs also found a focus race of the Studio's Set-up sheet (the focus was placed on the status
     before the reload: now after it) and three tests tied to the host (the appearance with no preference follows the
     host in Chromium; the take lock test now checks that no two holds overlap; the AppleDouble refusal may name any
     `._` member); the shell's Rust pinned in
