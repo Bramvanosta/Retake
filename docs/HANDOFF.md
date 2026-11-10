@@ -93,7 +93,9 @@ automatically with themeable components, and let Claude operate everything throu
     signing material (`.p12`, `.p8`, `.key`, `.pem`, keychains, profiles, `.env.*`). The app bundle refuses a build
     output with no source (`staleBuildOutputs`: a `.js` in a package's `dist/` whose `src/` file is gone — `tsc -b`
     never removes it and `pnpm deploy` would ship it; nine such files sat in this checkout after the series' moves).
-  - **Open:** T16 (the next audit's measures, not run: the person asked for no measuring in this series).
+  - **Open:** T16 (the next audit's measures, not run: the person asked for no measuring in this series). The read-only
+    audit of this branch, with its findings and action plan (U1 – U16):
+    [audit/2026-11-10/](audit/2026-11-10/README.md).
 
 ## State (after L5.18)
 - **L5.18 done (2026-11-09; pending the person's review of the pull request)** — hardening before the first release,
