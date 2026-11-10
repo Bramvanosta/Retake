@@ -429,6 +429,16 @@
    "lot": "L5.2"
   },
   {
+   "id": "R-ARCH-12",
+   "source": "Audit 2026-11-10, U6 (Renderer)",
+   "requirement": "The engine renders through a port it owns (video, stills, previews): the renderer is chosen at the edges, an in-memory adapter passes the same contract as the product's, and a ratchet keeps the editor's render entries out of the rest of the engine and of the shells.",
+   "status": "done",
+   "evidence": "L7.1: packages/engine/src/render/ (renderer.ts, work.ts, editor-renderer.ts, memory-renderer.ts), packages/editor/src/render/driver.ts. Tests: packages/engine/test/renderer.test.ts and renderer-editor.test.ts (one contract suite, renderer-contract.ts, on both adapters), render-on-renderer.test.ts (a render job with no browser, ffmpeg or ffprobe; cancel and failure end states), editor-renderer.test.ts, packages/editor/test/render-driver.test.ts, packages/core/test/import-rules.test.ts (R9, render-call). Targeted files only; the full suite runs at the end of the branch.",
+   "gap": "The port still names adapter concepts and borrows editor types (L7.2); the product adapter's preview side is not run by the contract suite; the CLI's components preview still calls the editor (one baseline entry).",
+   "phase": "5",
+   "lot": "L7.1"
+  },
+  {
    "id": "R-PROJ-01",
    "source": "SPEC §4 layout; DESIGN §0",
    "requirement": "projects/<slug>/ contains README.md, project.yaml, scenarios/, hooks/, assets/ and a .gitignore for runs/, renders/, review/, frames/.",

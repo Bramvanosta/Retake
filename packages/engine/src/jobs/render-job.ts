@@ -37,6 +37,7 @@ import type { JobEventBody, JobProgress, JobRecord, RenderJobResult } from './ty
 
 import { editor } from '../lazy.js';
 import { planWork, renderWork } from '../pipeline.js';
+import type { Renderer } from '../render/renderer.js';
 import type { OpenedWorkspace } from '../workspace.js';
 
 export interface RenderRequest {
@@ -313,6 +314,8 @@ export interface RenderJobContext {
   progress(p: JobProgress): void;
   /** The render browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
+  /** What the job renders with (the runner's: render/renderer.ts). */
+  renderer: Renderer;
   /** A file the submit added to the job, read through the queue (JobQueue.jobFile): its edit.yaml snapshot, L4.5. */
   jobFile?: (name: string, maxBytes: number) => Promise<JobFileRead>;
 }
@@ -398,6 +401,7 @@ export async function executeRenderJob(ctx: RenderJobContext): Promise<RenderJob
   let last = '';
   // The pipeline's render that the CLI's `retake render` runs too, with the trust of work submitted through MCP and its reserved id.
   const record = await renderWork({
+    renderer: ctx.renderer,
     workPolicy: ctx.ws.policy,
     project,
     run: input.run_id,

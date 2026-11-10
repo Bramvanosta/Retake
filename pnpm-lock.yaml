@@ -155,9 +155,6 @@ importers:
       '@remotion/bundler':
         specifier: 4.0.534
         version: 4.0.534(postcss@8.5.29)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
-      '@remotion/media-utils':
-        specifier: 4.0.534
-        version: 4.0.534(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@remotion/renderer':
         specifier: 4.0.534
         version: 4.0.534(patch_hash=c9f24cdc706be70739d05181d76f0fc6f3dd1f0fa88fc42c6a9143b178017a22)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)

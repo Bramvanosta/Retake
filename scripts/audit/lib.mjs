@@ -137,6 +137,16 @@ const coreIoImport = (s, f) => {
  * string; a BlockList matches addresses in memory) — an import naming only these is not I/O; any other form of the
  * import (another name, a default or namespace import, require(), import()) is.
  */
+/** The one file of the engine that loads an adapter's code (its lazy imports). */
+export const ENGINE_LOADER = 'packages/engine/src/lazy.ts';
+/** Where the engine's renderer port, its adapters and the work on them live: the only engine folder that names the editor's render functions. */
+export const RENDER_HOME = 'packages/engine/src/render/';
+/**
+ * The editor's render entries: its functions that render (a video, stills, an export's formats, component previews)
+ * and what makes its renderer or a part of one (the driver, the plan's part, the previews' part and their backend).
+ * A render entry the editor exports and this list misses fails packages/core/test/import-rules.test.ts.
+ */
+export const RENDER_CALLS = ['renderVideo', 'renderStill', 'renderStills', 'renderPlan', 'renderComponentPreviews', 'renderComponentLoops', 'exportRender', 'createRenderer', 'planDriver', 'previewDriver', 'REMOTION_PREVIEW_BACKEND'];
 export const PURE_BINDINGS = { 'node:net': ['isIP', 'isIPv4', 'isIPv6', 'BlockList'], net: ['isIP', 'isIPv4', 'isIPv6', 'BlockList'] };
 export const RULES = [
   { id: 'R1', title: `core is I/O-free (domain; everything but its io side, ${CORE_IO_DIR}, which the rest never imports; a module loader — node:module, process.getBuiltinModule(), import() of a computed name — counts as I/O; node:net's address helpers ${PURE_BINDINGS['node:net'].join(', ')} do no I/O)`, files: (f) => pkgOf(f) === 'core' && !f.startsWith(CORE_IO_DIR), bad: (s, f) => IO.test(s) || coreIoImport(s, f), loaders: true, pure: PURE_BINDINGS },
@@ -147,12 +157,15 @@ export const RULES = [
   { id: 'R6', title: 'shells do not touch the file system / processes themselves', files: (f) => ['packages/mcp/src/tools/', 'packages/ui/src/server/', 'packages/cli/src/commands/'].some((p) => f.startsWith(p)), bad: (s) => /^(node:)?(fs|fs\/promises|child_process)$/.test(s) },
   { id: 'R7', title: 'the planner and review checks stay renderer-free (editor/review pure modules)', files: (f) => /packages\/editor\/src\/(plan|plan-entry|plan-types|render-record|timing|camera|layout|panes|timeline|resolve|tutorial|summary|util|remotion\/frames|planner\/[a-z-]+)\.ts$/.test(f) || /packages\/review\/src\/(checks|pixel-checks|spans|timeline|anchor|diff)\.ts$/.test(f), bad: (s) => IO.test(s) || /^remotion|^react/.test(s) },
   { id: 'R8', title: 'the review imports the editor only through its planner entry (@retake/editor/plan: loads no renderer, Remotion, React or esbuild)', files: (f) => pkgOf(f) === 'review', bad: (s) => retake(s) === 'editor' && s !== '@retake/editor/plan' },
+  { id: 'R9', title: `the engine loads the editor's code in its loader only (${ENGINE_LOADER}): everywhere else in packages/engine/src a value import, re-export, import() or require() of @retake/editor is a hit, and so is a loader that could load it unseen — import() of a computed name, a call of a require made with createRequire, process.getBuiltinModule() (its types are free, and so is createRequire(…).resolve(), which loads nothing; the other adapters' loaders are not checked yet)`, files: (f) => f.startsWith('packages/engine/src/') && f !== ENGINE_LOADER, bad: (s) => retake(s) === 'editor', typeOnlyCheck: true, loaders: true },
 ];
+
 export const CHECKS = [
   ...RULES.map((r) => ({ id: r.id, title: r.title })),
   { id: 'cycle', title: 'no import cycle between the files of a package (entries: each file and the first file of its cycle, and the number of imports inside the cycle)' },
   { id: 'queue', title: 'only the composition roots build the file job queue (`new FileJobQueue`, a class extending it, or the class itself passed on as a value): the engine, the worker, the job process and the CLI\'s workspaceQueue (and the adapter itself, for withOwnMemory); everything else is handed the JobQueue port' },
   { id: 'queue-call', title: 'outside packages/engine/src nothing submits to the job queue or writes as its worker (`queue.enqueue|write|claim|unclaim|setYield|append(…)`, also `x.queue.…`): the engine\'s operations submit after their checks, the worker writes' },
+  { id: 'render-call', title: `the editor's render entries (${RENDER_CALLS.join(', ')}) are named in ${RENDER_HOME} only — the work on the renderer port — never elsewhere in the engine nor in a shell: read from the syntax tree, as a property (\`ed.renderVideo\`, \`ed['renderVideo']\`, a key spelt in pieces: \`ed['render' + 'Video']\`), a destructured name in a declaration or an assignment (\`{ renderVideo }\`, \`({ renderVideo: f } = ed)\`), a shorthand name, an alias (\`import f = ed.renderVideo\`), or a value imported or re-exported from @retake/editor (\`export *\` too); a type position, a comment and a string are not uses. Known limit: a key only known at run time (\`ed[name]\`) cannot be read from the text: nothing in the file names the function` },
   { id: 'policy-state', title: 'no module-level variable (`let` / `var`) of core, the engine or an adapter holds the policy work runs under — one named after a policy, its agent folders, ffmpeg / ffprobe, a program check or render settings, or typed or set with WorkPolicy, RenderSettings, RenderPolicy or ProgramPolicyOptions: the policy is a value (core WorkPolicy) the engine passes to the adapters' },
   { id: 'layout', title: 'the folder layout of a workspace and its projects is written in packages/core/src/layout.ts only (entries: each file and how many layout paths it spells by hand — a string or template naming `.retake`, a layout file or `<layout folder>/…` anywhere, or a layout folder as a node:path `join(…)` / `resolve(…)` argument)' },
 ];
@@ -167,12 +180,25 @@ const literal = (ts, e) => (e && (ts.isStringLiteral(e) || ts.isNoSubstitutionTe
  * What a file loads, read from its syntax tree: `values`, the module specifiers it imports or re-exports as values (an
  * `import`, `export … from`, `export *`, side-effect `import '…'`, `import x = require()`, `import()` or `require()` call;
  * not `import type`, `export type` nor an import whose every name is `type`), and `loaders`, its run-time module loaders
- * (`getBuiltinModule()` calls, `import()` of a computed name).
+ * (`getBuiltinModule()` calls, `import()` of a computed name, a call of a require made with `createRequire`).
  */
 export function moduleUses(ts, rel, text) {
   const values = new Set();
   const loaders = new Set();
   const allTypes = (els) => els.length > 0 && els.every((e) => e.isTypeOnly);
+  const sf = parse(ts, rel, text);
+  // The names a `createRequire(…)` result is kept under (a variable or an assignment), whatever createRequire is called.
+  const requires = new Set();
+  const inner = (e) => { while (e && (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e))) e = e.expression; return e; };
+  const makesRequire = (e) => { e = inner(e); return !!e && ts.isCallExpression(e) && ((ts.isIdentifier(e.expression) && e.expression.text === 'createRequire') || (ts.isPropertyAccessExpression(e.expression) && e.expression.name.text === 'createRequire')); };
+  if (text.includes('createRequire')) {
+    (function collect(n) {
+      if (ts.isVariableDeclaration(n) && ts.isIdentifier(n.name) && n.initializer && makesRequire(n.initializer)) requires.add(n.name.text);
+      if (ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isIdentifier(n.left) && makesRequire(n.right)) requires.add(n.left.text);
+      n.forEachChild(collect);
+    })(sf);
+  }
+  const madeRequire = (callee) => { callee = inner(callee); return makesRequire(callee) || (!!callee && ts.isIdentifier(callee) && requires.has(callee.text)); };
   (function visit(n) {
     if (ts.isImportDeclaration(n)) {
       const c = n.importClause;
@@ -200,11 +226,14 @@ export function moduleUses(ts, rel, text) {
         if (spec !== undefined) values.add(spec);
         else if (dynamic) loaders.add('import()');
       }
+      // A require made with createRequire and called (`createRequire(x)('m')`, `const req = createRequire(x); req('m')`):
+      // it loads a module the pre-processor never lists. `.resolve()` on it loads nothing and is not a call of it.
+      if (madeRequire(callee)) loaders.add('createRequire()()');
       const name = ts.isIdentifier(callee) ? callee.text : ts.isPropertyAccessExpression(callee) ? callee.name.text : undefined;
       if (name === 'getBuiltinModule') loaders.add('getBuiltinModule()');
     }
     n.forEachChild(visit);
-  })(parse(ts, rel, text));
+  })(sf);
   return { values, loaders };
 }
 
@@ -300,6 +329,51 @@ const queueRoot = (rel) => QUEUE_ROOTS.includes(rel);
 /** The queue's submit and the worker's writes (JobQueue minus JobQueueView): called inside packages/engine/src only. */
 const QUEUE_WRITES = new Set(['enqueue', 'write', 'claim', 'unclaim', 'setYield', 'append']);
 const queueCallsAllowed = (rel) => rel.startsWith('packages/engine/src/');
+/** Where the render-call check looks: the engine outside its render folder, and the shells. */
+const renderCallsChecked = (rel) => (rel.startsWith('packages/engine/src/') && !rel.startsWith(RENDER_HOME)) || SHELLS.some((s) => rel.startsWith(`packages/${s}/src/`));
+const RENDER_CALL_SET = new Set(RENDER_CALLS);
+/** A cheap pre-filter: a render entry spelt whole, or anything a key could be put together from (a `+` or a template beside a quote). */
+const RENDER_CALL_TEXT = new RegExp(`${RENDER_CALLS.join('|')}|['"\`]\\s*\\+|\\+\\s*['"\`]|\\$\\{|@retake/editor`);
+/**
+ * The text an expression spells when it can be read without running it: a string or template literal, pieces joined
+ * with `+`, a template of such pieces, in parentheses or under a cast; undefined for anything known only at run time.
+ */
+const constText = (ts, e) => {
+  if (!e) return undefined;
+  if (ts.isStringLiteral(e) || ts.isNoSubstitutionTemplateLiteral(e)) return e.text;
+  if (ts.isParenthesizedExpression(e) || ts.isAsExpression(e) || ts.isNonNullExpression(e) || (ts.isSatisfiesExpression?.(e) ?? false)) return constText(ts, e.expression);
+  if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const l = constText(ts, e.left);
+    const r = constText(ts, e.right);
+    return l === undefined || r === undefined ? undefined : l + r;
+  }
+  if (ts.isTemplateExpression(e)) {
+    let out = e.head.text;
+    for (const span of e.templateSpans) {
+      const v = constText(ts, span.expression);
+      if (v === undefined) return undefined;
+      out += v + span.literal.text;
+    }
+    return out;
+  }
+  return undefined;
+};
+/** The name a property key spells (`a`, `'a'`, `['a']`, `['a' + 'b']`), undefined when it is computed at run time. */
+const keyText = (ts, name) => (!name ? undefined : ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNoSubstitutionTemplateLiteral(name) ? name.text : ts.isComputedPropertyName(name) ? constText(ts, name.expression) : undefined);
+/** Whether an object literal is written to, not read: the left side of `=`, a `for … of` target, or nested in one. */
+const assignedTo = (ts, obj) => {
+  let n = obj;
+  for (;;) {
+    const p = n.parent;
+    if (!p) return false;
+    if (ts.isParenthesizedExpression(p)) { n = p; continue; }
+    if (ts.isBinaryExpression(p) && p.operatorToken.kind === ts.SyntaxKind.EqualsToken) return p.left === n;
+    if (ts.isForOfStatement(p) || ts.isForInStatement(p)) return p.initializer === n;
+    // Nested patterns: `({ a: { renderVideo: f } } = x)`, `[{ renderVideo: f }] = xs`, a default (`{ … } = {}` inside).
+    if ((ts.isPropertyAssignment(p) && p.initializer === n) || ts.isArrayLiteralExpression(p) || ts.isObjectLiteralExpression(p) || ts.isSpreadElement(p) || ts.isSpreadAssignment(p)) { n = p; continue; }
+    return false;
+  }
+};
 /** The packages where the work's policy is passed as a value (core WorkPolicy): core, the engine and the adapters. */
 const POLICY_VALUE_PACKAGES = ['core', 'engine', ...ADAPTERS];
 /** A module-level variable named for the policy's state (what the process-wide setters before WorkPolicy held). */
@@ -315,7 +389,12 @@ const POLICY_STATE_TYPE = /\b(?:WorkPolicy|RenderSettings|RenderPolicy|ProgramPo
  * `engine.queue.enqueue(…)`, `this.queue['write'](…)`). Declarations, imports and re-exports are not uses. And in core,
  * the engine and the adapters, a module-level `let` / `var` (exported or not, a destructured name too) that holds the
  * work's policy — named after it (POLICY_STATE_NAME) or typed or set with its types (POLICY_STATE_TYPE): the policy is a
- * value the engine passes on, never state a setter changes (a `const` of such a type is a value, not state).
+ * value the engine passes on, never state a setter changes (a `const` of such a type is a value, not state). And in the
+ * engine outside RENDER_HOME and in the shells, one of the editor's render functions (RENDER_CALLS) taken off anything:
+ * a property (`ed.renderVideo`, `ed['renderVideo']`, `ed['render' + 'Video']`, called or not), a destructured name in a
+ * declaration or an assignment (`{ renderVideo }`, `{ renderVideo: f }`, `({ renderVideo: f } = ed)`), a shorthand
+ * property, an alias (`import f = ed.renderVideo`), or a value imported or re-exported from @retake/editor under any
+ * local name. A key computed at run time (`ed[name]`) is the check's limit: nothing in the text names the function.
  */
 export function wiringHits(root, files) {
   const ts = loadTs(root);
@@ -324,20 +403,31 @@ export function wiringHits(root, files) {
     const queue = !queueRoot(rel) && text.includes(QUEUE_CLASS);
     const calls = !queueCallsAllowed(rel) && text.includes('queue');
     const state = POLICY_VALUE_PACKAGES.includes(pkgOf(rel)) && /\b(?:let|var)\b/.test(text);
-    if (!queue && !calls && !state) continue;
+    const render = renderCallsChecked(rel) && RENDER_CALL_TEXT.test(text);
+    if (!queue && !calls && !state && !render) continue;
     const sf = parse(ts, rel, text);
     if (state) for (const name of policyStateNames(ts, sf)) hits.push({ rule: 'policy-state', file: rel, spec: `let ${name}` });
-    if (!queue && !calls) continue;
+    if (!queue && !calls && !render) continue;
     const names = new Map([[QUEUE_CLASS, QUEUE_CLASS]]); // local name → original
+    const found = new Set();
     sf.forEachChild(function imports(n) {
       if (ts.isImportSpecifier(n)) {
         const orig = (n.propertyName ?? n.name).text;
         if (names.has(orig)) names.set(n.name.text, orig);
+        // A render function imported from the editor as a value (under any local name).
+        const decl = n.parent.parent.parent;
+        const typeOnly = n.isTypeOnly || n.parent.parent.isTypeOnly;
+        if (render && !typeOnly && RENDER_CALL_SET.has(orig) && ts.isImportDeclaration(decl) && retake(literal(ts, decl.moduleSpecifier) ?? '') === 'editor') found.add(`render-call:${orig}`);
+      }
+      // A render entry re-exported from the editor (`export { renderVideo } from`, `export * from`, `export * as ed from`):
+      // the file would hand it on under its own name.
+      if (render && ts.isExportDeclaration(n) && !n.isTypeOnly && retake(literal(ts, n.moduleSpecifier) ?? '') === 'editor') {
+        if (!n.exportClause || ts.isNamespaceExport(n.exportClause)) found.add('render-call:export * from @retake/editor');
+        else for (const e of n.exportClause.elements) if (!e.isTypeOnly && RENDER_CALL_SET.has((e.propertyName ?? e.name).text)) found.add(`render-call:${(e.propertyName ?? e.name).text}`);
       }
       n.forEachChild(imports);
     });
     const nameOf = (e) => (ts.isIdentifier(e) ? names.get(e.text) : ts.isPropertyAccessExpression(e) && names.has(e.name.text) && e.name.text === names.get(e.name.text) ? e.name.text : undefined);
-    const found = new Set();
     const named = (x, text) => !!x && (ts.isIdentifier(x) || ts.isStringLiteral(x)) && x.text === text;
     // The places where the class's name is not a value of its own: a declaration's name, a property name (counted on
     // the access), an object key, and the class built or extended (counted as such).
@@ -362,6 +452,19 @@ export function wiringHits(root, files) {
         const shorthand = ts.isShorthandPropertyAssignment(n) && names.get(n.name.text) === QUEUE_CLASS;
         const aliased = ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference) && n.moduleReference.right.text === QUEUE_CLASS; // import Q = ns.FileJobQueue
         if (ref || destructured || indexed || shorthand || aliased) found.add(`queue:${QUEUE_CLASS} as a value`);
+      }
+      if (render && !typeHere) {
+        // Any way a render function is taken off something: called or not, so an alias (`const f = ed.renderVideo`) counts.
+        const member = ts.isPropertyAccessExpression(n) ? n.name.text
+          : ts.isElementAccessExpression(n) ? constText(ts, n.argumentExpression)
+            : ts.isBindingElement(n) ? (n.propertyName ? keyText(ts, n.propertyName) : ts.isIdentifier(n.name) ? n.name.text : undefined)
+              : ts.isShorthandPropertyAssignment(n) ? n.name.text
+                // An assignment's pattern: `({ renderVideo: f } = ed)` (a key being defined in an object that is read is not a use).
+                : ts.isPropertyAssignment(n) && assignedTo(ts, n.parent) ? keyText(ts, n.name)
+                  // `import f = ed.renderVideo` (an alias of a namespace's member).
+                  : ts.isImportEqualsDeclaration(n) && ts.isQualifiedName(n.moduleReference) ? n.moduleReference.right.text
+                    : undefined;
+        if (member !== undefined && RENDER_CALL_SET.has(member)) found.add(`render-call:${member}`);
       }
       if (calls && ts.isCallExpression(n)) {
         const callee = n.expression;

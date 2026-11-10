@@ -90,6 +90,23 @@ export type { ExecuteRunOptions, PreparedRun, RunPorts, RunRequest } from './exe
 // The pipeline calls a shell makes itself (renderWork / stillWork / exportWork: through the in-process functions below).
 export { defaultStillFile, editorErrorOf, findRenderOf, findRunOf, planWork, reviewWork } from './pipeline.js';
 export { exportInProcess, inspectInProcess, renderInProcess, runInProcess, stillInProcess } from './in-process.js';
+// The renderer port, and the product's renderer for a composition root (a shell's command run in process).
+export { editorRenderer } from './render/editor-renderer.js';
+export type { OnRenderer } from './render/work.js';
+export type {
+  PreviewBundle,
+  PreviewBundleRequest,
+  PreviewOpenRequest,
+  PreviewRendering,
+  PreviewSession,
+  RenderProcess,
+  RenderRequestBase,
+  RenderStillsRequest,
+  RenderVideoRequest,
+  RenderVideoResult,
+  Renderer,
+  RendererFailure,
+} from './render/renderer.js';
 export type { EditOverrides, ExportFormat, ExportProgress, ExportResult, PlannedRun, RenderProgress, RenderRecord, ReviewResult, RunRef } from './pipeline.js';
 export { newJobId } from './jobs/ids.js';
 export type { CancelMark, ClaimRecord, DeriveOptions, JobFileRead, JobFilter, JobMark, JobPosition, JobQueue, JobQueueView, TakeHold, YieldMark } from './jobs/job-queue.js';

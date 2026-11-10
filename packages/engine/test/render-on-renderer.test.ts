@@ -1,0 +1,215 @@
+/**
+ * The engine renders through its port (src/render/renderer.ts): render jobs run by the worker in this process on the
+ * in-memory renderer (WorkerOptions.rendererTest), a still and a render asked in process on the same one. No bundle, no
+ * browser, and no ffmpeg / ffprobe: both tools are pointed at a path that does not exist for the whole file, so a call
+ * to either would fail the job. What still runs around the renderer is the product's: the submit, the claim, the plan
+ * (the editor's planner), the version reserved, the render record, the job's state and the history line.
+ * - a render job succeeds: the record of the render (no `probe`: the renderer measured nothing), the file the renderer
+ *   wrote, the renderer's process recorded for the job, one history line;
+ * - a job cancelled while the renderer draws ends `cancelled` (not `failed`), nothing is left;
+ * - a renderer's failure ends the job `failed`;
+ * - a still and a render in process ask the same renderer, with no network guard (a person's work); a failure or a
+ *   cancel there comes back as the editor's error, whose record keeps the policy and the warnings the failure carried.
+ * - the options of the editor's own driver are refused beside the renderer, and a worker is handed a renderer or a
+ *   preview backend, never both.
+ * No job asks for a review here: a review reads the video's frames with ffmpeg.
+ */
+import { existsSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PERSON_POLICY } from '@retake/core';
+import type { RenderJobInput } from '@retake/core';
+import { JobFiles, createEngine, editorErrorOf, historyFile, jobsDir, openProject, planWork, renderInProcess, runWorker, stillInProcess } from '../src/index.js';
+import type { Engine, JobRecord, RenderRecord } from '../src/index.js';
+import { MEMORY_PNG, MEMORY_VIDEO, MemoryRenderer } from '../src/render/memory-renderer.js';
+import type { MemoryRendererOptions } from '../src/render/memory-renderer.js';
+import type { RenderVideoRequest } from '../src/render/renderer.js';
+import { synthTimeline } from '../../editor/test/helpers.js';
+import { TEMPLATES } from '../../editor/test/render-helpers.js';
+
+const SCENARIO = 'steps';
+const RUN = '20260101-120000-steps';
+let root: string;
+let dir: string;
+let engine: Engine;
+const saved = { home: process.env.RETAKE_HOME, ffmpeg: process.env.RETAKE_FFMPEG, ffprobe: process.env.RETAKE_FFPROBE };
+
+const historyLines = async (): Promise<Array<Record<string, unknown>>> =>
+  (await readFile(historyFile(root), 'utf8').catch(() => '')).split('\n').filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+const recordOf = async (id: string): Promise<RenderRecord> => JSON.parse(await readFile(join(dir, 'renders', `${id}.json`), 'utf8')) as RenderRecord;
+
+beforeAll(async () => {
+  root = await mkdtemp(join(tmpdir(), 'retake-render-port-'));
+  process.env.RETAKE_HOME = join(root, '.home');
+  process.env.RETAKE_FFMPEG = join(root, 'no-such-tool', 'ffmpeg');
+  process.env.RETAKE_FFPROBE = join(root, 'no-such-tool', 'ffprobe');
+  await writeFile(join(root, 'retake.yaml'), `projects_dir: projects\ntemplates_dir: ${JSON.stringify(TEMPLATES)}\n`);
+  dir = join(root, 'projects', 'demo');
+  const runDir = join(dir, 'runs', RUN);
+  await mkdir(runDir, { recursive: true });
+  await writeFile(join(dir, 'project.yaml'), 'name: Demo\nenvironments:\n  local: {app: "http://app.test"}\ntemplate: editorial\n');
+  const t = synthTimeline({ duration: 2, entries: [{ id: 'a', t_start: 0.5, t_end: 1.5, steps: [{ action: 'hold', t_start: 0.5, t_end: 1.5 }] }], video: { intro: false, outro: false, template: 'editorial' } });
+  t.run_id = RUN;
+  t.project = 'demo';
+  t.scenario = SCENARIO;
+  await writeFile(join(runDir, 'timeline.json'), JSON.stringify(t));
+  await writeFile(join(runDir, 'capture.mp4'), 'never read');
+  engine = await createEngine({ root, client: 'test', autoStartWorker: false });
+});
+
+afterAll(async () => {
+  for (const [name, value] of [['RETAKE_HOME', saved.home], ['RETAKE_FFMPEG', saved.ffmpeg], ['RETAKE_FFPROBE', saved.ffprobe]] as const) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
+  }
+  if (root) await rm(root, { recursive: true, force: true });
+});
+
+/** Submit a render (no review) and let a worker of this process run it on `o`'s renderer. */
+async function renderJob(o: MemoryRendererOptions | ((job: JobRecord) => MemoryRendererOptions) = {}): Promise<{ job: JobRecord; input: RenderJobInput; fake: MemoryRenderer }> {
+  const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
+  const fake = new MemoryRenderer(typeof o === 'function' ? o(sub.job) : o);
+  await runWorker({ root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, rendererTest: fake });
+  return { job: await engine.jobs.get(sub.job.id), input: sub.job.input as RenderJobInput, fake };
+}
+
+describe('render jobs on the renderer the worker was handed', () => {
+  it('a render job succeeds with no browser and no ffmpeg / ffprobe: record, file, process, history line', async () => {
+    const before = await historyLines();
+    // The renderer's process is recorded for the job while it renders (what a crashed worker's successor kills).
+    let recorded: { pid?: number } = {};
+    const { job, input, fake } = await renderJob((submitted) => ({
+      process: { pid: process.pid },
+      warnings: ['said by the renderer'],
+      duringVideo: async () => {
+        const file = new JobFiles(jobsDir(root)).browser(submitted.id);
+        for (let i = 0; i < 200 && !existsSync(file); i++) await new Promise((r) => setTimeout(r, 25));
+        recorded = JSON.parse(await readFile(file, 'utf8')) as { pid: number };
+      },
+    }));
+    expect(job.error).toBeUndefined();
+    expect(recorded.pid).toBe(process.pid);
+    expect(existsSync(new JobFiles(jobsDir(root)).browser(job.id))).toBe(false);
+    expect(job.state).toBe('succeeded');
+    // The renderer was asked once, for the job's plan, guarded like every job's render.
+    expect(fake.calls.map((c) => c.op)).toEqual(['video']);
+    const req = fake.calls[0].req as RenderVideoRequest;
+    expect(req.network).toBe('guard');
+    expect(req.plan.durationInFrames).toBeGreaterThan(0);
+    expect(req.signal).toBeInstanceOf(AbortSignal);
+    // The record is the editor's, filled with what the renderer said; nothing was probed.
+    const record = await recordOf(input.render_id);
+    expect(record).toMatchObject({ id: input.render_id, status: 'succeeded', run_id: RUN, scenario: SCENARIO, size_bytes: MEMORY_VIDEO.length, frames: req.plan.durationInFrames });
+    expect(record.policy).toMatchObject({ gl: { used: 'software' }, encoder: { used: 'libx264' } });
+    expect(record.encoding.encoder).toBe('libx264');
+    expect(record.browser.source).toBe('none');
+    expect(record.warnings).toContain('said by the renderer');
+    expect(record).not.toHaveProperty('probe');
+    expect(await readFile(record.file)).toEqual(MEMORY_VIDEO);
+    expect(job.result).toMatchObject({ kind: 'render', render_id: input.render_id, run_id: RUN, size_bytes: MEMORY_VIDEO.length, bundle_cached: false });
+    // The progress the renderer reported is the job's.
+    expect(job.progress).toMatchObject({ phase: 'done', fraction: 1, steps_total: req.plan.durationInFrames });
+    // One history line, the worker's.
+    const added = (await historyLines()).slice(before.length);
+    expect(added).toHaveLength(1);
+    expect(added[0]).toMatchObject({ kind: 'render', project: 'demo', state: 'succeeded', counted: { captures: 0, dry_runs: 0, renders: 1 } });
+  });
+
+  it('a job cancelled while the renderer draws ends cancelled, not failed: no file and no record are left', async () => {
+    const { job, input, fake } = await renderJob((submitted) => ({
+      duringVideo: async (req) => {
+        await engine.jobs.cancel(submitted.id);
+        // The worker sees the cancel and aborts the job's signal: the renderer's own.
+        await new Promise<void>((done) => (req.signal!.aborted ? done() : req.signal!.addEventListener('abort', () => done(), { once: true })));
+      },
+    }));
+    expect(fake.calls).toHaveLength(1);
+    expect(job.state).toBe('cancelled');
+    expect(job.error?.code).toBe('cancelled');
+    expect(existsSync(join(dir, 'renders', `${input.render_id}.mp4`))).toBe(false);
+    expect(existsSync(join(dir, 'renders', `${input.render_id}.json`))).toBe(false);
+  });
+
+  it('a renderer\'s failure ends the job failed, nothing left', async () => {
+    const { job, input } = await renderJob({
+      duringVideo: () => {
+        throw new Error('the renderer lost its GPU');
+      },
+    });
+    expect(job.state).toBe('failed');
+    expect(job.error?.message).toContain('the renderer lost its GPU');
+    expect(existsSync(join(dir, 'renders', `${input.render_id}.mp4`))).toBe(false);
+  });
+});
+
+describe('one renderer, and nothing beside it', () => {
+  it('a worker handed both a renderer and a preview backend is refused before it claims a job', async () => {
+    const sub = await engine.renders.submit({ project: 'demo', scenario: SCENARIO });
+    const fake = new MemoryRenderer();
+    const both = { root, once: true, idleExitMs: 0, pollMs: 20, log: () => undefined, rendererTest: fake, previewTest: { backend: { bundle: async () => ({}), open: async () => ({}) } } };
+    await expect(runWorker(both as never)).rejects.toThrow('a worker is handed a renderer (rendererTest) or a preview backend (previewTest.backend), not both');
+    expect((await engine.jobs.get(sub.job.id)).state).toBe('queued');
+    expect(fake.calls).toEqual([]);
+    await engine.jobs.cancel(sub.job.id);
+  });
+
+  it('the options of the editor\'s own driver (a cache folder, a preview backend) are refused beside the renderer, which is asked nothing', async () => {
+    const project = await openProject(engine.workspace, 'demo');
+    const fake = new MemoryRenderer();
+    const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
+    const render = { renderer: fake, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, cacheDir: join(root, 'cache') };
+    await expect(renderInProcess(render as never)).rejects.toThrow('render: cacheDir is an option of the editor\'s own renderer and cannot go with a renderer that is handed');
+    const still = { renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 0, out: join(root, 'stills', 'refused.png'), root, project, cacheDir: join(root, 'cache') };
+    await expect(stillInProcess(still as never)).rejects.toThrow('still: cacheDir is an option');
+    expect(fake.calls).toEqual([]);
+    expect(existsSync(join(root, 'stills', 'refused.png'))).toBe(false);
+  });
+});
+
+describe('work in process on the renderer its caller hands', () => {
+  it('a still and a render ask that renderer, unguarded, and write their history lines', async () => {
+    const project = await openProject(engine.workspace, 'demo');
+    const fake = new MemoryRenderer();
+    const before = await historyLines();
+    const planned = await planWork({ workPolicy: PERSON_POLICY, project, run: RUN, scenario: SCENARIO, root });
+    const out = join(root, 'stills', 'frame.png');
+    expect(await stillInProcess({ renderer: fake, workPolicy: PERSON_POLICY, plan: planned.plan, frame: 3, out, root, project })).toBe(out);
+    expect(await readFile(out)).toEqual(MEMORY_PNG);
+    const record = await renderInProcess({ renderer: fake, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO });
+    expect(record.status).toBe('succeeded');
+    expect(await readFile(record.file)).toEqual(MEMORY_VIDEO);
+    expect(fake.calls.map((c) => c.op)).toEqual(['stills', 'video']);
+    expect(fake.calls[0].req).toMatchObject({ frames: [{ frame: 3, out }] });
+    expect(fake.calls[0].req).not.toHaveProperty('network');
+    expect(fake.calls[1].req).not.toHaveProperty('network');
+    expect((await historyLines()).slice(before.length).map((l) => [l.kind, l.submitted_by, l.state])).toEqual([
+      ['still', 'cli', 'succeeded'],
+      ['render', 'cli', 'succeeded'],
+    ]);
+  });
+
+  it('a failure and a cancel of the renderer come back as the editor\'s errors, the record on them: its policy, its warnings, its status; no history line', async () => {
+    const project = await openProject(engine.workspace, 'demo');
+    const before = await historyLines();
+    const path = { gl: { asked: 'angle', source: 'option', resolved: 'angle', used: 'angle' }, encoder: { asked: 'auto', source: 'default', used: 'h264_videotoolbox' }, concurrency_source: 'default' };
+    const failing = new MemoryRenderer({
+      duringVideo: () => {
+        throw Object.assign(new Error('the renderer lost its GPU'), { path, renderWarnings: ['seen before it failed'] });
+      },
+    });
+    const failed = (await renderInProcess({ renderer: failing, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    expect(await editorErrorOf(failed)).toBe('render');
+    expect(failed.message).toBe('the renderer lost its GPU');
+    expect(failed.record).toMatchObject({ status: 'failed', error: 'the renderer lost its GPU', policy: path });
+    expect(failed.record.warnings).toContain('seen before it failed');
+    const stop = new AbortController();
+    const stopped = new MemoryRenderer({ duringVideo: () => stop.abort() });
+    const cancelled = (await renderInProcess({ renderer: stopped, workPolicy: PERSON_POLICY, project, root, run: RUN, scenario: SCENARIO, signal: stop.signal }).catch((e: unknown) => e)) as Error & { record: RenderRecord };
+    expect(await editorErrorOf(cancelled)).toBe('render_cancelled');
+    expect(cancelled.record.status).toBe('cancelled');
+    expect(existsSync(cancelled.record.file)).toBe(false);
+    expect(await historyLines()).toEqual(before);
+  });
+});

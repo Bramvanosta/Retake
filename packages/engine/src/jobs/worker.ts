@@ -28,7 +28,7 @@
  */
 import { rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import type { EngineError } from '../errors.js';
+import { EngineError } from '../errors.js';
 import { refuseBesideOldHolder } from '../legacy.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
@@ -70,6 +70,10 @@ async function openForWorker(root: string, log: (message: string) => void): Prom
 export async function runWorker(o: WorkerOptions): Promise<number> {
   const log = o.log ?? ((m: string) => void process.stderr.write(`${new Date().toISOString()} worker ${process.pid}: ${m}\n`));
   const root = resolve(o.root);
+  // Two test stand-ins for the same thing: which one would draw a preview is not left to an order of precedence.
+  if (o.rendererTest !== undefined && o.previewTest?.backend !== undefined) {
+    throw new EngineError('internal', 'a worker is handed a renderer (rendererTest) or a preview backend (previewTest.backend), not both');
+  }
   const ws = await openForWorker(root, log);
   if (!ws) return 1;
   const cli = `retake -C ${shellQuote(root)}`;

@@ -2,7 +2,8 @@
  * The pipeline's work done in this process, without a job — what the CLI's commands produce: a render, a still, an
  * export, a run, an inspection. Each one is the shared call (pipeline.ts, execute-run.ts, runInspection), then its line
  * of the workspace's history (history.jsonl), written once that call returned, before the caller prints anything: the
- * same line as before these functions, kind by kind (`submitted_by: cli`, what it counted).
+ * same line as before these functions, kind by kind (`submitted_by: cli`, what it counted). A render, a still and an
+ * export draw with the renderer the caller hands (render/renderer.ts).
  *
  * The history has one writer per kind of line: the worker writes the line of a finished job (historyOf in
  * jobs/run-job-record.ts), these functions the line of a CLI command, record.ts the line of `retake record`.
@@ -16,7 +17,7 @@ import { INSPECT_KEEP, pruneInspections, runInspection } from './jobs/inspect-jo
 import type { InspectionOptions, InspectionRun } from './jobs/inspect-job.js';
 import type { JobQueueView } from './jobs/job-queue.js';
 import { exportWork, renderWork, stillWork } from './pipeline.js';
-import type { ExportRenderOptions, ExportResult, RenderRecord, RenderStillOptions, RenderVideoOptions } from './pipeline.js';
+import type { ExportRenderOptions, ExportResult, OnRenderer, RenderRecord, RenderStillOptions, RenderVideoOptions } from './pipeline.js';
 
 /** Who submits the work done in process, without a job: the CLI (a person at a terminal). */
 const IN_PROCESS: HistoryEntry['submitted_by'] = 'cli';
@@ -25,14 +26,14 @@ const IN_PROCESS: HistoryEntry['submitted_by'] = 'cli';
 const rendered = (renders: number): HistoryEntry['counted'] => ({ captures: 0, dry_runs: 0, renders });
 
 /** Render without a job (the CLI's `retake render`): the pipeline's render, then the history line of a render. */
-export async function renderInProcess(o: RenderVideoOptions & { project: LoadedProject; root: string }): Promise<RenderRecord> {
+export async function renderInProcess(o: OnRenderer<RenderVideoOptions> & { project: LoadedProject; root: string }): Promise<RenderRecord> {
   const record = await renderWork(o);
   await appendHistory(o.root, { kind: 'render', project: o.project.slug, submitted_by: IN_PROCESS, state: 'succeeded', ms: record.timings.total_ms, counted: rendered(1) });
   return record;
 }
 
 /** A still without a job (`retake still`): the pipeline's still, then the history line of a still (a render too). */
-export async function stillInProcess(o: RenderStillOptions & { root: string; project: Pick<LoadedProject, 'slug'> }): Promise<string> {
+export async function stillInProcess(o: OnRenderer<RenderStillOptions> & { root: string; project: Pick<LoadedProject, 'slug'> }): Promise<string> {
   const { project, ...still } = o;
   const t0 = performance.now();
   const file = await stillWork(still);
@@ -44,7 +45,7 @@ export async function stillInProcess(o: RenderStillOptions & { root: string; pro
  * An export without a job (`retake export`): the pipeline's export, then — when it re-rendered formats through the planner (vertical,
  * square, 4K from a smaller master) — the history line of an export counting them; transcodes count nothing.
  */
-export async function exportInProcess(o: ExportRenderOptions & { project: LoadedProject; root: string }): Promise<ExportResult> {
+export async function exportInProcess(o: OnRenderer<ExportRenderOptions> & { project: LoadedProject; root: string }): Promise<ExportResult> {
   const result = await exportWork(o);
   const renders = result.outputs.filter((x) => x.method === 'render').length;
   if (renders) await appendHistory(o.root, { kind: 'export', project: o.project.slug, submitted_by: IN_PROCESS, state: 'succeeded', counted: rendered(renders) });

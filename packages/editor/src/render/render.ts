@@ -45,6 +45,9 @@ import { RenderCancelledError, RenderError } from './types.js';
 import { probeMedia, run } from './probe.js';
 import type { RenderRecord } from '../render-record.js';
 import type { RenderProgress } from './types.js';
+import { errorKindOf } from '@retake/core';
+import { handedDriver } from './driver-guard.js';
+import type { RenderDriver } from './driver-types.js';
 
 export { probeMedia } from './probe.js';
 
@@ -592,6 +595,64 @@ export interface RenderVideoOptions {
   workPolicy: WorkPolicy;
   /** Tests only (renderPlan `seams`). */
   seams?: RenderSeams;
+  /** What renders the plan (no such key: this package's driver — Remotion, with `cacheDir` and `seams`; with one, those two are refused: driver-guard.ts). */
+  renderer?: Pick<RenderDriver, 'video'>;
+}
+
+/**
+ * The video and stills of this package's render driver (./driver.ts adds the previews): renderPlan and the probe of
+ * the file it wrote, renderStills. `cacheDir` and `seams` are the driver's own, no request names them.
+ */
+export function planDriver(o: { cacheDir?: string; seams?: RenderSeams } = {}): Pick<RenderDriver, 'video' | 'stills'> {
+  return {
+    async video(req) {
+      const res = await renderPlan({
+        workPolicy: req.workPolicy,
+        plan: req.plan,
+        out: req.out,
+        root: req.root,
+        registry: req.registry,
+        cacheDir: o.cacheDir,
+        concurrency: req.concurrency,
+        signal: req.signal,
+        onProgress: req.onProgress,
+        ...(req.frameRange ? { frameRange: req.frameRange } : {}),
+        ...(req.network ? { network: req.network } : {}),
+        ...(req.onProcess ? { onBrowser: req.onProcess } : {}),
+        ...(req.settings ? { settings: req.settings } : {}),
+        ...(o.seams ? { seams: o.seams } : {}),
+      });
+      const probe = await probeMedia(res.file, req.workPolicy);
+      return {
+        file: res.file,
+        size_bytes: res.size_bytes,
+        concurrency: res.concurrency,
+        bundle: { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms },
+        browser: { path: res.browser.path, source: res.browser.source },
+        bundle_ms: res.bundle_ms,
+        render_ms: res.render_ms,
+        warnings: res.warnings,
+        path: res.path,
+        encoding: res.encoding,
+        ...(probe ? { probe } : {}),
+      };
+    },
+    stills(req) {
+      return renderStills({
+        workPolicy: req.workPolicy,
+        plan: req.plan,
+        frames: req.frames,
+        root: req.root,
+        registry: req.registry,
+        cacheDir: o.cacheDir,
+        ...(req.network ? { network: req.network } : {}),
+        ...(req.onProcess ? { onBrowser: req.onProcess } : {}),
+        ...(req.onWarnings ? { onWarnings: req.onWarnings } : {}),
+        ...(req.settings ? { settings: req.settings } : {}),
+        ...(o.seams?.gpuInfo ? { seams: { gpuInfo: o.seams.gpuInfo } } : {}),
+      });
+    },
+  };
 }
 
 /**
@@ -617,7 +678,10 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
   // A version reserved by someone else (a render job: its lock was taken at submit) is released here, whatever happens.
   const reservedRelease = () => (opts.reserved ? rm(versionLockFile(dir, opts.reserved.scenario, opts.reserved.version), { force: true }) : Promise.resolve());
   let planned: Awaited<ReturnType<typeof planRun>>;
+  let handed: Pick<RenderDriver, 'video'> | undefined;
   try {
+    // Before any work: a renderer named but not handed, or handed beside this driver's own options, is refused.
+    handed = handedDriver('render', opts, 'video');
     planned = await planRun({
       workPolicy: opts.workPolicy,
       project,
@@ -710,20 +774,19 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     plan,
   });
   try {
-    const res = await renderPlan({
+    const renderer = handed ?? planDriver({ ...(opts.cacheDir ? { cacheDir: opts.cacheDir } : {}), ...(opts.seams ? { seams: opts.seams } : {}) });
+    const res = await renderer.video({
       workPolicy: opts.workPolicy,
       plan,
       out: file,
       root,
       registry,
-      cacheDir: opts.cacheDir,
       concurrency: opts.concurrency,
       signal: opts.signal,
       onProgress: emit,
       ...(opts.network ? { network: opts.network } : {}),
-      ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+      ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
       ...(opts.settings ? { settings: opts.settings } : {}),
-      ...(opts.seams ? { seams: opts.seams } : {}),
     });
     const record = base();
     record.size_bytes = res.size_bytes;
@@ -733,7 +796,8 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     record.bundle = { hash: res.bundle.hash, cached: res.bundle.cached, ms: res.bundle.ms };
     record.browser = { path: res.browser.path, source: res.browser.source };
     record.warnings.push(...res.warnings);
-    const probe = await probeMedia(file, opts.workPolicy);
+    // The driver's probe of the file it wrote (ffprobe for this package's; a driver that has none says nothing).
+    const probe = res.probe;
     if (probe) {
       record.probe = probe;
       const expected = plan.durationInFrames / plan.fps;
@@ -745,15 +809,18 @@ export async function renderVideo(opts: RenderVideoOptions): Promise<RenderRecor
     emit({ stage: 'done', progress: 1, overall: 1, totalFrames: plan.durationInFrames });
     return record;
   } catch (e) {
+    // The driver's failure, read by what it says (its kind, its fields), never by its class: another driver's counts too.
+    const cancelled = errorKindOf(e) === 'cancelled';
+    const said = (e ?? {}) as { path?: RenderRecord['policy']; renderWarnings?: unknown };
     const record = base();
-    record.status = e instanceof RenderCancelledError ? 'cancelled' : 'failed';
+    record.status = cancelled ? 'cancelled' : 'failed';
     record.error = (e as Error).message;
     // What was tried (the GPU path, its fallback and why) and the warnings so far (review B L1).
-    if (e instanceof RenderError && e.path) record.policy = e.path;
-    if (e instanceof RenderError && e.renderWarnings) record.warnings.push(...e.renderWarnings);
+    if (said.path && typeof said.path === 'object') record.policy = said.path;
+    if (Array.isArray(said.renderWarnings)) record.warnings.push(...said.renderWarnings.filter((w): w is string => typeof w === 'string'));
     record.finished_at = new Date().toISOString();
     record.timings.total_ms = Math.round(performance.now() - t0);
-    if (e instanceof RenderCancelledError) throw new RenderCancelledError(record);
+    if (cancelled) throw new RenderCancelledError(record);
     throw new RenderError((e as Error).message, record);
   } finally {
     await release();
@@ -774,11 +841,24 @@ export interface RenderStillOptions {
   settings?: RenderSettings;
   /** What the work runs under (core WorkPolicy): which ffmpeg, ffprobe and render browser, its workspace's render settings. */
   workPolicy: WorkPolicy;
+  /** What renders the frame (no such key: this package's driver — Remotion, with `cacheDir`; with one, `cacheDir` is refused: driver-guard.ts). */
+  renderer?: Pick<RenderDriver, 'stills'>;
 }
 
 /** Render one output frame of a plan to a PNG; returns the file. */
 export async function renderStill(opts: RenderStillOptions): Promise<string> {
-  const [file] = await renderStills({ ...opts, frames: [{ frame: opts.frame, out: opts.out }] });
+  const renderer = handedDriver('still', opts, 'stills') ?? planDriver(opts.cacheDir ? { cacheDir: opts.cacheDir } : {});
+  // The request names what a still is made of, field by field. Before the driver, `{ ...opts }` went to renderStills:
+  // every field of RenderStillOptions is still passed (`cacheDir` makes the driver above); what the spread could also
+  // carry from an untyped caller — renderStills' `network`, `onBrowser`, `onWarnings`, `seams` — no caller ever named.
+  const [file] = await renderer.stills({
+    workPolicy: opts.workPolicy,
+    plan: opts.plan,
+    frames: [{ frame: opts.frame, out: opts.out }],
+    root: opts.root,
+    registry: opts.registry,
+    ...(opts.settings ? { settings: opts.settings } : {}),
+  });
   return file;
 }
 

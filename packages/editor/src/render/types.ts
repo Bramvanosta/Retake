@@ -46,6 +46,9 @@ export class RenderCancelledError extends RenderError {
  * jobs worker turns it into "the disk has N MB free".
  */
 export class RenderDiskFullError extends RenderError {
+  /** Read by name (isDiskFullError): a render driver's own failure may say it too. */
+  readonly diskFull = true as const;
+
   constructor(detail: string) {
     super(`the disk is full (${detail})`);
     this.name = 'DiskFullError';
@@ -57,10 +60,10 @@ export class RenderDiskFullError extends RenderError {
   }
 }
 
-/** An ENOSPC from Node (its `code`) or from a tool's message (ffmpeg, Chromium, Remotion). */
+/** A failure that says the disk is full (`diskFull`), an ENOSPC from Node (its `code`) or from a tool's message (ffmpeg, Chromium, Remotion). */
 export function isDiskFullError(e: unknown): boolean {
-  if (e instanceof RenderDiskFullError) return true;
   if (!e || typeof e !== 'object') return false;
+  if ((e as { diskFull?: unknown }).diskFull === true) return true;
   if ((e as { code?: unknown }).code === 'ENOSPC') return true;
   const message = (e as { message?: unknown }).message;
   return typeof message === 'string' && /\bENOSPC\b|no space left on device/i.test(message);

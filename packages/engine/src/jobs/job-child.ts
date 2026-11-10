@@ -16,6 +16,7 @@ import { hostname } from 'node:os';
 import { resolve } from 'node:path';
 import { jobClass } from '@retake/core';
 import type { InterruptPort } from '../interrupts.js';
+import { editorRenderer } from '../render/editor-renderer.js';
 import { openWorkspace } from '../workspace.js';
 import { buildDirs, buildStamp } from './build.js';
 import { selfIdentity } from './proc.js';
@@ -175,6 +176,8 @@ export async function runJobChild(o: JobChildOptions): Promise<number> {
     slot,
     done,
     writeOrExit,
+    // A job process is a composition root: its jobs render with the editor's driver.
+    renderer: editorRenderer(),
     abortedBecause: () => orphan,
   });
   try {

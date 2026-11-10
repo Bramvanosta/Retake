@@ -1,12 +1,12 @@
 /**
- * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R8), file cycles, who builds the
+ * The import-rules ratchet: the layer rules of docs/audit/target-architecture.md (R1–R9), file cycles, who builds the
  * file job queue, and no module-level variable holding the work's policy, held to the committed baseline
  * (scripts/audit/baseline.json).
  * A new violation fails, and so does a stale baseline entry (the count only goes down, in the commit that lowers it).
  * The rules are scripts/audit/lib.mjs, shared with the audit scripts (rules.mjs, imports.mjs).
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -231,6 +231,127 @@ describe('the import-rules ratchet', () => {
     expect(at('packages/engine/src/jobs/a.ts', 'await ctx.queue.enqueue(input);\nawait w.queue.write(rec);')).toEqual([]);
   });
 
+  it("flags the editor's render functions named in the engine outside its render folder or in a shell, whatever the syntax, not a type, a comment or a string", () => {
+    const at = (rel: string, text: string) => wiring(rel, text);
+    const engine = 'packages/engine/src/jobs/a.ts';
+    const hit = (name: string, rel = engine) => [`render-call ${rel} → ${name}`];
+    // Called, aliased, indexed, destructured (renamed or not, from an awaited loader too), handed on in an object.
+    expect(at(engine, 'const r = await (await editor()).renderVideo(o);')).toEqual(hit('renderVideo'));
+    expect(at(engine, 'const f = ed.renderStill;\nawait f(o);')).toEqual(hit('renderStill'));
+    expect(at(engine, "await ed['exportRender'](o);")).toEqual(hit('exportRender'));
+    expect(at(engine, 'await ed[`renderPlan`](o);')).toEqual(hit('renderPlan'));
+    expect(at(engine, 'const { renderComponentPreviews } = await editor();')).toEqual(hit('renderComponentPreviews'));
+    expect(at(engine, 'const { renderComponentLoops: loops } = await editor();')).toEqual(hit('renderComponentLoops'));
+    expect(at(engine, "const { 'renderStills': stills } = ed;")).toEqual(hit('renderStills'));
+    expect(at(engine, 'function work({ createRenderer }: Ed) { return createRenderer(); }')).toEqual(hit('createRenderer'));
+    expect(at(engine, 'const createRenderer = make;\nconst seams = { createRenderer };')).toEqual(hit('createRenderer'));
+    expect(at(engine, 'await a.renderVideo(o);\nawait b.renderVideo(o);\nawait c.renderStill(o);')).toEqual([...hit('renderVideo'), ...hit('renderStill')]);
+    // A shell: the same, and the function imported from the editor as a value, under any name.
+    const shell = 'packages/cli/src/commands/a.ts';
+    expect(at(shell, "import { loadPreviewTheme, renderComponentPreviews } from '@retake/editor';\nawait renderComponentPreviews(o);")).toEqual(hit('renderComponentPreviews', shell));
+    expect(at(shell, "import { renderVideo as draw } from '@retake/editor';\nawait draw(o);")).toEqual(hit('renderVideo', shell));
+    expect(at('packages/ui/src/server/a.ts', 'await ed.renderStill(o);')).toEqual(hit('renderStill', 'packages/ui/src/server/a.ts'));
+    expect(at('packages/mcp/src/tools/a.ts', "import * as ed from '@retake/editor';\nawait ed.exportRender(o);")).toEqual(hit('exportRender', 'packages/mcp/src/tools/a.ts'));
+    // Not uses: the render folder itself, an adapter, a type, a comment, a string, a key being defined, the engine's own work.
+    expect(at('packages/engine/src/render/work.ts', 'return (await editor()).renderVideo({ ...o, renderer });')).toEqual([]);
+    expect(at('packages/editor/src/render/a.ts', 'await renderVideo(o);\nconst { renderStill } = api;')).toEqual([]);
+    expect(at(engine, "import type { renderVideo } from '@retake/editor';\nimport { type renderStill, planRun } from '@retake/editor';\ntype F = typeof import('@retake/editor')['renderVideo'];\ninterface Ed { renderVideo(o: O): Promise<R> }")).toEqual([]);
+    expect(at(engine, "// the editor's renderVideo\nconst s = 'ed.renderVideo(o)';\nconst seams = { renderVideo: fake };\nawait renderWork(o);\nawait ed.planRun(o);\nawait ed.buildComponentPreview(o);")).toEqual([]);
+    expect(at(shell, "import { renderVideo } from './local.js';\nawait engine.renders.submit(o);")).toEqual([]);
+  });
+
+  it("flags the render entries however they are reached: the driver's parts, a key spelt in pieces, an assignment's pattern, an alias, a re-export", () => {
+    const at = (rel: string, text: string) => wiring(rel, text);
+    const engine = 'packages/engine/src/jobs/a.ts';
+    const shell = 'packages/cli/src/commands/a.ts';
+    const hit = (name: string, rel = engine) => [`render-call ${rel} → ${name}`];
+    // What makes the editor's renderer, or a part of one.
+    expect(at(engine, 'const previews = (await editor()).previewDriver(backend);')).toEqual(hit('previewDriver'));
+    expect(at(engine, 'const { REMOTION_PREVIEW_BACKEND } = await editor();')).toEqual(hit('REMOTION_PREVIEW_BACKEND'));
+    expect(at(shell, 'const d = ed.planDriver();')).toEqual(hit('planDriver', shell));
+    // A key spelt in pieces is read like the key it spells.
+    expect(at(engine, "await ed['render' + 'Video'](o);")).toEqual(hit('renderVideo'));
+    expect(at(engine, "await ed[`render${'Still'}`](o);")).toEqual(hit('renderStill'));
+    expect(at(engine, "await ed[('export' + 'Render') as 'exportRender'](o);")).toEqual(hit('exportRender'));
+    expect(at(engine, "const { ['renderStills']: stills } = ed;")).toEqual(hit('renderStills'));
+    expect(at(engine, "const { ['render' + 'Plan']: plan } = ed;")).toEqual(hit('renderPlan'));
+    // An assignment's pattern, nested or in a loop's head.
+    expect(at(engine, 'let f;\n({ renderVideo: f } = ed);')).toEqual(hit('renderVideo'));
+    expect(at(engine, "let f;\n({ 'createRenderer': f } = ed);")).toEqual(hit('createRenderer'));
+    expect(at(engine, 'let g;\n({ ed: { renderComponentLoops: g } } = mods);')).toEqual(hit('renderComponentLoops'));
+    expect(at(engine, 'let g;\n[{ renderComponentPreviews: g }] = mods;')).toEqual(hit('renderComponentPreviews'));
+    expect(at(engine, 'let f;\nfor ({ renderStill: f } of mods) await f(o);')).toEqual(hit('renderStill'));
+    // An alias of a namespace's member.
+    expect(at(shell, "import * as ed from '@retake/editor';\nimport draw = ed.renderVideo;")).toEqual(hit('renderVideo', shell));
+    // A re-export from the editor: by name (renamed or not), or all of it.
+    expect(at(shell, "export { renderVideo } from '@retake/editor';")).toEqual(hit('renderVideo', shell));
+    expect(at(shell, "export { exportRender as deliver, planRun } from '@retake/editor';")).toEqual(hit('exportRender', shell));
+    expect(at(shell, "export * from '@retake/editor';")).toEqual(hit('export * from @retake/editor', shell));
+    expect(at(shell, "export * as ed from '@retake/editor';")).toEqual(hit('export * from @retake/editor', shell));
+    // Not uses: a type re-exported, another function re-exported, a re-export of another module, a key defined in an
+    // object that is read (spelt in pieces too), an object on the right of an assignment.
+    expect(at(shell, "export type { RenderRecord } from '@retake/editor';\nexport { type RenderVideoOptions, planRun } from '@retake/editor';\nexport * from './local.js';\nexport { renderVideo } from './local.js';")).toEqual([]);
+    expect(at(engine, "const a = { ['render' + 'Video']: fake };\nlet b;\nb = { renderStill: fake };\nconst c = [{ exportRender: fake }];")).toEqual([]);
+    // The check's limit, on purpose in this test: a key known only at run time names nothing in the text.
+    expect(at(engine, 'const f = ed[name];\nconst g = ed[`render${kind}`];')).toEqual([]);
+  });
+
+  it("lists every render entry the editor exports: a value whose name says it renders, or makes a renderer, is checked or named here as not one", () => {
+    const ts = lib.loadTs(ROOT);
+    const index = join(ROOT, 'packages/editor/src/index.ts');
+    const sf = ts.createSourceFile(index, readFileSync(index, 'utf8'), ts.ScriptTarget.Latest, true);
+    const values: string[] = [];
+    for (const st of sf.statements) {
+      if (!ts.isExportDeclaration(st) || st.isTypeOnly || !st.exportClause || !ts.isNamedExports(st.exportClause)) continue;
+      for (const e of st.exportClause.elements) if (!e.isTypeOnly) values.push(e.name.text);
+    }
+    expect(values).toContain('renderVideo');
+    // Names that say "this renders" or "this is (a part of) a renderer".
+    const entryLike = values.filter((n) => /^render[A-Z]|^exportRender$|Renderer$|Driver$|_BACKEND$/.test(n)).sort();
+    // The editor's values with such a name that draw nothing: the policy and its words, the render browser's identity
+    // (doctor, the Studio's settings), a restriction's text.
+    const NOT_ENTRIES = ['renderBrowser', 'renderBrowserIdentity', 'renderBundleRestriction', 'renderGpuInfo', 'renderPolicy', 'renderSandboxOff', 'renderSandboxRefusal'];
+    expect(entryLike.filter((n) => !lib.RENDER_CALLS.includes(n))).toEqual(NOT_ENTRIES);
+    // Every listed entry the index exports is exported as a value (planDriver is the driver's part, not exported).
+    expect(lib.RENDER_CALLS.filter((n: string) => !values.includes(n))).toEqual(['planDriver']);
+  });
+
+  it("flags a loader that could load the editor unseen in the engine outside its loader: import() of a computed name, a require made with createRequire and called", () => {
+    const eng = (name: string, text: string) => [`packages/engine/src/${name}.ts`, { text, specs: [] as string[] }] as const;
+    const files = Object.fromEntries([
+      eng('lazy', "const name = '@retake/' + 'editor';\nexport const editor = () => import(name);\n"),
+      eng('computed', "const name = '@retake/' + 'editor';\nconst ed = await import(name);\n"),
+      eng('made-require', "import { createRequire } from 'node:module';\nconst load = createRequire(import.meta.url);\nconst ed = load('@retake/editor');\n"),
+      eng('made-require-inline', "import { createRequire } from 'node:module';\nconst ed = createRequire(import.meta.url)(name);\n"),
+      eng('made-require-later', "import * as m from 'node:module';\nlet load;\nload = m.createRequire(import.meta.url);\nconst ed = (load as NodeRequire)('@retake/editor');\n"),
+      eng('builtin', "const m = process.getBuiltinModule('node:module');\n"),
+      // Loads nothing: where a module is, asked of a require that is never called.
+      eng('resolve-only', "import { createRequire } from 'node:module';\nconst at = createRequire(from).resolve(name);\nconst req = createRequire(from);\nconst other = req.resolve('x');\n"),
+      eng('literal', "const core = await import('@retake/core');\n"),
+    ]);
+    const flagged = hitsOf(files).filter((h) => h.startsWith('R9 ')).map((h) => h.replace(/^R9 packages\/engine\/src\/(.+)\.ts → /, '$1: '));
+    expect(flagged.sort()).toEqual(['builtin: getBuiltinModule()', 'computed: import()', 'made-require-inline: createRequire()()', 'made-require-later: createRequire()()', 'made-require: createRequire()()']);
+  });
+
+  it("flags a value import of the editor in the engine outside its loader: static, re-export, import(); its types are free", () => {
+    const eng = (name: string, text: string, spec = '@retake/editor') => [`packages/engine/src/${name}.ts`, { text, specs: [spec] }] as const;
+    const files = Object.fromEntries([
+      eng('lazy', "export const editor = () => import('@retake/editor');\n"),
+      eng('types', "import type { RenderRecord } from '@retake/editor';\n"),
+      eng('named-types', "import { type RenderRecord } from '@retake/editor';\n"),
+      eng('plan-types', "import type { EditPlan } from '@retake/editor/plan';\n", '@retake/editor/plan'),
+      eng('type-position', "let ed: typeof import('@retake/editor');\n"),
+      eng('value', "import { renderVideo } from '@retake/editor';\n"),
+      eng('plan-value', "import { planEdit } from '@retake/editor/plan';\n", '@retake/editor/plan'),
+      eng('reexport', "export { planRun } from '@retake/editor';\n"),
+      eng('dynamic', "const ed = await import('@retake/editor');\n"),
+      eng('render/editor-renderer', "import { createRenderer } from '@retake/editor';\n"),
+      ['packages/engine/src/review.ts', { text: "import { reviewRender } from '@retake/review';\n", specs: ['@retake/review'] }] as const,
+    ]);
+    const flagged = hitsOf(files).filter((h) => h.startsWith('R9 ')).map((h) => h.replace(/^R9 packages\/engine\/src\/(.+)\.ts → @retake\/editor.*$/, '$1'));
+    expect(flagged.sort()).toEqual(['dynamic', 'plan-value', 'reexport', 'render/editor-renderer', 'value']);
+  });
+
   it('flags the file job queue class passed on as a value outside the composition roots, not its use as a type', () => {
     const value = ['queue packages/ui/src/server/a.ts → FileJobQueue as a value'];
     const at = (text: string) => wiring('packages/ui/src/server/a.ts', text);
@@ -327,7 +448,7 @@ describe('the import-rules ratchet', () => {
     expect(report).toContain('Stale baseline entries');
     expect(report).toContain('node scripts/audit/rules.mjs . --write-baseline');
     expect(lib.ratchetReport(lib.compareBaseline(['R1 packages/core/src/a.ts → node:fs'], { groups: [{ rule: 'R1', reason: 'x', entries: ['packages/core/src/a.ts → node:fs'] }] }))).toBe('');
-    expect(lib.compareBaseline([], { groups: [{ rule: 'R9', reason: 'x', entries: ['a → b'] }] }).misfiled).toEqual(['R9 a → b']);
+    expect(lib.compareBaseline([], { groups: [{ rule: 'R99', reason: 'x', entries: ['a → b'] }] }).misfiled).toEqual(['R99 a → b']);
   });
 
   it('rewrites the baseline keeping reasons, dropping stale entries and grouping new ones to explain', () => {

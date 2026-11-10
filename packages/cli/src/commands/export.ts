@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { EXPORT_FORMAT_NAMES } from '@retake/core';
-import { DEFAULT_JOB_EXPORT_FORMATS, exportInProcess, findRenderOf } from '@retake/engine';
+import { DEFAULT_JOB_EXPORT_FORMATS, editorRenderer, exportInProcess, findRenderOf } from '@retake/engine';
 import type { ExportFormat, ExportProgress } from '@retake/engine';
 import { EXIT, UsageError } from '../errors.js';
 import type { ExitCode } from '../errors.js';
@@ -74,6 +74,7 @@ export async function exportCommand(ui: Ui, global: GlobalOptions, projectArg: s
   try {
     // The export, then — when it re-rendered formats — its line of the workspace's history (the engine's in-process operation).
     const r = await exportInProcess({
+      renderer: editorRenderer(),
       workPolicy: ws.policy,
       project,
       root: ws.root,

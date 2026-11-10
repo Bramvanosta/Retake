@@ -95,7 +95,10 @@ export { HEADLESS_SHELL_ENV, HEADLESS_SHELL_INSTALL, assertRenderBrowser, playwr
 export type { RenderBrowser } from './render/browser.js';
 export { PREVIEW_MOTION, buildComponentPreview, loadPreviewSamples } from './preview.js';
 export type { BuildPreviewOptions, BuiltPreview, ComponentPreviewSpec, PreviewSample, PreviewSamples, PreviewScene, PreviewScreenName, PreviewTarget, PreviewUse } from './preview.js';
-export { LOOP_FORMAT, PREVIEW_COMPOSITION, REMOTION_PREVIEW_BACKEND, STARTER_TEMPLATES_DIR, loadPreviewTheme, loopFrames, renderComponentLoops, renderComponentPreviews } from './render/preview.js';
+export { LOOP_FORMAT, PREVIEW_COMPOSITION, REMOTION_PREVIEW_BACKEND, STARTER_TEMPLATES_DIR, loadPreviewTheme, loopFrames, previewDriver, renderComponentLoops, renderComponentPreviews } from './render/preview.js';
+export { createRenderer } from './render/driver.js';
+export type { RenderDriverOptions } from './render/driver.js';
+export type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, DriverProcess, DriverStillsRequest, DriverVideoRequest, DriverVideoResult, RenderDriver } from './render/driver-types.js';
 export type {
   LoopItem,
   PreviewBackend,

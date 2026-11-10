@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { RenderJobInput } from '@retake/core';
 import { EDIT_SNAPSHOT_FILE, FileJobQueue, createEngine, executeRenderJob, reviewInline } from '../src/index.js';
+import { MemoryRenderer } from '../src/render/memory-renderer.js';
 import type { Engine, JobRecord } from '../src/index.js';
 import { synthTimeline } from '../../editor/test/helpers.js';
 import { TEMPLATES } from '../../editor/test/render-helpers.js';
@@ -92,6 +93,7 @@ async function renderUntilStage(job: JobRecord, snapshot: boolean): Promise<Erro
     event: (x) => events.push(x),
     progress: () => undefined,
     browser: () => undefined,
+    renderer: new MemoryRenderer(),
     ...(snapshot ? { jobFile: (name: string, max: number) => queue.jobFile(job.id, name, max) } : {}),
   }).then(
     () => new Error('rendered'),

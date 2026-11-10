@@ -13,7 +13,7 @@ The steps to get there are in [action-plan.md](action-plan.md); the words for th
 |---|---|---|
 | Layers as crates, enforced by the compiler plus a test | **Adapted** | Packages and `exports` sub-paths (no new packages needed at first), plus an import-rules ratchet test built from `scripts/audit/rules.mjs` |
 | A pure domain with no I/O | **Adapted** | `@retake/core` does no I/O and reads no environment but three listed defaults (`defaultSecrets`, `expandHome`, `unsafeTestResolve`: DESIGN §1); the clock and ids are allowed (L6.9): its readers, the app bundle, the media tools and the home key are its `@retake/core/io` entry, disk facts and video probes go behind the `FileFacts` and `VideoProber` ports core declares (the Node implementations in `core/io`, which also gives the PATH and the file system's case rule), the agent policy is a `WorkPolicy` value the engine passes on, `app-setup.ts` left core (L6.8) |
-| An application layer with ports | **Adapted** | `@retake/engine` holds the operations and the ports: JobQueue, ProjectStore, CaptureRunner, Renderer, Reviewer, SandboxProvider, HookRunner, SecretStore, Clock, ProgressSink, Approver, FileFacts (declared in core, see above) |
+| An application layer with ports | **Adapted** | `@retake/engine` holds the operations and the ports: JobQueue, ProjectStore, CaptureRunner, Renderer, Reviewer, SandboxProvider, HookRunner, SecretStore, Clock, ProgressSink, Approver, FileFacts (declared in core, see above). Four are interfaces today: JobQueue, Approver, FileFacts and — since L7.1 — Renderer (video, stills, previews; an in-memory adapter and a contract suite; the CLI's `components preview` and the port's borrowed editor types are left) |
 | One catalogue of operations, as data, held by tests against each shell | **Applies** | One `catalogue.ts` in the engine: name, kind (read / write / job / runs code), the shells that serve it (CLI, MCP, Studio) with the reason when one does not, argument narrowing, admission rules; tests compare MCP `TOOLS`, Studio ops and CLI commands with it |
 | Shells translate the protocol and call the same operation | **Applies** | `invoke(op, args, caller)` behind the MCP tools, the Studio's `/v1/call` and the CLI commands; the contract (`ToolDef`, `callTool`) moves from `@retake/mcp` into the engine |
 | One write pipeline: authorize → act → record | **Adapted** | No queue writes here; the pipeline covers operations (parse → authorize the caller → admit → act → record → map errors), authored file writes (through one ProjectStore with `if_match` and its lock) and hook executions |
@@ -58,7 +58,11 @@ domain        @retake/core (pure) · @retake/components/geometry · @retake/edit
 Rules (each a line of the ratchet test): the domain imports nothing above it and no I/O module; adapters
 import the domain and the engine's ports only; shells import the engine's façade and contract only, and never another
 shell; the Studio app imports types only; nothing but the composition roots (CLI entry, MCP entry, Studio server
-entry, worker entry) wires adapters to ports.
+entry, worker entry) wires adapters to ports. For the renderer the ratchet holds two lines of it: the engine loads the
+editor's code in its loader only (R9: a value import, a re-export, `import()` or a made `require` anywhere else is a
+hit, the port's types are free), and the editor's render entries are named in the engine's `render/` folder only, never
+elsewhere in the engine nor in a shell (`render-call`, read from the syntax tree; one entry left in the baseline, the
+CLI's `components preview`). What the check cannot read is a key only known at run time (`ed[name]`).
 
 ## Path (no big-bang)
 1. **Guard rails** — the ratchet test at today's counts, a glossary, one containment function, error kinds carried by

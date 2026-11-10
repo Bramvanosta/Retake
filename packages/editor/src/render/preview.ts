@@ -55,6 +55,9 @@ import { guardEncoderPipe } from './render.js';
 import type { RenderNetwork } from './render.js';
 import { openRenderBrowser, renderPolicy } from './policy.js';
 import { RenderCancelledError, RenderDiskFullError, RenderError, isDiskFullError } from './types.js';
+import { errorKindOf } from '@retake/core';
+import { handedDriver } from './driver-guard.js';
+import type { DriverPreviewBundle, DriverPreviewSession, DriverPreviews, RenderDriver } from './driver-types.js';
 
 /** The starter templates shipped with Retake (default, editorial, motion). */
 export { STARTER_TEMPLATES_DIR };
@@ -155,7 +158,9 @@ interface PreviewSessionOptions {
   onWarnings?: (warnings: string[]) => void;
   /** Bundle the components shown (default) or the whole registry. */
   bundle?: PreviewBundleMode;
-  /** Tests: render with this instead of Remotion. */
+  /** What renders the previews (no such key: this package's driver — Remotion, with `cacheDir`; with one, `cacheDir` and `backend` are refused: driver-guard.ts). */
+  renderer?: Pick<RenderDriver, 'previews'>;
+  /** Tests of this package, standalone: render with this instead of Remotion. Never beside `renderer` (refused). */
   backend?: PreviewBackend;
   /** Render settings over the process's (./policy.ts). */
   settings?: RenderSettings;
@@ -440,6 +445,56 @@ export const REMOTION_PREVIEW_BACKEND: PreviewBackend = {
   },
 };
 
+/**
+ * A preview backend as the previews of a render driver: the bundle's serve URL stays here (a bundle of another driver
+ * is refused), `cacheDir` and `gpuInfo` are the driver's own, and a closed session refuses to render.
+ */
+export function previewDriver(backend: PreviewBackend = REMOTION_PREVIEW_BACKEND, d: { cacheDir?: string; gpuInfo?: Parameters<PreviewBackend['open']>[0]['gpuInfo'] } = {}): DriverPreviews {
+  const served = new WeakMap<DriverPreviewBundle, string>();
+  return {
+    async bundle(o) {
+      const b = await backend.bundle({ root: o.root, components: o.components, ...(d.cacheDir ? { cacheDir: d.cacheDir } : {}), ...(o.signal ? { signal: o.signal } : {}) });
+      const bundle: DriverPreviewBundle = Object.freeze({ hash: b.hash, cached: b.cached });
+      served.set(bundle, b.serveUrl);
+      return bundle;
+    },
+    async open(bundle, o) {
+      const serveUrl = served.get(bundle);
+      if (serveUrl === undefined) throw new RenderError('this preview bundle was made by another renderer');
+      const session = await backend.open({
+        serveUrl,
+        assetPrefix: o.assets,
+        ...(o.network ? { network: o.network } : {}),
+        ...(o.signal ? { signal: o.signal } : {}),
+        ...(o.onProcess ? { onBrowser: o.onProcess } : {}),
+        ...(o.settings ? { settings: o.settings } : {}),
+        workPolicy: o.workPolicy,
+        ...(d.gpuInfo ? { gpuInfo: d.gpuInfo } : {}),
+      });
+      let closed = false;
+      const ready = (): void => {
+        if (closed) throw new RenderError('this preview session is closed');
+      };
+      return {
+        still: async (spec, out, scale) => {
+          ready();
+          await session.still(spec, out, scale);
+        },
+        gif: async (spec, out, g) => {
+          ready();
+          await session.gif(spec, out, g);
+        },
+        warnings: () => session.warnings(),
+        close: async () => {
+          if (closed) return;
+          closed = true;
+          await session.close();
+        },
+      };
+    },
+  };
+}
+
 type Variant = 'still' | 'motion';
 
 interface SessionJob {
@@ -453,7 +508,7 @@ interface SessionItem<J extends SessionJob> {
 }
 
 interface SessionContext {
-  renderer: PreviewRenderer;
+  renderer: DriverPreviewSession;
   /** A scratch folder of this session (removed at its end). */
   scratch: string;
   /** What the work runs under (core WorkPolicy): the ffmpeg that quantizes a poster. */
@@ -482,10 +537,12 @@ async function previewSession<J extends SessionJob, R>(
 ): Promise<{ results: Array<{ job: J; value: R }>; failed: Array<SessionFailure<J>>; bundle: { hash: string; cached: boolean } | null; warnings: string[] }> {
   const failed: Array<SessionFailure<J>> = [];
   const results: Array<{ job: J; value: R }> = [];
+  // A renderer handed renders the previews, alone (with `backend` or `cacheDir` beside it the session is refused:
+  // driver-guard.ts); standalone, the previews are this package's, on `backend` when a test hands one.
+  const previews = handedDriver('preview', opts, 'previews')?.previews ?? previewDriver(opts.backend ?? REMOTION_PREVIEW_BACKEND, opts.cacheDir ? { cacheDir: opts.cacheDir } : {});
   if (jobs.length === 0) return { results, failed, bundle: null, warnings: [] };
   cancelled(opts.signal);
   const root = resolve(opts.root);
-  const backend = opts.backend ?? REMOTION_PREVIEW_BACKEND;
   const registry = opts.registry ?? (await loadComponentRegistry({ root }));
   const samples = opts.samples ?? loadPreviewSamples();
   const server = await startAssetServer();
@@ -531,7 +588,7 @@ async function previewSession<J extends SessionJob, R>(
     await server.close();
     return { results, failed, bundle: null, warnings: [] };
   }
-  let renderer: PreviewRenderer | undefined;
+  let renderer: DriverPreviewSession | undefined;
   const scratch = join(tmpdir(), `retake-preview-${process.pid}-${randomBytes(4).toString('hex')}`);
   try {
     const targets = built.map((b) => b.job.target);
@@ -539,21 +596,20 @@ async function previewSession<J extends SessionJob, R>(
       opts.bundle === 'registry'
         ? await registryPreviewComponents(targets, registry)
         : await previewBundleComponents(targets, [...new Set(built.flatMap((b) => Object.values(b.previews).flatMap((p) => p!.components)))], registry);
-    let bundle: Awaited<ReturnType<PreviewBackend['bundle']>>;
+    let bundle: DriverPreviewBundle;
     try {
-      bundle = await backend.bundle({ root, components, ...(opts.cacheDir ? { cacheDir: opts.cacheDir } : {}), ...(opts.signal ? { signal: opts.signal } : {}) });
+      bundle = await previews.bundle({ root, components, ...(opts.signal ? { signal: opts.signal } : {}) });
     } catch (e) {
-      if (o.bundleFailure !== 'items' || e instanceof RenderCancelledError || opts.signal?.aborted || isDiskFullError(e)) throw e;
+      if (o.bundleFailure !== 'items' || errorKindOf(e) === 'cancelled' || opts.signal?.aborted || isDiskFullError(e)) throw e;
       for (const b of built) fail(b.job, e, 'its preview could not be bundled', 'bundle');
       return { results, failed, bundle: null, warnings: [] };
     }
     const open = () =>
-      backend.open({
-        serveUrl: bundle.serveUrl,
-        assetPrefix: server.prefix,
+      previews.open(bundle, {
+        assets: server.prefix,
         ...(opts.network ? { network: opts.network } : {}),
         ...(opts.signal ? { signal: opts.signal } : {}),
-        ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+        ...(opts.onBrowser ? { onProcess: opts.onBrowser } : {}),
         ...(opts.settings ? { settings: opts.settings } : {}),
         workPolicy: opts.workPolicy,
       });
@@ -566,7 +622,7 @@ async function previewSession<J extends SessionJob, R>(
       try {
         results.push({ job: item.job, value: await each({ renderer, scratch, workPolicy: opts.workPolicy }, item, i) });
       } catch (e) {
-        if (e instanceof RenderCancelledError || opts.signal?.aborted) throw new RenderCancelledError();
+        if (errorKindOf(e) === 'cancelled' || opts.signal?.aborted) throw new RenderCancelledError();
         if (isDiskFullError(e)) throw new RenderDiskFullError(`preview of ${item.job.target.id}: ${(e as Error).message}`);
         fail(item.job, e, 'its preview failed', 'render');
         if (i < built.length - 1) {
@@ -583,7 +639,7 @@ async function previewSession<J extends SessionJob, R>(
     return { results, failed, bundle: { hash: bundle.hash, cached: bundle.cached }, warnings: [...warnings] };
   } catch (e) {
     if (e instanceof RenderError) throw e;
-    if (opts.signal?.aborted) throw new RenderCancelledError();
+    if (opts.signal?.aborted || errorKindOf(e) === 'cancelled') throw new RenderCancelledError();
     if (isDiskFullError(e)) throw new RenderDiskFullError(`component previews: ${(e as Error).message}`);
     throw new RenderError(`component previews failed: ${(e as Error).message}`);
   } finally {

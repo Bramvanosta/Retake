@@ -26,9 +26,10 @@ import type {
 } from '@retake/core';
 import type { RenderRecord } from '@retake/editor';
 import { EngineError } from '../errors.js';
+import { editor } from '../lazy.js';
 import { checkScenarioName } from '../refs.js';
 import { LocalStorage } from '../storage.js';
-import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, VARIANTS, argError, commentRef, commentStillFile, editor, locateThread, lstatOrNull, readThread, realDir } from './store.js';
+import { COMMENT_LIST_MAX_FILES, COMMENT_STILL_MAX_BYTES, THREAD_FILE_RE, VARIANTS, argError, commentRef, commentStillFile, locateThread, lstatOrNull, readThread, realDir } from './store.js';
 import type { ThreadFile } from './store.js';
 
 // ── Views ───────────────────────────────────────────────────────────────────

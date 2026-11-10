@@ -19,6 +19,8 @@ import type { PlanVariant } from '../plan-types.js';
 import type { BrowserProcessInfo } from './network-guard.js';
 import type { PlanTrust } from './plan-run.js';
 import { probeMedia, renderVideo } from './render.js';
+import { handedDriver } from './driver-guard.js';
+import type { RenderDriver } from './driver-types.js';
 import type { RenderNetwork } from './render.js';
 import { listRenders, rendersDir } from './runs.js';
 import { RenderError } from './types.js';
@@ -113,6 +115,8 @@ export interface ExportRenderOptions {
   network?: RenderNetwork;
   /** Called once a re-render's browser runs, with its process. */
   onBrowser?: (b: BrowserProcessInfo) => void;
+  /** What renders a re-rendered format (renderVideo `renderer`; no such key: this package's driver). */
+  renderer?: Pick<RenderDriver, 'video'>;
 }
 
 /** An export that cannot start (message written for the user). */
@@ -264,6 +268,8 @@ export async function transcodeMp4(bin: string, input: string, size: readonly [n
  * (`manifest.json`) keeps the entries of formats exported earlier into the same folder.
  */
 export async function exportRender(opts: ExportRenderOptions): Promise<ExportResult> {
+  // Before any work: a renderer named but not handed is refused (driver-guard.ts), whatever the formats need.
+  const handed = handedDriver('export', opts, 'video');
   const project = typeof opts.project === 'string' ? await loadProject(opts.project, opts.root) : opts.project;
   const root = resolve(opts.root ?? project.root);
   const trust = opts.trust ?? 'author';
@@ -333,6 +339,8 @@ export async function exportRender(opts: ExportRenderOptions): Promise<ExportRes
       trust,
       ...(opts.network ? { network: opts.network } : {}),
       ...(opts.onBrowser ? { onBrowser: opts.onBrowser } : {}),
+      // The caller's `renderer` key as it came (checked at the start: a key that holds nothing never gets here).
+      ...(handed ? { renderer: handed } : {}),
       onProgress: (p) => emit({ format, stage: 'progress', progress: p.overall, message: p.stage }),
     });
     return finish(format, file, 'render', t0, { record: r.record, warnings: exportRenderWarnings(r.warnings) });

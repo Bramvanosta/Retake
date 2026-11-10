@@ -1783,6 +1783,8 @@ loginTarget(project, {env?, persona?, auto?}) → {env, persona} / signInPersona
   {interrupts, log, onOpen?}) → {interrupted} | {result}   // moved from cli commands/auth.ts (LoginOptionError {usage})
 appendHistory(root, entry) / usageCounts(root) / entitlements() → {tier: 'internal', features: 'all', limits: null}
 planWork / renderWork / stillWork / exportWork / reviewWork(adapter options) → the adapter's result   // pipeline.ts (L6.7)
+renderWork / stillWork / exportWork / previewsWork / loopsWork(options + renderer: Renderer)   // render/work.ts (L7.1): no renderer → EngineError internal
+editorRenderer() → Renderer   // the editor's driver, loaded on first request; made by composition roots only
 findRunOf / findRenderOf / defaultStillFile / editorErrorOf(e) → 'render_cancelled' | 'render' | 'export' | undefined
 renderInProcess / stillInProcess / exportInProcess / runInProcess / inspectInProcess   // in-process.ts: the call + history line
 selectHooks(project, spec, env?, {projectFilesOnly?}) / createHookContext(project, {env?, allowWrites?, dry?, vars?,
@@ -1806,7 +1808,12 @@ pruneApprovalRequest(listed, fix) → PruneApprovalRequest   takePruneApproval(P
   `stillWork` / `exportWork` over the editor's `planRun` / `renderVideo` / `renderStill` / `exportRender`, `reviewWork`
   over the review's `reviewRender`, behind the engine's lazy imports), called by the worker's jobs (with trust `mcp`,
   the network guard, a reserved id) and by the CLI (its own options: no trust, an output path, a concurrency): options,
-  results and errors pass through unchanged. The CLI runs them in process — no job, no worker — through
+  results and errors pass through unchanged. Since L7.1 the parts that render (render, still, export, and the
+  component previews) take the **renderer** to draw with (the `Renderer` port, `render/renderer.ts`;
+  [glossary](GLOSSARY.md)): `render/work.ts` is the one place that reaches those use cases, it refuses work that names
+  no renderer before the editor is loaded, and the editor refuses its own driver's options (`cacheDir`, test seams, a
+  preview backend) beside a renderer that is handed. The composition roots make the product's (`editorRenderer()`:
+  the job process, the jobs worker, the CLI's render and export commands); a test hands its own. The CLI runs them in process — no job, no worker — through
   `in-process.ts` (`renderInProcess`, `stillInProcess`, `exportInProcess`, and `runInProcess` over `executeRun`,
   `inspectInProcess` over `runInspection` with the pruning of older inspections, `pruneUnlessOpenIn` the workspace's
   queue), each the call then its history line. The CLI's render, still, export and run commands import no adapter;
@@ -6279,7 +6286,8 @@ previews and site extractions are background work, a take is not (BL-116). Built
   start time its record names, with a job process's command line for that job id and this workspace (review A M1);
   any other recorded pid is left alone and the job persisted `interrupted` without its clean-ups. A record whose kind is
   not its input's kind (what a job process refuses) ends `failed` on its first claim, never claimed and given back in a
-  loop (review A M2). With `previewTest` (in-process tests only) heavy jobs run in the worker, one job at a time, as
+  loop (review A M2). With `previewTest` or `rendererTest` (in-process tests only: a stand-in preview backend, a whole
+  stand-in renderer — one or the other, both together are refused) heavy jobs run in the worker, one job at a time, as
   before.
 - **Signals** (jobs/signal.ts, review B L1): every signal to a job process or its tree, and the root of every QoS hold,
   goes through one guard — never a pid that is not an integer above 1 (a failed spawn's -1: `kill(-1)` reaches every

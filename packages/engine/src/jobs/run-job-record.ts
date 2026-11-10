@@ -11,6 +11,7 @@ import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
 import { toEngineError } from '../errors.js';
 import type { InterruptPort } from '../interrupts.js';
+import type { Renderer } from '../render/renderer.js';
 import { openProjectBySlug } from '../projects.js';
 import type { openWorkspace } from '../workspace.js';
 import { FilmingMarker, TakeBeside } from './captures.js';
@@ -57,6 +58,8 @@ export interface JobRunnerContext {
   writeOrExit: (rec: JobRecord) => Promise<void>;
   recordTest?: RecordJobTestHooks;
   previewTest?: PreviewJobTestHooks;
+  /** What render, export and preview jobs render with: the composition root's choice (render/renderer.ts). */
+  renderer: Renderer;
   /** Why the running job was aborted when it was not a cancel (a job process whose worker stopped): it ends interrupted. */
   abortedBecause?: () => string | undefined;
   /** A filming take of this process started (true), paused, resumed or stopped filming (L5.14: the worker's loop wakes). */
@@ -359,6 +362,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
             input: job,
             progress: onProgress,
             browser: recordBrowser,
+            renderer: c.renderer,
             jobFile: (name, maxBytes) => queue.jobFile(id, name, maxBytes),
           });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
@@ -373,7 +377,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
         }
         case 'export': {
           const { executeExportJob } = await import('./export-job.js');
-          const result = await executeExportJob({ ...base, input: job, progress: onProgress, browser: recordBrowser });
+          const result = await executeExportJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, renderer: c.renderer });
           // A cancel stops between formats: what was written stays (and is in the result).
           const cancelled = controller.signal.aborted;
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: cancelled ? 'cancelled' : 'succeeded' };
@@ -383,7 +387,7 @@ export function createJobRunner(c: JobRunnerContext): { runJob: (stored: JobReco
         case 'preview': {
           // Lazy: Remotion is loaded by the first preview. A cancel stops between images.
           const { executePreviewJob } = await import('./preview-job.js');
-          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, ...(c.previewTest ? { test: c.previewTest } : {}) });
+          const result = await executePreviewJob({ ...base, input: job, progress: onProgress, browser: recordBrowser, renderer: c.renderer, ...(c.previewTest ? { test: c.previewTest } : {}) });
           rec = { ...rec, result, ...(latest ? { progress: latest } : {}), state: 'succeeded' };
           break;
         }

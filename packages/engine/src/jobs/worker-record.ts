@@ -12,6 +12,7 @@ import { hostname } from 'node:os';
 import type { JobKind } from '@retake/core';
 import type { RecordJobTestHooks } from './record-job.js';
 import type { PreviewJobTestHooks } from './preview-job.js';
+import type { Renderer } from '../render/renderer.js';
 import type { buildDirs } from './build.js';
 import { FilmingWatch } from './captures.js';
 import type { WorkerLock } from './lock.js';
@@ -46,6 +47,11 @@ export interface WorkerOptions {
    * before L5.14 (no capture beside them, no yield).
    */
   previewTest?: PreviewJobTestHooks;
+  /**
+   * In-process tests only (never set by worker-main): what render, export and preview jobs render with, instead of the
+   * editor's driver. An object cannot reach a job process: with it, heavy jobs run in this process, as with previewTest.
+   */
+  rendererTest?: Renderer;
   /** The client that started this worker (`ui`, `mcp`, …): recorded in the worker lock (`started_by`). */
   startedBy?: string;
   /** How long a cancelled heavy job's process may take to end before its tree is killed (ms, default 30 000). */
@@ -106,7 +112,7 @@ export interface Worker {
   readonly worker: JobWorkerInfo;
   readonly rw: typeof import('@retake/runner-web');
   readonly sb: typeof import('@retake/sandbox');
-  /** previewTest (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
+  /** previewTest or rendererTest (in-process tests): heavy jobs run in this process, one job at a time, as before L5.14. */
   readonly inlineHeavy: boolean;
   /** `filming`: the take films now (runner onFilming: not during its setup / teardown hooks, not while paused — review B M3). */
   capture?: { id: string; filming: boolean; promise: Promise<void> };
@@ -177,7 +183,7 @@ export function newWorker(p: WorkerParts): Worker {
     worker: { ...p.self, host: hostname() },
     rw: p.rw,
     sb: p.sb,
-    inlineHeavy: o.previewTest !== undefined,
+    inlineHeavy: o.previewTest !== undefined || o.rendererTest !== undefined,
     slot: {},
     quitSync: new Set(),
     wake: {},

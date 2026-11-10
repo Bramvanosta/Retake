@@ -50,7 +50,9 @@ import { openProjectBySlug } from '../projects.js';
 import { checkProjectSlug } from '../refs.js';
 import { themeAssetProblems, themeForWork } from '../templates.js';
 import { newJobId } from './ids.js';
-import { editor } from '../lazy.js';
+import { withPreviewBackend } from '../render/editor-renderer.js';
+import { diskFullWork, loopsWork, previewsWork } from '../render/work.js';
+import type { Renderer } from '../render/renderer.js';
 import type { SubmitContext } from './run-job.js';
 import type { JobEventBody, JobProgress, JobRecord, LibraryEntryView, PreviewJobResult } from './types.js';
 import type { OpenedWorkspace } from '../workspace.js';
@@ -214,11 +216,18 @@ export interface PreviewJobContext {
   progress(p: JobProgress): void;
   /** The preview browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
+  /** What the job renders with (the runner's: render/renderer.ts). */
+  renderer: Renderer;
   /** In-process tests only (WorkerOptions.previewTest). */
   test?: PreviewJobTestHooks;
 }
 
-/** In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. */
+/**
+ * In-process tests of library jobs: a stand-in for Remotion, and the free space the disk gate sees. `backend` draws a
+ * library job's posters and loops in place of the worker's renderer's previews (render/editor-renderer.ts
+ * withPreviewBackend). A worker is handed this or a whole renderer (WorkerOptions.rendererTest), never both: runWorker
+ * refuses the two together.
+ */
 export interface PreviewJobTestHooks {
   backend?: PreviewBackend;
   freeBytes?: (dir: string) => Promise<number | undefined>;
@@ -229,12 +238,12 @@ export async function executePreviewJob(ctx: PreviewJobContext): Promise<Preview
   const { input } = ctx;
   if (input.target.kind === 'library') return executeLibraryPreview(ctx, input.target);
   const prepared = await preparePreview(ctx.ws, input);
-  const ed = await editor();
   const dir = previewDir(ctx.ws, input.preview_id);
   const total = prepared.targets.length;
   ctx.progress({ steps_done: 0, steps_total: total, phase: 'bundling', fraction: 0, updated_at: new Date().toISOString() });
   let warnings: string[] = [];
-  const done = await ed.renderComponentPreviews({
+  const done = await previewsWork({
+    renderer: ctx.renderer,
     workPolicy: ctx.ws.policy,
     root: ctx.ws.root,
     registry: prepared.registry,
@@ -310,7 +319,6 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     else if (have.state === 'failed') await dropLibraryEntry(cacheDir, w.key);
   }
   const todo = wants.filter((w) => w.state === undefined);
-  const ed = await editor();
   const at = () => new Date().toISOString();
   let bundle: { hash: string; cached: boolean } | null = null;
   let warnings: string[] = [];
@@ -355,7 +363,8 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
           slot.loop.state = 'too_large' in l ? 'too_large' : 'written';
         }
       };
-      const done = await ed.renderComponentLoops({
+      const done = await loopsWork({
+        renderer: ctx.test?.backend ? withPreviewBackend(ctx.renderer, ctx.test.backend) : ctx.renderer,
         workPolicy: ws.policy,
         root: ws.root,
         registry,
@@ -368,7 +377,6 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
         onItem: commit,
         onProgress: (n, of) =>
           ctx.progress({ steps_done: n, steps_total: of, phase: 'rendering', fraction: Math.round((0.2 + (0.8 * n) / Math.max(1, of)) * 1000) / 1000, updated_at: at() }),
-        ...(ctx.test?.backend ? { backend: ctx.test.backend } : {}),
       });
       bundle = done.bundle;
       warnings = done.warnings;
@@ -390,7 +398,7 @@ async function executeLibraryPreview(ctx: PreviewJobContext, target: LibraryTarg
     }
   } catch (e) {
     await cleanup();
-    if (ed.isDiskFullError(e)) throw new EngineError('refused', diskSentence(await freeBytes(ws.root)), { details: { disk_full: true } });
+    if (await diskFullWork(e)) throw new EngineError('refused', diskSentence(await freeBytes(ws.root)), { details: { disk_full: true } });
     throw e;
   } finally {
     await cleanup();

@@ -18,6 +18,7 @@
       "music": false
      },
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -49,6 +50,7 @@
       "variant": "vertical"
      },
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -139,6 +141,7 @@
      "out": "<ws>/projects/demo/renders/stills/tour-f00025.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -177,6 +180,7 @@
      "out": "<ws>/frame.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -237,6 +241,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -265,6 +270,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "tour",
      "signal": "<signal>",
@@ -551,6 +557,7 @@
      "out": "<undefined>",
      "overrides": {},
      "project": "<project demo>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "run": "20260101-120000-tour",
      "scenario": "tour",
@@ -614,6 +621,7 @@
      "out": "<ws>/projects/demo/renders/stills/tour-f00003.png",
      "plan": "<plan>",
      "registry": "<registry>",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "workPolicy": {
       "agentFolders": null
@@ -641,6 +649,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -669,6 +678,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v9",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",
@@ -697,6 +707,7 @@
      "out": "<undefined>",
      "project": "<project demo>",
      "render": "tour-v1",
+     "renderer": "<renderer>",
      "root": "<ws>",
      "scenario": "<undefined>",
      "signal": "<signal>",

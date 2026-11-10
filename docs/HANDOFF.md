@@ -34,6 +34,33 @@ automatically with themeable components, and let Claude operate everything throu
 8. `docs/ACCEPTANCE-phase2.md` — the phase-2 acceptance (renders, reviews, the theme / component switch, R-CMP-01
    audit, own media, raw export validation).
 
+## State (after L7.1)
+- **L7.1 done (2026-11-10; branch `claude/arch-l7`, on top of `claude/arch-l6`, to be rebased on `main` once that
+  series is merged)** — the first slice of U6 of the [2026-11-10 action plan](audit/2026-11-10/action-plan.md): the
+  engine renders through a port. No behaviour change for the product.
+  - **The port.** `Renderer` (`packages/engine/src/render/renderer.ts`): `video`, `stills`, `previews`. The engine
+    reaches the editor's render entries in `packages/engine/src/render/` only (`work.ts`: one guarded `onRenderer`
+    helper — no renderer, a half-made one, no work); the renderer is chosen at the edges only (`jobs/job-child.ts`,
+    `jobs/worker-slots.ts`, the CLI's render and export commands); `createEngine` is handed none. Two adapters, one
+    contract suite (`packages/engine/test/renderer-contract.ts`, 9 cases): `editorRenderer()` (the editor's driver,
+    `packages/editor/src/render/driver.ts`; runs 7, its preview side stays held by the editor's own tests) and
+    `MemoryRenderer` (no browser, no ffmpeg, no probe: a whole render job runs on it in
+    `render-on-renderer.test.ts`). Cancel, full disk, warnings and the output path cross the port as fields
+    (`errorKindOf`), and end in the same job state, record and history line as before.
+  - **The cut.** Planning, the reserved version, the render record and where files go stay the editor's use cases;
+    the port sits under them. Beside a handed renderer the editor's own driver options (`cacheDir`, `seams`,
+    `backend`) are refused rather than ignored (no caller in the repository named both).
+  - **The ratchet.** R9 (the engine loads the editor's code in its loader only) and `render-call` (the editor's
+    render entries named in the engine's `render/` folder only, read from the syntax tree). Baseline 59 → 60: one
+    `render-call` entry, the CLI's `components preview`, for L7.2. A key only known at run time is not read.
+  - **Left for L7.2.** The port still names adapter concepts (gl, encoder, bundle hash / cached / ms, browser path
+    and source, the network guard, `onProcess`, preview assets, the borrowed editor types `EditPlan`, `RenderRecord`,
+    `RenderProgress`); `RendererFailure.path` shares its name with a system error's `path`.
+  - **Checked.** `tsc -b`, `scripts/audit/rules.mjs --check`, `test-guard`, `--check-cites`, and the lot's test files
+    one by one (engine 11 files, editor 2, core 2, cli 3, ui 1). **The full suite was not run**: the person asked
+    for one run at the end of the branch. `@remotion/media-utils` left the editor's dependencies (lockfile edited by
+    hand, `pnpm install --frozen-lockfile --offline` passes).
+
 ## State (after the architecture series L6.1 – L6.13)
 - **The architecture series done (2026-11-10; pending the person's review of the pull request)** — the tasks T1 – T14
   of the 2026-11-04 audit's [action plan](audit/action-plan.md), on branch `claude/arch-l6` (one commit per lot, then
@@ -961,6 +988,8 @@ terminal, and a visible window for `--headed` runs and `retake login`.
 3. One lot at a time; the user (in French) decides how many — see `CLAUDE.md`.
 
 ## Next lot
+**On `claude/arch-l7`: L7.2 (the renderer seam: one module reaches the renderer library, composition ids once, versioned typed props, the built-in components on the kit only; every component preview compared before and after), then L7.3 (the encoder fed by our ffmpeg, measured), then U1 – U16 of the 2026-11-10 action plan, the full suite once at the end.**
+
 **The architecture series (L6.1 – L6.13) is done and waits for the person's review of its pull request** (branch `claude/arch-l6`; State above). After it: the action plan's T15 rest and T16 when the person asks; the desktop bundle's staging of stale `dist` outputs to decide.
 
 **Before tagging v0.2.0: the person's review of the two hardening lots** (L5.17 and L5.18 done — ROADMAP

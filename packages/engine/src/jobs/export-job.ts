@@ -19,6 +19,7 @@ import { checkProjectSlug, checkScenarioName } from '../refs.js';
 import { renderForWork } from '../renders.js';
 import { editor } from '../lazy.js';
 import { exportWork, planWork } from '../pipeline.js';
+import type { Renderer } from '../render/renderer.js';
 import { killRecordedBrowser, removePartials } from './render-job.js';
 import type { JobFiles } from './queue.js';
 import type { SubmitContext } from './run-job.js';
@@ -122,6 +123,8 @@ export interface ExportJobContext {
   progress(p: JobProgress): void;
   /** A re-render's browser runs: the worker records it (job folder, browser.json). */
   browser(b: BrowserProcessInfo): void;
+  /** What the export re-renders formats with (the runner's: render/renderer.ts). */
+  renderer: Renderer;
 }
 
 /** Execute an `export` job: the pipeline's export (pipeline.ts) with trust `mcp` and the network guard (re-rendered formats). */
@@ -134,6 +137,7 @@ export async function executeExportJob(ctx: ExportJobContext): Promise<ExportJob
   let last = '';
   // The pipeline's export that the CLI's `retake export` runs too, with the trust of work submitted through MCP.
   const result = await exportWork({
+    renderer: ctx.renderer,
     workPolicy: ctx.ws.policy,
     project,
     root: ctx.ws.root,

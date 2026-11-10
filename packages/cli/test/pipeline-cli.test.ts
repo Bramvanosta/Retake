@@ -108,7 +108,7 @@ function callShape(options: Record<string, unknown>): Record<string, unknown> {
     else if (v instanceof AbortSignal) out[k] = '<signal>';
     else if (k === 'project' && v && typeof v === 'object') out[k] = `<project ${(v as { slug: string }).slug}>`;
     else if (k === 'scenario' && v && typeof v === 'object') out[k] = `<scenario ${(v as { name: string }).name}>`;
-    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
+    else if (k === 'template' || k === 'registry' || k === 'plan' || k === 'ffmpeg' || k === 'renderer') out[k] = v === undefined ? '<undefined>' : `<${k}>`;
     else if (k === 'inspect' && v && typeof v === 'object') out[k] = callShape(v as Record<string, unknown>);
     else out[k] = v === undefined ? '<undefined>' : JSON.parse(normalise(JSON.stringify(v)));
   }
